@@ -13,7 +13,7 @@ mod drawing;
 mod filter;
 mod flash;
 mod font;
-mod geometry;
+use ::geometry;
 pub mod icons;
 mod image;
 mod input;

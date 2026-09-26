@@ -1,5 +1,5 @@
-use block_editor_plugin::be_block::ImageContent;
-use block_editor_plugin::{Editor, EditorHost};
+use block_editor_beui::be_block::ImageContent;
+use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use image::ImageEncoder;
 use uuid::Uuid;

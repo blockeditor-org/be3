@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_plugin::be_block::database_schema::DatabaseFieldType;
+use block_editor_beui::be_block::database_schema::DatabaseFieldType;
 
 #[test]
 fn renaming_a_field_writes_the_new_name_to_the_block() {

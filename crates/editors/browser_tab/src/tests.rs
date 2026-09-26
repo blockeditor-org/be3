@@ -1,6 +1,6 @@
-use block_editor_plugin::be_block::{BrowserTabContent, HistoryItem};
-use block_editor_plugin::beui::{Key, Modifiers};
-use block_editor_plugin::{Editor, EditorHost, WebViewCommand, WebViewEvent};
+use block_editor_beui::be_block::{BrowserTabContent, HistoryItem};
+use block_editor_beui::beui::{Key, Modifiers};
+use block_editor_beui::{Editor, EditorHost, WebViewCommand, WebViewEvent};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

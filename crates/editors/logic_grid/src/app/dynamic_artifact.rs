@@ -1,11 +1,11 @@
 use beui::NodeId;
 use beui::reactive::{Frame, List, Show, clone, component, create_memo, view};
 use beui::styled::{Caption, Checkbox, use_theme};
-use block_editor_plugin::be_block::compiled_logic::CompiledLogic;
-use block_editor_plugin::be_block::{
+use block_editor_beui::be_block::compiled_logic::CompiledLogic;
+use block_editor_beui::be_block::{
     ArtifactSource, BlockContent, CompiledLogicContent, CompiledLogicDocument, LogicGridContent,
 };
-use block_editor_plugin::{Artifacts, BlockList, BlockQuery, ContentProjection, EditorHost};
+use block_editor_beui::{Artifacts, BlockList, BlockQuery, ContentProjection, EditorHost};
 use logicgame::grid::LogicGrid as Grid;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

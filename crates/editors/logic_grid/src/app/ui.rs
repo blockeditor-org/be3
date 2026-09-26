@@ -8,7 +8,7 @@ use beui::reactive::{
 };
 use beui::styled::{Body, Button, ButtonVariant, Caption, IconButton, Separator, use_theme};
 use beui::{CursorIcon, KeyPress, NodeId, PointerPress};
-use block_editor_plugin::{Editor, Side, Sidebar, Toolbar};
+use block_editor_beui::{Editor, Side, Sidebar, Toolbar};
 
 use super::hotbar_ui::{HOTBAR_WIDTH, Hotbar, ToolSettings};
 use super::panels::Panels;

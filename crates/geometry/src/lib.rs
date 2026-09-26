@@ -303,7 +303,7 @@ impl Rect {
         }
     }
 
-    pub(crate) fn scaled(&self, factor: f32) -> Self {
+    pub fn scaled(&self, factor: f32) -> Self {
         Self::from_min_max(
             pos2(self.min.x * factor, self.min.y * factor),
             pos2(self.max.x * factor, self.max.y * factor),

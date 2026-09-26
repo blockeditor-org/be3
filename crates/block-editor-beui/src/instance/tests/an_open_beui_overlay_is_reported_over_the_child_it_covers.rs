@@ -37,47 +37,15 @@ impl crate::BeuiApp for OverlaidApp {
 
 #[test]
 fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
-    let mut session = EditorSession::new::<OverlaidApp>(EditorInstanceId(0), Waker::default());
-    session.connect(Uuid::new_v4(), BLOCK_TYPE);
-    session.regions.insert(
-        EditorRegion::Frame,
-        RegionState {
-            placement: Some(ScreenPlacement {
-                screen: block_plugin_api::ScreenId(0),
-                instance: EditorInstanceId(0),
-                region: EditorRegion::Frame,
-                x: 0,
-                y: 0,
-                width: 800,
-                height: 600,
-                scale_factor_millis: 1000,
-            }),
-            metrics: Some(ViewportMetrics {
-                logical_width: 800.0,
-                logical_height: 600.0,
-                visible_x: 0.0,
-                visible_y: 0.0,
-                pixel_width: 800,
-                pixel_height: 600,
-                scale_factor: 1.0,
-            }),
-            frame: Some(FrameSpec {
-                chrome: FrameChrome::Drawn,
-                content: None,
-                top_bar: false,
-            }),
-            ..Default::default()
-        },
-    );
+    let mut session = session::<OverlaidApp>(BLOCK_TYPE);
+    frame(&mut session, None, false);
 
     session.run(EditorRegion::Frame, 1);
     session.run(EditorRegion::Frame, 2);
 
-    let state = session
-        .regions
-        .get(&EditorRegion::Frame)
-        .expect("the frame region was set up");
-    let report = state.report.as_ref().expect("the frame region reports");
+    let report = session
+        .report(EditorRegion::Frame)
+        .expect("the frame region reports");
     let floating = report
         .floating
         .first()
@@ -87,8 +55,8 @@ fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
         (PANEL, PANEL),
         "the reported rectangle is the one the overlay was laid out at"
     );
-    let occluder = state
-        .occluders
+    let occluder = session
+        .occluders(EditorRegion::Frame)
         .first()
         .expect("an open overlay must be withheld from the child under it");
     assert_eq!(
@@ -97,7 +65,7 @@ fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
         "the occluder covers the same rectangle the overlay was laid out at"
     );
     assert!(
-        occluder.after as usize >= state.children.len(),
+        occluder.after as usize >= session.placed_children(EditorRegion::Frame).len(),
         "the overlay occludes every child placed under it"
     );
 }

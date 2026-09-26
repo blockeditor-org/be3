@@ -1,4 +1,4 @@
-use block_editor_plugin::{BlockInfo, BlockParent, BlockQuery};
+use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 
 use super::*;
 

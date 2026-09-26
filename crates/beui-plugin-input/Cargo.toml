@@ -1,0 +1,12 @@
+[package]
+name = "beui-plugin-input"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui = { path = "../beui", default-features = false }
+block-plugin-api = { path = "../block-plugin-api" }
+
+[lints]
+workspace = true

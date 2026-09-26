@@ -1,31 +1,31 @@
-use block_editor_plugin::be_block::{BlockContent, DatabaseSchemaContent};
+use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
 
 use crate::presence::CanvasCursor;
-use block_editor_plugin::BlockList;
-use block_editor_plugin::ContentProjection;
-use block_editor_plugin::be_block::ImageContent;
-use block_editor_plugin::be_block::canvas::Canvas;
-use block_editor_plugin::be_block::canvas::{
+use block_editor_beui::BlockList;
+use block_editor_beui::ContentProjection;
+use block_editor_beui::be_block::ImageContent;
+use block_editor_beui::be_block::canvas::Canvas;
+use block_editor_beui::be_block::canvas::{
     CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
     CanvasLayerMove, CanvasPoint, CanvasPreviewRegion, CanvasTextStyle, CanvasTransform,
     InfiniteCanvasOperation,
 };
-use block_editor_plugin::be_block::database::DatabaseValue;
-use block_editor_plugin::be_block::presence::{PresenceColor, pick_free_color};
-use block_editor_plugin::be_block::{CanvasContent, ObjectId};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::database::DatabaseValue;
+use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
+use block_editor_beui::be_block::{CanvasContent, ObjectId};
+use block_editor_beui::beui::reactive::{
     CanvasView, ReadSignal, WriteSignal, create_effect, create_signal, untrack,
 };
-use block_editor_plugin::beui::{Pos2, Rect, Vec2};
-use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
-use block_editor_plugin::{
+use block_editor_beui::beui::{Pos2, Rect, Vec2};
+use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
+use block_editor_beui::{
     BlockFilter, ChildState, Drag, Editor, FileDrop, FilePicker, ImagePaster, InteractionMode,
     PastedImage, ResizeMode,
 };
-use block_editor_plugin::{BlockParent, BlockQuery};
+use block_editor_beui::{BlockParent, BlockQuery};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -1028,7 +1028,7 @@ impl CanvasState {
         }
         match serde_json::to_string(&CanvasClipboardPayload { entities }) {
             Ok(json) => {
-                block_editor_plugin::beui::reactive::copy_text(format!(
+                block_editor_beui::beui::reactive::copy_text(format!(
                     "{CANVAS_CLIPBOARD_PREFIX}{json}"
                 ));
                 true
@@ -1042,7 +1042,7 @@ impl CanvasState {
     }
 
     pub(crate) fn ask_to_paste(&self) {
-        block_editor_plugin::beui::reactive::request_paste();
+        block_editor_beui::beui::reactive::request_paste();
         if self.focused_editor.get_untracked().is_none() {
             self.take_paste(true);
         }
@@ -1919,17 +1919,17 @@ impl CanvasState {
         self.editor.pan(stage.center() - anchor);
     }
 
-    pub(crate) fn apply_view_change(&self, entity: Uuid, change: block_editor_plugin::ViewChange) {
+    pub(crate) fn apply_view_change(&self, entity: Uuid, change: block_editor_beui::ViewChange) {
         match change {
-            block_editor_plugin::ViewChange::Fit => self.request_fit_entity(entity),
-            block_editor_plugin::ViewChange::Pan { x, y } => {
+            block_editor_beui::ViewChange::Fit => self.request_fit_entity(entity),
+            block_editor_beui::ViewChange::Pan { x, y } => {
                 self.editor.pan(Vec2::new(x, y));
             }
-            block_editor_plugin::ViewChange::Zoom { factor, anchor } => match anchor {
+            block_editor_beui::ViewChange::Zoom { factor, anchor } => match anchor {
                 Some((x, y)) => self.editor.zoom_at(factor, Pos2::new(x, y)),
                 None => self.editor.zoom(factor),
             },
-            block_editor_plugin::ViewChange::ResumeAutoFit => self.editor.resume_auto_fit(),
+            block_editor_beui::ViewChange::ResumeAutoFit => self.editor.resume_auto_fit(),
         }
     }
 

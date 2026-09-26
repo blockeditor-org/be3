@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::map::MapPoint;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::map::MapPoint;
+use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, Child, ClickCatcher, Focusable, ForEach, Frame, ItemSize, List, Memo, Text,
     clone, component, create_memo, create_selector, view,
 };
-use block_editor_plugin::beui::styled::{Caption, use_theme};
-use block_editor_plugin::beui::{
+use block_editor_beui::beui::styled::{Caption, use_theme};
+use block_editor_beui::beui::{
     Color32, CursorIcon, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, TextAlign, Vec2,
 };
 use uuid::Uuid;

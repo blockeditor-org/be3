@@ -1,8 +1,8 @@
 use super::*;
 
-use block_editor_plugin::beui::reactive::{Frame, build, with_reactive_scope};
+use block_editor_beui::beui::reactive::{Frame, build, with_reactive_scope};
 
-use block_editor_plugin::be_block::BlockContent;
+use block_editor_beui::be_block::BlockContent;
 
 use crate::app::state::RayState;
 

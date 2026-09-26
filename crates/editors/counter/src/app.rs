@@ -1,7 +1,7 @@
-use block_editor_plugin::be_block::CounterContent;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::{Creation, Editor};
+use block_editor_beui::be_block::CounterContent;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 mod ui;
@@ -10,7 +10,7 @@ use ui::Counter;
 
 pub struct CounterApp;
 
-impl block_editor_plugin::BeuiApp for CounterApp {
+impl block_editor_beui::BeuiApp for CounterApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <Counter editor={editor} />

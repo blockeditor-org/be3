@@ -3,17 +3,17 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use block_editor_plugin::BlockList;
-use block_editor_plugin::be_block::VideoContent;
-use block_editor_plugin::be_block::video::{
+use block_editor_beui::BlockList;
+use block_editor_beui::be_block::VideoContent;
+use block_editor_beui::be_block::video::{
     DEFAULT_CLIP_SECONDS, Video, VideoAttachment, VideoClip, VideoFrameRate, VideoOperation,
 };
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     ReadSignal, WriteSignal, clone, create_effect, create_signal, create_timer,
 };
-use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
-use block_editor_plugin::{BlockFilter, BlockPicker, ChildTarget, ContentProjection, Editor};
-use block_editor_plugin::{BlockInfo, BlockParent, BlockQuery};
+use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
+use block_editor_beui::{BlockFilter, BlockPicker, ChildTarget, ContentProjection, Editor};
+use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 use uuid::Uuid;
 
 use crate::timeline::{MAX_PIXELS_PER_FRAME, MIN_PIXELS_PER_FRAME};

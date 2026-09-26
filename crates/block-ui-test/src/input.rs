@@ -1,6 +1,6 @@
 use beui::{Event, Vec2};
+use beui_plugin_input::{pointer_button, protocol_key, protocol_modifiers, touch_phase};
 use block_plugin_api::{ImeInput, InputEvent, Modifiers, WheelUnit};
-use block_ui::input::{pointer_button, protocol_key, protocol_modifiers, touch_phase};
 
 #[derive(Default)]
 pub(crate) struct Input {

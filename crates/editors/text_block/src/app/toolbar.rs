@@ -12,8 +12,8 @@ use beui::styled::{
     use_theme,
 };
 use beui::unstyled::{ChoiceOption, MenuItem, Scroll};
-use block_editor_plugin::BlockParent;
-use block_editor_plugin::{BlockFilter, Toolbar, block_ui::BlockLabel};
+use block_editor_beui::BlockParent;
+use block_editor_beui::{BlockFilter, Toolbar, block_ui::BlockLabel};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
 use super::state::Shared;

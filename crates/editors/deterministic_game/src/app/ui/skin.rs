@@ -1,10 +1,10 @@
 use std::f32::consts::FRAC_PI_4;
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, Draw, Drawing, Dynamic, Frame, List, Memo, Stroke, Text, component, view,
 };
-use block_editor_plugin::beui::{Color32, NodeId, Painter, Pos2, Rect, TextAlign, Vec2};
+use block_editor_beui::beui::{Color32, NodeId, Painter, Pos2, Rect, TextAlign, Vec2};
 use game_api::board::{Piece, Shade, Sprite};
 use game_api::cards::{Card, Rank, Suit};
 

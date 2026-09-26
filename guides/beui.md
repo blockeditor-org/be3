@@ -1220,14 +1220,14 @@ document to display new data.
 ## Use beui in a block editor plugin
 
 A beui editor is a `#[component]` function. It implements
-`block_editor_plugin::BeuiApp` and uses `block_editor_plugin::beui_plugin!`.
+`block_editor_beui::BeuiApp` and uses `block_editor_beui::beui_plugin!`.
 The type it names holds no state: the
 framework builds the view once, keeps the `Document` it produced, and shows it
 every frame.
 
 ```rust
 #[component]
-pub fn Counter(editor: block_editor_plugin::Editor) -> NodeId {
+pub fn Counter(editor: block_editor_beui::Editor) -> NodeId {
     let counter = editor.block_content::<CounterContent>();
     let count = counter.field(ObjectId::ROOT, CounterModel::COUNT);
     let increment = clone!(counter -> move || counter.operate(CounterModel::add(1)));
@@ -1236,19 +1236,19 @@ pub fn Counter(editor: block_editor_plugin::Editor) -> NodeId {
 
 pub struct CounterApp;
 
-impl block_editor_plugin::BeuiApp for CounterApp {
-    fn view(editor: block_editor_plugin::Editor) -> NodeId {
+impl block_editor_beui::BeuiApp for CounterApp {
+    fn view(editor: block_editor_beui::Editor) -> NodeId {
         view! {
             <Counter editor={editor} />
         }
     }
 
-    fn create_block(creation: &block_editor_plugin::Creation) -> Result<Uuid, String> {
+    fn create_block(creation: &block_editor_beui::Creation) -> Result<Uuid, String> {
         Ok(creation.create(&CounterContent::default()))
     }
 }
 
-block_editor_plugin::beui_plugin!(CounterApp, "../manifest.json");
+block_editor_beui::beui_plugin!(CounterApp, "../manifest.json");
 ```
 
 `Editor` is everything the instance was given: the host, the block, the

@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_plugin::be_block::canvas::CanvasColor;
-use block_editor_plugin::beui::Vec2;
+use block_editor_beui::be_block::canvas::CanvasColor;
+use block_editor_beui::beui::Vec2;
 
 #[test]
 fn dragging_any_transform_field_moves_the_entity() {

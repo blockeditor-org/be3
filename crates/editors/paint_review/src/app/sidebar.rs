@@ -1,14 +1,12 @@
 use std::rc::Rc;
 
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::{
-    ICON_DELETE, ICON_DIFFERENCE, ICON_DONE_ALL, ICON_FIBER_NEW,
-};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{ICON_DELETE, ICON_DIFFERENCE, ICON_DONE_ALL, ICON_FIBER_NEW};
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, List, Show, clone, component, create_memo, create_selector,
     view,
 };
-use block_editor_plugin::beui::styled::{Body, Caption, Icon, ListRow, use_theme};
+use block_editor_beui::beui::styled::{Body, Caption, Icon, ListRow, use_theme};
 
 use crate::download::BRANCH;
 
@@ -60,7 +58,7 @@ pub(crate) fn PaintingList(review: Rc<Review>) -> NodeId {
 #[component]
 fn StatusGroup(
     review: Rc<Review>,
-    entries: block_editor_plugin::beui::reactive::Memo<Option<Vec<super::state::Entry>>>,
+    entries: block_editor_beui::beui::reactive::Memo<Option<Vec<super::state::Entry>>>,
     status: Status,
 ) -> NodeId {
     let paths = create_memo(clone!(entries -> move || {
@@ -105,7 +103,7 @@ fn StatusGroup(
 fn PaintingRow(
     review: Rc<Review>,
     path: String,
-    selected: block_editor_plugin::beui::reactive::Memo<bool>,
+    selected: block_editor_beui::beui::reactive::Memo<bool>,
 ) -> NodeId {
     let test_id = format!("paint_review.entry.{path}");
     let label = path.clone();

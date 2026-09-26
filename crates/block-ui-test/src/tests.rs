@@ -1,7 +1,7 @@
 use beui::NodeId;
 use beui::reactive::{Frame, ReadSignal, Text, component, create_memo, view};
-use block_editor_plugin::be_block::{BlockContent, FileTreeContent};
-use block_editor_plugin::{
+use block_editor_beui::be_block::{BlockContent, FileTreeContent};
+use block_editor_beui::{
     BeuiApp, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget, Editor, EditorHost,
 };
 use uuid::Uuid;
@@ -110,7 +110,7 @@ fn undoable_editor() -> (BeuiTest<ChildApp>, Uuid) {
     let mut test = BeuiTest::<ChildApp>::new(Editor::new(host, block)).with_top_bar(false);
     test.set_histories([(
         block,
-        block_editor_plugin::BlockHistory {
+        block_editor_beui::BlockHistory {
             can_undo: true,
             can_redo: false,
         },

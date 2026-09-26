@@ -206,7 +206,7 @@ impl InputAdapter {
                 let position = pos - rect.min;
                 push_modifiers(&mut self.modifiers, modifiers, output);
                 output.push(InputEvent::PointerButton {
-                    button: block_ui::input::pointer_button(button),
+                    button: beui_plugin_input::pointer_button(button),
                     pressed,
                     x: position.x,
                     y: position.y,
@@ -249,7 +249,7 @@ impl InputAdapter {
                 output.push(InputEvent::Touch {
                     device: id.device,
                     finger: id.finger,
-                    phase: block_ui::input::touch_phase(phase),
+                    phase: beui_plugin_input::touch_phase(phase),
                     x: position.x,
                     y: position.y,
                     force,
@@ -276,7 +276,7 @@ impl InputAdapter {
             } if focused => {
                 push_modifiers(&mut self.modifiers, modifiers, output);
                 output.push(InputEvent::Key {
-                    key: block_ui::input::protocol_key(key),
+                    key: beui_plugin_input::protocol_key(key),
                     pressed,
                     repeat,
                 });
@@ -327,7 +327,7 @@ fn push_modifiers(
     modifiers: beui::Modifiers,
     output: &mut Vec<InputEvent>,
 ) {
-    let modifiers = block_ui::input::protocol_modifiers(modifiers);
+    let modifiers = beui_plugin_input::protocol_modifiers(modifiers);
     if *previous != modifiers {
         *previous = modifiers;
         output.push(InputEvent::Modifiers(modifiers));

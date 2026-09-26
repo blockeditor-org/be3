@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_plugin::be_block::canvas::CanvasColor;
-use block_editor_plugin::beui::Key;
+use block_editor_beui::be_block::canvas::CanvasColor;
+use block_editor_beui::beui::Key;
 
 #[test]
 fn every_transform_field_previews_what_is_typed() {

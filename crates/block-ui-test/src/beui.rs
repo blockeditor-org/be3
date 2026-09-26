@@ -1,9 +1,9 @@
 use beui::{
     Color32, Document, Event, Key, Modifiers, PointerButton, Pos2, Rect, TouchId, TouchPhase, Vec2,
 };
-use block_editor_plugin::be_block::LiveEdit;
-use block_editor_plugin::headless::{Adopted, HeadlessPlugin};
-use block_editor_plugin::{
+use block_editor_beui::be_block::LiveEdit;
+use block_editor_beui::headless::{Adopted, HeadlessPlugin};
+use block_editor_beui::{
     Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, Editor, EditorHost,
     EditorInstanceId, EditorRegion, HostReply, HostRequest, Occluder, PeerPresence, SeededContent,
     ShownPresence, ViewChange, WebViewCommand,
@@ -471,7 +471,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn set_histories(
         &mut self,
-        states: impl IntoIterator<Item = (Uuid, block_editor_plugin::BlockHistory)>,
+        states: impl IntoIterator<Item = (Uuid, block_editor_beui::BlockHistory)>,
     ) {
         self.inbox
             .push(Message::Editor(EditorMessage::HistoryStates {
@@ -506,7 +506,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             }));
     }
 
-    pub fn web_view_event(&mut self, event: block_editor_plugin::WebViewEvent) {
+    pub fn web_view_event(&mut self, event: block_editor_beui::WebViewEvent) {
         self.inbox
             .push(Message::Editor(EditorMessage::WebViewEvent {
                 instance: INSTANCE,
@@ -546,9 +546,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             aspect_ratio: None,
             hovered: false,
             active: false,
-            interaction: block_editor_plugin::InteractionMode::Preview,
-            capabilities: block_editor_plugin::EditorCapabilities::default(),
-            resize: block_editor_plugin::ResizeMode::None,
+            interaction: block_editor_beui::InteractionMode::Preview,
+            capabilities: block_editor_beui::EditorCapabilities::default(),
+            resize: block_editor_beui::ResizeMode::None,
             error: None,
         });
     }
@@ -733,7 +733,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
-    pub fn take_block_commands(&mut self) -> Vec<(Uuid, block_editor_plugin::BlockCommand)> {
+    pub fn take_block_commands(&mut self) -> Vec<(Uuid, block_editor_beui::BlockCommand)> {
         self.take_where(|message| match message {
             EditorMessage::BlockCommand {
                 block_id, command, ..

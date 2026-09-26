@@ -1,0 +1,10 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library")
+load("@root//buck/wasm:defs.bzl", "plugin_tests")
+
+adapter_srcs = glob(["src/**/*.rs"])
+
+cargo_library(srcs = adapter_srcs)
+
+# The adapter's instance only exists in the wasm guest, so its tests only exist
+# compiled to wasm and run the way a plugin's are.
+plugin_tests(srcs = adapter_srcs)

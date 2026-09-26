@@ -1,6 +1,6 @@
 use super::*;
 
-use block_editor_plugin::{FetchResult, HostReply, HostRequest};
+use block_editor_beui::{FetchResult, HostReply, HostRequest};
 
 use crate::download::{Source, start};
 

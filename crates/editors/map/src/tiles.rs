@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::sync::mpsc::{Receiver, Sender, channel};
 
-use block_editor_plugin::{EditorHost, FetchResult, Waker};
+use block_editor_beui::{EditorHost, FetchResult, Waker};
 
 use crate::{mvt, raster};
 

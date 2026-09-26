@@ -1,7 +1,7 @@
-use block_editor_plugin::be_block::GameModuleContent;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{Creation, Editor, FileFilter, PickedFile, content_file_creation};
+use block_editor_beui::be_block::GameModuleContent;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::{Creation, Editor, FileFilter, PickedFile, content_file_creation};
 use game_host::Game;
 
 mod ui;
@@ -12,7 +12,7 @@ const INTRINSIC_SIZE: Vec2 = Vec2::new(320.0, 120.0);
 
 pub struct GameModuleApp;
 
-impl block_editor_plugin::BeuiApp for GameModuleApp {
+impl block_editor_beui::BeuiApp for GameModuleApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <ModuleView editor={editor} />

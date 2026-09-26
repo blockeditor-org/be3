@@ -1,26 +1,26 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use block_editor_plugin::BlockParent;
-use block_editor_plugin::beui::accesskit::{Node as AccessNode, Role};
-use block_editor_plugin::beui::icons::{
+use block_editor_beui::BlockParent;
+use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
+use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_AUTO_AWESOME, ICON_CLOSE,
 };
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Show, Spacer,
     WriteSignal, clone, component, create_effect, create_memo, create_signal, node_placed,
     node_rect, view, with_document,
 };
-use block_editor_plugin::beui::styled::theme::FONT_SMALL;
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::theme::FONT_SMALL;
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, IconSized, Scroll,
     Tooltip, Tree, TreeRowFace, use_theme,
 };
-use block_editor_plugin::beui::unstyled::{
+use block_editor_beui::beui::unstyled::{
     self, ButtonHandle, Edge, Floating, MenuItem, TreeItem, tree_row_node,
 };
-use block_editor_plugin::beui::{Color32, NodeId, Rect};
-use block_editor_plugin::{BlockFilter, BlockPicker, BlockSource, Drag, Editor, Toolbar};
+use block_editor_beui::beui::{Color32, NodeId, Rect};
+use block_editor_beui::{BlockFilter, BlockPicker, BlockSource, Drag, Editor, Toolbar};
 use uuid::Uuid;
 
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
@@ -334,7 +334,7 @@ enum Astray {
     Below,
 }
 
-fn focused_key(focused: &block_editor_plugin::FocusedBlock) -> Option<RowKey> {
+fn focused_key(focused: &block_editor_beui::FocusedBlock) -> Option<RowKey> {
     let id = focused.block_id?;
     let mut path: Vec<Uuid> = focused.via.iter().rev().copied().collect();
     path.push(id);
@@ -516,7 +516,7 @@ fn TreeRow(
 fn AddChild(
     shown: ReadSignal<bool>,
     named: String,
-    on_click: block_editor_plugin::beui::reactive::ClickCallback,
+    on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
     view! {
         <Frame width=ADD_WIDTH>
@@ -678,8 +678,8 @@ fn menu_action(
 pub(crate) struct Picker {
     picker: std::cell::RefCell<BlockPicker>,
     target: std::cell::Cell<Option<Uuid>>,
-    error: block_editor_plugin::beui::reactive::ReadSignal<Option<String>>,
-    set_error: block_editor_plugin::beui::reactive::WriteSignal<Option<String>>,
+    error: block_editor_beui::beui::reactive::ReadSignal<Option<String>>,
+    set_error: block_editor_beui::beui::reactive::WriteSignal<Option<String>>,
 }
 
 impl Picker {

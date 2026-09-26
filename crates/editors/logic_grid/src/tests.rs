@@ -1,8 +1,8 @@
-use block_editor_plugin::be_block::{BlockContent, CompiledLogicContent};
+use block_editor_beui::be_block::{BlockContent, CompiledLogicContent};
 
-use block_editor_plugin::be_block::LogicGridContent;
-use block_editor_plugin::beui::{Key, Pos2, Vec2};
-use block_editor_plugin::{Artifact, Artifacts, Editor, EditorHost};
+use block_editor_beui::be_block::LogicGridContent;
+use block_editor_beui::beui::{Key, Pos2, Vec2};
+use block_editor_beui::{Artifact, Artifacts, Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use logicgame::grid::LogicGrid as Grid;
 use uuid::Uuid;

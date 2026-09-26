@@ -1,7 +1,7 @@
 use super::*;
-use block_editor_plugin::be_block::database_schema::DatabaseSchemaContent;
-use block_editor_plugin::be_block::{BlockContent, Root};
-use block_editor_plugin::{BeuiApp, BlockParent, GraphCommand};
+use block_editor_beui::be_block::database_schema::DatabaseSchemaContent;
+use block_editor_beui::be_block::{BlockContent, Root};
+use block_editor_beui::{BeuiApp, BlockParent, GraphCommand};
 
 #[test]
 fn a_new_database_starts_with_a_name_field() {

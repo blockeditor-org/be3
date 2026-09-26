@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_plugin::be_block::canvas::CanvasColor;
-use block_editor_plugin::beui::Vec2;
+use block_editor_beui::be_block::canvas::CanvasColor;
+use block_editor_beui::beui::Vec2;
 
 #[test]
 fn rotating_with_the_handle_is_drawn() {
@@ -18,7 +18,7 @@ fn rotating_with_the_handle_is_drawn() {
     editor.click(&drawn);
     editor.run();
     let resting = editor.rect_of(&drawn);
-    let handle = block_editor_plugin::beui::pos2(resting.center().x, resting.top() - 28.0);
+    let handle = block_editor_beui::beui::pos2(resting.center().x, resting.top() - 28.0);
 
     editor.drag(handle, handle + Vec2::new(120.0, 60.0));
     editor.run();

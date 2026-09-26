@@ -1,7 +1,7 @@
 use super::*;
-use block_editor_plugin::be_block::canvas::CanvasEntityKind;
-use block_editor_plugin::be_block::{BlockContent, CanvasContent};
-use block_editor_plugin::{BeuiApp, Creation, GraphCommand};
+use block_editor_beui::be_block::canvas::CanvasEntityKind;
+use block_editor_beui::be_block::{BlockContent, CanvasContent};
+use block_editor_beui::{BeuiApp, Creation, GraphCommand};
 
 #[test]
 fn a_slide_template_makes_a_canvas_with_its_placeholders() {

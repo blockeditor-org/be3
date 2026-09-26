@@ -1,4 +1,4 @@
-use block_editor_plugin::beui::Key;
+use block_editor_beui::beui::Key;
 
 use super::*;
 

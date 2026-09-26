@@ -1,6 +1,6 @@
-use block_editor_plugin::Editor;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::view;
+use block_editor_beui::Editor;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::view;
 
 mod ui;
 
@@ -8,7 +8,7 @@ use ui::HotbarView;
 
 pub struct HotbarApp;
 
-impl block_editor_plugin::BeuiApp for HotbarApp {
+impl block_editor_beui::BeuiApp for HotbarApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <HotbarView editor={editor} />

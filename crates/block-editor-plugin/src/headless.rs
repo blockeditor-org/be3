@@ -1,30 +1,11 @@
-use block_plugin_api::{EditorInstanceId, EditorRegion, Message, ScreenLayout, ScreenPlacement};
+use block_plugin_api::{EditorInstanceId, Message, ScreenLayout, ScreenPlacement};
 
 use crate::{
-    Artifacts, BeuiApp, Creation, Editor, EditorHost, Waker,
+    EditorHost, Frame, Instance, Waker,
     editor_session::EditorSession,
     screens::Screens,
     session::{ClientSession, State},
 };
-
-pub type View = Box<dyn FnOnce() -> beui::NodeId>;
-
-pub enum Adopted {
-    Editor(Editor, Option<View>),
-    Preview(Editor),
-    Creation(Creation),
-    Artifacts(Artifacts),
-}
-
-impl Adopted {
-    pub(crate) fn host(&self) -> EditorHost {
-        match self {
-            Self::Editor(editor, _) | Self::Preview(editor) => editor.host().clone(),
-            Self::Creation(creation) => creation.host().clone(),
-            Self::Artifacts(artifacts) => artifacts.host().clone(),
-        }
-    }
-}
 
 pub struct HeadlessPlugin {
     session: ClientSession,
@@ -45,9 +26,9 @@ impl HeadlessPlugin {
         self.session.hello()
     }
 
-    pub fn adopt<A: BeuiApp>(&mut self, instance: EditorInstanceId, adopted: Adopted) {
+    pub fn adopt(&mut self, instance: EditorInstanceId, app: Box<dyn Instance>, host: EditorHost) {
         self.screens
-            .adopt(instance, EditorSession::adopt::<A>(instance, adopted));
+            .adopt(instance, EditorSession::adopt(instance, app, host));
     }
 
     pub fn receive(&mut self, message: Message) -> Vec<Message> {
@@ -65,16 +46,16 @@ impl HeadlessPlugin {
         replies
     }
 
-    pub fn draw(&mut self) -> Vec<(ScreenPlacement, beui::FrameOutput)> {
+    pub fn draw(&mut self) -> Vec<(ScreenPlacement, Frame)> {
         let layout = self.screens.layout().clone();
-        let mut outputs = Vec::new();
+        let mut frames = Vec::new();
         for placement in &layout.screens {
             let Some(session) = self.screens.session(placement.instance) else {
                 continue;
             };
-            outputs.push((*placement, session.run(placement.region, layout.generation)));
+            frames.push((*placement, session.run(placement.region, layout.generation)));
         }
-        outputs
+        frames
     }
 
     pub fn outbound(&mut self) -> Vec<Message> {
@@ -85,31 +66,15 @@ impl HeadlessPlugin {
         self.screens.layout()
     }
 
-    pub fn document(
-        &self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<&beui::Document> {
-        self.screens.get(instance)?.document(region)
-    }
-
     pub fn host(&self, instance: EditorInstanceId) -> Option<EditorHost> {
         Some(self.screens.get(instance)?.host().clone())
     }
 
-    pub fn editor(&self, instance: EditorInstanceId) -> Option<Editor> {
-        self.screens.get(instance)?.editor()
+    pub fn instance(&self, instance: EditorInstanceId) -> Option<&dyn Instance> {
+        Some(self.screens.get(instance)?.instance())
     }
 
-    pub fn in_frame<T>(
-        &mut self,
-        instance: EditorInstanceId,
-        run: impl FnOnce() -> T,
-    ) -> Option<T> {
-        let chrome = self.screens.session(instance)?.chrome_mut()?;
-        Some(beui::reactive::with_reactive_scope(
-            chrome.document_mut(),
-            run,
-        ))
+    pub fn instance_mut(&mut self, instance: EditorInstanceId) -> Option<&mut dyn Instance> {
+        Some(self.screens.session(instance)?.instance_mut())
     }
 }

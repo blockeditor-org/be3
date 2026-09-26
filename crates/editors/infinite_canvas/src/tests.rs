@@ -1,13 +1,13 @@
 use std::collections::{BTreeMap, HashSet};
 
-use block_editor_plugin::be_block::CanvasContent;
-use block_editor_plugin::be_block::canvas::Canvas;
-use block_editor_plugin::be_block::canvas::{
+use block_editor_beui::be_block::CanvasContent;
+use block_editor_beui::be_block::canvas::Canvas;
+use block_editor_beui::be_block::canvas::{
     CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
     CanvasPreviewRegion, CanvasTransform, InfiniteCanvasOperation,
 };
-use block_editor_plugin::be_block::database::DatabaseValue;
-use block_editor_plugin::{BlockInfo, BlockParent, Editor, EditorHost};
+use block_editor_beui::be_block::database::DatabaseValue;
+use block_editor_beui::{BlockInfo, BlockParent, Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 

@@ -1,22 +1,15 @@
 pub use be_block;
-pub use beui;
+pub use geometry;
+pub use reactive;
 
-pub mod beui_frame;
-mod block_link;
-mod child;
-mod chrome;
 mod content;
-pub mod database;
-mod datetime;
-mod editor;
-mod editor_session;
-mod file_chooser;
+pub mod editor_session;
 mod graph;
 pub mod headless;
 mod host;
 #[cfg(target_arch = "wasm32")]
 mod panes;
-mod related_content;
+mod plugin;
 pub mod root_settings;
 #[cfg(target_arch = "wasm32")]
 mod runtime;
@@ -25,55 +18,29 @@ pub mod session;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
-pub use block_link::{BlockDisplay, BlockLink, watch_block_label};
 pub use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioStatus, BlockCommand, BlockFilter, BlockPick, ChildId,
-    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, EditorBand,
-    EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, HostReply, HostRequest,
-    InteractionMode, Occluder, ResizeMode, ViewChange, WebViewCommand, WebViewEvent,
+    ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, CursorIcon, EditorBand,
+    EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, FrameChrome, FrameSpec,
+    HostReply, HostRequest, InputEvent, InteractionMode, Key, Modifiers, Occluder, PointerButton,
+    ResizeMode, ScreenPlacement, TouchPhase, ViewChange, WebViewCommand, WebViewEvent, WheelUnit,
 };
 pub use block_ui;
-pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
-pub use chrome::{SIDEBAR_WIDTH, Side, Sidebar, Toolbar};
 pub use content::ContentProjection;
-pub use datetime::DateTimeRow;
-pub use editor::{Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, fit_content};
-pub use file_chooser::{FileChooser, content_file_creation};
+pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
-    Artifact, ArtifactDescription, ArtifactState, BeuiView, BlockDrag, BlockHistory, BlockPicker,
+    Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
     BlockSource, ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock,
     HostContent, ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
     PerformanceReporter, PickedBlock, PickedFile, Pushed, SeededContent, ShowRequest,
     ShownPresence, Waker,
 };
-pub use related_content::RelatedContent;
-
-pub trait BeuiApp: 'static {
-    fn view(editor: Editor) -> beui::NodeId;
-    fn preview_view(_editor: Editor) -> beui::NodeId {
-        beui::reactive::Frame().build()
-    }
-    fn creation_view(_creation: Creation) -> beui::NodeId {
-        beui::reactive::Frame().build()
-    }
-    fn create_block(creation: &Creation) -> Result<uuid::Uuid, String> {
-        creation.create_block()
-    }
-    fn connect_artifact(_artifacts: &Artifacts) {}
-    fn describe_artifact(_data: &[u8]) -> Result<ArtifactDescription, String> {
-        Err("this editor does not generate artifacts".into())
-    }
-    fn artifact_settings_view(_artifacts: Artifacts) -> beui::NodeId {
-        beui::reactive::Frame().build()
-    }
-    fn intrinsic_size() -> Option<beui::Vec2> {
-        None
-    }
-    fn aspect_ratio() -> Option<f32> {
-        None
-    }
-}
+#[cfg(target_arch = "wasm32")]
+pub use plugin::PaintTarget;
+pub use plugin::{Frame, Ime, Instance, Plugin, Region};
+#[cfg(target_arch = "wasm32")]
+pub use wgpu;
 
 #[doc(hidden)]
 pub mod __private {
@@ -84,15 +51,15 @@ pub mod __private {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn app<A: crate::BeuiApp>(block_type: uuid::Uuid) -> App {
+    pub fn app<P: crate::Plugin>(block_type: uuid::Uuid) -> App {
         App {
             block_type,
-            open: crate::editor_session::EditorSession::new::<A>,
+            open: P::open,
         }
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn only_app<A: crate::BeuiApp>(manifest: &str) -> Vec<App> {
+    pub fn only_app<P: crate::Plugin>(manifest: &str) -> Vec<App> {
         let editors = document(manifest).editors;
         let [editor] = editors.as_slice() else {
             panic!(
@@ -102,7 +69,7 @@ pub mod __private {
         };
         let block_type = uuid::Uuid::parse_str(&editor.block_type)
             .unwrap_or_else(|error| panic!("this plugin's block type is invalid: {error}"));
-        vec![app::<A>(block_type)]
+        vec![app::<P>(block_type)]
     }
 
     pub fn declared_block_types(manifest: &str) -> Vec<uuid::Uuid> {
@@ -199,22 +166,22 @@ macro_rules! platform_entry {
 }
 
 #[macro_export]
-macro_rules! beui_plugin {
-    ($app:ty, $manifest:expr) => {
+macro_rules! plugin {
+    ($plugin:ty, $manifest:expr) => {
         const PLUGIN_MANIFEST: &str = include_str!($manifest);
 
         $crate::platform_entry!(
             PLUGIN_MANIFEST,
-            $crate::__private::only_app::<$app>(PLUGIN_MANIFEST)
+            $crate::__private::only_app::<$plugin>(PLUGIN_MANIFEST)
         );
     };
-    ($manifest:expr, { $($content:ty => $app:ty),+ $(,)? }) => {
+    ($manifest:expr, { $($content:ty => $plugin:ty),+ $(,)? }) => {
         const PLUGIN_MANIFEST: &str = include_str!($manifest);
 
         $crate::platform_entry!(
             PLUGIN_MANIFEST,
             vec![$(
-                $crate::__private::app::<$app>(
+                $crate::__private::app::<$plugin>(
                     <$content as $crate::be_block::BlockContent>::CONTENT_TYPE,
                 )
             ),+]

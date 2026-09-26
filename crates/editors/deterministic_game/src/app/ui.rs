@@ -1,14 +1,14 @@
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, ReadSignal, Show, clone,
     component, create_effect, create_memo, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Heading, Paragraph, Scroll, Select, use_theme,
 };
-use block_editor_plugin::beui::unstyled::ChoiceOption;
-use block_editor_plugin::beui::{NodeId, TextAlign};
+use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::beui::{NodeId, TextAlign};
 use game_api::{Board, GameActionOption, GameScreen, Gesture};
 
 mod board;

@@ -1,5 +1,5 @@
-use block_editor_plugin::beui::{Document, Event, Modifiers, NodeId, PointerButton, Pos2};
-use block_editor_plugin::{BlockInfo, BlockParent, BlockQuery};
+use block_editor_beui::beui::{Document, Event, Modifiers, NodeId, PointerButton, Pos2};
+use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 
 use super::*;
 

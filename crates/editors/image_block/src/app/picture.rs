@@ -3,10 +3,10 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::{ImageContent, ImageHeader, ImageOp};
-use block_editor_plugin::beui::Image;
-use block_editor_plugin::beui::reactive::{Memo, create_effect, create_memo, create_signal};
-use block_editor_plugin::{ContentProjection, Editor};
+use block_editor_beui::be_block::{ImageContent, ImageHeader, ImageOp};
+use block_editor_beui::beui::Image;
+use block_editor_beui::beui::reactive::{Memo, create_effect, create_memo, create_signal};
+use block_editor_beui::{ContentProjection, Editor};
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Shown {

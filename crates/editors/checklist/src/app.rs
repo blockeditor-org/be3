@@ -1,7 +1,7 @@
-use block_editor_plugin::be_block::ChecklistContent;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::{Creation, Editor};
+use block_editor_beui::be_block::ChecklistContent;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 mod ui;
@@ -10,7 +10,7 @@ use ui::Checklist;
 
 pub struct ChecklistApp;
 
-impl block_editor_plugin::BeuiApp for ChecklistApp {
+impl block_editor_beui::BeuiApp for ChecklistApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <Checklist editor={editor} />

@@ -1,10 +1,8 @@
-use block_editor_plugin::be_block::BlockContent;
+use block_editor_beui::be_block::BlockContent;
 
-use block_editor_plugin::be_block::{
-    DeterministicGame, DeterministicGameContent, GameModuleContent,
-};
-use block_editor_plugin::beui::{Pos2, Vec2};
-use block_editor_plugin::{Creation, Editor, EditorHost};
+use block_editor_beui::be_block::{DeterministicGame, DeterministicGameContent, GameModuleContent};
+use block_editor_beui::beui::{Pos2, Vec2};
+use block_editor_beui::{Creation, Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use game_api::{GameAction, GameActionOption};
 use game_host::Game;

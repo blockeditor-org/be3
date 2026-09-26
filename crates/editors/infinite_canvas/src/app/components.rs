@@ -1,17 +1,17 @@
-use block_editor_plugin::be_block::BlockContent;
+use block_editor_beui::be_block::BlockContent;
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::database::DatabaseValue;
-use block_editor_plugin::be_block::database_schema::DatabaseSchemaContent;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::database::DatabaseValue;
+use block_editor_beui::be_block::database_schema::DatabaseSchemaContent;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, ItemSize, List, Show, Spacer, clone, component, create_memo,
     create_signal, view,
 };
-use block_editor_plugin::beui::styled::{Accordion, Button, ButtonVariant, Caption, Separator};
-use block_editor_plugin::block_ui::BlockLabel;
-use block_editor_plugin::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
-use block_editor_plugin::database::{DatabaseValueEditor, RowValues, ValueLabels};
+use block_editor_beui::beui::styled::{Accordion, Button, ButtonVariant, Caption, Separator};
+use block_editor_beui::block_ui::BlockLabel;
+use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
+use block_editor_beui::database::{DatabaseValueEditor, RowValues, ValueLabels};
 use uuid::Uuid;
 
 use super::state::{CanvasState, attach_component, remove_component, set_component_value};

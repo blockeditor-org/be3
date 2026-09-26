@@ -1,18 +1,18 @@
 use std::rc::Rc;
 use uuid::Uuid;
 
-use block_editor_plugin::Editor;
-use block_editor_plugin::beui::icons::{ICON_ADD, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_WIDGETS};
-use block_editor_plugin::beui::reactive::ClickCallback;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::Editor;
+use block_editor_beui::beui::icons::{ICON_ADD, ICON_CHECK_CIRCLE, ICON_DELETE, ICON_WIDGETS};
+use block_editor_beui::beui::reactive::ClickCallback;
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer, clone,
     component, create_effect, create_memo, create_selector, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, Icon, IconButton, Link, ListRow, Scroll,
     use_theme,
 };
-use block_editor_plugin::beui::{NodeId, Vec2};
+use block_editor_beui::beui::{NodeId, Vec2};
 use logicgame::challenges::{ChallengeId, generate_challenge};
 
 use crate::logic_game::binary_addition::ui::BinaryAddition;
@@ -29,7 +29,7 @@ const INTRINSIC_WIDTH: f32 = 720.0;
 
 #[component]
 pub fn LogicGameEditor(editor: Editor) -> NodeId {
-    let block = editor.block_content::<block_editor_plugin::be_block::LogicGameContent>();
+    let block = editor.block_content::<block_editor_beui::be_block::LogicGameContent>();
     let game = Rc::new(Game::watch(&editor, Rc::clone(&block)));
     let levels = game.levels();
     let hotbar = game.hotbar();

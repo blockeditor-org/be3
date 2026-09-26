@@ -1,5 +1,5 @@
-use block_editor_plugin::beui::{Pos2, Rect, Vec2};
-use block_editor_plugin::fit_content;
+use block_editor_beui::beui::{Pos2, Rect, Vec2};
+use block_editor_beui::fit_content;
 
 pub const ZOOM_STEP: f32 = 1.25;
 

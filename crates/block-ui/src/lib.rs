@@ -1,10 +1,8 @@
 pub mod database;
 pub mod datetime;
-pub mod input;
 
 use std::collections::HashMap;
 
-use be_block::presence::PresenceColor;
 use uuid::Uuid;
 
 pub const EMBEDDED_EDITOR_PADDING: f32 = 12.0;
@@ -20,19 +18,6 @@ pub fn embedded_editor_frame(width: f32, height: f32, scale: f32) -> (f32, f32) 
             + EMBEDDED_EDITOR_TITLE_GAP)
             * scale,
     )
-}
-
-pub fn presence_color(color: PresenceColor) -> beui::Color32 {
-    match color {
-        PresenceColor::Red => beui::Color32::from_rgb(224, 82, 82),
-        PresenceColor::Orange => beui::Color32::from_rgb(230, 140, 50),
-        PresenceColor::Yellow => beui::Color32::from_rgb(214, 179, 41),
-        PresenceColor::Green => beui::Color32::from_rgb(84, 171, 90),
-        PresenceColor::Teal => beui::Color32::from_rgb(46, 173, 168),
-        PresenceColor::Blue => beui::Color32::from_rgb(74, 134, 227),
-        PresenceColor::Purple => beui::Color32::from_rgb(150, 100, 214),
-        PresenceColor::Pink => beui::Color32::from_rgb(224, 104, 168),
-    }
 }
 
 pub trait BlockTypes {

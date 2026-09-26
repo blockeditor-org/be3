@@ -15,11 +15,11 @@ use block_plugin_api::{
 use block_ui::BlockCatalog;
 use uuid::Uuid;
 
-use crate::host::{BlockHistory, FileDrop, FocusedBlock, Pushed};
 use crate::{
     BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Blocks, ContentProjection,
     EditorHost, PickedBlock, Waker,
 };
+use crate::{BlockHistory, FileDrop, FocusedBlock, Pushed};
 use block_plugin_api::AudioStatus;
 
 type Regenerate = Rc<dyn Fn(&[u8])>;
@@ -46,6 +46,7 @@ impl Clone for Artifacts {
 
 impl Artifacts {
     pub fn new(host: EditorHost, artifact: crate::Artifact) -> Self {
+        defer_graph_changes(&host);
         let (settings, set_settings) = create_signal(Vec::new());
         Self(Rc::new(ArtifactState {
             host,
@@ -245,11 +246,31 @@ pub fn fit_content(available: Rect, content: Vec2) -> Rect {
     )
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct BeuiScale {
+    pub(crate) ratio: f32,
+    pub(crate) pixels_per_point: f32,
+}
+
+impl Default for BeuiScale {
+    fn default() -> Self {
+        Self {
+            ratio: 1.0,
+            pixels_per_point: 1.0,
+        }
+    }
+}
+
+pub(crate) fn defer_graph_changes(host: &EditorHost) {
+    host.defer_graph_changes_unless(|| beui::reactive::try_with_document(|_| ()).is_some());
+}
+
 #[derive(Clone)]
 pub struct Editor(Rc<EditorState>);
 
 struct EditorState {
     host: EditorHost,
+    beui: Rc<Cell<BeuiScale>>,
     block: Uuid,
     roots: RefCell<Option<BlockList>>,
     canvas: ReadSignal<Option<CanvasView>>,
@@ -297,6 +318,11 @@ struct EditorState {
 
 impl Editor {
     pub fn new(host: EditorHost, block: Uuid) -> Self {
+        Self::scaled(host, block, Rc::default())
+    }
+
+    pub(crate) fn scaled(host: EditorHost, block: Uuid, beui: Rc<Cell<BeuiScale>>) -> Self {
+        defer_graph_changes(&host);
         let (canvas, set_canvas) = create_signal(None::<CanvasView>);
         let (world, set_world) = create_signal(None::<Vec2>);
         let (scale, set_scale) = create_signal(1.0_f32);
@@ -313,6 +339,7 @@ impl Editor {
         let pushed = Mirror::new(&host);
         Self(Rc::new(EditorState {
             host,
+            beui,
             block,
             roots: RefCell::new(None),
             canvas,
@@ -735,20 +762,42 @@ impl Editor {
         self.0.host.accept_drag(accepted);
     }
 
+    fn ratio(&self) -> f32 {
+        self.0.beui.get().ratio
+    }
+
+    fn view_rect(&self) -> Option<Rect> {
+        let ratio = self.ratio();
+        self.0.host.view().map(|rect| rect.scaled(ratio))
+    }
+
+    fn view_scale(&self) -> f32 {
+        self.0.host.view_scale().unwrap_or(1.0)
+    }
+
+    fn view_canvas(&self) -> Option<CanvasView> {
+        let scale = self.view_scale();
+        self.view_rect()
+            .map(|rect| CanvasView::new(rect.min, scale))
+    }
+
     pub fn place_web_view(&self, rect: Option<Rect>) {
         self.0.web_view.set(Some(rect));
     }
 
     pub fn pan(&self, delta: Vec2) {
-        self.0.host.beui_view().pan(delta);
+        self.0.host.pan_view(delta / self.ratio());
     }
 
     pub fn zoom(&self, factor: f32) {
-        self.0.host.beui_view().zoom(factor, None);
+        self.0.host.zoom_view(factor, None);
     }
 
     pub fn zoom_at(&self, factor: f32, anchor: Pos2) {
-        self.0.host.beui_view().zoom(factor, Some(anchor));
+        let ratio = self.ratio();
+        self.0
+            .host
+            .zoom_view(factor, Some(Pos2::new(anchor.x / ratio, anchor.y / ratio)));
     }
 
     pub fn resume_auto_fit(&self) {
@@ -756,16 +805,15 @@ impl Editor {
     }
 
     pub fn fit(&self) {
-        self.0.host.beui_view().fit();
+        self.0.host.fit_view();
     }
 
     pub fn reveal(&self, target: Rect) {
-        let view = self.0.host.beui_view();
-        let Some(placement) = view.canvas() else {
+        let Some(placement) = self.view_canvas() else {
             return;
         };
         let shown = placement.rect_to_screen(target).center();
-        view.pan(self.0.content_rect.get().center() - shown);
+        self.pan(self.0.content_rect.get().center() - shown);
     }
 
     pub fn begin_frame(&self) {
@@ -779,23 +827,34 @@ impl Editor {
         for (count, woken) in wakes {
             woken.set(count.load(Ordering::Acquire));
         }
-        self.0.set_files.set(self.0.host.beui_files());
+        let ratio = self.ratio();
+        self.0
+            .set_files
+            .set(self.0.host.files().map(|files| crate::FileDrop {
+                position: Pos2::new(files.position.x * ratio, files.position.y * ratio),
+                ..files
+            }));
         self.0.set_placed.set(self.0.content_rect.get());
-        let view = self.0.host.beui_view();
-        let scale = view.scale().max(f32::EPSILON);
-        self.0.set_canvas.set(view.canvas());
+        let scale = self.view_scale();
+        let divisor = scale.max(f32::EPSILON);
+        self.0.set_canvas.set(self.view_canvas());
         self.0.set_world.set(
-            view.rect()
-                .map(|rect| Vec2::new(rect.width() / scale, rect.height() / scale)),
+            self.view_rect()
+                .map(|rect| Vec2::new(rect.width() / divisor, rect.height() / divisor)),
         );
-        self.0.set_scale.set(view.scale());
+        self.0.set_scale.set(scale);
         self.0.set_chrome.set(self.0.host.chrome_shown());
         self.0.set_editable.set(self.0.host.editable());
         self.0.set_presenting.set(self.0.host.presenting());
-        self.0.set_drag.set(self.0.host.beui_drag());
+        self.0.set_drag.set(self.0.host.drag().map(|drag| Drag {
+            position: Pos2::new(drag.position.x * ratio, drag.position.y * ratio),
+            block_id: drag.block_id,
+            block_type: drag.block_type,
+            dropped: drag.dropped,
+        }));
         self.0
             .set_pixels_per_point
-            .set(self.0.host.beui_pixels_per_point());
+            .set(self.0.beui.get().pixels_per_point);
         self.0.set_resized.set(self.0.pending_resize.take());
         if let Some(visible) = self.0.pending_presence.take() {
             self.0.set_presence_visible.set(visible);
@@ -821,11 +880,14 @@ impl Editor {
         for record in self.records() {
             record.child.set(self.place_child(document, &record));
         }
+        let unscale = self.ratio().recip();
         if let Some(rect) = self.0.web_view.get() {
-            self.0.host.place_beui_web_view(rect);
+            self.0
+                .host
+                .place_web_view(rect.map(|rect| rect.scaled(unscale)));
         }
         for rect in document.overlay_rects() {
-            self.0.host.occlude_beui(rect);
+            self.0.host.occlude(rect.scaled(unscale));
         }
         let node = self.0.content.borrow().as_ref().and_then(NodeRef::try_get);
         let Some(rect) = node.and_then(|node| document.node_rect(node)) else {
@@ -835,7 +897,7 @@ impl Editor {
         if self.0.placed.get_untracked() != rect {
             self.0.host.request_frame_in(std::time::Duration::ZERO);
         }
-        self.0.host.beui_view().set_content(rect);
+        self.0.host.report_content(rect.scaled(unscale));
     }
 }
 
@@ -845,11 +907,12 @@ impl Editor {
         let rect = document.node_rect(node)?;
         let placement = record.slot.placement()?;
         let target = record.block.peek()?;
-        Some(self.0.host.place_beui_child(
+        let unscale = self.ratio().recip();
+        Some(self.0.host.place_child(
             target.id,
             target.block_type,
-            rect,
-            placement.clip,
+            rect.scaled(unscale),
+            placement.clip.scaled(unscale),
             record.mode.peek(),
             record.layer.peek(),
             record.own_frame.peek(),
@@ -881,6 +944,7 @@ impl Creation {
     }
 
     pub fn for_template(host: EditorHost, template: impl Into<String>) -> Self {
+        defer_graph_changes(&host);
         Self(Rc::new(CreationState {
             pushed: Mirror::new(&host),
             host,

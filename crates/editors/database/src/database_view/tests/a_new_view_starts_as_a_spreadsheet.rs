@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_plugin::GraphCommand;
-use block_editor_plugin::be_block::BlockContent;
+use block_editor_beui::GraphCommand;
+use block_editor_beui::be_block::BlockContent;
 
 #[test]
 fn a_new_view_starts_as_a_spreadsheet() {

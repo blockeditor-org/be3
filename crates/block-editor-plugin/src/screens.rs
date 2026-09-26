@@ -6,9 +6,13 @@ use block_ui::{BlockCatalog, BlockTypeEntry};
 use std::{collections::HashMap, rc::Rc};
 use uuid::Uuid;
 
-use crate::{Waker, editor_session::EditorSession, host::BlockDrag};
+use crate::{
+    Waker,
+    editor_session::{EditorSession, Open},
+    host::BlockDrag,
+};
 
-pub(crate) type Opener = fn(EditorInstanceId, Waker) -> EditorSession;
+pub(crate) type Opener = Open;
 
 pub(crate) struct Screens {
     sessions: HashMap<EditorInstanceId, EditorSession>,
@@ -46,7 +50,7 @@ impl Screens {
                 .find(|(declared, _)| *declared == block_type)
                 .map(|(_, open)| *open)
                 .unwrap_or_else(|| panic!("this plugin has no editor for block type {block_type}"));
-            open(instance, waker.clone())
+            EditorSession::new(instance, waker.clone(), open)
         })
     }
 
@@ -128,7 +132,7 @@ impl Screens {
                 height,
             }) => {
                 if let Some(session) = self.sessions.get_mut(instance) {
-                    session.resized(beui::vec2(*width, *height));
+                    session.resized(geometry::vec2(*width, *height));
                 }
             }
             Message::Editor(EditorMessage::AudioStatus { instance, status }) => {
@@ -323,7 +327,10 @@ impl Screens {
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.set_view(
-                        beui::Rect::from_min_size(beui::pos2(*x, *y), beui::vec2(*width, *height)),
+                        geometry::Rect::from_min_size(
+                            geometry::pos2(*x, *y),
+                            geometry::vec2(*width, *height),
+                        ),
                         *scale,
                     );
                 }
@@ -368,7 +375,7 @@ impl Screens {
                     session.set_drag(Some((
                         *region,
                         BlockDrag {
-                            position: beui::pos2(*x, *y),
+                            position: geometry::pos2(*x, *y),
                             block_id: Uuid::from_bytes(*block_id),
                             block_type: Uuid::from_bytes(*block_type),
                             dropped: *dropped,
@@ -421,7 +428,7 @@ impl Screens {
                     session.set_files(Some((
                         *region,
                         crate::host::FileDrop {
-                            position: beui::pos2(*x, *y),
+                            position: geometry::pos2(*x, *y),
                             files: files
                                 .iter()
                                 .map(|file| crate::PickedFile {
@@ -458,11 +465,6 @@ impl Screens {
 
     pub(crate) fn session(&mut self, instance: EditorInstanceId) -> Option<&mut EditorSession> {
         self.sessions.get_mut(&instance)
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn is_open(&self, instance: EditorInstanceId) -> bool {
-        self.sessions.contains_key(&instance)
     }
 
     fn screen(&self, screen: ScreenId) -> Option<(EditorInstanceId, EditorRegion)> {

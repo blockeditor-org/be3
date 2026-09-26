@@ -1,0 +1,21 @@
+{
+  "id": "be3.triangle",
+  "name": "Triangle",
+  "version": "0.1.0",
+  "editors": [
+    {
+      "block_type": "77677075-2d74-7269-616e-676c65303031",
+      "display_name": "Triangle",
+      "icon": "",
+      "templates": {
+        "main": {
+          "category": "debug"
+        }
+      },
+      "regions": [
+        "Frame"
+      ]
+    }
+  ],
+  "entry_point": "triangle.wasm"
+}

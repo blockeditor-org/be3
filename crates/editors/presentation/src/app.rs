@@ -1,7 +1,7 @@
-use block_editor_plugin::be_block::PresentationContent;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::{Creation, Editor};
+use block_editor_beui::be_block::PresentationContent;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 mod slides;
@@ -12,7 +12,7 @@ use ui::{PresentationPreview, PresentationView};
 
 pub struct PresentationApp;
 
-impl block_editor_plugin::BeuiApp for PresentationApp {
+impl block_editor_beui::BeuiApp for PresentationApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <PresentationView editor={editor} />

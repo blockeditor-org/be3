@@ -1,10 +1,10 @@
-use block_editor_plugin::be_block::CanvasContent;
-use block_editor_plugin::be_block::canvas::Canvas;
-use block_editor_plugin::be_block::canvas::{
+use block_editor_beui::be_block::CanvasContent;
+use block_editor_beui::be_block::canvas::Canvas;
+use block_editor_beui::be_block::canvas::{
     CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasPreviewRegion,
     CanvasTextAlign, CanvasTextStyle, CanvasTextWeight, CanvasTransform,
 };
-use block_editor_plugin::beui::{Vec2, vec2};
+use block_editor_beui::beui::{Vec2, vec2};
 use uuid::Uuid;
 
 const DEFAULT_SLIDE_SIZE: Vec2 = vec2(960.0, 540.0);

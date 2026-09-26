@@ -6,9 +6,10 @@ license.workspace = true
 
 [dependencies]
 be-block = { path = "../be-block" }
-beui = { path = "../beui", default-features = false }
 block-plugin-api = { path = "../block-plugin-api" }
 block-ui = { path = "../block-ui" }
+geometry = { path = "../geometry" }
+reactive = { path = "../reactive" }
 serde_bytes = "0.11"
 serde_json = "1"
 uuid = "1"
@@ -16,10 +17,10 @@ uuid = "1"
 # A plugin is a wasm guest wherever it runs, so it links wgpu with only the
 # custom backend and reaches the host's device through the gpu abi, whether
 # wasmtime or the browser is holding it. Everything under here is the guest,
-# which is why a native build of this crate is only the BeuiApp trait and the host
-# types an editor's own tests drive it through.
+# which is why a native build of this crate is only the host types an editor's
+# own tests drive it through. The device reaches a plugin's ui framework through
+# the Instance trait; this crate draws nothing itself.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-beui = { path = "../beui", default-features = false, features = ["render"] }
 block-gpu-abi = { path = "../block-gpu-abi" }
 block-gpu-guest = { path = "../block-gpu-guest" }
 wasi-threads = { path = "../wasi-threads" }

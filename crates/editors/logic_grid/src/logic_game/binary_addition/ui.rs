@@ -1,16 +1,16 @@
 use std::rc::Rc;
 
-use block_editor_plugin::Editor;
-use block_editor_plugin::be_block::logic_game::QuizRow;
-use block_editor_plugin::beui::icons::ICON_CHECK_CIRCLE;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::Editor;
+use block_editor_beui::be_block::logic_game::QuizRow;
+use block_editor_beui::beui::icons::ICON_CHECK_CIRCLE;
+use block_editor_beui::beui::reactive::{
     Align, Callback, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal,
     Show, Spacer, clone, component, create_memo, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Bordered, Button, ButtonVariant, Caption, Code, Icon, use_theme,
 };
-use block_editor_plugin::beui::{NodeId, TextAlign};
+use block_editor_beui::beui::{NodeId, TextAlign};
 
 use super::{BinaryAdditionQuiz, next_answer};
 
