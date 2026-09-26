@@ -933,6 +933,8 @@ dependencies = [
  "beui",
  "beui-plugin-input",
  "block-editor-plugin",
+ "block-gpu-abi",
+ "block-gpu-host",
  "block-plugin-api",
  "block-ui",
  "block-wasm-host",
@@ -1031,6 +1033,7 @@ name = "block-gpu-host"
 version = "0.1.0"
 dependencies = [
  "block-gpu-abi",
+ "serde",
  "wgpu",
 ]
 
@@ -1042,9 +1045,7 @@ dependencies = [
  "block-gpu-host",
  "js-sys",
  "wasm-bindgen",
- "wasm-bindgen-futures",
  "web-sys",
- "wgpu",
 ]
 
 [[package]]
