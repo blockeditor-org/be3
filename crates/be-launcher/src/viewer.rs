@@ -1,14 +1,15 @@
 use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_OPEN_IN_NEW};
 use beui::reactive::{
-    Align, Direction, Focusable, Frame, ItemSize, List, Picture, Spacer, clone, component,
-    create_memo, view,
+    Align, ClickCatcher, Direction, Focusable, Frame, ItemSize, List, Memo, Picture, Show, Spacer,
+    clone, component, component_size, create_memo, create_signal, view,
 };
-use beui::styled::{Caption, Fullscreen, IconButton, use_theme};
-use beui::{ImageFit, Key, KeyPress, NodeId};
+use beui::styled::{Caption, Fullscreen, IconButton, Scroll, use_theme};
+use beui::{CursorIcon, Image, ImageFit, Key, KeyPress, NodeId, TextAlign, Vec2};
 
 use crate::model::{Loaded, Model};
 
 const PADDING: f32 = 16.0;
+const HINT_HEIGHT: f32 = 18.0;
 
 #[component]
 pub(crate) fn ImageViewer(model: Model) -> NodeId {
@@ -98,10 +99,68 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
                         <IconButton glyph=ICON_CLOSE label="Close" on_click={close} />
                     </List>
                     <Focusable @sizing=ItemSize::Percent(100.0) focused={open} on_key={keys}>
-                        <Picture image={picture} fit=ImageFit::Contain smooth=false />
+                        <ImageStage picture />
                     </Focusable>
                 </List>
             </Frame>
         </Fullscreen>
+    }
+}
+
+#[component]
+fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
+    let size = component_size();
+    let natural = create_memo(clone!(picture -> move || {
+        picture.get().map_or(Vec2::ZERO, |image| image.size())
+    }));
+    let shrunk = create_memo(clone!(natural -> move || {
+        let natural = natural.get();
+        let room = size.get() - Vec2::new(0.0, HINT_HEIGHT);
+        natural.x > room.x || natural.y > room.y
+    }));
+    let (actual, set_actual) = create_signal(false);
+    let zoomed = create_memo(clone!(actual shrunk -> move || actual.get() && shrunk.get()));
+    let fitted = create_memo(clone!(zoomed -> move || !zoomed.get()));
+    let cursor = create_memo(clone!(shrunk -> move || match shrunk.get() {
+        true => CursorIcon::PointingHand,
+        false => CursorIcon::Default,
+    }));
+    let hint = create_memo(clone!(zoomed shrunk -> move || {
+        match (zoomed.get(), shrunk.get()) {
+            (true, _) => "100% · click to fit it to the window",
+            (false, true) => "Scaled down to fit · click for 100%",
+            (false, false) => "100%",
+        }
+        .to_owned()
+    }));
+    let width = create_memo(clone!(natural -> move || Some(natural.get().x)));
+    let height = create_memo(clone!(natural -> move || Some(natural.get().y)));
+    let zoom_in = clone!(set_actual shrunk -> move || {
+        if shrunk.get_untracked() {
+            set_actual.set(true);
+        }
+    });
+    let zoom_out = move || set_actual.set(false);
+    let whole = picture.clone();
+    view! {
+        <List spacing=8.0>
+            <Show condition={fitted}>
+                <ClickCatcher @sizing=ItemSize::Percent(100.0) cursor={cursor} on_click={zoom_in}>
+                    <Picture image={whole} fit=ImageFit::ScaleDown smooth={shrunk.clone()} />
+                </ClickCatcher>
+            </Show>
+            <Show condition={zoomed}>
+                <Scroll @sizing=ItemSize::Percent(100.0)>
+                    <Scroll direction=Direction::Horizontal>
+                        <ClickCatcher cursor=CursorIcon::PointingHand on_click={zoom_out}>
+                            <Frame width={width} height={height}>
+                                <Picture image={picture} fit=ImageFit::Fill smooth=false />
+                            </Frame>
+                        </ClickCatcher>
+                    </Scroll>
+                </Scroll>
+            </Show>
+            <Caption @sizing=ItemSize::Fixed(HINT_HEIGHT) content={hint} align=TextAlign::Center />
+        </List>
     }
 }
