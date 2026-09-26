@@ -1,26 +1,24 @@
 package com.be3.launcher;
 
-import android.app.ActivityManager;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.content.IntentSender;
 import android.content.pm.PackageInstaller;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Process;
 import android.view.View;
 import androidx.core.graphics.Insets;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
-import com.be3.block.MainActivity;
 import com.google.androidgamesdk.GameActivity;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.List;
 
 public final class LauncherActivity extends GameActivity {
-    private static final String BUILD_PROCESS = ":build";
+    private static final String APP = "com.be3.block.ci";
     private static final String INSTALLED = "com.be3.launcher.INSTALLED";
     private static final int COPY_BUFFER_BYTES = 64 * 1024;
     private static LauncherActivity current;
@@ -57,7 +55,7 @@ public final class LauncherActivity extends GameActivity {
             nativeInstallFinished(null);
         } else {
             String message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
-            nativeInstallFinished(message == null ? "The launcher was not installed" : message);
+            nativeInstallFinished(message == null ? "Android did not finish the change" : message);
         }
     }
 
@@ -67,25 +65,25 @@ public final class LauncherActivity extends GameActivity {
         super.onDestroy();
     }
 
-    public static boolean launch(String build, String data) {
+    public static String open() {
         LauncherActivity activity = current;
-        if (activity == null) return false;
-        activity.runOnUiThread(() -> {
-            activity.stopBuild();
-            Intent intent = new Intent(activity, MainActivity.class)
-                    .putExtra(MainActivity.EXTRA_BUILD, build)
-                    .putExtra(MainActivity.EXTRA_DATA, data)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            activity.startActivity(intent);
-        });
-        return true;
+        if (activity == null) return "The launcher is not open";
+        Intent intent = activity.getPackageManager().getLaunchIntentForPackage(APP);
+        if (intent == null) return "The app is not installed";
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        activity.runOnUiThread(() -> activity.startActivity(intent));
+        return null;
     }
 
-    public static boolean stop() {
+    public static boolean installed() {
         LauncherActivity activity = current;
         if (activity == null) return false;
-        activity.stopBuild();
-        return true;
+        try {
+            activity.getPackageManager().getPackageInfo(APP, 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException error) {
+            return false;
+        }
     }
 
     public static boolean openUrl(String url) {
@@ -106,16 +104,22 @@ public final class LauncherActivity extends GameActivity {
             activity.installPackage(new File(apk));
             return null;
         } catch (Exception error) {
-            return "Could not install the launcher: " + error;
+            return "Could not install it: " + error;
         }
     }
 
-    private void stopBuild() {
-        ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
-        List<ActivityManager.RunningAppProcessInfo> processes = manager.getRunningAppProcesses();
-        if (processes == null) return;
-        for (ActivityManager.RunningAppProcessInfo process : processes) {
-            if (process.processName.endsWith(BUILD_PROCESS)) Process.killProcess(process.pid);
+    public static String uninstall() {
+        LauncherActivity activity = current;
+        if (activity == null) return "The launcher is not open";
+        if (!installed()) {
+            nativeInstallFinished(null);
+            return null;
+        }
+        try {
+            activity.getPackageManager().getPackageInstaller().uninstall(APP, activity.finished());
+            return null;
+        } catch (Exception error) {
+            return "Could not remove the app: " + error;
         }
     }
 
@@ -126,17 +130,21 @@ public final class LauncherActivity extends GameActivity {
         int id = installer.createSession(params);
         try (PackageInstaller.Session session = installer.openSession(id)) {
             try (InputStream in = new FileInputStream(apk);
-                    OutputStream out = session.openWrite("launcher.apk", 0, apk.length())) {
+                    OutputStream out = session.openWrite("package.apk", 0, apk.length())) {
                 byte[] buffer = new byte[COPY_BUFFER_BYTES];
                 int read;
                 while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
                 session.fsync(out);
             }
-            Intent intent = new Intent(this, LauncherActivity.class).setAction(INSTALLED);
-            PendingIntent pending = PendingIntent.getActivity(this, 0, intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
-            session.commit(pending.getIntentSender());
+            session.commit(finished());
         }
+    }
+
+    private IntentSender finished() {
+        Intent intent = new Intent(this, LauncherActivity.class).setAction(INSTALLED);
+        PendingIntent pending = PendingIntent.getActivity(this, 0, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+        return pending.getIntentSender();
     }
 
     private static native void nativeSafeAreaChanged(int left, int top, int right, int bottom);

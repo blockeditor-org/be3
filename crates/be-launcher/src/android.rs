@@ -1,4 +1,3 @@
-use std::ffi::CString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -25,10 +24,9 @@ static TASKS: OnceLock<Tasks> = OnceLock::new();
 #[unsafe(no_mangle)]
 fn android_main(app: AndroidApp) {
     let files = app.internal_data_path().unwrap_or_default();
-    let shell = shell(&app);
     let mut options = beui::RunOptions::new("be3 launcher");
     options.android_app = Some(app);
-    let code = match beui::run_with(options, LauncherApp::new(files, shell)) {
+    let code = match beui::run_with(options, LauncherApp::new(files)) {
         Ok(()) => 0,
         Err(error) => {
             eprintln!("The launcher stopped: {error}");
@@ -36,18 +34,6 @@ fn android_main(app: AndroidApp) {
         }
     };
     std::process::exit(code);
-}
-
-fn shell(app: &AndroidApp) -> String {
-    let Ok(name) = CString::new("shell") else {
-        return String::new();
-    };
-    let Some(mut asset) = app.asset_manager().open(&name) else {
-        return String::new();
-    };
-    let mut shell = String::new();
-    let _ = asset.read_to_string(&mut shell);
-    shell.trim().to_owned()
 }
 
 pub(crate) fn remember(tasks: Tasks) {
@@ -89,32 +75,40 @@ impl Fetch for Http {
     }
 }
 
-pub(crate) fn launch(build: &Path, data: &Path) -> Result<(), String> {
-    let build = build.to_string_lossy().into_owned();
-    let data = data.to_string_lossy().into_owned();
-    let launched = with_launcher(|env, class| {
-        let build = env.new_string(&build)?;
-        let data = env.new_string(&data)?;
-        env.call_static_method(
-            class,
-            jni_str!("launch"),
-            jni_sig!("(Ljava/lang/String;Ljava/lang/String;)Z"),
-            &[JValue::Object(&build), JValue::Object(&data)],
-        )?
-        .z()
-    })?;
-    if launched {
-        Ok(())
-    } else {
-        Err("The launcher is not open".to_owned())
-    }
+pub(crate) fn open() -> Result<(), String> {
+    optional_error(with_launcher(|env, class| {
+        let error = env
+            .call_static_method(
+                class,
+                jni_str!("open"),
+                jni_sig!("()Ljava/lang/String;"),
+                &[],
+            )?
+            .l()?;
+        string(env, error)
+    })?)
 }
 
-pub(crate) fn stop() {
-    let _ = with_launcher(|env, class| {
-        env.call_static_method(class, jni_str!("stop"), jni_sig!("()Z"), &[])?
+pub(crate) fn installed() -> bool {
+    with_launcher(|env, class| {
+        env.call_static_method(class, jni_str!("installed"), jni_sig!("()Z"), &[])?
             .z()
-    });
+    })
+    .unwrap_or(false)
+}
+
+pub(crate) fn uninstall() -> Result<(), String> {
+    optional_error(with_launcher(|env, class| {
+        let error = env
+            .call_static_method(
+                class,
+                jni_str!("uninstall"),
+                jni_sig!("()Ljava/lang/String;"),
+                &[],
+            )?
+            .l()?;
+        string(env, error)
+    })?)
 }
 
 pub(crate) fn open_url(url: &str) {
@@ -132,7 +126,7 @@ pub(crate) fn open_url(url: &str) {
 
 pub(crate) fn install(apk: &Path) -> Result<(), String> {
     let apk = apk.to_string_lossy().into_owned();
-    let error = with_launcher(|env, class| {
+    optional_error(with_launcher(|env, class| {
         let apk = env.new_string(&apk)?;
         let error = env
             .call_static_method(
@@ -142,12 +136,22 @@ pub(crate) fn install(apk: &Path) -> Result<(), String> {
                 &[JValue::Object(&apk)],
             )?
             .l()?;
-        if error.is_null() {
-            return Ok(None);
-        }
-        let error = env.cast_local::<JString<'_>>(error)?;
-        Ok(Some(error.to_string()))
-    })?;
+        string(env, error)
+    })?)
+}
+
+fn string<'local>(
+    env: &mut Env<'local>,
+    value: JObject<'local>,
+) -> Result<Option<String>, JniError> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    let value = env.cast_local::<JString<'_>>(value)?;
+    Ok(Some(value.to_string()))
+}
+
+fn optional_error(error: Option<String>) -> Result<(), String> {
     match error {
         Some(error) => Err(error),
         None => Ok(()),
@@ -207,7 +211,7 @@ pub extern "system" fn Java_com_be3_launcher_LauncherActivity_nativeInstallFinis
         Err(error.to_string())
     };
     if let Some(tasks) = TASKS.get() {
-        tasks.send(Event::Phone(phone::Event::Installed(result)));
+        tasks.send(Event::Phone(phone::Event::Finished(result)));
     }
 }
 

@@ -117,16 +117,16 @@ jobs:
 
       # Signed on a worker with CI's debug keystore, which BuildBuddy keeps as
       # the secret ANDROID_DEBUG_KEYSTORE_BASE64, so successive CI builds
-      # install as updates over one another. Like every platform's app it goes
-      # without the plugins.
+      # install as updates over one another. The plugins are in it, since an
+      # APK has nowhere else to find them.
       - uses: actions/upload-artifact@v7
         with:
           name: block-app-android-aarch64
           path: dist/block-app-android-aarch64/block-app.apk
           retention-days: 14
 
-      # The launcher for Android, signed with the same keystore, which runs the
-      # builds publish-android puts on be3-ci.
+      # The launcher for Android, signed with the same keystore, which
+      # installs the APKs publish-android puts on be3-ci.
       - uses: actions/upload-artifact@v7
         with:
           name: be-launcher-android-aarch64
@@ -138,19 +138,6 @@ jobs:
           name: block-web
           path: dist/block-web
           retention-days: 14
-
-      # What publish-android uploads to be3-ci. Only main and pull requests
-      # from this repository have one, since a fork's pull request has no
-      # BuildBuddy key to build it with.
-      - uses: actions/upload-artifact@v7
-        if: >-
-          github.event_name == 'push' ||
-          (github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository)
-        with:
-          name: block-android
-          path: dist/block-android
-          retention-days: 1
 
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main'
@@ -530,37 +517,19 @@ jobs:
             echo 'The pull request changes no paintings.'
           fi
 
-  # The one check the ruleset on main requires, and the only thing the merge
-  # queue in merge-queue.yml waits for. Every job it names in needs other than
-  # autofix has to pass, so requiring this one name requires all of them, and
-  # adding a job to the check below extends the gate without anyone editing
-  # the ruleset.
-  #
-  # It waits for autofix without judging it. A failure here is what makes the
-  # merge queue give up on a pull request, and a verification the autofix job
-  # is about to fix is not one to give up on: the fix is pushed as the queue's
-  # own app, which the queue keeps queued, and CI starts again on it. Waiting
-  # means that by the time this fails, that push has already happened.
-  #
-  # always(), and nothing else. A job whose `if` is false does not run, and
-  # GitHub reports what did not run as a skipped check run, which a required
-  # status check accepts the same way it accepts a pass. A condition here that
-  # can be false is therefore a gate that opens itself: this job spent a while
-  # carrying `github.event_name != 'pull_request'` and resolved to skipped on
-  # every pull request, which satisfied the rule without reading a single one
-  # of its needs. always() is what makes it run after the needs finish
-  # whatever they did, so that the step below is the thing that decides.
-  # The launcher on Android (crates/be-launcher) runs these builds. Each goes
-  # to the be3-ci Bunny storage zone under android/<slot>/, where the slot is
-  # pr-<number> or main: one build a slot, which the next replaces. Every file
-  # is gzipped and named by the SHA-256 of its bytes, <hash>.gz, so a file the
-  # slot already holds, like a plugin the pull request did not change, is not
-  # uploaded again, and nor does the launcher download it again. build.json,
-  # uploaded after them, names them: the commit, the shell hash, the launcher's
-  # APK, and each file with its path in the build. The files it no longer
-  # names are deleted after it. android-builds.yml deletes a closed pull
-  # request's slot. As with the paint previews, the storage key is given to
-  # the upload step alone, and what the artifact holds is only data here.
+  # The launcher on Android (crates/be-launcher) installs these APKs: the app
+  # and the launcher, both signed with CI's keystore. Each goes to the be3-ci
+  # Bunny storage zone under android/<slot>/, where the slot is pr-<number> or
+  # main: one build a slot, which the next replaces. Each APK is named by the
+  # SHA-256 of its bytes, <hash>.apk, so one the slot already holds is not
+  # uploaded again, and nor does the launcher download or install it again.
+  # build.json, uploaded after them, names them: the commit, and the hash and
+  # size of the app and of the launcher. The APKs it no longer names are
+  # deleted after it. android-builds.yml deletes a closed pull request's slot.
+  # Only main and pull requests from this repository have one, since a fork's
+  # pull request has no BuildBuddy key to sign it with. As with the paint
+  # previews, the storage key is given to the upload step alone, and what the
+  # artifacts hold is only data here.
   #
   # Not one of CI OK's needs: a build the launcher cannot fetch does not stop
   # a merge.
@@ -575,7 +544,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: block-android
+          name: block-app-android-aarch64
+          path: ${{ runner.temp }}/android
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: be-launcher-android-aarch64
           path: ${{ runner.temp }}/android
 
       - name: Upload it
@@ -592,34 +566,27 @@ jobs:
 
           object() {
             hash="$(sha256sum "$1" | cut -c1-64)"
-            [ -e "$objects/$hash.gz" ] || gzip -6 -n -c "$1" > "$objects/$hash.gz"
+            cp "$1" "$objects/$hash.apk"
             jq -n --arg hash "$hash" --argjson size "$(stat -c %s "$1")" '{hash: $hash, size: $size}'
           }
 
-          files="$(
-            cd "$android/build"
-            find . -type f | sed 's|^\./||' | LC_ALL=C sort | while IFS= read -r path; do
-              object "$android/build/$path" | jq -c --arg path "$path" '{path: $path} + .'
-            done | jq -s .
-          )"
           jq -n \
             --arg commit "$COMMIT" \
-            --arg shell "$(cat "$android/shell")" \
-            --argjson launcher "$(object "$android/launcher.apk")" \
-            --argjson files "$files" \
-            '{commit: $commit, shell: $shell, launcher: $launcher, files: $files}' > "$RUNNER_TEMP/build.json"
+            --argjson app "$(object "$android/block-app.apk")" \
+            --argjson launcher "$(object "$android/be-launcher.apk")" \
+            '{commit: $commit, app: $app, launcher: $launcher}' > "$RUNNER_TEMP/build.json"
 
           present="$(curl --fail --silent --show-error --retry 3 \
             --header "AccessKey: $BUNNY_STORAGE_KEY" "$store/" |
             jq -r '.[] | select(.IsDirectory | not) | .ObjectName')" || present=''
 
-          for object in "$objects"/*.gz; do
+          for object in "$objects"/*.apk; do
             name="$(basename "$object")"
             if ! grep -qxF "$name" <<< "$present"; then
               curl --fail --silent --show-error --retry 3 --output /dev/null \
                 --request PUT \
                 --header "AccessKey: $BUNNY_STORAGE_KEY" \
-                --header 'Content-Type: application/octet-stream' \
+                --header 'Content-Type: application/vnd.android.package-archive' \
                 --upload-file "$object" \
                 "$store/$name"
             fi
@@ -642,6 +609,26 @@ jobs:
             fi
           done <<< "$present"
 
+  # The one check the ruleset on main requires, and the only thing the merge
+  # queue in merge-queue.yml waits for. Every job it names in needs other than
+  # autofix has to pass, so requiring this one name requires all of them, and
+  # adding a job to the check below extends the gate without anyone editing
+  # the ruleset.
+  #
+  # It waits for autofix without judging it. A failure here is what makes the
+  # merge queue give up on a pull request, and a verification the autofix job
+  # is about to fix is not one to give up on: the fix is pushed as the queue's
+  # own app, which the queue keeps queued, and CI starts again on it. Waiting
+  # means that by the time this fails, that push has already happened.
+  #
+  # always(), and nothing else. A job whose `if` is false does not run, and
+  # GitHub reports what did not run as a skipped check run, which a required
+  # status check accepts the same way it accepts a pass. A condition here that
+  # can be false is therefore a gate that opens itself: this job spent a while
+  # carrying `github.event_name != 'pull_request'` and resolved to skipped on
+  # every pull request, which satisfied the rule without reading a single one
+  # of its needs. always() is what makes it run after the needs finish
+  # whatever they did, so that the step below is the thing that decides.
   ci-ok:
     name: 'CI OK'
     if: always()

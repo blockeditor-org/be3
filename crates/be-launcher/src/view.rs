@@ -21,11 +21,11 @@ use crate::detail::Detail;
 use crate::github::{Filter, Label, PullRequest, State};
 use crate::model::{Loaded, Model};
 #[cfg(target_os = "android")]
-use crate::phone::{LauncherMenu, MainNotes};
+use crate::phone::MainActions;
 use crate::time::{now, relative};
 use crate::viewer::ImageViewer;
 #[cfg(not(target_os = "android"))]
-use crate::workspace::Workspace;
+use crate::workspace::{MainActions, Workspace};
 
 #[cfg(not(target_os = "android"))]
 const SIDEBAR_WIDTH: f32 = 380.0;
@@ -39,7 +39,7 @@ pub(crate) const MERGED: Color32 = Color32::from_rgb(163, 113, 247);
 #[cfg(not(target_os = "android"))]
 const CURRENT: &str = "checked out";
 #[cfg(target_os = "android")]
-const CURRENT: &str = "downloaded";
+const CURRENT: &str = "installed";
 
 #[cfg(target_os = "android")]
 #[component]
@@ -140,8 +140,7 @@ fn Sidebar(model: Model) -> NodeId {
     });
     let set_query = model.set_query.clone();
     let query = model.query.clone();
-    let menu = model.clone();
-    let status = model.clone();
+    let main = model.clone();
     view! {
         <List spacing=0.0>
             <Frame padding_horizontal=PADDING padding_vertical=PADDING>
@@ -151,14 +150,9 @@ fn Sidebar(model: Model) -> NodeId {
                             <Heading content="Pull requests" />
                             <Caption content={repository} />
                         </List>
-                        <Show condition={cfg!(target_os = "android")}>
-                            <Menu model={menu.clone()} />
-                        </Show>
                         <IconButton glyph=ICON_REFRESH label="Refresh" on_click={refresh} />
                     </List>
-                    <Show condition={cfg!(target_os = "android")}>
-                        <Status model={status.clone()} />
-                    </Show>
+                    <MainActions model={main} />
                     <Tabs
                         options={view! {
                             <ChoiceOption label="Open" />
@@ -213,40 +207,6 @@ fn Sidebar(model: Model) -> NodeId {
                 </Frame>
             </Scroll>
         </List>
-    }
-}
-
-#[cfg(target_os = "android")]
-#[component]
-fn Menu(model: Model) -> NodeId {
-    view! {
-        <LauncherMenu model />
-    }
-}
-
-#[cfg(not(target_os = "android"))]
-#[component]
-fn Menu(model: Model) -> NodeId {
-    let _ = model;
-    view! {
-        <List spacing=0.0 />
-    }
-}
-
-#[cfg(target_os = "android")]
-#[component]
-fn Status(model: Model) -> NodeId {
-    view! {
-        <MainNotes model />
-    }
-}
-
-#[cfg(not(target_os = "android"))]
-#[component]
-fn Status(model: Model) -> NodeId {
-    let _ = model;
-    view! {
-        <List spacing=0.0 />
     }
 }
 

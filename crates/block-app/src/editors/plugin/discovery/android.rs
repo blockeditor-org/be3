@@ -8,11 +8,7 @@ const INDEX: &str = "plugins.json";
 
 pub(crate) fn load(app: &AndroidApp) {
     let assets = app.asset_manager();
-    let downloaded = crate::platform::launched().map(|launched| launched.assets());
     let read = |path: &str| -> Result<Vec<u8>, String> {
-        if let Some(directory) = &downloaded {
-            return std::fs::read(directory.join(path)).map_err(|error| error.to_string());
-        }
         let name = CString::new(path).map_err(|_| "the asset path is not a C string".to_owned())?;
         let mut asset = assets.open(&name).ok_or("no such asset")?;
         let mut bytes = Vec::new();

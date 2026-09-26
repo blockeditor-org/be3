@@ -702,7 +702,6 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "comrak",
- "flate2",
  "ghostty-vt",
  "image",
  "jni 0.22.4",
