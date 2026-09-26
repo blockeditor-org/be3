@@ -230,3 +230,15 @@ tool(
         "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
     ],
 )
+
+# The app in a virtual display for an agent to drive, signed in with a
+# workspace open: guides/running_the_app.md.
+tool(
+    name = "dev",
+    command = [
+        "sh",
+        "$(location //buck/app:dev.sh)",
+        "$(location :app)/block-app",
+        "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+    ],
+)

@@ -6,6 +6,8 @@ use crate::geometry::{Rect, Vec2};
 use crate::input::{Event, Key, Modifiers, TouchPhase};
 
 #[cfg(feature = "window")]
+mod accessibility_dump;
+#[cfg(feature = "window")]
 mod clipboard;
 #[cfg(feature = "window")]
 mod native;
@@ -82,6 +84,8 @@ pub struct RunOptions {
     pub title: String,
     pub app_id: Option<String>,
     pub size: Vec2,
+    #[cfg(feature = "window")]
+    pub accessibility_dump: Option<std::path::PathBuf>,
     #[cfg(feature = "render")]
     pub open_device: Option<OpenDevice>,
     #[cfg(all(feature = "window", target_os = "android"))]
@@ -94,6 +98,8 @@ impl RunOptions {
             title: title.into(),
             app_id: None,
             size: Vec2::new(1280.0, 800.0),
+            #[cfg(feature = "window")]
+            accessibility_dump: None,
             #[cfg(feature = "render")]
             open_device: None,
             #[cfg(all(feature = "window", target_os = "android"))]
