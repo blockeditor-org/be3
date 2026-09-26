@@ -616,7 +616,9 @@ pub(crate) fn editor_ui(ui: &mut Ui, slot: EditorSlot<'_>) -> EditorPresentation
         {
             host::set_cursor(cursor);
         }
-        if let Some(ime) = runtime.instances.ime(instance, region, rect) {
+        if host::focused(target)
+            && let Some(ime) = runtime.instances.ime(instance, region, rect)
+        {
             host::set_ime(ime);
         }
         EditorPresentation {

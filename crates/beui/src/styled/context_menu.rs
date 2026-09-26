@@ -28,6 +28,7 @@ pub fn ContextMenu(
     #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,
+    #[prop(default = true)] open_at_focuses: bool,
     on_close: ClickCallback,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
@@ -39,6 +40,7 @@ pub fn ContextMenu(
             child_size={child_size}
             disabled={disabled}
             open_at={open_at}
+            open_at_focuses
             on_close={move || on_close.call()}
             on_select={move |path| on_select.call(path)}
         >

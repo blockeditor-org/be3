@@ -1,18 +1,13 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use block_editor_plugin::be_block::ObjectId;
 use block_editor_plugin::be_block::presentation::{Presentation, PresentationContent};
-use block_editor_plugin::beui::reactive::{KeyedStore, ReadSignal, WriteSignal, create_signal};
+use block_editor_plugin::beui::reactive::{
+    KeyedStore, ReadSignal, WriteSignal, create_effect, create_signal,
+};
 use block_editor_plugin::{BlockList, BlockQuery, ChildTarget, ContentProjection, Editor};
 use uuid::Uuid;
-
-struct PendingSlide {
-    block: Uuid,
-    slide: Uuid,
-    index: usize,
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Slide {
@@ -26,7 +21,6 @@ pub struct Slides {
     store: KeyedStore<Uuid, Slide>,
     selected: ReadSignal<Option<Uuid>>,
     set_selected: WriteSignal<Option<Uuid>>,
-    pending: Rc<RefCell<Vec<PendingSlide>>>,
 }
 
 impl Slides {
@@ -39,13 +33,12 @@ impl Slides {
             store: KeyedStore::new(),
             selected,
             set_selected,
-            pending: Rc::new(RefCell::new(Vec::new())),
         });
         let dependencies = editor
             .blocks()
             .watch(BlockQuery::References(editor.block_id()));
         let updated = Rc::clone(&slides);
-        editor.each_frame(move || updated.refresh(&dependencies));
+        create_effect(move || updated.refresh(&dependencies));
         slides
     }
 
@@ -144,33 +137,20 @@ impl Slides {
                 let Ok(picked) = picked else {
                     return;
                 };
-                let slide_id = Uuid::new_v4();
-                slides.pending.borrow_mut().push(PendingSlide {
-                    block: picked.id,
-                    slide: slide_id,
-                    index,
-                });
-                slides.set_selected.set(Some(slide_id));
+                let slide = Uuid::new_v4();
+                if let Some(edit) = slides.block.read(|presentation| {
+                    presentation
+                        .root()
+                        .insert(ObjectId::from_uuid(slide), index, picked.id)
+                }) {
+                    slides.block.operate(edit);
+                }
+                slides.set_selected.set(Some(slide));
             },
         );
     }
 
     fn refresh(&self, dependencies: &BlockList) {
-        let inserts: Vec<_> = std::mem::take(&mut *self.pending.borrow_mut());
-        for PendingSlide {
-            block,
-            slide,
-            index,
-        } in inserts
-        {
-            if let Some(edit) = self.block.read(|presentation| {
-                presentation
-                    .root()
-                    .insert(ObjectId::from_uuid(slide), index, block)
-            }) {
-                self.block.operate(edit);
-            }
-        }
         let Some(entries) = self.block.read(|presentation| {
             presentation
                 .root()

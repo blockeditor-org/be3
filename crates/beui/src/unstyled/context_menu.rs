@@ -3,11 +3,11 @@ use beui_macros::{component, view};
 use crate::base::overlay::{Overlay, OverlayAnchor, Placement};
 use crate::document::Document;
 use crate::geometry::Pos2;
-use crate::input::{CursorIcon, PointerPress};
+use crate::input::PointerPress;
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, Child, Children, ClickCallback, ClickCatcher, ItemSize, List, NodeRef, Prop,
-    RenderFn, create_effect, create_memo, create_signal, set_component_state,
+    RenderFn, clone, create_effect, create_memo, create_signal, set_component_state,
 };
 use crate::unstyled::menu::{MenuItem, MenuList, MenuRowHandle};
 
@@ -25,6 +25,7 @@ pub fn ContextMenu(
     #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,
+    #[prop(default = true)] open_at_focuses: bool,
     on_close: ClickCallback,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
@@ -37,6 +38,9 @@ pub fn ContextMenu(
     });
     let panel = panel.unwrap_or_else(|| RenderFn::new(|content| content));
     let (open, set_open) = create_signal(false);
+    let (focusing, set_focusing) = create_signal(true);
+    let active = create_memo(clone!(open focusing -> move || open.get() && focusing.get()));
+    let pressed_focusing = set_focusing.clone();
     let (position, set_position) = create_signal(Pos2::ZERO);
     let anchor = create_memo(move || OverlayAnchor::Point(position.get()));
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
@@ -55,6 +59,7 @@ pub fn ContextMenu(
             return;
         };
         requested_position.set(at);
+        set_focusing.set(open_at_focuses);
         requested.set(true);
     });
     let items = items.into_run();
@@ -64,7 +69,7 @@ pub fn ContextMenu(
             items={items}
             row
             panel={panel.clone()}
-            active={open.clone()}
+            active
             on_select={move |path: Vec<usize>| {
                 on_select.call(path);
                 close.set(false);
@@ -74,12 +79,12 @@ pub fn ContextMenu(
     });
     view! {
         <ClickCatcher
-            cursor=CursorIcon::Default
             on_secondary_press={move |press: PointerPress| {
                 if disabled.get() {
                     return;
                 }
                 set_position.set(press.pos);
+                pressed_focusing.set(true);
                 set_open.set(true);
             }}
         >
@@ -89,6 +94,7 @@ pub fn ContextMenu(
                     @node_ref=&overlay
                     anchor
                     placement=Placement::BelowStart
+                    traps_focus={focusing}
                     open
                     on_dismiss={move || {
                         dismiss.set(false);

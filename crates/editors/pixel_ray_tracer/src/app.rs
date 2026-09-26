@@ -49,8 +49,7 @@ impl block_editor_plugin::BeuiApp for PixelRayTracerApp {
 #[component]
 fn PixelRayTracerEditor(editor: Editor) -> NodeId {
     let state = RayState::new(&editor);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
+    state.watch();
 
     let chrome = editor.chrome_shown();
     let bar = Rc::clone(&state);
@@ -75,8 +74,7 @@ fn PixelRayTracerEditor(editor: Editor) -> NodeId {
 #[component]
 fn PixelRayTracerPreview(editor: Editor) -> NodeId {
     let state = RayState::new(&editor);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
+    state.watch();
     let image = state.lighting.clone();
     view! {
         <Picture image={image} fit=ImageFit::Contain smooth=false />

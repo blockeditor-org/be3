@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use super::{HAND_SIZE, can_be_played, decks_for};
 
+mod cards_are_played_by_dragging_them_onto_the_discard_pile;
 mod decks_scale_with_the_number_of_players;
 mod drawing_a_card_you_can_play_offers_it_before_your_turn_ends;
 mod drawing_a_card_you_cannot_play_ends_your_turn;

@@ -6,7 +6,7 @@ use beui_macros::{component, view};
 use crate::node::NodeId;
 use crate::reactive::{
     Direction, Frame, ItemSize, List, Prop, Spacer, clone, component_accessibility, create_effect,
-    create_memo, create_signal, each_frame, node_placed, with_document,
+    create_memo, create_signal, create_timer, node_placed,
 };
 use crate::styled::theme::use_theme;
 
@@ -54,17 +54,16 @@ pub fn Spinner(
         </Frame>
     };
     let placed = node_placed(node);
-    create_effect(clone!(placed -> move || {
-        if placed.get() {
-            with_document(|document| document.request_repaint_after(Duration::ZERO));
-        }
-    }));
-    each_frame(move || {
+    let ticking = create_timer(clone!(placed -> move || {
         if !placed.get_untracked() {
-            return;
+            return None;
         }
         set_phase.set((started.elapsed().as_secs_f32() / PERIOD).fract());
-        with_document(|document| document.request_repaint_after(FRAME));
+        Some(FRAME)
+    }));
+    create_effect(move || match placed.get() {
+        true => ticking.start(Duration::ZERO),
+        false => ticking.stop(),
     });
     node
 }

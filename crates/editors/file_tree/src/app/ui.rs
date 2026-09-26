@@ -8,7 +8,8 @@ use block_editor_plugin::beui::icons::{
 };
 use block_editor_plugin::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Show, Spacer,
-    WriteSignal, clone, component, create_memo, create_signal, view, with_document,
+    WriteSignal, clone, component, create_effect, create_memo, create_signal, node_placed,
+    node_rect, view, with_document,
 };
 use block_editor_plugin::beui::styled::theme::FONT_SMALL;
 use block_editor_plugin::beui::styled::{
@@ -40,9 +41,8 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let inspect = set_inspecting.clone();
     let keys = tree.keys();
     let rows = tree.rows();
-    let (focused, set_focused) = create_signal(None::<RowKey>);
-    let watching = editor.host().clone();
-    editor.each_frame(move || set_focused.set(focused_key(&watching)));
+    let focused_block = editor.focused_block();
+    let focused = create_memo(move || focused_block.with(focused_key));
 
     let shown = create_memo(clone!(focused keys -> move || {
         let focused = focused.get()?;
@@ -61,12 +61,10 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let strayed = (
         shown.clone(),
         buried.clone(),
+        keys.clone(),
         tree_ref.clone(),
         scroll_ref.clone(),
     );
-    editor.each_frame(move || {
-        set_astray.set(stray(&strayed.0, &strayed.1, &strayed.2, &strayed.3));
-    });
     let (landing, set_landing) = create_signal(None::<(RowKey, bool)>);
     let dropping = (
         editor.clone(),
@@ -75,16 +73,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         tree_ref.clone(),
         editor.drag(),
     );
-    editor.each_frame(move || {
-        let landed = arrival(
-            &dropping.0,
-            &dropping.1,
-            &dropping.2,
-            &dropping.3,
-            &dropping.4,
-        );
-        set_landing.set(landed);
-    });
     let arriving = create_memo(clone!(landing -> move || landing.get()));
 
     let adrift = create_memo(clone!(astray -> move || astray.get().is_some()));
@@ -150,7 +138,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         }
         tree.show_orphans();
         tree.expand(focused.via.iter().rev().copied());
-        let Some(key) = focused_key(host) else {
+        let Some(key) = focused_key(&host.focused_block()) else {
             return;
         };
         set_reveal.set(Some(key));
@@ -194,7 +182,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    view! {
+    let node = view! {
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
                 <Toolbar shown={chrome}>
@@ -261,7 +249,23 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                 <Inspector inspecting={inspecting} set_inspecting={set_inspecting} />
             </List>
         </Frame>
-    }
+    };
+    create_effect(move || {
+        set_astray.set(stray(
+            &strayed.0, &strayed.1, &strayed.2, &strayed.3, &strayed.4,
+        ));
+    });
+    create_effect(move || {
+        let landed = arrival(
+            &dropping.0,
+            &dropping.1,
+            &dropping.2,
+            &dropping.3,
+            &dropping.4,
+        );
+        set_landing.set(landed);
+    });
+    node
 }
 
 #[component]
@@ -330,8 +334,7 @@ enum Astray {
     Below,
 }
 
-fn focused_key(host: &block_editor_plugin::EditorHost) -> Option<RowKey> {
-    let focused = host.focused_block();
+fn focused_key(focused: &block_editor_plugin::FocusedBlock) -> Option<RowKey> {
     let id = focused.block_id?;
     let mut path: Vec<Uuid> = focused.via.iter().rev().copied().collect();
     path.push(id);
@@ -351,28 +354,31 @@ fn deepest_shown(keys: &[RowKey], focused: &RowKey) -> Option<RowKey> {
 fn stray(
     shown: &Memo<Option<RowKey>>,
     buried: &Memo<Option<RowKey>>,
+    keys: &Memo<Vec<RowKey>>,
     tree: &NodeRef,
     scroll: &NodeRef,
 ) -> Option<Astray> {
-    let key = shown.get_untracked()?;
-    if buried.get_untracked().is_some() {
+    let key = shown.get()?;
+    if buried.get().is_some() {
         return Some(Astray::Below);
     }
+    keys.with(|_| ());
     let (Some(tree), Some(scroll)) = (tree.try_get(), scroll.try_get()) else {
         return None;
     };
-    with_document(|document| {
-        let node = tree_row_node::<RowKey>(document, tree, &key)?;
-        let row = document.node_rect(node)?;
-        let viewport = document.node_rect(scroll)?;
-        if row.bottom() <= viewport.top() {
-            return Some(Astray::Above);
-        }
-        if row.top() >= viewport.bottom() {
-            return Some(Astray::Below);
-        }
-        None
-    })
+    let node = with_document(|document| tree_row_node::<RowKey>(document, tree, &key))?;
+    if !node_placed(node).get() || !node_placed(scroll).get() {
+        return None;
+    }
+    let row = node_rect(node).get();
+    let viewport = node_rect(scroll).get();
+    if row.bottom() <= viewport.top() {
+        return Some(Astray::Above);
+    }
+    if row.top() >= viewport.bottom() {
+        return Some(Astray::Below);
+    }
+    None
 }
 
 fn row_test_id(key: &RowKey) -> String {
@@ -590,13 +596,13 @@ fn arrival(
     tree: &NodeRef,
     drag: &ReadSignal<Option<Drag>>,
 ) -> Option<(RowKey, bool)> {
-    let drag = drag.get_untracked()?;
+    let drag = drag.get()?;
     let carried = held.get()?;
     let tree = tree.try_get()?;
     if carried.id != drag.block_id {
         return None;
     }
-    let (key, id, can_add) = rows.with_untracked(|rows| {
+    let (key, id, can_add) = rows.with(|rows| {
         rows.iter().find_map(|row| {
             let id = row.id?;
             let rect = row_rect(tree, &row.key)?;
@@ -707,7 +713,7 @@ fn picker(editor: &Editor, tree: Rc<FileTree>) -> Rc<Picker> {
     });
     let polled = Rc::clone(&picker);
     let host = editor.host().clone();
-    editor.each_frame(move || {
+    editor.on_reply(move || {
         let Some(result) = polled.picker.borrow_mut().poll(&host) else {
             return;
         };

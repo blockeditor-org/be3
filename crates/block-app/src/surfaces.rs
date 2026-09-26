@@ -15,14 +15,16 @@ pub(crate) enum SurfaceId {
     Main,
     Presenting,
     Creation,
+    NestedCreation,
     ArtifactSettings,
 }
 
 impl SurfaceId {
-    const ALL: [Self; 4] = [
+    const ALL: [Self; 5] = [
         Self::Main,
         Self::Presenting,
         Self::Creation,
+        Self::NestedCreation,
         Self::ArtifactSettings,
     ];
 
@@ -31,7 +33,8 @@ impl SurfaceId {
             Self::Main => 0,
             Self::Presenting => 1,
             Self::Creation => 2,
-            Self::ArtifactSettings => 3,
+            Self::NestedCreation => 3,
+            Self::ArtifactSettings => 4,
         }
     }
 }
@@ -90,8 +93,8 @@ impl SurfaceHandle {
 }
 
 thread_local! {
-    static STATES: [RefCell<State>; 4] = Default::default();
-    static HANDLES: RefCell<Option<Rc<[SurfaceHandle; 4]>>> = const { RefCell::new(None) };
+    static STATES: [RefCell<State>; 5] = Default::default();
+    static HANDLES: RefCell<Option<Rc<[SurfaceHandle; 5]>>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn create_handles() {

@@ -2,7 +2,8 @@ use std::convert::Infallible;
 
 use uuid::Uuid;
 
-use game_api::{GameHelper, GameScreen};
+use game_api::board::{Grid, Sprite};
+use game_api::{GameHelper, GameScreen, Move, Scene, Spot};
 
 const COLUMNS: usize = 7;
 const ROWS: usize = 6;
@@ -23,6 +24,29 @@ impl Symbol {
             Symbol::Yellow => "Yellow",
         }
     }
+
+    fn sprite(self) -> Sprite {
+        match self {
+            Symbol::Red => Sprite::piece("disc", 0),
+            Symbol::Yellow => Sprite::piece("disc", 1),
+        }
+    }
+}
+
+fn spot(column: usize, row: usize) -> Spot {
+    Spot::tile(column as u32, (ROWS - 1 - row) as u32)
+}
+
+fn grid(board: &[Option<Symbol>; CELL_COUNT]) -> Grid {
+    let mut grid = Grid::new(COLUMNS as u32, ROWS as u32);
+    for row in 0..ROWS {
+        for column in 0..COLUMNS {
+            if let Some(symbol) = board[cell(column, row)] {
+                grid.place(column as u32, (ROWS - 1 - row) as u32, symbol.sprite());
+            }
+        }
+    }
+    grid
 }
 
 fn cell(column: usize, row: usize) -> usize {
@@ -67,10 +91,11 @@ fn connect_four(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
 
     loop {
         if let Some(winner) = winning_symbol(&board) {
-            helper.action(move |_| format!("{} wins!", winner.label()), |_, _| {})?;
+            return helper
+                .game_over(|_| Scene::new(format!("{} wins!", winner.label())).on(grid(&board)));
         }
         if move_count >= CELL_COUNT {
-            helper.action(|_| "Draw!".to_owned(), |_, _| {})?;
+            return helper.game_over(|_| Scene::new("Draw!").on(grid(&board)));
         }
 
         let turn = move_count % 2;
@@ -86,25 +111,29 @@ fn connect_four(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
             None => other != Some(player),
         };
 
+        let shown = grid(&board);
         helper.action(
             move |player| {
-                if can_move(player) {
+                let description = if can_move(player) {
                     format!("Your turn ({})", symbol.label())
                 } else {
                     format!("Waiting for {}...", symbol.label())
-                }
+                };
+                Scene::new(description).on(shown.clone())
             },
             |player, action| {
                 if !can_move(player) {
                     return;
                 }
                 for column in 0..COLUMNS {
-                    if column_heights[column] < ROWS && action(&column_label(column)) {
+                    let height = column_heights[column];
+                    if height < ROWS
+                        && action(Move::new(column_label(column)).click(spot(column, height)))
+                    {
                         if players[turn].is_none() {
                             players[turn] = Some(player);
                         }
-                        let row = column_heights[column];
-                        board[cell(column, row)] = Some(symbol);
+                        board[cell(column, height)] = Some(symbol);
                         column_heights[column] += 1;
                         return;
                     }

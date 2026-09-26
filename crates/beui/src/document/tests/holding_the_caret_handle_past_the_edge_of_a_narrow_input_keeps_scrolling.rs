@@ -34,7 +34,6 @@ fn holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling() {
     harness.touch(TouchPhase::Move, past_the_edge);
     let reached = unstyled::text_input_caret(harness.document(), input);
     for _ in 0..5 {
-        std::thread::sleep(Duration::from_millis(60));
         harness.frame(Vec::new());
     }
     let held = unstyled::text_input_caret(harness.document(), input);
