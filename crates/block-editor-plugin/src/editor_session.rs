@@ -2,7 +2,7 @@ use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::{
     ArtifactDescription, ChildId, ChildPlacement, ChildPlacements, ChildRect, ChildStatus,
     CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
-    FrameReport, FrameSpec, HostReply, ImeArea, InputEvent, Key, MAX_CHILDREN,
+    FrameReport, FrameSpec, HostReply, ImeArea, ImeInput, InputEvent, Key, MAX_CHILDREN,
     MAX_COLLECTION_ITEMS, Message, Occluder, PointerButton, RegionSize, ScreenPlacement,
     ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent, WheelUnit,
 };
@@ -1247,7 +1247,13 @@ impl EditorSession {
                 state.emulated_touch = false;
                 state.events.push(beui::Event::Focus(false));
             }
-            InputEvent::Ime(_) | InputEvent::Focus(_) => {}
+            InputEvent::Ime(ime) => state.events.push(beui::Event::Ime(match ime {
+                ImeInput::Enabled => beui::ImeEvent::Enabled,
+                ImeInput::Preedit(text) => beui::ImeEvent::Preedit(text.clone()),
+                ImeInput::Commit(text) => beui::ImeEvent::Commit(text.clone()),
+                ImeInput::Disabled => beui::ImeEvent::Disabled,
+            })),
+            InputEvent::Focus(_) => {}
         }
     }
 }
