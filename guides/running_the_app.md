@@ -63,23 +63,4 @@ text field before typing into it. Other buttons are `click 3` (right) and `click
 The app draws when something changes, so give it a moment after an input before reading the
 tree or taking a screenshot.
 
-## The web build
-
-    ./scripts/buck run //crates/block-app:web-serve -- --data-dir DIR
-
-serves the web bundle with be-server behind it on http://127.0.0.1:8080. Passing any
-be-server argument replaces the default `--disable-registration`, so an account can be
-registered from the page; its server is `http://127.0.0.1:8080`. The bundle is served from
-where buck built it, so restart the command after a rebuild.
-
-Drive it with Playwright from Node (`/opt/node22/lib/node_modules/playwright`), launching
-`chromium.launch({ channel: 'chromium', args })` with these `args`, without which WebGPU
-canvases come out blank in screenshots:
-
-    --enable-unsafe-webgpu --enable-features=Vulkan,WebGPUService --use-angle=vulkan
-    --use-vulkan=swiftshader --enable-unsafe-swiftshader --ignore-gpu-blocklist
-
-`--disable-features=WebGPU --use-angle=swiftshader --enable-unsafe-swiftshader` instead
-exercises the WebGL fallback. Each plugin runs in a worker, whose console Playwright does
-not report; add `--enable-logging=stderr --v=0` and run with `DEBUG=pw:browser` to see it
-among the browser's own output, as `INFO:CONSOLE` lines.
+The web build has a launcher of its own: guides/running_the_web_app.md.
