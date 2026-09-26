@@ -1,5 +1,5 @@
 use std::ffi::OsStr;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::Sender;
@@ -7,10 +7,14 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::thread;
 
 use beui::Waker;
+use portable_pty::{CommandBuilder, MasterPty, PtySize, native_pty_system};
 
 use crate::github::{Entry, Filter, GitHub, PullRequest, download};
+use crate::targets::{QUERY, Target, parse_targets};
 
 const READ_CHUNK: usize = 4096;
+const DEFAULT_COLS: u16 = 100;
+const DEFAULT_ROWS: u16 = 30;
 const MAX_IMAGE_WIDTH: u32 = 1200;
 
 pub(crate) struct Pixels {
@@ -25,9 +29,16 @@ pub(crate) enum Event {
     Timeline(u64, Result<Vec<Entry>, String>),
     Image(String, Result<Pixels, String>),
     Head { sha: String, summary: String },
+    Targets(Result<Vec<Target>, String>),
     Started(String),
     Output(Vec<u8>),
     Finished { summary: String, success: bool },
+}
+
+struct Running {
+    process: Option<u32>,
+    master: Box<dyn MasterPty + Send>,
+    writer: Box<dyn Write + Send>,
 }
 
 #[derive(Clone)]
@@ -36,7 +47,8 @@ pub(crate) struct Tasks {
     sender: Sender<Event>,
     waker: Arc<OnceLock<Waker>>,
     github: Arc<OnceLock<Result<GitHub, String>>>,
-    running: Arc<Mutex<Option<u32>>>,
+    running: Arc<Mutex<Option<Running>>>,
+    size: Arc<Mutex<(u16, u16)>>,
 }
 
 impl Tasks {
@@ -47,6 +59,7 @@ impl Tasks {
             waker: Arc::new(OnceLock::new()),
             github: Arc::new(OnceLock::new()),
             running: Arc::new(Mutex::new(None)),
+            size: Arc::new(Mutex::new((DEFAULT_COLS, DEFAULT_ROWS))),
         }
     }
 
@@ -111,6 +124,29 @@ impl Tasks {
         });
     }
 
+    pub(crate) fn targets(&self) {
+        self.background(|tasks| {
+            let listed = capture(
+                &tasks.root,
+                bash(),
+                &[
+                    "scripts/buck",
+                    "uquery",
+                    QUERY,
+                    "--output-attribute",
+                    "^buck.type$",
+                    "--output-attribute",
+                    "^binary$",
+                ],
+            )
+            .and_then(|listed| {
+                serde_json::from_str(&listed)
+                    .map_err(|error| format!("buck2 listed the targets as {error}"))
+            });
+            Event::Targets(listed.map(|listed| parse_targets(&listed)))
+        });
+    }
+
     pub(crate) fn read_head(&self) {
         self.background(|tasks| {
             let sha = capture(&tasks.root, "git", &["rev-parse", "HEAD"])
@@ -138,31 +174,53 @@ impl Tasks {
     }
 
     fn run_to_end(&self, script: &str, args: &[String]) -> Result<(String, bool), String> {
-        let mut command = command(bash());
-        command
-            .arg(format!("scripts/{script}"))
-            .args(args)
-            .current_dir(&self.root)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        #[cfg(unix)]
-        std::os::unix::process::CommandExt::process_group(&mut command, 0);
-        let mut child = command
-            .spawn()
+        let (cols, rows) = *self.lock_size();
+        let pair = native_pty_system()
+            .openpty(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|error| format!("could not open a terminal: {error}"))?;
+        let mut command = CommandBuilder::new(bash());
+        command.arg(format!("scripts/{script}"));
+        command.args(args);
+        command.cwd(&self.root);
+        command.env("TERM", "xterm-256color");
+        command.env("COLORTERM", "truecolor");
+        let mut child = pair
+            .slave
+            .spawn_command(command)
             .map_err(|error| format!("could not start bash: {error}"))?;
-        *self.lock_running() = Some(child.id());
-        let readers = [
-            child.stdout.take().map(|out| self.forward(out)),
-            child.stderr.take().map(|err| self.forward(err)),
-        ];
-        for reader in readers.into_iter().flatten() {
-            let _ = reader.join();
-        }
+        drop(pair.slave);
+        let reader = pair
+            .master
+            .try_clone_reader()
+            .map_err(|error| error.to_string())?;
+        let writer = pair
+            .master
+            .take_writer()
+            .map_err(|error| error.to_string())?;
+        *self.lock_running() = Some(Running {
+            process: child.process_id(),
+            master: pair.master,
+            writer,
+        });
+        let forwarding = self.forward(reader);
         let status = child.wait();
-        *self.lock_running() = None;
+        #[cfg(unix)]
+        let _ = forwarding.join();
+        let finished = self.lock_running().take();
+        drop(finished);
+        #[cfg(windows)]
+        let _ = forwarding.join();
         let status = status.map_err(|error| error.to_string())?;
-        Ok((status.to_string(), status.success()))
+        let described = match status.exit_code() {
+            0 => "finished".to_owned(),
+            code => format!("exited with status {code}"),
+        };
+        Ok((described, status.success()))
     }
 
     fn forward(&self, mut stream: impl Read + Send + 'static) -> thread::JoinHandle<()> {
@@ -179,14 +237,43 @@ impl Tasks {
     }
 
     pub(crate) fn stop(&self) {
-        let Some(process) = *self.lock_running() else {
+        let Some(process) = self
+            .lock_running()
+            .as_ref()
+            .and_then(|running| running.process)
+        else {
             return;
         };
         let _ = kill_tree(process);
     }
 
-    fn lock_running(&self) -> MutexGuard<'_, Option<u32>> {
+    pub(crate) fn input(&self, bytes: &[u8]) {
+        if let Some(running) = self.lock_running().as_mut() {
+            let _ = running.writer.write_all(bytes);
+            let _ = running.writer.flush();
+        }
+    }
+
+    pub(crate) fn resize(&self, cols: u16, rows: u16) {
+        *self.lock_size() = (cols, rows);
+        if let Some(running) = self.lock_running().as_ref() {
+            let _ = running.master.resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            });
+        }
+    }
+
+    fn lock_running(&self) -> MutexGuard<'_, Option<Running>> {
         self.running
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn lock_size(&self) -> MutexGuard<'_, (u16, u16)> {
+        self.size
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
@@ -266,16 +353,22 @@ fn is_windows_launcher(path: &Path) -> bool {
     })
 }
 
-pub(crate) fn capture(root: &Path, program: &str, args: &[&str]) -> Result<String, String> {
+pub(crate) fn capture(
+    root: &Path,
+    program: impl AsRef<OsStr>,
+    args: &[&str],
+) -> Result<String, String> {
+    let program = program.as_ref();
     let output = command(program)
         .args(args)
         .current_dir(root)
         .stdin(Stdio::null())
         .output()
-        .map_err(|error| format!("{program}: {error}"))?;
+        .map_err(|error| format!("{}: {error}", program.to_string_lossy()))?;
     if !output.status.success() {
         return Err(format!(
-            "{program} failed: {}",
+            "{} failed: {}",
+            program.to_string_lossy(),
             String::from_utf8_lossy(&output.stderr).trim()
         ));
     }

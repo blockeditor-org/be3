@@ -8,6 +8,7 @@ license.workspace = true
 beui = { path = "../beui" }
 ghostty-vt = { path = "../ghostty-vt" }
 image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
+portable-pty = "0.9"
 serde_json = "1"
 
 [lints]

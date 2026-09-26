@@ -2,11 +2,15 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui::reactive::{
-    ClickCatcher, ForEach, Frame, List, Memo, ReadSignal, Text, WriteSignal, clone, component,
-    component_size, create_effect, create_memo, create_signal, layout_text, untrack, view,
+    ClickCatcher, Focusable, ForEach, Frame, List, Memo, ReadSignal, Text, WriteSignal, clone,
+    component, component_size, create_effect, create_memo, create_signal, layout_text, untrack,
+    view,
 };
-use beui::{Color32, Direction, FontId, NodeId, ScrollGesture, TextLayout};
+use beui::{Color32, Direction, FontId, KeyPress, NodeId, ScrollGesture, TextLayout};
 use ghostty_vt::{Renderer, Rgb, Terminal};
+
+use crate::keys::key_bytes;
+use crate::tasks::Tasks;
 
 const DEFAULT_COLS: u16 = 100;
 const DEFAULT_ROWS: u16 = 30;
@@ -47,6 +51,7 @@ pub(crate) struct Session {
 #[derive(Clone)]
 pub(crate) struct Pane {
     session: Rc<RefCell<Session>>,
+    tasks: Tasks,
     rows: ReadSignal<Vec<Row>>,
     set_rows: WriteSignal<Vec<Row>>,
     background: ReadSignal<Color32>,
@@ -69,11 +74,12 @@ impl Session {
 }
 
 impl Pane {
-    pub(crate) fn new(session: Session) -> Self {
+    pub(crate) fn new(session: Session, tasks: Tasks) -> Self {
         let (rows, set_rows) = create_signal(Vec::new());
         let (background, set_background) = create_signal(Color32::BLACK);
         Self {
             session: Rc::new(RefCell::new(session)),
+            tasks,
             rows,
             set_rows,
             background,
@@ -82,14 +88,11 @@ impl Pane {
     }
 
     pub(crate) fn write(&self, bytes: &[u8]) {
-        self.session
-            .borrow_mut()
-            .terminal
-            .write(&with_carriage_returns(bytes));
+        self.session.borrow_mut().terminal.write(bytes);
     }
 
     pub(crate) fn write_line(&self, text: &str) {
-        self.write(format!("{text}\n").as_bytes());
+        self.write(format!("{text}\r\n").as_bytes());
     }
 
     pub(crate) fn refresh(&self) {
@@ -142,24 +145,31 @@ impl Pane {
             session.rows = rows;
             let _ = session.terminal.resize(cols, rows, cell_width, cell_height);
         }
+        self.tasks.resize(cols, rows);
         self.refresh();
+    }
+
+    fn type_text(&self, text: &str) {
+        self.session.borrow_mut().terminal.scroll_to_bottom();
+        self.tasks.input(text.as_bytes());
+    }
+
+    fn press(&self, press: KeyPress) -> bool {
+        if !press.pressed {
+            return false;
+        }
+        let Some(bytes) = key_bytes(press.key, press.modifiers) else {
+            return false;
+        };
+        self.session.borrow_mut().terminal.scroll_to_bottom();
+        self.tasks.input(&bytes);
+        true
     }
 
     fn scroll(&self, rows: isize) {
         self.session.borrow_mut().terminal.scroll_by(rows);
         self.refresh();
     }
-}
-
-pub(crate) fn with_carriage_returns(bytes: &[u8]) -> Vec<u8> {
-    let mut converted = Vec::with_capacity(bytes.len());
-    for &byte in bytes {
-        if byte == b'\n' {
-            converted.push(b'\r');
-        }
-        converted.push(byte);
-    }
-    converted
 }
 
 fn color(color: Rgb) -> Color32 {
@@ -186,29 +196,36 @@ pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
     let rows = pane.rows.clone();
     let keys = create_memo(clone!(rows -> move || (0..rows.with(Vec::len)).collect::<Vec<_>>()));
     let background = pane.background.clone();
+    let typed = pane.clone();
+    let pressed = pane.clone();
     view! {
-        <ClickCatcher
-            on_scroll={move |gesture: ScrollGesture| {
-                let rows = (gesture.delta.y / (FONT_SIZE * LINE_SPACING)).round() as isize;
-                if rows != 0 {
-                    pane.scroll(-rows);
-                }
-            }}
+        <Focusable
+            on_text={move |text: String| typed.type_text(&text)}
+            on_key={move |press: KeyPress| pressed.press(press)}
         >
-            <Frame color={background} padding_horizontal=PADDING padding_vertical=PADDING>
-                <List spacing=0.0>
-                    <ForEach keys>
-                        {move |index: usize| {
-                            let rows = rows.clone();
-                            let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()).unwrap_or_default());
-                            view! {
-                                <TerminalLine row />
-                            }
-                        }}
-                    </ForEach>
-                </List>
-            </Frame>
-        </ClickCatcher>
+            <ClickCatcher
+                on_scroll={move |gesture: ScrollGesture| {
+                    let rows = (gesture.delta.y / (FONT_SIZE * LINE_SPACING)).round() as isize;
+                    if rows != 0 {
+                        pane.scroll(-rows);
+                    }
+                }}
+            >
+                <Frame color={background} padding_horizontal=PADDING padding_vertical=PADDING>
+                    <List spacing=0.0>
+                        <ForEach keys>
+                            {move |index: usize| {
+                                let rows = rows.clone();
+                                let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()).unwrap_or_default());
+                                view! {
+                                    <TerminalLine row />
+                                }
+                            }}
+                        </ForEach>
+                    </List>
+                </Frame>
+            </ClickCatcher>
+        </Focusable>
     }
 }
 

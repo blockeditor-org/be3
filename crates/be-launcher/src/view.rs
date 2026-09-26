@@ -13,11 +13,10 @@ use beui::styled::{
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId};
 
-use crate::detail::Detail;
 use crate::github::{Filter, Label, PullRequest, State};
 use crate::model::{Loaded, Model};
-use crate::runner::RunPanel;
 use crate::time::{now, relative};
+use crate::workspace::Workspace;
 
 const SIDEBAR_WIDTH: f32 = 380.0;
 const PADDING: f32 = 16.0;
@@ -26,36 +25,20 @@ const ROW_SPACING: f32 = 4.0;
 const CHIP_PADDING_HORIZONTAL: f32 = 7.0;
 const CHIP_PADDING_VERTICAL: f32 = 1.0;
 const CHIP_RADIUS: u8 = 9;
-const DETAIL_SHARE: f32 = 64.0;
-const RUN_SHARE: f32 = 36.0;
 pub(crate) const MERGED: Color32 = Color32::from_rgb(163, 113, 247);
 
 #[component]
 pub(crate) fn Launcher(model: Model) -> NodeId {
     let theme = use_theme();
     let sidebar = model.clone();
-    let detail = model.clone();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Frame
-                @sizing=ItemSize::Fixed(SIDEBAR_WIDTH)
-                color={theme.surface.clone()}
-                padding_horizontal=PADDING
-                padding_vertical=PADDING
-            >
+            <Frame @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) color={theme.surface.clone()}>
                 <Sidebar model={sidebar} />
             </Frame>
             <Separator direction=Direction::Vertical />
-            <Frame
-                @sizing=ItemSize::Percent(100.0)
-                padding_horizontal=PADDING
-                padding_vertical=PADDING
-            >
-                <List spacing=PADDING>
-                    <Detail @sizing=ItemSize::Percent(DETAIL_SHARE) model={detail} />
-                    <Separator />
-                    <RunPanel @sizing=ItemSize::Percent(RUN_SHARE) model />
-                </List>
+            <Frame @sizing=ItemSize::Percent(100.0)>
+                <Workspace model />
             </Frame>
         </List>
     }
@@ -111,54 +94,68 @@ fn Sidebar(model: Model) -> NodeId {
     let set_query = model.set_query.clone();
     let query = model.query.clone();
     view! {
-        <List spacing=SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                    <Heading content="Pull requests" />
-                    <Caption content={repository} />
+        <List spacing=0.0>
+            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                <List spacing=SPACING>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                            <Heading content="Pull requests" />
+                            <Caption content={repository} />
+                        </List>
+                        <IconButton glyph=ICON_REFRESH label="Refresh" on_click={refresh} />
+                    </List>
+                    <Tabs
+                        options={view! {
+                            <ChoiceOption label="Open" />
+                            <ChoiceOption label="Closed" />
+                        }}
+                        selected={tab}
+                        on_change={show}
+                    />
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <Icon glyph=ICON_SEARCH color={theme.text_muted.clone()} />
+                        <TextInput
+                            @sizing=ItemSize::Percent(100.0)
+                            value={query}
+                            placeholder="Filter by title, author, branch or number"
+                            label="Filter pull requests"
+                            on_change={move |query| set_query.set(query)}
+                        />
+                    </List>
+                    <Show condition={loading}>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <Spinner width=20.0 label="Loading pull requests" />
+                            <Caption content="Loading pull requests" />
+                        </List>
+                    </Show>
+                    <Show condition={failed}>
+                        <Text
+                            string={error}
+                            font_size=FONT_BODY
+                            color={theme.danger.clone()}
+                            wrap=true
+                        />
+                    </Show>
+                    <Show condition={empty}>
+                        <Caption content={empty_text} />
+                    </Show>
                 </List>
-                <IconButton glyph=ICON_REFRESH label="Refresh" on_click={refresh} />
-            </List>
-            <Tabs
-                options={view! {
-                    <ChoiceOption label="Open" />
-                    <ChoiceOption label="Closed" />
-                }}
-                selected={tab}
-                on_change={show}
-            />
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Icon glyph=ICON_SEARCH color={theme.text_muted.clone()} />
-                <TextInput
-                    @sizing=ItemSize::Percent(100.0)
-                    value={query}
-                    placeholder="Filter by title, author, branch or number"
-                    label="Filter pull requests"
-                    on_change={move |query| set_query.set(query)}
-                />
-            </List>
-            <Show condition={loading}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Spinner width=20.0 label="Loading pull requests" />
-                    <Caption content="Loading pull requests" />
-                </List>
-            </Show>
-            <Show condition={failed}>
-                <Text string={error} font_size=FONT_BODY color={theme.danger.clone()} wrap=true />
-            </Show>
-            <Show condition={empty}>
-                <Caption content={empty_text} />
-            </Show>
+            </Frame>
             <Scroll @sizing=ItemSize::Percent(100.0)>
-                <ForEach keys={visible}>
-                    {move |number: u64| {
-                        let pull_request = pull_requests.get(&number);
-                        let pull_request = create_memo(move || pull_request.get());
-                        view! {
-                            <PullRequestRow model={model.clone()} pull_request />
-                        }
-                    }}
-                </ForEach>
+                <Frame padding_horizontal=PADDING>
+                    <List spacing=0.0>
+                        <ForEach keys={visible}>
+                            {move |number: u64| {
+                                let pull_request = pull_requests.get(&number);
+                                let pull_request = create_memo(move || pull_request.get());
+                                view! {
+                                    <PullRequestRow model={model.clone()} pull_request />
+                                }
+                            }}
+                        </ForEach>
+                        <Spacer @sizing=ItemSize::Fixed(PADDING) />
+                    </List>
+                </Frame>
             </Scroll>
         </List>
     }

@@ -1,12 +1,14 @@
 mod detail;
 mod github;
+mod keys;
 mod markdown;
 mod model;
 mod pane;
-mod runner;
+mod targets;
 mod tasks;
 mod time;
 mod view;
+mod workspace;
 
 #[cfg(test)]
 mod tests;
@@ -44,7 +46,7 @@ impl LauncherApp {
         let mut exported = None;
         let document = build(|| {
             let theme = use_theme();
-            let model = Model::new(tasks.clone(), Pane::new(session));
+            let model = Model::new(tasks.clone(), Pane::new(session, tasks.clone()));
             exported = Some(model.clone());
             view! {
                 <Frame color={theme.background.clone()} radius=0>

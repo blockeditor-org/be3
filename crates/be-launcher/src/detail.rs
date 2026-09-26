@@ -6,15 +6,17 @@ use beui::reactive::{
 };
 use beui::styled::theme::{CARD_RADIUS, FONT_BODY, FONT_HEADING, FONT_SMALL, FONT_TITLE};
 use beui::styled::{
-    Body, Button, ButtonVariant, Caption, Code, Icon, IconButton, Link, Scroll, Separator, Spinner,
-    use_theme,
+    Body, Button, ButtonVariant, Caption, Code, Icon, IconButton, Link, MenuButton, Scroll,
+    Separator, Spinner, use_theme,
 };
+use beui::unstyled::MenuItem;
 
 use crate::github::{Entry, InlineComment, Person, PullRequest, State, Tone, branch_deleted};
 use crate::markdown::Block;
-use crate::model::{Loaded, Model};
+use crate::model::{COMMON, Loaded, Model, Tab};
 use crate::time::{now, relative};
 use crate::view::{Labels, MERGED, readable_on, state_glyph};
+use crate::workspace::PADDING;
 
 const SPACING: f32 = 12.0;
 const CARD_PADDING: f32 = 12.0;
@@ -35,17 +37,19 @@ pub(crate) fn Detail(model: Model) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={none}>
-                <List spacing=8.0>
-                    <Text
-                        string="Pick a pull request"
-                        font_size=FONT_TITLE
-                        color={use_theme().text.clone()}
-                    />
-                    <Caption
-                        content="Its conversation shows here, and you can check it out and run it from the panel below."
-                        wrap=true
-                    />
-                </List>
+                <Frame padding_horizontal=PADDING padding_vertical=4.0>
+                    <List spacing=8.0>
+                        <Text
+                            string="Pick a pull request"
+                            font_size=FONT_TITLE
+                            color={use_theme().text.clone()}
+                        />
+                        <Caption
+                            content="Its conversation shows here, and you can check it out and run it."
+                            wrap=true
+                        />
+                    </List>
+                </Frame>
             </Show>
             <Keyed
                 value={selected}
@@ -147,77 +151,133 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     }));
     let keys = create_memo(clone!(entries -> move || (0..entries.get().len()).collect::<Vec<_>>()));
     let check_out =
-        clone!(model pull_request -> move || model.check_out(&pull_request.get_untracked(), false));
-    let check_out_and_run =
-        clone!(model pull_request -> move || model.check_out(&pull_request.get_untracked(), true));
+        clone!(model pull_request -> move || model.check_out(&pull_request.get_untracked(), None));
+    let check_out_and_run = clone!(model pull_request -> move || {
+        model.check_out(&pull_request.get_untracked(), Some(model.common.get_untracked()));
+    });
+    let pick = clone!(model pull_request -> move |path: Vec<usize>| match path.as_slice() {
+        [index] if *index < COMMON.len() => {
+            model.check_out(&pull_request.get_untracked(), Some(*index));
+        }
+        _ => model.show_tab(Tab::Targets),
+    });
+    let busy_run = busy.clone();
+    let busy_pick = busy.clone();
+    let run_label = create_memo(clone!(model -> move || {
+        let common = COMMON.get(model.common.get()).unwrap_or(&COMMON[0]);
+        format!("Check out and run {}", common.title)
+    }));
     let open = clone!(model pull_request -> move || model.open(&pull_request.get_untracked().url));
     let refresh =
         clone!(model pull_request -> move || model.refresh_timeline(&pull_request.get_untracked()));
     view! {
-        <List spacing=SPACING>
-            <Text string={title} font_size=FONT_TITLE color={theme.text.clone()} wrap=true />
-            <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                <StateBadge state />
-                <Caption @sizing=ItemSize::Percent(100.0) content={summary} wrap=true />
-            </List>
-            <Show condition={tagged}>
-                <Labels labels checked_out />
-            </Show>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Button
-                    label="Check out and run"
-                    glyph=ICON_PLAY_ARROW
-                    variant=ButtonVariant::Primary
-                    disabled={busy.clone()}
-                    on_click={check_out_and_run}
-                />
-                <Button
-                    label="Check out"
-                    glyph=ICON_DOWNLOAD
-                    variant=ButtonVariant::Secondary
-                    disabled={busy}
-                    on_click={check_out}
-                />
-                <Button
-                    label="Open on GitHub"
-                    glyph=ICON_OPEN_IN_NEW
-                    variant=ButtonVariant::Ghost
-                    on_click={open}
-                />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-                <IconButton glyph=ICON_REFRESH label="Reload the conversation" on_click={refresh} />
-            </List>
-            <Show condition={fork}>
-                <Caption
-                    content="This pull request comes from a fork, so scripts/switch cannot check it out."
-                    wrap=true
-                />
-            </Show>
-            <Show condition={deleted}>
-                <Caption
-                    content="Its branch was deleted, so there is nothing to check out."
-                    wrap=true
-                />
-            </Show>
-            <Separator />
-            <Show condition={loading}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Spinner width=20.0 label="Loading the conversation" />
-                    <Caption content="Loading the conversation" />
+        <List spacing=0.0>
+            <Frame padding_horizontal=PADDING padding_vertical=4.0>
+                <List spacing=SPACING>
+                    <Text
+                        string={title}
+                        font_size=FONT_TITLE
+                        color={theme.text.clone()}
+                        wrap=true
+                    />
+                    <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                        <StateBadge state />
+                        <Caption @sizing=ItemSize::Percent(100.0) content={summary} wrap=true />
+                    </List>
+                    <Show condition={tagged}>
+                        <Labels labels checked_out />
+                    </Show>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=1.0>
+                            <Button
+                                label={run_label}
+                                glyph=ICON_PLAY_ARROW
+                                variant=ButtonVariant::Primary
+                                disabled={busy_run}
+                                on_click={check_out_and_run}
+                            />
+                            <MenuButton
+                                label="Pick what to run"
+                                variant=ButtonVariant::Primary
+                                icon_only=true
+                                disabled={busy_pick}
+                                items={view! {
+                                    <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
+                                        {|index: usize| view! {
+                                            <MenuItem
+                                                label={format!("Run {}", COMMON[index].title)}
+                                            />
+                                        }}
+                                    </ForEach>
+                                    <MenuItem label="All targets" />
+                                }}
+                                on_select={pick}
+                            />
+                        </List>
+                        <Button
+                            label="Check out"
+                            glyph=ICON_DOWNLOAD
+                            variant=ButtonVariant::Secondary
+                            disabled={busy}
+                            on_click={check_out}
+                        />
+                        <Button
+                            label="Open on GitHub"
+                            glyph=ICON_OPEN_IN_NEW
+                            variant=ButtonVariant::Ghost
+                            on_click={open}
+                        />
+                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <IconButton
+                            glyph=ICON_REFRESH
+                            label="Reload the conversation"
+                            on_click={refresh}
+                        />
+                    </List>
+                    <Show condition={fork}>
+                        <Caption
+                            content="This pull request comes from a fork, so scripts/switch cannot check it out."
+                            wrap=true
+                        />
+                    </Show>
+                    <Show condition={deleted}>
+                        <Caption
+                            content="Its branch was deleted, so there is nothing to check out."
+                            wrap=true
+                        />
+                    </Show>
+                    <Separator />
+                    <Show condition={loading}>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <Spinner width=20.0 label="Loading the conversation" />
+                            <Caption content="Loading the conversation" />
+                        </List>
+                    </Show>
+                    <Show condition={failed}>
+                        <Text
+                            string={error}
+                            font_size=FONT_BODY
+                            color={theme.danger.clone()}
+                            wrap=true
+                        />
+                    </Show>
                 </List>
-            </Show>
-            <Show condition={failed}>
-                <Text string={error} font_size=FONT_BODY color={theme.danger.clone()} wrap=true />
-            </Show>
+            </Frame>
             <Scroll @sizing=ItemSize::Percent(100.0)>
-                <ForEach keys>
-                    {move |index: usize| {
-                        let entry = create_memo(clone!(entries -> move || entries.get().get(index).cloned()));
-                        view! {
-                            <TimelineEntry model={model.clone()} entry />
-                        }
-                    }}
-                </ForEach>
+                <Frame padding_horizontal=PADDING>
+                    <List spacing=0.0>
+                        <Spacer @sizing=ItemSize::Fixed(8.0) />
+                        <ForEach keys>
+                            {move |index: usize| {
+                                let entry = create_memo(clone!(entries -> move || entries.get().get(index).cloned()));
+                                view! {
+                                    <TimelineEntry model={model.clone()} entry />
+                                }
+                            }}
+                        </ForEach>
+                        <Spacer @sizing=ItemSize::Fixed(PADDING) />
+                    </List>
+                </Frame>
             </Scroll>
         </List>
     }

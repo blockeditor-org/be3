@@ -9,6 +9,7 @@ use beui::reactive::{
 
 use crate::github::{Entry, Filter, PullRequest};
 use crate::pane::Pane;
+use crate::targets::{Action, Target};
 use crate::tasks::{Event, Tasks, open_url};
 
 const BOLD: &str = "\x1b[1m";
@@ -17,55 +18,56 @@ const RED: &str = "\x1b[31m";
 const RESET: &str = "\x1b[0m";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Preset {
+pub(crate) struct Common {
     pub(crate) title: &'static str,
     pub(crate) args: &'static str,
 }
 
-pub(crate) const PRESETS: [Preset; 10] = [
-    Preset {
-        title: "Run the app",
+pub(crate) const COMMON: [Common; 7] = [
+    Common {
+        title: "the app",
         args: "run //crates/block-app:app",
     },
-    Preset {
-        title: "Check that everything compiles",
-        args: "run //:check",
-    },
-    Preset {
-        title: "Verify: autofix, lint and test",
+    Common {
+        title: "verify",
         args: "run //:verify",
     },
-    Preset {
-        title: "Smoke test the app",
-        args: "run //crates/block-app:smoke",
-    },
-    Preset {
-        title: "Serve the web app",
+    Common {
+        title: "the web app",
         args: "run //crates/block-app:web-serve",
     },
-    Preset {
-        title: "Install the app on Android",
+    Common {
+        title: "on Android",
         args: "run //crates/block-app:android -- --install",
     },
-    Preset {
-        title: "beui component demo",
+    Common {
+        title: "beui's demo",
         args: "run //crates/beui:demo-example",
     },
-    Preset {
-        title: "beui dock demo",
+    Common {
+        title: "beui's docking demo",
         args: "run //crates/beui:dock-example",
     },
-    Preset {
-        title: "beui survey example",
-        args: "run //crates/beui:survey-example",
-    },
-    Preset {
-        title: "Custom command",
-        args: "",
+    Common {
+        title: "be-compositor",
+        args: "run //crates/be-compositor:be-compositor-bin",
     },
 ];
 
-pub(crate) const CUSTOM: usize = PRESETS.len() - 1;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Tab {
+    PullRequest,
+    Targets,
+    Log,
+}
+
+impl Tab {
+    pub(crate) const ALL: [Tab; 3] = [Tab::PullRequest, Tab::Targets, Tab::Log];
+}
+
+fn words(args: &str) -> Vec<String> {
+    args.split_whitespace().map(str::to_owned).collect()
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Loaded<T> {
@@ -98,10 +100,14 @@ pub(crate) struct Model {
     set_head: WriteSignal<String>,
     pub(crate) head_summary: ReadSignal<String>,
     set_head_summary: WriteSignal<String>,
-    pub(crate) preset: ReadSignal<usize>,
-    pub(crate) set_preset: WriteSignal<usize>,
-    pub(crate) custom: ReadSignal<String>,
-    pub(crate) set_custom: WriteSignal<String>,
+    pub(crate) common: ReadSignal<usize>,
+    set_common: WriteSignal<usize>,
+    pub(crate) tab: ReadSignal<Tab>,
+    set_tab: WriteSignal<Tab>,
+    pub(crate) targets: ReadSignal<Option<Loaded<Vec<Target>>>>,
+    set_targets: WriteSignal<Option<Loaded<Vec<Target>>>>,
+    pub(crate) target_query: ReadSignal<String>,
+    pub(crate) set_target_query: WriteSignal<String>,
     pub(crate) running: ReadSignal<bool>,
     set_running: WriteSignal<bool>,
     pub(crate) pane: Pane,
@@ -119,8 +125,10 @@ impl Model {
         }));
         let (head, set_head) = create_signal(String::new());
         let (head_summary, set_head_summary) = create_signal(String::new());
-        let (preset, set_preset) = create_signal(0usize);
-        let (custom, set_custom) = create_signal(String::new());
+        let (common, set_common) = create_signal(0usize);
+        let (tab, set_tab) = create_signal(Tab::PullRequest);
+        let (targets, set_targets) = create_signal(None);
+        let (target_query, set_target_query) = create_signal(String::new());
         let (running, set_running) = create_signal(false);
         Self {
             tasks,
@@ -142,10 +150,14 @@ impl Model {
             set_head,
             head_summary,
             set_head_summary,
-            preset,
-            set_preset,
-            custom,
-            set_custom,
+            common,
+            set_common,
+            tab,
+            set_tab,
+            targets,
+            set_targets,
+            target_query,
+            set_target_query,
             running,
             set_running,
             pane,
@@ -215,38 +227,44 @@ impl Model {
         read
     }
 
-    pub(crate) fn command(&self) -> Vec<String> {
-        let preset = self.preset.get_untracked();
-        let args = match PRESETS.get(preset) {
-            Some(preset) if preset.args.is_empty() => self.custom.get_untracked(),
-            Some(preset) => preset.args.to_owned(),
-            None => String::new(),
-        };
-        args.split_whitespace().map(str::to_owned).collect()
+    pub(crate) fn show_tab(&self, tab: Tab) {
+        self.set_tab.set(tab);
+        if tab == Tab::Targets && self.targets.get_untracked().is_none() {
+            self.refresh_targets();
+        }
     }
 
-    pub(crate) fn run(&self) {
-        let args = self.command();
+    pub(crate) fn refresh_targets(&self) {
+        self.set_targets.set(Some(Loaded::Loading));
+        self.tasks.targets();
+    }
+
+    pub(crate) fn run(&self, args: Vec<String>) {
         if args.is_empty() || self.running.get_untracked() {
             return;
         }
         self.set_running.set(true);
+        self.set_tab.set(Tab::Log);
         self.tasks.run("buck", args);
     }
 
-    pub(crate) fn check_out(&self, pull_request: &PullRequest, then_run: bool) {
+    pub(crate) fn run_target(&self, target: &Target, action: Action) {
+        self.run(vec![action.verb().to_owned(), target.label.clone()]);
+    }
+
+    pub(crate) fn check_out(&self, pull_request: &PullRequest, then_run: Option<usize>) {
         if self.running.get_untracked() {
             return;
         }
         let mut args = vec![pull_request.branch.clone()];
-        if then_run {
-            let command = self.command();
-            if command.is_empty() {
-                return;
-            }
-            args.extend(command);
+        if let Some(common) =
+            then_run.and_then(|index| COMMON.get(index).map(|common| (index, common)))
+        {
+            self.set_common.set(common.0);
+            args.extend(words(common.1.args));
         }
         self.set_running.set(true);
+        self.set_tab.set(Tab::Log);
         self.tasks.run("switch", args);
     }
 
@@ -320,6 +338,13 @@ impl Model {
                 }
             }
             Event::Head { sha, summary } => {
+                let previous = self.head.get_untracked();
+                if !previous.is_empty() && previous != sha {
+                    self.set_targets.set(None);
+                    if self.tab.get_untracked() == Tab::Targets {
+                        self.refresh_targets();
+                    }
+                }
                 self.set_head.set(sha);
                 self.set_head_summary.set(summary);
             }
@@ -328,6 +353,10 @@ impl Model {
                 self.pane
                     .write_line(&format!("{BOLD}$ {description}{RESET}"));
             }
+            Event::Targets(targets) => self.set_targets.set(Some(match targets {
+                Ok(targets) => Loaded::Ready(targets),
+                Err(error) => Loaded::Failed(error),
+            })),
             Event::Output(bytes) => self.pane.write(&bytes),
             Event::Finished { summary, success } => {
                 let color = if success { GREEN } else { RED };
