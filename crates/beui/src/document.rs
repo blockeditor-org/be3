@@ -1287,6 +1287,22 @@ impl Document {
         PixelGrid::new(self.pixels_per_point())
     }
 
+    pub fn measure_root(&mut self, ctx: &Context, available: Vec2) -> Option<Vec2> {
+        let root = self.root?;
+        let painter = ctx.painter();
+        let context = self.reactive_scope().context();
+        let mut measured = None;
+        {
+            let _guard = crate::reactive::install(self);
+            context.run(|| {
+                crate::reactive::with_document(|document| {
+                    measured = Some(layout::measure(document, &painter, root, available));
+                });
+            });
+        }
+        measured
+    }
+
     fn update_layout(&mut self, ctx: &Context, rect: Rect) -> bool {
         if self.layout_revision == self.arena.revision {
             return false;

@@ -7,20 +7,7 @@ use super::Plugins;
 const INDEX: &str = "plugins.json";
 
 pub(crate) fn load(app: &AndroidApp) {
-    let assets = app.asset_manager();
-    let downloaded = crate::platform::launched().map(|launched| launched.assets());
-    let read = |path: &str| -> Result<Vec<u8>, String> {
-        if let Some(directory) = &downloaded {
-            return std::fs::read(directory.join(path)).map_err(|error| error.to_string());
-        }
-        let name = CString::new(path).map_err(|_| "the asset path is not a C string".to_owned())?;
-        let mut asset = assets.open(&name).ok_or("no such asset")?;
-        let mut bytes = Vec::new();
-        asset
-            .read_to_end(&mut bytes)
-            .map_err(|error| error.to_string())?;
-        Ok(bytes)
-    };
+    let read = |path: &str| read(app, path);
     let mut plugins = Plugins::default();
     match read(INDEX) {
         Ok(document) => match serde_json::from_slice::<Vec<String>>(&document) {
@@ -51,7 +38,21 @@ pub(crate) fn load(app: &AndroidApp) {
             Err(error) => plugins.error(&entry, error),
         }
     }
+    plugins.app = Some(app.clone());
     super::install(plugins);
+}
+
+pub(super) fn read(app: &AndroidApp, path: &str) -> Result<Vec<u8>, String> {
+    if let Some(directory) = crate::platform::launched().map(|launched| launched.assets()) {
+        return std::fs::read(directory.join(path)).map_err(|error| error.to_string());
+    }
+    let name = CString::new(path).map_err(|_| "the asset path is not a C string".to_owned())?;
+    let mut asset = app.asset_manager().open(&name).ok_or("no such asset")?;
+    let mut bytes = Vec::new();
+    asset
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    Ok(bytes)
 }
 
 fn compiled(entry: &str) -> String {

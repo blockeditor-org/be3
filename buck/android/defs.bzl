@@ -94,7 +94,7 @@ for file in "$assets"/*; do
     case "$name" in
         *.wasm) [ -e "${file%.wasm}.cwasm" ] && continue ;;
     esac
-    cp "$file" "$out/assets/$name"
+    cp -R "$file" "$out/assets/$name"
 done
 """
 

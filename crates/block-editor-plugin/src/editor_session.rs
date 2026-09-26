@@ -826,7 +826,7 @@ impl EditorSession {
         }
         let screen = self.placement(region).map(|placement| placement.screen);
         let content = frame.content.unwrap_or(host);
-        self.used(region, host);
+        self.used(region, content);
         let reported = |rect: Rect| plugin_rect(rect, origin);
         let reported_content = self
             .host

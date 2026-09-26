@@ -15,6 +15,7 @@ mod a_new_player_can_take_the_other_side;
 mod a_piece_is_dragged_from_square_to_square;
 mod a_player_joins_by_clicking_the_deck_even_without_the_chrome;
 mod a_promotion_asks_which_piece_to_become;
+mod choosing_a_staged_game_copies_it_into_the_workspace;
 mod clicking_a_card_then_the_discard_pile_plays_it;
 mod clicking_an_open_tile_places_a_mark;
 mod clicking_the_draw_pile_draws_a_card;

@@ -254,6 +254,14 @@ outstanding together. The host refuses a URL that is not https, or whose host
 name is not one the plugin's manifest names, and reports the refusal as an
 ordinary failure rather than as a protocol error.
 
+An editor instance may read the files its plugin was staged with, which are
+read-only data the build lays out beside the app rather than anything a
+workspace holds: a plugin has no file system of its own on any platform. It
+may ask for the list of those files, answered with every path relative to its
+data, and for one file by that path, answered with its bytes or with why they
+could not be read. A plugin reaches only its own data; a path that is not a
+plain relative path is refused as an ordinary failure.
+
 An editor instance may ask the host for a web view, which is a window of the
 operating system's own laid over the app rather than anything a plugin could
 draw: it opens one at a URL, says each frame where inside its own screen it
