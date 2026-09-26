@@ -23,6 +23,10 @@ fn rotating_with_the_handle_is_drawn() {
     editor.drag(handle, handle + Vec2::new(120.0, 60.0));
     editor.run();
 
-    assert_ne!(entities(&editor)[0].transform.rotation, 0.0, "the handle rotates the entity");
+    assert_ne!(
+        entities(&editor)[0].transform.rotation,
+        0.0,
+        "the handle rotates the entity"
+    );
     assert_ne!(editor.rect_of(&drawn), resting, "the rotation is drawn");
 }

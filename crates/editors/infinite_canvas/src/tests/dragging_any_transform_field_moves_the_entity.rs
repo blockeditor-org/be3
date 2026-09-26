@@ -21,11 +21,17 @@ fn dragging_any_transform_field_moves_the_entity() {
     for field in ["x", "y", "width", "height", "rotation"] {
         let before = editor.rect_of(&drawn);
         let held = entities(&editor)[0].transform;
-        let at = editor.rect_of(&format!("infinite-canvas.transform.{field}")).center();
+        let at = editor
+            .rect_of(&format!("infinite-canvas.transform.{field}"))
+            .center();
         editor.drag(at, at + Vec2::new(20.0, 0.0));
         editor.run();
 
-        assert_ne!(entities(&editor)[0].transform, held, "dragging {field} edits the entity");
+        assert_ne!(
+            entities(&editor)[0].transform,
+            held,
+            "dragging {field} edits the entity"
+        );
         assert_ne!(editor.rect_of(&drawn), before, "dragging {field} is drawn");
     }
 }

@@ -19,7 +19,13 @@ fn every_transform_field_previews_what_is_typed() {
     editor.run();
     let resting = editor.rect_of(&drawn);
 
-    for (field, typed) in [("x", "40"), ("y", "40"), ("width", "60"), ("height", "60"), ("rotation", "45")] {
+    for (field, typed) in [
+        ("x", "40"),
+        ("y", "40"),
+        ("width", "60"),
+        ("height", "60"),
+        ("rotation", "45"),
+    ] {
         editor.click(&format!("infinite-canvas.transform.{field}"));
         editor.run();
         editor.text(typed);
@@ -34,6 +40,10 @@ fn every_transform_field_previews_what_is_typed() {
         editor.key_press(Key::Escape);
         editor.run();
 
-        assert_eq!(editor.rect_of(&drawn), resting, "escape in {field} puts it back");
+        assert_eq!(
+            editor.rect_of(&drawn),
+            resting,
+            "escape in {field} puts it back"
+        );
     }
 }
