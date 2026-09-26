@@ -2,7 +2,7 @@ load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
 load("@root//buck/tools:defs.bzl", "tool")
 
-# On Android the launcher is this library, loaded by GameActivity under
+# On Android the launcher is this library, loaded by LauncherActivity under
 # cargo's name for it.
 cargo_library(soname = "libbe_launcher.so")
 
@@ -28,8 +28,11 @@ genrule(
         name = name,
         application_id = application_id,
         assets = ":android-assets",
-        java = glob(["android/java/**/*.java"]) + ["//crates/block-app:MainActivity.java"],
-        java_libraries = "//buck/android:game-activity",
+        java = glob(["android/java/**/*.java"])
+        + [
+            "//crates/block-app:MainActivity.java",
+            "//crates/beui:android-java",
+        ],
         label = label,
         library = ":be-launcher",
         manifest = "android/AndroidManifest.xml",

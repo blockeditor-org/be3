@@ -9,10 +9,13 @@ default = ["window"]
 render = ["dep:bytemuck", "dep:wgpu", "wgpu/std", "wgpu/wgsl"]
 window = [
     "render",
+    "dep:accesskit_android",
     "dep:accesskit_winit",
     "dep:arboard",
     "dep:jni",
+    "dep:ndk",
     "dep:ndk-context",
+    "dep:ndk-sys",
     "dep:pollster",
     "dep:winit",
     "wgpu/default",
@@ -30,7 +33,6 @@ web = [
 [dependencies]
 beui_macros = { path = "../beui_macros" }
 accesskit = "0.24.1"
-accesskit_winit = { version = "0.33.2", features = ["accesskit_android"], optional = true }
 bytemuck = { version = "1", features = ["derive"], optional = true }
 freetype = "0.7"
 harfbuzz_rs = "2"
@@ -40,11 +42,17 @@ reactive = { path = "../reactive" }
 text-editor-core = { path = "../text-editor-core" }
 unicode-script = "0.5"
 wgpu = { version = "29", default-features = false, optional = true }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+accesskit_winit = { version = "0.33.2", optional = true }
 winit = { version = "0.30", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
+accesskit_android = { version = "0.7.5", features = ["embedded-dex"], optional = true }
 jni = { version = "0.22", optional = true }
+ndk = { version = "0.9", default-features = false, optional = true }
 ndk-context = { version = "0.1", optional = true }
+ndk-sys = { version = "0.6", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = { version = "0.3", optional = true }

@@ -84,7 +84,6 @@ be-server = { path = "../be-server" }
 beui = { path = "../beui", features = ["window"] }
 block-wasm-host = { path = "../block-wasm-host" }
 directories-next = "2"
-winit = "0.30"
 rusqlite = { version = "0.32", features = ["bundled"] }
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
 ureq = { version = "2", features = ["gzip"] }
@@ -101,6 +100,7 @@ arboard = "3.6"
 # The native file dialog. Android and the browser reach their own pickers
 # instead, from platform/file_picker.rs.
 rfd = "0.15"
+winit = "0.30"
 wry = { version = "0.55.1", optional = true }
 
 # The plugin side of the protocol, for the tests that check the host only sends
@@ -113,7 +113,6 @@ libc = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"
-winit = { version = "0.30.13", features = ["android-game-activity"] }
 # Used by the version-switching debug window to build the ContentResolver /
 # Intent calls that download and install a GitHub Actions build.
 jni = "0.22"

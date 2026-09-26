@@ -6,8 +6,6 @@ pub(crate) mod http;
 mod launched;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
-#[cfg(target_os = "android")]
-mod safe_area;
 #[cfg(target_arch = "wasm32")]
 mod web;
 

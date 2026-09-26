@@ -7,19 +7,15 @@ import android.content.pm.PackageInstaller;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Process;
-import android.view.View;
-import androidx.core.graphics.Insets;
-import androidx.core.view.WindowCompat;
-import androidx.core.view.WindowInsetsCompat;
+import com.be3.beui.BeuiActivity;
 import com.be3.block.MainActivity;
-import com.google.androidgamesdk.GameActivity;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 
-public final class LauncherActivity extends GameActivity {
+public final class LauncherActivity extends BeuiActivity {
     private static final String BUILD_PROCESS = ":build";
     private static final String INSTALLED = "com.be3.launcher.INSTALLED";
     private static final int COPY_BUFFER_BYTES = 64 * 1024;
@@ -29,16 +25,6 @@ public final class LauncherActivity extends GameActivity {
     protected void onCreate(Bundle state) {
         current = this;
         super.onCreate(state);
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-    }
-
-    @Override
-    public WindowInsetsCompat onApplyWindowInsets(View view, WindowInsetsCompat insets) {
-        WindowInsetsCompat applied = super.onApplyWindowInsets(view, insets);
-        Insets safe = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-        nativeSafeAreaChanged(safe.left, safe.top, safe.right, safe.bottom);
-        return applied;
     }
 
     @Override
@@ -138,8 +124,6 @@ public final class LauncherActivity extends GameActivity {
             session.commit(pending.getIntentSender());
         }
     }
-
-    private static native void nativeSafeAreaChanged(int left, int top, int right, int bottom);
 
     private static native void nativeInstallFinished(String error);
 }

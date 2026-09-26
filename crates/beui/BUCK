@@ -4,6 +4,14 @@ beui_srcs = glob(["src/**/*.rs", "assets/**/*", "examples/**/*.rs", "src/**/*.wg
 
 cargo_library(srcs = beui_srcs)
 
+# The Java half of the Android runner (src/app/android.rs), which every APK
+# whose library runs beui compiles beside its own.
+filegroup(
+    name = "android-java",
+    srcs = glob(["android/java/**/*.java"]),
+    visibility = ["PUBLIC"],
+)
+
 # The renderer's tests draw through a real graphics adapter. On a worker that is
 # lavapipe, Mesa's software Vulkan, from buck/sysroot's Vulkan set - the same
 # device CI's runners gave them when they ran there.

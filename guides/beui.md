@@ -949,12 +949,21 @@ Beui has three feature levels:
   painting output. This is enough for headless logic tests.
 - `render` adds the wgpu renderer without creating a window. Embedded hosts use
   this level.
-- `window` adds the desktop runner and enables `render`; it is the default.
+- `window` adds the native runner and enables `render`; it is the default.
+  On the desktop it is winit's. On Android it is beui's own
+  (`src/app/android.rs`, with its Java in `crates/beui/android`): the app's
+  activity extends `com.be3.beui.BeuiActivity`, whose `BeuiView` is the
+  surface, takes touches, keys and the soft keyboard's input connection, and
+  hosts AccessKit. It has to be a view that input reaches through the view
+  system: TalkBack's touch exploration arrives as hover events on it, which
+  NativeActivity's input queue never delivers. The library defines
+  `#[unsafe(no_mangle)] fn android_main(app: beui::AndroidApp)`, which beui
+  calls on a thread of its own, and which calls `beui::run_with`.
 - `web` adds the browser runner, `beui::run_web(canvas_id, options, app)`,
   and enables `render`.
 
-`beui::run_with` takes `RunOptions` (title, app id, starting size, and on
-Android the `AndroidApp`) where `beui::run` takes only a title. The rest of
+`beui::run_with` takes `RunOptions` (title, app id, starting size) where
+`beui::run` takes only a title. The rest of
 `App` is optional:
 
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.

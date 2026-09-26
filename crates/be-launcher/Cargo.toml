@@ -24,7 +24,6 @@ portable-pty = "0.9"
 jni = "0.22"
 ndk-context = "0.1"
 ureq = "2"
-winit = { version = "0.30.13", features = ["android-game-activity"] }
 
 [lints]
 workspace = true

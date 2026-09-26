@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 
 use accesskit_winit::{Adapter as AccessKitAdapter, Event as AccessKitEvent};
@@ -17,15 +17,14 @@ use winit::window::{
 
 use super::accessibility_dump::AccessibilityDump;
 use super::clipboard::Clipboard;
+use super::present::{Gpu, Presented, Target, create_gpu, safe_rect};
 use super::{App, RunOptions, SafeArea, Setup, Waker};
-use crate::color::Color32;
 use crate::context::Context;
-use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
+use crate::geometry::{Pos2, pos2, vec2};
 use crate::input::{
     CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, RawInput,
     TouchId, TouchPhase,
 };
-use crate::renderer::{Renderer, RendererInfo, Repaint, clear_color};
 
 const LINE_HEIGHT: f32 = 40.0;
 const TOUCH_CURSOR_SIZE: u16 = 20;
@@ -35,28 +34,7 @@ const TOUCH_CURSOR_SAMPLES: u16 = 4;
 
 enum UserEvent {
     AccessKit(AccessKitEvent),
-    SafeArea(SafeArea),
     Wake,
-}
-
-static SAFE_AREA: Mutex<(SafeArea, Option<EventLoopProxy<UserEvent>>)> = Mutex::new((
-    SafeArea {
-        left: 0.0,
-        top: 0.0,
-        right: 0.0,
-        bottom: 0.0,
-    },
-    None,
-));
-
-pub fn set_safe_area(area: SafeArea) {
-    let mut shared = SAFE_AREA
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    shared.0 = area;
-    if let Some(proxy) = &shared.1 {
-        let _ = proxy.send_event(UserEvent::SafeArea(area));
-    }
 }
 
 impl From<AccessKitEvent> for UserEvent {
@@ -70,23 +48,8 @@ pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<
 }
 
 pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
-    #[cfg(target_os = "android")]
-    let mut options = options;
-    let mut builder = EventLoop::<UserEvent>::with_user_event();
-    #[cfg(target_os = "android")]
-    if let Some(android_app) = options.android_app.take() {
-        use winit::platform::android::EventLoopBuilderExtAndroid;
-        builder.with_android_app(android_app);
-    }
-    let event_loop = builder.build()?;
+    let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
     event_loop.set_control_flow(ControlFlow::Wait);
-    let safe_area = {
-        let mut shared = SAFE_AREA
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        shared.1 = Some(event_loop.create_proxy());
-        shared.0
-    };
     let accessibility_dump = options
         .accessibility_dump
         .clone()
@@ -110,13 +73,6 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
         accessibility_active: false,
         accessibility_dump,
         exiting: false,
-        safe_area,
-        #[cfg(target_os = "android")]
-        soft_keyboard: super::soft_keyboard::SoftKeyboard::new(),
-        #[cfg(target_os = "android")]
-        held_modifiers: Vec::new(),
-        #[cfg(target_os = "android")]
-        tapped_at: None,
     };
     event_loop.run_app(&mut runner)?;
     match runner.error {
@@ -125,86 +81,16 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
     }
 }
 
-struct Gpu {
-    instance: wgpu::Instance,
-    adapter: wgpu::Adapter,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    format: wgpu::TextureFormat,
-    renderer: Renderer,
-}
-
 struct Surface {
     window: Arc<Window>,
-    target: Option<wgpu::Surface<'static>>,
-    config: wgpu::SurfaceConfiguration,
+    target: Target,
     cursor_icon: CursorIcon,
     pointer_locked: bool,
     touch_emulation: bool,
     touch_cursor: CustomCursor,
     ime: Option<ImeArea>,
     fullscreen: bool,
-    prepared_size: Option<(Vec2, f32)>,
-    clear_color: Option<Color32>,
-    pending: Option<Repaint>,
-    retained: Option<Retained>,
     accessibility: AccessKitAdapter,
-}
-
-struct Retained {
-    texture: wgpu::Texture,
-    view: wgpu::TextureView,
-    size: (u32, u32),
-}
-
-impl Surface {
-    fn retain(&mut self, device: &wgpu::Device) {
-        if !self.config.usage.contains(wgpu::TextureUsages::COPY_DST) {
-            return;
-        }
-        let size = (self.config.width, self.config.height);
-        if self
-            .retained
-            .as_ref()
-            .is_none_or(|retained| retained.size != size)
-        {
-            let texture = device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("beui retained frame"),
-                size: wgpu::Extent3d {
-                    width: size.0,
-                    height: size.1,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: self.config.format,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-                view_formats: &[],
-            });
-            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-            self.retained = Some(Retained {
-                texture,
-                view,
-                size,
-            });
-        }
-    }
-
-    fn retains(&self) -> bool {
-        self.retained
-            .as_ref()
-            .is_some_and(|retained| retained.size == (self.config.width, self.config.height))
-    }
-
-    fn configure(&mut self, device: &wgpu::Device) {
-        if self.config.width == 0 || self.config.height == 0 {
-            return;
-        }
-        if let Some(target) = &self.target {
-            target.configure(device, &self.config);
-        }
-    }
 }
 
 struct Runner {
@@ -226,13 +112,6 @@ struct Runner {
     accessibility_active: bool,
     accessibility_dump: Option<AccessibilityDump>,
     exiting: bool,
-    safe_area: SafeArea,
-    #[cfg(target_os = "android")]
-    soft_keyboard: super::soft_keyboard::SoftKeyboard,
-    #[cfg(target_os = "android")]
-    held_modifiers: Vec<KeyCode>,
-    #[cfg(target_os = "android")]
-    tapped_at: Option<Pos2>,
 }
 
 impl Runner {
@@ -278,26 +157,24 @@ impl Runner {
         let (Some(surface), Some(gpu)) = (&mut self.surface, &mut self.gpu) else {
             return false;
         };
-        if surface.target.is_none() || surface.config.width == 0 || surface.config.height == 0 {
+        let Some(physical) = surface.target.physical() else {
             self.events.clear();
             self.next_update = None;
             return false;
-        }
+        };
 
         self.context
             .set_pixels_per_point(surface.window.scale_factor() as f32);
         self.context.set_test_ids_published(false);
         let scale = self.context.pixels_per_point();
-        let physical = vec2(surface.config.width as f32, surface.config.height as f32);
         let screen = vec2(physical.x / scale, physical.y / scale);
 
         let raw = RawInput {
             events: super::next_batch(&mut self.events),
         };
         let app = &mut self.app;
-        let safe_area = self.safe_area;
         let output = self.context.run(raw, |context| {
-            app.update(context, safe_rect(screen, safe_area, scale));
+            app.update(context, safe_rect(screen, SafeArea::default(), scale));
         });
         if self.accessibility_active {
             surface
@@ -338,21 +215,8 @@ impl Runner {
                 }
             }
         }
-        #[cfg(target_os = "android")]
-        let keyboard_asked = surface.ime.is_some();
         if output.ime != surface.ime {
             if output.ime.is_some() != surface.ime.is_some() {
-                #[cfg(target_os = "android")]
-                {
-                    use winit::platform::android::ActiveEventLoopExtAndroid;
-                    let app = event_loop.android_app();
-                    if output.ime.is_some() {
-                        self.soft_keyboard.show(app);
-                    } else {
-                        self.soft_keyboard.hide(app);
-                    }
-                }
-                #[cfg(not(target_os = "android"))]
                 surface.window.set_ime_allowed(output.ime.is_some());
             }
             if let Some(area) = output.ime {
@@ -363,14 +227,6 @@ impl Runner {
             }
             surface.ime = output.ime;
         }
-        #[cfg(target_os = "android")]
-        if let Some(tap) = self.tapped_at.take()
-            && keyboard_asked
-            && output.ime.is_some_and(|area| area.rect.contains(tap))
-        {
-            use winit::platform::android::ActiveEventLoopExtAndroid;
-            self.soft_keyboard.show(event_loop.android_app());
-        }
         if let Some(fullscreen) = output.fullscreen
             && fullscreen != surface.fullscreen
         {
@@ -380,32 +236,10 @@ impl Runner {
                 .set_fullscreen(fullscreen.then_some(Fullscreen::Borderless(None)));
         }
 
-        let size = (physical, scale);
-        let clear_color = self.app.clear_color();
-        let stale = surface.prepared_size != Some(size)
-            || surface.clear_color != Some(clear_color)
-            || !surface.retains();
-        let repaint = match output.damage() {
-            Some(region) if !stale => Repaint::Region {
-                region,
-                background: clear_color,
-            },
-            _ => Repaint::Everything,
-        };
-        if output.changed || stale {
-            let repaint = match surface.pending {
-                Some(pending) => pending.union(repaint),
-                None => repaint,
-            };
-            let effective =
-                gpu.renderer
-                    .prepare(&gpu.device, &gpu.queue, &output, physical, scale, repaint);
-            surface.prepared_size = Some(size);
-            surface.pending = Some(effective);
-        }
-        surface.clear_color = Some(clear_color);
+        let pending = surface
+            .target
+            .prepare(gpu, &output, scale, self.app.clear_color());
         self.next_update = Instant::now().checked_add(output.repaint_after);
-        let pending = surface.pending.is_some();
         if output.close_requested {
             self.exit(event_loop);
         }
@@ -417,99 +251,23 @@ impl Runner {
         let (Some(surface), Some(gpu)) = (&mut self.surface, &mut self.gpu) else {
             return;
         };
-        if surface.config.width == 0 || surface.config.height == 0 {
-            return;
+        if let Presented::Again = surface.target.present(gpu, self.app.clear_color()) {
+            surface.window.request_redraw();
         }
-        let Some(target) = &surface.target else {
-            return;
-        };
-
-        let frame = match target.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame)
-            | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
-            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
-                target.configure(&gpu.device, &surface.config);
-                surface.window.request_redraw();
-                return;
-            }
-            _ => return,
-        };
-        let view = frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = gpu
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("beui encoder"),
-            });
-        let clear = clear_color(self.app.clear_color());
-        surface.retain(&gpu.device);
-        let pending = surface.pending.take();
-        let size = (surface.config.width, surface.config.height);
-        let retained = surface.retained.as_ref();
-        let (target, load) = match retained {
-            Some(retained) => (
-                &retained.view,
-                match pending {
-                    Some(Repaint::Region { .. }) => wgpu::LoadOp::Load,
-                    _ => wgpu::LoadOp::Clear(clear),
-                },
-            ),
-            None => (&view, wgpu::LoadOp::Clear(clear)),
-        };
-        if pending.is_some() || retained.is_none() {
-            gpu.renderer
-                .render(&gpu.device, &gpu.queue, &mut encoder, target, size, load);
-        }
-        if let Some(retained) = retained {
-            encoder.copy_texture_to_texture(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &retained.texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                wgpu::TexelCopyTextureInfo {
-                    texture: &frame.texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
-                wgpu::Extent3d {
-                    width: retained.size.0,
-                    height: retained.size.1,
-                    depth_or_array_layers: 1,
-                },
-            );
-        }
-        gpu.queue.submit(Some(encoder.finish()));
-        frame.present();
     }
 
     fn attach(&mut self) -> Result<(), Box<dyn Error>> {
         let (Some(surface), Some(gpu)) = (&mut self.surface, &self.gpu) else {
             return Ok(());
         };
-        if surface.target.is_some() {
+        if surface.target.attached() {
             return Ok(());
         }
         let size = surface.window.inner_size();
         let target = gpu.instance.create_surface(surface.window.clone())?;
-        let mut config = target
-            .get_default_config(&gpu.adapter, size.width.max(1), size.height.max(1))
-            .ok_or("the adapter does not support this surface")?;
-        config.format = gpu.format;
-        let capabilities = target.get_capabilities(&gpu.adapter);
-        if capabilities.usages.contains(wgpu::TextureUsages::COPY_DST) {
-            config.usage |= wgpu::TextureUsages::COPY_DST;
-        }
-        config.width = size.width;
-        config.height = size.height;
-        surface.config = config;
-        surface.target = Some(target);
-        surface.retained = None;
-        surface.prepared_size = None;
-        surface.configure(&gpu.device);
+        surface
+            .target
+            .attach(gpu, target, size.width, size.height)?;
         surface.window.request_redraw();
         Ok(())
     }
@@ -517,12 +275,6 @@ impl Runner {
 
 impl ApplicationHandler<UserEvent> for Runner {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        #[cfg(target_os = "android")]
-        {
-            use winit::platform::android::ActiveEventLoopExtAndroid;
-            self.soft_keyboard
-                .read(event_loop.android_app(), &mut self.events);
-        }
         if (!self.events.is_empty()
             || self
                 .next_update
@@ -548,7 +300,7 @@ impl ApplicationHandler<UserEvent> for Runner {
             .with_title(self.options.title.clone())
             .with_visible(false)
             .with_inner_size(LogicalSize::new(self.options.size.x, self.options.size.y));
-        #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
+        #[cfg(all(unix, not(target_os = "macos")))]
         let attributes = match &self.options.app_id {
             Some(app_id) => {
                 use winit::platform::wayland::WindowAttributesExtWayland;
@@ -567,11 +319,7 @@ impl ApplicationHandler<UserEvent> for Runner {
         );
         let touch_cursor = event_loop.create_custom_cursor(touch_cursor_source());
         window.set_visible(true);
-        let gpu = match pollster::block_on(create_gpu(
-            window.clone(),
-            &self.context,
-            self.options.open_device.clone(),
-        )) {
+        let gpu = match open_gpu(&window, &self.context, self.options.open_device.clone()) {
             Ok(gpu) => gpu,
             Err(error) => return self.fail(event_loop, error),
         };
@@ -587,27 +335,13 @@ impl ApplicationHandler<UserEvent> for Runner {
         };
         self.surface = Some(Surface {
             window,
-            target: None,
-            config: wgpu::SurfaceConfiguration {
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                format: gpu.format,
-                width: 0,
-                height: 0,
-                present_mode: wgpu::PresentMode::Fifo,
-                desired_maximum_frame_latency: 2,
-                alpha_mode: wgpu::CompositeAlphaMode::Auto,
-                view_formats: Vec::new(),
-            },
+            target: Target::new(gpu.format),
             cursor_icon: CursorIcon::Default,
             pointer_locked: false,
             touch_emulation: false,
             touch_cursor,
             ime: None,
             fullscreen: false,
-            prepared_size: None,
-            clear_color: None,
-            pending: None,
-            retained: None,
             accessibility,
         });
         self.gpu = Some(gpu);
@@ -619,20 +353,13 @@ impl ApplicationHandler<UserEvent> for Runner {
 
     fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
         if let Some(surface) = &mut self.surface {
-            surface.target = None;
-            surface.retained = None;
-            surface.pending = None;
+            surface.target.detach();
         }
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
         let event = match event {
             UserEvent::Wake => {
-                self.request_redraw();
-                return;
-            }
-            UserEvent::SafeArea(area) => {
-                self.safe_area = area;
                 self.request_redraw();
                 return;
             }
@@ -684,9 +411,7 @@ impl ApplicationHandler<UserEvent> for Runner {
             WindowEvent::Destroyed => self.exit(event_loop),
             WindowEvent::Resized(size) => {
                 if let (Some(surface), Some(gpu)) = (&mut self.surface, &self.gpu) {
-                    surface.config.width = size.width;
-                    surface.config.height = size.height;
-                    surface.configure(&gpu.device);
+                    surface.target.resize(gpu, size.width, size.height);
                     surface.window.request_redraw();
                 }
             }
@@ -696,12 +421,6 @@ impl ApplicationHandler<UserEvent> for Runner {
                     self.emulated_touch = false;
                     self.held_buttons = 0;
                     self.pointer_left = false;
-                    #[cfg(target_os = "android")]
-                    if !self.held_modifiers.is_empty() {
-                        self.held_modifiers.clear();
-                        self.modifiers = Modifiers::NONE;
-                        self.push(Event::Modifiers(self.modifiers));
-                    }
                 }
                 self.push(Event::Focus(focused));
             }
@@ -775,10 +494,6 @@ impl ApplicationHandler<UserEvent> for Runner {
                 }
             }
             WindowEvent::Touch(touch) => {
-                #[cfg(target_os = "android")]
-                if touch.phase == winit::event::TouchPhase::Ended {
-                    self.tapped_at = Some(self.logical(touch.location));
-                }
                 self.push(Event::Touch {
                     id: TouchId {
                         device: hash(touch.device_id),
@@ -803,26 +518,6 @@ impl ApplicationHandler<UserEvent> for Runner {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let pressed = event.state == ElementState::Pressed;
-                #[cfg(target_os = "android")]
-                if let PhysicalKey::Code(code) = event.physical_key
-                    && modifier_of(code).is_some()
-                {
-                    self.held_modifiers.retain(|held| *held != code);
-                    if pressed {
-                        self.held_modifiers.push(code);
-                    }
-                    let held = |wanted: Modifier| {
-                        self.held_modifiers
-                            .iter()
-                            .any(|code| modifier_of(*code) == Some(wanted))
-                    };
-                    self.modifiers = Modifiers {
-                        alt: held(Modifier::Alt),
-                        ctrl: held(Modifier::Ctrl),
-                        shift: held(Modifier::Shift),
-                    };
-                    self.push(Event::Modifiers(self.modifiers));
-                }
                 #[cfg(target_os = "linux")]
                 if !event.repeat {
                     use winit::platform::scancode::PhysicalKeyExtScancode;
@@ -960,55 +655,14 @@ fn touch_force(force: winit::event::Force) -> f32 {
     }
 }
 
-async fn create_gpu(
-    window: Arc<Window>,
+fn open_gpu(
+    window: &Arc<Window>,
     context: &Context,
     open_device: Option<super::OpenDevice>,
 ) -> Result<Gpu, Box<dyn Error>> {
     let instance = wgpu::Instance::default();
-    let probe = instance.create_surface(window)?;
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            force_fallback_adapter: false,
-            compatible_surface: Some(&probe),
-        })
-        .await?;
-    let descriptor = wgpu::DeviceDescriptor {
-        label: Some("beui device"),
-        required_features: wgpu::Features::empty(),
-        required_limits: adapter.limits(),
-        experimental_features: wgpu::ExperimentalFeatures::disabled(),
-        memory_hints: wgpu::MemoryHints::Performance,
-        trace: wgpu::Trace::Off,
-    };
-    let opened = open_device.and_then(|open| open(&adapter, &descriptor));
-    let (device, queue) = match opened {
-        Some(opened) => opened,
-        None => adapter.request_device(&descriptor).await?,
-    };
-    let capabilities = probe.get_capabilities(&adapter);
-    let format = capabilities
-        .formats
-        .iter()
-        .copied()
-        .find(|format| format.is_srgb())
-        .or_else(|| capabilities.formats.first().copied())
-        .ok_or("the adapter does not support this surface")?;
-    drop(probe);
-    let renderer = Renderer::new(&device, format);
-    context.set_renderer_info(RendererInfo {
-        adapter: adapter.get_info(),
-        format,
-    });
-    Ok(Gpu {
-        instance,
-        adapter,
-        device,
-        queue,
-        format,
-        renderer,
-    })
+    let probe = instance.create_surface(window.clone())?;
+    pollster::block_on(create_gpu(instance, &probe, context, open_device))
 }
 
 fn touch_cursor_source() -> CustomCursorSource {
@@ -1192,33 +846,4 @@ fn lock_pointer(window: &Window, locked: bool) {
         let _ = window.set_cursor_grab(CursorGrabMode::Confined);
     }
     window.set_cursor_visible(!locked);
-}
-
-#[cfg(target_os = "android")]
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Modifier {
-    Alt,
-    Ctrl,
-    Shift,
-}
-
-#[cfg(target_os = "android")]
-fn modifier_of(code: KeyCode) -> Option<Modifier> {
-    match code {
-        KeyCode::AltLeft | KeyCode::AltRight => Some(Modifier::Alt),
-        KeyCode::ControlLeft | KeyCode::ControlRight | KeyCode::SuperLeft | KeyCode::SuperRight => {
-            Some(Modifier::Ctrl)
-        }
-        KeyCode::ShiftLeft | KeyCode::ShiftRight => Some(Modifier::Shift),
-        _ => None,
-    }
-}
-
-fn safe_rect(screen: Vec2, area: SafeArea, scale: f32) -> Rect {
-    let min = pos2(area.left / scale, area.top / scale);
-    let max = pos2(
-        screen.x - area.right / scale,
-        screen.y - area.bottom / scale,
-    );
-    Rect::from_min_max(min, pos2(max.x.max(min.x), max.y.max(min.y)))
 }

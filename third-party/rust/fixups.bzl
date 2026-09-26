@@ -37,9 +37,6 @@ FIXUPS = {
     # build.
     "accesskit_android": {"rustc_flags": ["-Coverflow-checks=off"]},
     "alsa-sys": _PKG_CONFIG,
-    # With the game-activity feature the build script compiles the
-    # GameActivity glue the crate vendors, with its own static libc++.
-    "android-activity": {"build_script_env": _ANDROID_API},
     "atk-sys": _PKG_CONFIG,
     "cairo-sys-rs": _PKG_CONFIG,
     # The build script runs bindgen over the SDK's CoreAudio headers. It asks

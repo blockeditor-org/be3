@@ -37,12 +37,14 @@ mod timer;
 pub mod unstyled;
 
 pub use accesskit;
+#[cfg(all(feature = "window", target_os = "android"))]
+pub use app::AndroidApp;
 #[cfg(any(feature = "window", feature = "web"))]
-pub use app::{App, OpenDevice, RunOptions, SafeArea, Setup, Waker};
+pub use app::{App, OpenDevice, RunOptions, Setup, Waker};
 #[cfg(feature = "web")]
 pub use app::{accessibility_tree, run_web};
 #[cfg(feature = "window")]
-pub use app::{run, run_with, set_safe_area};
+pub use app::{run, run_with};
 pub use base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition, TextAlign, focus_within};
 pub use color::Color32;
 pub use context::{Context, FrameOutput};
@@ -69,5 +71,5 @@ pub use painter::{Painter, Shape};
 pub use performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
 #[cfg(feature = "render")]
 pub use renderer::{Renderer, RendererInfo, Repaint, clear_color};
-#[cfg(feature = "window")]
+#[cfg(all(feature = "window", not(target_os = "android")))]
 pub use winit;

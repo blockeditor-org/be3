@@ -23,7 +23,7 @@ commit = {
 
 app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "assets/**/*"])
 
-# On Android the app is this library, loaded by GameActivity under cargo's
+# On Android the app is this library, loaded by MainActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.
 cargo_library(
     env = commit,
@@ -186,8 +186,7 @@ app(
         name = name,
         application_id = application_id,
         assets = assets,
-        java = glob(["android/java/**/*.java"]),
-        java_libraries = "//buck/android:game-activity",
+        java = glob(["android/java/**/*.java"]) + ["//crates/beui:android-java"],
         label = label,
         library = ":block-app",
         manifest = "android/AndroidManifest.xml",
@@ -238,12 +237,12 @@ android_build(
 )
 
 # The launcher runs a downloaded build in its own copy of this Java, so a
-# build runs only in a launcher whose shell hash is its own: the Java, the
-# manifest and GameActivity's AARs. A permission added to AndroidManifest.xml
+# build runs only in a launcher whose shell hash is its own: the Java, beui's
+# and the manifest. A permission added to AndroidManifest.xml
 # goes in crates/be-launcher/android/AndroidManifest.xml too.
 genrule(
     name = "android-shell",
-    cmd = "(cd $SRCDIR && find . -type f | LC_ALL=C sort | xargs cat; find -L $(location //buck/android:game-activity) -type f | LC_ALL=C sort | xargs cat) | sha256sum | cut -c1-64 > $OUT",
+    cmd = "(cd $SRCDIR && find . -type f | LC_ALL=C sort | xargs cat; find -L $(location //crates/beui:android-java) -type f | LC_ALL=C sort | xargs cat) | sha256sum | cut -c1-64 > $OUT",
     out = "shell",
     srcs = glob(["android/java/**/*.java"]) + ["android/AndroidManifest.xml"],
     visibility = ["PUBLIC"],

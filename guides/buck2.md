@@ -205,13 +205,9 @@ A native target depends on a wasm one through a transition in
   that domain over https, which is how the app is deployed.
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
-  plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The app is a
-  GameActivity, so the APK also carries its AAR and the AppCompat closure it
-  needs, pinned as Maven downloads in `buck/android/BUCK`
-  (`maven_artifacts`); the tool links their resources beside
-  `crates/block-app/android/res`, generates each library's R class, and dexes
-  their jars with the app's Java. No manifests are merged, so a library's
-  own providers and components are not registered. `:android` signs it
+  plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The Java is
+  the app's own and beui's (`//crates/beui:android-java`), against the
+  platform alone: the APK carries no libraries. `:android` signs it
   locally with `target/android-debug.keystore`, made on first use.
   `:android-dist` signs on a worker with CI's keystore, which BuildBuddy keeps
   as the secret `ANDROID_DEBUG_KEYSTORE_BASE64` and passes only to actions on
@@ -224,8 +220,8 @@ A native target depends on a wasm one through a transition in
   `MainActivity`, the builds CI uploads to be3-ci: `:android-run`, the release
   library and the plugins' `.cwasm`s (the `publish-android` job in ci.yml
   says how they are stored). A build runs only in a launcher with its shell
-  hash (`:android-shell`, over block-app's Java, manifest and GameActivity's
-  AARs), so a change to those needs a new launcher, and a permission added to
+  hash (`:android-shell`, over block-app's Java, beui's Java and the
+  manifest), so a change to those needs a new launcher, and a permission added to
   block-app's manifest goes in the launcher's too.
 - The macOS builds are an executable and its libraries; the `.app` bundle
   comes with distribution.

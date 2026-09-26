@@ -106,15 +106,14 @@ pub fn accessibility_tree() -> Option<String> {
 
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
-fn android_main(app: winit::platform::android::activity::AndroidApp) {
+fn android_main(app: beui::AndroidApp) {
     editors::plugin::discovery::load(&app);
     panic_guard::install();
     let storage_root = match platform::launched() {
         Some(launched) => Some(launched.data().to_path_buf()),
         None => app.internal_data_path(),
     };
-    let mut options = run_options();
-    options.android_app = Some(app);
+    let options = run_options();
     let exit_code = match BlockApp::new(storage_root)
         .map_err(|error| error.to_string())
         .and_then(|block_app| {
