@@ -10,6 +10,7 @@ use crate::EditorHost;
 mod a_foreign_edit_during_an_edit_in_flight_keeps_both;
 mod an_edit_coming_back_as_mine_runs_nothing_again;
 mod an_operation_runs_only_the_watchers_of_what_it_touched;
+mod an_undecodable_operation_asks_for_a_fresh_snapshot;
 mod updates_for_another_block_reach_only_its_projection;
 
 struct Fixture {

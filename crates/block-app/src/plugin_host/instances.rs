@@ -1916,6 +1916,17 @@ impl Instances {
             EditorMessage::WatchContent { instance, blocks } => {
                 self.watch_content(instance, blocks)
             }
+            EditorMessage::ResendContent { instance, block_id } => {
+                let Some(link) = self
+                    .entries
+                    .get_mut(&instance)
+                    .and_then(|entry| entry.link_mut(Uuid::from_bytes(block_id)))
+                else {
+                    return false;
+                };
+                link.sent = None;
+                true
+            }
             EditorMessage::ReplaceContent {
                 block_id,
                 content_type,
