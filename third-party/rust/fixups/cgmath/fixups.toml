@@ -1,2 +1,0 @@
-# The build script generates the swizzle macros the library includes.
-buildscript.run = true

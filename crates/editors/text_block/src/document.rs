@@ -1,8 +1,8 @@
 use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use block_editor_plugin::Waker;
-use block_editor_plugin::be_block::block_url::{BLOCK_URL_MAX_BYTES, parse_block_urls};
-use block_editor_plugin::be_block::{self, TextContent, TextOp};
+use block_editor_beui::Waker;
+use block_editor_beui::be_block::block_url::{BLOCK_URL_MAX_BYTES, parse_block_urls};
+use block_editor_beui::be_block::{self, TextContent, TextOp};
 use similar::{Algorithm, DiffOp, capture_diff_slices};
 use text_editor_core::{
     Anchor, CursorPosition, Document, DocumentEdit, DocumentRead, TextIndentation, TextLanguage,

@@ -2,12 +2,16 @@ use bincode::Options;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+mod block_ids;
 mod manifest;
 mod session;
-pub use manifest::{ManifestDocument, manifest_from_json};
+pub use block_ids::BlockIdRole;
+pub use manifest::{
+    EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
+};
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 51;
+pub const PROTOCOL_VERSION: u16 = 53;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -269,19 +273,59 @@ pub struct ChildStatus {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PluginManifest {
     pub identity: PluginIdentity,
+    pub editors: Vec<EditorManifest>,
+    pub entry_point: String,
+    pub network: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EditorManifest {
     pub block_type: [u8; 16],
     pub display_name: String,
     pub icon: String,
-    pub creation: CreationMode,
+    pub templates: Vec<TemplateManifest>,
     pub children: ChildOperations,
-    pub important: bool,
     pub interaction: InteractionMode,
     pub capabilities: EditorCapabilities,
     pub resize: ResizeMode,
     pub regions: Vec<EditorRegion>,
     pub chrome: Vec<EditorBand>,
-    pub entry_point: String,
-    pub network: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TemplateManifest {
+    pub id: String,
+    pub name: String,
+    pub icon: String,
+    pub category: TemplateCategory,
+    pub dialog: bool,
+    pub block_type: [u8; 16],
+}
+
+#[derive(
+    Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum TemplateCategory {
+    Important,
+    #[default]
+    Regular,
+    Debug,
+    Template,
+}
+
+impl PluginManifest {
+    pub fn editor(&self, block_type: [u8; 16]) -> Option<&EditorManifest> {
+        self.editors
+            .iter()
+            .find(|editor| editor.block_type == block_type)
+    }
+}
+
+impl EditorManifest {
+    pub fn template(&self, id: &str) -> Option<&TemplateManifest> {
+        self.templates.iter().find(|template| template.id == id)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -333,14 +377,6 @@ pub struct BlockTypeDescriptor {
     pub children: ChildOperations,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CreationMode {
-    Immediate,
-    Dialog,
-
-    None,
-}
-
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EditorRegion {
     Frame,
@@ -373,6 +409,9 @@ pub enum ManifestError {
     InvalidRegions,
     InvalidChrome,
     InvalidNetworkHost,
+    NoEditors,
+    DuplicateBlockType,
+    DuplicateTemplate,
 }
 
 impl fmt::Display for ManifestError {
@@ -390,6 +429,13 @@ impl fmt::Display for ManifestError {
             Self::InvalidNetworkHost => {
                 formatter.write_str("a network host is not a plain host name")
             }
+            Self::NoEditors => formatter.write_str("the plugin declares no editors"),
+            Self::DuplicateBlockType => {
+                formatter.write_str("two editors are declared for the same block type")
+            }
+            Self::DuplicateTemplate => {
+                formatter.write_str("an editor declares the same template twice")
+            }
         }
     }
 }
@@ -399,8 +445,6 @@ impl PluginManifest {
         manifest_string("plugin id", &self.identity.id)?;
         manifest_string("plugin name", &self.identity.name)?;
         manifest_string("plugin version", &self.identity.version)?;
-        manifest_string("display name", &self.display_name)?;
-        manifest_string("icon", &self.icon)?;
         if !self
             .identity
             .id
@@ -409,6 +453,36 @@ impl PluginManifest {
         {
             return Err(ManifestError::InvalidIdentity);
         }
+        if self.editors.is_empty() {
+            return Err(ManifestError::NoEditors);
+        }
+        for (index, editor) in self.editors.iter().enumerate() {
+            if self.editors[..index]
+                .iter()
+                .any(|other| other.block_type == editor.block_type)
+            {
+                return Err(ManifestError::DuplicateBlockType);
+            }
+            editor.validate()?;
+        }
+        manifest_string("entry point", &self.entry_point)?;
+        for host in &self.network {
+            manifest_string("network host", host)?;
+            if !host
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
+            {
+                return Err(ManifestError::InvalidNetworkHost);
+            }
+        }
+        Ok(())
+    }
+}
+
+impl EditorManifest {
+    fn validate(&self) -> Result<(), ManifestError> {
+        manifest_string("display name", &self.display_name)?;
+        manifest_string("icon", &self.icon)?;
         if !self.regions.contains(&EditorRegion::Frame)
             || EditorRegion::ALL
                 .iter()
@@ -422,14 +496,15 @@ impl PluginManifest {
         {
             return Err(ManifestError::InvalidChrome);
         }
-        manifest_string("entry point", &self.entry_point)?;
-        for host in &self.network {
-            manifest_string("network host", host)?;
-            if !host
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
+        for (index, template) in self.templates.iter().enumerate() {
+            manifest_string("template id", &template.id)?;
+            manifest_string("template name", &template.name)?;
+            manifest_string("template icon", &template.icon)?;
+            if self.templates[..index]
+                .iter()
+                .any(|other| other.id == template.id)
             {
-                return Err(ManifestError::InvalidNetworkHost);
+                return Err(ManifestError::DuplicateTemplate);
             }
         }
         Ok(())
@@ -651,6 +726,8 @@ pub enum EditorMessage {
     },
     OpenCreation {
         instance: EditorInstanceId,
+        block_type: [u8; 16],
+        template: String,
         account_id: [u8; 16],
         workspace_id: [u8; 16],
         client_id: [u8; 16],
@@ -668,6 +745,7 @@ pub enum EditorMessage {
     },
     OpenArtifact {
         instance: EditorInstanceId,
+        source_type: [u8; 16],
         block_id: [u8; 16],
         block_type: [u8; 16],
         account_id: [u8; 16],
@@ -795,6 +873,16 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         name: Option<String>,
     },
+    VersionControl {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        command: VersionCommand,
+    },
+    VersionStatus {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        status: VersionStatus,
+    },
 }
 
 impl EditorMessage {
@@ -865,7 +953,9 @@ impl EditorMessage {
             | Self::Blocks { instance, .. }
             | Self::CreateBlock { instance, .. }
             | Self::SetParent { instance, .. }
-            | Self::SetName { instance, .. } => *instance,
+            | Self::SetName { instance, .. }
+            | Self::VersionControl { instance, .. }
+            | Self::VersionStatus { instance, .. } => *instance,
         }
     }
 }
@@ -1098,6 +1188,82 @@ pub enum BlockCommand {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum VersionCommand {
+    Adopt {
+        block_id: [u8; 16],
+    },
+    Commit {
+        message: String,
+    },
+    Update,
+    Switch {
+        branch: String,
+    },
+    CreateBranch {
+        name: String,
+    },
+    NewCheckout {
+        branch: String,
+    },
+    Resolve {
+        block_id: [u8; 16],
+        take: ConflictSide,
+    },
+    Fork,
+    PullUpstream,
+    PushUpstream,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConflictSide {
+    Base,
+    Ours,
+    Theirs,
+    Merged,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VersionStatus {
+    pub busy: bool,
+    pub error: Option<String>,
+    pub behind: bool,
+    pub branches: Vec<VersionBranch>,
+    pub changes: Vec<VersionChange>,
+    pub log: Vec<VersionCommit>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VersionBranch {
+    pub name: String,
+    pub head: [u8; 32],
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VersionChange {
+    pub block_id: [u8; 16],
+    pub block_type: [u8; 16],
+    pub name: Option<String>,
+    pub kind: VersionChangeKind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum VersionChangeKind {
+    Added,
+    Removed,
+    Modified,
+    Moved,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VersionCommit {
+    pub id: [u8; 32],
+    pub parents: Vec<[u8; 32]>,
+    pub author: [u8; 16],
+    pub time: i64,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HostRequest {
     PickFile(FileFilter),
     PickBlock(BlockFilter),
@@ -1299,7 +1465,8 @@ impl EditorMessage {
             | Self::HistoryStates { .. }
             | Self::ReplaceChild { .. }
             | Self::ChildView { .. }
-            | Self::Blocks { .. } => Direction::ToPlugin,
+            | Self::Blocks { .. }
+            | Self::VersionStatus { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
             | Self::Focused { .. }
             | Self::DragBlock { .. }
@@ -1334,6 +1501,7 @@ impl EditorMessage {
             | Self::ShowPresence { .. }
             | Self::Performance { .. }
             | Self::WatchBlocks { .. }
+            | Self::VersionControl { .. }
             | Self::CreateBlock { .. }
             | Self::SetParent { .. }
             | Self::SetName { .. } => Direction::ToHost,
@@ -1906,6 +2074,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             RegenerationOutcome::Done => Ok(()),
             RegenerationOutcome::Failed(message) => string(message),
         },
+        EditorMessage::OpenCreation { template, .. } => string(template),
         EditorMessage::OpenArtifact { data, .. }
         | EditorMessage::ArtifactSettings { data, .. }
         | EditorMessage::ArtifactEdited { data, .. }
@@ -1963,6 +2132,40 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::SetName {
             name: Some(name), ..
         } => string(name),
+        EditorMessage::VersionControl { command, .. } => match command {
+            VersionCommand::Commit { message: value }
+            | VersionCommand::Switch { branch: value }
+            | VersionCommand::CreateBranch { name: value }
+            | VersionCommand::NewCheckout { branch: value } => string(value),
+            VersionCommand::Adopt { .. }
+            | VersionCommand::Update
+            | VersionCommand::Resolve { .. }
+            | VersionCommand::Fork
+            | VersionCommand::PullUpstream
+            | VersionCommand::PushUpstream => Ok(()),
+        },
+        EditorMessage::VersionStatus { status, .. } => {
+            if let Some(error) = &status.error {
+                string(error)?;
+            }
+            collection(status.branches.len())?;
+            strings(status.branches.iter().map(|branch| &branch.name))?;
+            if status.changes.len() > MAX_LISTED_BLOCKS {
+                return Err(DecodeError::LimitExceeded("changes"));
+            }
+            strings(
+                status
+                    .changes
+                    .iter()
+                    .filter_map(|change| change.name.as_ref()),
+            )?;
+            collection(status.log.len())?;
+            for commit in &status.log {
+                collection(commit.parents.len())?;
+                string(&commit.message)?;
+            }
+            Ok(())
+        }
         EditorMessage::ShowPresence {
             value: Some(value), ..
         } => blob(value),

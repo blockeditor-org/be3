@@ -1,4 +1,4 @@
-use block_editor_plugin::beui::unstyled::{DockState, TabId};
+use block_editor_beui::beui::unstyled::{DockState, TabId};
 
 use crate::app::workspace::{FILES, place_tab, set_files_compact, settled, starting_layout};
 

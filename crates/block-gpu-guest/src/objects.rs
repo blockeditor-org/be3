@@ -575,14 +575,7 @@ impl QueueInterface for Queue {
         size: wgpu::Extent3d,
     ) {
         let request = abi::WriteTexture {
-            destination: abi::TexelCopyTextureInfo {
-                texture: convert::texture_handle(texture.texture),
-                mip_level: texture.mip_level,
-                origin_x: texture.origin.x,
-                origin_y: texture.origin.y,
-                origin_z: texture.origin.z,
-                aspect: convert::texture_aspect(texture.aspect),
-            },
+            destination: convert::texel_copy_texture(texture),
             layout: abi::TexelCopyBufferLayout {
                 offset: data_layout.offset,
                 bytes_per_row: data_layout.bytes_per_row,
@@ -766,11 +759,20 @@ impl CommandEncoderInterface for CommandEncoder {
 
     fn copy_texture_to_texture(
         &self,
-        _source: wgpu::TexelCopyTextureInfo<'_>,
-        _destination: wgpu::TexelCopyTextureInfo<'_>,
-        _copy_size: wgpu::Extent3d,
+        source: wgpu::TexelCopyTextureInfo<'_>,
+        destination: wgpu::TexelCopyTextureInfo<'_>,
+        copy_size: wgpu::Extent3d,
     ) {
-        unimplemented!("texture copies are not available to plugins yet")
+        let request = abi::CopyTextureToTexture {
+            encoder: self.handle,
+            source: convert::texel_copy_texture(source),
+            destination: convert::texel_copy_texture(destination),
+            size: convert::extent(copy_size),
+        };
+        let bytes = abi::encode(&request);
+        unsafe {
+            imports::encoder_copy_texture_to_texture(bytes.as_ptr() as u32, bytes.len() as u32)
+        };
     }
 
     fn begin_compute_pass(&self, _desc: &wgpu::ComputePassDescriptor<'_>) -> DispatchComputePass {

@@ -14,8 +14,10 @@ mod drawing_a_card_you_cannot_play_ends_your_turn;
 mod duplicate_join_from_the_same_actor_is_ignored;
 mod eights_match_anything_and_other_cards_match_the_suit_or_the_rank;
 mod first_player_can_act_after_the_game_starts;
+mod joining_and_dealing_are_clicks_on_the_deck;
 mod playing_greedily_from_all_sides_eventually_ends_the_game;
 mod spectator_after_the_game_starts_has_no_actions;
+mod the_history_tells_the_table_a_card_was_drawn_but_not_which;
 
 fn show(actions: &[GameAction], player: Uuid) -> GameScreen {
     static GAME: OnceLock<Game> = OnceLock::new();

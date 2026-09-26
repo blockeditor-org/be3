@@ -1,11 +1,11 @@
-use block_editor_plugin::be_block::ObjectId;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::TextAlign;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::ObjectId;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::reactive::{
     Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Spacer, clone, component,
     create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Body, Caption, ListRow, use_theme};
+use block_editor_beui::beui::styled::{Body, Caption, ListRow, use_theme};
 use block_ui::datetime::{civil_from_days, days_from_civil};
 
 use super::model::{Shown, WEEKDAY_ABBR, events_on, today_days_since_epoch, weekday_from_days};
@@ -180,7 +180,7 @@ fn MonthCell(
 #[component]
 fn EventChip(
     title: Memo<String>,
-    on_click: block_editor_plugin::beui::reactive::ClickCallback,
+    on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
     let click = on_click.clone();

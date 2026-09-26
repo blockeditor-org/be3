@@ -14,14 +14,9 @@ fn an_image_still_loading_shows_its_thumbhash() {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let mut loading: ContentHarness<ImageApp> =
-        ContentHarness::new(BeuiTest::new(Editor::new(host.clone(), block)), host);
+    let mut loading: BeuiTest<ImageApp> = BeuiTest::new(Editor::new(host, block));
     let mut info = BlockInfo::new(block, ImageContent::CONTENT_TYPE, BlockParent::Root);
-    info.thumbhash = Some(Thumbhash {
-        hash: derived.hash,
-        width: derived.width,
-        height: derived.height,
-    });
+    info.thumbhash = Some(derived);
     loading.store().add_block(info);
     loading.run();
     loading.run();

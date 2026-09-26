@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
-use block_editor_plugin::Waker;
-use block_editor_plugin::beui::{Image, Vec2};
+use block_editor_beui::Waker;
+use block_editor_beui::beui::{Image, Vec2};
 use paint_snapshot::{Content, Snapshot};
 
 mod difference;
@@ -166,6 +166,10 @@ impl Paintings {
             .expect("the frame was just painted");
         self.evict();
         rendered
+    }
+
+    pub fn working(&self) -> bool {
+        self.active.is_some() || !self.queue.is_empty()
     }
 
     pub fn rastered(&self) -> usize {

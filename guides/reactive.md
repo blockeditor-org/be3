@@ -186,7 +186,7 @@ if two items claim the same key.
 ## Blocks
 
 A plugin editor reads its block's content through a `ContentProjection`
-(`block_editor_plugin`). `editor.block_content::<C>()` is the one for the
+(`block_editor_beui`). `editor.block_content::<C>()` is the one for the
 editor's own block, `editor.content_of::<C>(block)` the one for another block it
 follows; both are pumped by the plugin framework once at the top of every frame,
 inside the document's reactive scope, so an editor never pumps by hand.

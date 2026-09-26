@@ -1,23 +1,19 @@
-# System libraries, named so that a third-party crate that needs
-# one can depend on it rather than on a flag somewhere in the toolchain.
+# System libraries, named so that a third-party crate that needs one can depend
+# on it rather than on a flag somewhere in the toolchain.
 
-# The C++ runtime a Rust binary linking harfbuzz or the embedded browser needs.
-# On wasm it is the WASI sysroot's noeh libc++, since the wasm C++ is compiled
-# with -fno-exceptions, with libsetjmp for FreeType.
+# What the C++ a build script compiles for wasm needs at the link beyond the
+# -lc++ cc-rs names: the WASI sysroot's no-exceptions libc++ and its ABI
+# library, since the wasm C++ is compiled with -fno-exceptions, and libsetjmp
+# for FreeType. Everywhere else the runtime cc-rs names is all there is.
 prebuilt_cxx_library(
     name = "stdc++",
     exported_linker_flags = select({
-        "DEFAULT": ["-lstdc++"],
-        "prelude//os:android": ["-lc++_shared"],
-        "prelude//os:macos": ["-lc++"],
+        "DEFAULT": [],
         "prelude//os:wasi": [
             "-L$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/noeh",
-            "-lc++",
             "-lc++abi",
             "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libsetjmp.a",
         ],
-        # MSVC's objects name the C++ runtime they need themselves.
-        "prelude//os:windows": [],
     }),
     visibility = ["PUBLIC"],
 )

@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_plugin::Waker;
-use block_editor_plugin::be_block::{LiveEdit, TextContent};
+use block_editor_beui::Waker;
+use block_editor_beui::be_block::{LiveEdit, TextContent};
 use text_editor_core::Document;
 
 fn replace(document: &BlockDocument, index: usize, delete: usize, insert: &str) {

@@ -1,19 +1,17 @@
-use block_editor_plugin::be_block::BlockContent;
+use block_editor_beui::be_block::BlockContent;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use block_editor_plugin::be_block::paint::PaintReview;
-use block_editor_plugin::be_block::{
-    PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader,
-};
-use block_editor_plugin::{BlockInfo, BlockParent};
-use block_editor_plugin::{Editor, EditorHost};
-use block_ui_test::{BeuiTest, ContentHarness, ContentStore};
+use block_editor_beui::be_block::paint::PaintReview;
+use block_editor_beui::be_block::{PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
+use block_editor_beui::{BlockInfo, BlockParent};
+use block_editor_beui::{Editor, EditorHost};
+use block_ui_test::{BeuiTest, ContentStore};
 use paint_snapshot::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 use uuid::Uuid;
 
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::view;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::view;
 
 use crate::app::{PaintReviewApp, PaintReviewEditor, Status};
 use crate::download::{Painting, Source};
@@ -42,7 +40,7 @@ struct Review {
 }
 
 impl Review {
-    fn open() -> (Self, ContentHarness<PaintReviewApp>) {
+    fn open() -> (Self, BeuiTest<PaintReviewApp>) {
         let branch = Arc::new(Mutex::new(Vec::new()));
         let block = Uuid::new_v4();
         write_to(&branch, PATH, &painting(30));
@@ -56,7 +54,7 @@ impl Review {
             }
         })
         .in_viewport();
-        let mut editor = ContentHarness::new(test, host);
+        let mut editor = test;
         editor.hold(None, PaintReviewContent::default());
         let review = Self {
             branch,
@@ -150,15 +148,9 @@ fn stage(editor: &BeuiTest<PaintReviewApp>) -> NodeId {
 }
 
 fn settled(editor: &mut BeuiTest<PaintReviewApp>) {
-    let quiet = std::cell::Cell::new(0);
     editor.settle_until("the review to settle", |editor| {
-        let resting = !crate::app::stage::busy(editor.document(), stage(editor))
-            && !editor.shown("paint_review.notice");
-        quiet.set(match resting {
-            true => quiet.get() + 1,
-            false => 0,
-        });
-        quiet.get() >= 3
+        !crate::app::stage::busy(editor.document(), stage(editor))
+            && !editor.shown("paint_review.notice")
     });
 }
 

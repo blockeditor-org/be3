@@ -7,6 +7,7 @@ use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
 mod graph;
+mod version;
 mod worker;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -19,7 +20,7 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 
-pub(crate) use graph::{Node, Query};
+pub(crate) use graph::{Graph, Node, Query, Scope};
 pub(crate) use worker::{History, Presence, Shared};
 
 use worker::Command;
@@ -129,6 +130,10 @@ pub(crate) struct Status {
 
 type ChildOperations = fn(&[u8], be_block::ChildChange) -> Option<Vec<Vec<u8>>>;
 
+type MergeContent = fn(Option<&[u8]>, Option<&[u8]>, Option<&[u8]>) -> Option<(Vec<u8>, bool)>;
+
+type ContentReferences = fn(&[u8], Uuid) -> Vec<Uuid>;
+
 struct Kind {
     content_type: Uuid,
     join: worker::Join,
@@ -137,6 +142,8 @@ struct Kind {
     replace: worker::Seed,
     describe: fn(&[u8]) -> Option<Described>,
     child: ChildOperations,
+    merge: MergeContent,
+    references: ContentReferences,
 }
 
 const fn kind<C>() -> Kind
@@ -151,6 +158,8 @@ where
         replace: worker::replace::<C>,
         describe: describe::<C>,
         child: child_operations::<C>,
+        merge: merge_content::<C>,
+        references: content_references::<C>,
     }
 }
 
@@ -166,6 +175,8 @@ where
         replace: worker::replace::<C>,
         describe: describe::<C>,
         child: child_operations::<C>,
+        merge: merge_content::<C>,
+        references: content_references::<C>,
     }
 }
 
@@ -181,6 +192,27 @@ fn describe<C: be_block::BlockContent>(bytes: &[u8]) -> Option<Described> {
         name: content.name(),
         derived: content.derived_metadata(),
     })
+}
+
+fn merge_content<C: be_block::Merge + Default>(
+    base: Option<&[u8]>,
+    ours: Option<&[u8]>,
+    theirs: Option<&[u8]>,
+) -> Option<(Vec<u8>, bool)> {
+    let decode = |bytes: Option<&[u8]>| match bytes {
+        Some(bytes) => C::decode(bytes).ok(),
+        None => Some(C::default()),
+    };
+    match C::merge3(&decode(base)?, &decode(ours)?, &decode(theirs)?) {
+        be_commit::MergeResult::Clean(value) => Some((value.encode(), false)),
+        be_commit::MergeResult::Conflicted { value, .. } => Some((value.encode(), true)),
+    }
+}
+
+fn content_references<C: be_block::BlockContent>(bytes: &[u8], workspace: Uuid) -> Vec<Uuid> {
+    C::decode(bytes)
+        .map(|content| content.references_in(workspace))
+        .unwrap_or_default()
 }
 
 fn child_operations<C: be_block::LiveEdit>(
@@ -223,7 +255,10 @@ const KINDS: &[Kind] = &[
     kind::<be_block::FileTreeContent>(),
     kind::<be_block::PanZoomContent>(),
     kind::<be_block::Scene3dContent>(),
+    kind::<be_block::TriangleContent>(),
     kind::<be_block::WorkspaceUiContent>(),
+    kind::<be_block::RepositoryContent>(),
+    kind::<be_block::CheckoutContent>(),
 ];
 
 fn kind_of(content_type: Uuid) -> Option<&'static Kind> {
@@ -236,6 +271,14 @@ pub(crate) fn describe_of(content: &Content) -> Option<Described> {
 
 pub(crate) fn is_known(content_type: Uuid) -> bool {
     kind_of(content_type).is_some()
+}
+
+fn merge_for(content_type: Uuid) -> Option<MergeContent> {
+    kind_of(content_type).map(|kind| kind.merge)
+}
+
+fn references_for(content_type: Uuid) -> Option<ContentReferences> {
+    kind_of(content_type).map(|kind| kind.references)
 }
 
 fn copy_for(content_type: Uuid) -> Option<worker::Copy> {
@@ -259,6 +302,7 @@ struct Stack {
     workspace: Uuid,
     commands: Option<UnboundedSender<Command>>,
     held: std::collections::HashSet<Uuid>,
+    versioned: std::collections::HashSet<Uuid>,
     shared: Arc<Mutex<Shared>>,
     #[cfg_attr(not(test), allow(dead_code))]
     changed: Arc<Condvar>,
@@ -290,6 +334,7 @@ pub(crate) fn start(config: Config) {
         workspace,
         commands: Some(commands),
         held: std::collections::HashSet::new(),
+        versioned: std::collections::HashSet::new(),
         shared,
         changed,
         running,
@@ -360,6 +405,35 @@ pub(crate) fn change_child(
     Some(true)
 }
 
+pub(crate) fn version(block: Uuid, command: block_plugin_api::VersionCommand) {
+    send(Command::Version { block, command });
+}
+
+pub(crate) fn version_since(
+    block: Uuid,
+    content_type: Uuid,
+    sent: Option<u64>,
+) -> Option<(u64, block_plugin_api::VersionStatus)> {
+    let fresh = stack()
+        .lock()
+        .unwrap()
+        .as_mut()
+        .is_some_and(|stack| stack.versioned.insert(block));
+    if fresh {
+        hold(block, content_type);
+        send(Command::WatchVersion(block));
+    }
+    with_shared(|shared| {
+        let state = shared.versions.get(&block)?;
+        (sent != Some(state.revision)).then(|| (state.revision, state.status.clone()))
+    })?
+}
+
+pub(crate) fn is_versioned(content_type: Uuid) -> bool {
+    content_type == <be_block::Checkout as be_block::Root>::CONTENT_TYPE
+        || content_type == <be_block::Repository as be_block::Root>::CONTENT_TYPE
+}
+
 pub(crate) fn operate_from(block: Uuid, origin: u64, operation: Vec<u8>) {
     send(Command::Operate(block, Some(origin), operation));
 }
@@ -412,6 +486,7 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             access: be_graph::Access::Edit,
             references: source.references.clone(),
             metadata: metadata.clone(),
+            head: None,
             version: 0,
         });
     });
@@ -518,6 +593,10 @@ pub(crate) fn graph_loaded() -> bool {
     with_shared(|shared| shared.graph.loaded).unwrap_or_default()
 }
 
+pub(crate) fn with_graph<T>(read: impl FnOnce(&Graph) -> T) -> Option<T> {
+    with_shared(|shared| read(&shared.graph))
+}
+
 pub(crate) fn query(query: Query) -> Vec<Node> {
     with_shared(|shared| shared.graph.query(query)).unwrap_or_default()
 }
@@ -551,6 +630,7 @@ pub(crate) fn create(
             access: be_graph::Access::Edit,
             references: Vec::new(),
             metadata: metadata.clone(),
+            head: None,
             version: 0,
         });
     });

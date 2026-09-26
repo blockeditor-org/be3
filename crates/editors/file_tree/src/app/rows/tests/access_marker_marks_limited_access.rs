@@ -1,4 +1,4 @@
-use block_editor_plugin::beui::icons::{ICON_LOCK, ICON_VISIBILITY};
+use block_editor_beui::beui::icons::{ICON_LOCK, ICON_VISIBILITY};
 
 use super::*;
 

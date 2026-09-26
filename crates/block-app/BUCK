@@ -1,4 +1,4 @@
-load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
+load("@root//buck/android:defs.bzl", "android_apk", "android_build", "signed_apk")
 load("@root//buck/app:defs.bzl", "app")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
@@ -6,8 +6,8 @@ load("@root//buck/tools:defs.bzl", "tool")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 load("@root//third-party/pdfium:defs.bzl", "pdfium_library")
 
-# The app, with its full features (the embedded browser), which
-# reindeer.toml and buckify.bxl turn on for every platform.
+# The app, with its full features (the embedded browser), which buckify.bxl
+# turns on for every platform.
 #
 # BLOCK_APP_COMMIT is what cargo's build script asks git for; a worker has no
 # checkout, so a release build takes `-c be3.commit=SHA`. A dev build says
@@ -138,6 +138,21 @@ tool(
     ],
 )
 
+# The web app served here and open in a headless Chromium for an agent to
+# drive, signed in with a workspace open: guides/running_the_web_app.md.
+tool(
+    name = "web-dev",
+    command = [
+        "sh",
+        "$(location //buck/app:web-dev.sh)",
+        "$(location //buck/tools:caddy)",
+        "$(location :Caddyfile)",
+        "$(location :web)",
+        "$(location //crates/be-server:be-server-bin)",
+        "$(location //buck/app:web-drive.mjs)",
+    ],
+)
+
 export_file(
     name = "Caddyfile",
     src = "web/Caddyfile",
@@ -151,28 +166,19 @@ export_file(
 # The Android app: the APK is built unsigned on a worker, with the plugins
 # precompiled for the device, and :android signs it here into
 # target/android/block-app.apk (`-- --install` installs and starts it).
-# CI's APK has an id and label of its own, so that it installs beside a local
+# CI's APK carries the same plugins, since an APK has nowhere else to find
+# them, and has an id and label of its own, so that it installs beside a local
 # build rather than colliding with it: sharing the package name, it would
 # either overwrite a local install signed with the same key or fail to install
 # over one signed with another.
 app(
     name = "android-assets",
+    compiled_only = True,
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile_target = "aarch64-linux-android",
     precompiler = "//crates/plugin-test-runner:precompiler",
-)
-
-# What CI ships: no plugins, which :plugins builds once for every platform, and
-# an index of none.
-app(
-    name = "android-dist-assets",
-    index = True,
-    manifests = [],
-    modules = [],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
 )
 
 [
@@ -194,7 +200,7 @@ app(
     )
     for name, assets, application_id, label in [
         ("apk", ":android-assets", "com.be3.block", "Block"),
-        ("apk-dist", ":android-dist-assets", "com.be3.block.ci", "Block (CI)"),
+        ("apk-dist", ":android-assets", "com.be3.block.ci", "Block (CI)"),
     ]
 ]
 
@@ -207,6 +213,8 @@ tool(
         "$(location //buck/android:build-tools)",
         "$(location //buck/android:platform-tools)",
         "$(location :apk)",
+        "block-app",
+        "com.be3.block.MainActivity",
     ],
 )
 
@@ -218,6 +226,39 @@ signed_apk(
     exec_compatible_with = ["root//buck/constraints:android_keystore"],
     key_version = 1,
     visibility = ["//buck/ci:"],
+)
+
+# What the launcher on Android downloads from be3-ci and runs in place of an
+# APK: the library, and the plugins precompiled for the device.
+android_build(
+    name = "android-run",
+    assets = ":android-assets",
+    library = ":block-app",
+    visibility = ["//buck/ci:"],
+)
+
+# The launcher runs a downloaded build in its own copy of this Java, so a
+# build runs only in a launcher whose shell hash is its own: the Java, the
+# manifest and GameActivity's AARs. A permission added to AndroidManifest.xml
+# goes in crates/be-launcher/android/AndroidManifest.xml too.
+genrule(
+    name = "android-shell",
+    cmd = "(cd $SRCDIR && find . -type f | LC_ALL=C sort | xargs cat; find -L $(location //buck/android:game-activity) -type f | LC_ALL=C sort | xargs cat) | sha256sum | cut -c1-64 > $OUT",
+    out = "shell",
+    srcs = glob(["android/java/**/*.java"]) + ["android/AndroidManifest.xml"],
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "MainActivity.java",
+    src = "android/java/com/be3/block/MainActivity.java",
+    visibility = ["//crates/be-launcher:"],
+)
+
+export_file(
+    name = "android-res",
+    src = "android/res",
+    visibility = ["//crates/be-launcher:"],
 )
 
 # The native startup smoke check: the app for ten seconds in a virtual display.

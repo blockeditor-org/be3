@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
 use be_block::ArtifactSource;
-use beui::reactive::{ReadSignal, WriteSignal, create_signal};
 use block_plugin_api::{AccessLevel, BlockLocation};
+use reactive::{ReadSignal, WriteSignal, create_signal};
 use uuid::Uuid;
 
 use crate::host::Waker;
@@ -91,7 +91,7 @@ pub struct BlockInfo {
     pub references: Vec<Uuid>,
     pub access: AccessLevel,
     pub artifact: Option<ArtifactSource>,
-    pub thumbhash: Option<beui::Thumbhash>,
+    pub thumbhash: Option<be_block::Thumbhash>,
 }
 
 impl BlockInfo {
@@ -165,7 +165,7 @@ impl BlockInfo {
                 source_type: Uuid::from_bytes(artifact.source_type),
                 data: artifact.data,
             }),
-            thumbhash: info.thumbhash.map(|thumbhash| beui::Thumbhash {
+            thumbhash: info.thumbhash.map(|thumbhash| be_block::Thumbhash {
                 hash: thumbhash.hash,
                 width: thumbhash.width,
                 height: thumbhash.height,
@@ -202,6 +202,7 @@ pub(crate) struct GraphState {
     revision: ReadSignal<u64>,
     set_revision: WriteSignal<u64>,
     dirty: Cell<bool>,
+    ready: RefCell<Option<Rc<dyn Fn() -> bool>>>,
     commands: RefCell<Vec<GraphCommand>>,
 }
 
@@ -216,14 +217,20 @@ impl Default for GraphState {
             revision,
             set_revision,
             dirty: Cell::default(),
+            ready: RefCell::default(),
             commands: RefCell::default(),
         }
     }
 }
 
 impl GraphState {
+    pub(crate) fn defer_unless(&self, ready: Rc<dyn Fn() -> bool>) {
+        *self.ready.borrow_mut() = Some(ready);
+    }
+
     fn changed(&self) {
-        match beui::reactive::try_with_document(|_| ()).is_some() {
+        let ready = self.ready.borrow().clone();
+        match ready.is_none_or(|ready| ready()) {
             true => self.set_revision.update(|revision| *revision += 1),
             false => self.dirty.set(true),
         }

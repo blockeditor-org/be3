@@ -1,6 +1,6 @@
-use block_editor_plugin::Editor;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::beui::{NodeId, Vec2};
+use block_editor_beui::Editor;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::{NodeId, Vec2};
 
 mod ui;
 
@@ -11,7 +11,7 @@ const INTRINSIC_HEIGHT: f32 = 120.0;
 
 pub struct SettingsApp;
 
-impl block_editor_plugin::BeuiApp for SettingsApp {
+impl block_editor_beui::BeuiApp for SettingsApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <SettingsView editor={editor} />

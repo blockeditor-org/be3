@@ -1,8 +1,8 @@
 # The block stack
 
 Every block in the app lives in the `be-*` crates: `be-store`, `be-commit`,
-`be-session`, `be-graph`, `be-protocol`, `be-model`, `be-block`, `be-client` and
-`be-server`. The app is a peer of its own (`crates/block-app/src/be.rs` and
+`be-session`, `be-graph`, `be-protocol`, `be-model`, `be-block`, `be-vcs`,
+`be-client` and `be-server`. The app is a peer of its own (`crates/block-app/src/be.rs` and
 `be/`), the server is `be-server`, and every editor keeps its content here.
 
 To add a block type, read `guides/adding_a_block.md` first; it is the short
@@ -59,6 +59,7 @@ be-graph     parents, edges, access, refcounts    server
 be-protocol  the wire format                      client + server
 be-model     objects with ids, merge, undo, derive client
 be-block     content traits and content types     client
+be-vcs       snapshot trees, diff, tree merge      client
 be-client    a peer: local store, blocks, Live    client
 be-server    the always-online peer               server
 ```
@@ -370,10 +371,58 @@ and a new file for an existing block from `ReplaceContent` (below).
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
 tested in `crates/be-model/src/tests/`, and the round trip through a real server
 in `crates/be-client/src/tests/`. An editor's tests stand in for the host with
-`block_ui_test::ContentHarness`, which holds the content of the editor's block
-and of any block it watches, applies what the editor sends, and takes the
-content it seeds or replaces; `ContentStore` is the same store handed to a test
-fixture that needs to read or write it between runs.
+`block_ui_test::BeuiTest`, which holds the content of the editor's block and of
+any block it watches through `WatchContent`, applies the `Operate` messages the
+editor sends and echoes them back as operations marked as its own, the way the
+app's host does; `store()` hands a test fixture the same `ContentStore` to read
+or write between runs.
+
+## Version control
+
+Version control is two content types and a peer-side operation set, not a
+store of its own: history is be-store objects and be-commit commits.
+
+- A **repository** (`be_block::Repository`) holds branch heads and an optional
+  upstream repository in the same workspace. It holds its history with
+  `Peer::hold` (`HoldObjects`): a block that holds objects keeps them alive
+  whatever its own commits' retention does, until it is collected.
+- A **snapshot** is a `be_commit::Commit` of kind `Snapshot(message)` whose
+  manifest is a `be_vcs::Tree`: one entry per block of the versioned subtree,
+  keyed by local id, with its content type, parent, metadata, references and
+  content manifest. The manifest is the block's own, so a snapshot of unchanged
+  content stores nothing new, and a checkout publishes a block's first commit
+  with that manifest without downloading it.
+- A **checkout** (`be_block::Checkout`) is the parent of a working tree of
+  ordinary blocks, which every editor opens and every session edits as usual.
+  Sharing the checkout block is how two people work on one tree; two checkouts
+  are two people working apart. It records its repository, branch, base commit,
+  root, the head each block had at the base (so status is a comparison against
+  the mirror rather than a download) and any conflicts.
+- **Scopes.** A block's content stores the ids of the blocks it names, and
+  those have to mean the same thing in every checkout, so they are *local* ids.
+  A block copied into a checkout is created as `masked(local, scope_mask(checkout))`
+  and carries `BlockMetadata::local_id`; a block created inside a checkout, or
+  one that was adopted into it, keeps its own id as its local id. The host
+  translates every block id that crosses the plugin protocol for an instance
+  whose block is inside a checkout (`Instances::translate`, over
+  `Message::visit_block_ids`), and the peer resolves the references it
+  publishes the same way (`Peer::set_resolver`), so neither content nor editors
+  know about checkouts. Resolution looks in the instance's own checkout first
+  and falls back to the block with that id, which is how a reference out of the
+  tree keeps working.
+- `crates/block-app/src/be/version.rs` runs the operations in the worker:
+  adopting a block into a new checkout, committing (a compare-and-swap on the
+  branch), making a checkout, switching, branching, bringing the branch's
+  changes in (`be_vcs::merge` over the trees, then each content type's
+  `Merge::merge3` for a block both sides changed, with `base`, `yours` and
+  `theirs` copies of a conflicted block left under the checkout), resolving,
+  forking, pulling and pushing. It pushes a `VersionStatus` for every
+  repository and checkout an editor is showing, recomputed when the mirror
+  changes; it watches the checkout's blocks, and the mirror keeps each block's
+  head from `HeadChanged`, from sessions and from its own writes.
+- A live session's owner catches up when someone publishes past it
+  (`HeadChanged` → `Live::catch_up`), which is what lets a checkout replace the
+  content of a block that someone has open.
 
 ## Running it
 
@@ -457,9 +506,9 @@ given.
 `BlockContent::derived_metadata`, and is for what a block's content says about
 itself that others want before the content has loaded. An image's is its
 thumbhash and exact size, which the image editor records in the header when it
-decodes the image; it reaches plugins as `BlockInfo::thumbhash`, a
-`beui::Thumbhash`, and a beui `Picture` given it lays out at the image's size
-and paints the blurred placeholder until the image arrives.
+decodes the image; it reaches plugins as `BlockInfo::thumbhash`, and a beui
+`Picture` given it as a `beui::Thumbhash` lays out at the image's size and
+paints the blurred placeholder until the image arrives.
 
 ### Content on the plugin protocol
 
@@ -511,7 +560,7 @@ host has sent the content once, `loaded()` is a signal that turns true when it
 has, and `revision()` counts the changes an editor has seen, for code like the
 PDF pane that re-renders on a change rather than projecting.
 
-`block_editor_plugin` re-exports `be_block`, so an editor names its content type
+`block_editor_beui` re-exports `be_block`, so an editor names its content type
 without depending on the crate itself.
 
 ### The graph on the plugin protocol
@@ -536,7 +585,7 @@ commit, before any later command for that block runs. `Creation::create` and
 `Blocks::create` make a block this way, Detached unless a parent is named;
 the host sets the parent of a block made in a creation dialog once it has the
 id. Creating a database makes two blocks this way:
-`block_editor_plugin::database::create_database` creates a schema with a Name
+`block_editor_beui::database::create_database` creates a schema with a Name
 field and a database pointing at it, and makes the schema a child of the
 database, so the graph is right before any editor opens it.
 
@@ -678,9 +727,20 @@ pixel art export regenerate this way.
 
 ## What is not built yet
 
-- Version control was removed with the old block system and has to be remade on
-  this stack. be-commit already keeps the history it would read: every block is
-  a commit chain, and `Peer::fetch_history` walks it.
+- A commit is made from each block's head after this peer seals what it owns,
+  so an edit another peer is holding in a session it has not sealed yet is left
+  out. A seal barrier would close that: the server asks the owner of every
+  session in the checkout to seal, and the commit waits for them.
+- Conflicts are resolved a block at a time by taking one side; nothing merges
+  inside a block by hand yet, and the three sides are linked, not shown side by
+  side.
+- A repository never lets go of history: deleting a branch frees nothing until
+  the repository block itself is collected. Freeing it wants the server to
+  count holds per object, with a commit holding its parents and its tree.
+- An upstream is another repository in the same workspace. Across workspaces
+  the content keys differ, so a pull would have to reseal every object.
+- Moving a block into or out of a checkout keeps the ids its content stores, so
+  what they name changes with the scope it lands in.
 - Undo in the text editor lives in the editor, so it is gone when the editor
   closes, and the app's undo command does nothing for text.
 - Nothing vouches for who wrote an item. The deterministic game stores the

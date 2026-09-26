@@ -2,7 +2,9 @@ use std::any::Any;
 
 use crate::base::list::Direction;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{CursorIcon, DragGesture, PointerPress, ScrollGesture, ZoomGesture};
+use crate::input::{
+    CursorIcon, DragGesture, PointerPress, ScrollGesture, SecondaryDrag, ZoomGesture,
+};
 use crate::painter::Painter;
 
 use crate::document::Document;
@@ -25,6 +27,7 @@ pub(crate) struct ClickCatcherNode {
     pub(crate) dragged: Option<Pos2>,
     pub(crate) pan_active: bool,
     pub(crate) middle_dragged: Option<Pos2>,
+    pub(crate) secondary_dragged: Option<Pos2>,
     pub(crate) on_click: ClickCallback,
     pub(crate) on_click_at: Callback<PointerPress>,
     pub(crate) on_hover_change: Callback<bool>,
@@ -32,6 +35,7 @@ pub(crate) struct ClickCatcherNode {
     pub(crate) on_active_change: Callback<bool>,
     pub(crate) on_press: Callback<PointerPress>,
     pub(crate) on_secondary_press: Callback<PointerPress>,
+    pub(crate) on_secondary_drag: Callback<SecondaryDrag>,
     pub(crate) on_drag: Callback<PointerPress>,
     pub(crate) on_pan_drag: Callback<Vec2>,
     pub(crate) on_pan_active_change: Callback<bool>,
@@ -57,6 +61,7 @@ impl ClickCatcherNode {
             dragged: None,
             pan_active: false,
             middle_dragged: None,
+            secondary_dragged: None,
             on_click: ClickCallback::empty(),
             on_click_at: Callback::empty(),
             on_hover_change: Callback::empty(),
@@ -64,6 +69,7 @@ impl ClickCatcherNode {
             on_active_change: Callback::empty(),
             on_press: Callback::empty(),
             on_secondary_press: Callback::empty(),
+            on_secondary_drag: Callback::empty(),
             on_drag: Callback::empty(),
             on_pan_drag: Callback::empty(),
             on_pan_active_change: Callback::empty(),
@@ -127,6 +133,37 @@ impl ClickCatcherNode {
         }
         if fingers && input.touch_pan != Vec2::ZERO {
             self.on_pan_drag.call(input.touch_pan);
+        }
+    }
+
+    fn secondary_drag(&mut self, input: &InteractInput, rect: Rect) {
+        if self.on_secondary_drag.is_empty() {
+            return;
+        }
+        let Some(drag) = input.secondary_drag else {
+            if let Some(pos) = self.secondary_dragged.take() {
+                self.on_secondary_drag.call(SecondaryDrag {
+                    from: pos,
+                    pos,
+                    started: false,
+                    ended: false,
+                    cancelled: true,
+                    modifiers: input.modifiers,
+                });
+            }
+            return;
+        };
+        if drag.started && rect.contains(drag.from) {
+            self.secondary_dragged = Some(drag.from);
+            self.on_secondary_drag.call(drag);
+        } else if self.secondary_dragged.is_some()
+            && (drag.ended || drag.cancelled || self.secondary_dragged != Some(drag.pos))
+        {
+            self.secondary_dragged = Some(drag.pos);
+            self.on_secondary_drag.call(drag);
+        }
+        if drag.ended || drag.cancelled {
+            self.secondary_dragged = None;
         }
     }
 
@@ -282,6 +319,7 @@ impl Element for ClickCatcherNode {
             self.on_drag.call(press);
         }
         self.pan_drag(input, id, contains_pointer);
+        self.secondary_drag(input, rect);
         if input.wheel_target == Some(id)
             && input.scroll != Vec2::ZERO
             && let Some(pos) = input.pointer_pos
@@ -407,6 +445,7 @@ pub fn ClickCatcher(
     on_active_change: Callback<bool>,
     on_press: Callback<PointerPress>,
     on_secondary_press: Callback<PointerPress>,
+    on_secondary_drag: Callback<SecondaryDrag>,
     on_drag: Callback<PointerPress>,
     on_pan_drag: Callback<Vec2>,
     on_pan_active_change: Callback<bool>,
@@ -426,6 +465,7 @@ pub fn ClickCatcher(
         node.on_active_change = on_active_change;
         node.on_press = on_press;
         node.on_secondary_press = on_secondary_press;
+        node.on_secondary_drag = on_secondary_drag;
         node.on_drag = on_drag;
         node.on_pan_drag = on_pan_drag;
         node.on_pan_active_change = on_pan_active_change;

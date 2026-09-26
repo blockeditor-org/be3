@@ -31,7 +31,8 @@ env:
 # every platform, and uploads what ships. verify is ./scripts/buck run //:verify,
 # a runner for each of its three parts, which fixes what it can on a pull
 # request. autofix pushes those fixes, paint-previews shows a pull request's
-# changed paintings in a comment, and CI OK is the gate. Everything runs on BuildBuddy's workers, so what a runner
+# changed paintings in a comment, publish-android puts the Android build where
+# the launcher on Android finds it, and CI OK is the gate. Everything runs on BuildBuddy's workers, so what a runner
 # needs is buck2 and whatever runs here rather than there.
 jobs:
   # buck/ci/BUCK names what is built: //crates/... for the host, which is what
@@ -124,11 +125,32 @@ jobs:
           path: dist/block-app-android-aarch64/block-app.apk
           retention-days: 14
 
+      # The launcher for Android, signed with the same keystore, which runs the
+      # builds publish-android puts on be3-ci.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: be-launcher-android-aarch64
+          path: dist/be-launcher-android-aarch64/be-launcher.apk
+          retention-days: 14
+
       - uses: actions/upload-artifact@v7
         with:
           name: block-web
           path: dist/block-web
           retention-days: 14
+
+      # What publish-android uploads to be3-ci. Only main and pull requests
+      # from this repository have one, since a fork's pull request has no
+      # BuildBuddy key to build it with.
+      - uses: actions/upload-artifact@v7
+        if: >-
+          github.event_name == 'push' ||
+          (github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          name: block-android
+          path: dist/block-android
+          retention-days: 1
 
       - uses: actions/upload-pages-artifact@v5
         if: github.ref == 'refs/heads/main'
@@ -444,21 +466,23 @@ jobs:
           path: ${{ runner.temp }}/previews
           retention-days: 1
 
-  # The images go on a branch of their own, paint-previews/<number>, as one
-  # commit that each run replaces, and the comment links them by that commit.
-  # It is pushed with GITHUB_TOKEN, which starts no workflow, and nothing else
-  # reads the branch. What the artifact holds was made by the pull request's
-  # code, so it is only ever data here: files to commit and text to post.
+  # The images go to the be3-ci Bunny storage zone as paint-previews/<hash>.png,
+  # named by the SHA-256 of their bytes, and the comment links them through the
+  # zone's CDN. A name that is its content's hash never changes what it points
+  # at, so an upload never has to replace anything a comment already links,
+  # and an image two runs both drew is stored once. The storage key is given to
+  # the upload step alone. What the artifact holds was made by the pull
+  # request's code, so it is only ever data here: files to upload and text to
+  # post.
   #
   # A pull request that no longer changes any painting has its comment edited
-  # to say so and its branch deleted; one that never did gets no comment.
+  # to say so; one that never did gets no comment.
   publish-paint-previews:
     name: comment paint previews
     needs: [paint-previews]
     if: needs.paint-previews.result == 'success'
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
       pull-requests: write
     steps:
       - uses: actions/download-artifact@v8
@@ -466,7 +490,22 @@ jobs:
           name: paint-previews
           path: ${{ runner.temp }}/previews
 
-      - name: Publish the previews and comment
+      - name: Upload the previews
+        env:
+          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for image in "$RUNNER_TEMP"/previews/*.png; do
+            curl --fail --silent --show-error --retry 3 --output /dev/null \
+              --request PUT \
+              --header "AccessKey: $BUNNY_STORAGE_KEY" \
+              --header 'Content-Type: image/png' \
+              --upload-file "$image" \
+              "https://storage.bunnycdn.com/be3-ci/paint-previews/$(basename "$image")"
+          done
+
+      - name: Comment
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -474,38 +513,21 @@ jobs:
         run: |
           set -euo pipefail
           previews="$RUNNER_TEMP/previews"
-          branch="paint-previews/$NUMBER"
           comment="$RUNNER_TEMP/comment.md"
+          sed 's|PREVIEW_ROOT|https://be3-ci.b-cdn.net/paint-previews|g' "$previews/comment.md" > "$comment"
 
           existing="$(gh api --paginate "repos/$REPOSITORY/issues/$NUMBER/comments" --jq \
             '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- paint-previews -->"))) | .id' |
             sed -n 1p)"
 
-          if compgen -G "$previews/*/*.png" > /dev/null; then
-            cd "$previews"
-            git -c init.defaultBranch=previews init --quiet
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add -- ./*/
-            git commit --quiet --message "Paint previews for #$NUMBER"
-            git push --quiet --force "https://x-access-token:$GH_TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$branch"
-            sha="$(git rev-parse HEAD)"
-            sed "s|PREVIEW_ROOT|https://github.com/$REPOSITORY/raw/$sha|g" comment.md > "$comment"
-          else
-            gh api --method DELETE "repos/$REPOSITORY/git/refs/heads/$branch" > /dev/null 2>&1 || true
-            if [ -z "$existing" ]; then
-              echo 'The pull request changes no paintings.'
-              exit 0
-            fi
-            cp "$previews/comment.md" "$comment"
-          fi
-
           if [ -n "$existing" ]; then
             jq --raw-input --slurp '{body: .}' "$comment" |
               gh api --method PATCH "repos/$REPOSITORY/issues/comments/$existing" --input - > /dev/null
-          else
+          elif compgen -G "$previews/*.png" > /dev/null; then
             jq --raw-input --slurp '{body: .}' "$comment" |
               gh api --method POST "repos/$REPOSITORY/issues/$NUMBER/comments" --input - > /dev/null
+          else
+            echo 'The pull request changes no paintings.'
           fi
 
   # The one check the ruleset on main requires, and the only thing the merge
@@ -528,6 +550,98 @@ jobs:
   # every pull request, which satisfied the rule without reading a single one
   # of its needs. always() is what makes it run after the needs finish
   # whatever they did, so that the step below is the thing that decides.
+  # The launcher on Android (crates/be-launcher) runs these builds. Each goes
+  # to the be3-ci Bunny storage zone under android/<slot>/, where the slot is
+  # pr-<number> or main: one build a slot, which the next replaces. Every file
+  # is gzipped and named by the SHA-256 of its bytes, <hash>.gz, so a file the
+  # slot already holds, like a plugin the pull request did not change, is not
+  # uploaded again, and nor does the launcher download it again. build.json,
+  # uploaded after them, names them: the commit, the shell hash, the launcher's
+  # APK, and each file with its path in the build. The files it no longer
+  # names are deleted after it. android-builds.yml deletes a closed pull
+  # request's slot. As with the paint previews, the storage key is given to
+  # the upload step alone, and what the artifact holds is only data here.
+  #
+  # Not one of CI OK's needs: a build the launcher cannot fetch does not stop
+  # a merge.
+  publish-android:
+    name: publish the Android build
+    needs: [build]
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: block-android
+          path: ${{ runner.temp }}/android
+
+      - name: Upload it
+        env:
+          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
+          SLOT: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'main' }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          android="$RUNNER_TEMP/android"
+          objects="$RUNNER_TEMP/objects"
+          mkdir -p "$objects"
+          store="https://storage.bunnycdn.com/be3-ci/android/$SLOT"
+
+          object() {
+            hash="$(sha256sum "$1" | cut -c1-64)"
+            [ -e "$objects/$hash.gz" ] || gzip -6 -n -c "$1" > "$objects/$hash.gz"
+            jq -n --arg hash "$hash" --argjson size "$(stat -c %s "$1")" '{hash: $hash, size: $size}'
+          }
+
+          files="$(
+            cd "$android/build"
+            find . -type f | sed 's|^\./||' | LC_ALL=C sort | while IFS= read -r path; do
+              object "$android/build/$path" | jq -c --arg path "$path" '{path: $path} + .'
+            done | jq -s .
+          )"
+          jq -n \
+            --arg commit "$COMMIT" \
+            --arg shell "$(cat "$android/shell")" \
+            --argjson launcher "$(object "$android/launcher.apk")" \
+            --argjson files "$files" \
+            '{commit: $commit, shell: $shell, launcher: $launcher, files: $files}' > "$RUNNER_TEMP/build.json"
+
+          present="$(curl --fail --silent --show-error --retry 3 \
+            --header "AccessKey: $BUNNY_STORAGE_KEY" "$store/" |
+            jq -r '.[] | select(.IsDirectory | not) | .ObjectName')" || present=''
+
+          for object in "$objects"/*.gz; do
+            name="$(basename "$object")"
+            if ! grep -qxF "$name" <<< "$present"; then
+              curl --fail --silent --show-error --retry 3 --output /dev/null \
+                --request PUT \
+                --header "AccessKey: $BUNNY_STORAGE_KEY" \
+                --header 'Content-Type: application/octet-stream' \
+                --upload-file "$object" \
+                "$store/$name"
+            fi
+          done
+
+          curl --fail --silent --show-error --retry 3 --output /dev/null \
+            --request PUT \
+            --header "AccessKey: $BUNNY_STORAGE_KEY" \
+            --header 'Content-Type: application/json' \
+            --upload-file "$RUNNER_TEMP/build.json" \
+            "$store/build.json"
+
+          wanted="$(ls "$objects")"
+          while IFS= read -r name; do
+            if [ -n "$name" ] && [ "$name" != build.json ] && ! grep -qxF "$name" <<< "$wanted"; then
+              curl --fail --silent --show-error --retry 3 --output /dev/null \
+                --request DELETE \
+                --header "AccessKey: $BUNNY_STORAGE_KEY" \
+                "$store/$name"
+            fi
+          done <<< "$present"
+
   ci-ok:
     name: 'CI OK'
     if: always()

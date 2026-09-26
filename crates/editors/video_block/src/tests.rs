@@ -1,10 +1,10 @@
-use block_editor_plugin::be_block::{BlockContent, CounterContent};
+use block_editor_beui::be_block::{BlockContent, CounterContent};
 
-use block_editor_plugin::be_block::VideoContent;
-use block_editor_plugin::be_block::video::{Video, VideoClip, VideoFrameRate, VideoOperation};
-use block_editor_plugin::beui::Pos2;
-use block_editor_plugin::{BlockInfo, BlockParent, Editor, EditorHost};
-use block_ui_test::{BeuiTest, ContentHarness};
+use block_editor_beui::be_block::VideoContent;
+use block_editor_beui::be_block::video::{Video, VideoClip, VideoFrameRate, VideoOperation};
+use block_editor_beui::beui::Pos2;
+use block_editor_beui::{BlockInfo, BlockParent, Editor, EditorHost};
+use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::VideoApp;
@@ -16,7 +16,7 @@ mod dragging_a_clip_past_the_next_one_reorders_the_base_track;
 mod timecode_counts_minutes_seconds_and_frames;
 
 struct Fixture {
-    editor: ContentHarness<VideoApp>,
+    editor: BeuiTest<VideoApp>,
 }
 
 impl Fixture {
@@ -25,7 +25,7 @@ impl Fixture {
         let host = EditorHost::default();
         host.set_editable(true);
         let editor = Editor::new(host.clone(), block);
-        let mut editor = ContentHarness::new(BeuiTest::new(editor), host);
+        let mut editor = BeuiTest::new(editor);
         editor.hold(None, VideoContent::default());
         Self { editor }
     }

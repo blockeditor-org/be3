@@ -1,18 +1,18 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::pixel_ray_tracer::{
+use block_editor_beui::be_block::pixel_ray_tracer::{
     PIXEL_RAY_TRACER_PALETTE, RayEntity, RaySettings,
 };
-use block_editor_plugin::beui::Color32;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::accesskit::{Node, Role};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::Color32;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::accesskit::{Node, Role};
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, List, Prop, Show, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, Slider, ToggleButton, Tooltip, use_theme,
 };
-use block_editor_plugin::beui::unstyled::{Pressable, SliderScale};
+use block_editor_beui::beui::unstyled::{Pressable, SliderScale};
 
 use crate::overlay::palette_color;
 
@@ -139,7 +139,7 @@ fn swatch_role(label: &str) -> Prop<Node> {
 #[component]
 fn SelectedEntity(
     state: Rc<RayState>,
-    selected: block_editor_plugin::beui::reactive::Memo<Option<RayEntity>>,
+    selected: block_editor_beui::beui::reactive::Memo<Option<RayEntity>>,
 ) -> NodeId {
     let kind = create_memo(clone!(selected -> move || match selected.get() {
         Some(RayEntity::Surface { .. }) => "Surface",
@@ -181,7 +181,7 @@ fn SelectedEntity(
         _ => 1.0,
     });
     let edit = |state: &Rc<RayState>,
-                selected: &block_editor_plugin::beui::reactive::Memo<Option<RayEntity>>,
+                selected: &block_editor_beui::beui::reactive::Memo<Option<RayEntity>>,
                 write: fn(&mut RayEntity, f32)| {
         let state = Rc::clone(state);
         let selected = selected.clone();
@@ -270,7 +270,7 @@ fn NewEntity(state: Rc<RayState>) -> NodeId {
     let ior = create_memo(clone!(held -> move || held.get().refractive_index));
     let lit = Rc::clone(&state);
     let edit = |state: &Rc<RayState>,
-                held: &block_editor_plugin::beui::reactive::ReadSignal<Surface>,
+                held: &block_editor_beui::beui::reactive::ReadSignal<Surface>,
                 write: fn(&mut Surface, f32)| {
         let state = Rc::clone(state);
         let held = held.clone();
@@ -351,7 +351,7 @@ fn RayControls(state: Rc<RayState>, view: bool) -> NodeId {
     let step = create_memo(clone!(settings -> move || settings.get().step_distance));
     let steps = create_memo(clone!(settings -> move || settings.get().maximum_steps as f32));
     let write = |state: &Rc<RayState>,
-                 settings: &block_editor_plugin::beui::reactive::Memo<RaySettings>,
+                 settings: &block_editor_beui::beui::reactive::Memo<RaySettings>,
                  edit: fn(&mut RaySettings, f32)| {
         let state = Rc::clone(state);
         let settings = settings.clone();

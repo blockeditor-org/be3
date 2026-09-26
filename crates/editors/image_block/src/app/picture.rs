@@ -3,10 +3,10 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::{ImageContent, ImageHeader, ImageOp};
-use block_editor_plugin::beui::reactive::{Memo, create_effect, create_memo, create_signal};
-use block_editor_plugin::beui::{Image, Thumbhash};
-use block_editor_plugin::{BlockQuery, ContentProjection, Editor};
+use block_editor_beui::be_block::{ImageContent, ImageHeader, ImageOp};
+use block_editor_beui::beui::reactive::{Memo, create_effect, create_memo, create_signal};
+use block_editor_beui::beui::{Image, Thumbhash};
+use block_editor_beui::{BlockQuery, ContentProjection, Editor};
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Shown {
@@ -91,5 +91,10 @@ pub(crate) fn thumbhash(editor: &Editor) -> Memo<Option<Thumbhash>> {
             .into_iter()
             .next()
             .and_then(|info| info.thumbhash)
+            .map(|thumbhash| Thumbhash {
+                hash: thumbhash.hash,
+                width: thumbhash.width,
+                height: thumbhash.height,
+            })
     })
 }

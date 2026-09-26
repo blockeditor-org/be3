@@ -594,6 +594,17 @@ row for tests, as `<id>.row` and `<id>.chevron`, and `outline` gives a single
 row an outline of its own, which is how a drop target says whether it will
 take what is over it.
 
+Choosing a row never expands, collapses or scrolls anything: only the chevron
+and the arrow keys do. The styled tree owns its `Scroll` (`padding` goes inside
+it), and follows the `selected` key wherever it is instead. Given `ancestors`,
+which answers with the keys above one, outermost first, it marks the chevron of
+the deepest row still shown above a selection hidden inside a collapsed one, and
+while the selection is hidden or scrolled out of view it floats a button over
+the top or bottom edge that reports `on_reveal` - the caller expands the
+ancestors - and then scrolls the row into view once it is laid out. The file
+tree and the beui inspector both work this way. `styled::tree_row_node` and
+`styled::tree_focused` reach the rows through the styled tree's node.
+
 ### Docking and windows
 
 `styled::DockArea` is the workspace layout: panes split from one another, a tab
@@ -975,8 +986,11 @@ something asked for a repaint, or a `Waker` was woken.
 
 ### The inspector
 
-Ctrl+Shift+I in a standalone beui window opens the node, accessibility, and
-performance inspector. Ctrl+Shift+C enables node picking. Ctrl+Shift+F moves
+Ctrl+Shift+I in a standalone beui window opens the node, component,
+accessibility, and performance inspector. Its Comp tab lists the
+`#[component]`s that built the tree rather than its base nodes: every
+component records its name against the node it returns, so components that
+return the same node nest there, outermost first. Ctrl+Shift+C enables node picking. Ctrl+Shift+F moves
 keyboard focus into the panel and back out again, and Escape inside the panel
 returns focus to the document, so the whole inspector is reachable without a
 mouse. Its tree rows select and expand together: clicking a row, or pressing
@@ -991,9 +1005,11 @@ and in a beui block editor plugin.
 "Emulate touch with mouse" turns mouse presses into touch events.
 
 "Simulate mouse with touch" turns the whole shown rectangle into a trackpad and
-paints a cursor the document reacts to. One finger moves the cursor, a tap
-clicks it, a tap followed by a press and drag drags with the primary button, and
-two fingers scroll smoothly. The strip along the bottom holds the left, middle,
+paints a cursor the document reacts to, in the shape of the frame's
+`CursorIcon`. One finger moves the cursor, a tap clicks it, a tap followed by a
+press and drag drags with the primary button, and two fingers scroll smoothly. A
+stroke that moved the cursor is never a tap, and the press after a tap only
+becomes a drag once it moves: lifted in place it is a second click. The strip along the bottom holds the left, middle,
 and right mouse buttons plus a keyboard toggle: a button stays held for as long
 as its finger is down, another finger can work the trackpad at the same time,
 and swiping up or down on the middle button scrolls a wheel tick at a time. The
@@ -1006,6 +1022,26 @@ covering it: `Document::show` asks the simulation how tall it is, trims that off
 the bottom, and lays the document and the inspector panel out in what is left,
 the way a phone's keyboard pushes a page up. Nothing is drawn over content that
 is still live, so the bars are opaque.
+
+### Screen size and zoom
+
+The Sim tab's Screen size lays the document out in a screen larger or smaller
+than the rectangle it is shown in, and Screen zoom says how big that screen is
+drawn: Fit shrinks or grows it to the rectangle, a percentage draws it that many
+real points per simulated point. A screen drawn larger than the rectangle
+follows the pointer: the point under the pointer is always the point at the same
+fraction of the simulated screen, so moving the simulated mouse across the
+rectangle looks around the whole screen. The mouse simulation's bars, the
+cursor and the inspector panel stay at their real size.
+
+`Document::show` does it with `Context::scaled` and `Context::clipped`, laying
+the document out at a rectangle chosen so that a real point is always the
+document point times the zoom; panning moves where the document is laid out
+instead of adding an offset. That keeps every mapping a pure scale, which is
+what an app that reads input or places surfaces outside `Document::show` needs:
+`Context::screen_scale` and `Context::screen_input` give it the scale and the
+frame's input in document points, the way block-app's host reads them for its
+plugin surfaces.
 
 ### Filters
 
@@ -1220,14 +1256,14 @@ document to display new data.
 ## Use beui in a block editor plugin
 
 A beui editor is a `#[component]` function. It implements
-`block_editor_plugin::BeuiApp` and uses `block_editor_plugin::beui_plugin!`.
+`block_editor_beui::BeuiApp` and uses `block_editor_beui::beui_plugin!`.
 The type it names holds no state: the
 framework builds the view once, keeps the `Document` it produced, and shows it
 every frame.
 
 ```rust
 #[component]
-pub fn Counter(editor: block_editor_plugin::Editor) -> NodeId {
+pub fn Counter(editor: block_editor_beui::Editor) -> NodeId {
     let counter = editor.block_content::<CounterContent>();
     let count = counter.field(ObjectId::ROOT, CounterModel::COUNT);
     let increment = clone!(counter -> move || counter.operate(CounterModel::add(1)));
@@ -1236,19 +1272,19 @@ pub fn Counter(editor: block_editor_plugin::Editor) -> NodeId {
 
 pub struct CounterApp;
 
-impl block_editor_plugin::BeuiApp for CounterApp {
-    fn view(editor: block_editor_plugin::Editor) -> NodeId {
+impl block_editor_beui::BeuiApp for CounterApp {
+    fn view(editor: block_editor_beui::Editor) -> NodeId {
         view! {
             <Counter editor={editor} />
         }
     }
 
-    fn create_block(creation: &block_editor_plugin::Creation) -> Result<Uuid, String> {
+    fn create_block(creation: &block_editor_beui::Creation) -> Result<Uuid, String> {
         Ok(creation.create(&CounterContent::default()))
     }
 }
 
-block_editor_plugin::beui_plugin!(CounterApp, "../manifest.json");
+block_editor_beui::beui_plugin!(CounterApp, "../manifest.json");
 ```
 
 `Editor` is everything the instance was given: the host, the block, the
@@ -1285,7 +1321,7 @@ The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,
 creation flow, host connection, and current beui plugin capability limits.
 
-A plugin with `"creation": "Dialog"` implements `creation_view` instead, one
+A template the manifest marks `"dialog": true` is made through `creation_view` instead, one
 more `#[component]` function that the framework builds a separate document of
 and shows in the host's creation dialog. It says what the dialog makes with
 `creation.on_create(...)` and answers `creation.set_ready(true)` once it has been

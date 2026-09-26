@@ -1,9 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, time::Duration};
 
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
@@ -116,7 +111,7 @@ pub(super) struct Runtime {
     pub(super) pass: u64,
     surface: u32,
     status: PresenterStatus,
-    shared: Arc<Mutex<Shared>>,
+    shared: Rc<RefCell<Shared>>,
     presented: bool,
     sent: Vec<ScreenRequest>,
     error: Option<String>,
@@ -144,7 +139,7 @@ impl Runtime {
             pass: 0,
             surface,
             status: PresenterStatus::waiting(),
-            shared: Arc::new(Mutex::new(Shared::default())),
+            shared: Rc::new(RefCell::new(Shared::default())),
             presented: false,
             sent: Vec::new(),
             error: None,
@@ -280,6 +275,9 @@ impl Runtime {
             }
         }
         self.apply(forwarded);
+        if let Some(frame) = self.backend.received_frame() {
+            self.shared.borrow_mut().publish(&self.layout, Some(frame));
+        }
     }
 
     pub(super) fn apply(&mut self, messages: Vec<Message>) {
@@ -288,7 +286,8 @@ impl Runtime {
         }
         let mut answers = Vec::new();
         let mut changed = false;
-        for message in messages {
+        for mut message in messages {
+            self.instances.translate(&mut message, true);
             changed |= match message {
                 Message::Layout(layout) => {
                     self.layout = layout;
@@ -329,9 +328,12 @@ impl Runtime {
         });
     }
 
-    fn send(&mut self, messages: Vec<Message>) {
+    fn send(&mut self, mut messages: Vec<Message>) {
         if messages.is_empty() || self.error.is_some() {
             return;
+        }
+        for message in &mut messages {
+            self.instances.translate(message, false);
         }
         self.queued.extend(self.instances.gate(messages));
         self.deliver();
@@ -377,12 +379,19 @@ impl Runtime {
         drawn: Option<(u32, u32)>,
     ) -> Blit {
         self.presented = true;
+        let scale = host::screen_scale();
         Blit {
             surface: self.surface,
             status: self.status.clone(),
-            shared: Arc::clone(&self.shared),
+            shared: Rc::clone(&self.shared),
             screen,
-            quad,
+            quad: Quad {
+                rect: quad.rect.scaled(scale),
+                corners: quad
+                    .corners
+                    .map(|corner| pos2(corner.x * scale, corner.y * scale)),
+                opacity: quad.opacity,
+            },
             source,
             drawn,
         }
@@ -394,7 +403,7 @@ impl Runtime {
             return;
         }
         let frame = self.backend.frame(&self.layout, self.pass);
-        self.shared.lock().unwrap().publish(&self.layout, frame);
+        self.shared.borrow_mut().publish(&self.layout, frame);
     }
 
     fn state(&self) -> String {
@@ -730,6 +739,7 @@ pub(crate) fn creation(slot: CreationSlot<'_>) -> CreationState {
         block_types,
         client_id,
         instance,
+        role,
     } = slot;
     HOST.with(|host| {
         let mut host = host.borrow_mut();
@@ -742,7 +752,7 @@ pub(crate) fn creation(slot: CreationSlot<'_>) -> CreationState {
         }
         match runtime
             .instances
-            .report_creation(instance, client_id, block_types)
+            .report_creation(instance, client_id, block_types, role)
         {
             true => CreationState::Ready,
             false => CreationState::Starting,
@@ -756,6 +766,7 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
         block_types,
         client_id,
         instance,
+        source_type,
         block,
         data,
         resync,
@@ -773,6 +784,7 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
             instance,
             client_id,
             block_types,
+            source_type,
             block,
             data,
             resync,

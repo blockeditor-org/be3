@@ -1,10 +1,10 @@
-use block_editor_plugin::be_block::pixel_art::Artwork;
-use block_editor_plugin::be_block::{ArtifactSource, BlockContent, ImageContent, PixelArtContent};
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::{Frame, List, Show, clone, component, create_memo, view};
-use block_editor_plugin::beui::styled::{Caption, NumberInput, use_theme};
-use block_editor_plugin::{ArtifactDescription, Artifacts, EditorHost};
-use block_editor_plugin::{BlockList, BlockQuery, ContentProjection};
+use block_editor_beui::be_block::pixel_art::Artwork;
+use block_editor_beui::be_block::{ArtifactSource, BlockContent, ImageContent, PixelArtContent};
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::{Frame, List, Show, clone, component, create_memo, view};
+use block_editor_beui::beui::styled::{Caption, NumberInput, use_theme};
+use block_editor_beui::{ArtifactDescription, Artifacts, EditorHost};
+use block_editor_beui::{BlockList, BlockQuery, ContentProjection};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

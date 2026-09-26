@@ -1,11 +1,11 @@
-use block_editor_plugin::be_block::ObjectId;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::TextAlign;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::ObjectId;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::TextAlign;
+use block_editor_beui::beui::reactive::{
     Callback, Canvas, CanvasItem, ClickCatcher, Direction, ForEach, Frame, ItemSize, List, Memo,
     clone, component, component_rect, component_size, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Body, Caption, ListRow, Scroll, use_theme};
+use block_editor_beui::beui::styled::{Body, Caption, ListRow, Scroll, use_theme};
 use block_ui::datetime::civil_from_days;
 
 use super::model::{
@@ -104,7 +104,7 @@ fn Grid(
     let keys = create_memo(clone!(placed -> move || {
         placed.with(|placed| placed.iter().map(|item| item.key).collect::<Vec<_>>())
     }));
-    let slot = clone!(column_width first_day rect on_pick_slot -> move |at: block_editor_plugin::beui::Pos2| {
+    let slot = clone!(column_width first_day rect on_pick_slot -> move |at: block_editor_beui::beui::Pos2| {
         let origin = rect.get_untracked().min;
         let x = at.x - origin.x - GUTTER;
         if x < 0.0 {

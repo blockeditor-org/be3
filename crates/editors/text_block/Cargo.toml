@@ -9,7 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 beui = { path = "../../beui", default-features = false, features = ["render"] }
-block-editor-plugin = { path = "../../block-editor-plugin" }
+block-editor-beui = { path = "../../block-editor-beui" }
 serde = { version = "1", features = ["derive"] }
 similar = "3.1"
 text-editor-core = { path = "../../text-editor-core" }

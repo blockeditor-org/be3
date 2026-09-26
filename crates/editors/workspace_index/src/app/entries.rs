@@ -2,11 +2,11 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block_editor_plugin::BlockQuery;
-use block_editor_plugin::be_block::FolderContent;
-use block_editor_plugin::beui::reactive::{Memo, ReadSignal, create_memo, untrack};
-use block_editor_plugin::block_ui::BlockTypes;
-use block_editor_plugin::{ContentProjection, Editor};
+use block_editor_beui::BlockQuery;
+use block_editor_beui::be_block::FolderContent;
+use block_editor_beui::beui::reactive::{Memo, ReadSignal, create_memo, untrack};
+use block_editor_beui::block_ui::BlockTypes;
+use block_editor_beui::{ContentProjection, Editor};
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]

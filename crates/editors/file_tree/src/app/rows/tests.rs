@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use block_editor_plugin::EditorHost;
-use block_editor_plugin::block_ui::{BlockCatalog, BlockTypeEntry, ChildEdits};
+use block_editor_beui::EditorHost;
+use block_editor_beui::block_ui::{BlockCatalog, BlockTypeEntry, ChildEdits};
 
 use super::*;
 

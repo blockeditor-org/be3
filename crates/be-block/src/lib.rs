@@ -36,6 +36,7 @@ pub mod settings;
 pub mod streamed;
 pub mod text;
 pub mod ui_settings;
+pub mod version_control;
 pub mod video;
 
 pub use audio::{AudioContent, AudioHeader};
@@ -55,7 +56,9 @@ pub use folder::{Folder, FolderContent};
 pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, GameMove};
 pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use image::{ImageContent, ImageHeader, ImageOp};
-pub use kinds::{FileTreeContent, PanZoomContent, Scene3dContent, WorkspaceUiContent};
+pub use kinds::{
+    FileTreeContent, PanZoomContent, Scene3dContent, TriangleContent, WorkspaceUiContent,
+};
 pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
@@ -72,6 +75,10 @@ pub use streamed::{
 };
 pub use text::{TextContent, TextHeader, TextIndentation, TextLanguage, TextOp};
 pub use ui_settings::{UiSettings, UiSettingsContent, Zoom};
+pub use version_control::{
+    Checkout, CheckoutConflict, CheckoutContent, ConflictKind, MAIN_BRANCH, Repository,
+    RepositoryContent,
+};
 pub use video::{VideoContent, VideoProject};
 
 #[derive(Debug, Eq, PartialEq)]

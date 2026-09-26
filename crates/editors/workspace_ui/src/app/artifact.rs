@@ -1,15 +1,15 @@
 use std::rc::Rc;
 
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::{
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{
     ICON_AUTO_AWESOME, ICON_LINK_OFF, ICON_REFRESH, ICON_SETTINGS,
 };
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, clone, component,
     create_memo, view,
 };
-use block_editor_plugin::beui::styled::theme::FONT_SMALL;
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::theme::FONT_SMALL;
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, IconButton, IconSized, use_theme,
 };
 use uuid::Uuid;
@@ -170,7 +170,7 @@ enum Command {
 
 fn block_command(
     workspace: &Rc<Workspace>,
-    block: block_editor_plugin::beui::reactive::Memo<Option<Uuid>>,
+    block: block_editor_beui::beui::reactive::Memo<Option<Uuid>>,
     command: Command,
 ) -> impl Fn() + 'static {
     let workspace = Rc::clone(workspace);

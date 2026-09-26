@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use be_block::{BlockContent, Checklist, ChecklistContent, Edit, LiveEdit, ObjectId, Touched};
-use beui::reactive::Scope;
+use reactive::Scope;
 
 use super::ContentProjection;
 use crate::EditorHost;

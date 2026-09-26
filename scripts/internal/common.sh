@@ -183,8 +183,7 @@ download_verified() {
     exit 1
 }
 
-# The buck2 release this repository is built with, and the reindeer that
-# generates its third-party rules.
+# The buck2 release this repository is built with.
 #
 # buck2 is a prebuilt release, checked against the hashes below the way every
 # other tool here is. A buck2 binary carries the prelude it was built with, so
@@ -194,10 +193,6 @@ download_verified() {
 #
 # The tag is a dated release. "latest" is a tag upstream repoints on every push
 # to main, so it is never what to pin.
-#
-# reindeer publishes no releases at all, so it is pinned by commit and built
-# from source. Nothing but ./scripts/buck run //:buckify needs it: the file it writes is
-# checked in.
 buck2_version='2026-09-15'
 
 # The releases mirrored for this version, by the triple upstream names them
@@ -345,30 +340,30 @@ assert_buildbuddy_key() {
     exit 1
 }
 
-# The rules buck2 reads the workspace's Cargo.toml files through -
-# third-party/rust/BUCK and buck/cargo/crates.bzl - are generated rather than
-# checked in. buck/cargo/buckify.bxl makes them on a worker from the manifests,
-# Cargo.lock, reindeer.toml, the fixups and the layout of crates/, so everyone
-# on the same Cargo.lock shares one cache entry: about two seconds on a fresh
-# checkout, and a minute or so the first time anyone builds a new dependency.
+# What buck2 reads the workspace's Cargo.toml files through -
+# buck/cargo/crates.bzl, from which buck/cargo's macros write the rules for
+# every workspace and third-party crate - is generated rather than checked in.
+# buck/cargo/buckify.bxl makes it on a worker from the manifests, Cargo.lock
+# and the layout of crates/, so everyone on the same Cargo.lock shares one cache
+# entry: about two seconds on a fresh checkout, and a minute or so the first
+# time anyone builds a new dependency.
 #
 # What decides whether to run it is a hash of those same inputs, kept beside
 # the files; most runs only compare it. The files are written only when they
 # change, so buck2 does not re-read them for nothing. target/Cargo.lock is the
 # lockfile they were generated from, brought up to date with the manifests,
 # which //:verify's lint copies over a stale Cargo.lock.
-generated_rules=('third-party/rust/BUCK' 'buck/cargo/crates.bzl' 'target/Cargo.lock')
+generated_rules=('buck/cargo/crates.bzl' 'target/Cargo.lock')
 
 generated_rules_inputs() {
     (
         cd "$repository"
         printf '%s\n' "$buck2_version"
-        find crates third-party/rust/fixups -type f | LC_ALL=C sort
+        find crates -type f | LC_ALL=C sort
         {
-            printf '%s\0' Cargo.toml Cargo.lock reindeer.toml buck/cargo/BUCK buck/cargo/buckify.bxl buck/tools/BUCK
+            printf '%s\0' Cargo.toml Cargo.lock buck/cargo/BUCK buck/cargo/buckify.bxl buck/tools/BUCK
             find crates -name Cargo.toml -print0
             find crates/buck-tools/src -type f -print0
-            find third-party/rust/fixups -type f -print0
         } | LC_ALL=C sort -z | xargs -0 cat
     ) | sha256sum | cut -d ' ' -f 1
 }
@@ -389,12 +384,11 @@ ensure_generated_rules() {
     else
         generated=''
     fi
-    if [[ -z "$generated" || ! -f "$generated/BUCK" || ! -f "$generated/crates.bzl" || ! -f "$generated/Cargo.lock" ]]; then
+    if [[ -z "$generated" || ! -f "$generated/crates.bzl" || ! -f "$generated/Cargo.lock" ]]; then
         cat "$repository/target/generated-rules.log" >&2
         echo 'Generating the rules for the workspace'"'"'s crates failed.' >&2
         exit 1
     fi
-    write_if_changed "$generated/BUCK" "$repository/third-party/rust/BUCK"
     write_if_changed "$generated/crates.bzl" "$repository/buck/cargo/crates.bzl"
     write_if_changed "$generated/Cargo.lock" "$repository/target/Cargo.lock"
     printf '%s\n' "$fingerprint" > "$stamp"

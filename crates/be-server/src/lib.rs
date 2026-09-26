@@ -502,6 +502,16 @@ impl Connection {
                     PublishOutcome::Rejected(head) => ServerMessage::Rejected { request, head },
                 })
             }
+            ClientMessage::HoldObjects {
+                request,
+                block,
+                objects,
+            } => {
+                self.store
+                    .hold_objects(self.identity()?, block, objects)
+                    .await?;
+                Ok(ServerMessage::Ok { request })
+            }
             ClientMessage::ReadBlock { request, block } => Ok(ServerMessage::Block {
                 request,
                 block: self.store.read_block(self.identity()?, block).await?,

@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::{
     Frame, Func, ItemSize, List, ReadSignal, Show, clone, component, create_effect, create_memo,
     create_signal, view,
 };
-use block_editor_plugin::beui::styled::{Caption, Code, Scroll, Tree, TreeRowFace};
-use block_editor_plugin::beui::unstyled::TreeItem;
+use block_editor_beui::beui::styled::{Caption, Code, Scroll, Tree, TreeRowFace};
+use block_editor_beui::beui::unstyled::TreeItem;
 use serde_json::Value;
 
 use super::panel::Info;
@@ -73,7 +73,6 @@ pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                     depth: row.depth,
                     expandable: row.expandable,
                     expanded: row.expanded,
-                    marked: false,
                 })
         })
     });
@@ -89,38 +88,36 @@ pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                         <Code content={raw} />
                     </Scroll>
                 </Show>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Tree
-                        keys={keys}
-                        item={item}
-                        selected={None}
-                        spacing=ROW_SPACING
-                        expand_on_select=false
-                        on_select={move |_: String| {}}
-                        on_expand={move |(path, expanded): (String, bool)| {
-                            let _ = expanded;
-                            set_expanded.update(|open| {
-                                if !open.insert(path.clone()) {
-                                    open.remove(&path);
-                                }
-                            });
-                        }}
-                    >
-                        {move |face: TreeRowFace<String>| {
-                            let path = face.key;
-                            let label = create_memo(clone!(content_rows -> move || {
-                                content_rows.with(|rows| {
-                                    rows.iter()
-                                        .find(|row| row.path == path)
-                                        .map_or_else(String::new, |row| row.label.clone())
-                                })
-                            }));
-                            view! {
-                                <Code content={label} />
+                <Tree
+                    @sizing=ItemSize::Percent(100.0)
+                    keys={keys}
+                    item={item}
+                    selected={None}
+                    spacing=ROW_SPACING
+                    on_select={move |_: String| {}}
+                    on_expand={move |(path, expanded): (String, bool)| {
+                        let _ = expanded;
+                        set_expanded.update(|open| {
+                            if !open.insert(path.clone()) {
+                                open.remove(&path);
                             }
-                        }}
-                    </Tree>
-                </Scroll>
+                        });
+                    }}
+                >
+                    {move |face: TreeRowFace<String>| {
+                        let path = face.key;
+                        let label = create_memo(clone!(content_rows -> move || {
+                            content_rows.with(|rows| {
+                                rows.iter()
+                                    .find(|row| row.path == path)
+                                    .map_or_else(String::new, |row| row.label.clone())
+                            })
+                        }));
+                        view! {
+                            <Code content={label} />
+                        }
+                    }}
+                </Tree>
             </List>
         </Frame>
     }

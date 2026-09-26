@@ -6,11 +6,11 @@ use std::sync::Arc;
 use beui::reactive::{ReadSignal, WriteSignal, create_effect, create_signal, untrack};
 use beui::unstyled::TextAreaState;
 use beui::{Rect, Vec2};
-use block_editor_plugin::BlockQuery;
-use block_editor_plugin::be_block::presence::pick_free_color;
-use block_editor_plugin::be_block::{ImageContent, TextContent};
-use block_editor_plugin::{BlockList, Blocks};
-use block_editor_plugin::{ChildState, ContentProjection, Editor, EditorHost, ImagePaster};
+use block_editor_beui::BlockQuery;
+use block_editor_beui::be_block::presence::pick_free_color;
+use block_editor_beui::be_block::{ImageContent, TextContent};
+use block_editor_beui::{BlockList, Blocks};
+use block_editor_beui::{ChildState, ContentProjection, Editor, EditorHost, ImagePaster};
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
 

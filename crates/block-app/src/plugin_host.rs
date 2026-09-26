@@ -16,6 +16,7 @@ mod instances;
 mod pieces;
 mod presenter;
 mod runtime;
+mod surface;
 #[cfg(not(target_arch = "wasm32"))]
 mod wasm;
 #[cfg(target_arch = "wasm32")]
@@ -178,6 +179,7 @@ pub(crate) struct CreationSlot<'a> {
     pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
+    pub(crate) role: InstanceRole,
 }
 
 pub(crate) enum CreationState {
@@ -207,15 +209,15 @@ pub(crate) struct EditorBlock {
 #[derive(Clone, Copy)]
 pub(crate) enum InstanceRole {
     Editor(EditorBlock),
-    Creation,
-    Artifact(EditorBlock),
+    Creation(Uuid, &'static str),
+    Artifact(Uuid, EditorBlock),
 }
 
 impl InstanceRole {
     pub(crate) fn block(self) -> Option<EditorBlock> {
         match self {
-            Self::Editor(block) | Self::Artifact(block) => Some(block),
-            Self::Creation => None,
+            Self::Editor(block) | Self::Artifact(_, block) => Some(block),
+            Self::Creation(..) => None,
         }
     }
 }
@@ -225,6 +227,7 @@ pub(crate) struct ArtifactSlot<'a> {
     pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
+    pub(crate) source_type: Uuid,
     pub(crate) block: EditorBlock,
     pub(crate) data: &'a [u8],
     pub(crate) resync: bool,

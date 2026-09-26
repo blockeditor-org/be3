@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn typing_an_address_navigates_the_web_view() {
     let mut tab = Harness::new();
-    let _ = tab.host.take_web_view_commands();
+    let _ = tab.editor.take_web_view_commands();
 
     tab.editor.click("browser.address");
     tab.run();
@@ -20,7 +20,7 @@ fn typing_an_address_navigates_the_web_view() {
         Some("https://example.org")
     );
     assert!(
-        tab.host
+        tab.editor
             .take_web_view_commands()
             .contains(&WebViewCommand::Load("https://example.org".into()))
     );

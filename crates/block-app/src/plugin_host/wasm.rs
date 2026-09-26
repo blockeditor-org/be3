@@ -11,9 +11,7 @@ use crate::editors::plugin::discovery::{self, Module};
 use block_plugin_api::{Message, PluginManifest, ScreenLayout, decode_frame, encode_frame};
 use block_wasm_host::{Host, Plugin};
 
-mod surface;
-
-pub(super) use surface::{Presenter, WasmFrame, presenter};
+use super::surface::{SurfaceFrame, gpu};
 
 const SCREENS_SURFACE: u32 = 0;
 const NO_ENTRY_POINT: &str = "This plugin has no wasm entry point.";
@@ -21,22 +19,11 @@ const NO_GPU: &str = "The plugin host has no graphics device.";
 const STOPPED: &str = "The plugin worker stopped.";
 
 thread_local! {
-    static GPU: RefCell<Option<(wgpu::Device, wgpu::Queue)>> = const { RefCell::new(None) };
     static CACHE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn cache_in(directory: PathBuf) {
     CACHE.with(|cache| *cache.borrow_mut() = Some(directory));
-}
-
-fn remember_gpu(device: &wgpu::Device, queue: &wgpu::Queue) {
-    GPU.with(|gpu| {
-        *gpu.borrow_mut() = Some((device.clone(), queue.clone()));
-    });
-}
-
-fn gpu() -> Option<(wgpu::Device, wgpu::Queue)> {
-    GPU.with(|gpu| gpu.borrow().clone())
 }
 
 fn cache() -> Option<PathBuf> {
@@ -87,7 +74,7 @@ pub(super) struct Wasm {
 }
 
 impl super::backend::Backend for Wasm {
-    type Frame = WasmFrame;
+    type Frame = SurfaceFrame;
 
     fn new(plugin: &PluginManifest) -> Self {
         Self {
@@ -195,13 +182,17 @@ impl super::backend::Backend for Wasm {
         decode(frames, &mut self.error)
     }
 
-    fn frame(&mut self, _layout: &ScreenLayout, _pass: u64) -> Option<WasmFrame> {
+    fn frame(&mut self, _layout: &ScreenLayout, _pass: u64) -> Option<SurfaceFrame> {
+        None
+    }
+
+    fn received_frame(&mut self) -> Option<SurfaceFrame> {
         let worker = self.worker.as_mut()?;
         if !std::mem::take(&mut worker.presented) {
             return None;
         }
         let target = worker.target.as_ref()?;
-        Some(WasmFrame {
+        Some(SurfaceFrame {
             texture: target.texture.clone(),
             generation: target.generation,
         })

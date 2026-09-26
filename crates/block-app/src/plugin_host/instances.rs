@@ -94,6 +94,7 @@ struct Instance {
     block_queries: Vec<block_plugin_api::BlockQuery>,
     sent_blocks: HashMap<block_plugin_api::BlockQuery, Vec<block_plugin_api::BlockInfo>>,
     blocks_seen: Option<u64>,
+    version_sent: Option<u64>,
 }
 
 struct ContentLink {
@@ -261,10 +262,11 @@ impl Instance {
             block_queries: Vec::new(),
             sent_blocks: HashMap::new(),
             blocks_seen: None,
+            version_sent: None,
             content: match role {
                 InstanceRole::Editor(block) => crate::be::is_known(block.block_type)
                     .then(|| ContentLink::new(block.block_type)),
-                InstanceRole::Creation | InstanceRole::Artifact(_) => None,
+                InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
             },
         }
     }
@@ -306,6 +308,18 @@ impl Instance {
         }
         for (block, link) in &mut self.watched {
             link.messages(instance, *block, &mut messages);
+        }
+        if let InstanceRole::Editor(block) = self.role
+            && crate::be::is_versioned(block.block_type)
+            && let Some((revision, status)) =
+                crate::be::version_since(block.id, block.block_type, self.version_sent)
+        {
+            self.version_sent = Some(revision);
+            messages.push(Message::Editor(EditorMessage::VersionStatus {
+                instance,
+                block_id: block.id.into_bytes(),
+                status,
+            }));
         }
         messages
     }
@@ -488,6 +502,32 @@ pub(super) struct NextScreens {
 impl Instances {
     pub(super) fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+
+    pub(super) fn translate(&self, message: &mut Message, inward: bool) {
+        let mut carries = false;
+        message.visit_block_ids(&mut |_, _, _| carries = true);
+        if !carries {
+            return;
+        }
+        let mut scopes: HashMap<EditorInstanceId, Option<crate::be::Scope>> = HashMap::new();
+        crate::be::with_graph(|graph| {
+            message.visit_block_ids(&mut |instance, role, id| {
+                let scope = *scopes.entry(instance).or_insert_with(|| {
+                    let block = self.entries.get(&instance)?.role.block()?.id;
+                    graph.scope_of(block)
+                });
+                let Some(scope) = scope else {
+                    return;
+                };
+                let block = Uuid::from_bytes(*id);
+                let translated = match inward {
+                    true => graph.to_real(scope, block, role),
+                    false => graph.to_local(scope, block),
+                };
+                *id = translated.into_bytes();
+            });
+        });
     }
 
     pub(super) fn gate(&mut self, messages: Vec<Message>) -> Vec<Message> {
@@ -748,6 +788,7 @@ impl Instances {
         instance: EditorInstanceId,
         client_id: Uuid,
         block_types: &Arc<Vec<BlockTypeDescriptor>>,
+        role: InstanceRole,
     ) -> bool {
         self.connect(client_id);
         if self.block_types.is_none() {
@@ -755,7 +796,7 @@ impl Instances {
         }
         self.entries
             .entry(instance)
-            .or_insert_with(|| Instance::new(InstanceRole::Creation))
+            .or_insert_with(|| Instance::new(role))
             .opened
     }
 
@@ -764,6 +805,7 @@ impl Instances {
         instance: EditorInstanceId,
         client_id: Uuid,
         block_types: &Arc<Vec<BlockTypeDescriptor>>,
+        source_type: Uuid,
         block: EditorBlock,
         data: &[u8],
         resync: bool,
@@ -773,7 +815,7 @@ impl Instances {
             self.block_types = Some(Arc::clone(block_types));
         }
         let entry = self.entries.entry(instance).or_insert_with(|| {
-            let mut entry = Instance::new(InstanceRole::Artifact(block));
+            let mut entry = Instance::new(InstanceRole::Artifact(source_type, block));
             entry.artifact.data = data.to_vec();
             entry
         });
@@ -899,21 +941,28 @@ impl Instances {
                             editable
                         },
                     }),
-                    InstanceRole::Creation => Message::Editor(EditorMessage::OpenCreation {
-                        instance,
-                        account_id,
-                        workspace_id,
-                        client_id,
-                    }),
-                    InstanceRole::Artifact(block) => Message::Editor(EditorMessage::OpenArtifact {
-                        instance,
-                        block_id: block.id.into_bytes(),
-                        block_type: block.block_type.into_bytes(),
-                        account_id,
-                        workspace_id,
-                        client_id,
-                        data: entry.artifact.data.clone(),
-                    }),
+                    InstanceRole::Creation(editor, template) => {
+                        Message::Editor(EditorMessage::OpenCreation {
+                            instance,
+                            block_type: editor.into_bytes(),
+                            template: template.to_owned(),
+                            account_id,
+                            workspace_id,
+                            client_id,
+                        })
+                    }
+                    InstanceRole::Artifact(source_type, block) => {
+                        Message::Editor(EditorMessage::OpenArtifact {
+                            instance,
+                            source_type: source_type.into_bytes(),
+                            block_id: block.id.into_bytes(),
+                            block_type: block.block_type.into_bytes(),
+                            account_id,
+                            workspace_id,
+                            client_id,
+                            data: entry.artifact.data.clone(),
+                        })
+                    }
                 });
             }
             opened.append(&mut entry.deferred);
@@ -1369,14 +1418,14 @@ impl Instances {
                     block: entry.role.block().map(|block| block.id),
                     role: match entry.role {
                         InstanceRole::Editor(_) => "editor",
-                        InstanceRole::Creation => "creation",
-                        InstanceRole::Artifact(_) => "artifact",
+                        InstanceRole::Creation(..) => "creation",
+                        InstanceRole::Artifact(..) => "artifact",
                     },
                     opened: entry.opened,
                     aspect_ratio: entry.aspect_ratio,
                     intrinsic: entry.intrinsic,
                     view: entry.view.map(|view| view.rect),
-                    artifact: matches!(entry.role, InstanceRole::Artifact(_)).then(|| {
+                    artifact: matches!(entry.role, InstanceRole::Artifact(..)).then(|| {
                         super::ArtifactStatus {
                             data: entry.artifact.data.len(),
                             draft: entry.artifact.draft.as_ref().map(Vec::len),
@@ -1912,6 +1961,28 @@ impl Instances {
             EditorMessage::WatchContent { instance, blocks } => {
                 self.watch_content(instance, blocks)
             }
+            EditorMessage::VersionControl {
+                instance,
+                block_id,
+                command,
+            } => {
+                let block = Uuid::from_bytes(block_id);
+                let own = self
+                    .entries
+                    .get(&instance)
+                    .and_then(|entry| entry.role.block())
+                    .is_some_and(|own| own.id == block);
+                if !own || !self.editable(block) {
+                    return false;
+                }
+                if let block_plugin_api::VersionCommand::Adopt { block_id } = &command
+                    && !self.editable(Uuid::from_bytes(*block_id))
+                {
+                    return false;
+                }
+                crate::be::version(block, command);
+                true
+            }
             EditorMessage::ReplaceContent {
                 block_id,
                 content_type,
@@ -1956,6 +2027,7 @@ impl Instances {
                         source_type: Uuid::from_bytes(artifact.source_type),
                         data: artifact.data,
                     }),
+                    local_id: None,
                     derived: be_block::DerivedMetadata::default(),
                 };
                 crate::be::create(

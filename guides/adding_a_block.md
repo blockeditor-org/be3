@@ -142,7 +142,7 @@ kind_with_history::<be_block::MyBlockContent>(),
 
 Use `kind::<C>()` for a type without undo. A block whose content type is not in `KINDS` has no content in the app: the host opens nothing for it and refuses content written to it.
 
-Plugins reach the type through `block_editor_plugin::be_block`, so an editor does not depend on `be-block` itself.
+Plugins reach the type through `block_editor_beui::be_block`, so an editor does not depend on `be-block` itself.
 
 ## 8. Add model tests
 

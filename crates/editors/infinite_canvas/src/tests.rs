@@ -1,14 +1,14 @@
 use std::collections::{BTreeMap, HashSet};
 
-use block_editor_plugin::be_block::CanvasContent;
-use block_editor_plugin::be_block::canvas::Canvas;
-use block_editor_plugin::be_block::canvas::{
+use block_editor_beui::be_block::CanvasContent;
+use block_editor_beui::be_block::canvas::Canvas;
+use block_editor_beui::be_block::canvas::{
     CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
     CanvasPreviewRegion, CanvasTransform, InfiniteCanvasOperation,
 };
-use block_editor_plugin::be_block::database::DatabaseValue;
-use block_editor_plugin::{BlockInfo, BlockParent, Editor, EditorHost};
-use block_ui_test::{BeuiTest, ContentHarness};
+use block_editor_beui::be_block::database::DatabaseValue;
+use block_editor_beui::{BlockInfo, BlockParent, Editor, EditorHost};
+use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::CanvasApp;
@@ -50,7 +50,7 @@ fn entity(id: Uuid) -> CanvasEntity {
     }
 }
 
-fn open(canvas: &Canvas, preview: bool, known: &[BlockInfo]) -> ContentHarness<CanvasApp> {
+fn open(canvas: &Canvas, preview: bool, known: &[BlockInfo]) -> BeuiTest<CanvasApp> {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
@@ -59,7 +59,7 @@ fn open(canvas: &Canvas, preview: bool, known: &[BlockInfo]) -> ContentHarness<C
         true => BeuiTest::preview(editor),
         false => BeuiTest::new(editor),
     };
-    let mut harness = ContentHarness::new(test.in_viewport(), host);
+    let mut harness = test.in_viewport();
     for info in known {
         harness.store().add_block(info.clone());
     }
@@ -69,11 +69,11 @@ fn open(canvas: &Canvas, preview: bool, known: &[BlockInfo]) -> ContentHarness<C
     harness
 }
 
-fn editor(entities: &[CanvasEntity]) -> ContentHarness<CanvasApp> {
+fn editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
     open(&Canvas::with_entities(entities.to_vec(), None), false, &[])
 }
 
-fn apply(editor: &mut ContentHarness<CanvasApp>, operation: InfiniteCanvasOperation) {
+fn apply(editor: &mut BeuiTest<CanvasApp>, operation: InfiniteCanvasOperation) {
     let edit = editor
         .content::<CanvasContent>(None)
         .root()
@@ -81,6 +81,6 @@ fn apply(editor: &mut ContentHarness<CanvasApp>, operation: InfiniteCanvasOperat
     editor.edit::<CanvasContent>(None, &edit);
 }
 
-fn entities(editor: &ContentHarness<CanvasApp>) -> Vec<CanvasEntity> {
+fn entities(editor: &BeuiTest<CanvasApp>) -> Vec<CanvasEntity> {
     editor.content::<CanvasContent>(None).root().entities()
 }

@@ -1,11 +1,14 @@
+#[cfg(not(target_os = "android"))]
 use std::io::Write;
 use std::path::Path;
+#[cfg(not(target_os = "android"))]
 use std::process::Stdio;
 
 use beui::Color32;
 use serde_json::Value;
 
 use crate::markdown::{self, Block, blocks};
+#[cfg(not(target_os = "android"))]
 use crate::tasks::{capture, command};
 use crate::time::parse_timestamp;
 
@@ -129,6 +132,7 @@ pub(crate) fn timeline_images(entries: &[Entry]) -> Vec<String> {
 pub(crate) const BRANCH_DELETED: &str = "deleted the branch";
 pub(crate) const BRANCH_RESTORED: &str = "restored the branch";
 
+#[cfg(not(target_os = "android"))]
 pub(crate) fn branch_deleted(entries: &[Entry]) -> bool {
     entries
         .iter()
@@ -147,6 +151,18 @@ pub(crate) struct GitHub {
 }
 
 impl GitHub {
+    #[cfg(target_os = "android")]
+    pub(crate) fn connect(_root: &Path) -> Result<Self, String> {
+        Ok(Self {
+            repository: Repository {
+                owner: "blockeditor-org".to_owned(),
+                name: "be3".to_owned(),
+            },
+            token: None,
+        })
+    }
+
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn connect(root: &Path) -> Result<Self, String> {
         let remote = capture(root, "git", &["remote", "get-url", "origin"])?;
         let repository = parse_remote(&remote)
@@ -216,6 +232,38 @@ impl GitHub {
     }
 }
 
+#[cfg(target_os = "android")]
+pub(crate) fn download(url: &str, token: Option<&str>) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+
+    let mut request = crate::android::agent()
+        .get(url)
+        .set("User-Agent", "be-launcher")
+        .set("Accept", "application/vnd.github+json");
+    if let Some(token) = token {
+        request = request.set("Authorization", &format!("Bearer {token}"));
+    }
+    let (response, success) = match request.call() {
+        Ok(response) => (response, true),
+        Err(ureq::Error::Status(_, response)) => (response, false),
+        Err(error) => return Err(format!("{error}.")),
+    };
+    let mut body = Vec::new();
+    response
+        .into_reader()
+        .read_to_end(&mut body)
+        .map_err(|error| format!("{error}."))?;
+    if success {
+        return Ok(body);
+    }
+    let message = serde_json::from_slice::<Value>(&body)
+        .ok()
+        .and_then(|body| body["message"].as_str().map(str::to_owned))
+        .unwrap_or_else(|| String::from_utf8_lossy(&body).trim().to_owned());
+    Err(format!("{message}."))
+}
+
+#[cfg(not(target_os = "android"))]
 pub(crate) fn download(url: &str, token: Option<&str>) -> Result<Vec<u8>, String> {
     let mut child = command("curl")
         .args([
@@ -256,6 +304,7 @@ pub(crate) fn download(url: &str, token: Option<&str>) -> Result<Vec<u8>, String
     Err(format!("{message}."))
 }
 
+#[cfg(not(target_os = "android"))]
 pub(crate) fn parse_remote(remote: &str) -> Option<Repository> {
     let trimmed = remote.trim().trim_end_matches('/');
     let trimmed = trimmed.strip_suffix(".git").unwrap_or(trimmed);

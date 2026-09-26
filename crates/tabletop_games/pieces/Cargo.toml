@@ -1,0 +1,15 @@
+[package]
+name = "game-pieces"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+game-api = { path = "../api" }
+uuid = { version = "1", default-features = false }
+
+[dev-dependencies]
+uuid = { version = "1", features = ["v4"] }
+
+[lints]
+workspace = true

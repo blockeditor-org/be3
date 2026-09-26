@@ -1,13 +1,41 @@
 {
   "id": "be3.deterministic-game",
-  "name": "Game",
+  "name": "Games",
   "version": "0.1.0",
-  "block_type": "6465742d-6761-6d65-2d62-6c6f636b0001",
-  "display_name": "Game",
-  "icon": "\uf015",
-  "creation": "Dialog",
-  "regions": [
-    "Frame"
+  "editors": [
+    {
+      "block_type": "6465742d-6761-6d65-2d62-6c6f636b0001",
+      "display_name": "Game",
+      "icon": "\uf015",
+      "templates": {
+        "main": {
+          "dialog": true
+        }
+      },
+      "interaction": "Live",
+      "capabilities": {
+        "rotation": false,
+        "preserve_aspect_ratio": false,
+        "pan_and_zoom": true
+      },
+      "resize": "Both",
+      "regions": [
+        "Frame"
+      ]
+    },
+    {
+      "block_type": "67616d65-2d6d-6f64-756c-652d626c0001",
+      "display_name": "Game Module",
+      "icon": "\ue87b",
+      "templates": {
+        "main": {
+          "dialog": true
+        }
+      },
+      "regions": [
+        "Frame"
+      ]
+    }
   ],
   "entry_point": "deterministic_game.wasm"
 }

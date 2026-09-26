@@ -1,12 +1,12 @@
-use block_editor_plugin::be_block::canvas::{
+use block_editor_beui::be_block::canvas::{
     CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasPreviewRegion,
     CanvasTextStyle, CanvasTransform,
 };
-use block_editor_plugin::beui::{Pos2, Rect, Vec2, pos2};
-use block_editor_plugin::block_ui::{
+use block_editor_beui::beui::{Pos2, Rect, Vec2, pos2};
+use block_editor_beui::block_ui::{
     EMBEDDED_EDITOR_PADDING, EMBEDDED_EDITOR_TITLE_GAP, EMBEDDED_EDITOR_TITLE_HEIGHT,
 };
-use block_editor_plugin::{ResizeMode, block_ui};
+use block_editor_beui::{ResizeMode, block_ui};
 use uuid::Uuid;
 
 pub(crate) const MIN_SIZE: f32 = 4.0;

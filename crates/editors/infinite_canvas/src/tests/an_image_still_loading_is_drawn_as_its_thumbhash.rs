@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_plugin::be_block::{BlockContent, ImageContent};
-use block_editor_plugin::beui::Image;
+use block_editor_beui::be_block::{BlockContent, ImageContent, Thumbhash};
+use block_editor_beui::beui::Image;
 
 #[test]
 fn an_image_still_loading_is_drawn_as_its_thumbhash() {
@@ -19,7 +19,12 @@ fn an_image_still_loading_is_drawn_as_its_thumbhash() {
         })
         .collect();
     let mut info = BlockInfo::new(picture, ImageContent::CONTENT_TYPE, BlockParent::Detached);
-    info.thumbhash = Some(Image::from_rgba(32, 24, pixels).thumbhash());
+    let thumbhash = Image::from_rgba(32, 24, pixels).thumbhash();
+    info.thumbhash = Some(Thumbhash {
+        hash: thumbhash.hash,
+        width: thumbhash.width,
+        height: thumbhash.height,
+    });
     let mut editor = open(
         &Canvas::with_entities([placed.clone()], None),
         false,

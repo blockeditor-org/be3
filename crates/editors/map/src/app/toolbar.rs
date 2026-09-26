@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
-use block_editor_plugin::Toolbar;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::{
+use block_editor_beui::Toolbar;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CROP_FREE, ICON_REFRESH, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
-use block_editor_plugin::beui::reactive::{Prop, Show, clone, component, create_memo, view};
-use block_editor_plugin::beui::styled::{Button, ButtonVariant, Caption, IconButton, use_theme};
+use block_editor_beui::beui::reactive::{Prop, Show, clone, component, create_memo, view};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, IconButton, use_theme};
 
 use super::state::{MapState, ZOOM_STEP};
 

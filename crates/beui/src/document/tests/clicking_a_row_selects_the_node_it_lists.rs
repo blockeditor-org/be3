@@ -16,7 +16,7 @@ fn clicking_a_row_selects_the_node_it_lists() {
     assert_eq!(harness.inspector().state.selected.get(), Some(padding));
     assert_eq!(
         harness.tree(),
-        ["column", "  frame"],
-        "clicking a row selects it and collapses its children"
+        ["column", "  frame", "    text"],
+        "clicking a row selects it and leaves its children alone"
     );
 }

@@ -17,8 +17,8 @@ fn dragging_a_card_onto_the_discard_pile_plays_it() {
     editor.snapshot("the_table_before_dragging_a_card");
 
     let from = on_the_card(&editor, &format!("game.card.{pile}.{card}"));
-    let to = editor.editor.rect_of("game.pile.1").center();
-    editor.editor.drag(from, to);
+    let to = editor.rect_of("game.pile.1").center();
+    editor.drag(from, to);
     editor.run();
 
     let played = moves(&editor);

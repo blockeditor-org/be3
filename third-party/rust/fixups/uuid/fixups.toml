@@ -1,5 +1,0 @@
-# uuid's v4 needs randomness, which wasm32-unknown-unknown (the games) cannot
-# get without the browser; reindeer resolves one feature set per platform, so
-# the v4 a native test asks for would otherwise arrive there.
-['cfg(all(target_family = "wasm", target_os = "unknown"))']
-omit_features = ["v4"]
