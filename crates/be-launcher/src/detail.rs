@@ -1,22 +1,25 @@
 use beui::NodeId;
-use beui::icons::{ICON_COMMIT, ICON_DOWNLOAD, ICON_OPEN_IN_NEW, ICON_PLAY_ARROW, ICON_REFRESH};
+use beui::icons::{ICON_COMMIT, ICON_OPEN_IN_NEW, ICON_REFRESH};
 use beui::reactive::{
     Align, Direction, Dynamic, ForEach, Frame, ItemSize, Keyed, List, Memo, Picture, ReadSignal,
     Show, Spacer, Text, clone, component, create_memo, view,
 };
 use beui::styled::theme::{CARD_RADIUS, FONT_BODY, FONT_HEADING, FONT_SMALL, FONT_TITLE};
 use beui::styled::{
-    Body, Button, ButtonVariant, Caption, Code, Icon, IconButton, Link, MenuButton, Scroll,
-    Separator, Spinner, use_theme,
+    Body, Button, ButtonVariant, Caption, Code, Icon, IconButton, Link, Scroll, Separator, Spinner,
+    use_theme,
 };
-use beui::unstyled::{self, MenuItem};
+use beui::unstyled;
 
-use crate::github::{Entry, InlineComment, Person, PullRequest, State, Tone, branch_deleted};
+use crate::github::{Entry, InlineComment, Person, PullRequest, State, Tone};
 use crate::markdown::Block;
-use crate::model::{COMMON, Loaded, Model, Tab};
+use crate::model::{Loaded, Model};
+#[cfg(target_os = "android")]
+use crate::phone::{Actions, Notes, has_notes};
 use crate::time::{now, relative};
-use crate::view::{Labels, MERGED, readable_on, state_glyph};
-use crate::workspace::PADDING;
+use crate::view::{Labels, MERGED, PADDING, readable_on, state_glyph};
+#[cfg(not(target_os = "android"))]
+use crate::workspace::{Actions, Notes, has_notes};
 
 const SPACING: f32 = 12.0;
 const CARD_PADDING: f32 = 12.0;
@@ -124,21 +127,12 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     }));
     let labels = create_memo(clone!(pull_request -> move || pull_request.get().labels));
     let checked_out = create_memo(clone!(model pull_request -> move || {
-        let head = model.head.get();
-        !head.is_empty() && head == pull_request.get().head_sha
+        model.current(&pull_request.get())
     }));
     let tagged = create_memo(clone!(labels checked_out -> move || {
         !labels.get().is_empty() || checked_out.get()
     }));
-    let fork = create_memo(clone!(pull_request -> move || !pull_request.get().same_repository));
     let timeline = model.timeline(&pull_request.get_untracked());
-    let deleted = create_memo(clone!(timeline -> move || match timeline.get() {
-        Loaded::Ready(entries) => branch_deleted(&entries),
-        _ => false,
-    }));
-    let busy = create_memo(clone!(model fork deleted -> move || {
-        model.running.get() || fork.get() || deleted.get()
-    }));
     let loading = create_memo(clone!(timeline -> move || timeline.get() == Loaded::Loading));
     let error = create_memo(clone!(timeline -> move || match timeline.get() {
         Loaded::Failed(error) => error,
@@ -150,23 +144,11 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
         _ => Vec::new(),
     }));
     let keys = create_memo(clone!(entries -> move || (0..entries.get().len()).collect::<Vec<_>>()));
-    let check_out =
-        clone!(model pull_request -> move || model.check_out(&pull_request.get_untracked(), None));
-    let check_out_and_run = clone!(model pull_request -> move || {
-        model.check_out(&pull_request.get_untracked(), Some(model.common.get_untracked()));
-    });
-    let pick = clone!(model pull_request -> move |path: Vec<usize>| match path.as_slice() {
-        [index] if *index < COMMON.len() => {
-            model.check_out(&pull_request.get_untracked(), Some(*index));
-        }
-        _ => model.show_tab(Tab::Targets),
-    });
-    let busy_run = busy.clone();
-    let busy_pick = busy.clone();
-    let run_label = create_memo(clone!(model -> move || {
-        let common = COMMON.get(model.common.get()).unwrap_or(&COMMON[0]);
-        format!("Check out and run {}", common.title)
-    }));
+    let actions = model.clone();
+    let notes = model.clone();
+    let noted = pull_request.clone();
+    let notes_timeline = timeline.clone();
+    let noting = has_notes(pull_request.clone(), timeline.clone());
     let open = clone!(model pull_request -> move || model.open(&pull_request.get_untracked().url));
     let refresh =
         clone!(model pull_request -> move || model.refresh_timeline(&pull_request.get_untracked()));
@@ -188,38 +170,10 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         <Labels labels checked_out />
                     </Show>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=1.0>
-                            <Button
-                                label={run_label}
-                                glyph=ICON_PLAY_ARROW
-                                variant=ButtonVariant::Primary
-                                disabled={busy_run}
-                                on_click={check_out_and_run}
-                            />
-                            <MenuButton
-                                label="Pick what to run"
-                                variant=ButtonVariant::Primary
-                                icon_only=true
-                                disabled={busy_pick}
-                                items={view! {
-                                    <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
-                                        {|index: usize| view! {
-                                            <MenuItem
-                                                label={format!("Run {}", COMMON[index].title)}
-                                            />
-                                        }}
-                                    </ForEach>
-                                    <MenuItem label="All targets" />
-                                }}
-                                on_select={pick}
-                            />
-                        </List>
-                        <Button
-                            label="Check out"
-                            glyph=ICON_DOWNLOAD
-                            variant=ButtonVariant::Secondary
-                            disabled={busy}
-                            on_click={check_out}
+                        <Actions
+                            model={actions.clone()}
+                            pull_request={pull_request.clone()}
+                            timeline={timeline.clone()}
                         />
                         <Button
                             label="Open on GitHub"
@@ -234,16 +188,11 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                             on_click={refresh}
                         />
                     </List>
-                    <Show condition={fork}>
-                        <Caption
-                            content="This pull request comes from a fork, so scripts/switch cannot check it out."
-                            wrap=true
-                        />
-                    </Show>
-                    <Show condition={deleted}>
-                        <Caption
-                            content="Its branch was deleted, so there is nothing to check out."
-                            wrap=true
+                    <Show condition={noting}>
+                        <Notes
+                            model={notes.clone()}
+                            pull_request={noted.clone()}
+                            timeline={notes_timeline.clone()}
                         />
                     </Show>
                     <Separator />

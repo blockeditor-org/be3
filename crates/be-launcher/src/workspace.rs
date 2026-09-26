@@ -1,26 +1,27 @@
 use beui::icons::{
-    ICON_BUILD, ICON_PLAY_ARROW, ICON_REFRESH, ICON_SCIENCE, ICON_SEARCH, ICON_STOP,
+    ICON_BUILD, ICON_DOWNLOAD, ICON_PLAY_ARROW, ICON_REFRESH, ICON_SCIENCE, ICON_SEARCH, ICON_STOP,
 };
 use beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, Memo, Show, Text, VirtualList, clone, component,
-    create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, Text, VirtualList,
+    clone, component, create_memo, view,
 };
 use beui::styled::theme::FONT_BODY;
 use beui::styled::{
-    Button, ButtonVariant, Caption, Code, Icon, IconButton, Scroll, Spinner, Tabs, TextInput,
-    use_theme,
+    Button, ButtonVariant, Caption, Code, Icon, IconButton, MenuButton, Scroll, Spinner, Tabs,
+    TextInput, use_theme,
 };
-use beui::unstyled::ChoiceOption;
+use beui::unstyled::{ChoiceOption, MenuItem};
 use beui::{NodeId, TextAlign};
 
 use crate::detail::Detail;
-use crate::model::{Loaded, Model, Tab};
+use crate::github::{Entry, PullRequest, branch_deleted};
+use crate::model::{COMMON, Loaded, Model, Tab};
 use crate::pane::TerminalPane;
 use crate::targets::{Action, Target};
+use crate::view::PADDING;
 
 const SPACING: f32 = 8.0;
 const TARGET_ROW: f32 = 44.0;
-pub(crate) const PADDING: f32 = 16.0;
 const HEAD_CHARACTERS: usize = 48;
 
 #[component]
@@ -265,5 +266,116 @@ fn TargetRow(model: Model, target: Memo<Option<Target>>) -> NodeId {
                 />
             </List>
         </Frame>
+    }
+}
+
+#[component]
+pub(crate) fn Actions(
+    model: Model,
+    pull_request: Memo<PullRequest>,
+    timeline: ReadSignal<Loaded<Vec<Entry>>>,
+) -> NodeId {
+    let fork = create_memo(clone!(pull_request -> move || !pull_request.get().same_repository));
+    let deleted = create_memo(move || match timeline.get() {
+        Loaded::Ready(entries) => branch_deleted(&entries),
+        _ => false,
+    });
+    let busy = create_memo(clone!(model -> move || {
+        model.running.get() || fork.get() || deleted.get()
+    }));
+    let check_out =
+        clone!(model pull_request -> move || model.check_out(&pull_request.get_untracked(), None));
+    let check_out_and_run = clone!(model pull_request -> move || {
+        model.check_out(&pull_request.get_untracked(), Some(model.common.get_untracked()));
+    });
+    let pick = clone!(model pull_request -> move |path: Vec<usize>| match path.as_slice() {
+        [index] if *index < COMMON.len() => {
+            model.check_out(&pull_request.get_untracked(), Some(*index));
+        }
+        _ => model.show_tab(Tab::Targets),
+    });
+    let busy_run = busy.clone();
+    let busy_pick = busy.clone();
+    let run_label = create_memo(clone!(model -> move || {
+        let common = COMMON.get(model.common.get()).unwrap_or(&COMMON[0]);
+        format!("Check out and run {}", common.title)
+    }));
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=1.0>
+                <Button
+                    label={run_label}
+                    glyph=ICON_PLAY_ARROW
+                    variant=ButtonVariant::Primary
+                    disabled={busy_run}
+                    on_click={check_out_and_run}
+                />
+                <MenuButton
+                    label="Pick what to run"
+                    variant=ButtonVariant::Primary
+                    icon_only=true
+                    disabled={busy_pick}
+                    items={view! {
+                        <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
+                            {|index: usize| view! {
+                                <MenuItem label={format!("Run {}", COMMON[index].title)} />
+                            }}
+                        </ForEach>
+                        <MenuItem label="All targets" />
+                    }}
+                    on_select={pick}
+                />
+            </List>
+            <Button
+                label="Check out"
+                glyph=ICON_DOWNLOAD
+                variant=ButtonVariant::Secondary
+                disabled={busy}
+                on_click={check_out}
+            />
+        </List>
+    }
+}
+
+pub(crate) fn has_notes(
+    pull_request: Memo<PullRequest>,
+    timeline: ReadSignal<Loaded<Vec<Entry>>>,
+) -> Memo<bool> {
+    create_memo(move || {
+        !pull_request.get().same_repository
+            || match timeline.get() {
+                Loaded::Ready(entries) => branch_deleted(&entries),
+                _ => false,
+            }
+    })
+}
+
+#[component]
+pub(crate) fn Notes(
+    model: Model,
+    pull_request: Memo<PullRequest>,
+    timeline: ReadSignal<Loaded<Vec<Entry>>>,
+) -> NodeId {
+    let _ = model;
+    let fork = create_memo(move || !pull_request.get().same_repository);
+    let deleted = create_memo(move || match timeline.get() {
+        Loaded::Ready(entries) => branch_deleted(&entries),
+        _ => false,
+    });
+    view! {
+        <List spacing=8.0>
+            <Show condition={fork}>
+                <Caption
+                    content="This pull request comes from a fork, so scripts/switch cannot check it out."
+                    wrap=true
+                />
+            </Show>
+            <Show condition={deleted}>
+                <Caption
+                    content="Its branch was deleted, so there is nothing to check out."
+                    wrap=true
+                />
+            </Show>
+        </List>
     }
 }

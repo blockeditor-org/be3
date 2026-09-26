@@ -220,6 +220,13 @@ A native target depends on a wasm one through a transition in
   After changing the secret, bump `key_version` in `crates/block-app/BUCK`.
   The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).
+- `crates/be-launcher` is an APK too. It runs, in block-app's own
+  `MainActivity`, the builds CI uploads to be3-ci: `:android-run`, the release
+  library and the plugins' `.cwasm`s (the `publish-android` job in ci.yml
+  says how they are stored). A build runs only in a launcher with its shell
+  hash (`:android-shell`, over block-app's Java, manifest and GameActivity's
+  AARs), so a change to those needs a new launcher, and a permission added to
+  block-app's manifest goes in the launcher's too.
 - The macOS builds are an executable and its libraries; the `.app` bundle
   comes with distribution.
 

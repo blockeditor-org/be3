@@ -94,7 +94,10 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
 fn android_main(app: winit::platform::android::activity::AndroidApp) {
     editors::plugin::discovery::load(&app);
     panic_guard::install();
-    let storage_root = app.internal_data_path();
+    let storage_root = match platform::launched() {
+        Some(launched) => Some(launched.data().to_path_buf()),
+        None => app.internal_data_path(),
+    };
     let mut options = run_options();
     options.android_app = Some(app);
     let exit_code = match BlockApp::new(storage_root)

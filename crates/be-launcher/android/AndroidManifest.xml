@@ -1,0 +1,14 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <application android:label="${be3Label}" android:theme="@style/Theme.Block">
+        <activity android:name="com.be3.launcher.LauncherActivity" android:configChanges="orientation|keyboardHidden|screenSize|screenLayout" android:exported="true" android:launchMode="singleTask">
+            <meta-data android:name="android.app.lib_name" android:value="be_launcher" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name="com.be3.block.MainActivity" android:label="Block" android:configChanges="orientation|keyboardHidden|screenSize|screenLayout" android:exported="false" android:process=":build" android:taskAffinity="com.be3.launcher.build" />
+    </application>
+</manifest>

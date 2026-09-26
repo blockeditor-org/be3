@@ -702,10 +702,17 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "comrak",
+ "flate2",
  "ghostty-vt",
  "image",
+ "jni 0.22.4",
+ "ndk-context",
  "portable-pty",
+ "serde",
  "serde_json",
+ "sha2",
+ "ureq",
+ "winit",
 ]
 
 [[package]]
