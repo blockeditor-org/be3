@@ -66,11 +66,11 @@ impl LauncherApp {
     }
 
     #[cfg(target_os = "android")]
-    fn new(files: PathBuf, shell: String) -> Self {
+    fn new(files: PathBuf) -> Self {
         let (sender, events) = channel();
         let tasks = Tasks::new(files, sender);
         Self::with(tasks, events, move |tasks| {
-            Model::new(tasks.clone(), Phone::new(tasks, shell))
+            Model::new(tasks.clone(), Phone::new(tasks))
         })
     }
 

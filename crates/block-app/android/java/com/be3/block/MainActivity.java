@@ -18,8 +18,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
 public final class MainActivity extends GameActivity {
-    public static final String EXTRA_BUILD = "com.be3.block.BUILD";
-    public static final String EXTRA_DATA = "com.be3.block.DATA";
     private static final int PICK_FILE_REQUEST = 0x8E31;
     private static final int MAX_FILE_BYTES = 128 * 1024 * 1024;
     private static final int COPY_BUFFER_BYTES = 64 * 1024;
@@ -64,14 +62,7 @@ public final class MainActivity extends GameActivity {
     @Override
     protected void onCreate(Bundle state) {
         current = this;
-        String build = getIntent().getStringExtra(EXTRA_BUILD);
-        if (build == null) {
-            System.loadLibrary("block_app_lib");
-        } else {
-            System.load(build + "/libc++_shared.so");
-            System.load(build + "/libblock_app_lib.so");
-            nativeLaunched(build, getIntent().getStringExtra(EXTRA_DATA));
-        }
+        System.loadLibrary("block_app_lib");
         super.onCreate(state);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         getOnBackPressedDispatcher().addCallback(this, back);
@@ -253,8 +244,6 @@ public final class MainActivity extends GameActivity {
             return bytes.toByteArray();
         }
     }
-
-    private static native void nativeLaunched(String build, String data);
 
     private static native void nativeBack(int phase, float progress, int edge);
 
