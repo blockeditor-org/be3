@@ -122,6 +122,8 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 beui = { path = "../beui", default-features = false, features = ["web"] }
+block-gpu-abi = { path = "../block-gpu-abi" }
+block-gpu-host = { path = "../block-gpu-host" }
 js-sys = "0.3"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
@@ -136,19 +138,19 @@ web-sys = { version = "0.3", features = [
     "FileList",
     "Headers",
     "HtmlAudioElement",
-    "HtmlCanvasElement",
     "HtmlElement",
     "HtmlInputElement",
     "HtmlMediaElement",
+    "Location",
     "MessageEvent",
     "Node",
-    "OffscreenCanvas",
     "Performance",
     "Request",
     "RequestInit",
     "Response",
     "Storage",
     "Url",
+    "UrlSearchParams",
     "Window",
     "Worker",
     "WorkerOptions",

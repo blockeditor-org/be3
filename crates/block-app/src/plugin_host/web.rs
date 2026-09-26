@@ -1,34 +1,39 @@
 use std::time::Duration;
 
+use block_gpu_host::{Call, Gpu};
 use block_plugin_api::{Message, PluginManifest, ScreenLayout};
-use wasm_bindgen::JsCast;
 
 mod adapter;
-pub(super) mod renderer;
 
 use super::backend::Backend;
+use super::surface::{SurfaceFrame, gpu};
 use adapter::WebProtocolAdapter;
 
+const SCREENS_SURFACE: u32 = 0;
+const NO_GPU: &str = "The plugin host has no graphics device.";
+
 pub(super) struct Web {
-    canvas_id: String,
     url: String,
     adapter: Option<WebProtocolAdapter>,
+    gpu: Option<Gpu>,
+    presented: bool,
     started: f64,
     error: Option<String>,
 }
 
 impl Backend for Web {
-    type Frame = renderer::WebFrame;
+    type Frame = SurfaceFrame;
 
     fn new(plugin: &PluginManifest) -> Self {
         Self {
-            canvas_id: format!("plugin-canvas-{}", plugin.identity.id),
             url: crate::editors::plugin::discovery::entry_point(
                 &plugin.identity.id,
                 &plugin.entry_point,
             )
             .unwrap_or_default(),
             adapter: None,
+            gpu: None,
+            presented: false,
             started: now(),
             error: None,
         }
@@ -38,16 +43,17 @@ impl Backend for Web {
         self.shutdown();
         self.started = now();
         self.error = None;
-        let Some(canvas) = create_canvas(&self.canvas_id) else {
-            self.error = Some("The plugin canvas could not be created.".to_owned());
+        let Some((device, queue)) = gpu() else {
+            self.error = Some(NO_GPU.to_owned());
             return;
         };
-        match WebProtocolAdapter::start(&self.url, &canvas) {
-            Ok(adapter) => self.adapter = Some(adapter),
-            Err(error) => {
-                self.error = Some(error);
-                remove_canvas(&self.canvas_id);
+        let gpu = Gpu::new(device, queue);
+        match WebProtocolAdapter::start(&self.url, &gpu.limits()) {
+            Ok(adapter) => {
+                self.adapter = Some(adapter);
+                self.gpu = Some(gpu);
             }
+            Err(error) => self.error = Some(error),
         }
     }
 
@@ -61,26 +67,48 @@ impl Backend for Web {
     }
 
     fn receive(&mut self) -> Vec<Message> {
-        let Some(adapter) = &mut self.adapter else {
+        let (Some(adapter), Some(gpu)) = (&mut self.adapter, &mut self.gpu) else {
             return Vec::new();
         };
-        if let Err(error) = adapter.poll() {
-            self.error = Some(error);
-            return Vec::new();
+        let deliveries = match adapter.poll() {
+            Ok(deliveries) => deliveries,
+            Err(error) => {
+                self.error = Some(error);
+                return Vec::new();
+            }
+        };
+        let mut received = Vec::new();
+        for delivery in deliveries {
+            match block_gpu_abi::decode::<Vec<Call>>(&delivery.calls) {
+                Ok(calls) => calls.into_iter().for_each(|call| gpu.apply(call)),
+                Err(error) => {
+                    self.error.get_or_insert(error);
+                }
+            }
+            received.extend(delivery.messages);
         }
-        adapter.take_received()
+        if gpu.take_presented().contains(&SCREENS_SURFACE) {
+            self.presented = true;
+        }
+        if let Some(error) = gpu.take_error() {
+            self.error.get_or_insert(error);
+        }
+        received
     }
 
-    fn frame(&mut self, layout: &ScreenLayout, _pass: u64) -> Option<Self::Frame> {
-        Some(renderer::WebFrame {
-            size: [layout.width, layout.height],
-            canvas_id: self.canvas_id.clone(),
-            drawn: self.adapter.as_ref().map(WebProtocolAdapter::frames),
-        })
-    }
-
-    fn received_frame(&mut self) -> Option<Self::Frame> {
+    fn frame(&mut self, _layout: &ScreenLayout, _pass: u64) -> Option<SurfaceFrame> {
         None
+    }
+
+    fn received_frame(&mut self) -> Option<SurfaceFrame> {
+        if !std::mem::take(&mut self.presented) {
+            return None;
+        }
+        let (texture, generation) = self.gpu.as_ref()?.surface(SCREENS_SURFACE)?;
+        Some(SurfaceFrame {
+            texture: texture.clone(),
+            generation,
+        })
     }
 
     fn take_error(&mut self) -> Option<String> {
@@ -105,7 +133,8 @@ impl Backend for Web {
         if let Some(mut adapter) = self.adapter.take() {
             adapter.shutdown();
         }
-        remove_canvas(&self.canvas_id);
+        self.gpu = None;
+        self.presented = false;
     }
 }
 
@@ -114,27 +143,4 @@ fn now() -> f64 {
         .and_then(|window| window.performance())
         .map(|performance| performance.now())
         .unwrap_or_default()
-}
-
-fn create_canvas(canvas_id: &str) -> Option<web_sys::HtmlCanvasElement> {
-    let document = web_sys::window()?.document()?;
-    let canvas: web_sys::HtmlCanvasElement =
-        document.create_element("canvas").ok()?.dyn_into().ok()?;
-    canvas.set_id(canvas_id);
-    let _ = canvas.style().set_property("left", "-10000px");
-    let _ = canvas.style().set_property("position", "fixed");
-    let _ = canvas.style().set_property("top", "0");
-    let _ = canvas.style().set_property("visibility", "hidden");
-    document.body()?.append_child(&canvas).ok()?;
-    Some(canvas)
-}
-
-fn remove_canvas(canvas_id: &str) {
-    let Some(canvas) = web_sys::window()
-        .and_then(|window| window.document())
-        .and_then(|document| document.get_element_by_id(canvas_id))
-    else {
-        return;
-    };
-    canvas.remove();
 }

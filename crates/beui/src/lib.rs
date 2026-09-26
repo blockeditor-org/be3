@@ -36,10 +36,10 @@ mod timer;
 pub mod unstyled;
 
 pub use accesskit;
-#[cfg(feature = "web")]
-pub use app::run_web;
 #[cfg(any(feature = "window", feature = "web"))]
 pub use app::{App, OpenDevice, RunOptions, SafeArea, Setup, Waker};
+#[cfg(feature = "web")]
+pub use app::{accessibility_tree, run_web};
 #[cfg(feature = "window")]
 pub use app::{run, run_with, set_safe_area};
 pub use base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition, TextAlign, focus_within};

@@ -8,6 +8,8 @@
 def _app_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output(ctx.label.name, dir = True)
     command = cmd_args("sh", ctx.attrs._stage, out.as_output())
+    if ctx.attrs.compiled_only:
+        command.add("--compiled-only")
     name = None
     if ctx.attrs.binary:
         executable = ctx.attrs.binary[DefaultInfo].default_outputs[0]
@@ -67,6 +69,9 @@ app = rule(
     attrs = {
         "binary": attrs.option(attrs.dep(), default = None),
         "bindgen": attrs.list(attrs.dep(), default = []),
+        # Each precompiled plugin without its module, for an app that only
+        # falls back to the module.
+        "compiled_only": attrs.bool(default = False),
         "executable_name": attrs.string(default = ""),
         # More executables to put beside the app, by the name cargo gives each.
         "extra_binaries": attrs.dict(attrs.string(), attrs.dep(), default = {}),

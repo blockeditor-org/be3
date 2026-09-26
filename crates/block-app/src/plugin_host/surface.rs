@@ -1,8 +1,16 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap};
 
 use crate::plugin_host::presenter::{BlitPipeline, SurfacePresenter};
 
-pub(crate) struct WasmFrame {
+thread_local! {
+    static GPU: RefCell<Option<(wgpu::Device, wgpu::Queue)>> = const { RefCell::new(None) };
+}
+
+pub(super) fn gpu() -> Option<(wgpu::Device, wgpu::Queue)> {
+    GPU.with(|gpu| gpu.borrow().clone())
+}
+
+pub(crate) struct SurfaceFrame {
     pub(crate) texture: wgpu::Texture,
     pub(crate) generation: u64,
 }
@@ -17,14 +25,16 @@ pub(crate) struct Presenter {
 }
 
 pub(crate) fn presenter(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<Presenter, String> {
-    super::remember_gpu(device, queue);
+    GPU.with(|gpu| {
+        *gpu.borrow_mut() = Some((device.clone(), queue.clone()));
+    });
     Ok(Presenter {
         targets: HashMap::new(),
     })
 }
 
 impl SurfacePresenter for Presenter {
-    type Frame = WasmFrame;
+    type Frame = SurfaceFrame;
 
     fn replace(
         &mut self,

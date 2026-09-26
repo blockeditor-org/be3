@@ -58,6 +58,30 @@ pub fn deck() -> Vec<Card> {
         .collect()
 }
 
+impl Card {
+    pub fn short(&self) -> String {
+        let rank = match self.rank {
+            Rank::Jack => "J".to_owned(),
+            Rank::Queen => "Q".to_owned(),
+            Rank::King => "K".to_owned(),
+            Rank::Ace => "A".to_owned(),
+            rank => rank.to_string(),
+        };
+        format!("{rank}{}", self.suit.symbol())
+    }
+}
+
+impl Suit {
+    pub fn symbol(&self) -> char {
+        match self {
+            Suit::Clubs => '♣',
+            Suit::Diamonds => '♦',
+            Suit::Hearts => '♥',
+            Suit::Spades => '♠',
+        }
+    }
+}
+
 impl Display for Card {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         write!(formatter, "{} of {}", self.rank, self.suit)

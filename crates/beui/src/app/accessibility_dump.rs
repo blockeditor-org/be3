@@ -1,11 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
+#[cfg(feature = "window")]
 use std::path::PathBuf;
 
 use accesskit::{Affine, Node, NodeId, Rect, Role, TreeUpdate};
 
 pub(crate) struct AccessibilityDump {
-    path: PathBuf,
+    #[cfg(feature = "window")]
+    path: Option<PathBuf>,
     nodes: HashMap<NodeId, Node>,
     root: Option<NodeId>,
     focus: Option<NodeId>,
@@ -13,9 +15,22 @@ pub(crate) struct AccessibilityDump {
 }
 
 impl AccessibilityDump {
+    #[cfg(feature = "window")]
     pub(crate) fn new(path: PathBuf) -> Self {
         Self {
-            path,
+            path: Some(path),
+            nodes: HashMap::new(),
+            root: None,
+            focus: None,
+            written: String::new(),
+        }
+    }
+
+    #[cfg(feature = "web")]
+    pub(crate) fn in_memory() -> Self {
+        Self {
+            #[cfg(feature = "window")]
+            path: None,
             nodes: HashMap::new(),
             root: None,
             focus: None,
@@ -47,16 +62,24 @@ impl AccessibilityDump {
         if text == self.written {
             return;
         }
-        let staged = self.path.with_extension("tmp");
-        let written =
-            std::fs::write(&staged, &text).and_then(|()| std::fs::rename(&staged, &self.path));
-        if let Err(error) = written {
-            eprintln!(
-                "could not write the accessibility tree to {}: {error}",
-                self.path.display()
-            );
+        #[cfg(feature = "window")]
+        if let Some(path) = &self.path {
+            let staged = path.with_extension("tmp");
+            let written =
+                std::fs::write(&staged, &text).and_then(|()| std::fs::rename(&staged, path));
+            if let Err(error) = written {
+                eprintln!(
+                    "could not write the accessibility tree to {}: {error}",
+                    path.display()
+                );
+            }
         }
         self.written = text;
+    }
+
+    #[cfg(feature = "web")]
+    pub(crate) fn text(&self) -> &str {
+        &self.written
     }
 
     fn render(

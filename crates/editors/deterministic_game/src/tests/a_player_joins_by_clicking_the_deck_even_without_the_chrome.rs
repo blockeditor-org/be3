@@ -1,17 +1,16 @@
 use super::*;
 
 #[test]
-fn without_the_chrome_the_status_and_buttons_sit_under_the_board() {
+fn a_player_joins_by_clicking_the_deck_even_without_the_chrome() {
     let mut editor = editor(CRAZY_8S.to_vec());
 
     editor.set_chrome(false);
     editor.run();
 
     assert!(!editor.shown("game.player"));
-    assert_eq!(editor.label("game.description"), "Join the game");
-    editor.snapshot("without_the_chrome_the_status_and_buttons_sit_under_the_board");
+    editor.snapshot("a_player_joins_by_clicking_the_deck_even_without_the_chrome");
 
-    editor.click("game.action.0");
+    editor.click("game.pile.0");
     editor.run();
 
     let played = moves(&editor);

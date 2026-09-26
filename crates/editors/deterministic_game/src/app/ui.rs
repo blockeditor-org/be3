@@ -1,9 +1,7 @@
 use std::rc::Rc;
 
 use block_editor_beui::Editor;
-use block_editor_beui::beui::icons::{
-    ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_FIRST_PAGE, ICON_LAST_PAGE,
-};
+use block_editor_beui::beui::icons::{ICON_CHECK, ICON_CLOSE, ICON_FLAG};
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, Keyed, List, Memo, NodeRef, ReadSignal, Show, Text,
     clone, component, create_effect, create_memo, create_signal, view,
@@ -13,25 +11,26 @@ use block_editor_beui::beui::styled::{
     Scroll, Select, Separator, use_theme,
 };
 use block_editor_beui::beui::unstyled::{self, ChoiceOption};
-use block_editor_beui::beui::{Color32, NodeId, TextAlign};
-use game_api::{Board, GameActionOption, GameScreen, Gesture};
+use block_editor_beui::beui::{NodeId, TextAlign};
+use game_api::{Board, Control, GameActionOption, GameScreen, Gesture};
 
 mod annotations;
 mod board;
 mod layout;
+pub(crate) mod moves;
 mod play;
 mod skin;
 
 use board::Stage;
 use layout::Layout;
+use moves::MoveTable;
 use play::Play;
 
 const SIDEBAR_WIDTH: f32 = 280.0;
 const PANEL_PADDING: f32 = 14.0;
 const SECTION_SPACING: f32 = 12.0;
-const DESCRIPTION_SIZE: f32 = 17.0;
-const TURN_SIZE: f32 = 13.0;
-const NUMBER_WIDTH: f32 = 30.0;
+const BANNER_SIZE: f32 = 17.0;
+const BANNER_MARGIN: f32 = 12.0;
 
 pub(crate) trait GameModel {
     fn choose(&self, effect: Vec<u8>);
@@ -57,16 +56,29 @@ pub(crate) struct Seat {
 pub(crate) struct Turn {
     pub(crate) description: String,
     pub(crate) player: String,
+    pub(crate) column: Option<u32>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct Ending {
+    pub(crate) score: Option<String>,
+    pub(crate) description: String,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct Table {
+    pub(crate) columns: Vec<String>,
+    pub(crate) history: Vec<Turn>,
+    pub(crate) ending: Option<Ending>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct Screen {
-    description: String,
     board: Board,
     actions: Vec<Action>,
     seat: Seat,
     editable: bool,
-    history: Vec<Turn>,
+    table: Table,
     shown: Option<usize>,
 }
 
@@ -112,12 +124,11 @@ impl GameSnapshot {
         screen: GameScreen,
         seat: Seat,
         editable: bool,
-        history: Vec<Turn>,
+        table: Table,
         shown: Option<usize>,
     ) -> Self {
         Self::Screen(Screen {
-            description: screen.description,
-            board: screen.board,
+            board: *screen.board,
             actions: screen
                 .actions
                 .into_iter()
@@ -140,7 +151,7 @@ impl GameSnapshot {
                 .collect(),
             seat,
             editable,
-            history,
+            table,
             shown,
         })
     }
@@ -154,7 +165,7 @@ pub(crate) struct Steps {
 }
 
 impl Steps {
-    fn show(&self, shown: usize) {
+    pub(crate) fn show(&self, shown: usize) {
         let count = self.count.get_untracked();
         self.game.show_turns((shown < count).then_some(shown));
     }
@@ -246,11 +257,10 @@ fn GameError(snapshot: ReadSignal<GameSnapshot>) -> NodeId {
 struct Panel {
     game: Rc<dyn GameModel>,
     play: Play,
-    description: Memo<String>,
-    buttons: Memo<Vec<Action>>,
+    controls: Memo<Vec<Action>>,
     editable: Memo<bool>,
     seat: Memo<Seat>,
-    history: Memo<Vec<Turn>>,
+    table: Memo<Table>,
     shown: Memo<usize>,
     steps: Steps,
 }
@@ -258,20 +268,19 @@ struct Panel {
 #[component]
 fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSnapshot>) -> NodeId {
     let screen = create_memo(move || snapshot.get().as_screen());
-    let description = create_memo(clone!(screen -> move || screen.get().description));
     let actions = create_memo(clone!(screen -> move || screen.get().actions));
     let editable = create_memo(clone!(screen -> move || screen.get().editable));
     let board = create_memo(clone!(screen -> move || screen.get().board));
     let seat = create_memo(clone!(screen -> move || screen.get().seat));
-    let history = create_memo(clone!(screen -> move || screen.get().history));
-    let count = create_memo(clone!(history -> move || history.with(Vec::len)));
+    let table = create_memo(clone!(screen -> move || screen.get().table));
+    let count = create_memo(clone!(table -> move || table.with(|table| table.history.len())));
     let shown =
         create_memo(clone!(screen count -> move || screen.get().shown.unwrap_or(count.get())));
-    let buttons = create_memo(clone!(actions -> move || {
+    let controls = create_memo(clone!(actions -> move || {
         actions
             .get()
             .into_iter()
-            .filter(|action| action.gesture.is_none())
+            .filter(|action| matches!(action.gesture, None | Some(Gesture::Control(_))))
             .collect::<Vec<_>>()
     }));
     let (selected, set_selected) = create_signal(None);
@@ -312,17 +321,17 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
     let panel = Panel {
         game,
         play: play.clone(),
-        description,
-        buttons,
+        controls,
         editable,
         seat,
-        history,
+        table: table.clone(),
         shown,
         steps: steps.clone(),
     };
     let stage = NodeRef::new();
     editor.content(&stage);
     let chrome = editor.chrome_shown();
+    let banner_anchor = stage.clone();
     view! {
         <List spacing=0.0>
             <Keyed value={chrome} key={|shown: bool| shown}>
@@ -369,6 +378,7 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
                     }
                 }}
             </Keyed>
+            <Banner anchor={banner_anchor} table />
         </List>
     }
 }
@@ -379,11 +389,10 @@ fn Sidebar(panel: Panel) -> NodeId {
     let Panel {
         game,
         play,
-        description,
-        buttons,
+        controls,
         editable,
         seat,
-        history,
+        table,
         shown,
         steps,
     } = panel;
@@ -398,20 +407,11 @@ fn Sidebar(panel: Panel) -> NodeId {
     });
     let choosing = create_memo(clone!(play -> move || !play.choices.with(Vec::is_empty)));
     let choosing_play = play.clone();
-    let text = create_memo(clone!(theme -> move || theme.get().text));
     view! {
         <Frame color={theme.surface.clone()}>
             <Scroll>
                 <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
                     <List spacing=SECTION_SPACING>
-                        <Text
-                            string={description}
-                            font_size=DESCRIPTION_SIZE
-                            bold=true
-                            wrap=true
-                            color={text}
-                            @test_id={"game.description"}
-                        />
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Caption content="Playing as" />
                             <Select
@@ -438,18 +438,9 @@ fn Sidebar(panel: Panel) -> NodeId {
                         <Show condition={choosing}>
                             <Choices play={choosing_play} />
                         </Show>
-                        <List spacing=8.0>
-                            <ForEach keys={buttons}>
-                                {move |action: Action| {
-                                    let game = game.clone();
-                                    view! {
-                                        <ActionButton game action editable={editable.clone()} />
-                                    }
-                                }}
-                            </ForEach>
-                        </List>
                         <Separator />
-                        <History history shown steps />
+                        <MoveTable table shown steps />
+                        <Controls game controls editable />
                     </List>
                 </Frame>
             </Scroll>
@@ -463,166 +454,150 @@ fn Bar(panel: Panel) -> NodeId {
     let Panel {
         game,
         play,
-        description,
-        buttons,
+        controls,
         editable,
         ..
     } = panel;
     let choosing = create_memo(clone!(play -> move || !play.choices.with(Vec::is_empty)));
     let idle = create_memo(clone!(choosing -> move || !choosing.get()));
-    let text = create_memo(clone!(theme -> move || theme.get().text));
+    let needed = create_memo(clone!(choosing controls -> move || {
+        choosing.get() || !controls.with(Vec::is_empty)
+    }));
     view! {
-        <Frame color={theme.surface.clone()} padding_horizontal=10.0 padding_vertical=8.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Text
-                    string={description}
-                    font_size=TURN_SIZE
-                    bold=true
-                    color={text}
-                    @sizing=ItemSize::Percent(100.0)
-                    @test_id={"game.description"}
-                />
-                <Show condition={choosing}>
-                    <ChoiceButtons play />
-                </Show>
-                <Show condition={idle}>
-                    <List direction=Direction::Horizontal spacing=6.0>
-                        <ForEach keys={buttons}>
-                            {move |action: Action| {
-                                let game = game.clone();
-                                view! {
-                                    <ActionButton game action editable={editable.clone()} />
-                                }
-                            }}
-                        </ForEach>
+        <List spacing=0.0>
+            <Show condition={needed}>
+                <Frame color={theme.surface.clone()} padding_horizontal=10.0 padding_vertical=6.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <Show condition={choosing}>
+                            <ChoiceButtons play />
+                        </Show>
+                        <Show condition={idle}>
+                            <Controls game controls editable />
+                        </Show>
                     </List>
-                </Show>
-            </List>
-        </Frame>
-    }
-}
-
-#[component]
-fn History(history: Memo<Vec<Turn>>, shown: Memo<usize>, steps: Steps) -> NodeId {
-    let count = steps.count.clone();
-    let at_start = create_memo(clone!(shown -> move || shown.get() == 0));
-    let at_end = create_memo(clone!(shown count -> move || shown.get() >= count.get()));
-    let keys = create_memo(clone!(count -> move || (0..count.get()).collect::<Vec<_>>()));
-    let empty = create_memo(clone!(count -> move || count.get() == 0));
-    let (first, previous, next, last) =
-        (steps.clone(), steps.clone(), steps.clone(), steps.clone());
-    view! {
-        <List spacing=6.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
-                <Caption content="Moves" @sizing=ItemSize::Percent(100.0) />
-                <IconButton
-                    glyph={ICON_FIRST_PAGE.to_owned()}
-                    label="First move"
-                    size=IconButtonSize::Compact
-                    disabled={at_start.clone()}
-                    @test_id={"game.history.first"}
-                    on_click={move || first.first()}
-                />
-                <IconButton
-                    glyph={ICON_CHEVRON_LEFT.to_owned()}
-                    label="Previous move"
-                    size=IconButtonSize::Compact
-                    disabled={at_start}
-                    @test_id={"game.history.previous"}
-                    on_click={move || previous.previous()}
-                />
-                <IconButton
-                    glyph={ICON_CHEVRON_RIGHT.to_owned()}
-                    label="Next move"
-                    size=IconButtonSize::Compact
-                    disabled={at_end.clone()}
-                    @test_id={"game.history.next"}
-                    on_click={move || next.next()}
-                />
-                <IconButton
-                    glyph={ICON_LAST_PAGE.to_owned()}
-                    label="Latest move"
-                    size=IconButtonSize::Compact
-                    disabled={at_end}
-                    @test_id={"game.history.last"}
-                    on_click={move || last.last()}
-                />
-            </List>
-            <Show condition={empty}>
-                <Caption content="No moves yet" />
+                </Frame>
             </Show>
-            <List spacing=2.0>
-                <ForEach keys>
-                    {move |index: usize| view! {
-                        <TurnRow
-                            index
-                            history={history.clone()}
-                            shown={shown.clone()}
-                            steps={steps.clone()}
-                        />
-                    }}
-                </ForEach>
-            </List>
         </List>
     }
 }
 
 #[component]
-fn TurnRow(index: usize, history: Memo<Vec<Turn>>, shown: Memo<usize>, steps: Steps) -> NodeId {
-    let turn = create_memo(move || {
-        history.with(|history| history.get(index).cloned().unwrap_or_default())
-    });
-    let description = create_memo(clone!(turn -> move || turn.get().description));
-    let player = create_memo(clone!(turn -> move || turn.get().player));
-    let theme = use_theme();
-    let chosen = create_memo(move || shown.get() == index + 1);
-    let fill = create_memo(clone!(theme chosen -> move || match chosen.get() {
-        true => theme.get().accent_soft,
-        false => Color32::TRANSPARENT,
-    }));
-    let (text, muted) = (
-        create_memo(clone!(theme -> move || theme.get().text)),
-        create_memo(clone!(theme -> move || theme.get().text_muted)),
-    );
+fn Controls(game: Rc<dyn GameModel>, controls: Memo<Vec<Action>>, editable: Memo<bool>) -> NodeId {
     view! {
-        <unstyled::Button
-            @test_id={format!("game.history.{index}")}
-            on_click={move || steps.show(index + 1)}
-            content={move |_: unstyled::ButtonHandle| view! {
-                <Frame color={fill.clone()} radius=4 padding_horizontal=6.0 padding_vertical=3.0>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                        <Text
-                            string={format!("{}.", index + 1)}
-                            font_size=TURN_SIZE
-                            color={muted.clone()}
-                            @sizing=ItemSize::Fixed(NUMBER_WIDTH)
-                        />
-                        <Text
-                            string={description.clone()}
-                            font_size=TURN_SIZE
-                            color={text.clone()}
-                            @sizing=ItemSize::Percent(100.0)
-                        />
-                        <Text string={player.clone()} font_size=TURN_SIZE color={muted.clone()} />
-                    </List>
-                </Frame>
-            }}
-        />
+        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+            <ForEach keys={controls}>
+                {move |action: Action| {
+                    let game = game.clone();
+                    view! {
+                        <ControlButton game action editable={editable.clone()} />
+                    }
+                }}
+            </ForEach>
+        </List>
     }
 }
 
 #[component]
-fn ActionButton(game: Rc<dyn GameModel>, action: Action, editable: Memo<bool>) -> NodeId {
-    let effect = action.effect;
+fn ControlButton(game: Rc<dyn GameModel>, action: Action, editable: Memo<bool>) -> NodeId {
     let disabled = create_memo(move || !editable.get());
+    let (confirming, set_confirming) = create_signal(false);
+    let asking = create_memo(clone!(confirming -> move || !confirming.get()));
+    let glyph = match action.gesture {
+        Some(Gesture::Control(Control::Resign)) => ICON_FLAG,
+        _ => ICON_CHECK,
+    };
+    let index = action.index;
+    let label = action.label.clone();
+    let question = format!("{label}?");
+    let confirm = format!("Confirm: {label}");
+    let effect = action.effect;
+    let (ask, cancel) = (set_confirming.clone(), set_confirming.clone());
+    let asking_disabled = disabled.clone();
     view! {
-        <Button
-            label={action.label}
-            variant=ButtonVariant::Primary
-            disabled={disabled}
-            @test_id={format!("game.action.{}", action.index)}
-            on_click={move || game.choose(effect.clone())}
-        />
+        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+            <Show condition={asking}>
+                <IconButton
+                    glyph={glyph.to_owned()}
+                    label={label}
+                    disabled={asking_disabled}
+                    @test_id={format!("game.control.{index}")}
+                    on_click={move || ask.set(true)}
+                />
+            </Show>
+            <Show condition={confirming}>
+                <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                    <Caption content={question} />
+                    <IconButton
+                        glyph={ICON_CHECK.to_owned()}
+                        label={confirm}
+                        disabled={disabled}
+                        @test_id={format!("game.control.{index}.confirm")}
+                        on_click={move || game.choose(effect.clone())}
+                    />
+                    <IconButton
+                        glyph={ICON_CLOSE.to_owned()}
+                        label="Cancel"
+                        @test_id={format!("game.control.{index}.cancel")}
+                        on_click={move || cancel.set(false)}
+                    />
+                </List>
+            </Show>
+        </List>
+    }
+}
+
+#[component]
+fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
+    let ending = create_memo(move || table.with(|table| table.ending.clone()));
+    let (dismissed, set_dismissed) = create_signal(false);
+    create_effect(clone!(ending set_dismissed -> move || {
+        if ending.with(Option::is_none) {
+            set_dismissed.set(false);
+        }
+    }));
+    let open = create_memo(clone!(ending dismissed -> move || {
+        ending.with(Option::is_some) && !dismissed.get()
+    }));
+    let text = create_memo(clone!(ending -> move || {
+        ending.with(|ending| {
+            ending
+                .as_ref()
+                .map(|ending| match &ending.score {
+                    Some(score) => format!("{score}  {}", ending.description),
+                    None => ending.description.clone(),
+                })
+                .unwrap_or_default()
+        })
+    }));
+    let theme = use_theme();
+    let color = create_memo(clone!(theme -> move || theme.get().text));
+    view! {
+        <unstyled::Floating anchor open={open}>
+            <Frame padding_horizontal=BANNER_MARGIN padding_vertical=BANNER_MARGIN>
+                <Frame
+                    color={theme.surface_raised.clone()}
+                    radius=8
+                    padding_horizontal=14.0
+                    padding_vertical=8.0
+                    outline={theme.border.clone()}
+                    outline_width=1.0
+                    outline_visible=true
+                    @test_id={"game.banner"}
+                >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                        <Text string={text} font_size=BANNER_SIZE bold=true color={color} />
+                        <IconButton
+                            glyph={ICON_CLOSE.to_owned()}
+                            label="Close"
+                            size=IconButtonSize::Compact
+                            capture_presses=true
+                            @test_id={"game.banner.close"}
+                            on_click={move || set_dismissed.set(true)}
+                        />
+                    </List>
+                </Frame>
+            </Frame>
+        </unstyled::Floating>
     }
 }
 

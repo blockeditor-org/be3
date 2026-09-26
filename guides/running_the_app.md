@@ -62,3 +62,5 @@ text field before typing into it. Other buttons are `click 3` (right) and `click
 
 The app draws when something changes, so give it a moment after an input before reading the
 tree or taking a screenshot.
+
+The web build has a launcher of its own: guides/running_the_web_app.md.
