@@ -11,10 +11,14 @@ import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 import android.view.WindowInsets;
+import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
+import android.widget.FrameLayout;
 
 public final class BeuiView extends SurfaceView implements SurfaceHolder.Callback {
     private static final int TOUCH_START = 0;
@@ -176,6 +180,22 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
 
     public void finishActivity() {
         post(() -> ((Activity) getContext()).finish());
+    }
+
+    static final class Host extends FrameLayout {
+        private final AccessibilityManager accessibility;
+
+        Host(Context context, BeuiView view) {
+            super(context);
+            accessibility = (AccessibilityManager) context
+                    .getSystemService(Context.ACCESSIBILITY_SERVICE);
+            addView(view);
+        }
+
+        @Override
+        public boolean requestSendAccessibilityEvent(View child, AccessibilityEvent event) {
+            return accessibility.isEnabled() && super.requestSendAccessibilityEvent(child, event);
+        }
     }
 
     static native void nativeCreate(Activity activity, BeuiView view, AssetManager assets,

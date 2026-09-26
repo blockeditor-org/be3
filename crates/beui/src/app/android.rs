@@ -1,4 +1,8 @@
 use std::error::Error;
+use std::ffi::CString;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::os::fd::FromRawFd;
 use std::path::PathBuf;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -751,6 +755,35 @@ fn read(mut env: EnvUnowned<'_>, text: &JString<'_>) -> String {
         .resolve::<LogErrorAndDefault>()
 }
 
+fn forward_stdio_to_logcat() {
+    let mut pipe = [0; 2];
+    let reader = unsafe {
+        if libc::pipe2(pipe.as_mut_ptr(), libc::O_CLOEXEC) != 0 {
+            return;
+        }
+        libc::dup2(pipe[1], libc::STDOUT_FILENO);
+        libc::dup2(pipe[1], libc::STDERR_FILENO);
+        libc::close(pipe[1]);
+        File::from_raw_fd(pipe[0])
+    };
+    let _ = std::thread::Builder::new()
+        .name("stdio-to-logcat".to_owned())
+        .spawn(move || {
+            for line in BufReader::new(reader).lines().map_while(Result::ok) {
+                let Ok(text) = CString::new(line) else {
+                    continue;
+                };
+                unsafe {
+                    ndk_sys::__android_log_write(
+                        ndk_sys::android_LogPriority::ANDROID_LOG_INFO.0 as _,
+                        c"RustStdoutStderr".as_ptr(),
+                        text.as_ptr(),
+                    );
+                }
+            }
+        });
+}
+
 fn count(value: jint) -> u32 {
     value.max(0).cast_unsigned()
 }
@@ -785,6 +818,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeCreate<'local>(
         if STARTED.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
+        forward_stdio_to_logcat();
         let manager = unsafe {
             ndk_sys::AAssetManager_fromJava(env.get_raw().cast(), assets.as_raw().cast())
         };

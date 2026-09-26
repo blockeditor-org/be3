@@ -37,7 +37,7 @@ public class BeuiActivity extends Activity {
                     | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
         }
         BeuiView view = new BeuiView(this);
-        setContentView(view);
+        setContentView(new BeuiView.Host(this, view));
         view.requestFocus();
         BeuiView.nativeCreate(this, view, getAssets(), getFilesDir().getAbsolutePath());
     }

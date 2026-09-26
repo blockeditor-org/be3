@@ -13,6 +13,7 @@ window = [
     "dep:accesskit_winit",
     "dep:arboard",
     "dep:jni",
+    "dep:libc",
     "dep:ndk",
     "dep:ndk-context",
     "dep:ndk-sys",
@@ -50,6 +51,7 @@ winit = { version = "0.30", optional = true }
 [target.'cfg(target_os = "android")'.dependencies]
 accesskit_android = { version = "0.7.5", features = ["embedded-dex"], optional = true }
 jni = { version = "0.22", optional = true }
+libc = { version = "0.2", optional = true }
 ndk = { version = "0.9", default-features = false, optional = true }
 ndk-context = { version = "0.1", optional = true }
 ndk-sys = { version = "0.6", optional = true }
