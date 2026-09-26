@@ -10,10 +10,15 @@ final class BeuiInputConnection extends BaseInputConnection {
 
     private final BeuiView view;
     private int batch;
+    private boolean closed;
 
     BeuiInputConnection(BeuiView view) {
         super(view, true);
         this.view = view;
+    }
+
+    void close() {
+        closed = true;
     }
 
     @Override
@@ -31,6 +36,7 @@ final class BeuiInputConnection extends BaseInputConnection {
 
     @Override
     public boolean setComposingText(CharSequence text, int position) {
+        if (closed) return false;
         super.setComposingText(text, position);
         BeuiView.nativeCompose(text.toString());
         changed();
@@ -39,6 +45,7 @@ final class BeuiInputConnection extends BaseInputConnection {
 
     @Override
     public boolean commitText(CharSequence text, int position) {
+        if (closed) return false;
         boolean composing = composingStart() >= 0;
         super.commitText(text, position);
         BeuiView.nativeCommit(text.toString(), composing);
@@ -48,18 +55,23 @@ final class BeuiInputConnection extends BaseInputConnection {
 
     @Override
     public boolean finishComposingText() {
-        String composed = composed();
-        super.finishComposingText();
-        if (composed != null) BeuiView.nativeCommit(composed, true);
+        if (closed) return false;
+        settle();
         changed();
         return true;
     }
 
+    private void settle() {
+        String composed = composed();
+        super.finishComposingText();
+        if (composed != null) BeuiView.nativeCommit(composed, true);
+    }
+
     @Override
     public boolean setComposingRegion(int start, int end) {
+        if (closed) return false;
+        settle();
         Editable text = getEditable();
-        String composed = composed();
-        if (composed != null) BeuiView.nativeCommit(composed, true);
         int from = clamp(Math.min(start, end), text);
         int to = clamp(Math.max(start, end), text);
         int cursor = Selection.getSelectionEnd(text);
@@ -77,6 +89,8 @@ final class BeuiInputConnection extends BaseInputConnection {
 
     @Override
     public boolean deleteSurroundingText(int before, int after) {
+        if (closed) return false;
+        settle();
         Editable text = getEditable();
         int start = selectionStart(text);
         int end = selectionEnd(text);
@@ -92,6 +106,8 @@ final class BeuiInputConnection extends BaseInputConnection {
 
     @Override
     public boolean deleteSurroundingTextInCodePoints(int before, int after) {
+        if (closed) return false;
+        settle();
         Editable text = getEditable();
         int start = selectionStart(text);
         int end = selectionEnd(text);
@@ -105,11 +121,13 @@ final class BeuiInputConnection extends BaseInputConnection {
 
     @Override
     public boolean setSelection(int start, int end) {
+        if (closed) return false;
+        settle();
         Editable text = getEditable();
         int cursor = Selection.getSelectionEnd(text);
         boolean collapsed = start == end && start >= 0 && start <= text.length();
         int move = 0;
-        if (collapsed && cursor >= 0 && composingStart() < 0) {
+        if (collapsed && cursor >= 0) {
             move = start >= cursor
                     ? Character.codePointCount(text, cursor, start)
                     : -Character.codePointCount(text, start, cursor);

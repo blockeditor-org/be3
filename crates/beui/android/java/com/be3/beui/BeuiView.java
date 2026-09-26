@@ -24,6 +24,7 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
 
     private final InputMethodManager input;
     private boolean keyboard;
+    private BeuiInputConnection connection;
 
     BeuiView(Context context) {
         super(context);
@@ -146,7 +147,8 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
                 | EditorInfo.IME_ACTION_NONE;
         info.initialSelStart = 0;
         info.initialSelEnd = 0;
-        return new BeuiInputConnection(this);
+        connection = new BeuiInputConnection(this);
+        return connection;
     }
 
     void updateSelection(int start, int end, int composingStart, int composingEnd) {
@@ -155,6 +157,10 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
 
     public void setKeyboard(boolean shown) {
         post(() -> {
+            if (connection != null) {
+                connection.close();
+                connection = null;
+            }
             if (shown) {
                 keyboard = true;
                 requestFocus();

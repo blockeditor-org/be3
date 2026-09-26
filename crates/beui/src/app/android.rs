@@ -164,7 +164,8 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
         modifiers: Modifiers::NONE,
         safe_area: SafeArea::default(),
         ime: None,
-        composing: false,
+        preedit: String::new(),
+        restart_input: false,
         tapped_at: None,
         next_update: None,
         redraw: false,
@@ -196,7 +197,8 @@ struct Runner {
     modifiers: Modifiers,
     safe_area: SafeArea,
     ime: Option<ImeArea>,
-    composing: bool,
+    preedit: String,
+    restart_input: bool,
     tapped_at: Option<Pos2>,
     next_update: Option<Instant>,
     redraw: bool,
@@ -316,14 +318,6 @@ impl Runner {
         self.press(key, by.unsigned_abs());
     }
 
-    fn end_composition(&mut self) {
-        if self.composing {
-            self.composing = false;
-            self.events
-                .push(Event::Ime(ImeEvent::Commit(String::new())));
-        }
-    }
-
     fn handle(&mut self, message: Message) {
         match message {
             Message::View(view) => {
@@ -367,6 +361,11 @@ impl Runner {
                 force,
             } => {
                 let pos = self.logical(x, y);
+                if phase == TouchPhase::Start && !self.preedit.is_empty() {
+                    let preedit = std::mem::take(&mut self.preedit);
+                    self.events.push(Event::Ime(ImeEvent::Commit(preedit)));
+                    self.restart_input = true;
+                }
                 if phase == TouchPhase::End {
                     self.tapped_at = Some(pos);
                 }
@@ -417,23 +416,24 @@ impl Runner {
                 }
             }
             Message::Compose(text) => {
-                self.composing = !text.is_empty();
+                self.preedit.clone_from(&text);
                 self.events.push(Event::Ime(ImeEvent::Preedit(text)));
             }
             Message::Commit { text, composing } => {
-                self.composing |= composing;
-                self.end_composition();
+                if composing || !self.preedit.is_empty() {
+                    self.preedit.clear();
+                    self.events
+                        .push(Event::Ime(ImeEvent::Commit(String::new())));
+                }
                 super::typed("", &text, &mut self.events);
             }
             Message::Recompose { by, delete, text } => {
-                self.end_composition();
                 self.move_by(by);
                 self.press(Key::Backspace, delete);
-                self.composing = !text.is_empty();
+                self.preedit.clone_from(&text);
                 self.events.push(Event::Ime(ImeEvent::Preedit(text)));
             }
             Message::Delete { before, after } => {
-                self.end_composition();
                 self.press(Key::Backspace, before);
                 self.press(Key::Delete, after);
             }
@@ -591,14 +591,15 @@ impl Runner {
         self.next_update = Instant::now().checked_add(output.repaint_after);
 
         let asked = self.ime.is_some();
+        let restart = std::mem::take(&mut self.restart_input);
+        let tapped_field = self
+            .tapped_at
+            .take()
+            .is_some_and(|tap| asked && output.ime.is_some_and(|area| area.rect.contains(tap)));
         if output.ime.is_some() != asked {
-            self.composing = false;
+            self.preedit.clear();
             self.set_keyboard(output.ime.is_some());
-        }
-        if let Some(tap) = self.tapped_at.take()
-            && asked
-            && output.ime.is_some_and(|area| area.rect.contains(tap))
-        {
+        } else if output.ime.is_some() && (restart || tapped_field) {
             self.set_keyboard(true);
         }
         self.ime = output.ime;
