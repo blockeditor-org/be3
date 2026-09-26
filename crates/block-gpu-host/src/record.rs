@@ -32,6 +32,7 @@ pub enum Call {
         request: Vec<u8>,
         data: Vec<u8>,
     },
+    CopyTextureToTexture(Vec<u8>),
     Submit(Vec<abi::Handle>),
     BeginRenderPass(Vec<u8>),
     FinishEncoder(abi::Handle),
@@ -159,6 +160,7 @@ impl Gpu {
                 data,
             } => self.write_buffer(buffer, offset, &data),
             Call::WriteTexture { request, data } => self.write_texture(&request, &data),
+            Call::CopyTextureToTexture(bytes) => self.copy_texture_to_texture(&bytes),
             Call::Submit(handles) => self.submit(&handles),
             Call::BeginRenderPass(bytes) => {
                 self.begin_render_pass(&bytes);
@@ -411,6 +413,10 @@ impl Recorder {
             request: bytes.to_vec(),
             data: data.to_vec(),
         });
+    }
+
+    pub fn copy_texture_to_texture(&mut self, bytes: &[u8]) {
+        self.calls.push(Call::CopyTextureToTexture(bytes.to_vec()));
     }
 
     pub fn submit(&mut self, handles: &[u32]) {

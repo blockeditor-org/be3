@@ -6,6 +6,7 @@ editor(
     name = "deterministic_game",
     module = "deterministic_game",
     test_env = {
+        "CHESS_WASM": "$(location //crates/tabletop_games/rules/chess:module)",
         "CRAZY_8S_WASM": "$(location //crates/tabletop_games/rules/crazy_8s:module)",
         "TIC_TAC_TOE_WASM": "$(location //crates/tabletop_games/rules/tic_tac_toe:module)",
     },

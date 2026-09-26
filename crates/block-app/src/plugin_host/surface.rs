@@ -21,7 +21,7 @@ struct Target {
 }
 
 pub(crate) struct Presenter {
-    targets: HashMap<u32, Target>,
+    targets: HashMap<u32, [Option<Target>; 2]>,
 }
 
 pub(crate) fn presenter(device: &wgpu::Device, queue: &wgpu::Queue) -> Result<Presenter, String> {
@@ -43,9 +43,16 @@ impl SurfacePresenter for Presenter {
         surface: u32,
         frame: &Self::Frame,
     ) -> Result<(), String> {
-        if self
-            .targets
-            .get(&surface)
+        let [shown, other] = self.targets.entry(surface).or_default();
+        if shown
+            .as_ref()
+            .is_some_and(|target| target.generation == frame.generation)
+        {
+            return Ok(());
+        }
+        std::mem::swap(shown, other);
+        if shown
+            .as_ref()
             .is_some_and(|target| target.generation == frame.generation)
         {
             return Ok(());
@@ -53,13 +60,10 @@ impl SurfacePresenter for Presenter {
         let view = frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        self.targets.insert(
-            surface,
-            Target {
-                generation: frame.generation,
-                bind_group: pipeline.texture_group(device, &view),
-            },
-        );
+        *shown = Some(Target {
+            generation: frame.generation,
+            bind_group: pipeline.texture_group(device, &view),
+        });
         Ok(())
     }
 
@@ -73,7 +77,10 @@ impl SurfacePresenter for Presenter {
     }
 
     fn texture(&self, surface: u32) -> Option<&wgpu::BindGroup> {
-        self.targets.get(&surface).map(|target| &target.bind_group)
+        self.targets
+            .get(&surface)
+            .and_then(|[shown, _]| shown.as_ref())
+            .map(|target| &target.bind_group)
     }
 
     fn release(&mut self, surface: u32) {

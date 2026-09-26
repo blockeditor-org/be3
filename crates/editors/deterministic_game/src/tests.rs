@@ -12,18 +12,26 @@ use crate::app::{DeterministicGameApp, module_filter, seats};
 
 mod a_module_that_is_not_a_game_is_reported;
 mod a_new_player_can_take_the_other_side;
+mod a_piece_is_dragged_from_square_to_square;
+mod a_promotion_asks_which_piece_to_become;
 mod clicking_a_card_then_the_discard_pile_plays_it;
 mod clicking_an_open_tile_places_a_mark;
 mod clicking_the_draw_pile_draws_a_card;
 mod dragging_a_card_onto_the_discard_pile_plays_it;
 mod dropping_an_eight_asks_which_suit_to_call;
-mod everyone_who_has_moved_can_be_played_as_and_so_can_a_newcomer;
+mod holding_a_square_and_drawing_with_another_finger_draws_an_arrow;
+mod only_you_and_the_guests_you_brought_can_be_played_as;
+mod right_dragging_draws_an_arrow_and_right_clicking_circles_a_square;
+mod the_board_is_drawn_through_the_view_the_host_gives;
 mod the_creation_dialog_is_drawn_with_beui;
+mod the_history_lists_every_move_and_steps_back_through_it;
 mod the_picker_asks_only_for_game_modules;
+mod without_the_chrome_the_status_and_buttons_sit_under_the_board;
 
 const ACCOUNT: Uuid = Uuid::from_u128(0x6465_742d_7465_7374_2d61_6363_6f75_6e74);
 const OPPONENT: Uuid = Uuid::from_u128(0x6465_742d_7465_7374_2d6f_7070_6f6e_656e);
 const TIC_TAC_TOE: &[u8] = include_bytes!(env!("TIC_TAC_TOE_WASM"));
+const CHESS: &[u8] = include_bytes!(env!("CHESS_WASM"));
 const CRAZY_8S: &[u8] = include_bytes!(env!("CRAZY_8S_WASM"));
 
 fn editor(module: Vec<u8>) -> BeuiTest<DeterministicGameApp> {
@@ -31,13 +39,23 @@ fn editor(module: Vec<u8>) -> BeuiTest<DeterministicGameApp> {
 }
 
 fn editor_after(module: Vec<u8>, moves: Vec<GameAction>) -> BeuiTest<DeterministicGameApp> {
+    placed(module, moves, true)
+}
+
+fn placed(
+    module: Vec<u8>,
+    moves: Vec<GameAction>,
+    in_viewport: bool,
+) -> BeuiTest<DeterministicGameApp> {
     let module_block = Uuid::new_v4();
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_account_id(ACCOUNT);
-    let editor = BeuiTest::new(Editor::new(host.clone(), block));
-    let mut harness = editor;
+    let mut harness = BeuiTest::new(Editor::new(host.clone(), block));
+    if in_viewport {
+        harness = harness.in_viewport();
+    }
     harness.hold(
         None,
         DeterministicGameContent::new(&DeterministicGame::of(module_block)),
@@ -111,6 +129,14 @@ fn a_plain_play(actions: &[GameAction]) -> GameActionOption {
         .into_iter()
         .find(|option| option.label.starts_with("Play") && !option.label.contains("call"))
         .expect("the deal leaves a card that plays without calling a suit")
+}
+
+fn played(module: &[u8], moves: &[(Uuid, &str)]) -> Vec<GameAction> {
+    let mut actions = Vec::new();
+    for (actor, label) in moves {
+        taken(module, &mut actions, *actor, label);
+    }
+    actions
 }
 
 fn on_the_card(harness: &BeuiTest<DeterministicGameApp>, test_id: &str) -> Pos2 {

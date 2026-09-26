@@ -177,6 +177,17 @@ pub extern "C" fn queue_write_texture(pointer: u32, length: u32, data: u32, data
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn encoder_copy_texture_to_texture(pointer: u32, length: u32) {
+    with(
+        |shim| {
+            let request = read(&shim.scratch, pointer, length);
+            shim.gpu.copy_texture_to_texture(&request);
+        },
+        (),
+    )
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn queue_submit(pointer: u32, length: u32) {
     with(
         |shim| {

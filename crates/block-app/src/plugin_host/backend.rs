@@ -22,6 +22,8 @@ pub(super) trait Backend: Sized {
 
     fn frame(&mut self, layout: &ScreenLayout, pass: u64) -> Option<Self::Frame>;
 
+    fn received_frame(&mut self) -> Option<Self::Frame>;
+
     fn take_error(&mut self) -> Option<String>;
 
     fn state(&self) -> &'static str;

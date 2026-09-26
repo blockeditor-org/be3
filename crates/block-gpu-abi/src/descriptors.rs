@@ -328,6 +328,14 @@ pub struct WriteTexture {
     pub size: Extent3d,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CopyTextureToTexture {
+    pub encoder: Handle,
+    pub source: TexelCopyTextureInfo,
+    pub destination: TexelCopyTextureInfo,
+    pub size: Extent3d,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommandEncoderDescriptor {
     pub label: String,

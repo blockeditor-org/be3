@@ -12,6 +12,13 @@
           "dialog": true
         }
       },
+      "interaction": "Live",
+      "capabilities": {
+        "rotation": false,
+        "preserve_aspect_ratio": false,
+        "pan_and_zoom": true
+      },
+      "resize": "Both",
       "regions": [
         "Frame"
       ]

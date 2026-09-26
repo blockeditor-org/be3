@@ -48,10 +48,13 @@ fn crazy_8s(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
                     return;
                 }
                 if table.can_draw() {
-                    if choose(Move::new("Draw a card").click(Spot::Pile(DRAW_PILE))) {
+                    let draw = Move::new("Draw a card")
+                        .click(Spot::Pile(DRAW_PILE))
+                        .recorded("Drew a card");
+                    if choose(draw) {
                         drawn = table.draw();
                     }
-                } else if choose(Move::new("Pass")) {
+                } else if choose(Move::new("Pass").recorded("Passed")) {
                     table.pass();
                 }
             },
@@ -71,7 +74,7 @@ fn crazy_8s(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
                     if play_a_card(&mut table, &mut suit_to_match, &[card], choose) {
                         return;
                     }
-                    choose(Move::new("Keep it"));
+                    choose(Move::new("Keep it").recorded("Kept the card"));
                 },
             )?;
         }
@@ -91,19 +94,26 @@ fn play_a_card(
             continue;
         }
         let from = table.in_hand(card);
-        let onto_the_discard_pile =
-            move |label: String| Move::new(label).drag(from, Spot::Pile(DISCARD_PILE));
+        let onto_the_discard_pile = move |label: String, history: String| {
+            Move::new(label)
+                .drag(from, Spot::Pile(DISCARD_PILE))
+                .recorded(history)
+        };
         if card.rank == Rank::Eight {
             for suit in SUITS {
-                if choose(onto_the_discard_pile(format!(
-                    "Play {card} and call {suit}"
-                ))) {
+                if choose(onto_the_discard_pile(
+                    format!("Play {card} and call {suit}"),
+                    format!("Played the {card} and called {suit}"),
+                )) {
                     table.play(card);
                     *suit_to_match = suit;
                     return true;
                 }
             }
-        } else if choose(onto_the_discard_pile(format!("Play {card}"))) {
+        } else if choose(onto_the_discard_pile(
+            format!("Play {card}"),
+            format!("Played the {card}"),
+        )) {
             table.play(card);
             *suit_to_match = card.suit;
             return true;
