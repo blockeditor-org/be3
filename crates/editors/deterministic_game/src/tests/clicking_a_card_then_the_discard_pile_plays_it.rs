@@ -16,7 +16,7 @@ fn clicking_a_card_then_the_discard_pile_plays_it() {
     let mut editor = editor_after(CRAZY_8S.to_vec(), actions.clone());
 
     let on_it = on_the_card(&editor, &format!("game.card.{pile}.{card}"));
-    editor.editor.click_at(on_it);
+    editor.click_at(on_it);
     editor.run();
     assert_eq!(moves(&editor).len(), actions.len());
     editor.snapshot("clicking_a_card_selects_it");

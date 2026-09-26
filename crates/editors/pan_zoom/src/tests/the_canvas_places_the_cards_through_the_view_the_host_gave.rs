@@ -2,9 +2,9 @@ use super::*;
 
 #[test]
 fn the_canvas_places_the_cards_through_the_view_the_host_gave() {
-    let (mut test, editor) = editor();
+    let (mut test, _editor) = editor();
 
-    editor.host().set_beui_view(
+    test.set_view(
         Rect::from_min_size(pos2(300.0, 60.0), Vec2::new(440.0, 290.0)),
         0.5,
     );

@@ -1,7 +1,6 @@
 pub use be_block;
 pub use beui;
 
-#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 pub mod beui_frame;
 mod block_link;
 mod child;
@@ -10,10 +9,10 @@ mod content;
 pub mod database;
 mod datetime;
 mod editor;
-#[cfg(target_arch = "wasm32")]
 mod editor_session;
 mod file_chooser;
 mod graph;
+pub mod headless;
 mod host;
 #[cfg(target_arch = "wasm32")]
 mod panes;
@@ -21,7 +20,6 @@ mod related_content;
 pub mod root_settings;
 #[cfg(target_arch = "wasm32")]
 mod runtime;
-#[cfg(target_arch = "wasm32")]
 mod screens;
 pub mod session;
 #[cfg(target_arch = "wasm32")]

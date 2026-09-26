@@ -37,7 +37,5 @@ fn configured_fields_paint_on_separate_lines() {
         harness.edit::<DatabaseSchemaContent>(None, &edit);
     }
     harness.run();
-    harness
-        .editor
-        .snapshot("configured_fields_paint_on_separate_lines");
+    harness.snapshot("configured_fields_paint_on_separate_lines");
 }

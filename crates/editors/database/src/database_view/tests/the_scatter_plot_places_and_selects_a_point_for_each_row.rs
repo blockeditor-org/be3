@@ -16,26 +16,20 @@ fn the_scatter_plot_places_and_selects_a_point_for_each_row() {
     fixture.edit_view(DatabaseView::set_kind(DatabaseViewKind::Scatter));
     fixture.settle();
 
-    let low = fixture.harness.editor.rect_of("database-view.point.0");
-    let high = fixture.harness.editor.rect_of("database-view.point.1");
+    let low = fixture.harness.rect_of("database-view.point.0");
+    let high = fixture.harness.rect_of("database-view.point.1");
     assert!(low.left() < high.left(), "the smaller x sits to the left");
     assert!(low.top() > high.top(), "the smaller y sits lower");
 
-    fixture.harness.editor.click("database-view.point.1");
+    fixture.harness.click("database-view.point.1");
     fixture.settle();
 
-    assert!(fixture.harness.editor.shown("database-view.deselect"));
+    assert!(fixture.harness.shown("database-view.deselect"));
     assert!(
-        fixture
-            .harness
-            .editor
-            .rect_of("database-view.point.1")
-            .width()
-            > high.width(),
+        fixture.harness.rect_of("database-view.point.1").width() > high.width(),
         "the selected point grows"
     );
     fixture
         .harness
-        .editor
         .snapshot("the_scatter_plot_places_and_selects_a_point_for_each_row");
 }

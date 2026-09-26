@@ -17,23 +17,19 @@ fn cards_sit_in_the_kanban_column_their_status_names() {
     fixture.edit_view(DatabaseView::set_kind(DatabaseViewKind::Kanban));
     fixture.settle();
 
-    let waiting = fixture.harness.editor.rect_of("database-view.card.0");
-    let finished = fixture.harness.editor.rect_of("database-view.card.1");
+    let waiting = fixture.harness.rect_of("database-view.card.0");
+    let finished = fixture.harness.rect_of("database-view.card.1");
     assert!(
         waiting.right() <= finished.left(),
         "the two cards share a column"
     );
-    assert_eq!(
-        fixture.harness.editor.label("database-view.card.0"),
-        "Write it"
-    );
+    assert_eq!(fixture.harness.label("database-view.card.0"), "Write it");
 
-    fixture.harness.editor.click("database-view.card.1");
+    fixture.harness.click("database-view.card.1");
     fixture.settle();
 
-    assert!(fixture.harness.editor.shown("database-view.deselect"));
+    assert!(fixture.harness.shown("database-view.deselect"));
     fixture
         .harness
-        .editor
         .snapshot("cards_sit_in_the_kanban_column_their_status_names");
 }

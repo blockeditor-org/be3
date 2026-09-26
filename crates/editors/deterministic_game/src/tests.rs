@@ -5,7 +5,7 @@ use block_editor_plugin::be_block::{
 };
 use block_editor_plugin::beui::{Pos2, Vec2};
 use block_editor_plugin::{Creation, Editor, EditorHost};
-use block_ui_test::{BeuiTest, ContentHarness};
+use block_ui_test::BeuiTest;
 use game_api::{GameAction, GameActionOption};
 use game_host::Game;
 use uuid::Uuid;
@@ -28,18 +28,18 @@ const OPPONENT: Uuid = Uuid::from_u128(0x6465_742d_7465_7374_2d6f_7070_6f6e_656e
 const TIC_TAC_TOE: &[u8] = include_bytes!(env!("TIC_TAC_TOE_WASM"));
 const CRAZY_8S: &[u8] = include_bytes!(env!("CRAZY_8S_WASM"));
 
-fn editor(module: Vec<u8>) -> ContentHarness<DeterministicGameApp> {
+fn editor(module: Vec<u8>) -> BeuiTest<DeterministicGameApp> {
     editor_after(module, Vec::new())
 }
 
-fn editor_after(module: Vec<u8>, moves: Vec<GameAction>) -> ContentHarness<DeterministicGameApp> {
+fn editor_after(module: Vec<u8>, moves: Vec<GameAction>) -> BeuiTest<DeterministicGameApp> {
     let module_block = Uuid::new_v4();
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_account_id(ACCOUNT);
     let editor = BeuiTest::new(Editor::new(host.clone(), block));
-    let mut harness = ContentHarness::new(editor, host);
+    let mut harness = editor;
     harness.hold(
         None,
         DeterministicGameContent::new(&DeterministicGame::of(module_block)),
@@ -64,7 +64,7 @@ fn creation_editor() -> BeuiTest<DeterministicGameApp> {
     BeuiTest::creation(Creation::new(host))
 }
 
-fn moves(harness: &ContentHarness<DeterministicGameApp>) -> Vec<GameAction> {
+fn moves(harness: &BeuiTest<DeterministicGameApp>) -> Vec<GameAction> {
     harness
         .content::<DeterministicGameContent>(None)
         .root()
@@ -115,6 +115,6 @@ fn a_plain_play(actions: &[GameAction]) -> GameActionOption {
         .expect("the deal leaves a card that plays without calling a suit")
 }
 
-fn on_the_card(harness: &ContentHarness<DeterministicGameApp>, test_id: &str) -> Pos2 {
-    harness.editor.rect_of(test_id).min + Vec2::new(8.0, 40.0)
+fn on_the_card(harness: &BeuiTest<DeterministicGameApp>, test_id: &str) -> Pos2 {
+    harness.rect_of(test_id).min + Vec2::new(8.0, 40.0)
 }

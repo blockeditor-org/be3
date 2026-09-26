@@ -3,7 +3,7 @@ use block_editor_plugin::be_block::BlockContent;
 use block_editor_plugin::be_block::compiled_logic::{CompiledLogic, CompiledLogicDocument};
 use block_editor_plugin::be_block::{CompiledLogicContent, LogicGridContent};
 use block_editor_plugin::{BlockInfo, BlockParent, Editor, EditorHost};
-use block_ui_test::{BeuiTest, ContentHarness};
+use block_ui_test::BeuiTest;
 use logicgame::execution::{Instruction, UnlinkedComponent};
 use logicgame::grid::{ComponentPort, ComponentSide, ConnectionDirection, Scale, Size};
 use uuid::Uuid;
@@ -61,12 +61,12 @@ fn compiled(source: Uuid) -> CompiledLogic {
     )
 }
 
-fn editor_on(source: Uuid, name: Option<&str>) -> ContentHarness<CompiledLogicApp> {
+fn editor_on(source: Uuid, name: Option<&str>) -> BeuiTest<CompiledLogicApp> {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
     let editor = Editor::new(host.clone(), block);
-    let mut editor = ContentHarness::new(BeuiTest::new(editor), host);
+    let mut editor = BeuiTest::new(editor);
     let mut grid = BlockInfo::new(source, LogicGridContent::CONTENT_TYPE, BlockParent::Root);
     grid.name = name.map(str::to_owned);
     grid.named_by_hand = name.is_some();
@@ -80,6 +80,6 @@ fn editor_on(source: Uuid, name: Option<&str>) -> ContentHarness<CompiledLogicAp
     editor
 }
 
-fn editor() -> ContentHarness<CompiledLogicApp> {
+fn editor() -> BeuiTest<CompiledLogicApp> {
     editor_on(Uuid::new_v4(), None)
 }
