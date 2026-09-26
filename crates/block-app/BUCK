@@ -151,28 +151,19 @@ export_file(
 # The Android app: the APK is built unsigned on a worker, with the plugins
 # precompiled for the device, and :android signs it here into
 # target/android/block-app.apk (`-- --install` installs and starts it).
-# CI's APK has an id and label of its own, so that it installs beside a local
+# CI's APK carries the same plugins, since an APK has nowhere else to find
+# them, and has an id and label of its own, so that it installs beside a local
 # build rather than colliding with it: sharing the package name, it would
 # either overwrite a local install signed with the same key or fail to install
 # over one signed with another.
 app(
     name = "android-assets",
+    compiled_only = True,
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile_target = "aarch64-linux-android",
     precompiler = "//crates/plugin-test-runner:precompiler",
-)
-
-# What CI ships: no plugins, which :plugins builds once for every platform, and
-# an index of none.
-app(
-    name = "android-dist-assets",
-    index = True,
-    manifests = [],
-    modules = [],
-    precompile = False,
-    precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
 )
 
 [
@@ -194,7 +185,7 @@ app(
     )
     for name, assets, application_id, label in [
         ("apk", ":android-assets", "com.be3.block", "Block"),
-        ("apk-dist", ":android-dist-assets", "com.be3.block.ci", "Block (CI)"),
+        ("apk-dist", ":android-assets", "com.be3.block.ci", "Block (CI)"),
     ]
 ]
 
