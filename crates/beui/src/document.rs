@@ -12,7 +12,7 @@ use crate::context::Context;
 use crate::damage::{Damage, Region};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
-use crate::geometry::{Rect, Vec2, pos2, vec2};
+use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::input::{Event, Key, KeyPress};
 
 use crate::inspector::{Inspector, Layout};
@@ -23,6 +23,7 @@ use crate::paint::{self, PaintCache, Painted};
 use crate::painter::Shape;
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
+use crate::screen_simulation::Placement;
 use crate::styled::{Theme, ThemeStore};
 
 pub(crate) type Shortcut = dyn Fn(KeyPress) -> bool;
@@ -37,6 +38,8 @@ pub struct Document {
     pub(crate) inspector: Option<Box<Inspector>>,
     pub(crate) inspectable: bool,
     inspector_requested: bool,
+    screen_pointer: Option<Pos2>,
+    placement: Option<(Rect, Option<Placement>)>,
     pub(crate) portal_holders: std::collections::HashMap<NodeId, NodeId>,
     pub(crate) overlay_stack: Vec<NodeId>,
     pub(crate) passive_overlays: Vec<NodeId>,
@@ -183,6 +186,8 @@ impl Document {
             inspector: None,
             inspectable: true,
             inspector_requested: false,
+            screen_pointer: None,
+            placement: None,
             portal_holders: std::collections::HashMap::new(),
             overlay_stack: Vec::new(),
             passive_overlays: Vec::new(),
@@ -621,7 +626,7 @@ impl Document {
             None => Keys::All,
         };
         if layout.app_visible {
-            self.show_content(ctx, layout.content, !intercepted, keys);
+            self.show_screen(ctx, layout.content, !intercepted, keys);
         } else {
             self.viewport = None;
         }
@@ -637,6 +642,35 @@ impl Document {
             }
         }
         ctx.show_mouse_simulation(viewport);
+    }
+
+    fn show_screen(&mut self, ctx: &Context, rect: Rect, pointer: bool, keys: Keys) {
+        if let Some(pos) = ctx
+            .input(|input| input.pointer.pos)
+            .filter(|pos| rect.contains(*pos))
+        {
+            self.screen_pointer = Some(pos);
+        }
+        let placement = ctx.screen_simulation().place(rect, self.screen_pointer);
+        if self.placement != Some((rect, placement)) {
+            self.placement = Some((rect, placement));
+            ctx.report_damage(rect);
+        }
+        match placement {
+            Some(placement) => ctx.clipped(rect, || {
+                ctx.scaled(placement.scale, || {
+                    self.show_content(ctx, placement.screen, pointer, keys);
+                });
+            }),
+            None => self.show_content(ctx, rect, pointer, keys),
+        }
+    }
+
+    pub(crate) fn screen_scale(&self) -> f32 {
+        match self.placement {
+            Some((_, Some(placement))) => placement.scale,
+            _ => 1.0,
+        }
     }
 
     pub(crate) fn show_content(&mut self, ctx: &Context, rect: Rect, pointer: bool, keys: Keys) {

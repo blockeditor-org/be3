@@ -19,6 +19,7 @@ use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{NodeRef, WriteSignal, with_document, with_reactive_scope};
 use crate::screen_reader::{Command, ScreenReader};
+use crate::screen_simulation::ScreenSimulation;
 use crate::styled::Theme;
 
 use panel::Summary;
@@ -66,6 +67,7 @@ pub(crate) struct State {
     pub(crate) flash_changes: Cell<bool>,
     pub(crate) flash_damage: Cell<bool>,
     pub(crate) simulated_pixels_per_point: Cell<Option<f32>>,
+    pub(crate) screen_simulation: Cell<ScreenSimulation>,
     pub(crate) screen_reader: Cell<bool>,
     pub(crate) accessibility: Cell<bool>,
     pub(crate) blur: Cell<f32>,
@@ -96,6 +98,7 @@ impl State {
             flash_changes: Cell::new(false),
             flash_damage: Cell::new(false),
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
+            screen_simulation: Cell::new(ctx.screen_simulation()),
             screen_reader: Cell::new(false),
             accessibility: Cell::new(ctx.accessibility_active()),
             blur: Cell::new(0.0),
@@ -146,6 +149,11 @@ impl State {
 
     fn close(&self) {
         self.closed.set(true);
+        self.touch();
+    }
+
+    fn simulate_screen(&self, simulation: ScreenSimulation) {
+        self.screen_simulation.set(simulation);
         self.touch();
     }
 
@@ -268,7 +276,7 @@ impl Layout {
 
 #[derive(Clone, Copy)]
 enum Layer {
-    Below,
+    Below(f32),
     Above,
 }
 
@@ -496,6 +504,7 @@ impl Inspector {
         target.track_changes(self.state.flash_changes.get());
         target.track_damage(self.state.flash_damage.get());
         ctx.set_simulated_pixels_per_point(self.state.simulated_pixels_per_point.get());
+        ctx.set_screen_simulation(self.state.screen_simulation.get());
         if let Some(theme) = self.state.requested_theme.take() {
             target.set_theme(theme);
             ctx.request_repaint();
@@ -509,7 +518,7 @@ impl Inspector {
             self.paint(target, ctx, content, panel);
             let covering = self.reader.painting();
             if covering {
-                self.cover(ctx, content, readout, Layer::Below);
+                self.cover(ctx, content, readout, Layer::Below(target.screen_scale()));
             }
             ctx.apply_filter(self.state.filter(content));
             if covering {
@@ -557,9 +566,9 @@ impl Inspector {
         let local = scale.recip();
         let Self { reader, .. } = self;
         ctx.scaled(scale, || match layer {
-            Layer::Below => {
+            Layer::Below(screen) => {
                 let painter = ctx.painter().with_clip_rect(content.scaled(local));
-                reader.paint_focus(&painter, local);
+                reader.paint_focus(&painter, local * screen);
             }
             Layer::Above => {
                 let bar = readout.scaled(local);
@@ -722,6 +731,8 @@ impl Inspector {
             return;
         };
         ctx.set_cursor_icon(CursorIcon::Crosshair);
+        let screen = target.screen_scale();
+        let pointer = pos2(pointer.x / screen, pointer.y / screen);
         let Some(id) = overlay::hit(target, pointer) else {
             return;
         };
@@ -756,17 +767,18 @@ impl Inspector {
     fn paint(&self, target: &Document, ctx: &Context, content: Rect, panel: Rect) {
         let scale = scale(ctx);
         let local = scale.recip();
+        let screen = local * target.screen_scale();
         ctx.scaled(scale, || {
             let painted = ctx.measure_paint(|| {
                 let painter = ctx.painter().with_clip_rect(content.scaled(local));
-                flashes(&painter, target, local);
+                flashes(&painter, target, screen);
                 let hovered = self.state.hovered.get();
                 let selected = self.state.selected.get();
                 if let Some(id) = selected.filter(|id| Some(*id) != hovered) {
-                    overlay::highlight(&painter, target, id, false, local);
+                    overlay::highlight(&painter, target, id, false, screen);
                 }
                 if let Some(id) = hovered {
-                    overlay::highlight(&painter, target, id, true, local);
+                    overlay::highlight(&painter, target, id, true, screen);
                 }
                 if self.grip {
                     let panel = panel.scaled(local);
