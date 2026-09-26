@@ -1005,9 +1005,11 @@ and in a beui block editor plugin.
 "Emulate touch with mouse" turns mouse presses into touch events.
 
 "Simulate mouse with touch" turns the whole shown rectangle into a trackpad and
-paints a cursor the document reacts to. One finger moves the cursor, a tap
-clicks it, a tap followed by a press and drag drags with the primary button, and
-two fingers scroll smoothly. The strip along the bottom holds the left, middle,
+paints a cursor the document reacts to, in the shape of the frame's
+`CursorIcon`. One finger moves the cursor, a tap clicks it, a tap followed by a
+press and drag drags with the primary button, and two fingers scroll smoothly. A
+stroke that moved the cursor is never a tap, and the press after a tap only
+becomes a drag once it moves: lifted in place it is a second click. The strip along the bottom holds the left, middle,
 and right mouse buttons plus a keyboard toggle: a button stays held for as long
 as its finger is down, another finger can work the trackpad at the same time,
 and swiping up or down on the middle button scrolls a wheel tick at a time. The
@@ -1020,6 +1022,26 @@ covering it: `Document::show` asks the simulation how tall it is, trims that off
 the bottom, and lays the document and the inspector panel out in what is left,
 the way a phone's keyboard pushes a page up. Nothing is drawn over content that
 is still live, so the bars are opaque.
+
+### Screen size and zoom
+
+The Sim tab's Screen size lays the document out in a screen larger or smaller
+than the rectangle it is shown in, and Screen zoom says how big that screen is
+drawn: Fit shrinks or grows it to the rectangle, a percentage draws it that many
+real points per simulated point. A screen drawn larger than the rectangle
+follows the pointer: the point under the pointer is always the point at the same
+fraction of the simulated screen, so moving the simulated mouse across the
+rectangle looks around the whole screen. The mouse simulation's bars, the
+cursor and the inspector panel stay at their real size.
+
+`Document::show` does it with `Context::scaled` and `Context::clipped`, laying
+the document out at a rectangle chosen so that a real point is always the
+document point times the zoom; panning moves where the document is laid out
+instead of adding an offset. That keeps every mapping a pure scale, which is
+what an app that reads input or places surfaces outside `Document::show` needs:
+`Context::screen_scale` and `Context::screen_input` give it the scale and the
+frame's input in document points, the way block-app's host reads them for its
+plugin surfaces.
 
 ### Filters
 

@@ -31,6 +31,7 @@ pub mod reactive;
 #[cfg(feature = "render")]
 mod renderer;
 mod screen_reader;
+mod screen_simulation;
 pub mod styled;
 mod timer;
 pub mod unstyled;

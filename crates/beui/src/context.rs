@@ -16,6 +16,7 @@ use crate::node::NodeId;
 use crate::paint::Painted;
 use crate::painter::{Painter, Shape};
 use crate::renderer::RendererInfo;
+use crate::screen_simulation::ScreenSimulation;
 
 #[derive(Clone)]
 pub struct Context {
@@ -42,9 +43,11 @@ struct Inner {
     pointer_locked: Cell<bool>,
     touch_emulation: Cell<bool>,
     mouse_simulation: RefCell<MouseSimulation>,
+    mouse_viewport: Cell<Option<Rect>>,
     pixels_per_point: Cell<f32>,
     native_pixels_per_point: Cell<f32>,
     simulated_pixels_per_point: Cell<Option<f32>>,
+    screen_simulation: Cell<ScreenSimulation>,
     zoom: Cell<f32>,
     repaint: Cell<bool>,
     repaint_after: Cell<Duration>,
@@ -139,9 +142,11 @@ impl Context {
                 pointer_locked: Cell::new(false),
                 touch_emulation: Cell::new(false),
                 mouse_simulation: RefCell::new(MouseSimulation::default()),
+                mouse_viewport: Cell::new(None),
                 pixels_per_point: Cell::new(1.0),
                 native_pixels_per_point: Cell::new(1.0),
                 simulated_pixels_per_point: Cell::new(None),
+                screen_simulation: Cell::new(ScreenSimulation::default()),
                 zoom: Cell::new(1.0),
                 repaint: Cell::new(false),
                 repaint_after: Cell::new(Duration::MAX),
@@ -197,6 +202,7 @@ impl Context {
         self.apply_pixels_per_point();
         self.inner.repaint.set(false);
         self.inner.repaint_after.set(Duration::MAX);
+        self.inner.mouse_viewport.set(None);
         let (raw, wake) = self.inner.mouse_simulation.borrow_mut().translate(raw);
         if let Some(delay) = wake {
             self.request_repaint_after(delay);
@@ -221,6 +227,9 @@ impl Context {
     }
 
     pub fn end_frame(&self) -> FrameOutput {
+        if let Some(viewport) = self.inner.mouse_viewport.take() {
+            self.paint_mouse_simulation(viewport);
+        }
         let shapes = Rc::new(std::mem::take(&mut *self.inner.shapes.borrow_mut()));
         let scale = self.pixels_per_point();
         let filter = self.inner.filter.take();
@@ -353,16 +362,21 @@ impl Context {
     }
 
     pub(crate) fn show_mouse_simulation(&self, viewport: Rect) {
+        self.inner.mouse_viewport.set(Some(viewport));
+    }
+
+    fn paint_mouse_simulation(&self, viewport: Rect) {
         let scale = self.native_pixels_per_point() / self.pixels_per_point();
         let simulation = &self.inner.mouse_simulation;
         if !simulation.borrow().painting() {
             return;
         }
+        let icon = self.cursor_icon();
         self.scaled(scale, || {
             let painter = self
                 .painter()
                 .with_clip_rect(viewport.scaled(scale.recip()));
-            let damage = simulation.borrow_mut().paint(&painter);
+            let damage = simulation.borrow_mut().paint(&painter, icon);
             self.report_damage(damage);
         });
     }
@@ -566,6 +580,40 @@ impl Context {
         self.inner.simulated_pixels_per_point.set(pixels_per_point);
     }
 
+    pub(crate) fn screen_simulation(&self) -> ScreenSimulation {
+        self.inner.screen_simulation.get()
+    }
+
+    pub fn screen_scale(&self) -> f32 {
+        self.screen_simulation().scale().unwrap_or(1.0)
+    }
+
+    pub fn screen_input<R>(&self, reader: impl FnOnce(&InputState) -> R) -> R {
+        let scale = self.screen_scale();
+        if scale == 1.0 {
+            return self.input(reader);
+        }
+        reader(&self.inner.input.borrow().scaled(scale.recip()))
+    }
+
+    pub(crate) fn set_screen_simulation(&self, simulation: ScreenSimulation) {
+        self.inner.screen_simulation.set(simulation);
+    }
+
+    pub(crate) fn clipped<R>(&self, clip: Rect, content: impl FnOnce() -> R) -> R {
+        let shapes = self.inner.shapes.borrow().len();
+        let damage = self.inner.damage.borrow().len();
+        let result = content();
+        for shape in self.inner.shapes.borrow_mut().iter_mut().skip(shapes) {
+            let bounds = shape_clip(shape);
+            *bounds = bounds.intersect(clip);
+        }
+        for rect in self.inner.damage.borrow_mut().iter_mut().skip(damage) {
+            *rect = rect.intersect(clip);
+        }
+        result
+    }
+
     pub fn zoom_factor(&self) -> f32 {
         self.inner.zoom.get()
     }
@@ -598,7 +646,15 @@ impl Context {
         let damage = self.inner.damage.borrow().len();
         let fragments = self.inner.accessibility.borrow().len();
         let test_ids = self.inner.test_ids.take();
+        let ime = self.inner.ime.take();
         let result = content();
+        let scaled_ime = self.inner.ime.replace(ime);
+        if let Some(area) = scaled_ime {
+            self.inner.ime.set(Some(ImeArea {
+                rect: area.rect.scaled(scale),
+                cursor: area.cursor.scaled(scale),
+            }));
+        }
         self.inner.input.replace(input);
         self.inner.pixels_per_point.set(pixels_per_point);
         for shape in self.inner.shapes.borrow_mut().iter_mut().skip(shapes) {
@@ -675,6 +731,17 @@ struct PaintFrame {
     top_start: usize,
     bounds: Rect,
     outer_delay: Duration,
+}
+
+fn shape_clip(shape: &mut Shape) -> &mut Rect {
+    match shape {
+        Shape::Rect { clip, .. }
+        | Shape::Text { clip, .. }
+        | Shape::Line { clip, .. }
+        | Shape::Image { clip, .. }
+        | Shape::Punch { clip, .. }
+        | Shape::Drawing { clip, .. } => clip,
+    }
 }
 
 fn scale_shape(shape: &mut Shape, scale: f32) {

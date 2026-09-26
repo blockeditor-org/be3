@@ -123,6 +123,7 @@ struct Host {
     start: Instant,
     pass: u64,
     pixels_per_point: f32,
+    screen_scale: f32,
     dark: bool,
     input: Input,
     modal: bool,
@@ -145,6 +146,7 @@ impl Default for Host {
             start: Instant::now(),
             pass: 0,
             pixels_per_point: 1.0,
+            screen_scale: 1.0,
             dark: true,
             input: Input::default(),
             modal: false,
@@ -217,6 +219,7 @@ struct Frame {
     modal: bool,
     dark: bool,
     pixels_per_point: f32,
+    screen_scale: f32,
 }
 
 impl Default for Frame {
@@ -238,12 +241,13 @@ impl Default for Frame {
             modal: false,
             dark: true,
             pixels_per_point: 1.0,
+            screen_scale: 1.0,
         }
     }
 }
 
 pub(crate) fn begin(context: &beui::Context, document: &Document) {
-    let mut frame = context.input(|input| {
+    let mut frame = context.screen_input(|input| {
         let touch = &input.touch;
         Frame {
             events: input.events.clone(),
@@ -269,7 +273,8 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
     frame.modal = document.modal_open();
     let [red, green, blue, _] = document.theme().background.to_array();
     frame.dark = u32::from(red) + u32::from(green) + u32::from(blue) < 384;
-    frame.pixels_per_point = context.pixels_per_point();
+    frame.screen_scale = context.screen_scale();
+    frame.pixels_per_point = context.pixels_per_point() * frame.screen_scale;
     start(frame);
 }
 
@@ -278,6 +283,7 @@ fn start(frame: Frame) {
         host.dark = frame.dark;
         host.pass += 1;
         host.pixels_per_point = frame.pixels_per_point;
+        host.screen_scale = frame.screen_scale;
         host.modal = frame.modal;
         host.floating = frame.floating;
         host.output = Output::default();
@@ -398,8 +404,12 @@ pub(crate) fn end(context: &beui::Context) {
     {
         context.set_cursor_icon(cursor);
     }
-    if output.ime.is_some() {
-        context.set_ime_area(output.ime);
+    if let Some(ime) = output.ime {
+        let scale = screen_scale();
+        context.set_ime_area(Some(ImeArea {
+            rect: ime.rect.scaled(scale),
+            cursor: ime.cursor.scaled(scale),
+        }));
     }
     if let Some(fullscreen) = output.fullscreen {
         context.set_fullscreen(fullscreen);
@@ -434,6 +444,10 @@ pub(crate) fn milliseconds() -> u64 {
 
 pub(crate) fn pixels_per_point() -> f32 {
     with(|host| host.pixels_per_point)
+}
+
+pub(crate) fn screen_scale() -> f32 {
+    with(|host| host.screen_scale)
 }
 
 pub(crate) fn dark() -> bool {

@@ -16,6 +16,7 @@ use crate::reactive::{
     Spacer, WriteSignal, clone, component, create_memo, create_signal, view,
 };
 use crate::screen_reader::Command;
+use crate::screen_simulation::ScreenSimulation;
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS};
 use crate::styled::{
     Button, ButtonVariant, Caption, Checkbox, Code, Heading, IconSized, RadioGroup, Scroll,
@@ -50,6 +51,20 @@ const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
     ("1.5x", Some(1.5)),
     ("2x", Some(2.0)),
     ("3x", Some(3.0)),
+];
+const SCREEN_SIZES: [(&str, f32); 6] = [
+    ("Device", 1.0),
+    ("50%", 0.5),
+    ("75%", 0.75),
+    ("150%", 1.5),
+    ("200%", 2.0),
+    ("300%", 3.0),
+];
+const SCREEN_ZOOMS: [(&str, Option<f32>); 4] = [
+    ("Fit", None),
+    ("100%", Some(1.0)),
+    ("200%", Some(2.0)),
+    ("400%", Some(4.0)),
 ];
 const THEMES: [(&str, Theme); 2] = [("Dark", Theme::DARK), ("E-ink", Theme::EINK)];
 
@@ -437,6 +452,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
     let reader_state = state.clone();
     let filter_state = state.clone();
     let band_state = state.clone();
+    let screen_state = state.clone();
     view! {
         <Scroll focus_color={Some(THEME.accent)}>
             <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
@@ -479,6 +495,8 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                         />
                     </List>
                     <Separator />
+                    <ScreenSection state={screen_state} />
+                    <Separator />
                     <List spacing=TIMING_SPACING>
                         <Heading content="Theme" />
                         <RadioGroup
@@ -505,6 +523,60 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                 </List>
             </Frame>
         </Scroll>
+    }
+}
+
+#[component]
+fn ScreenSection(state: Rc<State>) -> NodeId {
+    let screen = state.screen_simulation.get();
+    let size = SCREEN_SIZES
+        .iter()
+        .position(|(_, size)| *size == screen.size)
+        .unwrap_or(0);
+    let zoom = SCREEN_ZOOMS
+        .iter()
+        .position(|(_, zoom)| *zoom == screen.zoom)
+        .unwrap_or(0);
+    let zoom_state = state.clone();
+    view! {
+        <List spacing=TIMING_SPACING>
+            <Heading content="Screen size" />
+            <RadioGroup
+                @test_id={"inspector.simulation.screen_size"}
+                options={view! {
+                    <ForEach keys={labels(&SCREEN_SIZES)}>
+                        {|label: &'static str| view! {
+                            <ChoiceOption label />
+                        }}
+                    </ForEach>
+                }}
+                selected={Some(size)}
+                on_change={move |index: Option<usize>| {
+                    if let Some((_, size)) = index.and_then(|index| SCREEN_SIZES.get(index)) {
+                        let screen = state.screen_simulation.get();
+                        state.simulate_screen(ScreenSimulation { size: *size, ..screen });
+                    }
+                }}
+            />
+            <Heading content="Screen zoom" />
+            <RadioGroup
+                @test_id={"inspector.simulation.screen_zoom"}
+                options={view! {
+                    <ForEach keys={labels(&SCREEN_ZOOMS)}>
+                        {|label: &'static str| view! {
+                            <ChoiceOption label />
+                        }}
+                    </ForEach>
+                }}
+                selected={Some(zoom)}
+                on_change={move |index: Option<usize>| {
+                    if let Some((_, zoom)) = index.and_then(|index| SCREEN_ZOOMS.get(index)) {
+                        let screen = zoom_state.screen_simulation.get();
+                        zoom_state.simulate_screen(ScreenSimulation { zoom: *zoom, ..screen });
+                    }
+                }}
+            />
+        </List>
     }
 }
 

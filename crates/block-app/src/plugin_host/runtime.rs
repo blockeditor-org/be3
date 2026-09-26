@@ -379,12 +379,19 @@ impl Runtime {
         drawn: Option<(u32, u32)>,
     ) -> Blit {
         self.presented = true;
+        let scale = host::screen_scale();
         Blit {
             surface: self.surface,
             status: self.status.clone(),
             shared: Rc::clone(&self.shared),
             screen,
-            quad,
+            quad: Quad {
+                rect: quad.rect.scaled(scale),
+                corners: quad
+                    .corners
+                    .map(|corner| pos2(corner.x * scale, corner.y * scale)),
+                opacity: quad.opacity,
+            },
             source,
             drawn,
         }
