@@ -68,6 +68,8 @@ pub struct DockTabHandle {
     pub group: ClickCallback,
     pub split: ClickCallback,
     pub ungroup: ClickCallback,
+    pub held: Memo<Option<bool>>,
+    pub toggle_held: ClickCallback,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -374,7 +376,7 @@ impl State {
             return;
         };
         let (target, highlight) = match point {
-            Some(point) => self.resolve(point.pos, point.modifiers.alt, drag.dragged),
+            Some(point) => self.admitted(point.pos, point.modifiers.alt, drag.dragged),
             None => (None, None),
         };
         drag.target = target;
@@ -387,7 +389,7 @@ impl State {
     }
 
     fn drop_at(&self, dragged: DockDragged, point: DragPoint) {
-        let (target, _) = self.resolve(point.pos, point.modifiers.alt, dragged);
+        let (target, _) = self.admitted(point.pos, point.modifiers.alt, dragged);
         let Some(target) = target else {
             return;
         };
@@ -395,6 +397,25 @@ impl State {
             DockDragged::Entry(entry) => state.drop_entry(entry, target),
             DockDragged::Pane(leaf) => state.drop_leaf(leaf, target),
         });
+    }
+
+    fn admitted(
+        &self,
+        pos: Pos2,
+        float: bool,
+        dragged: DockDragged,
+    ) -> (Option<DockDrop>, Option<Rect>) {
+        let (target, highlight) = self.resolve(pos, float, dragged);
+        let refused = target.is_some_and(|target| {
+            self.state.with_untracked(|state| match dragged {
+                DockDragged::Entry(entry) => !state.admits(entry, target),
+                DockDragged::Pane(leaf) => !state.admits_leaf(leaf, target),
+            })
+        });
+        match refused {
+            true => (None, None),
+            false => (target, highlight),
+        }
     }
 
     fn resolve(
@@ -1321,6 +1342,21 @@ fn DockTabView(
         Entry::Group(group) => dock.state.with_untracked(|state| state.is_pinned(group)),
         Entry::Tab(_) => false,
     };
+    let held = create_memo(clone!(state -> move || match entry {
+        Entry::Tab(tab) => state.with(|state| {
+            let pinned = state.is_tab_pinned(tab);
+            (pinned || state.at_home(tab)).then_some(pinned)
+        }),
+        Entry::Group(_) => None,
+    }));
+    let toggle_held = ClickCallback::new(clone!(dock -> move || {
+        if let Entry::Tab(tab) = entry {
+            dock.edit(|state| {
+                let pinned = state.is_tab_pinned(tab);
+                state.set_tab_pinned(tab, !pinned);
+            });
+        }
+    }));
     let floating = dock.state.with_untracked(|state| {
         !state.is_nested(leaf)
             && state
@@ -1348,6 +1384,8 @@ fn DockTabView(
         group,
         split,
         ungroup,
+        held,
+        toggle_held,
     });
     let carried = dock.clone();
     let preview = dock.preview.clone();

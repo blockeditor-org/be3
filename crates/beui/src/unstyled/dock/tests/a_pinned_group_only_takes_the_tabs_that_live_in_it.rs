@@ -21,6 +21,7 @@ fn a_pinned_group_only_takes_the_tabs_that_live_in_it() {
         "a tab from outside is refused"
     );
 
+    state.set_tab_pinned(TabId::new(10), false);
     state.drop_tab(
         TabId::new(10),
         DockDrop::Window {
@@ -28,7 +29,10 @@ fn a_pinned_group_only_takes_the_tabs_that_live_in_it() {
         },
     );
 
-    assert!(state.group_tabs(group).is_empty(), "its own tab can leave");
+    assert!(
+        state.group_tabs(group).is_empty(),
+        "its own tab can leave once it is unpinned"
+    );
     assert_eq!(state.windows().len(), 1);
 
     let inner = state.tree_leaves(Tree::Group(group))[0];

@@ -370,11 +370,18 @@ impl DockTree {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Home {
+    tab: TabId,
+    group: GroupId,
+    pinned: bool,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct DockState {
     surfaces: Vec<Surface>,
     groups: Vec<Group>,
-    homes: Vec<(TabId, GroupId)>,
+    homes: Vec<Home>,
     focus: Option<LeafId>,
     next: u64,
 }
@@ -862,7 +869,7 @@ impl DockState {
     }
 
     pub fn remove(&mut self, tab: TabId) -> bool {
-        self.homes.retain(|(homed, _)| *homed != tab);
+        self.homes.retain(|home| home.tab != tab);
         if !self.take(Entry::Tab(tab)) {
             return false;
         }
@@ -964,6 +971,9 @@ impl DockState {
     }
 
     pub fn drop_leaf(&mut self, leaf: LeafId, target: DockDrop) {
+        if !self.admits_leaf(leaf, target) {
+            return;
+        }
         let Some(moved) = self.leaf(leaf).cloned() else {
             return;
         };
@@ -1312,7 +1322,27 @@ impl DockState {
     pub fn home(&self, tab: TabId) -> Option<GroupId> {
         self.homes
             .iter()
-            .find_map(|(homed, group)| (*homed == tab).then_some(*group))
+            .find(|home| home.tab == tab)
+            .map(|home| home.group)
+    }
+
+    pub fn is_tab_pinned(&self, tab: TabId) -> bool {
+        self.homes.iter().any(|home| home.tab == tab && home.pinned)
+    }
+
+    pub fn at_home(&self, tab: TabId) -> bool {
+        self.home(tab)
+            .zip(self.locate(Entry::Tab(tab)))
+            .is_some_and(|(group, (leaf, _))| self.contains_leaf(Entry::Group(group), leaf))
+    }
+
+    pub fn set_tab_pinned(&mut self, tab: TabId, pinned: bool) {
+        if pinned && !self.at_home(tab) {
+            return;
+        }
+        if let Some(home) = self.homes.iter_mut().find(|home| home.tab == tab) {
+            home.pinned = pinned;
+        }
     }
 
     pub fn pinned_group_of(&self, leaf: LeafId) -> Option<GroupId> {
@@ -1337,16 +1367,41 @@ impl DockState {
                 self.pinned_group_of(leaf)
             }
         };
+        let tabs = self.entry_tabs(entry);
+        let held = tabs.iter().any(|tab| {
+            let Some(home) = self.homes.iter().find(|home| home.tab == *tab && home.pinned) else {
+                return false;
+            };
+            entry != Entry::Group(home.group) && !self.lands_in(target, home.group)
+        });
+        if held {
+            return false;
+        }
         let Some(destination) = destination else {
             return true;
         };
-        let tabs = match entry {
-            Entry::Tab(tab) => vec![tab],
-            Entry::Group(group) if self.is_pinned(group) => return false,
-            Entry::Group(group) => self.group_tabs(group),
-        };
+        if matches!(entry, Entry::Group(group) if self.is_pinned(group)) {
+            return false;
+        }
         tabs.into_iter()
             .all(|tab| self.home(tab) == Some(destination))
+    }
+
+    pub fn admits_leaf(&self, leaf: LeafId, target: DockDrop) -> bool {
+        self.entries(leaf)
+            .into_iter()
+            .all(|entry| self.admits(entry, target))
+    }
+
+    fn lands_in(&self, target: DockDrop, group: GroupId) -> bool {
+        if let DockDrop::Group { leaf, index } = target
+            && self.entries(leaf).get(index) == Some(&Entry::Group(group))
+        {
+            return true;
+        }
+        target
+            .leaf()
+            .is_some_and(|leaf| self.contains_leaf(Entry::Group(group), leaf))
     }
 
     pub fn insert_pinned_group(
@@ -1380,7 +1435,7 @@ impl DockState {
             return;
         };
         pinned.pinned = false;
-        self.homes.retain(|(_, home)| *home != group);
+        self.homes.retain(|home| home.group != group);
         self.normalize();
         self.settle_focus();
     }
@@ -1448,8 +1503,15 @@ impl DockState {
         if let Tree::Group(group) = tree
             && self.is_pinned(group)
         {
-            self.homes.retain(|(tab, _)| !incoming.contains(tab));
-            self.homes.extend(incoming.iter().map(|tab| (*tab, group)));
+            let kept = self.homes.clone();
+            self.homes.retain(|home| !incoming.contains(&home.tab));
+            self.homes.extend(incoming.iter().map(|tab| Home {
+                tab: *tab,
+                group,
+                pinned: !kept
+                    .iter()
+                    .any(|home| home.tab == *tab && home.group == group && !home.pinned),
+            }));
         }
         self.normalize();
         let refocus = shown

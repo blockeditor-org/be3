@@ -7,6 +7,7 @@ fn a_pane_moved_out_of_the_workspace_stays_out_when_the_plugin_rearranges() {
     let docked = Docked::default();
     apply(&mut state, &docked, Some(&layout(&[1, 2], 0)));
     let group = docked.group.get().expect("the workspace became a group");
+    state.set_tab_pinned(pane_tab(PaneId(2)), false);
     state.drop_tab(
         pane_tab(PaneId(2)),
         DockDrop::Window {

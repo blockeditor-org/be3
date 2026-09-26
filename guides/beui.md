@@ -683,8 +683,13 @@ A pinned group is one the tree never tidies away: `insert_pinned_group` puts
 one in a tab bar, and it stays a group while it holds one tab or none, cannot be
 ungrouped or closed from its menu, and admits only the tabs whose home it is -
 the tabs it was given - so dragging any other tab onto it or into it does
-nothing, while its own tabs can leave it and come back. `unpin` makes it an
-ordinary group again. The app keeps a plugin's panes in one (see
+nothing. Its tabs are pinned to it as well: one can be rearranged anywhere
+inside the group, and the group can be moved with all of them, but a pinned
+tab cannot be dragged, popped or carried out of it with its pane. "Unpin from
+group" on a tab's menu (`set_tab_pinned`) lets it go, it may come back later,
+and "Pin to group" pins it again once it is back. A drag that the state would
+refuse (`admits`, `admits_leaf`) shows no drop marker, and letting go there
+does nothing. `unpin` makes the whole group an ordinary group again. The app keeps a plugin's panes in one (see
 guides/adding_a_plugin_editor.md). `tree` reads a surface's or a group's layout
 out as a `DockTree`, which names tabs but no leaf, split or group ids, so it can
 be compared, sent elsewhere and rebuilt: `from_tree` makes a state out of one
