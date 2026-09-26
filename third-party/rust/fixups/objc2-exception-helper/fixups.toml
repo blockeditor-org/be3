@@ -1,9 +1,0 @@
-# The build script compiles one Objective-C file, which is what catches an
-# Objective-C exception on the way to Rust. The prelude's cxx toolchain has no
-# Objective-C compiler to give a cxx_library, so the build script compiles it
-# with the toolchain's clang, and the archive it writes reaches the link. cc-rs
-# asks xcrun for the SDK unless SDKROOT says.
-[buildscript.run]
-rustc_link_lib = true
-rustc_link_search = true
-env = { SDKROOT = "$(location //buck/tools:macos-sdk)" }

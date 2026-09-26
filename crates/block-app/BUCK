@@ -6,8 +6,8 @@ load("@root//buck/tools:defs.bzl", "tool")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 load("@root//third-party/pdfium:defs.bzl", "pdfium_library")
 
-# The app, with its full features (the embedded browser), which
-# reindeer.toml and buckify.bxl turn on for every platform.
+# The app, with its full features (the embedded browser), which buckify.bxl
+# turns on for every platform.
 #
 # BLOCK_APP_COMMIT is what cargo's build script asks git for; a worker has no
 # checkout, so a release build takes `-c be3.commit=SHA`. A dev build says

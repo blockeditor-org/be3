@@ -1,5 +1,0 @@
-# The build script copies the WebView2 loader libraries the crate vendors into
-# OUT_DIR and links the static one from there.
-[buildscript.run]
-rustc_link_lib = true
-rustc_link_search = true
