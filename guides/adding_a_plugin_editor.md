@@ -119,7 +119,7 @@ The host discovers plugins beside its own executable, from the <plugin id>.plugi
 
 4. Extending the protocol
 
-If the editor needs something the host has and the plugin does not, add it to crates/block-plugin-api (a Message or EditorMessage variant, plus validate coverage and a round-trip test), accept it in the plugin's ClientSession state machine, route it in crates/block-app/src/plugin_host/instances.rs, and surface it on EditorHost or App. A message a plugin sends reaches the host by itself as long as it is not one of the session's own - the handshake, acknowledgements, errors, ping and shutdown - which Message::is_session names. Bump PROTOCOL_VERSION and describe the new rule in crates/block-plugin-api/PROTOCOL.md. Anything the host and a plugin both draw — labels, shared painting helpers — belongs in crates/block-ui, which both depend on.
+If the editor needs something the host has and the plugin does not, add it to crates/block-plugin-api (a Message or EditorMessage variant, plus validate coverage, the block ids it carries in block_ids.rs so a checkout's scope applies to them, and a round-trip test), accept it in the plugin's ClientSession state machine, route it in crates/block-app/src/plugin_host/instances.rs, and surface it on EditorHost or App. A message a plugin sends reaches the host by itself as long as it is not one of the session's own - the handshake, acknowledgements, errors, ping and shutdown - which Message::is_session names. Bump PROTOCOL_VERSION and describe the new rule in crates/block-plugin-api/PROTOCOL.md. Anything the host and a plugin both draw — labels, shared painting helpers — belongs in crates/block-ui, which both depend on.
 
 5. Work that does not finish in one frame
 

@@ -1,0 +1,19 @@
+[package]
+name = "version_control"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+beui = { path = "../../beui", default-features = false, features = ["render"] }
+block-editor-beui = { path = "../../block-editor-beui" }
+uuid = "1"
+
+[dev-dependencies]
+block-ui-test = { path = "../../block-ui-test" }
+
+[lints]
+workspace = true

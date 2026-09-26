@@ -50,9 +50,11 @@ full = ["web-view"]
 # and executor come from its own transport/.
 be-block = { path = "../be-block" }
 be-client = { path = "../be-client" }
+be-commit = { path = "../be-commit" }
 be-graph = { path = "../be-graph" }
 be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
+be-vcs = { path = "../be-vcs" }
 beui = { path = "../beui", default-features = false, features = ["render"] }
 block-plugin-api = { path = "../block-plugin-api" }
 beui-plugin-input = { path = "../beui-plugin-input" }
