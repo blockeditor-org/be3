@@ -487,6 +487,18 @@ impl<A: BeuiApp> BeuiTest<A> {
             }));
     }
 
+    pub fn set_version_status(&mut self, status: block_editor_beui::VersionStatus) {
+        let block = self
+            .block_id()
+            .expect("a version status is about the editor's own block");
+        self.inbox
+            .push(Message::Editor(EditorMessage::VersionStatus {
+                instance: INSTANCE,
+                block_id: block.into_bytes(),
+                status,
+            }));
+    }
+
     pub fn set_peers(&mut self, block: Option<Uuid>, peers: Vec<PeerPresence>) {
         let block = block
             .or(self.block_id())
@@ -738,6 +750,15 @@ impl<A: BeuiApp> BeuiTest<A> {
             EditorMessage::BlockCommand {
                 block_id, command, ..
             } => Some((Uuid::from_bytes(*block_id), *command)),
+            _ => None,
+        })
+    }
+
+    pub fn take_version_commands(&mut self) -> Vec<(Uuid, block_editor_beui::VersionCommand)> {
+        self.take_where(|message| match message {
+            EditorMessage::VersionControl {
+                block_id, command, ..
+            } => Some((Uuid::from_bytes(*block_id), command.clone())),
             _ => None,
         })
     }

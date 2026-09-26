@@ -1,7 +1,12 @@
 use std::collections::HashMap;
 
-use be_block::BlockMetadata;
+use be_block::{
+    BlockMetadata,
+    version_control::{local_id, masked, scope_mask},
+};
+use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
+use block_plugin_api::BlockIdRole;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -13,7 +18,14 @@ pub(crate) struct Node {
     pub(crate) access: Access,
     pub(crate) references: Vec<Uuid>,
     pub(crate) metadata: BlockMetadata,
+    pub(crate) head: Option<CommitId>,
     pub(crate) version: u64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct Scope {
+    pub(crate) checkout: Uuid,
+    pub(crate) mask: u128,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -92,6 +104,16 @@ impl Graph {
         }
     }
 
+    pub(crate) fn set_head(&mut self, block: Uuid, head: Option<CommitId>) {
+        if let Some(node) = self.nodes.get_mut(&block)
+            && node.head != head
+            && head.is_some()
+        {
+            node.head = head;
+            self.revision += 1;
+        }
+    }
+
     pub(crate) fn remove(&mut self, block: Uuid) {
         if self.nodes.remove(&block).is_some() {
             self.revision += 1;
@@ -129,6 +151,68 @@ impl Graph {
             Query::Block(block) => return self.nodes.get(&block).cloned().into_iter().collect(),
         };
         found.sort_by_key(|node| node.id);
+        found
+    }
+
+    pub(crate) fn scope_of(&self, block: Uuid) -> Option<Scope> {
+        let mut seen = 0;
+        let mut current = self.nodes.get(&block)?.parent.block();
+        while let Some(parent) = current {
+            let node = self.nodes.get(&parent)?;
+            if node.content_type == <be_block::Checkout as be_block::Root>::CONTENT_TYPE {
+                return Some(Scope {
+                    checkout: parent,
+                    mask: scope_mask(parent),
+                });
+            }
+            seen += 1;
+            if seen > self.nodes.len() {
+                return None;
+            }
+            current = node.parent.block();
+        }
+        None
+    }
+
+    pub(crate) fn to_local(&self, scope: Scope, real: Uuid) -> Uuid {
+        self.nodes
+            .get(&real)
+            .map_or(real, |node| local_id(real, &node.metadata, scope.mask))
+    }
+
+    pub(crate) fn to_real(&self, scope: Scope, local: Uuid, role: BlockIdRole) -> Uuid {
+        if role == BlockIdRole::Created {
+            return local;
+        }
+        let copy = masked(local, scope.mask);
+        match self.nodes.get(&copy) {
+            Some(node) if node.metadata.local_id == Some(local) => copy,
+            _ => local,
+        }
+    }
+
+    pub(crate) fn subtree(&self, root: Uuid) -> Vec<Uuid> {
+        let mut children: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+        for node in self.nodes.values() {
+            if let BlockParent::Block(parent) = node.parent {
+                children.entry(parent).or_default().push(node.id);
+            }
+        }
+        let mut found = Vec::new();
+        if !self.nodes.contains_key(&root) {
+            return found;
+        }
+        let mut stack = vec![root];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(block) = stack.pop() {
+            if !seen.insert(block) {
+                continue;
+            }
+            found.push(block);
+            if let Some(below) = children.get(&block) {
+                stack.extend(below.iter().copied());
+            }
+        }
         found
     }
 

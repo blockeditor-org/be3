@@ -526,6 +526,19 @@ impl Editor {
         })
     }
 
+    pub fn version_status(&self) -> Memo<block_editor_plugin::VersionStatus> {
+        let host = self.0.host.clone();
+        let revision = self.pushed(Pushed::Version);
+        create_memo(move || {
+            revision.get();
+            host.version_status()
+        })
+    }
+
+    pub fn version(&self, command: block_editor_plugin::VersionCommand) {
+        self.0.host.version(self.0.block, command);
+    }
+
     pub fn histories(&self) -> ReadSignal<u64> {
         self.pushed(Pushed::Histories)
     }
