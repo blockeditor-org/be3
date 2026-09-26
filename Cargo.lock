@@ -815,6 +815,7 @@ dependencies = [
  "harfbuzz_rs",
  "jni 0.22.4",
  "js-sys",
+ "libc",
  "ndk 0.9.0",
  "ndk-context",
  "ndk-sys 0.6.0+11769913",
