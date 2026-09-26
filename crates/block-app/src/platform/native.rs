@@ -1,10 +1,6 @@
 use std::{
-    error::Error,
-    future::Future,
-    net::TcpListener as StdTcpListener,
-    path::PathBuf,
-    sync::mpsc::{self, Receiver},
-    thread,
+    error::Error, future::Future, net::TcpListener as StdTcpListener, path::PathBuf,
+    sync::mpsc::Receiver, thread,
 };
 
 use tokio::net::TcpListener;
@@ -13,7 +9,7 @@ pub(crate) fn spawn_request<T>(future: impl Future<Output = T> + Send + 'static)
 where
     T: Send + 'static,
 {
-    let (sender, receiver) = mpsc::channel();
+    let (sender, receiver) = crate::host::waking_channel();
     thread::Builder::new()
         .name("block-app-request".into())
         .spawn(move || {

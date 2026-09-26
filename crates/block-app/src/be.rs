@@ -693,7 +693,7 @@ pub(crate) fn set_access(block: Uuid, account: Uuid, access: be_graph::Access) {
 pub(crate) fn list_access(
     block: Uuid,
 ) -> std::sync::mpsc::Receiver<Result<Vec<be_protocol::AccessEntry>, String>> {
-    let (reply, received) = std::sync::mpsc::channel();
+    let (reply, received) = crate::host::waking_channel();
     send(Command::ListAccess { block, reply });
     received
 }

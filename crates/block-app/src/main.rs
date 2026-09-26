@@ -16,7 +16,7 @@ mod share;
 mod surfaces;
 mod ui;
 
-use std::{collections::HashMap, error::Error, time::Duration};
+use std::{collections::HashMap, error::Error};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::{io, path::PathBuf};
@@ -560,9 +560,6 @@ impl BlockApp {
             .as_ref()
             .and_then(|pending| pending.receiver.try_recv().ok());
         let Some(result) = result else {
-            if self.pending_account_request.is_some() {
-                host::request_repaint_after(Duration::from_millis(100));
-            }
             return;
         };
         let pending = self.pending_account_request.take().unwrap();
@@ -663,9 +660,6 @@ impl BlockApp {
             .as_ref()
             .and_then(|receiver| receiver.try_recv().ok());
         let Some(result) = result else {
-            if self.pending_workspace_request.is_some() {
-                host::request_repaint_after(Duration::from_millis(100));
-            }
             return;
         };
         self.pending_workspace_request = None;
@@ -750,13 +744,6 @@ impl BlockApp {
             .and_then(|reauth| reauth.pending.as_ref())
             .and_then(|receiver| receiver.try_recv().ok());
         let Some(result) = result else {
-            if self
-                .reauth
-                .as_ref()
-                .is_some_and(|reauth| reauth.pending.is_some())
-            {
-                host::request_repaint_after(Duration::from_millis(100));
-            }
             return;
         };
         let Some(mut reauth) = self.reauth.take() else {

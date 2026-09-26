@@ -21,6 +21,7 @@ pub enum ClientError {
     Tampered(Hash),
     Content(ContentError),
     Store(StoreError),
+    Encoding(String),
     Unexpected,
 }
 
@@ -40,6 +41,7 @@ impl fmt::Display for ClientError {
             }
             Self::Content(error) => write!(formatter, "{error}"),
             Self::Store(error) => write!(formatter, "{error}"),
+            Self::Encoding(reason) => write!(formatter, "a request failed to encode: {reason}"),
             Self::Unexpected => formatter.write_str("the server answered with the wrong message"),
         }
     }
