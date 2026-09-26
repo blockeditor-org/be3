@@ -111,7 +111,8 @@ impl PaintCache {
     }
 
     pub(crate) fn settle_roots(&mut self, roots: Vec<NodeId>) {
-        let roots: Vec<(NodeId, Rect)> = roots.into_iter().map(|id| (id, self.bounds(id))).collect();
+        let roots: Vec<(NodeId, Rect)> =
+            roots.into_iter().map(|id| (id, self.bounds(id))).collect();
         let held: Vec<NodeId> = self.roots.iter().map(|(id, _)| *id).collect();
         if roots.iter().map(|(id, _)| *id).ne(held) {
             for (_, bounds) in self.roots.iter().chain(&roots) {

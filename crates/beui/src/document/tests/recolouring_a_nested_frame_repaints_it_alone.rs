@@ -8,7 +8,13 @@ fn recolouring_a_nested_frame_repaints_it_alone() {
         let (outer, inner) = (outer.clone(), inner.clone());
         move || {
             view! {
-                <Frame @node_ref=&outer color=Color32::WHITE radius=0 padding_horizontal=20.0 padding_vertical=20.0>
+                <Frame
+                    @node_ref=&outer
+                    color=Color32::WHITE
+                    radius=0
+                    padding_horizontal=20.0
+                    padding_vertical=20.0
+                >
                     <Frame @node_ref=&inner height=40.0 color={Color32::from_gray(40)} radius=0 />
                 </Frame>
             }

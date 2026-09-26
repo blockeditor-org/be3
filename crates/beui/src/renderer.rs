@@ -524,7 +524,12 @@ impl Renderer {
                         .iter()
                         .any(|shape| matches!(shape, Shape::Drawing { .. }));
                 let regions: Vec<[f32; 4]> = match joined {
-                    true => vec![physical(region.bounds(), self.origin, screen, pixels_per_point)],
+                    true => vec![physical(
+                        region.bounds(),
+                        self.origin,
+                        screen,
+                        pixels_per_point,
+                    )],
                     false => region
                         .rects()
                         .iter()
@@ -532,7 +537,10 @@ impl Renderer {
                         .collect(),
                 };
                 let regions: Vec<[f32; 4]> = match &prepared {
-                    Some(prepared) => regions.into_iter().map(|region| prepared.widen(region)).collect(),
+                    Some(prepared) => regions
+                        .into_iter()
+                        .map(|region| prepared.widen(region))
+                        .collect(),
                     None => regions,
                 };
                 for region in &regions {
@@ -776,7 +784,10 @@ impl Renderer {
         if self.empty() {
             return;
         }
-        let scissor = self.scissors.as_ref().and_then(|scissors| scissors.first().copied());
+        let scissor = self
+            .scissors
+            .as_ref()
+            .and_then(|scissors| scissors.first().copied());
         let (format, srgb) = (self.format, self.srgb);
         self.effects
             .get_or_insert_with(|| filter::Effects::new(device, format))

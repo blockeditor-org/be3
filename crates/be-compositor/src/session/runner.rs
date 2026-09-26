@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use beui::{
-    App as _, Context, Event, FrameOutput, PointerButton, Pos2, RawInput, TouchId,
-    TouchPhase, Waker, vec2,
+    App as _, Context, Event, FrameOutput, PointerButton, Pos2, RawInput, TouchId, TouchPhase,
+    Waker, vec2,
 };
 use smithay::backend::allocator::gbm::GbmDevice;
 use smithay::backend::drm::{DrmDevice, DrmDeviceFd, DrmEvent};

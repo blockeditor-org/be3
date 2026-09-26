@@ -457,7 +457,9 @@ pub fn ClickCatcher(
 ) -> NodeId {
     let click_catcher = with_document(|document| {
         let click_catcher = document.create_click_catcher();
-        let node = document.arena.touch_mut_as::<ClickCatcherNode>(click_catcher);
+        let node = document
+            .arena
+            .touch_mut_as::<ClickCatcherNode>(click_catcher);
         node.on_click = on_click;
         node.on_click_at = on_click_at;
         node.on_hover_change = on_hover_change;

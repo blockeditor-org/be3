@@ -22,8 +22,16 @@ fn a_repaint_of_two_regions_leaves_what_lies_between_them() {
     );
     let capture = target.read();
 
-    assert_eq!(capture.pixel(12, 12), [0, 0, 0, 255], "the first region is repainted");
-    assert_eq!(capture.pixel(52, 52), [0, 0, 0, 255], "the second region is repainted");
+    assert_eq!(
+        capture.pixel(12, 12),
+        [0, 0, 0, 255],
+        "the first region is repainted"
+    );
+    assert_eq!(
+        capture.pixel(52, 52),
+        [0, 0, 0, 255],
+        "the second region is repainted"
+    );
     assert_eq!(
         capture.pixel(32, 32),
         [255, 255, 255, 255],

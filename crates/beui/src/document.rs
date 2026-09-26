@@ -799,7 +799,13 @@ impl Document {
     }
 
     #[cfg(test)]
-    fn verify_paint(&mut self, ctx: &Context, viewport: Rect, previous: &[Shape], region: &crate::damage::Region) {
+    fn verify_paint(
+        &mut self,
+        ctx: &Context,
+        viewport: Rect,
+        previous: &[Shape],
+        region: &crate::damage::Region,
+    ) {
         let counted = (
             self.work.painted_nodes.get(),
             self.work.replayed_nodes.get(),
@@ -845,7 +851,8 @@ impl Document {
         for shape in moved {
             let bounds = crate::damage::bounds(shape).intersect(viewport);
             assert!(
-                !bounds.is_positive() || region.rects().iter().any(|rect| rect.contains_rect(bounds)),
+                !bounds.is_positive()
+                    || region.rects().iter().any(|rect| rect.contains_rect(bounds)),
                 "a shape changed outside the damaged region: {bounds:?} is not within {:?}",
                 region.rects(),
             );

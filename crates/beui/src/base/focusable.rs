@@ -184,7 +184,9 @@ impl Document {
         cursor: Option<ImeCursor>,
     ) {
         if self.contains(focusable) {
-            self.arena.touch_mut_as::<FocusableNode>(focusable).ime_cursor = cursor;
+            self.arena
+                .touch_mut_as::<FocusableNode>(focusable)
+                .ime_cursor = cursor;
         }
     }
 
