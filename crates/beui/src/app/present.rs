@@ -212,12 +212,9 @@ impl Target {
         let stale = self.prepared_size != Some(size)
             || self.clear_color != Some(clear_color)
             || !self.retains();
-        let repaint = match output.damage() {
-            Some(region) if !stale => Repaint::Region {
-                region,
-                background: clear_color,
-            },
-            _ => Repaint::Everything,
+        let repaint = match stale {
+            true => Repaint::Everything,
+            false => output.repaint(clear_color),
         };
         if output.changed || stale {
             let repaint = match self.pending {

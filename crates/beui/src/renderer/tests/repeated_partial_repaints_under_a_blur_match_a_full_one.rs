@@ -19,7 +19,7 @@ fn repeated_partial_repaints_under_a_blur_match_a_full_one() {
         target.draw(
             Color32::BLACK,
             Repaint::Region {
-                region: bar(moved - 8.0).union(bar(moved)),
+                region: bar(moved - 8.0).union(bar(moved)).into(),
                 background: Color32::BLACK,
             },
             move |painter| {

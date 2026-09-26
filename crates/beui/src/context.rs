@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
-use crate::damage;
+use crate::damage::{self, Region};
 use crate::filter::Filter;
 use crate::font::{FontId, FontSources, Fonts, Galley, TextLayout};
 use crate::geometry::{Rect, pos2};
@@ -75,7 +75,7 @@ pub struct FrameOutput {
     pub repaint: bool,
     pub repaint_after: Duration,
     pub changed: bool,
-    damage: Rect,
+    pub(crate) damage: Region,
     accessibility: Vec<Fragment>,
     pixels_per_point: f32,
 }
@@ -97,8 +97,10 @@ impl FrameOutput {
         self.pixels_per_point
     }
 
-    pub fn damage(&self) -> Option<Rect> {
-        self.damage.is_positive().then_some(self.damage)
+    #[cfg(test)]
+    pub(crate) fn damage(&self) -> Option<Rect> {
+        let bounds = self.damage.bounds();
+        bounds.is_positive().then_some(bounds)
     }
 
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {
@@ -236,7 +238,7 @@ impl Context {
         let reported = std::mem::take(&mut *self.inner.damage.borrow_mut());
         let damage = reported
             .iter()
-            .fold(Rect::NOTHING, |region, rect| region.union(*rect));
+            .fold(Region::NOTHING, |region, rect| region.union((*rect).into()));
         let mut previous = self.inner.previous.borrow_mut();
         let changed = match previous.as_ref() {
             None => true,

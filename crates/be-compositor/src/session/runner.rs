@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use beui::{
-    App as _, Context, Event, FrameOutput, PointerButton, Pos2, RawInput, Repaint, TouchId,
+    App as _, Context, Event, FrameOutput, PointerButton, Pos2, RawInput, TouchId,
     TouchPhase, Waker, vec2,
 };
 use smithay::backend::allocator::gbm::GbmDevice;
@@ -205,13 +205,7 @@ impl Session {
         }
         if output.changed {
             let clear = self.compositor.clear_color();
-            let repaint = match output.damage() {
-                Some(region) => Repaint::Region {
-                    region,
-                    background: clear,
-                },
-                None => Repaint::Everything,
-            };
+            let repaint = output.repaint(clear);
             for output in &mut self.outputs {
                 output.screen.damage(repaint);
             }

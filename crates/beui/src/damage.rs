@@ -3,8 +3,8 @@ use crate::painter::Shape;
 
 const REGIONS: usize = 4;
 
-#[derive(Clone, Copy)]
-pub(crate) struct Region {
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Region {
     rects: [Rect; REGIONS],
     count: usize,
 }
@@ -15,8 +15,25 @@ impl Region {
         count: 0,
     };
 
-    pub(crate) fn rects(&self) -> &[Rect] {
+    pub fn rects(&self) -> &[Rect] {
         &self.rects[..self.count]
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    pub fn bounds(&self) -> Rect {
+        self.rects()
+            .iter()
+            .fold(Rect::NOTHING, |bounds, rect| bounds.union(*rect))
+    }
+
+    pub fn union(mut self, other: Self) -> Self {
+        for rect in other.rects() {
+            self.add(*rect);
+        }
+        self
     }
 
     pub(crate) fn add(&mut self, rect: Rect) {
@@ -55,6 +72,14 @@ impl Region {
     }
 }
 
+impl From<Rect> for Region {
+    fn from(rect: Rect) -> Self {
+        let mut region = Self::NOTHING;
+        region.add(rect);
+        region
+    }
+}
+
 impl Default for Region {
     fn default() -> Self {
         Self::NOTHING
@@ -85,9 +110,7 @@ impl Damage {
     }
 
     pub(crate) fn add_region(&mut self, region: Region) {
-        for rect in region.rects() {
-            self.region.add(*rect);
-        }
+        self.region = self.region.union(region);
     }
 
     pub(crate) fn everything(&mut self) {
