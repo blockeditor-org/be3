@@ -370,10 +370,11 @@ and a new file for an existing block from `ReplaceContent` (below).
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
 tested in `crates/be-model/src/tests/`, and the round trip through a real server
 in `crates/be-client/src/tests/`. An editor's tests stand in for the host with
-`block_ui_test::ContentHarness`, which holds the content of the editor's block
-and of any block it watches, applies what the editor sends, and takes the
-content it seeds or replaces; `ContentStore` is the same store handed to a test
-fixture that needs to read or write it between runs.
+`block_ui_test::BeuiTest`, which holds the content of the editor's block and of
+any block it watches through `WatchContent`, applies the `Operate` messages the
+editor sends and echoes them back as operations marked as its own, the way the
+app's host does; `store()` hands a test fixture the same `ContentStore` to read
+or write between runs.
 
 ## Running it
 
@@ -503,7 +504,7 @@ host has sent the content once, `loaded()` is a signal that turns true when it
 has, and `revision()` counts the changes an editor has seen, for code like the
 PDF pane that re-renders on a change rather than projecting.
 
-`block_editor_plugin` re-exports `be_block`, so an editor names its content type
+`block_editor_beui` re-exports `be_block`, so an editor names its content type
 without depending on the crate itself.
 
 ### The graph on the plugin protocol
@@ -528,7 +529,7 @@ commit, before any later command for that block runs. `Creation::create` and
 `Blocks::create` make a block this way, Detached unless a parent is named;
 the host sets the parent of a block made in a creation dialog once it has the
 id. Creating a database makes two blocks this way:
-`block_editor_plugin::database::create_database` creates a schema with a Name
+`block_editor_beui::database::create_database` creates a schema with a Name
 field and a database pointing at it, and makes the schema a child of the
 database, so the graph is right before any editor opens it.
 

@@ -1,12 +1,10 @@
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, Canvas, CanvasItem, Direction, ForEach, Frame, Func, Keyed, List, Memo, ReadSignal,
     Render, Show, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Caption, use_theme};
-use block_editor_plugin::beui::unstyled::{
-    DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
-};
-use block_editor_plugin::beui::{Color32, NodeId};
+use block_editor_beui::beui::styled::{Caption, use_theme};
+use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
+use block_editor_beui::beui::{Color32, NodeId};
 use game_api::board::{CardTable, Grid, Pile, PilePlace, Spread, Sprite, Tile};
 use game_api::{Board as Layout, Spot};
 

@@ -122,7 +122,8 @@ def editor(name, module, visibility = ["PUBLIC"], test_env = {}):
     )
 
 # A crate's tests compiled to wasm and run by plugin-test-runner, which gives
-# the module a plugin's imports; an editor's, and block-editor-plugin's.
+# the module a plugin's imports; an editor's, block-editor-plugin's and
+# block-editor-beui's.
 def plugin_tests(srcs, exports = [], env = {}):
     facts = cargo_wasm_facts()
     native.rust_binary(

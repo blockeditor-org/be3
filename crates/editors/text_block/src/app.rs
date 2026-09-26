@@ -13,8 +13,8 @@ use beui::reactive::{
     ItemSize, List, NodeRef, Show, clone, component, create_effect, create_memo, create_signal,
     view,
 };
-use block_editor_plugin::be_block::TextContent;
-use block_editor_plugin::{Creation, Editor};
+use block_editor_beui::be_block::TextContent;
+use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 use crate::hex::{self, HexView};
@@ -27,7 +27,7 @@ use toolbar::EditorToolbar;
 
 pub struct TextApp;
 
-impl block_editor_plugin::BeuiApp for TextApp {
+impl block_editor_beui::BeuiApp for TextApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <TextEditor editor={editor} />

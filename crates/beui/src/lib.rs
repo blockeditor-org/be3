@@ -13,7 +13,7 @@ mod drawing;
 mod filter;
 mod flash;
 mod font;
-mod geometry;
+use ::geometry;
 pub mod icons;
 mod image;
 mod input;
@@ -42,7 +42,7 @@ pub use app::run_web;
 pub use app::{App, OpenDevice, RunOptions, SafeArea, Setup, Waker};
 #[cfg(feature = "window")]
 pub use app::{run, run_with, set_safe_area};
-pub use base::{Align, Direction, ItemSize, ScrollPosition, TextAlign, focus_within};
+pub use base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition, TextAlign, focus_within};
 pub use color::Color32;
 pub use context::{Context, FrameOutput};
 pub use document::Document;

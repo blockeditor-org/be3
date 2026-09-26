@@ -1,21 +1,19 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use block_editor_plugin::beui::icons::{
+use block_editor_beui::beui::icons::{
     ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_CLOSE, ICON_DELETE, ICON_FULLSCREEN,
 };
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize, List, NodeRef, Prop,
     ReadSignal, Show, Text, clone, component, create_memo, create_selector, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Button, ButtonVariant, Caption, IconButton, Scroll, theme, use_theme,
 };
-use block_editor_plugin::beui::unstyled::{
-    DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
-};
-use block_editor_plugin::beui::{Color32, CursorIcon, Key, KeyPress, NodeId, Vec2};
-use block_editor_plugin::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Editor};
+use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
+use block_editor_beui::beui::{Color32, CursorIcon, Key, KeyPress, NodeId, Vec2};
+use block_editor_beui::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Editor};
 use uuid::Uuid;
 
 use super::slides::Slides;

@@ -2,20 +2,28 @@
   "id": "be3.pdf",
   "name": "PDF",
   "version": "0.1.0",
-  "block_type": "7064662d-626c-6f63-6b2d-747970652d01",
-  "display_name": "PDF",
-  "icon": "\ue415",
-  "creation": "Dialog",
-  "interaction": "Preview",
-  "capabilities": {
-    "rotation": false,
-    "preserve_aspect_ratio": true,
-    "pan_and_zoom": true
-  },
-  "resize": "None",
-  "regions": [
-    "Frame",
-    "Preview"
+  "editors": [
+    {
+      "block_type": "7064662d-626c-6f63-6b2d-747970652d01",
+      "display_name": "PDF",
+      "icon": "\ue415",
+      "templates": {
+        "main": {
+          "dialog": true
+        }
+      },
+      "interaction": "Preview",
+      "capabilities": {
+        "rotation": false,
+        "preserve_aspect_ratio": true,
+        "pan_and_zoom": true
+      },
+      "resize": "None",
+      "regions": [
+        "Frame",
+        "Preview"
+      ]
+    }
   ],
   "entry_point": "pdf.wasm"
 }

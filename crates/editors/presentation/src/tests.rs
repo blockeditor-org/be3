@@ -1,12 +1,13 @@
-use block_editor_plugin::be_block::ObjectId;
-use block_editor_plugin::be_block::presentation::PresentationContent;
-use block_editor_plugin::beui::Key;
-use block_editor_plugin::{Editor, EditorHost};
-use block_ui_test::{BeuiTest, ContentHarness};
+use block_editor_beui::be_block::ObjectId;
+use block_editor_beui::be_block::presentation::PresentationContent;
+use block_editor_beui::beui::Key;
+use block_editor_beui::{Editor, EditorHost};
+use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::PresentationApp;
 
+mod a_slide_template_makes_a_canvas_with_its_placeholders;
 mod detaching_a_slide_takes_it_off_the_deck;
 mod dragging_a_slide_onto_another_reorders_the_deck;
 mod editing_gives_the_slide_the_whole_stage;
@@ -16,7 +17,7 @@ mod the_filmstrip_places_a_child_editor_for_every_slide;
 mod the_filmstrip_stays_while_a_slide_holds_the_frame;
 mod the_stage_shows_the_slide_the_filmstrip_selected;
 
-type Harness = ContentHarness<PresentationApp>;
+type Harness = BeuiTest<PresentationApp>;
 
 fn editor(count: usize) -> (Harness, Editor) {
     let block = Uuid::new_v4();
@@ -30,7 +31,7 @@ fn editor(count: usize) -> (Harness, Editor) {
     let host = EditorHost::default();
     host.set_editable(true);
     let editor = Editor::new(host.clone(), block);
-    let mut test = ContentHarness::new(BeuiTest::new(editor.clone()), host);
+    let mut test = BeuiTest::new(editor.clone());
     test.hold(None, content);
     (test, editor)
 }

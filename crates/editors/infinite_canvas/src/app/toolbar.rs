@@ -1,19 +1,19 @@
 use std::rc::Rc;
 
-use block_editor_plugin::Toolbar;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::{
+use block_editor_beui::Toolbar;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{
     ICON_DATA_OBJECT, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_KEYBOARD_ARROW_DOWN, ICON_RECTANGLE,
     ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, ItemSize, List, Prop, Show, Spacer, clone, component, create_memo,
     view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, IconButton, MenuButton, ToggleButton, use_theme,
 };
-use block_editor_plugin::beui::unstyled::MenuItem;
+use block_editor_beui::beui::unstyled::MenuItem;
 
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
 

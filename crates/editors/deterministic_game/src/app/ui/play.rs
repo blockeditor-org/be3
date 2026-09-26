@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{Memo, ReadSignal, WriteSignal};
+use block_editor_beui::beui::reactive::{Memo, ReadSignal, WriteSignal};
 use game_api::{Board, Gesture, Spot};
 
 use super::{Action, GameModel};

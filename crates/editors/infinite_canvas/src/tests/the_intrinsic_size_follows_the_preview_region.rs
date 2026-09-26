@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_plugin::beui::Vec2;
+use block_editor_beui::beui::Vec2;
 
 #[test]
 fn the_intrinsic_size_follows_the_preview_region() {

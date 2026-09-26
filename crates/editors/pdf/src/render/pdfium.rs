@@ -4,7 +4,7 @@ use std::{
     time::Instant,
 };
 
-use block_editor_plugin::{
+use block_editor_beui::{
     PerformanceReporter, Waker,
     beui::{Image, Pos2, Rect, vec2},
 };
@@ -144,7 +144,7 @@ fn render_tile(
         page_size_pts,
         scale,
         origin_pts: Pos2::new(origin_px.x / scale, origin_px.y / scale),
-        size_pts: block_editor_plugin::beui::vec2(width as f32 / scale, height as f32 / scale),
+        size_pts: block_editor_beui::beui::vec2(width as f32 / scale, height as f32 / scale),
         image,
     })
 }

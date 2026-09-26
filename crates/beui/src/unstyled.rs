@@ -11,6 +11,7 @@ mod menu_button;
 mod pan_zoom;
 mod pointer_lock;
 mod pressable;
+mod rubber_band;
 mod scroll;
 mod scrollbar;
 mod select;

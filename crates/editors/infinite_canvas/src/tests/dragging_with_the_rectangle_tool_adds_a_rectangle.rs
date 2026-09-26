@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_plugin::beui::Vec2;
+use block_editor_beui::beui::Vec2;
 
 #[test]
 fn dragging_with_the_rectangle_tool_adds_a_rectangle() {

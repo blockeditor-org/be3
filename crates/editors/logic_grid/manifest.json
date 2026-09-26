@@ -1,25 +1,58 @@
 {
   "id": "be3.logic-grid",
-  "name": "Logic Grid",
+  "name": "Logic",
   "version": "0.1.0",
-  "block_type": "6c6f6769-632d-6772-6964-2d626c6b0101",
-  "display_name": "Logic Grid",
-  "icon": "\uefa7",
-  "creation": "Immediate",
-  "interaction": "Live",
-  "capabilities": {
-    "rotation": false,
-    "preserve_aspect_ratio": false,
-    "pan_and_zoom": true
-  },
-  "resize": "Both",
-  "regions": [
-    "Frame",
-    "ArtifactSettings"
-  ],
-  "chrome": [
-    "Toolbar",
-    "LeftSidebar"
+  "editors": [
+    {
+      "block_type": "6c6f6769-632d-6772-6964-2d626c6b0101",
+      "display_name": "Logic Grid",
+      "icon": "\uefa7",
+      "templates": {
+        "main": {}
+      },
+      "interaction": "Live",
+      "capabilities": {
+        "rotation": false,
+        "preserve_aspect_ratio": false,
+        "pan_and_zoom": true
+      },
+      "resize": "Both",
+      "regions": [
+        "Frame",
+        "ArtifactSettings"
+      ],
+      "chrome": [
+        "Toolbar",
+        "LeftSidebar"
+      ]
+    },
+    {
+      "block_type": "6c6f6769-632d-6761-6d65-2d626c6b0101",
+      "display_name": "Logic Game",
+      "icon": "\uea28",
+      "templates": {
+        "main": {}
+      },
+      "regions": [
+        "Frame"
+      ]
+    },
+    {
+      "block_type": "6c6f6769-632d-686f-7462-617201010101",
+      "display_name": "Hotbar",
+      "icon": "\ue1bd",
+      "regions": [
+        "Frame"
+      ]
+    },
+    {
+      "block_type": "636f6d70-696c-6564-2d6c-6f6769630101",
+      "display_name": "Compiled Logic",
+      "icon": "\ue322",
+      "regions": [
+        "Frame"
+      ]
+    }
   ],
   "entry_point": "logic_grid.wasm"
 }

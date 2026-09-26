@@ -11,15 +11,17 @@ Guides:
 - guides/buck2.md
 - guides/pan_and_zoom.md
 - guides/reactive.md
+- guides/running_the_app.md
 - guides/testing_a_gui.md
 - guides/the_new_block_stack.md
 
 Verification:
 - `./scripts/buck`: buck2, which builds, lints and tests the workspace on BuildBuddy's remote workers; every command below is a buck2 target. It installs the pinned buck2 into the checkout the first time it runs. It needs a BuildBuddy API key: `BUILDBUDDY_API_KEY` in the environment, or the key in `.buildbuddy-api-key` at the root of the checkout or in `~/.config/be3/buildbuddy-api-key`. See guides/buck2.md for what it covers. It generates `buck/cargo/crates.bzl` from the Cargo.toml files whenever they change (git ignores it), and the rules for every crate, first- and third-party, take their dependencies and features from it, so Cargo.toml is the only place a dependency is declared.
 - `./scripts/buck run //crates/block-app:app`: builds the native app with every plugin beside it and runs it.
+- `./scripts/buck run //crates/block-app:dev`: starts the app in a virtual display, signed in with a workspace open, for you to drive with xdotool. See guides/running_the_app.md.
 - `./scripts/buck run //:check`: Use this for fast compile feedback. It runs rustc's check pass over every first-party target through buck2 - the host's and the plugins' and games' wasm - and fails with the compiler's errors. Prefer this over cargo, which the workspace no longer builds with.
 - `./scripts/buck run //:verify`: The full check. It applies every autofix, accepts new and changed snapshots, and runs all lints and tests. CI does the same on a pull request and pushes whatever it changes to the pull request's branch as a commit. Use a 10 minute timeout in the tool call arguments so it is less likely to convert itself to a background task.
-  - A plugin's own tests are compiled to wasm and run through the plugin host on this machine, because they read and write the accepted paintings in `snapshots/`; `./scripts/buck run //:verify -- --plugin-tests` runs them. `block-editor-plugin` is in that run too, because the guest half of the plugin framework only exists on wasm. For faster feedback on one editor, run `./scripts/buck test //crates/editors/checklist:test`, adding `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings.
+  - A plugin's own tests are compiled to wasm and run through the plugin host on this machine, because they read and write the accepted paintings in `snapshots/`; `./scripts/buck run //:verify -- --plugin-tests` runs them. `block-editor-plugin` and `block-editor-beui` are in that run too, because the guest half of the plugin framework only exists on wasm. For faster feedback on one editor, run `./scripts/buck test //crates/editors/checklist:test`, adding `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings.
   - It will autofix formatting, clippy fixable rules, and it will autofix to enforce project-specific rules: It will delete all code comments & doc comments, it will structure test folders & files to the project's one test per file standard, it will automatically move+rename mod.rs files to be in the parent folder named after the folder instead, and it will format the bodies of `view!` macro calls (rustfmt cannot, because the body is not Rust syntax).
 - `./scripts/buck run //crates/block-app:android`: run this for changes that affect features specific to Android. It builds the APK and signs it into `target/android/block-app.apk`; `-- --install` installs it with adb and starts it.
 - `./scripts/buck build //crates/block-app:web`: run this for changes that affect features specific to web. `./scripts/buck run //crates/block-app:web-serve` serves it, with be-server behind it, on http://127.0.0.1:8080.
@@ -54,6 +56,7 @@ Design principles:
   - the plugin protocol passes textures without them leaving the GPU.
 - gui:
   - we use an icon library for icons. if one is not available, then do not use icons. do not use unicode for icons.
+  - a scroll view reaches the edges of the area it fills; its padding goes inside it, around the scrolled content, so content is not cut off short of the edge or inset beside the scrollbar.
 
 In your handoff message:
 - If any, mention any small issues you encountered or small things you noticed that could make the code / application better.

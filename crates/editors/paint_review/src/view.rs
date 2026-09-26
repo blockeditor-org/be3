@@ -1,4 +1,4 @@
-use block_editor_plugin::beui::{Rect, Vec2};
+use block_editor_beui::beui::{Rect, Vec2};
 
 use crate::render::Rendered;
 
@@ -26,7 +26,7 @@ pub fn laid_out(panels: &[Rendered], view: Rect) -> Layout {
         let size = panel.size * scale;
         let top = origin.y + (content.y * scale - size.y) / 2.0;
         placed.push(Panel {
-            rect: Rect::from_min_size(block_editor_plugin::beui::pos2(origin.x + x, top), size),
+            rect: Rect::from_min_size(block_editor_beui::beui::pos2(origin.x + x, top), size),
             index,
         });
         x += size.x + GAP * scale;

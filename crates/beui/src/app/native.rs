@@ -15,6 +15,7 @@ use winit::window::{
     CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Window, WindowId,
 };
 
+use super::accessibility_dump::AccessibilityDump;
 use super::clipboard::Clipboard;
 use super::{App, RunOptions, SafeArea, Setup, Waker};
 use crate::color::Color32;
@@ -86,6 +87,10 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
         shared.1 = Some(event_loop.create_proxy());
         shared.0
     };
+    let accessibility_dump = options
+        .accessibility_dump
+        .clone()
+        .map(AccessibilityDump::new);
     let mut runner = Runner {
         options,
         app: Box::new(app),
@@ -103,6 +108,7 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
         clipboard: Clipboard::new(),
         event_loop_proxy: event_loop.create_proxy(),
         accessibility_active: false,
+        accessibility_dump,
         exiting: false,
         safe_area,
         #[cfg(target_os = "android")]
@@ -218,6 +224,7 @@ struct Runner {
     clipboard: Clipboard,
     event_loop_proxy: EventLoopProxy<UserEvent>,
     accessibility_active: bool,
+    accessibility_dump: Option<AccessibilityDump>,
     exiting: bool,
     safe_area: SafeArea,
     #[cfg(target_os = "android")]
@@ -296,6 +303,9 @@ impl Runner {
             surface
                 .accessibility
                 .update_if_active(|| output.accessibility_tree(&self.options.title, screen));
+        }
+        if let Some(dump) = &mut self.accessibility_dump {
+            dump.update(output.accessibility_tree(&self.options.title, screen));
         }
 
         if let Some(text) = &output.copied_text {

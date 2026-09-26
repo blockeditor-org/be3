@@ -23,6 +23,12 @@ _PKG_CONFIG = {
 }
 
 FIXUPS = {
+    # The text-changed event, ported from Flutter, counts back from len() - 1
+    # as a signed index and relies on an empty string's wrapping to -1. With
+    # overflow checks, as in a debug build, that subtraction panics on a Java
+    # thread and aborts the app, so the crate wraps as it does in a release
+    # build.
+    "accesskit_android": {"rustc_flags": ["-Coverflow-checks=off"]},
     "alsa-sys": _PKG_CONFIG,
     "atk-sys": _PKG_CONFIG,
     "cairo-sys-rs": _PKG_CONFIG,

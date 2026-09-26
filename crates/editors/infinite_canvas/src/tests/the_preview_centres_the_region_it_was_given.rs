@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_plugin::be_block::canvas::CanvasColor;
-use block_editor_plugin::beui::Vec2;
+use block_editor_beui::be_block::canvas::CanvasColor;
+use block_editor_beui::beui::Vec2;
 
 #[test]
 fn the_preview_centres_the_region_it_was_given() {

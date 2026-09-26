@@ -1,21 +1,21 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::canvas::{
+use block_editor_beui::be_block::canvas::{
     CanvasColor, CanvasEntity, CanvasEntityKind, CanvasLayerMove, CanvasPoint, CanvasPreviewRegion,
     CanvasTextAlign, CanvasTextWeight,
 };
-use block_editor_plugin::beui::Color32;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::{ICON_CIRCLE, ICON_FORMAT_COLOR_RESET};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::Color32;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{ICON_CIRCLE, ICON_FORMAT_COLOR_RESET};
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, clone, component, create_memo,
     create_signal, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Accordion, Button, ButtonVariant, Caption, Checkbox, ColorInput, Heading, NumberDrag,
     NumberInput, Separator, Shortcut, Slider, TextInput, ToggleButton, use_theme,
 };
-use block_editor_plugin::{ResizeMode, Sidebar};
+use block_editor_beui::{ResizeMode, Sidebar};
 
 use crate::geometry::*;
 
@@ -84,7 +84,7 @@ const LAYERS: [(&str, CanvasLayerMove); 4] = [
 #[component]
 pub(crate) fn CanvasSidebar(
     state: Rc<CanvasState>,
-    shown: block_editor_plugin::beui::reactive::Prop<bool>,
+    shown: block_editor_beui::beui::reactive::Prop<bool>,
 ) -> NodeId {
     let region = Rc::clone(&state);
     let summary = Rc::clone(&state);
@@ -317,39 +317,30 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
     let no_rotation = create_memo(clone!(state locked -> move || {
         locked.get() || !state.selection_allows_rotation()
     }));
-    let edit = |state: &Rc<CanvasState>, entity: &CanvasEntity, updated: CanvasEntity| {
-        state.record_update(vec![entity.clone()], vec![updated], true);
+    let field = |apply: fn(&mut CanvasEntity, f64)| {
+        let change = clone!(state entity -> move |value: f64| {
+            let Some(held) = entity.get_untracked() else { return };
+            let mut updated = held.clone();
+            apply(&mut updated, value);
+            state.record_update(vec![held], vec![updated], true);
+        });
+        let preview = clone!(state entity -> move |value: Option<f64>| {
+            let typed = value.zip(entity.get_untracked()).map(|(value, mut held)| {
+                apply(&mut held, value);
+                held
+            });
+            state.preview_typed(typed);
+        });
+        (change, preview)
     };
-    let x = clone!(state entity -> move |value: f64| {
-        let Some(held) = entity.get_untracked() else { return };
-        let mut updated = held.clone();
-        updated.transform.center.x = value as f32;
-        edit(&state, &held, updated);
-    });
-    let y = clone!(state entity -> move |value: f64| {
-        let Some(held) = entity.get_untracked() else { return };
-        let mut updated = held.clone();
-        updated.transform.center.y = value as f32;
-        edit(&state, &held, updated);
-    });
-    let width = clone!(state entity -> move |value: f64| {
-        let Some(held) = entity.get_untracked() else { return };
-        let mut updated = held.clone();
-        updated.transform.size.x = (value as f32).max(MIN_SIZE);
-        edit(&state, &held, updated);
-    });
-    let height = clone!(state entity -> move |value: f64| {
-        let Some(held) = entity.get_untracked() else { return };
-        let mut updated = held.clone();
-        updated.transform.size.y = (value as f32).max(MIN_SIZE);
-        edit(&state, &held, updated);
-    });
-    let rotation = clone!(state entity -> move |value: f64| {
-        let Some(held) = entity.get_untracked() else { return };
-        let mut updated = held.clone();
-        updated.transform.rotation = (value as f32).to_radians();
-        edit(&state, &held, updated);
-    });
+    let (x, x_preview) = field(|entity, value| entity.transform.center.x = value as f32);
+    let (y, y_preview) = field(|entity, value| entity.transform.center.y = value as f32);
+    let (width, width_preview) =
+        field(|entity, value| entity.transform.size.x = (value as f32).max(MIN_SIZE));
+    let (height, height_preview) =
+        field(|entity, value| entity.transform.size.y = (value as f32).max(MIN_SIZE));
+    let (rotation, rotation_preview) =
+        field(|entity, value| entity.transform.rotation = (value as f32).to_radians());
     let at = |entity: &Memo<Option<CanvasEntity>>, read: fn(&CanvasEntity) -> f32| {
         let entity = entity.clone();
         create_memo(move || entity.get().map_or(0.0, |entity| read(&entity)) as f64)
@@ -370,6 +361,7 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
                     disabled={locked.clone()}
                     @test_id={"infinite-canvas.transform.x"}
                     on_change={x}
+                    on_preview={x_preview}
                 />
                 <Caption content="Y" />
                 <NumberInput
@@ -379,6 +371,7 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
                     disabled={locked.clone()}
                     @test_id={"infinite-canvas.transform.y"}
                     on_change={y}
+                    on_preview={y_preview}
                 />
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
@@ -391,6 +384,7 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
                     disabled={no_width}
                     @test_id={"infinite-canvas.transform.width"}
                     on_change={width}
+                    on_preview={width_preview}
                 />
                 <Caption content="H" />
                 <NumberInput
@@ -401,6 +395,7 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
                     disabled={no_height}
                     @test_id={"infinite-canvas.transform.height"}
                     on_change={height}
+                    on_preview={height_preview}
                 />
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
@@ -412,6 +407,7 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
                     disabled={no_rotation}
                     @test_id={"infinite-canvas.transform.rotation"}
                     on_change={rotation}
+                    on_preview={rotation_preview}
                 />
             </List>
         </List>
@@ -759,7 +755,7 @@ fn ColorPreset(
     name: &'static str,
     color: CanvasColor,
     value: Memo<CommonValue<CanvasColor>>,
-    on_pick: block_editor_plugin::beui::reactive::Callback<CanvasColor>,
+    on_pick: block_editor_beui::beui::reactive::Callback<CanvasColor>,
 ) -> NodeId {
     let pressed = create_memo(clone!(value -> move || value.get() == CommonValue::Uniform(color)));
     view! {
@@ -860,7 +856,7 @@ fn LineOptions(state: Rc<CanvasState>) -> NodeId {
     let start = flag(&lines, |entity| entity.style.arrow_start);
     let end = flag(&lines, |entity| entity.style.arrow_end);
     let set = |state: &Rc<CanvasState>,
-               apply: fn(&mut block_editor_plugin::be_block::canvas::CanvasEntityStyle, bool),
+               apply: fn(&mut block_editor_beui::be_block::canvas::CanvasEntityStyle, bool),
                value: bool| {
         state.update_selected(
             |kind| matches!(kind, CanvasEntityKind::Line),

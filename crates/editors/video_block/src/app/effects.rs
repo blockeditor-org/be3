@@ -1,14 +1,14 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::video::{
+use block_editor_beui::be_block::video::{
     MAX_CLIP_LENGTH, VideoAttachment, VideoClip, VideoEffect,
 };
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::ICON_LINK_OFF;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::ICON_LINK_OFF;
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, List, Memo, Show, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Caption, Heading, IconButton, NumberInput, Separator, use_theme,
 };
 

@@ -1,4 +1,4 @@
-use block_editor_plugin::beui::Key;
+use block_editor_beui::beui::Key;
 
 use super::*;
 
@@ -14,7 +14,7 @@ fn a_new_player_can_take_the_other_side() {
     editor.run();
     editor.key_press(Key::Enter);
     editor.run();
-    assert_eq!(editor.editor.label("game.description"), "Your turn (O)");
+    assert_eq!(editor.label("game.description"), "Your turn (O)");
 
     editor.click("game.tile.1.1");
     editor.run();
@@ -23,6 +23,6 @@ fn a_new_player_can_take_the_other_side() {
     assert_eq!(played.len(), 2);
     assert_eq!(played[0].actor, ACCOUNT);
     assert_ne!(played[1].actor, ACCOUNT);
-    assert_eq!(editor.editor.label("game.description"), "Waiting for X...");
+    assert_eq!(editor.label("game.description"), "Waiting for X...");
     editor.snapshot("a_new_player_can_take_the_other_side");
 }

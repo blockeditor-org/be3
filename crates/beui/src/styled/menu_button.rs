@@ -43,11 +43,12 @@ pub fn MenuButton(
             panel={menu_panel()}
             trigger={move |handle: MenuButtonHandle| {
                 let MenuButtonHandle {
+                    open,
                     hovered,
                     active,
                     focused,
-                    ..
                 } = handle;
+                let quiet = create_memo(clone!(named -> move || named.get() || open.get()));
                 let button = unstyled::ButtonHandle {
                     hovered,
                     active,
@@ -58,7 +59,7 @@ pub fn MenuButton(
                     false => String::new(),
                 };
                 view! {
-                    <Tooltip label={label_text.clone()} disabled={named.clone()}>
+                    <Tooltip label={label_text.clone()} disabled={quiet}>
                         <ButtonFace
                             handle={button}
                             variant

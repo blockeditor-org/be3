@@ -1,4 +1,4 @@
-use block_editor_plugin::beui::icons::{ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT};
+use block_editor_beui::beui::icons::{ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT};
 
 use super::*;
 

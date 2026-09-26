@@ -1,33 +1,35 @@
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use block_editor_plugin::BlockParent;
-use block_editor_plugin::beui::accesskit::{Node as AccessNode, Role};
-use block_editor_plugin::beui::icons::{
-    ICON_ADD, ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_AUTO_AWESOME, ICON_MY_LOCATION,
+use block_editor_beui::BlockParent;
+use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
+use block_editor_beui::beui::icons::{
+    ICON_ADD, ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_AUTO_AWESOME, ICON_CLOSE,
 };
-use block_editor_plugin::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Show, Spacer, clone,
-    component, create_effect, create_memo, create_signal, node_placed, node_rect, view,
-    with_document,
+use block_editor_beui::beui::reactive::{
+    Align, Direction, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Show, Spacer,
+    WriteSignal, clone, component, create_effect, create_memo, create_signal, node_placed,
+    node_rect, view, with_document,
 };
-use block_editor_plugin::beui::styled::theme::FONT_SMALL;
-use block_editor_plugin::beui::styled::{
-    Body, Button, ButtonVariant, Caption, ContextMenu, IconButton, IconSized, Scroll, Tooltip,
-    Tree, TreeRowFace, use_theme,
+use block_editor_beui::beui::styled::theme::FONT_SMALL;
+use block_editor_beui::beui::styled::{
+    Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, IconSized, Scroll,
+    Tooltip, Tree, TreeRowFace, use_theme,
 };
-use block_editor_plugin::beui::unstyled::{
+use block_editor_beui::beui::unstyled::{
     self, ButtonHandle, Edge, Floating, MenuItem, TreeItem, tree_row_node,
 };
-use block_editor_plugin::beui::{Color32, NodeId, Rect};
-use block_editor_plugin::{BlockFilter, BlockPicker, BlockSource, Drag, Editor, Toolbar};
+use block_editor_beui::beui::{Color32, NodeId, Rect};
+use block_editor_beui::{BlockFilter, BlockPicker, BlockSource, Drag, Editor, Toolbar};
 use uuid::Uuid;
 
-use super::rows::{Row, RowKey, Tree as FileTree, access_hint, access_marker};
+use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
 
 const PADDING: f32 = 8.0;
 const ROW_SPACING: f32 = 6.0;
 const ADD_WIDTH: f32 = 20.0;
+const INSPECT_WIDTH: f32 = 420.0;
+const FIELD_SPACING: f32 = 2.0;
 
 #[component]
 pub fn FileTreeEditor(editor: Editor) -> NodeId {
@@ -35,6 +37,8 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let picker = picker(&editor, Rc::clone(&tree));
     let held: Held = Rc::new(std::cell::Cell::new(None));
     let (reveal, set_reveal) = create_signal(None::<RowKey>);
+    let (inspecting, set_inspecting) = create_signal(None::<Inspection>);
+    let inspect = set_inspecting.clone();
     let keys = tree.keys();
     let rows = tree.rows();
     let focused_block = editor.focused_block();
@@ -139,7 +143,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         };
         set_reveal.set(Some(key));
     });
-    let reveal_stray = find.clone();
     let add_root = clone!(picker editor -> move || {
         picker.open(
             &editor,
@@ -189,12 +192,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                         @test_id={"file-tree.add-root"}
                         on_click={add_root}
                     />
-                    <IconButton
-                        glyph={ICON_MY_LOCATION.to_owned()}
-                        label="Reveal the block being shown"
-                        @test_id={"file-tree.reveal"}
-                        on_click={find}
-                    />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </Toolbar>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
@@ -227,6 +224,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                                 editor={editor.clone()}
                                                 tree={Rc::clone(&tree)}
                                                 picker={picker.clone()}
+                                                inspect={inspect.clone()}
                                                 row={row}
                                                 face={face}
                                             />
@@ -242,12 +240,13 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                     label={stray_label}
                                     variant=ButtonVariant::Secondary
                                     @test_id={"file-tree.stray"}
-                                    on_click={reveal_stray}
+                                    on_click={find}
                                 />
                             </Frame>
                         </Floating>
                     </List>
                 </Frame>
+                <Inspector inspecting={inspecting} set_inspecting={set_inspecting} />
             </List>
         </Frame>
     };
@@ -269,13 +268,73 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     node
 }
 
+#[component]
+fn Inspector(
+    inspecting: ReadSignal<Option<Inspection>>,
+    set_inspecting: WriteSignal<Option<Inspection>>,
+) -> NodeId {
+    let open = create_memo(clone!(inspecting -> move || inspecting.get().is_some()));
+    let field = |read: fn(&Inspection) -> &String| {
+        let inspecting = inspecting.clone();
+        create_memo(move || {
+            inspecting.with(|shown| shown.as_ref().map(read).cloned().unwrap_or_default())
+        })
+    };
+    let name = field(|shown| &shown.name);
+    let id = field(|shown| &shown.id);
+    let block_type = field(|shown| &shown.block_type);
+    let author = field(|shown| &shown.author);
+    let parent = field(|shown| &shown.parent);
+    let references = field(|shown| &shown.references);
+    let access = field(|shown| &shown.access);
+    let generated = field(|shown| &shown.generated);
+    let shown_as = field(|shown| &shown.shown_as);
+    let dismiss = clone!(set_inspecting -> move || set_inspecting.set(None));
+    let close = clone!(set_inspecting -> move || set_inspecting.set(None));
+    view! {
+        <Dialog open={open} title="Inspect" width=INSPECT_WIDTH on_dismiss={dismiss}>
+            <List spacing=ROW_SPACING>
+                <Field label="Name" value={name} named="name" />
+                <Field label="ID" value={id} named="id" />
+                <Field label="Type" value={block_type} named="type" />
+                <Field label="Author" value={author} named="author" />
+                <Field label="Parent" value={parent} named="parent" />
+                <Field label="References" value={references} named="references" />
+                <Field label="Your access" value={access} named="access" />
+                <Field label="Generated" value={generated} named="generated" />
+                <Field label="Shown here as" value={shown_as} named="shown-as" />
+                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Button
+                        glyph={ICON_CLOSE.to_owned()}
+                        label="Close"
+                        variant=ButtonVariant::Secondary
+                        @test_id={"file-tree.inspect.close"}
+                        on_click={close}
+                    />
+                </List>
+            </List>
+        </Dialog>
+    }
+}
+
+#[component]
+fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
+    view! {
+        <List spacing=FIELD_SPACING>
+            <Caption content={label} />
+            <Body content={value} @test_id={format!("file-tree.inspect.{named}")} />
+        </List>
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Astray {
     Above,
     Below,
 }
 
-fn focused_key(focused: &block_editor_plugin::FocusedBlock) -> Option<RowKey> {
+fn focused_key(focused: &block_editor_beui::FocusedBlock) -> Option<RowKey> {
     let id = focused.block_id?;
     let mut path: Vec<Uuid> = focused.via.iter().rev().copied().collect();
     path.push(id);
@@ -338,6 +397,7 @@ fn TreeRow(
     editor: Editor,
     tree: Rc<FileTree>,
     picker: Rc<Picker>,
+    inspect: WriteSignal<Option<Inspection>>,
     row: Memo<Option<Row>>,
     face: TreeRowFace<RowKey>,
 ) -> NodeId {
@@ -374,7 +434,13 @@ fn TreeRow(
         };
         picker.open(&editor, Some(id), [id].into_iter().collect::<HashSet<Uuid>>());
     });
-    let chose = menu_action(editor.clone(), Rc::clone(&tree), picker, row.clone());
+    let chose = menu_action(
+        editor.clone(),
+        Rc::clone(&tree),
+        picker,
+        inspect,
+        row.clone(),
+    );
     let add = create_memo(clone!(row -> move || !row.get().is_some_and(|row| row.can_add)));
     let edit = create_memo(clone!(row -> move || !row.get().is_some_and(|row| row.can_edit)));
     let unlinkable = create_memo(clone!(row -> move || {
@@ -394,6 +460,9 @@ fn TreeRow(
     let orphaned = create_memo(clone!(row edit -> move || {
         edit.get() || row.get().is_some_and(|row| row.parent == BlockParent::Detached)
     }));
+    let uninspectable = create_memo(clone!(row -> move || {
+        !row.get().is_some_and(|row| row.inspection.is_some())
+    }));
     let items = view! {
         <MenuItem label="Add" disabled={add} />
         <MenuItem label="Set parent" disabled={edit.clone()}>
@@ -404,6 +473,7 @@ fn TreeRow(
         <MenuItem label="Share" disabled={edit} />
         <MenuItem label="Unlink" disabled={unlinkable} />
         <MenuItem label={delete_label} disabled={deletable} />
+        <MenuItem label="Inspect" disabled={uninspectable} />
     };
     let theme = use_theme();
     let glyph_color = theme.text_muted.clone();
@@ -446,7 +516,7 @@ fn TreeRow(
 fn AddChild(
     shown: ReadSignal<bool>,
     named: String,
-    on_click: block_editor_plugin::beui::reactive::ClickCallback,
+    on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
     view! {
         <Frame width=ADD_WIDTH>
@@ -569,6 +639,7 @@ fn menu_action(
     editor: Editor,
     tree: Rc<FileTree>,
     picker: Rc<Picker>,
+    inspect: WriteSignal<Option<Inspection>>,
     row: Memo<Option<Row>>,
 ) -> impl Fn(Vec<usize>) + 'static {
     move |path: Vec<usize>| {
@@ -598,6 +669,7 @@ fn menu_action(
                     .host()
                     .delete_block(id, shown.block_type, shown.source, shown.is_reference)
             }
+            [6] => inspect.set(shown.inspection),
             _ => {}
         }
     }
@@ -606,8 +678,8 @@ fn menu_action(
 pub(crate) struct Picker {
     picker: std::cell::RefCell<BlockPicker>,
     target: std::cell::Cell<Option<Uuid>>,
-    error: block_editor_plugin::beui::reactive::ReadSignal<Option<String>>,
-    set_error: block_editor_plugin::beui::reactive::WriteSignal<Option<String>>,
+    error: block_editor_beui::beui::reactive::ReadSignal<Option<String>>,
+    set_error: block_editor_beui::beui::reactive::WriteSignal<Option<String>>,
 }
 
 impl Picker {

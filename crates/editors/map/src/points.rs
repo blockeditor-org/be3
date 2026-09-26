@@ -1,10 +1,10 @@
-use block_editor_plugin::be_block::map::{MapColor, MapPoint};
-use block_editor_plugin::beui::icons::ICON_LOCATION_ON;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::map::{MapColor, MapPoint};
+use block_editor_beui::beui::icons::ICON_LOCATION_ON;
+use block_editor_beui::beui::reactive::{
     Align, CanvasItem, Frame, List, Prop, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Caption, IconSized};
-use block_editor_plugin::beui::{Color32, Pos2, Rect, TextAlign};
+use block_editor_beui::beui::styled::{Caption, IconSized};
+use block_editor_beui::beui::{Color32, Pos2, Rect, TextAlign};
 use uuid::Uuid;
 
 use crate::geo::MapView;

@@ -123,10 +123,10 @@ plan() {
     RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" "$@" --unit-graph -Z unstable-options --locked
 }
 RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" metadata --all-features --format-version 1 --locked > "$scratch/metadata.json"
-host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-gpu-shim"
+host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-editor-beui --exclude block-gpu-shim"
 plan test --target x86_64-unknown-linux-gnu $host_packages --features block-app/full > "$scratch/host.json"
 plan build --target wasm32-wasip1-threads -p block-app --lib --features block-app/full > "$scratch/wasi.json"
-plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin > "$scratch/wasi-guest.json"
+plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin -p block-editor-beui > "$scratch/wasi-guest.json"
 plan build --target wasm32-unknown-unknown $games -p block-gpu-shim > "$scratch/wasm32.json"
 plan test --target aarch64-linux-android $host_packages --features block-app/full > "$scratch/android-arm64.json"
 plan test --target aarch64-unknown-linux-gnu $host_packages --features block-app/full > "$scratch/linux-arm64.json"

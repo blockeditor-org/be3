@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
-use block_editor_plugin::beui::Color32;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::Color32;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::{
     ForEach, Frame, List, Show, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Caption, use_theme};
-use block_editor_plugin::{ChildBlock, ChildMode, ChildState};
+use block_editor_beui::beui::styled::{Caption, use_theme};
+use block_editor_beui::{ChildBlock, ChildMode, ChildState};
 use uuid::Uuid;
 
 use super::state::VideoState;

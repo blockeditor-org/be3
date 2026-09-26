@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Memo, WriteSignal, create_effect, create_memo, create_signal, untrack,
 };
-use block_editor_plugin::{Drag, Editor};
+use block_editor_beui::{Drag, Editor};
 
 use super::entries::Folder;
 
