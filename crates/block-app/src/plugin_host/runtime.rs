@@ -280,6 +280,12 @@ impl Runtime {
             }
         }
         self.apply(forwarded);
+        if let Some(frame) = self.backend.received_frame() {
+            self.shared
+                .lock()
+                .unwrap()
+                .publish(&self.layout, Some(frame));
+        }
     }
 
     pub(super) fn apply(&mut self, messages: Vec<Message>) {

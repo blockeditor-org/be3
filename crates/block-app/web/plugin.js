@@ -27,6 +27,7 @@ const reads = {
     create_render_pipeline: [0],
     create_command_encoder: [0],
     encoder_begin_render_pass: [0],
+    encoder_copy_texture_to_texture: [0],
     queue_submit: [[0, 4]],
     queue_write_texture: [0, 2],
     queue_write_buffer: [2],

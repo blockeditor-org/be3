@@ -196,6 +196,10 @@ impl super::backend::Backend for Wasm {
     }
 
     fn frame(&mut self, _layout: &ScreenLayout, _pass: u64) -> Option<WasmFrame> {
+        None
+    }
+
+    fn received_frame(&mut self) -> Option<WasmFrame> {
         let worker = self.worker.as_mut()?;
         if !std::mem::take(&mut worker.presented) {
             return None;
