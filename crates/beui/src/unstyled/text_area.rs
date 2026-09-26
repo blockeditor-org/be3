@@ -18,7 +18,7 @@ use text_editor_core::{
 
 use beui_macros::{component, view};
 
-use crate::base::{ItemSize, ScrollPosition};
+use crate::base::{ImeCursor, ItemSize, ScrollPosition};
 use crate::color::Color32;
 use crate::document::Document;
 use crate::font::FontId;
@@ -35,7 +35,7 @@ use crate::reactive::{
 };
 use crate::unstyled::Scroll;
 
-use layout::{BODY_SIZE, LayoutOptions, hit_test, layout_document};
+use layout::{BODY_SIZE, Composition, LayoutOptions, hit_test, layout_document};
 use shapes::{
     CARET_WIDTH, PADDING, SelectionHandle, TOUCH_HANDLE_GAP, TOUCH_HANDLE_HIT_RADIUS, checkbox_at,
     gutter_arrow_at, touch_handle_anchor, touch_handle_center,
@@ -73,6 +73,8 @@ struct Surface {
     view_width: Memo<f32>,
     focused: ReadSignal<bool>,
     set_focused: WriteSignal<bool>,
+    preedit: ReadSignal<String>,
+    set_preedit: WriteSignal<String>,
     set_autoscroll: WriteSignal<bool>,
     viewport: NodeRef,
     masked: Memo<bool>,
@@ -528,6 +530,7 @@ fn extend(cx: &Context, press: PointerPress) {
 }
 
 fn blur(cx: &Context) {
+    cx.set_preedit.set(String::new());
     cx.state.end_grab();
     cx.state.set_selecting(false);
     cx.set_autoscroll.set(false);
@@ -559,6 +562,19 @@ fn insert_text(cx: &Context, text: &str) {
     cx.state.reveal_cursor();
 }
 
+fn compose(cx: &Context, text: String) {
+    let text = match cx.disabled.get_untracked() {
+        true => String::new(),
+        false => text.chars().filter(|letter| !letter.is_control()).collect(),
+    };
+    if text == cx.preedit.get_untracked() {
+        return;
+    }
+    cx.set_preedit.set(text);
+    cx.state.set_caret_handle(false);
+    cx.state.reveal_cursor();
+}
+
 #[derive(Clone)]
 struct Field {
     cx: Context,
@@ -580,6 +596,7 @@ struct Field {
     overlay: Memo<Page>,
     carets: Memo<Page>,
     handles: Memo<Page>,
+    ime_rect: Memo<Option<Rect>>,
     on_key_override: Callback<KeyPress, bool>,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
@@ -622,6 +639,7 @@ pub fn TextArea(
     let (offset, set_offset) = create_signal(0.0_f32);
     let (shift, set_shift) = create_signal(0.0_f32);
     let (focused, set_focused) = create_signal(false);
+    let (preedit, set_preedit) = create_signal(String::new());
     let (autoscroll, set_autoscroll) = create_signal(false);
     let viewport = NodeRef::new();
     let (outer, inner) = match single_line {
@@ -679,8 +697,19 @@ pub fn TextArea(
     let wrap_width = create_memo(clone!(size gutter padding -> move || {
         (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
     }));
+    let composition = create_memo(clone!(state preedit -> move || {
+        let text = preedit.get();
+        if text.is_empty() {
+            return None;
+        }
+        state.cursors().get();
+        Some(Composition {
+            at: *state.caret_indices().first()?,
+            text,
+        })
+    }));
     let document = create_memo(
-        clone!(state content wrap_width scale attached widgets masked font_size -> move || {
+        clone!(state content wrap_width scale attached widgets masked font_size composition -> move || {
             content.get();
             scale.get();
             attached.get();
@@ -696,6 +725,7 @@ pub fn TextArea(
                 ..options
             };
             let widgets = widgets.get();
+            let composition = composition.get();
             let document = state.with_snapshot(|snapshot| {
                 layout_document(
                     &snapshot.bytes,
@@ -704,6 +734,7 @@ pub fn TextArea(
                     &snapshot.checkbox_markers,
                     &snapshot.hidden,
                     &options,
+                    composition.as_ref(),
                 )
             });
             TextAreaLayout::new(Rc::new(document.unwrap_or_default()), Vec2::ZERO)
@@ -742,6 +773,8 @@ pub fn TextArea(
         view_width: view_width.clone(),
         focused: focused.clone(),
         set_focused: set_focused.clone(),
+        preedit: preedit.clone(),
+        set_preedit,
         set_autoscroll,
         viewport: viewport.clone(),
         masked: masked.clone(),
@@ -849,6 +882,14 @@ pub fn TextArea(
             })
         }),
     );
+    let ime_rect = create_memo(clone!(state layout focused -> move || {
+        state.cursors().get();
+        let layout = layout.get();
+        if !focused.get() {
+            return None;
+        }
+        layout.caret_rect(*state.caret_indices().first()?)
+    }));
     let carets = create_memo(clone!(state layout colors focused -> move || {
         state.cursors().get();
         let layout = layout.get();
@@ -937,6 +978,7 @@ pub fn TextArea(
         overlay,
         carets,
         handles,
+        ime_rect,
         on_key_override,
         on_focus_change,
         on_hover_change,
@@ -991,11 +1033,20 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
         overlay,
         carets,
         handles,
+        ime_rect,
         on_key_override,
         on_focus_change,
         on_hover_change,
     } = field;
     let canvas = cx.state.canvas();
+    let ime_cursor = create_memo(clone!(canvas -> move || {
+        let rect = ime_rect.get()?;
+        Some(ImeCursor {
+            node: canvas.try_get()?,
+            rect,
+        })
+    }));
+    let preedit_cx = cx.clone();
     let focused = cx.focused.clone();
     let set_focused = cx.set_focused.clone();
     let (blur_cx, text_cx, key_cx, capture_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
@@ -1009,6 +1060,7 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
             focused
             tab_stop
             ime={create_memo(move || !disabled.get())}
+            ime_cursor
             on_focus_change={move |is_focused: bool| {
                 set_focused.set(is_focused);
                 if !is_focused {
@@ -1017,9 +1069,11 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
                 on_focus_change.call(is_focused);
             }}
             on_text={move |typed: String| insert_text(&text_cx, &typed)}
+            on_preedit={move |text: String| compose(&preedit_cx, text)}
             on_key={move |press: KeyPress| {
-                !key_cx.disabled.get_untracked()
-                    && (on_key_override.call(press) || keys::key(&key_cx, press))
+                !key_cx.preedit.get_untracked().is_empty()
+                    || (!key_cx.disabled.get_untracked()
+                        && (on_key_override.call(press) || keys::key(&key_cx, press)))
             }}
         >
             <ClickCatcher

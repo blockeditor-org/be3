@@ -5,6 +5,7 @@ members = [
     "crates/be-commit",
     "crates/be-compositor",
     "crates/be-graph",
+    "crates/be-launcher",
     "crates/be-model",
     "crates/be-model-derive",
     "crates/be-protocol",

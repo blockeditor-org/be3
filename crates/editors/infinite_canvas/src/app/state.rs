@@ -248,6 +248,8 @@ pub(crate) struct CanvasState {
     set_selection: WriteSignal<HashSet<Uuid>>,
     pub(crate) gesture: ReadSignal<Option<Gesture>>,
     set_gesture: WriteSignal<Option<Gesture>>,
+    typed: ReadSignal<Option<CanvasEntity>>,
+    set_typed: WriteSignal<Option<CanvasEntity>>,
     pub(crate) focused_editor: ReadSignal<Option<Uuid>>,
     set_focused_editor: WriteSignal<Option<Uuid>>,
     confirmed_editor: Cell<Option<Uuid>>,
@@ -278,6 +280,7 @@ impl CanvasState {
         let (tool, set_tool) = create_signal(Tool::Select);
         let (selection, set_selection) = create_signal(HashSet::new());
         let (gesture, set_gesture) = create_signal(None);
+        let (typed, set_typed) = create_signal(None);
         let (focused_editor, set_focused_editor) = create_signal(None);
         let (editing_text, set_editing_text) = create_signal(None);
         let (import_error, set_import_error) = create_signal(None);
@@ -313,6 +316,8 @@ impl CanvasState {
             set_selection,
             gesture,
             set_gesture,
+            typed,
+            set_typed,
             focused_editor,
             set_focused_editor,
             confirmed_editor: Cell::new(None),
@@ -391,7 +396,19 @@ impl CanvasState {
     }
 
     pub(crate) fn displayed(&self) -> Vec<CanvasEntity> {
-        displayed_entities(&self.entities.get(), &self.gesture.get())
+        let mut displayed = displayed_entities(&self.entities.get(), &self.gesture.get());
+        if let Some(typed) = self.typed.get()
+            && let Some(entity) = displayed.iter_mut().find(|entity| entity.id == typed.id)
+        {
+            *entity = typed;
+        }
+        displayed
+    }
+
+    pub(crate) fn preview_typed(&self, entity: Option<CanvasEntity>) {
+        if self.typed.get_untracked() != entity {
+            self.set_typed.set(entity);
+        }
     }
 
     pub(crate) fn label_of(&self, reference: Uuid) -> Option<BlockLabel> {
@@ -641,9 +658,9 @@ impl CanvasState {
     }
 
     pub(crate) fn selected_entities(&self) -> Vec<CanvasEntity> {
-        let selection = self.selection.get_untracked();
+        let selection = self.selection.get();
         self.entities
-            .get_untracked()
+            .get()
             .into_iter()
             .filter(|entity| selection.contains(&entity.id))
             .collect()

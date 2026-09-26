@@ -4,7 +4,7 @@ use block_editor_plugin::be_block::PixelArtContent;
 use block_editor_plugin::be_block::pixel_art::Artwork;
 use block_editor_plugin::be_block::pixel_art::PixelColor;
 use block_editor_plugin::beui::styled::toggle_button_pressed;
-use block_editor_plugin::beui::{Key, Modifiers, Pos2};
+use block_editor_plugin::beui::{Key, Pos2};
 use block_editor_plugin::{Artifact, Artifacts, Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
 use uuid::Uuid;

@@ -36,6 +36,52 @@ impl TextWidget {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Composition {
+    pub at: usize,
+    pub text: String,
+}
+
+impl Composition {
+    fn len(&self) -> usize {
+        self.text.len()
+    }
+
+    fn composed(&self) -> Range<usize> {
+        self.at..self.at + self.len()
+    }
+
+    fn spliced_start(&self, byte: usize) -> usize {
+        match byte < self.at {
+            true => byte,
+            false => byte + self.len(),
+        }
+    }
+
+    fn spliced_end(&self, byte: usize) -> usize {
+        match byte <= self.at {
+            true => byte,
+            false => byte + self.len(),
+        }
+    }
+
+    fn spliced_range(&self, range: &Range<usize>) -> Range<usize> {
+        self.spliced_start(range.start)..self.spliced_end(range.end)
+    }
+
+    fn back(&self, byte: usize) -> usize {
+        match byte {
+            byte if byte < self.at => byte,
+            byte if byte < self.at + self.len() => self.at,
+            byte => byte - self.len(),
+        }
+    }
+
+    fn back_range(&self, range: &Range<usize>) -> Range<usize> {
+        self.back(range.start)..self.back(range.end)
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) struct LayoutOptions {
     pub wrap_width: f32,
@@ -164,6 +210,7 @@ fn body_metrics(body_size: f32) -> Option<(f32, f32)> {
 struct LineSource<'a> {
     bytes: &'a [u8],
     highlight: &'a SyntaxHighlight,
+    composition: Option<&'a Composition>,
     widgets: &'a [&'a TextWidget],
     checkboxes: &'a [&'a Range<usize>],
     end: usize,
@@ -176,7 +223,20 @@ struct LineSource<'a> {
 
 impl LineSource<'_> {
     fn style_at(&self, index: usize) -> SynHlStyle {
-        let mut style = self.highlight.style_at(index);
+        let mut style = match self.composition {
+            Some(composition) if composition.composed().contains(&index) => {
+                let before = composition
+                    .at
+                    .checked_sub(1)
+                    .filter(|before| self.bytes.get(*before) != Some(&b'\n'));
+                SynHlStyle {
+                    underline: true,
+                    ..self.highlight.style_at(before.unwrap_or(composition.at))
+                }
+            }
+            Some(composition) => self.highlight.style_at(composition.back(index)),
+            None => self.highlight.style_at(index),
+        };
         if self
             .widgets
             .iter()
@@ -482,6 +542,82 @@ pub(crate) fn layout_document(
     checkboxes: &[Range<usize>],
     hidden: &[Range<usize>],
     options: &LayoutOptions,
+    composition: Option<&Composition>,
+) -> Option<DocumentLayout> {
+    let composition = composition.filter(|composition| {
+        !composition.text.is_empty()
+            && composition.at <= bytes.len()
+            && utf8_boundary(bytes, composition.at)
+    });
+    let Some(composition) = composition else {
+        let mut layout =
+            layout_lines(bytes, highlight, widgets, checkboxes, hidden, options, None)?;
+        align_markdown_tables(
+            &mut layout.lines,
+            &mut layout.positions,
+            highlight.markdown_tables(),
+        );
+        return Some(layout);
+    };
+    let mut spliced = bytes.to_vec();
+    spliced.splice(composition.at..composition.at, composition.text.bytes());
+    let widgets = widgets
+        .iter()
+        .map(|widget| TextWidget {
+            range: composition.spliced_range(&widget.range),
+            ..widget.clone()
+        })
+        .collect::<Vec<_>>();
+    let into = |ranges: &[Range<usize>]| {
+        ranges
+            .iter()
+            .map(|range| composition.spliced_range(range))
+            .collect::<Vec<_>>()
+    };
+    let mut layout = layout_lines(
+        &spliced,
+        highlight,
+        &widgets,
+        &into(checkboxes),
+        &into(hidden),
+        options,
+        Some(composition),
+    )?;
+    layout.positions = (0..=bytes.len())
+        .map(|byte| {
+            layout
+                .positions
+                .get(composition.spliced_start(byte))
+                .copied()
+                .flatten()
+        })
+        .collect();
+    for line in &mut layout.lines {
+        line.start = composition.back(line.start);
+        line.end = composition.back(line.end);
+        for run in &mut line.runs {
+            run.range = composition.back_range(&run.range);
+        }
+    }
+    for widget in &mut layout.widgets {
+        widget.range = composition.back_range(&widget.range);
+    }
+    align_markdown_tables(
+        &mut layout.lines,
+        &mut layout.positions,
+        highlight.markdown_tables(),
+    );
+    Some(layout)
+}
+
+fn layout_lines(
+    bytes: &[u8],
+    highlight: &SyntaxHighlight,
+    widgets: &[TextWidget],
+    checkboxes: &[Range<usize>],
+    hidden: &[Range<usize>],
+    options: &LayoutOptions,
+    composition: Option<&Composition>,
 ) -> Option<DocumentLayout> {
     let wrap_width = options.wrap_width;
     let body = body_metrics(options.body_size)?;
@@ -526,6 +662,7 @@ pub(crate) fn layout_document(
         let source = LineSource {
             bytes,
             highlight,
+            composition,
             widgets: &line_sources,
             checkboxes: &line_checkboxes,
             end,
@@ -616,7 +753,6 @@ pub(crate) fn layout_document(
         document_line += 1;
     }
 
-    align_markdown_tables(&mut lines, &mut positions, highlight.markdown_tables());
     let width = lines
         .iter()
         .map(|line| line.width)

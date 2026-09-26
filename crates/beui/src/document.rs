@@ -92,6 +92,7 @@ pub struct Document {
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
     clips: NodeMap<Rect>,
+    rubber_banding: bool,
 }
 
 struct SizeWatcher {
@@ -235,6 +236,7 @@ impl Document {
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
             clips: NodeMap::default(),
+            rubber_banding: true,
         }
     }
 
@@ -427,6 +429,14 @@ impl Document {
 
     pub(crate) fn track_changes(&mut self, enabled: bool) {
         self.changes.set_enabled(enabled);
+    }
+
+    pub fn rubber_banding(&self) -> bool {
+        self.rubber_banding
+    }
+
+    pub(crate) fn set_rubber_banding(&mut self, enabled: bool) {
+        self.rubber_banding = enabled;
     }
 
     pub(crate) fn track_damage(&mut self, enabled: bool) {
