@@ -21,7 +21,6 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
                 depth: 0,
                 expandable: false,
                 expanded: false,
-                marked: false,
             };
             view! {
                 <unstyled::Tree

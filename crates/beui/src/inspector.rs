@@ -71,7 +71,6 @@ pub(crate) struct State {
     commands: RefCell<Vec<Command>>,
     pub(crate) theme: Cell<Theme>,
     requested_theme: Cell<Option<Theme>>,
-    reveal: Cell<Option<NodeId>>,
     revision: Cell<u64>,
     reset_performance: Cell<bool>,
     closed: Cell<bool>,
@@ -101,7 +100,6 @@ impl State {
             commands: RefCell::new(Vec::new()),
             theme: Cell::new(theme),
             requested_theme: Cell::new(None),
-            reveal: Cell::new(None),
             revision: Cell::new(0),
             reset_performance: Cell::new(false),
             closed: Cell::new(false),
@@ -120,6 +118,15 @@ impl State {
 
     fn set_expanded(&self, key: Key, expanded: bool) {
         self.expansion.borrow_mut().insert(key, expanded);
+        self.touch();
+    }
+
+    fn expand_ancestors(&self, ancestors: &[Key]) {
+        let mut expansion = self.expansion.borrow_mut();
+        for key in ancestors {
+            expansion.insert(*key, true);
+        }
+        drop(expansion);
         self.touch();
     }
 
@@ -202,7 +209,6 @@ impl State {
 
     fn select(&self, id: NodeId) {
         self.selected.set(Some(id));
-        self.reveal.set(Some(id));
         self.touch();
     }
 
@@ -264,8 +270,7 @@ pub(crate) struct Inspector {
     set_summary: WriteSignal<Summary>,
     set_performance: WriteSignal<panel::PerformanceSummary>,
     set_renderer: WriteSignal<panel::RendererRows>,
-    set_selection: WriteSignal<Option<Key>>,
-    set_reveal: WriteSignal<Option<Key>>,
+    set_selection: WriteSignal<Vec<Key>>,
     tree: NodeRef,
     bar: panel::Bar,
     pub(crate) width: f32,
@@ -294,7 +299,6 @@ impl Inspector {
             set_performance: panel.set_performance,
             set_renderer: panel.set_renderer,
             set_selection: panel.set_selection,
-            set_reveal: panel.set_reveal,
             width: DEFAULT_WIDTH,
             grabbed: None,
             grip: false,
@@ -342,7 +346,7 @@ impl Inspector {
 
     #[cfg(test)]
     pub(crate) fn focused_row(&self) -> Option<Key> {
-        crate::unstyled::tree_focused::<Key>(&self.document, self.tree.get())
+        crate::styled::tree_focused::<Key>(&self.document, self.tree.get())
     }
 
     pub(crate) fn panel_width(&self, ctx: &Context, rect: Rect) -> f32 {
@@ -481,7 +485,6 @@ impl Inspector {
             self.pick(target, ctx, content);
         }
         self.release_focus(ctx);
-        self.reveal();
         if app_visible {
             self.read(target, ctx, content, keyboard_interactive);
             self.paint(target, ctx, content, panel);
@@ -569,10 +572,7 @@ impl Inspector {
             .renderer_info()
             .map(|info| info.rows())
             .unwrap_or_default();
-        let selection = entries
-            .iter()
-            .find(|entry| entry.selected)
-            .map(|entry| entry.key);
+        let selection = self.selection_path(target);
         let Self {
             document,
             set_keys,
@@ -601,9 +601,12 @@ impl Inspector {
 
     fn summary(&self, target: &Document, ctx: &Context, entries: &[Entry]) -> Summary {
         let selected = self.state.selected.get();
-        let selection = selected
-            .and_then(|id| entries.iter().find(|entry| entry.key.node() == id))
-            .map_or_else(nothing_selected, entry_label);
+        let selection = selected.map_or_else(nothing_selected, |id| {
+            entries
+                .iter()
+                .find(|entry| entry.key.node() == id)
+                .map_or_else(|| tree::label(target, id), entry_label)
+        });
         Summary {
             total: match self.state.tab.get() {
                 InspectorTab::Beui => target.root().map_or(0, |root| tree::count(target, root)),
@@ -648,7 +651,10 @@ impl Inspector {
         let order = self.document.focusables_within(root);
         let rows = self
             .tree_node()
-            .map(|tree| self.document.focusables_within(tree))
+            .map(|tree| {
+                let rows = crate::styled::tree_rows(&self.document, tree);
+                self.document.focusables_within(rows)
+            })
             .unwrap_or_default();
         order
             .iter()
@@ -696,45 +702,19 @@ impl Inspector {
             self.state.picking.set(false);
             self.state.hovered.set(None);
             self.state.app_shown.set(false);
-            self.choose(target, id);
+            self.state.select(id);
         }
     }
 
-    fn choose(&mut self, target: &Document, id: NodeId) {
-        let path = match self.state.tab.get() {
+    fn selection_path(&self, target: &Document) -> Vec<Key> {
+        let Some(id) = self.state.selected.get() else {
+            return Vec::new();
+        };
+        match self.state.tab.get() {
             InspectorTab::Beui => tree::path(target, id),
             InspectorTab::AccessKit => tree::accesskit_path(target, id),
-            InspectorTab::Performance | InspectorTab::Simulation => return,
-        };
-        if let Some((_, ancestors)) = path.split_last() {
-            for key in ancestors {
-                self.state.set_expanded(*key, true);
-            }
+            InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),
         }
-        self.state.select(id);
-    }
-
-    fn reveal(&mut self) {
-        let Some(id) = self.state.reveal.get() else {
-            return;
-        };
-        let key = match self.state.tab.get() {
-            InspectorTab::Beui => Key::Node(id),
-            InspectorTab::AccessKit => Key::AccessKit(id),
-            InspectorTab::Performance | InspectorTab::Simulation => return,
-        };
-        if !self.entries.iter().any(|entry| entry.key == key) {
-            return;
-        }
-        self.state.reveal.set(None);
-        let Self {
-            document,
-            set_reveal,
-            ..
-        } = self;
-        with_reactive_scope(document, || set_reveal.set(Some(key)));
-        with_reactive_scope(document, || set_reveal.set(None));
-        self.state.touch();
     }
 
     fn paint(&self, target: &Document, ctx: &Context, content: Rect, panel: Rect) {

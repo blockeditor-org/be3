@@ -66,7 +66,7 @@ pub use text_area::{TextArea, text_area_surface};
 pub use text_input::{TextInput, text_input_value};
 pub use theme::{Theme, ThemeProvider, ThemeStore, use_theme};
 pub use tooltip::Tooltip;
-pub use tree::{Tree, TreeRowFace};
+pub use tree::{Tree, TreeRowFace, tree_focused, tree_row_node, tree_rows};
 
 mod choice;
 mod listbox;

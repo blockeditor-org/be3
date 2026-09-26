@@ -171,8 +171,7 @@ pub(crate) struct Panel {
     pub(crate) set_summary: WriteSignal<Summary>,
     pub(crate) set_performance: WriteSignal<PerformanceSummary>,
     pub(crate) set_renderer: WriteSignal<RendererRows>,
-    pub(crate) set_selection: WriteSignal<Option<Key>>,
-    pub(crate) set_reveal: WriteSignal<Option<Key>>,
+    pub(crate) set_selection: WriteSignal<Vec<Key>>,
     pub(crate) tree: NodeRef,
 }
 
@@ -183,8 +182,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
     let (performance, set_performance) = create_signal(PerformanceSummary::default());
     let (renderer, set_renderer) = create_signal(RendererRows::new());
     let (tab, set_tab) = create_signal(InspectorTab::default());
-    let (selection, set_selection) = create_signal(None);
-    let (reveal, set_reveal) = create_signal(None);
+    let (selection, set_selection) = create_signal(Vec::<Key>::new());
     let tree = NodeRef::new();
     let tree_ref = tree.clone();
     let simulation_state = state.clone();
@@ -226,8 +224,11 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
             move || summary.with(|summary| summary.selection.clone())
         });
         let bounds_text = create_memo(move || summary.with(|summary| summary.bounds.clone()));
-        let (select_state, expand_state, hover_state) =
-            (state.clone(), state.clone(), state.clone());
+        let (select_state, expand_state, hover_state, reveal_state) =
+            (state.clone(), state.clone(), state.clone(), state.clone());
+        let selected =
+            create_memo(clone!(selection -> move || selection.with(|path| path.last().copied())));
+        let lineage = selection.clone();
         let row_entries = entries.clone();
         let item_entries = entries.clone();
         let pick_state = state.clone();
@@ -278,39 +279,38 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                             </List>
                         </Frame>
                         <Separator />
-                        <Frame
-                            @sizing=ItemSize::Percent(100.0)
-                            padding_horizontal=BODY_PADDING
-                            padding_vertical=BODY_PADDING
-                        >
+                        <Frame @sizing=ItemSize::Percent(100.0)>
                             <List spacing=0.0>
                                 <Show condition={body_tree_visible}>
-                                    <Scroll
+                                    <Tree
                                         @sizing=ItemSize::Percent(100.0)
+                                        @node_ref=&tree_ref
+                                        keys
+                                        item={move |key: Key| item(&item_entries, key)}
+                                        selected={selected}
+                                        ancestors={move |key: Key| ancestors(&lineage, key)}
+                                        padding=BODY_PADDING
                                         focus_color={Some(THEME.accent)}
+                                        row_test_id={move |key: Key| key.test_id()}
+                                        reveal_test_id={"inspector.reveal".to_owned()}
+                                        on_select={move |key: Key| select_state.select(key.node())}
+                                        on_expand={move |(key, expanded): (Key, bool)| {
+                                            expand_state.set_expanded(key, expanded);
+                                        }}
+                                        on_reveal={move |key: Key| {
+                                            reveal_state.expand_ancestors(&ancestors(&selection, key));
+                                        }}
+                                        on_hover_change={move |(key, hovered): (Key, bool)| {
+                                            hover_state.hover(key.node(), hovered);
+                                        }}
                                     >
-                                        <Tree
-                                            @node_ref=&tree_ref
-                                            keys
-                                            item={move |key: Key| item(&item_entries, key)}
-                                            selected={selection}
-                                            reveal
-                                            on_select={move |key: Key| select_state.select(key.node())}
-                                            on_expand={move |(key, expanded): (Key, bool)| {
-                                                expand_state.set_expanded(key, expanded);
-                                            }}
-                                            on_hover_change={move |(key, hovered): (Key, bool)| {
-                                                hover_state.hover(key.node(), hovered);
-                                            }}
-                                        >
-                                            {move |row: TreeRowFace<Key>| view! {
-                                                <TreeCells
-                                                    row_key={row.key}
-                                                    entries={row_entries.clone()}
-                                                />
-                                            }}
-                                        </Tree>
-                                    </Scroll>
+                                        {move |row: TreeRowFace<Key>| view! {
+                                            <TreeCells
+                                                row_key={row.key}
+                                                entries={row_entries.clone()}
+                                            />
+                                        }}
+                                    </Tree>
                                 </Show>
                                 <Show condition={body_performance_visible}>
                                     <PerformancePanel
@@ -368,7 +368,6 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
         set_performance,
         set_renderer,
         set_selection,
-        set_reveal,
         tree,
     }
 }
@@ -431,69 +430,71 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
     let band_state = state.clone();
     view! {
         <Scroll focus_color={Some(THEME.accent)}>
-            <List spacing=PERFORMANCE_SPACING>
-                <Checkbox
-                    @test_id={"inspector.simulation.touch_emulation"}
-                    label="Emulate touch with mouse"
-                    checked={state.touch_emulation.get()}
-                    on_change={move |enabled| touch_state.touch_emulation.set(enabled)}
-                />
-                <Checkbox
-                    @test_id={"inspector.simulation.mouse_simulation"}
-                    label="Simulate mouse with touch"
-                    checked={state.mouse_simulation.get()}
-                    on_change={move |enabled| mouse_state.mouse_simulation.set(enabled)}
-                />
-                <Checkbox
-                    @test_id={"inspector.simulation.rubber_banding"}
-                    label="Rubber-band scrolls and windows"
-                    checked={state.rubber_banding.get()}
-                    on_change={move |enabled| band_state.rubber_banding.set(enabled)}
-                />
-                <Separator />
-                <List spacing=TIMING_SPACING>
-                    <Heading content="Device pixel ratio" />
-                    <RadioGroup
-                        @test_id={"inspector.simulation.pixel_ratio"}
-                        options={view! {
-                            <ForEach keys={labels(&PIXEL_RATIOS)}>
-                                {|label: &'static str| view! {
-                                    <ChoiceOption label />
-                                }}
-                            </ForEach>
-                        }}
-                        selected={Some(selected)}
-                        on_change={move |index: Option<usize>| {
-                            let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
-                            ratio_state.simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
-                        }}
+            <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
+                <List spacing=PERFORMANCE_SPACING>
+                    <Checkbox
+                        @test_id={"inspector.simulation.touch_emulation"}
+                        label="Emulate touch with mouse"
+                        checked={state.touch_emulation.get()}
+                        on_change={move |enabled| touch_state.touch_emulation.set(enabled)}
                     />
-                </List>
-                <Separator />
-                <List spacing=TIMING_SPACING>
-                    <Heading content="Theme" />
-                    <RadioGroup
-                        @test_id={"inspector.simulation.theme"}
-                        options={view! {
-                            <ForEach keys={labels(&THEMES)}>
-                                {|label: &'static str| view! {
-                                    <ChoiceOption label />
-                                }}
-                            </ForEach>
-                        }}
-                        selected={Some(selected_theme)}
-                        on_change={move |index: Option<usize>| {
-                            if let Some((_, theme)) = index.and_then(|index| THEMES.get(index)) {
-                                theme_state.choose_theme(*theme);
-                            }
-                        }}
+                    <Checkbox
+                        @test_id={"inspector.simulation.mouse_simulation"}
+                        label="Simulate mouse with touch"
+                        checked={state.mouse_simulation.get()}
+                        on_change={move |enabled| mouse_state.mouse_simulation.set(enabled)}
                     />
+                    <Checkbox
+                        @test_id={"inspector.simulation.rubber_banding"}
+                        label="Rubber-band scrolls and windows"
+                        checked={state.rubber_banding.get()}
+                        on_change={move |enabled| band_state.rubber_banding.set(enabled)}
+                    />
+                    <Separator />
+                    <List spacing=TIMING_SPACING>
+                        <Heading content="Device pixel ratio" />
+                        <RadioGroup
+                            @test_id={"inspector.simulation.pixel_ratio"}
+                            options={view! {
+                                <ForEach keys={labels(&PIXEL_RATIOS)}>
+                                    {|label: &'static str| view! {
+                                        <ChoiceOption label />
+                                    }}
+                                </ForEach>
+                            }}
+                            selected={Some(selected)}
+                            on_change={move |index: Option<usize>| {
+                                let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
+                                ratio_state.simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
+                            }}
+                        />
+                    </List>
+                    <Separator />
+                    <List spacing=TIMING_SPACING>
+                        <Heading content="Theme" />
+                        <RadioGroup
+                            @test_id={"inspector.simulation.theme"}
+                            options={view! {
+                                <ForEach keys={labels(&THEMES)}>
+                                    {|label: &'static str| view! {
+                                        <ChoiceOption label />
+                                    }}
+                                </ForEach>
+                            }}
+                            selected={Some(selected_theme)}
+                            on_change={move |index: Option<usize>| {
+                                if let Some((_, theme)) = index.and_then(|index| THEMES.get(index)) {
+                                    theme_state.choose_theme(*theme);
+                                }
+                            }}
+                        />
+                    </List>
+                    <Separator />
+                    <FilterSection state={filter_state} />
+                    <Separator />
+                    <ScreenReaderSection state={reader_state} />
                 </List>
-                <Separator />
-                <FilterSection state={filter_state} />
-                <Separator />
-                <ScreenReaderSection state={reader_state} />
-            </List>
+            </Frame>
         </Scroll>
     }
 }
@@ -667,50 +668,52 @@ fn PerformancePanel(
     let other = timing_values(&performance, |timings| timings.other);
     view! {
         <Scroll focus_color={Some(THEME.accent)}>
-            <List spacing=PERFORMANCE_SPACING>
-                <List spacing=FOOTER_SPACING>
-                    <Code content={latest_work} />
-                    <Code content={scene} color={THEME.text_muted} />
-                    <Code content={cache} color={THEME.text_muted} />
-                    <Code content={reuse} color={THEME.text_muted} />
-                </List>
-                <Separator />
-                <List spacing=TIMING_SPACING>
-                    <List
-                        direction=Direction::Horizontal
-                        align=Align::Center
-                        spacing=TIMING_SPACING
-                    >
-                        <Heading @sizing=ItemSize::Percent(100.0) content="CPU time" />
-                        <Caption content="milliseconds" />
+            <Frame padding_horizontal=BODY_PADDING padding_vertical=BODY_PADDING>
+                <List spacing=PERFORMANCE_SPACING>
+                    <List spacing=FOOTER_SPACING>
+                        <Code content={latest_work} />
+                        <Code content={scene} color={THEME.text_muted} />
+                        <Code content={cache} color={THEME.text_muted} />
+                        <Code content={reuse} color={THEME.text_muted} />
                     </List>
-                    <TimingHeader />
-                    <TimingRow label="Document" values={total} />
-                    <TimingRow label="Layout" values={layout} />
-                    <TimingRow label="Interaction" values={interaction} />
-                    <TimingRow label="Paint" values={paint} />
-                    <TimingRow label="Accessibility" values={accessibility} />
-                    <TimingRow label="Other" values={other} />
+                    <Separator />
+                    <List spacing=TIMING_SPACING>
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=TIMING_SPACING
+                        >
+                            <Heading @sizing=ItemSize::Percent(100.0) content="CPU time" />
+                            <Caption content="milliseconds" />
+                        </List>
+                        <TimingHeader />
+                        <TimingRow label="Document" values={total} />
+                        <TimingRow label="Layout" values={layout} />
+                        <TimingRow label="Interaction" values={interaction} />
+                        <TimingRow label="Paint" values={paint} />
+                        <TimingRow label="Accessibility" values={accessibility} />
+                        <TimingRow label="Other" values={other} />
+                    </List>
+                    <Separator />
+                    <List spacing=TIMING_SPACING>
+                        <Heading content="Visualize" />
+                        <Checkbox
+                            @test_id={"inspector.performance.flash_changes"}
+                            label="Flash changed elements"
+                            checked={state.flash_changes.get()}
+                            on_change={move |enabled| change_state.flash_changes.set(enabled)}
+                        />
+                        <Checkbox
+                            @test_id={"inspector.performance.flash_damage"}
+                            label="Flash repainted regions"
+                            checked={state.flash_damage.get()}
+                            on_change={move |enabled| damage_state.flash_damage.set(enabled)}
+                        />
+                    </List>
+                    <Separator />
+                    <RendererSection @test_id={"inspector.performance.renderer"} rows={renderer} />
                 </List>
-                <Separator />
-                <List spacing=TIMING_SPACING>
-                    <Heading content="Visualize" />
-                    <Checkbox
-                        @test_id={"inspector.performance.flash_changes"}
-                        label="Flash changed elements"
-                        checked={state.flash_changes.get()}
-                        on_change={move |enabled| change_state.flash_changes.set(enabled)}
-                    />
-                    <Checkbox
-                        @test_id={"inspector.performance.flash_damage"}
-                        label="Flash repainted regions"
-                        checked={state.flash_damage.get()}
-                        on_change={move |enabled| damage_state.flash_damage.set(enabled)}
-                    />
-                </List>
-                <Separator />
-                <RendererSection @test_id={"inspector.performance.renderer"} rows={renderer} />
-            </List>
+            </Frame>
         </Scroll>
     }
 }
@@ -912,6 +915,13 @@ fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
     }
 }
 
+fn ancestors(selection: &ReadSignal<Vec<Key>>, key: Key) -> Vec<Key> {
+    selection.with(|path| match path.split_last() {
+        Some((last, ancestors)) if *last == key => ancestors.to_vec(),
+        _ => Vec::new(),
+    })
+}
+
 fn item(entries: &Entries, key: Key) -> TreeItem {
     entries.with(|entries| {
         entries
@@ -921,7 +931,6 @@ fn item(entries: &Entries, key: Key) -> TreeItem {
                 depth: entry.depth,
                 expandable: entry.expandable,
                 expanded: entry.expanded,
-                marked: false,
             })
             .unwrap_or_default()
     })
