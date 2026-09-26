@@ -1,8 +1,70 @@
+load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/tools:defs.bzl", "tool")
 
-cargo_library()
+# On Android the launcher is this library, loaded by GameActivity under
+# cargo's name for it.
+cargo_library(soname = "libbe_launcher.so")
 
 cargo_test()
 
 # `./scripts/buck run //crates/be-launcher:launcher`
 cargo_binary(name = "launcher")
+
+# The launcher on Android runs the builds CI publishes to be3-ci rather than
+# building them. It runs one in block-app's own MainActivity, in a process of
+# its own, and knows which builds it can run by its shell hash, which it reads
+# from its assets.
+genrule(
+    name = "android-assets",
+    cmd = "mkdir -p $OUT && cp $(location //crates/block-app:android-shell) $OUT/shell",
+    out = "assets",
+)
+
+# As with the app, CI's APK has an id and label of its own, so that it
+# installs beside a local build rather than colliding with it.
+[
+    android_apk(
+        name = name,
+        application_id = application_id,
+        assets = ":android-assets",
+        java = glob(["android/java/**/*.java"]) + ["//crates/block-app:MainActivity.java"],
+        java_libraries = "//buck/android:game-activity",
+        label = label,
+        library = ":be-launcher",
+        manifest = "android/AndroidManifest.xml",
+        min_sdk = 23,
+        package = "com.be3.launcher",
+        resources = "//crates/block-app:android-res",
+        target_sdk = 35,
+        version_code = 1,
+        version_name = "0.1.0",
+    )
+    for name, application_id, label in [
+        ("apk", "com.be3.launcher", "be3 launcher"),
+        ("apk-dist", "com.be3.launcher.ci", "be3 launcher (CI)"),
+    ]
+]
+
+# `./scripts/buck run //crates/be-launcher:android -- --install`
+tool(
+    name = "android",
+    command = [
+        "sh",
+        "$(location //buck/android:sign.sh)",
+        "$(location //buck/android:jdk)",
+        "$(location //buck/android:build-tools)",
+        "$(location //buck/android:platform-tools)",
+        "$(location :apk)",
+        "be-launcher",
+        "com.be3.launcher.LauncherActivity",
+    ],
+)
+
+signed_apk(
+    name = "android-dist",
+    apk = ":apk-dist",
+    exec_compatible_with = ["root//buck/constraints:android_keystore"],
+    key_version = 1,
+    visibility = ["//buck/ci:"],
+)
