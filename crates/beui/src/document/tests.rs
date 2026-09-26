@@ -94,6 +94,8 @@ mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
 mod a_virtual_list_scrolled_out_of_view_releases_its_rows;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
+mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
+mod a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows;
 mod a_window_with_tabs_in_a_sidebar_has_no_title_bar;
 mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
 mod a_wrapping_row_flows_its_children_onto_more_lines;
@@ -165,6 +167,7 @@ mod dragging_a_tab_over_a_window_bar_marks_where_it_lands;
 mod dragging_a_tab_past_the_one_beside_it_reorders_the_tab_bar;
 mod dragging_a_tab_within_a_window_bar_reorders_it;
 mod dragging_a_window_by_its_bar_moves_it;
+mod dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back;
 mod dragging_again_during_overscroll_continues_from_the_band;
 mod dragging_onto_a_drop_target_hands_it_the_payload;
 mod dragging_the_bar_between_two_panes_moves_the_boundary;
@@ -230,6 +233,7 @@ mod removing_a_node_with_an_open_tooltip_leaves_nothing_to_paint;
 mod removing_from_a_virtual_list_view_disposes_only_that_row;
 mod required_props_can_be_written_in_any_order_and_as_children;
 mod resizing_a_virtual_scroll_reuses_visible_items;
+mod resizing_a_window_from_its_top_edge_does_not_drag_it;
 mod resizing_an_element_damages_where_it_was_and_where_it_moved_to;
 mod resizing_rows_preserves_the_scroll_anchor;
 mod right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent_item;
@@ -300,6 +304,7 @@ mod touch_dragging_a_scroll_moves_it_without_activating_a_row;
 mod touch_dragging_across_a_text_input_does_not_select_its_text;
 mod touch_overscroll_bands_without_hovering_a_row;
 mod triple_clicking_selects_the_line_so_typing_replaces_the_value;
+mod turning_off_rubber_banding_in_the_inspector_stops_a_scroll_at_its_end;
 mod turning_on_the_screen_reader_reads_what_it_is_on;
 mod turning_the_accessibility_tree_off_in_the_inspector_stops_building_it;
 mod typing_in_a_select_search_box_filters_options_case_insensitively;
@@ -401,6 +406,25 @@ impl Harness {
             pressed: false,
             modifiers: Modifiers::NONE,
         }]);
+    }
+
+    pub(crate) fn press_at(&mut self, pos: Pos2) {
+        self.frame(vec![Event::PointerMoved(pos)]);
+        self.frame(vec![Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers: Modifiers::NONE,
+        }]);
+    }
+
+    pub(crate) fn release_at(&mut self, pos: Pos2) -> crate::FrameOutput {
+        self.frame(vec![Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Modifiers::NONE,
+        }])
     }
 
     pub(crate) fn drag(&mut self, from: Pos2, to: Pos2) {
@@ -558,6 +582,10 @@ impl Harness {
 
     pub(crate) fn touch_toggle_center(&self) -> Pos2 {
         self.inspector_center("inspector.simulation.touch_emulation")
+    }
+
+    pub(crate) fn rubber_band_toggle_center(&self) -> Pos2 {
+        self.inspector_center("inspector.simulation.rubber_banding")
     }
 
     pub(crate) fn mouse_toggle_center(&self) -> Pos2 {
@@ -1058,6 +1086,19 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
         }
     });
     (document, dock.get())
+}
+
+pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::SurfaceId {
+    harness.frame(Vec::new());
+    let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
+    drag_with(
+        harness,
+        tab,
+        pos2(WIDE_VIEWPORT.x / 2.0, WIDE_VIEWPORT.y / 2.0),
+        Modifiers::ALT,
+    );
+    harness.frame(Vec::new());
+    unstyled::dock_state(harness.document(), dock).windows()[0]
 }
 
 pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Option<NodeId> {

@@ -36,6 +36,7 @@ impl IntoProp<OverlayAnchor> for &NodeRef {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Placement {
+    At,
     BelowStart,
     RightStart,
     Center,
@@ -96,6 +97,9 @@ fn resolve_rect(
     placement: Placement,
     content_size: Vec2,
 ) -> Rect {
+    if placement == Placement::At {
+        return Rect::from_min_size(anchor_rect.min, content_size);
+    }
     if placement == Placement::Fill {
         return viewport;
     }
@@ -129,7 +133,11 @@ fn resolve_rect(
     let mut origin = match placement {
         Placement::BelowStart => pos2(anchor_rect.left(), anchor_rect.bottom()),
         Placement::RightStart => pos2(anchor_rect.right(), anchor_rect.top()),
-        Placement::Center | Placement::Fill | Placement::InsideTop | Placement::InsideBottom => {
+        Placement::At
+        | Placement::Center
+        | Placement::Fill
+        | Placement::InsideTop
+        | Placement::InsideBottom => {
             unreachable!("a centred or pinned overlay is placed above")
         }
     };

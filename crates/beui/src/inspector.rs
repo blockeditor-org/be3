@@ -59,6 +59,7 @@ pub(crate) struct State {
     pub(crate) picking: Cell<bool>,
     pub(crate) touch_emulation: Cell<bool>,
     pub(crate) mouse_simulation: Cell<bool>,
+    pub(crate) rubber_banding: Cell<bool>,
     pub(crate) flash_changes: Cell<bool>,
     pub(crate) flash_damage: Cell<bool>,
     pub(crate) simulated_pixels_per_point: Cell<Option<f32>>,
@@ -88,6 +89,7 @@ impl State {
             picking: Cell::new(false),
             touch_emulation: Cell::new(ctx.touch_emulation()),
             mouse_simulation: Cell::new(ctx.mouse_simulation()),
+            rubber_banding: Cell::new(true),
             flash_changes: Cell::new(false),
             flash_damage: Cell::new(false),
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
@@ -466,6 +468,7 @@ impl Inspector {
         }
         ctx.set_touch_emulation(self.state.touch_emulation.get());
         ctx.set_mouse_simulation(self.state.mouse_simulation.get());
+        target.set_rubber_banding(self.state.rubber_banding.get());
         ctx.set_accessibility_active(self.state.accessibility.get());
         target.track_changes(self.state.flash_changes.get());
         target.track_damage(self.state.flash_damage.get());

@@ -17,8 +17,6 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-# block-editor-plugin's tests validate the shaders a plugin ships.
-naga = { version = "29", features = ["wgsl-in"] }
 # game-host's and block-wasm-host's tests write their modules as text, which is
 # what wat parses. Naming the crate here is all this does: wasmi's and
 # wasmtime's wat features are optional dependencies on it, and the fixups that
