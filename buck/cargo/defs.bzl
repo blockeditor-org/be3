@@ -1,3 +1,4 @@
+load("@root//buck/platforms:profile.bzl", "dev_only")
 load(":crates.bzl", "crates")
 
 # The rules for a workspace crate, filled in from its Cargo.toml through
@@ -57,6 +58,11 @@ def _env(crate, crate_name, env):
 def _srcs(kwargs):
     return kwargs.pop("srcs", native.glob(["src/**/*.rs"]))
 
+# Cargo.toml's [profile.dev.package] settings for the crate, ahead of the flags
+# its BUCK file passes.
+def _rustc_flags(crate, kwargs):
+    return dev_only(crate.get("profile_flags", [])) + kwargs.pop("rustc_flags", [])
+
 # The crate's library, named after the package.
 def cargo_library(name = None, extra_deps = [], env = {}, **kwargs):
     crate = _crate()
@@ -70,6 +76,7 @@ def cargo_library(name = None, extra_deps = [], env = {}, **kwargs):
         env = _env(crate, library["crate"], env),
         features = _per_platform(crate, lambda entry: entry["features"]),
         proc_macro = library["proc_macro"],
+        rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _srcs(kwargs),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
         **kwargs,
@@ -81,7 +88,7 @@ def cargo_library(name = None, extra_deps = [], env = {}, **kwargs):
 def cargo_test(name = "test", extra_deps = [], env = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
-    rustc_flags = kwargs.pop("rustc_flags", [])
+    rustc_flags = _rustc_flags(crate, kwargs)
     if library["proc_macro"]:
         rustc_flags = rustc_flags + ["--extern", "proc_macro"]
     native.rust_test(
@@ -118,6 +125,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
         deps = _per_platform(crate, lambda entry: entry["binaries"].get(bin, []), own + extra_deps),
         edition = crate["edition"],
         env = _env(crate, crate_name, env),
+        rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _srcs(kwargs),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
         **kwargs,
@@ -143,6 +151,7 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
         edition = crate["edition"],
         env = _env(crate, crate_name, env),
         features = _per_platform(crate, lambda entry: entry["examples"].get(example, {}).get("features", [])),
+        rustc_flags = _rustc_flags(crate, kwargs),
         srcs = kwargs.pop("srcs", native.glob(["src/**/*.rs", "examples/**/*.rs"])),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
         **kwargs,

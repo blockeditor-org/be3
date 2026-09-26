@@ -1,0 +1,6 @@
+load("@root//buck/cargo:third_party.bzl", "third_party_crates")
+load(":fixups.bzl", "FIXUPS")
+
+# Every third-party crate the workspace depends on, as <name>-<version>, from
+# cargo's own plans: buck/cargo/third_party.bzl says how.
+third_party_crates(FIXUPS)

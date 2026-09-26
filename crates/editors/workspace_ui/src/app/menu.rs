@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
-use block_editor_plugin::BlockSource;
-use block_editor_plugin::beui::reactive::{Memo, clone, component, create_memo, view};
-use block_editor_plugin::beui::unstyled::MenuItem;
-use block_editor_plugin::block_ui::BlockTypes;
-use block_editor_plugin::{BlockInfo, BlockParent};
+use block_editor_beui::BlockSource;
+use block_editor_beui::beui::reactive::{Memo, clone, component, create_memo, view};
+use block_editor_beui::beui::unstyled::MenuItem;
+use block_editor_beui::block_ui::BlockTypes;
+use block_editor_beui::{BlockInfo, BlockParent};
 use uuid::Uuid;
 
 use super::tab::TabItem;

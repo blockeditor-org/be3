@@ -1,6 +1,6 @@
 use std::sync::mpsc::{self, Receiver};
 
-use block_editor_plugin::Waker;
+use block_editor_beui::Waker;
 
 use super::Message;
 

@@ -1,25 +1,32 @@
 use std::convert::Infallible;
 
+use game_api::board::{Board, CardTable, Pile, PilePlace, Spread, Sprite};
+use game_api::cards::deck;
 use game_api::cards::{Card, Rank, SUITS, Suit};
 use game_api::table::{DISCARD_PILE, DRAW_PILE, Table};
 use game_api::{Choose, GameHelper, GameScreen, Move, Scene, Spot};
+use uuid::Uuid;
 
 const HAND_SIZE: usize = 8;
 const PLAYERS_PER_DECK: usize = 4;
 const WAITING: &str = "Waiting for your turn...";
 
 fn crazy_8s(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
-    let players = helper.gather(2)?;
+    let players = helper.gather(2, Spot::Pile(DRAW_PILE), seating)?;
+    helper.columns((1..=players.len()).map(|seat| format!("P{seat}")));
     let mut table = Table::deal(&players, HAND_SIZE, decks_for(players.len()));
     let mut suit_to_match = table.face_up().suit;
 
     loop {
         if let Some(winner) = table.player_who_is_out() {
+            let seat = seat_of(&players, winner);
             return helper.game_over(|player| {
                 let outcome = if player == winner {
-                    "You win!"
+                    "You win!".to_owned()
+                } else if players.contains(&player) {
+                    format!("You lose - P{seat} wins")
                 } else {
-                    "You lose!"
+                    format!("P{seat} wins")
                 };
                 Scene::new(outcome).on(table.board(player))
             });
@@ -30,6 +37,7 @@ fn crazy_8s(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
         }
 
         let whose_turn = table.whose_turn();
+        let column = seat_of(&players, whose_turn) as u32 - 1;
         let your_turn = format!(
             "Your turn - top card is {} ({suit_to_match} to match)",
             table.face_up()
@@ -43,15 +51,23 @@ fn crazy_8s(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
             WAITING,
             |player| seen.board(player).into(),
             |choose| {
+                let choose = &mut |offered: Move| choose(offered.column(column));
                 let hand = table.hand().to_vec();
                 if play_a_card(&mut table, &mut suit_to_match, &hand, choose) {
                     return;
                 }
                 if table.can_draw() {
-                    if choose(Move::new("Draw a card").click(Spot::Pile(DRAW_PILE))) {
+                    let draw = Move::new("Draw a card")
+                        .click(Spot::Pile(DRAW_PILE))
+                        .recorded("draw");
+                    if choose(draw) {
                         drawn = table.draw();
                     }
-                } else if choose(Move::new("Pass")) {
+                } else if choose(
+                    Move::new("Pass")
+                        .click(Spot::Pile(DRAW_PILE))
+                        .recorded("pass"),
+                ) {
                     table.pass();
                 }
             },
@@ -68,10 +84,15 @@ fn crazy_8s(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
                 WAITING,
                 |player| seen.board(player).into(),
                 |choose| {
+                    let choose = &mut |offered: Move| choose(offered.column(column));
                     if play_a_card(&mut table, &mut suit_to_match, &[card], choose) {
                         return;
                     }
-                    choose(Move::new("Keep it"));
+                    choose(
+                        Move::new("Keep it")
+                            .click(Spot::Pile(DRAW_PILE))
+                            .recorded("keep"),
+                    );
                 },
             )?;
         }
@@ -91,25 +112,60 @@ fn play_a_card(
             continue;
         }
         let from = table.in_hand(card);
-        let onto_the_discard_pile =
-            move |label: String| Move::new(label).drag(from, Spot::Pile(DISCARD_PILE));
+        let onto_the_discard_pile = move |label: String, history: String| {
+            Move::new(label)
+                .drag(from, Spot::Pile(DISCARD_PILE))
+                .recorded(history)
+        };
         if card.rank == Rank::Eight {
             for suit in SUITS {
-                if choose(onto_the_discard_pile(format!(
-                    "Play {card} and call {suit}"
-                ))) {
+                if choose(onto_the_discard_pile(
+                    format!("Play {card} and call {suit}"),
+                    format!("{}→{}", card.short(), suit.symbol()),
+                )) {
                     table.play(card);
                     *suit_to_match = suit;
                     return true;
                 }
             }
-        } else if choose(onto_the_discard_pile(format!("Play {card}"))) {
+        } else if choose(onto_the_discard_pile(format!("Play {card}"), card.short())) {
             table.play(card);
             *suit_to_match = card.suit;
             return true;
         }
     }
     false
+}
+
+fn seat_of(players: &[Uuid], player: Uuid) -> usize {
+    players
+        .iter()
+        .position(|seated| *seated == player)
+        .map_or(0, |seat| seat + 1)
+}
+
+fn seating(joined: &[Uuid], viewer: Uuid) -> Board {
+    let mut piles = vec![Pile {
+        label: "Deck".to_owned(),
+        place: PilePlace::Deck,
+        spread: Spread::Stacked,
+        cards: vec![Sprite::CardBack; deck().len()],
+    }];
+    for (seat, player) in joined.iter().enumerate() {
+        piles.push(Pile {
+            label: match *player == viewer {
+                true => "You".to_owned(),
+                false => format!("P{}", seat + 1),
+            },
+            place: match *player == viewer {
+                true => PilePlace::Hand,
+                false => PilePlace::Opponent,
+            },
+            spread: Spread::Fanned,
+            cards: Vec::new(),
+        });
+    }
+    CardTable { piles }.into()
 }
 
 fn can_be_played(card: Card, face_up: Card, suit_to_match: Suit) -> bool {

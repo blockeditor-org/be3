@@ -602,7 +602,7 @@ name = "audio_block"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "uuid",
 ]
@@ -631,6 +631,7 @@ version = "0.1.0"
 dependencies = [
  "be-commit",
  "be-model",
+ "be-store",
  "logicgame",
  "postcard",
  "serde",
@@ -701,10 +702,17 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "comrak",
+ "flate2",
  "ghostty-vt",
  "image",
+ "jni 0.22.4",
+ "ndk-context",
  "portable-pty",
+ "serde",
  "serde_json",
+ "sha2",
+ "ureq",
+ "winit",
 ]
 
 [[package]]
@@ -784,6 +792,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-vcs"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-store",
+ "postcard",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "beui"
 version = "0.1.0"
 dependencies = [
@@ -793,6 +813,7 @@ dependencies = [
  "beui_macros",
  "bytemuck",
  "freetype",
+ "geometry",
  "harfbuzz_rs",
  "jni 0.22.4",
  "js-sys",
@@ -806,6 +827,14 @@ dependencies = [
  "web-sys",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "beui-plugin-input"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-plugin-api",
 ]
 
 [[package]]
@@ -902,12 +931,17 @@ dependencies = [
  "arboard",
  "be-block",
  "be-client",
+ "be-commit",
  "be-graph",
  "be-protocol",
  "be-server",
  "be-store",
+ "be-vcs",
  "beui",
+ "beui-plugin-input",
  "block-editor-plugin",
+ "block-gpu-abi",
+ "block-gpu-host",
  "block-plugin-api",
  "block-ui",
  "block-wasm-host",
@@ -952,15 +986,30 @@ dependencies = [
 ]
 
 [[package]]
-name = "block-editor-plugin"
+name = "block-editor-beui"
 version = "0.1.0"
 dependencies = [
  "be-block",
  "beui",
+ "beui-plugin-input",
+ "block-editor-plugin",
+ "block-plugin-api",
+ "block-ui",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "block-editor-plugin"
+version = "0.1.0"
+dependencies = [
+ "be-block",
  "block-gpu-abi",
  "block-gpu-guest",
  "block-plugin-api",
  "block-ui",
+ "geometry",
+ "reactive",
  "serde_bytes",
  "serde_json",
  "uuid",
@@ -991,6 +1040,7 @@ name = "block-gpu-host"
 version = "0.1.0"
 dependencies = [
  "block-gpu-abi",
+ "serde",
  "wgpu",
 ]
 
@@ -1002,9 +1052,7 @@ dependencies = [
  "block-gpu-host",
  "js-sys",
  "wasm-bindgen",
- "wasm-bindgen-futures",
  "web-sys",
- "wgpu",
 ]
 
 [[package]]
@@ -1025,8 +1073,6 @@ name = "block-ui"
 version = "0.1.0"
 dependencies = [
  "be-block",
- "beui",
- "block-plugin-api",
  "uuid",
 ]
 
@@ -1035,7 +1081,9 @@ name = "block-ui-test"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "beui-plugin-input",
+ "block-editor-beui",
+ "block-plugin-api",
  "paint-snapshot",
  "uuid",
 ]
@@ -1098,7 +1146,7 @@ name = "browser_tab"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "uuid",
 ]
@@ -1119,6 +1167,7 @@ version = "0.1.0"
 dependencies = [
  "flate2",
  "serde_json",
+ "toml 0.9.12+spec-1.1.0",
  "zip",
 ]
 
@@ -1199,7 +1248,7 @@ name = "calendar"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui",
  "block-ui-test",
  "uuid",
@@ -1396,12 +1445,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "checkers"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "game-api",
+ "game-host",
+ "game-pieces",
+ "uuid",
+]
+
+[[package]]
 name = "checklist"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
+ "uuid",
+]
+
+[[package]]
+name = "chess"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "game-api",
+ "game-host",
+ "game-pieces",
+ "uuid",
+]
+
+[[package]]
+name = "chess_vs_checkers"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "game-api",
+ "game-host",
+ "game-pieces",
  "uuid",
 ]
 
@@ -1647,7 +1729,7 @@ name = "counter"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "uuid",
 ]
@@ -1979,7 +2061,7 @@ name = "database"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "uuid",
 ]
@@ -2016,7 +2098,7 @@ name = "deterministic_game"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "game-api",
  "game-host",
@@ -2367,7 +2449,7 @@ name = "file_tree"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "uuid",
 ]
@@ -2636,6 +2718,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "game-pieces"
+version = "0.1.0"
+dependencies = [
+ "game-api",
+ "uuid",
+]
+
+[[package]]
 name = "gbm"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2751,6 +2841,10 @@ dependencies = [
  "typenum",
  "version_check",
 ]
+
+[[package]]
+name = "geometry"
+version = "0.1.0"
 
 [[package]]
 name = "gethostname"
@@ -3385,7 +3479,7 @@ name = "image_block"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "image",
  "uuid",
@@ -3408,7 +3502,7 @@ name = "infinite_canvas"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "serde",
  "serde_json",
@@ -3816,7 +3910,7 @@ name = "logic_grid"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "bytemuck",
  "logicgame",
@@ -3857,7 +3951,7 @@ name = "map"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "flate2",
  "uuid",
@@ -4564,7 +4658,7 @@ name = "paint_review"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "paint-snapshot",
  "serde_json",
@@ -4577,7 +4671,7 @@ name = "pan_zoom"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "uuid",
 ]
@@ -4652,7 +4746,7 @@ name = "pdf"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "pdfium-render",
  "uuid",
 ]
@@ -4789,7 +4883,7 @@ name = "pixel_art"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "image",
  "serde",
@@ -4802,7 +4896,7 @@ name = "pixel_ray_tracer"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "uuid",
 ]
@@ -4956,7 +5050,7 @@ name = "presentation"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "uuid",
 ]
@@ -5626,7 +5720,7 @@ name = "scene_3d"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "bytemuck",
  "uuid",
@@ -5795,7 +5889,7 @@ name = "settings"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "uuid",
 ]
@@ -6283,15 +6377,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "test-third-party"
-version = "0.1.0"
-dependencies = [
- "wat",
- "wayland-client",
- "wayland-protocols",
-]
-
-[[package]]
 name = "text-editor-core"
 version = "0.1.0"
 dependencies = [
@@ -6317,7 +6402,7 @@ name = "text_block"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "serde",
  "similar",
@@ -6721,6 +6806,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "triangle"
+version = "0.1.0"
+dependencies = [
+ "block-editor-plugin",
+ "uuid",
+]
+
+[[package]]
 name = "triomphe"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6798,7 +6891,7 @@ name = "ui_settings"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "uuid",
 ]
@@ -6960,11 +7053,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
+name = "version_control"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-editor-beui",
+ "block-ui-test",
+ "uuid",
+]
+
+[[package]]
 name = "video_block"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "uuid",
 ]
@@ -8773,7 +8876,7 @@ name = "workspace_index"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "uuid",
 ]
@@ -8783,7 +8886,7 @@ name = "workspace_ui"
 version = "0.1.0"
 dependencies = [
  "beui",
- "block-editor-plugin",
+ "block-editor-beui",
  "block-ui-test",
  "serde_json",
  "uuid",

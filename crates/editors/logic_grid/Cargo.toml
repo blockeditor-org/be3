@@ -9,7 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 beui = { path = "../../beui", default-features = false, features = ["render"] }
-block-editor-plugin = { path = "../../block-editor-plugin" }
+block-editor-beui = { path = "../../block-editor-beui" }
 bytemuck = { version = "1", features = ["derive"] }
 logicgame = { path = "../../logicgame" }
 serde = { version = "1", features = ["derive"] }

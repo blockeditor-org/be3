@@ -1,8 +1,8 @@
 use super::*;
 use crate::presence::CanvasCursor;
-use block_editor_plugin::PeerPresence;
-use block_editor_plugin::be_block::canvas::CanvasColor;
-use block_editor_plugin::be_block::presence::{PresenceColor, PresenceKind};
+use block_editor_beui::PeerPresence;
+use block_editor_beui::be_block::canvas::CanvasColor;
+use block_editor_beui::be_block::presence::{PresenceColor, PresenceKind};
 
 #[test]
 fn selections_are_shared_with_peers_and_theirs_are_drawn() {
@@ -23,7 +23,7 @@ fn selections_are_shared_with_peers_and_theirs_are_drawn() {
     editor.run();
     editor.run();
 
-    let shown = editor.host.take_shown_presence();
+    let shown = editor.take_shown_presence();
     let cursor: CanvasCursor = shown
         .iter()
         .rev()
@@ -37,7 +37,7 @@ fn selections_are_shared_with_peers_and_theirs_are_drawn() {
         selection: vec![rectangle.id],
         color: PresenceColor::Purple,
     };
-    editor.host.set_peers(
+    editor.set_peers(
         None,
         vec![PeerPresence {
             client: 7,

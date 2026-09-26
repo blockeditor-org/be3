@@ -12,3 +12,13 @@ export_file(
     name = "dev.sh",
     visibility = ["PUBLIC"],
 )
+
+export_file(
+    name = "web-dev.sh",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "web-drive.mjs",
+    visibility = ["PUBLIC"],
+)

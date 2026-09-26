@@ -4,13 +4,27 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 beui = { path = "../beui" }
 comrak = { version = "0.55", default-features = false }
-ghostty-vt = { path = "../ghostty-vt" }
+flate2 = "1"
 image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
-portable-pty = "0.9"
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+ghostty-vt = { path = "../ghostty-vt" }
+portable-pty = "0.9"
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.22"
+ndk-context = "0.1"
+ureq = "2"
+winit = { version = "0.30.13", features = ["android-game-activity"] }
 
 [lints]
 workspace = true

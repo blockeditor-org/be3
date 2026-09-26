@@ -6,19 +6,25 @@ use accesskit::{Node as AccessNode, Role};
 use beui_macros::{component, view};
 
 use crate::color::Color32;
-use crate::geometry::Pos2;
-use crate::icons::{ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT};
+use crate::document::Document;
+use crate::geometry::{Pos2, Rect};
+use crate::icons::{
+    ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT,
+};
 use crate::input::{CursorIcon, PointerPress};
 use crate::node::NodeId;
 use crate::reactive::{
-    Align, Callback, ClickCatcher, Direction, Frame, Func, ItemSize, List, Memo, Prop, ReadSignal,
-    RenderFn, Show, Spacer, clone, create_memo, create_signal,
+    Align, Callback, ClickCatcher, Direction, Frame, Func, ItemSize, List, Memo, NodeRef, Prop,
+    ReadSignal, RenderFn, Show, Spacer, clone, create_effect, create_memo, create_selector,
+    create_signal, node_placed, node_rect, set_component_state, with_document,
 };
+use crate::styled::button::{Button, ButtonVariant};
+use crate::styled::scroll::Scroll;
 use crate::styled::text::IconSized;
 use crate::styled::theme::{FONT_SMALL, RADIUS, ThemeStore, use_theme};
 use crate::styled::tooltip::Tooltip;
 use crate::unstyled;
-use crate::unstyled::{ButtonHandle, TreeItem, TreeRowHandle};
+use crate::unstyled::{ButtonHandle, Edge, Floating, TreeItem, TreeRowHandle};
 
 const INDENT: f32 = 12.0;
 const CHEVRON_WIDTH: f32 = 16.0;
@@ -28,6 +34,11 @@ const SPACING: f32 = 6.0;
 const PADDING_HORIZONTAL: f32 = 4.0;
 const OUTLINE_WIDTH: f32 = 1.0;
 const DRAG_THRESHOLD: f32 = 6.0;
+const REVEAL_PADDING: f32 = 8.0;
+
+struct Parts {
+    rows: NodeRef,
+}
 
 pub struct TreeRowFace<K> {
     pub key: K,
@@ -42,13 +53,16 @@ pub fn Tree<K>(
     keys: Prop<Vec<K>>,
     item: Func<K, TreeItem>,
     selected: Prop<Option<K>>,
-    #[prop(default = None)] reveal: Prop<Option<K>>,
+    #[prop(default = None)] ancestors: Option<Func<K, Vec<K>>>,
     #[prop(default = 0.0)] spacing: f32,
-    #[prop(default = true)] expand_on_select: Prop<bool>,
+    #[prop(default = 0.0)] padding: f32,
+    #[prop(default = None)] focus_color: Prop<Option<Color32>>,
     #[prop(default = None)] row_test_id: Option<Func<K, String>>,
+    #[prop(default = String::new())] reveal_test_id: String,
     #[prop(default = None)] outline: Option<Func<K, Option<Color32>>>,
     on_select: Callback<K>,
     on_expand: Callback<(K, bool)>,
+    on_reveal: Callback<K>,
     on_hover_change: Callback<(K, bool)>,
     on_drag_start: Callback<K>,
     #[prop(children)] content: Option<RenderFn<TreeRowFace<K>>>,
@@ -59,40 +73,186 @@ where
     let content = content.expect("tree requires a `content` builder");
     let row_test_id = row_test_id.unwrap_or_else(|| Func::new(|_| String::new()));
     let outline = outline.unwrap_or_else(|| Func::new(|_| None));
+    let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
+    let keys = create_memo(move || keys.get());
+    let selected = create_memo(move || selected.get());
+    let shown = create_memo(clone!(keys selected -> move || {
+        let selected = selected.get()?;
+        let lineage = ancestors.call(selected.clone());
+        keys.with(|keys| {
+            std::iter::once(selected)
+                .chain(lineage.into_iter().rev())
+                .find(|key| keys.contains(key))
+        })
+    }));
+    let buried = create_memo(clone!(shown selected -> move || {
+        shown.get().filter(|key| selected.get().as_ref() != Some(key))
+    }));
+    let burial = create_selector(clone!(buried -> move || buried.get()));
+    let rows = NodeRef::new();
+    let viewport = NodeRef::new();
+    set_component_state(Parts { rows: rows.clone() });
     let dragging = on_drag_start;
+    let (tracked, listed, described, chosen) =
+        (rows.clone(), keys.clone(), item.clone(), selected.clone());
     view! {
-        <unstyled::Tree
-            keys
-            item
-            selected
-            reveal
-            spacing
-            expand_on_select
-            on_select={move |key| on_select.call(key)}
-            on_expand={move |expansion| on_expand.call(expansion)}
-            on_hover_change={move |hover| on_hover_change.call(hover)}
-        >
-            {move |handle: TreeRowHandle<K>| {
-                let named = row_test_id.call(handle.key.clone());
-                let dragging = dragging.clone();
-                view! {
-                    <TreeRowChrome
-                        handle
-                        named
-                        outline={outline.clone()}
-                        content={content.clone()}
-                        on_drag_start={move |key: K| dragging.call(key)}
-                    />
-                }
-            }}
-        </unstyled::Tree>
+        <List spacing=0.0>
+            <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport} focus_color>
+                <Frame padding_horizontal={padding} padding_vertical={padding}>
+                    <unstyled::Tree
+                        @node_ref={&tracked}
+                        keys={listed}
+                        item={described}
+                        selected={chosen}
+                        spacing
+                        on_select={move |key| on_select.call(key)}
+                        on_expand={move |expansion| on_expand.call(expansion)}
+                        on_hover_change={move |hover| on_hover_change.call(hover)}
+                    >
+                        {move |handle: TreeRowHandle<K>| {
+                            let named = row_test_id.call(handle.key.clone());
+                            let marked = burial.memo(Some(handle.key.clone()));
+                            let dragging = dragging.clone();
+                            view! {
+                                <TreeRowChrome
+                                    handle
+                                    named
+                                    marked
+                                    outline={outline.clone()}
+                                    content={content.clone()}
+                                    on_drag_start={move |key: K| dragging.call(key)}
+                                />
+                            }
+                        }}
+                    </unstyled::Tree>
+                </Frame>
+            </Scroll>
+            <RevealSelection
+                rows
+                viewport
+                keys
+                item
+                selected
+                shown
+                buried
+                named={reveal_test_id}
+                on_reveal={move |key| on_reveal.call(key)}
+            />
+        </List>
     }
+}
+
+#[component]
+fn RevealSelection<K>(
+    rows: NodeRef,
+    viewport: NodeRef,
+    keys: Memo<Vec<K>>,
+    item: Func<K, TreeItem>,
+    selected: Memo<Option<K>>,
+    shown: Memo<Option<K>>,
+    buried: Memo<Option<K>>,
+    named: String,
+    on_reveal: Callback<K>,
+) -> NodeId
+where
+    K: Clone + Eq + Hash + 'static,
+{
+    let (list, scroll) = (rows.get(), viewport.get());
+    let astray = create_memo(clone!(shown buried keys -> move || {
+        let key = shown.get()?;
+        keys.with(|_| ());
+        node_rect(list).get();
+        let row = with_document(|document| unstyled::tree_row_node::<K>(document, list, &key))?;
+        if !node_placed(row).get() || !node_placed(scroll).get() {
+            return None;
+        }
+        stray_edge(node_rect(row).get(), node_rect(scroll).get(), buried.get().is_some())
+    }));
+    let (pending, set_pending) = create_signal(None::<K>);
+    create_effect(clone!(keys set_pending -> move || {
+        let Some(key) = pending.get() else {
+            return;
+        };
+        keys.with(|_| ());
+        node_rect(list).get();
+        let Some(row) = with_document(|document| unstyled::tree_row_node::<K>(document, list, &key))
+        else {
+            return;
+        };
+        if !node_placed(row).get() {
+            return;
+        }
+        with_document(|document| document.reveal_node(row));
+        set_pending.set(None);
+    }));
+    let open = create_memo(clone!(astray -> move || astray.get().is_some()));
+    let edge = create_memo(clone!(astray -> move || astray.get().unwrap_or(Edge::Bottom)));
+    let glyph = create_memo(clone!(edge -> move || match edge.get() {
+        Edge::Top => ICON_ARROW_UPWARD.to_owned(),
+        Edge::Bottom => ICON_ARROW_DOWNWARD.to_owned(),
+    }));
+    let label = create_memo(clone!(selected -> move || {
+        let label = selected.get().map(|key| item.call(key).label).unwrap_or_default();
+        match label.is_empty() {
+            true => "Show the selection".to_owned(),
+            false => label,
+        }
+    }));
+    let reveal = move || {
+        let Some(key) = selected.get_untracked() else {
+            return;
+        };
+        on_reveal.call(key.clone());
+        set_pending.set(Some(key));
+    };
+    view! {
+        <Floating anchor={viewport} edge={edge} open={open}>
+            <Frame padding_horizontal=REVEAL_PADDING padding_vertical=REVEAL_PADDING>
+                <Button
+                    @test_id={named}
+                    glyph={glyph}
+                    label={label}
+                    variant=ButtonVariant::Secondary
+                    on_click={reveal}
+                />
+            </Frame>
+        </Floating>
+    }
+}
+
+pub fn tree_row_node<K>(document: &Document, tree: NodeId, key: &K) -> Option<NodeId>
+where
+    K: Clone + Eq + Hash + 'static,
+{
+    unstyled::tree_row_node::<K>(document, tree_rows(document, tree), key)
+}
+
+pub fn tree_focused<K>(document: &Document, tree: NodeId) -> Option<K>
+where
+    K: Clone + Eq + Hash + 'static,
+{
+    unstyled::tree_focused::<K>(document, tree_rows(document, tree))
+}
+
+pub fn tree_rows(document: &Document, tree: NodeId) -> NodeId {
+    document.component_state::<Parts>(tree).rows.get()
+}
+
+fn stray_edge(row: Rect, viewport: Rect, buried: bool) -> Option<Edge> {
+    if row.bottom() <= viewport.top() {
+        return Some(Edge::Top);
+    }
+    if row.top() >= viewport.bottom() || buried {
+        return Some(Edge::Bottom);
+    }
+    None
 }
 
 #[component]
 fn TreeRowChrome<K>(
     handle: TreeRowHandle<K>,
     named: String,
+    marked: Memo<bool>,
     outline: Func<K, Option<Color32>>,
     content: RenderFn<TreeRowFace<K>>,
     on_drag_start: Callback<K>,
@@ -161,7 +321,7 @@ where
         <Frame height=ROW_HEIGHT>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Spacer @sizing={indent} />
-                <Chevron item={item} toggle={toggle} named={chevron_id(&named)} />
+                <Chevron item={item} marked={marked} toggle={toggle} named={chevron_id(&named)} />
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={row_id(&named)}
@@ -193,10 +353,14 @@ where
 }
 
 #[component]
-fn Chevron(item: Memo<TreeItem>, toggle: Rc<dyn Fn()>, named: String) -> NodeId {
+fn Chevron(
+    item: Memo<TreeItem>,
+    marked: Memo<bool>,
+    toggle: Rc<dyn Fn()>,
+    named: String,
+) -> NodeId {
     let expandable = create_memo(clone!(item -> move || item.get().expandable));
     let glyph = create_memo(clone!(item -> move || marker(&item.get())));
-    let marked = create_memo(clone!(item -> move || item.get().marked));
     let label = create_memo(clone!(item -> move || expansion_label(item.get().expanded)));
     view! {
         <Frame width=CHEVRON_WIDTH>

@@ -119,6 +119,17 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
     )?;
     wrap(
         linker,
+        "encoder_copy_texture_to_texture",
+        |mut caller: Caller<'_, State>, pointer: u32, length: u32| {
+            let state = caller.data_mut();
+            match state.read(pointer, length) {
+                Ok(bytes) => state.with_gpu(|gpu| gpu.copy_texture_to_texture(&bytes)),
+                Err(message) => state.report(message),
+            }
+        },
+    )?;
+    wrap(
+        linker,
         "encoder_finish",
         |mut caller: Caller<'_, State>, encoder: u32| -> u32 {
             caller

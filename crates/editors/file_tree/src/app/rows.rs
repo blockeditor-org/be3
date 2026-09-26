@@ -2,12 +2,12 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Memo, WriteSignal, create_effect, create_memo, create_signal, untrack,
 };
-use block_editor_plugin::block_ui::BlockTypes;
-use block_editor_plugin::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
-use block_editor_plugin::{BlockSource, Editor};
+use block_editor_beui::block_ui::BlockTypes;
+use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
+use block_editor_beui::{BlockSource, Editor};
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -93,8 +93,8 @@ pub(crate) struct Tree {
     watched: Rc<RefCell<Watched>>,
     rows: Memo<Vec<Row>>,
     orphans_open: Memo<bool>,
-    set_expanded: block_editor_plugin::beui::reactive::WriteSignal<HashSet<Uuid>>,
-    set_orphans_open: block_editor_plugin::beui::reactive::WriteSignal<bool>,
+    set_expanded: block_editor_beui::beui::reactive::WriteSignal<HashSet<Uuid>>,
+    set_orphans_open: block_editor_beui::beui::reactive::WriteSignal<bool>,
     set_remembered: WriteSignal<u64>,
 }
 
@@ -461,9 +461,9 @@ pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
 pub(crate) fn access_marker(access: AccessLevel) -> Option<&'static str> {
     match access {
         AccessLevel::Edit => None,
-        AccessLevel::View => Some(block_editor_plugin::beui::icons::ICON_VISIBILITY),
+        AccessLevel::View => Some(block_editor_beui::beui::icons::ICON_VISIBILITY),
         AccessLevel::KnowExists | AccessLevel::None => {
-            Some(block_editor_plugin::beui::icons::ICON_LOCK)
+            Some(block_editor_beui::beui::icons::ICON_LOCK)
         }
     }
 }

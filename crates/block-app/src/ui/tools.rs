@@ -8,8 +8,8 @@ use beui::reactive::{
 use beui::styled::DockArea;
 use beui::unstyled::{DockState, DockTree, DockTreeEntry, GroupId, TabId, Tree};
 use beui::{NodeId, Rect, pos2, vec2};
+use beui_plugin_input::panes::{dock_tree_with, pane_tree_with};
 use block_plugin_api::{PaneId, PaneLayout, PaneTree};
-use block_ui::panes::{dock_tree_with, pane_tree_with};
 
 use super::debug::{
     ClientPanel, DebugCommand, DebugWindow, PerformancePanel, PluginsPanel, VersionPanel,

@@ -42,6 +42,7 @@ pub enum CommitKind {
     Bookmark(String),
     Merge,
     Import,
+    Snapshot(String),
 }
 
 impl CommitKind {

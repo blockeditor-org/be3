@@ -1,0 +1,217 @@
+#!/usr/bin/env bash
+#
+# This script only works on the machine vps-13c49ba1, which has the Android SDK,
+# emulator, system image and AVD set up (and /dev/kvm). If `hostname` is not
+# vps-13c49ba1, give up: do not try to run the Android emulator.
+#
+# Boots an Android emulator (if one isn't running), installs be3's APK, launches
+# it, and prints the app's logcat plus a screenshot path.
+#
+# Usage:
+#   ./scripts/android-emulator [run] [--apk APK] [--wait SECONDS] [--no-install]
+#   ./scripts/android-emulator boot     # just boot the emulator
+#   ./scripts/android-emulator stop     # shut the emulator down cleanly
+#
+# Build the APK first with: ./scripts/buck run //crates/block-app:android
+# Output goes to $OUT_DIR (default /tmp/be3-android): logcat.txt, app.log, screen.png.
+set -euo pipefail
+
+SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}}"
+IMAGE="system-images;android-34;google_apis;x86_64"
+AVD=be3
+PACKAGE=com.be3.block
+ACTIVITY=com.be3.block.MainActivity
+OUT_DIR="${OUT_DIR:-/tmp/be3-android}"
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+APK="$REPO/target/android/block-app.apk"
+WAIT=20
+INSTALL=true
+CMD=run
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        run|boot|stop) CMD="$1"; shift ;;
+        --apk) APK="$2"; shift 2 ;;
+        --wait) WAIT="$2"; shift 2 ;;
+        --no-install) INSTALL=false; shift ;;
+        -h|--help) sed -n '3,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *) echo "unknown argument: $1" >&2; exit 1 ;;
+    esac
+done
+
+ADB="$SDK/platform-tools/adb"
+EMULATOR="$SDK/emulator/emulator"
+mkdir -p "$OUT_DIR"
+log() { echo "== $*" >&2; }
+
+if [ -e /dev/kvm ] && [ -r /dev/kvm ] && [ -w /dev/kvm ]; then KVM=true; else KVM=false; fi
+
+ensure_sdk() {
+    local sdkmanager="$SDK/cmdline-tools/latest/bin/sdkmanager"
+    if [ ! -x "$sdkmanager" ]; then
+        log "installing Android cmdline-tools into $SDK"
+        local zip
+        zip="$(mktemp --suffix=.zip)"
+        curl -fsSL -o "$zip" https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+        mkdir -p "$SDK/cmdline-tools"
+        rm -rf "$SDK/cmdline-tools/latest" "$SDK/cmdline-tools/cmdline-tools"
+        unzip -q "$zip" -d "$SDK/cmdline-tools"
+        mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+        rm -f "$zip"
+    fi
+    local missing=()
+    [ -x "$EMULATOR" ] || missing+=(emulator)
+    [ -x "$ADB" ] || missing+=(platform-tools)
+    [ -d "$SDK/system-images/android-34/google_apis/x86_64" ] || missing+=("$IMAGE")
+    if [ ${#missing[@]} -gt 0 ]; then
+        log "installing ${missing[*]}"
+        yes | "$sdkmanager" --sdk_root="$SDK" "${missing[@]}" > /dev/null
+    fi
+    if ! "$EMULATOR" -list-avds 2>/dev/null | grep -qx "$AVD"; then
+        log "creating AVD $AVD"
+        echo no | "$SDK/cmdline-tools/latest/bin/avdmanager" create avd -n "$AVD" -k "$IMAGE" -d pixel_6 > /dev/null
+    fi
+}
+
+emulator_serial() { "$ADB" devices | awk '/^emulator-/{print $1; exit}'; }
+
+wait_for_system() {
+    # boot_completed can be 1 while system_server is still settling; also wait
+    # for a resumed activity (the launcher) and a responsive package service.
+    local i
+    for i in $(seq 1 600); do
+        if [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ] &&
+            "$ADB" shell dumpsys activity activities 2>/dev/null | grep -q 'topResumedActivity=ActivityRecord' &&
+            "$ADB" shell pm path android > /dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+    done
+    log "timed out waiting for the system to be ready"
+    return 1
+}
+
+slow_workarounds() {
+    log "no KVM: applying slow-emulator workarounds"
+    "$ADB" root > /dev/null; "$ADB" wait-for-device
+    if [ "$("$ADB" shell getprop ro.hw_timeout_multiplier | tr -d '\r')" != 30 ]; then
+        "$ADB" shell setprop ro.hw_timeout_multiplier 30
+        "$ADB" shell stop; "$ADB" shell start
+        sleep 5
+        wait_for_system
+    fi
+    local p
+    for p in com.google.android.gms com.google.android.googlequicksearchbox com.google.android.as \
+        com.google.android.apps.wellbeing com.google.android.gm com.android.vending \
+        com.google.android.youtube com.google.android.apps.maps com.google.android.calendar \
+        com.google.android.apps.photos com.google.android.apps.messaging com.google.android.dialer \
+        com.android.bluetooth; do
+        "$ADB" shell pm disable-user --user 0 "$p" > /dev/null 2>&1 || true
+    done
+}
+
+boot() {
+    ensure_sdk
+    "$ADB" start-server > /dev/null 2>&1
+    if [ -n "$(emulator_serial)" ]; then
+        log "emulator already running ($(emulator_serial))"
+        "$ADB" wait-for-device
+        wait_for_system
+        return
+    fi
+    local accel=on
+    $KVM || accel=off
+    log "booting emulator (accel=$accel); log at $OUT_DIR/emulator.log"
+    # -gpu guest: swiftshader_indirect crashes the emulator on wgpu's SPIR-V.
+    # -no-snapshot: always cold boot, so an unclean shutdown can't leave a
+    # broken snapshot that hangs adb at "offline".
+    setsid nohup "$EMULATOR" -avd "$AVD" -no-window -no-audio -no-snapshot -no-boot-anim \
+        -memory 4096 -cores 4 -accel "$accel" -gpu guest > "$OUT_DIR/emulator.log" 2>&1 < /dev/null &
+    local timeout=300
+    $KVM || timeout=3600
+    if ! timeout "$timeout" "$ADB" wait-for-device; then
+        log "adb never saw the device; if it is stuck 'offline', run '$0 stop' and try again (or boot once with -wipe-data)"
+        exit 1
+    fi
+    wait_for_system
+    $KVM || slow_workarounds
+    log "emulator ready"
+}
+
+install_apk() {
+    [ -f "$APK" ] || { log "no APK at $APK; build it with ./scripts/buck run //crates/block-app:android"; exit 1; }
+    local sum installed
+    sum="$(sha256sum "$APK" | cut -d' ' -f1)"
+    installed="$("$ADB" shell cat /data/local/tmp/be3-apk.sha256 2>/dev/null | tr -d '\r' || true)"
+    if [ "$sum" = "$installed" ] && "$ADB" shell pm path "$PACKAGE" > /dev/null 2>&1; then
+        log "APK unchanged; skipping install"
+        return
+    fi
+    log "installing $APK ($(du -h "$APK" | cut -f1))"
+    # Plain `adb install` can stall on incremental install (the .idsig beside the APK).
+    "$ADB" install -r --no-incremental "$APK"
+    "$ADB" shell "echo $sum > /data/local/tmp/be3-apk.sha256"
+}
+
+launch() {
+    "$ADB" shell am force-stop "$PACKAGE"
+    "$ADB" logcat -c
+    "$ADB" logcat -v threadtime > "$OUT_DIR/logcat.txt" 2>&1 &
+    logcat_pid=$!
+    trap 'kill "$logcat_pid" 2>/dev/null || true' EXIT
+
+    log "launching $PACKAGE"
+    local i out
+    for i in 1 2 3 4 5; do
+        out="$("$ADB" shell am start -n "$PACKAGE/$ACTIVITY" 2>&1)"
+        echo "$out" | grep -q 'Error\|result code=-92' || break
+        log "am start not ready yet, retrying"; sleep 5
+    done
+
+    # Wait for the process to appear, then for WAIT seconds or until it dies.
+    local pid=""
+    for i in $(seq 1 30); do
+        pid="$("$ADB" shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)"
+        [ -n "$pid" ] && break
+        sleep 1
+    done
+    local status="running"
+    if [ -z "$pid" ]; then
+        status="never started"
+    else
+        for i in $(seq 1 "$WAIT"); do
+            if [ "$("$ADB" shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r' || true)" != "$pid" ]; then
+                status="died"
+                break
+            fi
+            sleep 1
+        done
+    fi
+    "$ADB" exec-out screencap -p > "$OUT_DIR/screen.png" 2>/dev/null || true
+    sleep 1
+    kill $logcat_pid 2>/dev/null || true
+
+    local pids
+    pids="$(grep -oE "Start proc [0-9]+:$PACKAGE/" "$OUT_DIR/logcat.txt" | grep -oE '[0-9]+' | paste -sd'|' || true)"
+    [ -n "$pids" ] || pids="${pid:-NONE}"
+    # The app's own warnings/errors and Rust output, plus crash reports from
+    # debuggerd/ActivityManager that are logged under other pids.
+    grep -E "^\S+ \S+ +($pids) .* [WEF] |^\S+ \S+ +($pids) .*(RustStdoutStderr|RustPanic|AndroidRuntime)|Fatal signal|  F DEBUG|$PACKAGE.*(died|crash|ANR|Force)|ANR in $PACKAGE" \
+        "$OUT_DIR/logcat.txt" | grep -vE 'AppsFilter|ziparchive' > "$OUT_DIR/app.log" || true
+
+    echo "---- app log ($OUT_DIR/app.log; full logcat in $OUT_DIR/logcat.txt) ----"
+    cat "$OUT_DIR/app.log"
+    echo "---- app status after ${WAIT}s: $status (pid ${pid:-none})"
+    echo "---- screenshot: $OUT_DIR/screen.png"
+    [ "$status" = running ]
+}
+
+case "$CMD" in
+    stop)
+        if [ -n "$(emulator_serial)" ]; then "$ADB" emu kill; else log "no emulator running"; fi ;;
+    boot) boot ;;
+    run)
+        boot
+        $INSTALL && install_apk
+        launch ;;
+esac

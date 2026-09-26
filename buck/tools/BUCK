@@ -318,7 +318,8 @@ clang_targets = {
     [
         tool(
             name = "{}-{}".format(program, name),
-            command = [
+            command = (["$(exe :msvc-cxx.sh)"] if program == "cxx" and name.startswith("windows") else [])
+            + [
                 "$(location :llvm)/bin/" + driver,
                 "--target=" + target,
             ],
@@ -328,6 +329,11 @@ clang_targets = {
     ]
     for name, target in clang_targets.items()
 ]
+
+script(
+    name = "msvc-cxx.sh",
+    src = "msvc-cxx",
+)
 
 tool(
     name = "wasm-cc",
@@ -367,12 +373,6 @@ script(
 script(
     name = "python3",
     src = "python3",
-    visibility = ["PUBLIC"],
-)
-
-script(
-    name = "pkg-config-provided",
-    src = "pkg-config-provided",
     visibility = ["PUBLIC"],
 )
 

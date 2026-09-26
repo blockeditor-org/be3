@@ -208,7 +208,7 @@ pub fn in_new_scope(f: impl FnOnce() -> NodeId) -> NodeId {
     node
 }
 
-pub fn component<T: ChildValue>(f: impl FnOnce() -> T) -> T {
+pub fn component<T: ChildValue>(name: &'static str, f: impl FnOnce() -> T) -> T {
     let scope = Scope::new();
     let context = Rc::new(ComponentContext::default());
     let mut value = in_component(Some(context.clone()), || scope.run(f));
@@ -220,6 +220,7 @@ pub fn component<T: ChildValue>(f: impl FnOnce() -> T) -> T {
     let placement = context.placement.take();
     match anchor {
         Some(root) => with_document(|document| {
+            document.name_component(root, name);
             for state in states {
                 document.set_component_state_dyn(root, state);
             }

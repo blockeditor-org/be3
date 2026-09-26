@@ -20,7 +20,6 @@ fn new_type_cells_render_and_a_boolean_cell_toggles() {
 
     fixture
         .harness
-        .editor
         .click(&format!("database-view.cell.0.{boolean_id}"));
     fixture.run();
     fixture.run();
@@ -31,7 +30,6 @@ fn new_type_cells_render_and_a_boolean_cell_toggles() {
     );
     fixture
         .harness
-        .editor
         .snapshot("new_type_cells_render_and_a_boolean_cell_toggles");
 }
 

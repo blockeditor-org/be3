@@ -13,7 +13,7 @@ mod drawing;
 mod filter;
 mod flash;
 mod font;
-mod geometry;
+use ::geometry;
 pub mod icons;
 mod image;
 mod input;
@@ -36,10 +36,10 @@ mod timer;
 pub mod unstyled;
 
 pub use accesskit;
-#[cfg(feature = "web")]
-pub use app::run_web;
 #[cfg(any(feature = "window", feature = "web"))]
 pub use app::{App, OpenDevice, RunOptions, SafeArea, Setup, Waker};
+#[cfg(feature = "web")]
+pub use app::{accessibility_tree, run_web};
 #[cfg(feature = "window")]
 pub use app::{run, run_with, set_safe_area};
 pub use base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition, TextAlign, focus_within};
@@ -59,8 +59,8 @@ pub use geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
 pub use image::{Image, ImageFit, ImageId};
 pub use input::{
     CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, InputState, Key, KeyPress, Modifiers,
-    PointerButton, PointerPress, RawInput, ScrollGesture, TouchId, TouchPhase, TouchPoint,
-    TouchState, ZoomGesture,
+    PointerButton, PointerPress, RawInput, ScrollGesture, SecondaryDrag, TouchId, TouchPhase,
+    TouchPoint, TouchState, ZoomGesture,
 };
 pub use node::{ClickHandler, Handler, NodeId};
 pub use page::{Page, PageShape};

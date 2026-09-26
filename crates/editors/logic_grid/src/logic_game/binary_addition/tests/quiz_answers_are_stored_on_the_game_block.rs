@@ -1,5 +1,5 @@
-use block_editor_plugin::be_block::LogicGameContent;
-use block_editor_plugin::be_block::logic_game::LogicGameOperation;
+use block_editor_beui::be_block::LogicGameContent;
+use block_editor_beui::be_block::logic_game::LogicGameOperation;
 
 use super::*;
 

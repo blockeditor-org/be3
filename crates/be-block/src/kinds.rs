@@ -36,3 +36,8 @@ kind!(
     WorkspaceUiContent,
     0x776f_726b_7370_6163_652d_7569_2d30_3031
 );
+kind!(
+    Triangle,
+    TriangleContent,
+    0x7767_7075_2d74_7269_616e_676c_6530_3031
+);

@@ -1,21 +1,21 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::canvas::{
+use block_editor_beui::be_block::canvas::{
     CanvasColor, CanvasEntity, CanvasEntityKind, CanvasLayerMove, CanvasPoint, CanvasPreviewRegion,
     CanvasTextAlign, CanvasTextWeight,
 };
-use block_editor_plugin::beui::Color32;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::{ICON_CIRCLE, ICON_FORMAT_COLOR_RESET};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::Color32;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{ICON_CIRCLE, ICON_FORMAT_COLOR_RESET};
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, clone, component, create_memo,
     create_signal, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Accordion, Button, ButtonVariant, Caption, Checkbox, ColorInput, Heading, NumberDrag,
     NumberInput, Separator, Shortcut, Slider, TextInput, ToggleButton, use_theme,
 };
-use block_editor_plugin::{ResizeMode, Sidebar};
+use block_editor_beui::{ResizeMode, Sidebar};
 
 use crate::geometry::*;
 
@@ -84,7 +84,7 @@ const LAYERS: [(&str, CanvasLayerMove); 4] = [
 #[component]
 pub(crate) fn CanvasSidebar(
     state: Rc<CanvasState>,
-    shown: block_editor_plugin::beui::reactive::Prop<bool>,
+    shown: block_editor_beui::beui::reactive::Prop<bool>,
 ) -> NodeId {
     let region = Rc::clone(&state);
     let summary = Rc::clone(&state);
@@ -755,7 +755,7 @@ fn ColorPreset(
     name: &'static str,
     color: CanvasColor,
     value: Memo<CommonValue<CanvasColor>>,
-    on_pick: block_editor_plugin::beui::reactive::Callback<CanvasColor>,
+    on_pick: block_editor_beui::beui::reactive::Callback<CanvasColor>,
 ) -> NodeId {
     let pressed = create_memo(clone!(value -> move || value.get() == CommonValue::Uniform(color)));
     view! {
@@ -856,7 +856,7 @@ fn LineOptions(state: Rc<CanvasState>) -> NodeId {
     let start = flag(&lines, |entity| entity.style.arrow_start);
     let end = flag(&lines, |entity| entity.style.arrow_end);
     let set = |state: &Rc<CanvasState>,
-               apply: fn(&mut block_editor_plugin::be_block::canvas::CanvasEntityStyle, bool),
+               apply: fn(&mut block_editor_beui::be_block::canvas::CanvasEntityStyle, bool),
                value: bool| {
         state.update_selected(
             |kind| matches!(kind, CanvasEntityKind::Line),

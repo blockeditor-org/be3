@@ -1,11 +1,11 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use block_editor_plugin::be_block::database::{DatabaseRow, DatabaseValue};
-use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_plugin::be_block::database_view::{DatabaseViewSort, SortDirection};
-use block_editor_plugin::block_ui::BlockLabel;
-use block_editor_plugin::block_ui::database::block_reference_text;
+use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue};
+use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_beui::be_block::database_view::{DatabaseViewSort, SortDirection};
+use block_editor_beui::block_ui::BlockLabel;
+use block_editor_beui::block_ui::database::block_reference_text;
 use uuid::Uuid;
 
 pub type BlockLabels = HashMap<Uuid, BlockLabel>;

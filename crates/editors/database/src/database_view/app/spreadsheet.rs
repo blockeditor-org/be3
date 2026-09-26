@@ -1,17 +1,17 @@
-use block_editor_plugin::be_block::database::{DatabaseColor, DatabaseValue};
-use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_plugin::be_block::database_view::{DatabaseView, DatabaseViewSort, SortDirection};
-use block_editor_plugin::beui::icons::{
+use block_editor_beui::be_block::database::{DatabaseColor, DatabaseValue};
+use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_beui::be_block::database_view::{DatabaseView, DatabaseViewSort, SortDirection};
+use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CHECK_BOX, ICON_CHECK_BOX_OUTLINE_BLANK,
 };
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, Callback, ClickCallback, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize,
     List, Memo, NodeRef, Prop, Show, Spacer, clone, component, create_effect, create_memo, view,
     with_document,
 };
-use block_editor_plugin::beui::styled::{Body, Caption, Icon, Scroll, use_theme};
-use block_editor_plugin::beui::{Color32, Key, KeyPress, NodeId, TextAlign};
-use block_editor_plugin::block_ui::database::cell_text;
+use block_editor_beui::beui::styled::{Body, Caption, Icon, Scroll, use_theme};
+use block_editor_beui::beui::{Color32, Key, KeyPress, NodeId, TextAlign};
+use block_editor_beui::block_ui::database::cell_text;
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;

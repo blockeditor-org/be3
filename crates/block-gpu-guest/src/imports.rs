@@ -38,6 +38,7 @@ gpu_imports! {
     fn queue_write_texture(pointer: u32, length: u32, data: u32, data_length: u32);
     fn queue_submit(pointer: u32, length: u32);
     fn encoder_begin_render_pass(pointer: u32, length: u32) -> u32;
+    fn encoder_copy_texture_to_texture(pointer: u32, length: u32);
     fn encoder_finish(encoder: u32) -> u32;
     fn pass_set_pipeline(pass: u32, pipeline: u32);
     fn pass_set_bind_group(

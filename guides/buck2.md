@@ -19,7 +19,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
-| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's: no plugins, signed on a worker with CI's key) |
+| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's, signed on a worker with CI's key) |
 | `./scripts/buck run //crates/beui:demo-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 | `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
@@ -28,9 +28,11 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 `<p>_release` (say `linux_x86_64_release`) is the same platform with cargo's
 release profile. The profile is the `root//buck/constraints:release`
 constraint rather than a buckconfig value, so one build can hold both, and every
-transition keeps it. A release build takes `-c be3.commit=SHA`, the commit the
-app reports; a dev build says `unknown` whatever it is passed, so a new commit
-does not rebuild it.
+transition keeps it. Every other build is cargo's dev profile, with
+`Cargo.toml`'s `[profile.dev.package]` overrides (the optimised cranelift and
+crypto crates), which `crates.bzl` carries as each crate's rustc flags. A
+release build takes `-c be3.commit=SHA`, the commit the app reports; a dev
+build says `unknown` whatever it is passed, so a new commit does not rebuild it.
 
 ## What `./scripts/buck` does
 
@@ -54,18 +56,17 @@ these in front of the pinned buck2:
   header itself accepts any value, such as `BUILDBUDDY_API_KEY=proxy-injected`.
   Its errors go to `target/re-relay.log`. A `.buckconfig.local` a person wrote
   is left alone, and the relay is not used then.
-- **The generated rules.** `third-party/rust/BUCK` (every third-party crate,
-  written by reindeer) and `buck/cargo/crates.bzl` (every workspace crate's
-  dependencies, features and targets, from cargo's plans) are not checked in.
-  `./scripts/buck` hashes their inputs and, when that changes, runs
-  `buck/cargo/buckify.bxl` on a worker and copies the result into place. The
-  action is keyed on the manifests, `Cargo.lock`, `reindeer.toml`, the fixups,
-  the paths cargo discovers targets at and `crates/buck-tools`, which writes
-  `crates.bzl`, so it is shared through the cache: a few seconds on a fresh
-  checkout, about a minute for the first person to change a dependency. The
-  action brings `Cargo.lock` up to date with the manifests first, so a stale
-  one still builds; `//:verify`'s lint writes the updated one back, and fails
-  under `--check`.
+- **The generated rules.** `buck/cargo/crates.bzl` is not checked in: every
+  crate's dependencies, features and targets, first- and third-party, from
+  cargo's plans, with each third-party crate's checksum and size.
+  `./scripts/buck` hashes its inputs and, when that changes, runs
+  `buck/cargo/buckify.bxl` on a worker and copies the result into place. The action is keyed on the manifests,
+  `Cargo.lock`, the paths cargo discovers targets at and `crates/buck-tools`,
+  which writes `crates.bzl`, so it is shared through the cache: a few seconds
+  on a fresh checkout, about a minute for the first person to change a
+  dependency. The action brings `Cargo.lock` up to date with the manifests
+  first, so a stale one still builds; `//:verify`'s lint writes the updated one
+  back, and fails under `--check`.
 - **Platforms.** Everything is built for Linux x86_64 wherever it is asked for
   (`.buckconfig`'s default target platform), so a Mac or Windows machine shares
   CI's cache. `run` is the exception: on another machine it builds for that
@@ -94,22 +95,24 @@ It also lets `test` put tests on the workers (below).
 - `buck/platforms`: the execution platform (a BuildBuddy worker) and every
   target platform; `cross.bzl` lists the cross-compiled ones.
 - `buck/sysroot`: the Ubuntu 24.04 packages everything is compiled against.
-- `buck/cargo`: the BXL that writes the generated rules and the macros that
-  read them.
+- `buck/cargo`: the BXL that writes `crates.bzl` and the macros that read it:
+  `defs.bzl` for workspace crates, `third_party.bzl` for the rest.
 - `crates/buck-tools`: the build's own helpers (the `crates.bzl` generator, the
   sysroot resolver, the APK packer, clippy's fixer and `//:rust-project`).
 - `buck/wasm`: editors, plugin tests and the rules that build wasm modules.
 - `buck/app`, `buck/android`: how the app, the web bundle and the APK are
   laid out.
-- `third-party/rust/fixups/<crate>/fixups.toml`: what reindeer is told about
-  a crate it cannot work out alone; every crate with a build script needs one.
+- `third-party/rust`: every third-party crate as `<name>-<version>`, and
+  `fixups.bzl`, what cargo's plans cannot say about a crate: environment for
+  its build script, extra rustc flags, a file to overlay.
 - `crates/<crate>/BUCK`: one per crate, written by hand.
 
 ## Adding things
 
 **A dependency**: `cargo add` (or edit `Cargo.toml`). The next `./scripts/buck`
-regenerates the rules. If the crate has a build script, reindeer warns until it
-has a fixup saying `buildscript.run = true` or `false`.
+regenerates the rules. A build script runs as it does under cargo, and the
+libraries it links or compiles reach the link; one that needs something from
+the build, such as a sysroot's pkg-config, gets it from a fixup.
 
 **A crate**: add it to the workspace, and write a `BUCK` beside its
 `Cargo.toml`:
@@ -136,13 +139,9 @@ from `buck/wasm/defs.bzl`, which makes the guest cdylib, its `:module`, its
 `:manifest` and its wasm `:test`. The app picks up every editor by itself.
 
 **A system library**: a line in `buck/sysroot/BUCK`, then
-`./scripts/buck run //:lock-sysroot`. A `-sys` crate finds it through the fixup
-`env = { PKG_CONFIG = "$(exe_target //buck/sysroot:pkg-config)" }` with
-`rustc_link_lib = true`.
-
-**A dev-dependency with no other user**: reindeer does not look at
-`[dev-dependencies]`, so a crate only a test uses gets no rule. Name it in
-`crates/test-third-party/Cargo.toml` as well.
+`./scripts/buck run //:lock-sysroot`. A `-sys` crate finds it through the
+fixup `_PKG_CONFIG`, which answers its build script's pkg-config from the
+sysroot.
 
 ## Tests
 
@@ -182,9 +181,8 @@ Microsoft's Build Tools licence.
 
 `wasi` and `wasi_guest` are the same triple, but the app links a real wgpu
 backend and a plugin only wgpu's `custom` one, and the two cannot be unified.
-A `guest` constraint (`buck/constraints`) tells them apart, reindeer resolves
-each as a platform of its own, and fixups keyed on `cfg(plugin_guest)` give
-each its wgpu. `crates.bzl` has a plan for each.
+A `guest` constraint (`buck/constraints`) tells them apart, and `crates.bzl`
+has a plan for each.
 
 A native target depends on a wasm one through a transition in
 `buck/wasm/defs.bzl`: a game's test says
@@ -203,11 +201,11 @@ A native target depends on a wasm one through a transition in
   through `wasm-bindgen` (`buck/cargo:wasm-bindgen`, pinned to `Cargo.lock`'s
   version), with the page and shims from `crates/block-app/web` and a
   `plugins.json` the browser finds the plugins through. `:web-serve` runs Caddy
-  (`buck/tools:caddy`) with `web/Caddyfile`; a deployment uses the same
-  Caddyfile with `BE3_DOMAIN_NAME` and `BE3_WEB_ROOT`.
+  (`buck/tools:caddy`) with `web/Caddyfile`, and `-- --domain DOMAIN` serves
+  that domain over https, which is how the app is deployed.
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
-  plugins precompiled for arm64, and `zipalign -P 16`. The app is a
+  plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The app is a
   GameActivity, so the APK also carries its AAR and the AppCompat closure it
   needs, pinned as Maven downloads in `buck/android/BUCK`
   (`maven_artifacts`); the tool links their resources beside
@@ -222,6 +220,13 @@ A native target depends on a wasm one through a transition in
   After changing the secret, bump `key_version` in `crates/block-app/BUCK`.
   The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).
+- `crates/be-launcher` is an APK too. It runs, in block-app's own
+  `MainActivity`, the builds CI uploads to be3-ci: `:android-run`, the release
+  library and the plugins' `.cwasm`s (the `publish-android` job in ci.yml
+  says how they are stored). A build runs only in a launcher with its shell
+  hash (`:android-shell`, over block-app's Java, manifest and GameActivity's
+  AARs), so a change to those needs a new launcher, and a permission added to
+  block-app's manifest goes in the launcher's too.
 - The macOS builds are an executable and its libraries; the `.app` bundle
   comes with distribution.
 
@@ -236,13 +241,12 @@ extension ships: the toolchain's panics on this workspace.
 
 ## Things that are not obvious
 
-- **Features.** cargo unifies features across a build, so a feature a
-  dev-dependency enables is on for the library too; buck2 does not unify. Where
-  that matters the feature is named in a fixup (`wgpu`'s `noop`). A test that
-  passes under cargo and fails here with a missing method or `cfg` is usually
-  this. reindeer also resolves one feature set per platform across the
-  workspace, so fixups take features off where a platform cannot have them
-  (`uuid`'s `v4` on `wasm32`).
+- **Features.** Every crate has the features cargo's plan for the platform
+  gives it, and the plans are `cargo test` for the host and each cross
+  platform, so what a dev-dependency turns on is on for the library too, as
+  under cargo. What cargo builds for the machine running the build - proc
+  macros, build scripts and their dependencies - is one build here, the
+  `linux-x86_64` one, with the union of what every plan asks of it.
 - **The compiler stays stable.** `nightly_features = False` in
   `buck/toolchains/BUCK`: otherwise the prelude sets `RUSTC_BOOTSTRAP=1`, and
   `cfg(target_feature = "atomics")` on `wasm32-wasip1-threads` then answers

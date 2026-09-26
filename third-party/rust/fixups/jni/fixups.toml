@@ -1,2 +1,0 @@
-# The build script picks which thread-local storage the attach guard uses.
-buildscript.run = true

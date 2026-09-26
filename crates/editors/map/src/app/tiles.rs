@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     CanvasItem, Frame, Picture, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::{Color32, ImageFit, Pos2, Rect, Vec2};
+use block_editor_beui::beui::{Color32, ImageFit, Pos2, Rect, Vec2};
 
 use crate::tiles::{SOURCE_MAX_ZOOM, TileId};
 
@@ -83,7 +83,7 @@ fn magnified(id: TileId, ancestor: TileId) -> Rect {
 pub(crate) fn Tile(
     state: Rc<MapState>,
     tile: Placed,
-    world: block_editor_plugin::beui::reactive::Memo<Rect>,
+    world: block_editor_beui::beui::reactive::Memo<Rect>,
 ) -> CanvasItem {
     let wanted = Rc::clone(&state);
     wanted.want_tile(tile.id);

@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::canvas::CanvasLayerMove;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::{Child, ItemSize, clone, component, create_memo, view};
-use block_editor_plugin::beui::styled::ContextMenu;
-use block_editor_plugin::beui::unstyled::MenuItem;
+use block_editor_beui::be_block::canvas::CanvasLayerMove;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::{Child, ItemSize, clone, component, create_memo, view};
+use block_editor_beui::beui::styled::ContextMenu;
+use block_editor_beui::beui::unstyled::MenuItem;
 
 use super::state::{CanvasCommand, CanvasState, Tool};
 
@@ -26,8 +26,8 @@ pub(crate) fn CanvasMenu(state: Rc<CanvasState>, disabled: bool, children: Child
             [entity]
                 if matches!(
                     entity.kind,
-                    block_editor_plugin::be_block::canvas::CanvasEntityKind::Block { .. }
-                        | block_editor_plugin::be_block::canvas::CanvasEntityKind::DirectEditor { .. }
+                    block_editor_beui::be_block::canvas::CanvasEntityKind::Block { .. }
+                        | block_editor_beui::be_block::canvas::CanvasEntityKind::DirectEditor { .. }
                 )
         )
     }));

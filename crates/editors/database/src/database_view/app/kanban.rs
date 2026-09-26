@@ -1,18 +1,16 @@
-use block_editor_plugin::be_block::database::DatabaseValue;
-use block_editor_plugin::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_plugin::beui::icons::ICON_ADD;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::database::DatabaseValue;
+use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
+use block_editor_beui::beui::icons::ICON_ADD;
+use block_editor_beui::beui::reactive::{
     Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component, create_memo,
     view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, ListRow, Scroll, Separator, use_theme,
 };
-use block_editor_plugin::beui::unstyled::{
-    DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
-};
-use block_editor_plugin::beui::{NodeId, TextAlign};
-use block_editor_plugin::block_ui::database::cell_text;
+use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
+use block_editor_beui::beui::{NodeId, TextAlign};
+use block_editor_beui::block_ui::database::cell_text;
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;

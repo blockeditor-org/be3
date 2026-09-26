@@ -1,11 +1,11 @@
-use block_editor_plugin::be_block::ImageContent;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::ImageContent;
+use block_editor_beui::beui::reactive::{
     Align, Canvas, CanvasItem, Direction, Frame, ItemSize, List, Memo, NodeRef, Picture, Show,
     Spacer, clone, component, component_rect, create_effect, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
-use block_editor_plugin::beui::{ImageFit, NodeId, Pos2, Rect, Vec2};
-use block_editor_plugin::{Editor, FileChooser, Sidebar, fit_content};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
+use block_editor_beui::beui::{ImageFit, NodeId, Pos2, Rect, Vec2};
+use block_editor_beui::{Editor, FileChooser, Sidebar, fit_content};
 
 use super::picture::watch;
 use super::{filter, imported};
@@ -74,7 +74,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn Artwork(editor: Editor, image: Memo<Option<block_editor_plugin::beui::Image>>) -> NodeId {
+fn Artwork(editor: Editor, image: Memo<Option<block_editor_beui::beui::Image>>) -> NodeId {
     let placed = component_rect();
     let world = editor.world();
     let shape = create_memo(clone!(image world placed -> move || {

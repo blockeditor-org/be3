@@ -110,7 +110,10 @@ pub struct Peer<S: ObjectStore> {
     workspace: Uuid,
     role: WorkspaceRole,
     heads: Mutex<HashMap<Uuid, CommitId>>,
+    resolver: Mutex<Option<Resolver>>,
 }
+
+pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
 
 impl<S: ObjectStore> Peer<S> {
     pub async fn connect(config: PeerConfig, store: S) -> Result<Self, ClientError> {
@@ -150,6 +153,7 @@ impl<S: ObjectStore> Peer<S> {
             workspace,
             role,
             heads: Mutex::new(HashMap::new()),
+            resolver: Mutex::new(None),
         })
     }
 
@@ -469,18 +473,42 @@ impl<S: ObjectStore> Peer<S> {
         pinned: bool,
         extra_parents: Vec<CommitId>,
     ) -> Result<Saved, ClientError> {
-        let previous = match expected {
-            Some(head) => Some(self.load_commit(head).await?),
-            None => None,
-        };
-        let references = content.references_in(self.workspace());
+        let references = self.resolve(block, content.references_in(self.workspace()));
         let manifest = self
             .commits
             .vault()
             .write(C::CONTENT_TYPE, &content.encode())?;
+        self.publish_manifest(
+            block,
+            manifest,
+            references,
+            expected,
+            time,
+            pinned,
+            extra_parents,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn publish_manifest(
+        &self,
+        block: Uuid,
+        manifest: Manifest,
+        references: Vec<Uuid>,
+        expected: Option<CommitId>,
+        time: i64,
+        pinned: bool,
+        extra_parents: Vec<CommitId>,
+    ) -> Result<Saved, ClientError> {
+        let previous = match expected {
+            Some(head) => Some(self.load_commit(head).await?),
+            None => None,
+        };
+        let references = sorted(references);
         if let Some(previous) = &previous
             && previous.manifest == manifest
-            && previous.references == sorted(references.clone())
+            && previous.references == references
         {
             return Ok(Saved::Unchanged(expected.expect("a previous commit")));
         }
@@ -529,6 +557,47 @@ impl<S: ObjectStore> Peer<S> {
             }
             ServerMessage::Rejected { head, .. } => Ok(Saved::Rejected { head }),
             _ => Err(ClientError::Unexpected),
+        }
+    }
+
+    pub async fn hold(&self, block: Uuid, objects: &[Hash]) -> Result<(), ClientError> {
+        if objects.is_empty() {
+            return Ok(());
+        }
+        self.push(objects).await?;
+        self.connection
+            .request(|request| ClientMessage::HoldObjects {
+                request,
+                block,
+                objects: objects.to_vec(),
+            })
+            .await?;
+        Ok(())
+    }
+
+    pub async fn watch(&self, block: Uuid) -> Result<(), ClientError> {
+        self.connection
+            .request(|request| ClientMessage::Watch { request, block })
+            .await?;
+        Ok(())
+    }
+
+    pub async fn unwatch(&self, block: Uuid) -> Result<(), ClientError> {
+        self.connection
+            .request(|request| ClientMessage::Unwatch { request, block })
+            .await?;
+        Ok(())
+    }
+
+    pub fn set_resolver(&self, resolver: Resolver) {
+        *self.resolver.lock().unwrap() = Some(resolver);
+    }
+
+    pub fn resolve(&self, block: Uuid, references: Vec<Uuid>) -> Vec<Uuid> {
+        let resolver = self.resolver.lock().unwrap().clone();
+        match resolver {
+            Some(resolver) => resolver(block, references),
+            None => references,
         }
     }
 

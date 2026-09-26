@@ -5,7 +5,7 @@ use beui::reactive::{
 use beui::styled::{Button, ButtonVariant, TextArea};
 use beui::unstyled::{RemoteTextCursor, TextAreaLayout, TextWidget};
 use beui::{Key, KeyPress, NodeId, Rect, Vec2};
-use block_editor_plugin::{Drag, block_ui::BlockLabel};
+use block_editor_beui::{Drag, block_ui::BlockLabel};
 use text_editor_core::{CursorLeftRightStop, CursorPosition, EditorCommand};
 
 use super::embeds::ResolvedEmbed;
@@ -207,7 +207,7 @@ fn remote_cursors(state: &Shared) -> Vec<RemoteTextCursor> {
             Some(RemoteTextCursor {
                 selection,
                 caret,
-                color: block_editor_plugin::block_ui::presence_color(color),
+                color: block_editor_beui::presence_color(color),
             })
         })
         .collect()
@@ -247,17 +247,17 @@ fn take_paste(state: &Shared, asked: bool) {
         return;
     };
     match pasted {
-        block_editor_plugin::PastedImage::Image { name, data } => {
-            let image = block_editor_plugin::be_block::ImageContent::from_file(name, data);
+        block_editor_beui::PastedImage::Image { name, data } => {
+            let image = block_editor_beui::be_block::ImageContent::from_file(name, data);
             let source_name = image.header().source_name.clone();
             let id = state.create_image_block(&image);
             state.insert_image_embed(id, &source_name);
             state.set_import_error.set(None);
         }
-        block_editor_plugin::PastedImage::Failed(error) => {
+        block_editor_beui::PastedImage::Failed(error) => {
             state.set_import_error.set(Some(error));
         }
-        block_editor_plugin::PastedImage::Empty => {
+        block_editor_beui::PastedImage::Empty => {
             request_paste();
         }
     }

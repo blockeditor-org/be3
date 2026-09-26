@@ -1,0 +1,23 @@
+[package]
+name = "chess_vs_checkers"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+game-api = { path = "../../api" }
+game-pieces = { path = "../../pieces" }
+
+[build-dependencies]
+game-api = { path = "../../api" }
+
+[dev-dependencies]
+bincode = "1"
+game-host = { path = "../../host" }
+uuid = { version = "1", features = ["v4"] }
+
+[lints]
+workspace = true

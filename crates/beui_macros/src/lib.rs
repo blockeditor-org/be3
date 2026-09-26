@@ -851,7 +851,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         }
     };
 
-    let finish = quote! { ::beui::reactive::component(move || #block) };
+    let finish = quote! { ::beui::reactive::component(#name, move || #block) };
 
     Ok(quote! {
         #(#req_trait_defs)*

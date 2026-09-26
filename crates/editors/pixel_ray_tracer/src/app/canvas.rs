@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, ClickCatcher, Drawing, Focusable, Frame, ItemSize, List, Picture, clone,
     component, component_rect, create_memo, view,
 };
-use block_editor_plugin::beui::styled::use_theme;
-use block_editor_plugin::beui::{
+use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::{
     CursorIcon, ImageFit, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2,
 };
 
@@ -141,12 +141,12 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
 
 fn world_point(
     at: Pos2,
-    view: &block_editor_plugin::beui::reactive::ReadSignal<
-        Option<block_editor_plugin::beui::reactive::CanvasView>,
+    view: &block_editor_beui::beui::reactive::ReadSignal<
+        Option<block_editor_beui::beui::reactive::CanvasView>,
     >,
-    editor: &block_editor_plugin::Editor,
+    editor: &block_editor_beui::Editor,
     artwork: Rect,
-) -> Option<block_editor_plugin::be_block::pixel_ray_tracer::Point> {
+) -> Option<block_editor_beui::be_block::pixel_ray_tracer::Point> {
     let camera = view.get_untracked()?;
     let _ = editor;
     Some(screen_to_world(camera.to_canvas(at), artwork))

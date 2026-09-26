@@ -1,5 +1,0 @@
-# The build script asks pkg-config for libudev, and then whether it has
-# udev_hwdb_new by compiling a program with a rustc it looks for on PATH, which
-# a worker does not have. So its answers are given here instead: the sysroot's
-# libudev, Ubuntu 24.04's, has the hwdb, and the crate links it.
-rustc_flags = ["--cfg=hwdb", "-ludev"]

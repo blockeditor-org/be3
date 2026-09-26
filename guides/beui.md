@@ -594,6 +594,17 @@ row for tests, as `<id>.row` and `<id>.chevron`, and `outline` gives a single
 row an outline of its own, which is how a drop target says whether it will
 take what is over it.
 
+Choosing a row never expands, collapses or scrolls anything: only the chevron
+and the arrow keys do. The styled tree owns its `Scroll` (`padding` goes inside
+it), and follows the `selected` key wherever it is instead. Given `ancestors`,
+which answers with the keys above one, outermost first, it marks the chevron of
+the deepest row still shown above a selection hidden inside a collapsed one, and
+while the selection is hidden or scrolled out of view it floats a button over
+the top or bottom edge that reports `on_reveal` - the caller expands the
+ancestors - and then scrolls the row into view once it is laid out. The file
+tree and the beui inspector both work this way. `styled::tree_row_node` and
+`styled::tree_focused` reach the rows through the styled tree's node.
+
 ### Docking and windows
 
 `styled::DockArea` is the workspace layout: panes split from one another, a tab
@@ -993,8 +1004,11 @@ something asked for a repaint, or a `Waker` was woken.
 
 ### The inspector
 
-Ctrl+Shift+I in a standalone beui window opens the node, accessibility, and
-performance inspector. Ctrl+Shift+C enables node picking. Ctrl+Shift+F moves
+Ctrl+Shift+I in a standalone beui window opens the node, component,
+accessibility, and performance inspector. Its Comp tab lists the
+`#[component]`s that built the tree rather than its base nodes: every
+component records its name against the node it returns, so components that
+return the same node nest there, outermost first. Ctrl+Shift+C enables node picking. Ctrl+Shift+F moves
 keyboard focus into the panel and back out again, and Escape inside the panel
 returns focus to the document, so the whole inspector is reachable without a
 mouse. Its tree rows select and expand together: clicking a row, or pressing
@@ -1238,14 +1252,14 @@ document to display new data.
 ## Use beui in a block editor plugin
 
 A beui editor is a `#[component]` function. It implements
-`block_editor_plugin::BeuiApp` and uses `block_editor_plugin::beui_plugin!`.
+`block_editor_beui::BeuiApp` and uses `block_editor_beui::beui_plugin!`.
 The type it names holds no state: the
 framework builds the view once, keeps the `Document` it produced, and shows it
 every frame.
 
 ```rust
 #[component]
-pub fn Counter(editor: block_editor_plugin::Editor) -> NodeId {
+pub fn Counter(editor: block_editor_beui::Editor) -> NodeId {
     let counter = editor.block_content::<CounterContent>();
     let count = counter.field(ObjectId::ROOT, CounterModel::COUNT);
     let increment = clone!(counter -> move || counter.operate(CounterModel::add(1)));
@@ -1254,19 +1268,19 @@ pub fn Counter(editor: block_editor_plugin::Editor) -> NodeId {
 
 pub struct CounterApp;
 
-impl block_editor_plugin::BeuiApp for CounterApp {
-    fn view(editor: block_editor_plugin::Editor) -> NodeId {
+impl block_editor_beui::BeuiApp for CounterApp {
+    fn view(editor: block_editor_beui::Editor) -> NodeId {
         view! {
             <Counter editor={editor} />
         }
     }
 
-    fn create_block(creation: &block_editor_plugin::Creation) -> Result<Uuid, String> {
+    fn create_block(creation: &block_editor_beui::Creation) -> Result<Uuid, String> {
         Ok(creation.create(&CounterContent::default()))
     }
 }
 
-block_editor_plugin::beui_plugin!(CounterApp, "../manifest.json");
+block_editor_beui::beui_plugin!(CounterApp, "../manifest.json");
 ```
 
 `Editor` is everything the instance was given: the host, the block, the

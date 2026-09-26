@@ -2,25 +2,26 @@ use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
     rc::Rc,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
     time::{Duration, Instant},
 };
 
 use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockLocation, BlockPick,
     ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
-    EditorRegion, FetchResult, FilePick, HostReply, HostRequest, Occluder, PerformanceMeasurement,
-    Size, ViewChange, WebViewCommand, WebViewEvent,
+    EditorRegion, FetchResult, FilePick, HostReply, HostRequest, Occluder, PaneId, PaneLayout,
+    PaneTree, PerformanceMeasurement, Size, ViewChange, WebViewCommand, WebViewEvent,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter};
 use block_ui::BlockCatalog;
+use geometry::{Pos2, Rect, Vec2, vec2};
 use uuid::Uuid;
 
 pub type WebViewPlacement = (EditorRegion, Option<ChildRect>);
 
 #[derive(Clone, Copy)]
 pub struct BlockDrag {
-    pub position: beui::Pos2,
+    pub position: Pos2,
     pub block_id: Uuid,
     pub block_type: Uuid,
     pub dropped: bool,
@@ -59,7 +60,7 @@ pub enum ContentUpdate {
 
 #[derive(Clone, PartialEq)]
 pub struct FileDrop {
-    pub position: beui::Pos2,
+    pub position: Pos2,
     pub files: Vec<PickedFile>,
     pub dropped: bool,
 }
@@ -145,31 +146,40 @@ pub struct PickedFile {
     pub data: Vec<u8>,
 }
 
+type Wake = Arc<dyn Fn() + Send + Sync>;
+
 #[derive(Clone, Default)]
-pub struct Waker(Option<Arc<dyn Fn() + Send + Sync>>);
+pub struct Waker(Arc<OnceLock<Wake>>);
 
 impl Waker {
     pub fn wake(&self) {
-        if let Some(wake) = &self.0 {
+        if let Some(wake) = self.0.get() {
             wake();
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn new(wake: impl Fn() + Send + Sync + 'static) -> Self {
-        Self(Some(Arc::new(wake)))
+    pub fn install(&self, wake: impl Fn() + Send + Sync + 'static) -> bool {
+        self.0.set(Arc::new(wake)).is_ok()
     }
 
-    pub(crate) fn counting(&self, count: Arc<std::sync::atomic::AtomicU64>) -> Self {
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn new(wake: impl Fn() + Send + Sync + 'static) -> Self {
+        let waker = Self::default();
+        waker.install(wake);
+        waker
+    }
+
+    pub fn counting(&self, count: Arc<std::sync::atomic::AtomicU64>) -> Self {
         let inner = self.clone();
-        Self(Some(Arc::new(move || {
+        let waker = Self::default();
+        waker.install(move || {
             count.fetch_add(1, std::sync::atomic::Ordering::Release);
             inner.wake();
-        })))
+        });
+        waker
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 struct PerformanceRecord {
     group: Arc<str>,
     measurement: PerformanceMeasurement,
@@ -231,7 +241,7 @@ impl Drop for PerformanceMeasurementGuard {
 #[derive(Clone, Copy, Default)]
 struct Region {
     region: Option<EditorRegion>,
-    origin: beui::Vec2,
+    origin: Vec2,
 }
 
 type ChildKey = (EditorRegion, Uuid, u32);
@@ -271,110 +281,30 @@ impl Children {
 
 #[derive(Clone, Copy)]
 struct View {
-    rect: beui::Rect,
+    rect: Rect,
     scale: f32,
 }
 
-#[derive(Clone, Copy)]
-struct BeuiFrame {
-    ratio: f32,
-    pixels_per_point: f32,
-    chrome: bool,
-    content: Option<beui::Rect>,
-}
-
-impl Default for BeuiFrame {
-    fn default() -> Self {
-        Self {
-            ratio: 1.0,
-            pixels_per_point: 1.0,
-            chrome: true,
-            content: None,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct BeuiView {
-    host: EditorHost,
-}
-
-impl BeuiView {
-    pub fn rect(&self) -> Option<beui::Rect> {
-        let ratio = self.host.beui.get().ratio;
-        self.host.view().map(|rect| beui_rect(rect, ratio))
-    }
-
-    pub fn scale(&self) -> f32 {
-        self.host.view_scale().unwrap_or(1.0)
-    }
-
-    pub fn canvas(&self) -> Option<beui::reactive::CanvasView> {
-        let scale = self.scale();
-        self.rect()
-            .map(|rect| beui::reactive::CanvasView::new(rect.min, scale))
-    }
-
-    pub fn pan(&self, delta: beui::Vec2) {
-        let ratio = self.host.beui.get().ratio;
-        self.host
-            .pan_view(beui::vec2(delta.x / ratio, delta.y / ratio));
-    }
-
-    pub fn zoom(&self, factor: f32, anchor: Option<beui::Pos2>) {
-        let ratio = self.host.beui.get().ratio;
-        self.host.zoom_view(
-            factor,
-            anchor.map(|anchor| beui::pos2(anchor.x / ratio, anchor.y / ratio)),
-        );
-    }
-
-    pub fn fit(&self) {
-        self.host.fit_view();
-    }
-
-    pub fn set_content(&self, rect: beui::Rect) {
-        let mut frame = self.host.beui.get();
-        frame.content = Some(rect);
-        self.host.beui.set(frame);
-    }
-}
-
-fn swept(rect: beui::Rect, rotation: f32) -> beui::Rect {
+fn swept(rect: Rect, rotation: f32) -> Rect {
     if rotation == 0.0 {
         return rect;
     }
     let center = rect.center();
     let (sin, cos) = rotation.sin_cos();
-    let turned = |corner: beui::Pos2| {
+    let turned = |corner: Pos2| {
         let offset = corner - center;
         center
-            + beui::vec2(
+            + vec2(
                 offset.x * cos - offset.y * sin,
                 offset.x * sin + offset.y * cos,
             )
     };
-    beui::Rect::from_points(&[
+    Rect::from_points(&[
         turned(rect.left_top()),
         turned(rect.right_top()),
         turned(rect.right_bottom()),
         turned(rect.left_bottom()),
     ])
-}
-
-fn host_rect(rect: beui::Rect, ratio: f32) -> beui::Rect {
-    scaled(rect, ratio.recip())
-}
-
-fn beui_rect(rect: beui::Rect, ratio: f32) -> beui::Rect {
-    scaled(rect, ratio)
-}
-
-fn scaled(rect: beui::Rect, ratio: f32) -> beui::Rect {
-    beui::Rect::from_min_max(
-        beui::pos2(rect.min.x * ratio, rect.min.y * ratio),
-        beui::pos2(rect.max.x * ratio, rect.max.y * ratio),
-    )
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -388,10 +318,11 @@ pub enum Pushed {
     Catalog,
     WebView,
     Shows,
+    Version,
 }
 
 impl Pushed {
-    pub(crate) const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::Replies,
         Self::Peers,
         Self::Histories,
@@ -401,6 +332,7 @@ impl Pushed {
         Self::Catalog,
         Self::WebView,
         Self::Shows,
+        Self::Version,
     ];
 }
 
@@ -408,24 +340,24 @@ impl Pushed {
 pub struct EditorHost {
     waker: Waker,
     panes_offered: Rc<Cell<bool>>,
-    dock: Rc<RefCell<Option<Rc<crate::dock::DockLink>>>>,
-    shown_panes: Rc<RefCell<Vec<block_plugin_api::PaneId>>>,
+    pane_layout: Rc<RefCell<Option<PaneLayout>>>,
+    pane_events: Rc<RefCell<Vec<PaneEvent>>>,
+    shown_panes: Rc<RefCell<Vec<PaneId>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_focus: Rc<RefCell<Option<FocusedBlock>>>,
     artifacts: Rc<RefCell<HashMap<Uuid, ArtifactState>>>,
     watched_artifacts: Rc<RefCell<Vec<Uuid>>>,
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_artifacts: Rc<RefCell<Option<Vec<Uuid>>>>,
     histories: Rc<RefCell<HashMap<Uuid, BlockHistory>>>,
     watched_history: Rc<RefCell<Vec<Uuid>>>,
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_history: Rc<RefCell<Option<Vec<Uuid>>>>,
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
+    version_commands: Rc<RefCell<Vec<(Uuid, block_plugin_api::VersionCommand)>>>,
+    version_status: Rc<RefCell<block_plugin_api::VersionStatus>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
     drag: Rc<Cell<Option<BlockDrag>>>,
     files: Rc<RefCell<Option<FileDrop>>>,
@@ -454,7 +386,11 @@ pub struct EditorHost {
     presenting: Rc<Cell<bool>>,
     present_requests: Rc<RefCell<Vec<bool>>>,
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
-    beui: Rc<Cell<BeuiFrame>>,
+    chrome: Rc<Cell<Option<bool>>>,
+    content: Rc<Cell<Option<Rect>>>,
+    copied: Rc<RefCell<Vec<String>>>,
+    paste_requested: Rc<Cell<bool>>,
+    leaving: Rc<Cell<bool>>,
     next_frame: Rc<Cell<Option<Duration>>>,
     content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ContentUpdate>>>>,
     content_operations: Rc<RefCell<Vec<ContentOperation>>>,
@@ -463,7 +399,6 @@ pub struct EditorHost {
     shown: Rc<RefCell<Vec<ShownPresence>>>,
     peers: Rc<RefCell<HashMap<Option<Uuid>, Peers>>>,
     next_peers: Rc<Cell<u64>>,
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     reported_content: Rc<RefCell<Option<std::collections::BTreeMap<Uuid, Uuid>>>>,
     graph: Rc<crate::graph::GraphState>,
     account: Rc<Cell<Uuid>>,
@@ -479,7 +414,6 @@ pub struct SeededContent {
 }
 
 impl EditorHost {
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn new(waker: Waker) -> Self {
         Self {
             waker,
@@ -543,7 +477,6 @@ impl EditorHost {
         self.waker.wake();
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_focus_report(&self) -> Option<FocusedBlock> {
         let focused = self.focused.borrow().clone();
         let mut reported = self.reported_focus.borrow_mut();
@@ -565,7 +498,6 @@ impl EditorHost {
         self.artifacts.borrow().get(&block_id).cloned()
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
         let blocks = self.watched_artifacts.borrow().clone();
         let mut reported = self.reported_artifacts.borrow_mut();
@@ -591,7 +523,6 @@ impl EditorHost {
             .unwrap_or_default()
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_history_watch(&self) -> Option<Vec<Uuid>> {
         let blocks = self.watched_history.borrow().clone();
         let mut reported = self.reported_history.borrow_mut();
@@ -657,7 +588,6 @@ impl EditorHost {
             .push((block_id, BlockCommand::SimulateAccess { access }));
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn set_focused_block(&self, focused: FocusedBlock) {
         *self.focused.borrow_mut() = focused;
         self.push(Pushed::Focus);
@@ -667,7 +597,6 @@ impl EditorHost {
         self.block_drags.borrow_mut().push((block_id, block_type));
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_block_drags(&self) -> Vec<(Uuid, Uuid)> {
         std::mem::take(&mut self.block_drags.borrow_mut())
     }
@@ -738,6 +667,23 @@ impl EditorHost {
                 linked,
             },
         ));
+    }
+
+    pub fn version(&self, block_id: Uuid, command: block_plugin_api::VersionCommand) {
+        self.version_commands.borrow_mut().push((block_id, command));
+    }
+
+    pub fn take_version_commands(&self) -> Vec<(Uuid, block_plugin_api::VersionCommand)> {
+        std::mem::take(&mut self.version_commands.borrow_mut())
+    }
+
+    pub fn set_version_status(&self, status: block_plugin_api::VersionStatus) {
+        *self.version_status.borrow_mut() = status;
+        self.push(Pushed::Version);
+    }
+
+    pub fn version_status(&self) -> block_plugin_api::VersionStatus {
+        self.version_status.borrow().clone()
     }
 
     pub fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {
@@ -832,12 +778,11 @@ impl EditorHost {
         taken.into_iter().map(|(_, operation)| operation).collect()
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_all_content_operations(&self) -> Vec<(Option<Uuid>, Vec<u8>)> {
         std::mem::take(&mut self.content_operations.borrow_mut())
     }
 
-    pub(crate) fn watch_content(&self, block: Uuid, content_type: Uuid) {
+    pub fn watch_content(&self, block: Uuid, content_type: Uuid) {
         self.watched_content
             .borrow_mut()
             .insert(block, content_type);
@@ -898,11 +843,7 @@ impl EditorHost {
         self.waker.wake();
     }
 
-    pub(crate) fn peers_since(
-        &self,
-        block: Option<Uuid>,
-        seen: u64,
-    ) -> Option<(u64, Vec<PeerPresence>)> {
+    pub fn peers_since(&self, block: Option<Uuid>, seen: u64) -> Option<(u64, Vec<PeerPresence>)> {
         let peers = self.peers.borrow();
         let (revision, held) = peers.get(&block)?;
         (*revision != seen).then(|| (*revision, held.clone()))
@@ -920,7 +861,6 @@ impl EditorHost {
             .collect()
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_content_watch(&self) -> Option<Vec<(Uuid, Uuid)>> {
         let watched = self.watched_content.borrow().clone();
         let mut reported = self.reported_content.borrow_mut();
@@ -935,7 +875,7 @@ impl EditorHost {
         self.client_id.get()
     }
 
-    pub fn view(&self) -> Option<beui::Rect> {
+    pub fn view(&self) -> Option<Rect> {
         let origin = self.region.get().origin;
         self.view.get().map(|view| view.rect.translate(origin))
     }
@@ -944,14 +884,14 @@ impl EditorHost {
         self.view.get().map(|view| view.scale)
     }
 
-    pub fn pan_view(&self, delta: beui::Vec2) {
+    pub fn pan_view(&self, delta: Vec2) {
         self.view_changes.borrow_mut().push(ViewChange::Pan {
             x: delta.x,
             y: delta.y,
         });
     }
 
-    pub fn zoom_view(&self, factor: f32, anchor: Option<beui::Pos2>) {
+    pub fn zoom_view(&self, factor: f32, anchor: Option<Pos2>) {
         let origin = self.region.get().origin;
         self.view_changes.borrow_mut().push(ViewChange::Zoom {
             factor,
@@ -977,27 +917,8 @@ impl EditorHost {
         self.files.borrow().clone()
     }
 
-    pub fn beui_files(&self) -> Option<FileDrop> {
-        let ratio = self.beui.get().ratio;
-        self.files().map(|files| FileDrop {
-            position: beui::pos2(files.position.x * ratio, files.position.y * ratio),
-            ..files
-        })
-    }
-
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn set_files(&self, drop: Option<FileDrop>) {
         *self.files.borrow_mut() = drop;
-    }
-
-    pub fn beui_drag(&self) -> Option<crate::editor::Drag> {
-        let ratio = self.beui.get().ratio;
-        self.drag().map(|drag| crate::editor::Drag {
-            position: beui::pos2(drag.position.x * ratio, drag.position.y * ratio),
-            block_id: drag.block_id,
-            block_type: drag.block_type,
-            dropped: drag.dropped,
-        })
     }
 
     pub fn accept_drag(&self, accepted: bool) {
@@ -1060,7 +981,6 @@ impl EditorHost {
         self.audio_status.borrow().clone()
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_audio_commands(&self) -> Vec<(Uuid, AudioCommand)> {
         std::mem::take(&mut self.audio_commands.borrow_mut())
     }
@@ -1104,16 +1024,11 @@ impl EditorHost {
         self.replies.borrow_mut().remove(&request);
     }
 
-    pub fn place_web_view(&self, rect: Option<beui::Rect>) {
+    pub fn place_web_view(&self, rect: Option<Rect>) {
         let state = self.region.get();
         let region = state.region.unwrap_or(EditorRegion::Frame);
         let rect = rect.map(|rect| child_rect(rect.translate(-state.origin)));
         self.web_view_placements.borrow_mut().push((region, rect));
-    }
-
-    pub fn place_beui_web_view(&self, rect: Option<beui::Rect>) {
-        let ratio = self.beui.get().ratio;
-        self.place_web_view(rect.map(|rect| host_rect(rect, ratio)));
     }
 
     pub fn open_web_view(&self, url: impl Into<String>) {
@@ -1184,18 +1099,36 @@ impl EditorHost {
             .then(|| self.cursor_grabbed.get())
     }
 
-    pub fn beui_view(&self) -> BeuiView {
-        BeuiView { host: self.clone() }
-    }
-
     pub fn chrome_shown(&self) -> bool {
-        self.beui.get().chrome
+        self.chrome.get().unwrap_or(true)
     }
 
     pub fn set_chrome_shown(&self, chrome: bool) {
-        let mut frame = self.beui.get();
-        frame.chrome = chrome;
-        self.beui.set(frame);
+        self.chrome.set(Some(chrome));
+    }
+
+    pub fn copy_text(&self, text: impl Into<String>) {
+        self.copied.borrow_mut().push(text.into());
+    }
+
+    pub fn take_copied_text(&self) -> Vec<String> {
+        std::mem::take(&mut self.copied.borrow_mut())
+    }
+
+    pub fn request_paste(&self) {
+        self.paste_requested.set(true);
+    }
+
+    pub fn take_paste_request(&self) -> bool {
+        self.paste_requested.take()
+    }
+
+    pub fn leave_frame(&self) {
+        self.leaving.set(true);
+    }
+
+    pub fn take_leave_frame(&self) -> bool {
+        self.leaving.take()
     }
 
     pub fn presenting(&self) -> bool {
@@ -1209,7 +1142,7 @@ impl EditorHost {
         self.present_requests.borrow_mut().push(presenting);
     }
 
-    pub fn occlude(&self, rect: beui::Rect) {
+    pub fn occlude(&self, rect: Rect) {
         let origin = self.region.get().origin;
         let mut children = self.children.borrow_mut();
         let after = children.placements.len() as u32;
@@ -1219,24 +1152,22 @@ impl EditorHost {
         });
     }
 
-    pub fn place_beui_child(
+    pub fn place_child(
         &self,
         block_id: Uuid,
         block_type: Uuid,
-        rect: beui::Rect,
-        clip: beui::Rect,
+        rect: Rect,
+        clip: Rect,
         mode: ChildMode,
         layer: ChildLayer,
         own_frame: bool,
         top_bar: bool,
         rotation: f32,
         opacity: f32,
-        intrinsic: Option<beui::Vec2>,
+        intrinsic: Option<Vec2>,
     ) -> ChildId {
-        let ratio = self.beui.get().ratio;
         let state = self.region.get();
-        let rect = host_rect(rect, ratio);
-        let clip = host_rect(clip, ratio).intersect(swept(rect, rotation));
+        let clip = clip.intersect(swept(rect, rotation));
         let mut children = self.children.borrow_mut();
         let child = children.identify(state.region.unwrap_or(EditorRegion::Frame), block_id);
         children.placements.push(ChildPlacement {
@@ -1260,11 +1191,6 @@ impl EditorHost {
         child
     }
 
-    pub fn occlude_beui(&self, rect: beui::Rect) {
-        let ratio = self.beui.get().ratio;
-        self.occlude(host_rect(rect, ratio));
-    }
-
     pub fn child_status(&self, child: ChildId) -> Option<ChildStatus> {
         self.child_statuses.borrow().get(&child).cloned()
     }
@@ -1281,35 +1207,33 @@ impl EditorHost {
         self.panes_offered.get()
     }
 
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) fn offer_panes(&self, offered: bool) {
         self.panes_offered.set(offered);
     }
 
-    pub(crate) fn set_dock(&self, link: Option<crate::dock::DockLink>) {
-        *self.dock.borrow_mut() = link.map(Rc::new);
+    pub fn set_pane_layout(&self, layout: Option<PaneLayout>) {
+        *self.pane_layout.borrow_mut() = layout;
+    }
+
+    pub(crate) fn pane_layout(&self) -> Option<PaneLayout> {
+        self.pane_layout.borrow().clone()
+    }
+
+    pub(crate) fn push_pane_event(&self, event: PaneEvent) {
+        self.pane_events.borrow_mut().push(event);
         self.waker.wake();
     }
 
-    pub(crate) fn forget_dock(&self, key: u64) {
-        let mut dock = self.dock.borrow_mut();
-        if dock.as_ref().is_some_and(|link| link.key == key) {
-            *dock = None;
-        }
+    pub fn take_pane_events(&self) -> Vec<PaneEvent> {
+        std::mem::take(&mut self.pane_events.borrow_mut())
     }
 
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-    pub(crate) fn dock(&self) -> Option<Rc<crate::dock::DockLink>> {
-        self.dock.borrow().clone()
-    }
-
-    pub fn show_pane(&self, pane: block_plugin_api::PaneId) {
+    pub fn show_pane(&self, pane: PaneId) {
         self.shown_panes.borrow_mut().push(pane);
         self.waker.wake();
     }
 
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-    pub(crate) fn take_shown_panes(&self) -> Vec<block_plugin_api::PaneId> {
+    pub(crate) fn take_shown_panes(&self) -> Vec<PaneId> {
         std::mem::take(&mut self.shown_panes.borrow_mut())
     }
 
@@ -1317,7 +1241,6 @@ impl EditorHost {
         std::mem::take(&mut self.opens.borrow_mut())
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn set_block_types(&self, catalog: Rc<BlockCatalog>) {
         *self.block_types.borrow_mut() = catalog;
         self.push(Pushed::Catalog);
@@ -1351,8 +1274,12 @@ impl EditorHost {
         }
     }
 
-    pub(crate) fn flush_graph(&self) {
+    pub fn flush_graph(&self) {
         self.graph.flush();
+    }
+
+    pub fn defer_graph_changes_unless(&self, ready: impl Fn() -> bool + 'static) {
+        self.graph.defer_unless(Rc::new(ready));
     }
 
     pub fn set_blocks(&self, query: crate::BlockQuery, blocks: Vec<crate::BlockInfo>) {
@@ -1376,34 +1303,16 @@ impl EditorHost {
         self.editable.set(editable);
     }
 
-    pub fn set_view(&self, view: beui::Rect, scale: f32) {
+    pub fn set_view(&self, view: Rect, scale: f32) {
         self.view.set(Some(View { rect: view, scale }));
     }
 
-    pub fn set_beui_view(&self, view: beui::Rect, scale: f32) {
-        let ratio = self.beui.get().ratio;
-        let origin = self.region.get().origin;
-        self.set_view(host_rect(view, ratio).translate(-origin), scale);
+    pub fn report_content(&self, rect: Rect) {
+        self.content.set(Some(rect));
     }
 
-    pub fn begin_beui_frame(&self, ratio: f32, pixels_per_point: f32, chrome: bool) {
-        self.beui.set(BeuiFrame {
-            ratio,
-            pixels_per_point,
-            chrome,
-            content: None,
-        });
-    }
-
-    pub fn beui_pixels_per_point(&self) -> f32 {
-        self.beui.get().pixels_per_point
-    }
-
-    pub fn take_beui_content(&self) -> Option<beui::Rect> {
-        let mut frame = self.beui.get();
-        let content = frame.content.take();
-        self.beui.set(frame);
-        content
+    pub fn take_content(&self) -> Option<Rect> {
+        self.content.take()
     }
 
     pub fn take_view_changes(&self) -> Vec<ViewChange> {
@@ -1414,22 +1323,11 @@ impl EditorHost {
         self.drag.set(drag);
     }
 
-    pub fn set_beui_drag(&self, drag: Option<crate::editor::Drag>) {
-        let ratio = self.beui.get().ratio;
-        self.drag.set(drag.map(|drag| BlockDrag {
-            position: beui::pos2(drag.position.x / ratio, drag.position.y / ratio),
-            block_id: drag.block_id,
-            block_type: drag.block_type,
-            dropped: drag.dropped,
-        }));
-    }
-
     pub fn take_drag_accepted(&self) -> Option<bool> {
         self.drag_accepted.take()
     }
 
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-    pub fn begin_region(&self, region: EditorRegion, origin: beui::Vec2) {
+    pub fn begin_region(&self, region: EditorRegion, origin: Vec2) {
         self.region.set(Region {
             region: Some(region),
             origin,
@@ -1471,14 +1369,13 @@ impl EditorHost {
         self.presenting.set(presenting);
     }
 
-    pub(crate) fn take_child_view_changes(&self, child: ChildId) -> Vec<ViewChange> {
+    pub fn take_child_view_changes(&self, child: ChildId) -> Vec<ViewChange> {
         self.child_views
             .borrow_mut()
             .remove(&child)
             .unwrap_or_default()
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn push_child_view_change(&self, child: ChildId, change: ViewChange) {
         self.child_views
             .borrow_mut()
@@ -1487,19 +1384,16 @@ impl EditorHost {
             .push(change);
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_present_requests(&self) -> Vec<bool> {
         std::mem::take(&mut self.present_requests.borrow_mut())
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_creation_ready(&self) -> Option<bool> {
         self.creation_changed
             .take()
             .then(|| self.creation_ready.get())
     }
 
-    #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_performance(&self) -> Vec<(String, Vec<PerformanceMeasurement>)> {
         let records = std::mem::take(
             &mut *self
@@ -1577,13 +1471,23 @@ impl ImagePaster {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum PaneEvent {
+    Arranged {
+        tree: PaneTree,
+        detached: Vec<PaneId>,
+        focused: Option<PaneId>,
+    },
+    Closed(PaneId),
+}
+
 pub enum PastedImage {
     Image { name: String, data: Vec<u8> },
     Empty,
     Failed(String),
 }
 
-fn child_rect(rect: beui::Rect) -> ChildRect {
+fn child_rect(rect: Rect) -> ChildRect {
     ChildRect {
         x: rect.min.x,
         y: rect.min.y,

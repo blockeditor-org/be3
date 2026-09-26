@@ -3,7 +3,7 @@ use std::{
     time::Instant,
 };
 
-use block_editor_plugin::beui::{Image, Pos2, Vec2};
+use block_editor_beui::beui::{Image, Pos2, Vec2};
 
 #[cfg(not(target_arch = "wasm32"))]
 mod pdfium;

@@ -1,4 +1,4 @@
-use block_editor_plugin::{Editor, EditorHost};
+use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -20,8 +20,8 @@ impl Fixture {
         }
     }
 
-    fn opened(&self) -> Vec<Uuid> {
-        self.host
+    fn opened(&mut self) -> Vec<Uuid> {
+        self.test
             .take_opens()
             .into_iter()
             .map(|(id, _, _)| id)

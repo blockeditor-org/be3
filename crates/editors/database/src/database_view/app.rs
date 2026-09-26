@@ -1,9 +1,9 @@
-use block_editor_plugin::BlockParent;
-use block_editor_plugin::be_block::database_view::{self, DatabaseViewContent};
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::database::create_database;
-use block_editor_plugin::{Creation, Editor};
+use block_editor_beui::BlockParent;
+use block_editor_beui::be_block::database_view::{self, DatabaseViewContent};
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::database::create_database;
+use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 pub(crate) mod data;
@@ -18,7 +18,7 @@ use ui::{DatabaseViewEditor, DatabaseViewPreview};
 
 pub struct DatabaseViewApp;
 
-impl block_editor_plugin::BeuiApp for DatabaseViewApp {
+impl block_editor_beui::BeuiApp for DatabaseViewApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <DatabaseViewEditor editor={editor} />

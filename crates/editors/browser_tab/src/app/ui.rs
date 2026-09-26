@@ -1,12 +1,12 @@
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_REFRESH};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_REFRESH};
+use block_editor_beui::beui::reactive::{
     Align, Frame, ItemSize, List, NodeRef, Show, Spacer, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Button, ButtonVariant, Caption, IconButton, TextInput, use_theme,
 };
-use block_editor_plugin::{Editor, Toolbar};
+use block_editor_beui::{Editor, Toolbar};
 
 use super::session::Session;
 

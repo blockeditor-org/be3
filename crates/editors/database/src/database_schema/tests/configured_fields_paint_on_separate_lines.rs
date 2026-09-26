@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_plugin::be_block::database_schema::{
+use block_editor_beui::be_block::database_schema::{
     DatabaseBlockOptions, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
 };
 
@@ -37,7 +37,5 @@ fn configured_fields_paint_on_separate_lines() {
         harness.edit::<DatabaseSchemaContent>(None, &edit);
     }
     harness.run();
-    harness
-        .editor
-        .snapshot("configured_fields_paint_on_separate_lines");
+    harness.snapshot("configured_fields_paint_on_separate_lines");
 }

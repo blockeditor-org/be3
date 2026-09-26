@@ -8,10 +8,14 @@ use crate::platform;
 
 mod a_checklist_and_a_counter_are_held_by_one_peer;
 mod a_child_moved_into_a_block_is_added_to_its_content;
+mod a_commit_in_one_checkout_is_brought_into_another;
+mod a_conflicting_edit_keeps_every_side_until_one_is_chosen;
 mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_duplicated_block_carries_what_its_source_held;
+mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_held_block_stays_open_when_its_editors_close;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
+mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
 mod an_edit_made_across_a_takeover_is_kept;
 mod an_idle_peer_never_wakes_its_worker;
 mod an_unknown_content_type_has_no_content_in_the_new_stack;
@@ -179,4 +183,125 @@ fn wait_until(what: &str, ready: impl Fn(&Shared) -> bool) {
 
 fn add(block: Uuid, by: i64) {
     operate(block, CounterContent::encode_operation(&Counter::add(by)));
+}
+
+fn version_status(shared: &Shared, block: Uuid) -> Option<&block_plugin_api::VersionStatus> {
+    shared.versions.get(&block).map(|state| &state.status)
+}
+
+fn settled(shared: &Shared, block: Uuid) -> bool {
+    version_status(shared, block).is_some_and(|status| !status.busy)
+}
+
+fn checkout_state(shared: &Shared, block: Uuid) -> Option<be_block::Checkout> {
+    let held = shared.blocks.get(&block)?;
+    be_block::CheckoutContent::decode(&held.bytes)
+        .ok()
+        .map(|content| content.root())
+}
+
+fn text_of(shared: &Shared, block: Uuid) -> Option<String> {
+    let held = shared.blocks.get(&block)?;
+    be_block::TextContent::decode(&held.bytes)
+        .ok()
+        .map(|text| text.text())
+}
+
+fn type_text(block: Uuid, at: u64, text: &str) {
+    operate(
+        block,
+        be_block::TextContent::encode_operation(&be_block::TextOp::insert(at, text)),
+    );
+}
+
+fn checkouts(shared: &Shared) -> Vec<Uuid> {
+    shared
+        .graph
+        .nodes()
+        .into_iter()
+        .filter(|node| node.content_type == be_block::CheckoutContent::CONTENT_TYPE)
+        .map(|node| node.id)
+        .collect()
+}
+
+struct Versioned {
+    folder: Uuid,
+    note: Uuid,
+    repository: Uuid,
+    checkout: Uuid,
+}
+
+fn start_versioning(text: &str) -> Versioned {
+    wait_until("loaded the graph", |shared| shared.graph.loaded);
+    let (folder, note, repository) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let mut listing = be_block::FolderContent::default();
+    listing.apply(&be_block::Folder::default().add(note));
+    create(
+        folder,
+        be_block::FolderContent::CONTENT_TYPE,
+        be_graph::BlockParent::Root,
+        be_block::BlockMetadata::named("Notes"),
+        Some(listing.encode()),
+    );
+    create(
+        note,
+        be_block::TextContent::CONTENT_TYPE,
+        be_graph::BlockParent::Block(folder),
+        be_block::BlockMetadata::named("Note"),
+        Some(be_block::TextContent::new(text).encode()),
+    );
+    create(
+        repository,
+        be_block::RepositoryContent::CONTENT_TYPE,
+        be_graph::BlockParent::Root,
+        be_block::BlockMetadata::named("History"),
+        Some(be_block::RepositoryContent::default().encode()),
+    );
+    version_since(repository, be_block::RepositoryContent::CONTENT_TYPE, None);
+    version(
+        repository,
+        block_plugin_api::VersionCommand::Adopt {
+            block_id: folder.into_bytes(),
+        },
+    );
+    wait_until("versioned the folder", |shared| {
+        settled(shared, repository)
+            && version_status(shared, repository).is_some_and(|status| !status.branches.is_empty())
+    });
+    let checkout = node(folder)
+        .and_then(|node| node.parent.block())
+        .expect("the folder moved into its checkout");
+    Versioned {
+        folder,
+        note,
+        repository,
+        checkout,
+    }
+}
+
+fn second_checkout(versioned: &Versioned) -> Uuid {
+    version(
+        versioned.repository,
+        block_plugin_api::VersionCommand::NewCheckout {
+            branch: be_block::MAIN_BRANCH.to_owned(),
+        },
+    );
+    wait_until("made a second checkout", |shared| {
+        settled(shared, versioned.repository) && checkouts(shared).len() == 2
+    });
+    let second = with_shared(checkouts)
+        .unwrap_or_default()
+        .into_iter()
+        .find(|checkout| *checkout != versioned.checkout)
+        .expect("a second checkout exists");
+    assert_eq!(
+        with_shared(|shared| version_status(shared, versioned.repository)
+            .and_then(|status| status.error.clone())),
+        Some(None)
+    );
+    second
+}
+
+fn copy_of(block: Uuid, checkout: Uuid) -> Uuid {
+    be_block::version_control::masked(block, be_block::version_control::scope_mask(checkout))
 }

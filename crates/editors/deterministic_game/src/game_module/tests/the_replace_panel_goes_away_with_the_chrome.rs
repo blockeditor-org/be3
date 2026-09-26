@@ -7,8 +7,7 @@ fn the_replace_panel_goes_away_with_the_chrome() {
     assert!(test.shown("game-module.replace"));
     let with_panel = editor.content_rect();
 
-    editor.host().set_chrome_shown(false);
-    test.run();
+    test.set_chrome(false);
 
     let without_panel = editor.content_rect();
     assert!(with_panel.right() < without_panel.right());

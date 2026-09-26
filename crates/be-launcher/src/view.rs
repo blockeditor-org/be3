@@ -1,3 +1,5 @@
+#[cfg(target_os = "android")]
+use beui::icons::ICON_ARROW_BACK;
 use beui::icons::{
     ICON_CALL_SPLIT, ICON_CANCEL, ICON_DRAFT, ICON_MERGE, ICON_REFRESH, ICON_SEARCH,
 };
@@ -5,29 +7,71 @@ use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, Text, clone,
     component, create_memo, view,
 };
+#[cfg(not(target_os = "android"))]
+use beui::styled::Separator;
 use beui::styled::theme::{FONT_BODY, FONT_SMALL};
 use beui::styled::{
-    Caption, Heading, Icon, IconButton, ListRow, Scroll, Separator, Spinner, Tabs, TextInput,
-    use_theme,
+    Caption, Heading, Icon, IconButton, ListRow, Scroll, Spinner, Tabs, TextInput, use_theme,
 };
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId};
 
+#[cfg(target_os = "android")]
+use crate::detail::Detail;
 use crate::github::{Filter, Label, PullRequest, State};
 use crate::model::{Loaded, Model};
+#[cfg(target_os = "android")]
+use crate::phone::{LauncherMenu, MainNotes};
 use crate::time::{now, relative};
 use crate::viewer::ImageViewer;
+#[cfg(not(target_os = "android"))]
 use crate::workspace::Workspace;
 
+#[cfg(not(target_os = "android"))]
 const SIDEBAR_WIDTH: f32 = 380.0;
-const PADDING: f32 = 16.0;
+pub(crate) const PADDING: f32 = 16.0;
 const SPACING: f32 = 10.0;
 const ROW_SPACING: f32 = 4.0;
 const CHIP_PADDING_HORIZONTAL: f32 = 7.0;
 const CHIP_PADDING_VERTICAL: f32 = 1.0;
 const CHIP_RADIUS: u8 = 9;
 pub(crate) const MERGED: Color32 = Color32::from_rgb(163, 113, 247);
+#[cfg(not(target_os = "android"))]
+const CURRENT: &str = "checked out";
+#[cfg(target_os = "android")]
+const CURRENT: &str = "downloaded";
 
+#[cfg(target_os = "android")]
+#[component]
+pub(crate) fn Launcher(model: Model) -> NodeId {
+    let listing = create_memo(clone!(model -> move || model.selected.with(Option::is_none)));
+    let reading = create_memo(clone!(listing -> move || !listing.get()));
+    let back = clone!(model -> move || model.deselect());
+    let sidebar = model.clone();
+    let viewer = model.clone();
+    view! {
+        <List spacing=0.0>
+            <Show condition={listing}>
+                <Sidebar @sizing=ItemSize::Percent(100.0) model={sidebar.clone()} />
+            </Show>
+            <Show condition={reading}>
+                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                    <Frame padding_horizontal=8.0 padding_vertical=4.0>
+                        <IconButton
+                            glyph=ICON_ARROW_BACK
+                            label="Back to the pull requests"
+                            on_click={back}
+                        />
+                    </Frame>
+                    <Detail @sizing=ItemSize::Percent(100.0) model={model.clone()} />
+                </List>
+            </Show>
+            <ImageViewer model={viewer} />
+        </List>
+    }
+}
+
+#[cfg(not(target_os = "android"))]
 #[component]
 pub(crate) fn Launcher(model: Model) -> NodeId {
     let theme = use_theme();
@@ -96,6 +140,8 @@ fn Sidebar(model: Model) -> NodeId {
     });
     let set_query = model.set_query.clone();
     let query = model.query.clone();
+    let menu = model.clone();
+    let status = model.clone();
     view! {
         <List spacing=0.0>
             <Frame padding_horizontal=PADDING padding_vertical=PADDING>
@@ -105,8 +151,14 @@ fn Sidebar(model: Model) -> NodeId {
                             <Heading content="Pull requests" />
                             <Caption content={repository} />
                         </List>
+                        <Show condition={cfg!(target_os = "android")}>
+                            <Menu model={menu.clone()} />
+                        </Show>
                         <IconButton glyph=ICON_REFRESH label="Refresh" on_click={refresh} />
                     </List>
+                    <Show condition={cfg!(target_os = "android")}>
+                        <Status model={status.clone()} />
+                    </Show>
                     <Tabs
                         options={view! {
                             <ChoiceOption label="Open" />
@@ -164,6 +216,40 @@ fn Sidebar(model: Model) -> NodeId {
     }
 }
 
+#[cfg(target_os = "android")]
+#[component]
+fn Menu(model: Model) -> NodeId {
+    view! {
+        <LauncherMenu model />
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+#[component]
+fn Menu(model: Model) -> NodeId {
+    let _ = model;
+    view! {
+        <List spacing=0.0 />
+    }
+}
+
+#[cfg(target_os = "android")]
+#[component]
+fn Status(model: Model) -> NodeId {
+    view! {
+        <MainNotes model />
+    }
+}
+
+#[cfg(not(target_os = "android"))]
+#[component]
+fn Status(model: Model) -> NodeId {
+    let _ = model;
+    view! {
+        <List spacing=0.0 />
+    }
+}
+
 fn matches(pull_request: &PullRequest, query: &str) -> bool {
     let query = query.trim_start_matches('#');
     pull_request.number.to_string().starts_with(query)
@@ -194,8 +280,7 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let state = create_memo(clone!(pull_request -> move || pull_request.get().state));
     let labels = create_memo(clone!(pull_request -> move || pull_request.get().labels));
     let checked_out = create_memo(clone!(model pull_request -> move || {
-        let head = model.head.get();
-        !head.is_empty() && head == pull_request.get().head_sha
+        model.current(&pull_request.get())
     }));
     let has_tags = create_memo(clone!(labels checked_out -> move || {
         !labels.get().is_empty() || checked_out.get()
@@ -247,7 +332,7 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
     view! {
         <List direction=Direction::Horizontal spacing=6.0>
             <Show condition={checked_out}>
-                <Chip text="checked out" color={theme.accent.clone()} />
+                <Chip text=CURRENT color={theme.accent.clone()} />
             </Show>
             <ForEach keys>
                 {move |index: usize| {

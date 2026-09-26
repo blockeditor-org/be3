@@ -1,4 +1,4 @@
-use block_editor_plugin::beui::{Color32, Image};
+use block_editor_beui::beui::{Color32, Image};
 
 use super::Painted;
 

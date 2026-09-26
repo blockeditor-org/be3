@@ -1,16 +1,16 @@
-use block_editor_plugin::be_block::{BlockContent, CompiledLogicContent};
+use block_editor_beui::be_block::{BlockContent, CompiledLogicContent};
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::Item;
-use block_editor_plugin::be_block::hotbar::{HotbarContent, HotbarSlot, SlotKind};
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::{ICON_DELETE, ICON_FOLDER};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::Item;
+use block_editor_beui::be_block::hotbar::{HotbarContent, HotbarSlot, SlotKind};
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{ICON_DELETE, ICON_FOLDER};
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
     create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Body, Caption, Icon, IconButton, Scroll, use_theme};
-use block_editor_plugin::{BlockLink, ChildTarget, ContentProjection, Editor};
+use block_editor_beui::beui::styled::{Body, Caption, Icon, IconButton, Scroll, use_theme};
+use block_editor_beui::{BlockLink, ChildTarget, ContentProjection, Editor};
 use uuid::Uuid;
 
 const PADDING: f32 = 16.0;

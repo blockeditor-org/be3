@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_plugin::be_block::canvas::CanvasColor;
-use block_editor_plugin::beui::{Key, Vec2};
+use block_editor_beui::be_block::canvas::CanvasColor;
+use block_editor_beui::beui::{Key, Vec2};
 
 #[test]
 fn a_typed_transform_value_is_one_edit() {
