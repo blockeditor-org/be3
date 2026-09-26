@@ -1259,10 +1259,8 @@ fn TextContent(state: Rc<CanvasState>) -> NodeId {
             text_style,
             placeholder,
         };
+        let updated = state.fit_text(updated);
         state.record_update(vec![held.clone()], vec![updated], true);
-        if !text_style.wrap {
-            state.request_text_measure(held.id);
-        }
     });
     let left = clone!(state -> move |has_focus: bool| {
         if !has_focus {

@@ -4,7 +4,7 @@ use beui::icons::{
 };
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
-    create_effect, create_memo, create_signal, untrack, view,
+    copy_text, create_effect, create_memo, create_signal, untrack, view,
 };
 use beui::styled::{
     Button, ButtonVariant, Caption, Card, Dialog, Heading, Icon, IconButton, MenuButton, Paragraph,
@@ -49,6 +49,7 @@ pub(super) fn Column(children: beui::reactive::Children<beui::reactive::ListChil
 #[component]
 pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
     let message = create_memo(clone!(view -> move || view.error.get().message));
+    let copied = message.clone();
     let pending = create_memo(clone!(view -> move || view.error.get().pending));
     let asking = create_memo(clone!(pending -> move || pending.get().is_some()));
     let title = create_memo(clone!(pending -> move || match pending.get() {
@@ -84,6 +85,11 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
                     label="Restart"
                     variant=ButtonVariant::Primary
                     on_click={|| send(UiCommand::Restart)}
+                />
+                <Button
+                    label="Copy"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || copy_text(copied.get_untracked())}
                 />
                 <Button
                     label="Delete client database..."

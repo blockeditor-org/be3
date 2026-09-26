@@ -10,7 +10,7 @@ use crate::app::PixelRayTracerApp;
 
 mod a_new_scene_paints_nothing_until_the_lighting_lands;
 mod a_settled_editor_stops_laying_itself_out_again;
-mod an_editor_waiting_on_a_traced_frame_asks_to_be_stepped_again;
+mod a_traced_frame_lands_without_asking_to_be_stepped_again;
 mod resetting_the_artwork_clears_painted_pixels;
 mod zooming_the_view_grows_the_scene;
 

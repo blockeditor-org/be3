@@ -6,7 +6,7 @@ load("@root//buck/tools:defs.bzl", "tool")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 load("@root//third-party/pdfium:defs.bzl", "pdfium_library")
 
-# The app, with its full features (the terminal and the embedded browser), which
+# The app, with its full features (the embedded browser), which
 # reindeer.toml and buckify.bxl turn on for every platform.
 #
 # BLOCK_APP_COMMIT is what cargo's build script asks git for; a worker has no
@@ -23,7 +23,7 @@ commit = {
 
 app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "assets/**/*"])
 
-# On Android the app is this library, loaded by NativeActivity under cargo's
+# On Android the app is this library, loaded by GameActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.
 cargo_library(
     env = commit,
@@ -181,11 +181,13 @@ app(
         application_id = application_id,
         assets = assets,
         java = glob(["android/java/**/*.java"]),
+        java_libraries = "//buck/android:game-activity",
         label = label,
         library = ":block-app",
         manifest = "android/AndroidManifest.xml",
         min_sdk = 23,
         package = "com.be3.block",
+        resources = "android/res",
         target_sdk = 35,
         version_code = 1,
         version_name = "0.1.0",
@@ -224,6 +226,18 @@ tool(
     command = [
         "sh",
         "$(location //buck/app:smoke.sh)",
+        "$(location :app)/block-app",
+        "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+    ],
+)
+
+# The app in a virtual display for an agent to drive, signed in with a
+# workspace open: guides/running_the_app.md.
+tool(
+    name = "dev",
+    command = [
+        "sh",
+        "$(location //buck/app:dev.sh)",
         "$(location :app)/block-app",
         "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
     ],

@@ -15,8 +15,8 @@ use crate::input::{DragGesture, Key, KeyPress, ScrollGesture};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, Children, ClickCatcher, Focusable, Frame, List, ListChild, Memo, Offset, Prop,
-    ReadSignal, Render, RenderFn, clone, component_accessibility, create_memo, create_signal,
-    each_frame, set_component_state, untrack, with_document,
+    ReadSignal, Render, RenderFn, Timer, clone, component_accessibility, create_memo,
+    create_signal, create_timer, on_cleanup, set_component_state, untrack, with_document,
 };
 
 const INERTIA_FRICTION: f32 = 4.5;
@@ -156,6 +156,7 @@ struct Motion {
     reported: ReadSignal<Option<ScrollPosition>>,
     direction: Prop<Direction>,
     momentum: Rc<RefCell<Momentum>>,
+    animation: Rc<RefCell<Option<Timer>>>,
 }
 
 impl Motion {
@@ -194,6 +195,7 @@ impl Motion {
         let mut momentum = self.momentum.borrow_mut();
         momentum.dragging = !gesture.ended && !gesture.cancelled;
         if momentum.drag.is_none() {
+            with_document(|document| document.take_offset_steered(self.node));
             momentum.grab(&position);
         }
         let dragged = self.axis().main(gesture.delta);
@@ -206,9 +208,17 @@ impl Motion {
             momentum.release(0.0);
         }
         self.publish(&momentum, position.offset);
-        if momentum.moving() {
-            with_document(|document| document.request_repaint_after(Duration::ZERO));
+        self.animate(&mut momentum);
+    }
+
+    fn animate(&self, momentum: &mut Momentum) {
+        let Some(animation) = self.animation.borrow().clone() else {
+            return;
+        };
+        if !animation.running() {
+            momentum.stepped = Instant::now();
         }
+        animation.start(Duration::ZERO);
     }
 
     fn scroll_to(&self, offset: f32) {
@@ -250,9 +260,9 @@ impl Motion {
         true
     }
 
-    fn step(&self) {
+    fn step(&self) -> Option<Duration> {
         if !with_document(|document| document.contains(self.node)) {
-            return;
+            return None;
         }
         let steered = with_document(|document| document.take_offset_steered(self.node));
         let mut momentum = self.momentum.borrow_mut();
@@ -264,20 +274,16 @@ impl Motion {
             with_document(|document| document.set_offset_overscroll(self.node, 0.0));
         }
         if std::mem::take(&mut momentum.dragging) {
-            return;
+            return Some(Duration::ZERO);
         }
         momentum.drag = None;
         if !momentum.moving() {
-            return;
+            return None;
         }
-        let Some(mut position) = self.placed() else {
-            return;
-        };
+        let mut position = self.placed()?;
         momentum.animate(&mut position, elapsed, rubber_banding());
         self.publish(&momentum, position.offset);
-        if momentum.moving() {
-            with_document(|document| document.request_repaint_after(Duration::ZERO));
-        }
+        momentum.moving().then_some(Duration::ZERO)
     }
 }
 
@@ -299,8 +305,11 @@ fn Scrolling(
         reported: reported.clone(),
         direction: direction.clone(),
         momentum: Rc::new(RefCell::new(Momentum::new())),
+        animation: Rc::default(),
     };
-    each_frame(clone!(motion -> move || motion.step()));
+    let animation = create_timer(clone!(motion -> move || motion.step()));
+    motion.animation.replace(Some(animation));
+    on_cleanup(clone!(motion -> move || drop(motion.animation.take())));
     set_component_state(motion.clone());
 
     let position = create_memo(clone!(reported -> move || reported.get().unwrap_or_default()));
