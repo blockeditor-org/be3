@@ -1,9 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, time::Duration};
 
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
@@ -116,7 +111,7 @@ pub(super) struct Runtime {
     pub(super) pass: u64,
     surface: u32,
     status: PresenterStatus,
-    shared: Arc<Mutex<Shared>>,
+    shared: Rc<RefCell<Shared>>,
     presented: bool,
     sent: Vec<ScreenRequest>,
     error: Option<String>,
@@ -144,7 +139,7 @@ impl Runtime {
             pass: 0,
             surface,
             status: PresenterStatus::waiting(),
-            shared: Arc::new(Mutex::new(Shared::default())),
+            shared: Rc::new(RefCell::new(Shared::default())),
             presented: false,
             sent: Vec::new(),
             error: None,
@@ -281,10 +276,7 @@ impl Runtime {
         }
         self.apply(forwarded);
         if let Some(frame) = self.backend.received_frame() {
-            self.shared
-                .lock()
-                .unwrap()
-                .publish(&self.layout, Some(frame));
+            self.shared.borrow_mut().publish(&self.layout, Some(frame));
         }
     }
 
@@ -390,7 +382,7 @@ impl Runtime {
         Blit {
             surface: self.surface,
             status: self.status.clone(),
-            shared: Arc::clone(&self.shared),
+            shared: Rc::clone(&self.shared),
             screen,
             quad,
             source,
@@ -404,7 +396,7 @@ impl Runtime {
             return;
         }
         let frame = self.backend.frame(&self.layout, self.pass);
-        self.shared.lock().unwrap().publish(&self.layout, frame);
+        self.shared.borrow_mut().publish(&self.layout, frame);
     }
 
     fn state(&self) -> String {

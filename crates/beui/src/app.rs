@@ -5,7 +5,7 @@ use crate::context::Context;
 use crate::geometry::{Rect, Vec2};
 use crate::input::{Event, Key, Modifiers, TouchPhase};
 
-#[cfg(feature = "window")]
+#[cfg(any(feature = "window", feature = "web"))]
 mod accessibility_dump;
 #[cfg(feature = "window")]
 mod clipboard;
@@ -19,7 +19,7 @@ mod web;
 #[cfg(feature = "window")]
 pub use native::{run, run_with, set_safe_area};
 #[cfg(feature = "web")]
-pub use web::run_web;
+pub use web::{accessibility_tree, run_web};
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct SafeArea {
@@ -86,6 +86,8 @@ pub struct RunOptions {
     pub size: Vec2,
     #[cfg(feature = "window")]
     pub accessibility_dump: Option<std::path::PathBuf>,
+    #[cfg(feature = "web")]
+    pub accessibility_tree: bool,
     #[cfg(feature = "render")]
     pub open_device: Option<OpenDevice>,
     #[cfg(all(feature = "window", target_os = "android"))]
@@ -100,6 +102,8 @@ impl RunOptions {
             size: Vec2::new(1280.0, 800.0),
             #[cfg(feature = "window")]
             accessibility_dump: None,
+            #[cfg(feature = "web")]
+            accessibility_tree: false,
             #[cfg(feature = "render")]
             open_device: None,
             #[cfg(all(feature = "window", target_os = "android"))]

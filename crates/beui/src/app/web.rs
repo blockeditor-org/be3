@@ -11,6 +11,7 @@ use std::time::Duration;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 
+use super::accessibility_dump::AccessibilityDump;
 use super::{App, RunOptions, Setup, Waker};
 use crate::color::Color32;
 use crate::context::Context;
@@ -125,6 +126,8 @@ struct Runner {
     ime: Option<ImeArea>,
     fullscreen: bool,
     prepared: Option<(Vec2, f32, Color32)>,
+    title: String,
+    accessibility: Option<AccessibilityDump>,
 }
 
 impl Runner {
@@ -163,6 +166,9 @@ impl Runner {
         let output = self.context.run(RawInput { events }, |context| {
             app.update(context, Rect::from_min_size(Pos2::ZERO, screen));
         });
+        if let Some(accessibility) = &mut self.accessibility {
+            accessibility.update(output.accessibility_tree(&self.title, screen));
+        }
 
         if let Some(text) = &output.copied_text {
             let _ = window.navigator().clipboard().write_text(text);
@@ -332,6 +338,13 @@ fn waker() -> Waker {
     })
 }
 
+pub fn accessibility_tree() -> Option<String> {
+    let runner = RUNNER.with(|runner| runner.borrow().clone())?;
+    let runner = runner.try_borrow().ok()?;
+    let accessibility = runner.accessibility.as_ref()?;
+    Some(accessibility.text().to_owned())
+}
+
 pub async fn run_web(
     canvas_id: &str,
     options: RunOptions,
@@ -427,6 +440,10 @@ pub async fn run_web(
         ime: None,
         fullscreen: false,
         prepared: None,
+        accessibility: options
+            .accessibility_tree
+            .then(AccessibilityDump::in_memory),
+        title: options.title,
     };
     RUNNER.with(|slot| *slot.borrow_mut() = Some(Rc::new(RefCell::new(runner))));
     FRAME.with(|frame| *frame.borrow_mut() = Some(Closure::new(run_frame)));

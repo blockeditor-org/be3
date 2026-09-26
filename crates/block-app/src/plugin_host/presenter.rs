@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    rc::Rc,
     sync::{Arc, Mutex},
 };
 
@@ -8,12 +9,7 @@ use block_plugin_api::{ScreenId, ScreenLayout};
 
 use super::backend::{Availability, Frame};
 
-#[cfg(not(target_arch = "wasm32"))]
-use super::wasm::{Presenter as PlatformPresenter, presenter as build_presenter};
-#[cfg(target_arch = "wasm32")]
-use super::web::renderer::{
-    WebSurfacePresenter as PlatformPresenter, presenter as build_presenter,
-};
+use super::surface::{Presenter as PlatformPresenter, presenter as build_presenter};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum PresenterState {
@@ -74,8 +70,6 @@ pub(super) struct BlitPipeline {
     pub(super) regions_layout: wgpu::BindGroupLayout,
     pub(super) sampler: wgpu::Sampler,
     stride: u32,
-    #[cfg(target_arch = "wasm32")]
-    target_format: wgpu::TextureFormat,
 }
 
 impl BlitPipeline {
@@ -136,12 +130,7 @@ impl BlitPipeline {
                 module: &shader,
                 entry_point: Some("blit_fragment"),
                 compilation_options: wgpu::PipelineCompilationOptions {
-                    constants: &[(
-                        "decode_srgb",
-                        f64::from(u8::from(
-                            target_format.is_srgb() && cfg!(not(target_arch = "wasm32")),
-                        )),
-                    )],
+                    constants: &[("decode_srgb", f64::from(u8::from(target_format.is_srgb())))],
                     ..Default::default()
                 },
                 targets: &[Some(wgpu::ColorTargetState {
@@ -168,16 +157,6 @@ impl BlitPipeline {
                 ..Default::default()
             }),
             stride,
-            #[cfg(target_arch = "wasm32")]
-            target_format,
-        }
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    pub(super) fn copy_format(&self) -> wgpu::TextureFormat {
-        match self.target_format.is_srgb() {
-            true => wgpu::TextureFormat::Rgba8UnormSrgb,
-            false => wgpu::TextureFormat::Rgba8Unorm,
         }
     }
 
@@ -336,7 +315,7 @@ impl Shared {
 pub(crate) struct Blit {
     pub(super) surface: u32,
     pub(super) status: PresenterStatus,
-    pub(super) shared: Arc<Mutex<Shared>>,
+    pub(super) shared: Rc<RefCell<Shared>>,
     pub(super) screen: ScreenId,
     pub(super) quad: Quad,
     pub(super) source: Rect,
@@ -346,7 +325,7 @@ pub(crate) struct Blit {
 impl PartialEq for Blit {
     fn eq(&self, other: &Self) -> bool {
         self.surface == other.surface
-            && Arc::ptr_eq(&self.shared, &other.shared)
+            && Rc::ptr_eq(&self.shared, &other.shared)
             && self.screen == other.screen
             && self.quad == other.quad
             && self.source == other.source
@@ -356,7 +335,7 @@ impl PartialEq for Blit {
 
 impl Blit {
     pub(crate) fn pending(&self) -> bool {
-        !self.shared.lock().unwrap().frames.is_empty()
+        !self.shared.borrow().frames.is_empty()
     }
 }
 
@@ -436,7 +415,7 @@ impl beui::Draw for PluginDrawing {
             placed.clear();
             for (index, blit) in self.blits.iter().enumerate() {
                 let (frames, region) = {
-                    let mut shared = blit.shared.lock().unwrap();
+                    let mut shared = blit.shared.borrow_mut();
                     let frames = std::mem::take(&mut shared.frames);
                     let region = shared.layout.placement(blit.screen).and_then(|placement| {
                         Region::of(&shared.layout, blit.screen, blit.quad, blit.source).filter(

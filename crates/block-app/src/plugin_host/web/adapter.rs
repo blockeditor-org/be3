@@ -6,16 +6,17 @@ const WORKER_SOURCE: &str = r#"
 // The worker one plugin runs in.
 //
 // A plugin is the same wasm every other platform runs, so the worker hands it
-// to plugin.js, which stands block-gpu-shim up on this worker's canvas and
-// answers the plugin's gpu abi from it. Stepping is scheduled rather than
+// to plugin.js, which answers the plugin's gpu abi with block-gpu-shim. The
+// shim records the calls, and each step's go to the host with the frames the
+// plugin sent, for the host to replay on its own device. Stepping is scheduled rather than
 // immediate: a step that produced something schedules the next one, and a
 // quiet plugin stops until the host says something.
 let plugin = null;
 const queued = [];
 let scheduled = false;
 
-function post(frames) {
-    self.postMessage({ kind: "frames", frames });
+function post(frames, calls) {
+    self.postMessage({ kind: "frames", frames, calls }, [calls.buffer]);
 }
 
 function fail(error) {
@@ -32,8 +33,9 @@ function schedule() {
 
 function drain() {
     const frames = plugin.collect();
-    if (frames.length > 0) {
-        post(frames);
+    const calls = plugin.calls();
+    if (frames.length > 0 || calls.length > 0) {
+        post(frames, calls);
     }
     if (frames.length > 0 || plugin.woken()) {
         schedule();
@@ -66,7 +68,7 @@ self.onmessage = async (event) => {
             plugin = await bootstrap.boot(
                 new URL("./block_gpu_shim.js", data.url).href,
                 data.url,
-                data.canvas,
+                data.limits,
                 schedule,
             );
             drain();
@@ -88,49 +90,47 @@ self.onmessage = async (event) => {
 };
 "#;
 
+pub(super) struct Delivery {
+    pub(super) calls: Vec<u8>,
+    pub(super) messages: Vec<Message>,
+}
+
+struct Delivered {
+    calls: Vec<u8>,
+    frames: Vec<Vec<u8>>,
+}
+
 #[derive(Default)]
 struct Inbox {
-    frames: Vec<Vec<u8>>,
+    delivered: Vec<Delivered>,
     error: Option<String>,
 }
 
 pub(super) struct WebProtocolAdapter {
     worker: web_sys::Worker,
     inbox: Rc<RefCell<Inbox>>,
-    received: Vec<Message>,
-    frames: u64,
     spoken: bool,
     _onmessage: Closure<dyn FnMut(web_sys::MessageEvent)>,
 }
 
 impl WebProtocolAdapter {
-    pub(super) fn start(url: &str, canvas: &web_sys::HtmlCanvasElement) -> Result<Self, String> {
-        let offscreen = canvas
-            .transfer_control_to_offscreen()
-            .map_err(|_| "the plugin canvas could not be handed to its worker".to_owned())?;
+    pub(super) fn start(url: &str, limits: &[u8]) -> Result<Self, String> {
         let worker = spawn()?;
         let inbox = Rc::new(RefCell::new(Inbox::default()));
         let onmessage = listen(&worker, Rc::clone(&inbox));
         let message = js_sys::Object::new();
         set(&message, "kind", &"start".into());
         set(&message, "url", &absolute(url).into());
-        set(&message, "canvas", &offscreen);
-        let transfer = js_sys::Array::of1(&offscreen);
+        set(&message, "limits", &js_sys::Uint8Array::from(limits));
         worker
-            .post_message_with_transfer(&message, &transfer)
+            .post_message(&message)
             .map_err(|_| "the plugin worker could not be started".to_owned())?;
         Ok(Self {
             worker,
             inbox,
-            received: Vec::new(),
-            frames: 0,
             spoken: false,
             _onmessage: onmessage,
         })
-    }
-
-    pub(super) fn frames(&self) -> u64 {
-        self.frames
     }
 
     pub(super) fn running(&self) -> bool {
@@ -154,27 +154,24 @@ impl WebProtocolAdapter {
             .map_err(|_| "the plugin worker stopped listening".to_owned())
     }
 
-    pub(super) fn poll(&mut self) -> Result<(), String> {
-        let (frames, error) = {
+    pub(super) fn poll(&mut self) -> Result<Vec<Delivery>, String> {
+        let (delivered, error) = {
             let mut inbox = self.inbox.borrow_mut();
-            (std::mem::take(&mut inbox.frames), inbox.error.take())
+            (std::mem::take(&mut inbox.delivered), inbox.error.take())
         };
         if let Some(error) = error {
             return Err(error);
         }
-        for frame in frames {
-            let message = decode(&frame)?;
-            self.spoken = true;
-            if matches!(message, Message::FrameReady(_)) {
-                self.frames += 1;
+        let mut deliveries = Vec::with_capacity(delivered.len());
+        for Delivered { calls, frames } in delivered {
+            let mut messages = Vec::with_capacity(frames.len());
+            for frame in frames {
+                messages.push(decode(&frame)?);
+                self.spoken = true;
             }
-            self.received.push(message);
+            deliveries.push(Delivery { calls, messages });
         }
-        Ok(())
-    }
-
-    pub(super) fn take_received(&mut self) -> Vec<Message> {
-        std::mem::take(&mut self.received)
+        Ok(deliveries)
     }
 
     pub(super) fn shutdown(&mut self) {
@@ -195,10 +192,12 @@ fn listen(
         let mut inbox = inbox.borrow_mut();
         match kind.as_str() {
             "frames" => {
-                let frames = js_sys::Array::from(&get(&data, "frames"));
-                for frame in frames.iter() {
-                    inbox.frames.push(js_sys::Uint8Array::new(&frame).to_vec());
-                }
+                let frames = js_sys::Array::from(&get(&data, "frames"))
+                    .iter()
+                    .map(|frame| js_sys::Uint8Array::new(&frame).to_vec())
+                    .collect();
+                let calls = js_sys::Uint8Array::new(&get(&data, "calls")).to_vec();
+                inbox.delivered.push(Delivered { calls, frames });
             }
             _ => {
                 inbox.error = Some(
