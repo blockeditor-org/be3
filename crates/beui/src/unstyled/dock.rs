@@ -20,8 +20,8 @@ use crate::reactive::{
     Callback, Canvas, CanvasItem, ClickCallback, ClickCatcher, Dynamic, Focusable, ForEach, Frame,
     Func, IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext, Show,
     WriteSignal, clone, component_accessibility, component_rect, component_size, create_effect,
-    create_memo, create_signal, create_timer, node_scope, on_cleanup, on_shortcut,
-    owner_scope, set_component_state, try_with_document, with_document,
+    create_memo, create_signal, create_timer, node_scope, on_cleanup, on_shortcut, owner_scope,
+    set_component_state, try_with_document, with_document,
 };
 use crate::unstyled::rubber_band::{Band, WINDOW_SPRING};
 use crate::unstyled::{
@@ -1530,14 +1530,29 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
         area.get().min + placed.get().min.to_vec2() + overshoot.get()
     }));
     let band = Rc::new(RefCell::new(Band::new(WINDOW_SPRING)));
-    let bounce = create_timer(clone!(band set_overshoot -> move || {
-        let mut band = band.borrow_mut();
-        if !band.step(Instant::now()) {
-            return None;
-        }
-        set_overshoot.set(band.offset);
-        band.moving().then_some(Duration::ZERO)
-    }));
+    let bounce = create_timer(
+        clone!(dock band placed area reach set_overshoot -> move || {
+            let mut band = band.borrow_mut();
+            let window = placed.get_untracked();
+            let bounds = area.get_untracked().size();
+            let reach = reach();
+            let limit = |origin: Pos2| {
+                reachable_origin(Rect::from_min_size(origin, window.size()), bounds, reach)
+            };
+            let banding = with_document(|document| document.rubber_banding());
+            let mut origin = window.min;
+            if !band.step(Instant::now(), &mut origin, limit, banding) {
+                return None;
+            }
+            if origin != window.min {
+                dock.edit(|state| {
+                    state.set_window_rect(surface, Rect::from_min_size(origin, window.size()));
+                });
+            }
+            set_overshoot.set(band.offset);
+            band.moving().then_some(Duration::ZERO)
+        }),
+    );
     let anchor = origin.clone().into_prop().map(OverlayAnchor::Point);
     let width = create_memo(clone!(rect -> move || rect.get().width()));
     let height = create_memo(clone!(rect -> move || rect.get().height()));
@@ -1644,7 +1659,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                 let origin = reachable_origin(placed, bounds, reach());
                                 let banding = with_document(|document| document.rubber_banding());
                                 let mut band = stretched.borrow_mut();
-                                band.stretch(placed.min - origin, bounds, banding, Instant::now());
+                                band.stretch(origin, placed.min - origin, bounds, banding, Instant::now());
                                 set_stretch.set(band.offset);
                                 moved.edit(|state| {
                                     state.set_window_rect(
@@ -1761,9 +1776,11 @@ fn grip_reach(frame: &NodeRef, grip: &NodeRef) -> f32 {
     let (Some(frame), Some(grip)) = (frame.try_get(), grip.try_get()) else {
         return 0.0;
     };
-    try_with_document(|document| Some(document.node_rect(grip)?.bottom() - document.node_rect(frame)?.top()))
-        .flatten()
-        .unwrap_or(0.0)
+    try_with_document(|document| {
+        Some(document.node_rect(grip)?.bottom() - document.node_rect(frame)?.top())
+    })
+    .flatten()
+    .unwrap_or(0.0)
 }
 
 #[component]

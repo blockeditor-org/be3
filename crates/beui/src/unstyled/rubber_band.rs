@@ -4,11 +4,12 @@ mod tests;
 use std::collections::VecDeque;
 use std::time::Instant;
 
-use crate::geometry::{Vec2, vec2};
+use crate::geometry::{Pos2, Vec2, vec2};
 
 const RUBBER_BAND_FACTOR: f32 = 0.55;
 const SETTLED_DISTANCE: f32 = 0.25;
 const VELOCITY_WINDOW: f32 = 0.08;
+const GLIDE_FRICTION: f32 = 9.0;
 pub(crate) const MINIMUM_VELOCITY: f32 = 5.0;
 pub(crate) const MAX_ANIMATION_STEP: f32 = 0.05;
 
@@ -62,7 +63,7 @@ pub(crate) struct Band {
     velocity: Vec2,
     held: bool,
     stepped: Instant,
-    samples: VecDeque<(Instant, Vec2)>,
+    samples: VecDeque<(Instant, Pos2)>,
     spring: Spring,
 }
 
@@ -90,6 +91,7 @@ impl Band {
 
     pub(crate) fn stretch(
         &mut self,
+        position: Pos2,
         distance: Vec2,
         dimensions: Vec2,
         banding: bool,
@@ -102,7 +104,7 @@ impl Band {
             ),
             false => Vec2::ZERO,
         };
-        self.samples.push_back((now, self.offset));
+        self.samples.push_back((now, position + self.offset));
         while self.samples.len() > 2
             && self
                 .samples
@@ -116,7 +118,10 @@ impl Band {
     pub(crate) fn release(&mut self, now: Instant) {
         self.held = false;
         self.stepped = now;
-        self.velocity = self.measured_velocity(now);
+        self.velocity = match self.offset == Vec2::ZERO {
+            true => Vec2::ZERO,
+            false => self.measured_velocity(now),
+        };
         self.samples.clear();
     }
 
@@ -139,7 +144,13 @@ impl Band {
         !self.held && (self.offset != Vec2::ZERO || self.velocity != Vec2::ZERO)
     }
 
-    pub(crate) fn step(&mut self, now: Instant) -> bool {
+    pub(crate) fn step(
+        &mut self,
+        now: Instant,
+        position: &mut Pos2,
+        limit: impl Fn(Pos2) -> Pos2,
+        banding: bool,
+    ) -> bool {
         if !self.moving() {
             return false;
         }
@@ -148,18 +159,34 @@ impl Band {
             .as_secs_f32()
             .min(MAX_ANIMATION_STEP);
         self.stepped = now;
-        spring_back(
-            &mut self.offset.x,
-            &mut self.velocity.x,
-            elapsed,
-            self.spring,
-        );
-        spring_back(
-            &mut self.offset.y,
-            &mut self.velocity.y,
-            elapsed,
-            self.spring,
-        );
+        let mut raw = *position;
+        for (offset, velocity, raw) in [
+            (&mut self.offset.x, &mut self.velocity.x, &mut raw.x),
+            (&mut self.offset.y, &mut self.velocity.y, &mut raw.y),
+        ] {
+            if *offset != 0.0 {
+                spring_back(offset, velocity, elapsed, self.spring);
+            } else if *velocity != 0.0 {
+                *raw += *velocity * elapsed;
+                *velocity *= (-GLIDE_FRICTION * elapsed).exp();
+                if velocity.abs() < MINIMUM_VELOCITY {
+                    *velocity = 0.0;
+                }
+            }
+        }
+        *position = limit(raw);
+        for (offset, velocity, past) in [
+            (&mut self.offset.x, &mut self.velocity.x, raw.x - position.x),
+            (&mut self.offset.y, &mut self.velocity.y, raw.y - position.y),
+        ] {
+            if past == 0.0 {
+                continue;
+            }
+            match banding {
+                true => *offset = past,
+                false => *velocity = 0.0,
+            }
+        }
         true
     }
 }

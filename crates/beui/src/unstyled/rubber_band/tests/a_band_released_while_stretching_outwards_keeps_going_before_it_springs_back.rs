@@ -8,11 +8,18 @@ fn released(moving: bool) -> Band {
     let dimensions = vec2(1000.0, 600.0);
     let mut band = Band::new(WINDOW_SPRING);
     band.grab(dimensions);
-    band.stretch(vec2(-100.0, 0.0), dimensions, true, start);
+    band.stretch(Pos2::ZERO, vec2(-100.0, 0.0), dimensions, true, start);
     let pulled = if moving { -160.0 } else { -100.0 };
-    band.stretch(vec2(pulled, 0.0), dimensions, true, start + frame);
+    band.stretch(
+        Pos2::ZERO,
+        vec2(pulled, 0.0),
+        dimensions,
+        true,
+        start + frame,
+    );
     band.release(start + frame);
-    band.step(start + frame * 2);
+    let mut position = Pos2::ZERO;
+    band.step(start + frame * 2, &mut position, |at| at, true);
     band
 }
 
