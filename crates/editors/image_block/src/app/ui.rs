@@ -4,10 +4,10 @@ use block_editor_beui::beui::reactive::{
     Spacer, clone, component, component_rect, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
-use block_editor_beui::beui::{ImageFit, NodeId, Pos2, Rect, Vec2};
+use block_editor_beui::beui::{Image, ImageFit, NodeId, Pos2, Rect, Thumbhash, Vec2};
 use block_editor_beui::{Editor, FileChooser, Sidebar, fit_content};
 
-use super::picture::watch;
+use super::picture::{thumbhash, watch};
 use super::{filter, imported};
 
 #[component]
@@ -15,6 +15,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let block = editor.block_content::<ImageContent>();
     let shown = watch(&editor, &block);
     let image = create_memo(clone!(shown -> move || shown.get().image));
+    let placeholder = thumbhash(&editor);
     let failed = create_memo(clone!(shown -> move || shown.get().error.is_some()));
     let reason = create_memo(clone!(shown -> move || shown.get().error.unwrap_or_default()));
 
@@ -49,7 +50,12 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                 <List align=Align::Stretch spacing=0.0>
-                    <Artwork @sizing=ItemSize::Percent(100.0) editor={editor} image={image} />
+                    <Artwork
+                        @sizing=ItemSize::Percent(100.0)
+                        editor={editor}
+                        image={image}
+                        thumbhash={placeholder}
+                    />
                     <Show condition={failed}>
                         <Caption content={reason} color={danger} />
                     </Show>
@@ -74,11 +80,18 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn Artwork(editor: Editor, image: Memo<Option<block_editor_beui::beui::Image>>) -> NodeId {
+fn Artwork(
+    editor: Editor,
+    image: Memo<Option<Image>>,
+    thumbhash: Memo<Option<Thumbhash>>,
+) -> NodeId {
     let placed = component_rect();
     let world = editor.world();
-    let shape = create_memo(clone!(image world placed -> move || {
-        let Some(size) = image.get().map(|image| image.size()) else {
+    let placeholder = create_memo(clone!(thumbhash -> move || {
+        thumbhash.get().map(|thumbhash| thumbhash.size())
+    }));
+    let shape = create_memo(clone!(image placeholder world placed -> move || {
+        let Some(size) = image.get().map(|image| image.size()).or_else(|| placeholder.get()) else {
             return Rect::ZERO;
         };
         let available = world.get().unwrap_or_else(|| placed.get().size());
@@ -94,7 +107,7 @@ fn Artwork(editor: Editor, image: Memo<Option<block_editor_beui::beui::Image>>) 
     view! {
         <Canvas view={editor.canvas()}>
             <CanvasItem x={x} y={y} width={width} height={height} @test_id={"image.picture"}>
-                <Picture image={image} fit=ImageFit::Fill />
+                <Picture image={image} thumbhash={thumbhash} fit=ImageFit::Fill />
             </CanvasItem>
         </Canvas>
     }
@@ -105,7 +118,8 @@ pub fn ImagePreview(editor: Editor) -> NodeId {
     let block = editor.block_content::<ImageContent>();
     let shown = watch(&editor, &block);
     let image = create_memo(move || shown.get().image);
+    let placeholder = thumbhash(&editor);
     view! {
-        <Picture image={image} fit=ImageFit::Contain />
+        <Picture image={image} thumbhash={placeholder} fit=ImageFit::Contain />
     }
 }

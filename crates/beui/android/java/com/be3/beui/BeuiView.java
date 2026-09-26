@@ -178,6 +178,10 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
         });
     }
 
+    public void setBackHandled(boolean handled) {
+        post(() -> ((BeuiActivity) getContext()).setBackHandled(handled));
+    }
+
     public void finishActivity() {
         post(() -> ((Activity) getContext()).finish());
     }
@@ -204,6 +208,8 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     static native void nativeDestroy(boolean finishing);
 
     static native void nativeFocus(boolean focused);
+
+    static native void nativeBack(int phase, float progress, int edge);
 
     private static native void nativeSurfaceChanged(Surface surface, int width, int height,
             float density);

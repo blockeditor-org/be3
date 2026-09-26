@@ -1419,6 +1419,7 @@ pub trait UnitHandle<H> {}
 
 impl<F> UnitHandle<()> for F {}
 
+pub use crate::base::back::BackHandler;
 pub use crate::base::canvas::{Canvas, CanvasItem, CanvasView};
 pub use crate::base::click_catcher::ClickCatcher;
 pub use crate::base::drawing::{Draw, Drawing};

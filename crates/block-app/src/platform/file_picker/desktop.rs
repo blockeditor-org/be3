@@ -1,12 +1,9 @@
-use std::{
-    fs,
-    sync::mpsc::{self, Receiver},
-};
+use std::{fs, sync::mpsc::Receiver};
 
 use super::{FileFilter, PickResult, PickedFile};
 
 pub(super) fn open(filter: &FileFilter) -> Receiver<PickResult> {
-    let (sender, receiver) = mpsc::channel();
+    let (sender, receiver) = crate::host::waking_channel();
     let _ = sender.send(pick(filter));
     receiver
 }

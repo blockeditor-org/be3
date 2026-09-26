@@ -18,6 +18,7 @@ use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
 mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_typed_transform_value_is_one_edit;
+mod an_image_still_loading_is_drawn_as_its_thumbhash;
 mod attaching_component_fills_only_missing_selected_entities;
 mod clicking_an_entity_selects_it_and_shows_its_handles;
 mod dragging_a_transform_field_twice_keeps_the_first_drag;

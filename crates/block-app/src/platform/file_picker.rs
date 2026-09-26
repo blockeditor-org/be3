@@ -5,10 +5,7 @@ mod desktop;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
-use std::{
-    sync::mpsc::{Receiver, TryRecvError},
-    time::Duration,
-};
+use std::sync::mpsc::{Receiver, TryRecvError};
 
 #[cfg(target_os = "android")]
 use android::open;
@@ -16,8 +13,6 @@ use android::open;
 use desktop::open;
 #[cfg(target_arch = "wasm32")]
 use web::open;
-
-const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 #[derive(Clone, Default)]
 pub(crate) struct FileFilter {
@@ -50,7 +45,6 @@ impl FilePicker {
     pub(crate) fn open(&mut self, filter: &FileFilter) {
         self.pending = Some(open(filter));
         self.default_file_name.clone_from(&filter.default_file_name);
-        crate::host::request_repaint_after(POLL_INTERVAL);
     }
 
     pub(crate) fn is_open(&self) -> bool {
@@ -60,10 +54,7 @@ impl FilePicker {
     pub(crate) fn poll(&mut self) -> Option<Result<PickedFile, String>> {
         let result = match self.pending.as_ref()?.try_recv() {
             Ok(result) => result,
-            Err(TryRecvError::Empty) => {
-                crate::host::request_repaint_after(POLL_INTERVAL);
-                return None;
-            }
+            Err(TryRecvError::Empty) => return None,
             Err(TryRecvError::Disconnected) => Ok(None),
         };
         self.pending = None;

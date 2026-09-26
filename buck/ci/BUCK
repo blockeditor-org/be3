@@ -48,15 +48,6 @@ configured_alias(
     platform = "//buck/platforms:linux_x86_64_release",
 )
 
-# What the launcher on Android runs, which publish-android in the workflow
-# uploads to be3-ci: the release app for the device with its plugins, the
-# launcher that runs it, and the shell hash that says which launchers can.
-configured_alias(
-    name = "android-run",
-    actual = "//crates/block-app:android-run",
-    platform = "//buck/platforms:linux_x86_64_release",
-)
-
 configured_alias(
     name = "web",
     actual = "//crates/block-app:web-dist",
@@ -68,9 +59,6 @@ bundle(
     contents = {"block-" + name: ":dist-" + name for name in NATIVE}
     | {
         "be-launcher-android-aarch64/be-launcher.apk": "//crates/be-launcher:android-dist",
-        "block-android/build": ":android-run",
-        "block-android/launcher.apk": "//crates/be-launcher:android-dist",
-        "block-android/shell": "//crates/block-app:android-shell",
         "block-app-android-aarch64/block-app.apk": "//crates/block-app:android-dist",
         "block-plugins": ":plugins",
         "block-web": ":web",

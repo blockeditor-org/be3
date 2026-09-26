@@ -49,30 +49,32 @@ pub(super) fn name(nodes: &Nodes<'_>, node: &AccessNode, derive: bool) -> Option
         if !derive {
             return None;
         }
-        let mut words = Vec::new();
+        let mut text = String::new();
         for child in node.children() {
-            gather_text(nodes, *child, &mut words);
+            if gather_text(nodes, *child, &mut text) {
+                break;
+            }
         }
-        let joined = words.join(" ");
-        (!joined.is_empty()).then(|| clip(&joined))
+        (!text.is_empty()).then(|| clip(&text))
     })
 }
 
-fn gather_text(nodes: &Nodes<'_>, id: AccessNodeId, words: &mut Vec<String>) {
+fn gather_text(nodes: &Nodes<'_>, id: AccessNodeId, text: &mut String) -> bool {
     let Some(node) = nodes.get(&id) else {
-        return;
+        return false;
     };
-    if let Some(text) = node
-        .label()
-        .or_else(|| node.value())
-        .map(flatten)
-        .filter(|text| !text.is_empty())
-    {
-        words.push(text);
+    if let Some(own) = own_name(node) {
+        if !text.is_empty() {
+            text.push(' ');
+        }
+        text.push_str(&own);
+        if text.chars().count() > NAME_LIMIT {
+            return true;
+        }
     }
-    for child in node.children() {
-        gather_text(nodes, *child, words);
-    }
+    node.children()
+        .iter()
+        .any(|child| gather_text(nodes, *child, text))
 }
 
 pub(super) fn phrase(nodes: &Nodes<'_>, node: &AccessNode, derive: bool) -> String {

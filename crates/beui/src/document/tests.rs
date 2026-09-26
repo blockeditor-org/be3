@@ -1,5 +1,7 @@
 use super::*;
 
+mod a_back_gesture_slides_a_dialog_and_closes_it;
+mod a_back_handler_slides_its_content_and_goes_back_while_enabled;
 mod a_cancelled_touch_outside_a_dialog_leaves_it_open;
 mod a_canvas_item_moved_into_view_is_laid_out_where_it_arrives;
 mod a_canvas_lays_out_only_the_items_the_view_can_see;
@@ -50,6 +52,7 @@ mod a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard;
 mod a_picture_given_a_source_paints_only_that_part_of_the_image;
 mod a_picture_paints_the_image_it_is_given;
 mod a_picture_scaled_down_never_grows_past_its_own_pixels;
+mod a_picture_shows_its_thumbhash_until_the_image_arrives;
 mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
 mod a_portal_shows_a_subtree_it_does_not_own;

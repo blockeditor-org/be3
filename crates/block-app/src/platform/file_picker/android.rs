@@ -1,7 +1,4 @@
-use std::sync::{
-    Mutex, OnceLock,
-    mpsc::{self, Receiver, Sender},
-};
+use std::sync::{Mutex, OnceLock, mpsc::Receiver};
 
 use jni::{
     Env, EnvUnowned, Outcome,
@@ -13,15 +10,16 @@ use jni::{
 };
 
 use super::{FileFilter, PickResult, PickedFile};
+use crate::host::WakingSender;
 
-static PENDING: OnceLock<Mutex<Option<Sender<PickResult>>>> = OnceLock::new();
+static PENDING: OnceLock<Mutex<Option<WakingSender<PickResult>>>> = OnceLock::new();
 
-fn pending() -> &'static Mutex<Option<Sender<PickResult>>> {
+fn pending() -> &'static Mutex<Option<WakingSender<PickResult>>> {
     PENDING.get_or_init(Default::default)
 }
 
 pub(super) fn open(filter: &FileFilter) -> Receiver<PickResult> {
-    let (sender, receiver) = mpsc::channel();
+    let (sender, receiver) = crate::host::waking_channel();
     let Ok(mut pending) = pending().lock() else {
         let _ = sender.send(Err("The file picker is unavailable".into()));
         return receiver;

@@ -27,7 +27,9 @@ use super::present::{Gpu, Presented, Target, create_gpu, safe_rect};
 use super::{App, RunOptions, SafeArea, Setup, Waker};
 use crate::context::Context;
 use crate::geometry::{Pos2, Vec2, pos2, vec2};
-use crate::input::{Event, ImeArea, ImeEvent, Key, Modifiers, RawInput, TouchId, TouchPhase};
+use crate::input::{
+    BackEdge, BackGesture, Event, ImeArea, ImeEvent, Key, Modifiers, RawInput, TouchId, TouchPhase,
+};
 
 const LINE_HEIGHT: f32 = 40.0;
 const SURFACE_RELEASE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -105,6 +107,7 @@ enum Message {
         after: u32,
     },
     Move(i32),
+    Back(BackGesture),
     InitialTreeRequested,
     Action(ActionRequest),
     Wake,
@@ -168,6 +171,7 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
         modifiers: Modifiers::NONE,
         safe_area: SafeArea::default(),
         ime: None,
+        handles_back: false,
         preedit: String::new(),
         restart_input: false,
         tapped_at: None,
@@ -201,6 +205,7 @@ struct Runner {
     modifiers: Modifiers,
     safe_area: SafeArea,
     ime: Option<ImeArea>,
+    handles_back: bool,
     preedit: String,
     restart_input: bool,
     tapped_at: Option<Pos2>,
@@ -290,6 +295,23 @@ impl Runner {
             });
     }
 
+    fn set_back_handled(&self, handled: bool) {
+        let Some(view) = &self.view else {
+            return;
+        };
+        let _ = self
+            .vm
+            .attach_current_thread(|env| -> Result<(), JniError> {
+                env.call_method(
+                    view.as_obj(),
+                    jni_str!("setBackHandled"),
+                    jni_sig!("(Z)V"),
+                    &[JValue::Bool(handled)],
+                )?;
+                Ok(())
+            });
+    }
+
     fn finish_activity(&self) {
         let Some(view) = &self.view else {
             return;
@@ -330,6 +352,9 @@ impl Runner {
                 self.attach_accessibility();
                 if self.ime.is_some() {
                     self.set_keyboard(true);
+                }
+                if self.handles_back {
+                    self.set_back_handled(true);
                 }
             }
             Message::Surface {
@@ -442,6 +467,7 @@ impl Runner {
                 self.press(Key::Delete, after);
             }
             Message::Move(by) => self.move_by(by),
+            Message::Back(gesture) => self.events.push(Event::Back(gesture)),
             Message::InitialTreeRequested => {
                 self.accessibility_active = true;
                 self.context.reset_accessibility();
@@ -607,6 +633,10 @@ impl Runner {
             self.set_keyboard(true);
         }
         self.ime = output.ime;
+        if output.handles_back != self.handles_back {
+            self.handles_back = output.handles_back;
+            self.set_back_handled(output.handles_back);
+        }
         if output.close_requested {
             self.finish_activity();
             self.exit();
@@ -740,6 +770,21 @@ fn key(code: jint) -> Option<Key> {
     Some(key)
 }
 
+fn back_gesture(phase: jint, progress: f32, edge: jint) -> Option<BackGesture> {
+    let edge = match edge {
+        0 => BackEdge::Left,
+        1 => BackEdge::Right,
+        _ => BackEdge::None,
+    };
+    Some(match phase {
+        0 => BackGesture::Started { edge },
+        1 => BackGesture::Progressed(progress),
+        2 => BackGesture::Cancelled,
+        3 => BackGesture::Invoked,
+        _ => return None,
+    })
+}
+
 fn touch_phase(phase: jint) -> Option<TouchPhase> {
     Some(match phase {
         0 => TouchPhase::Start,
@@ -856,6 +901,19 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeFocus<'local>(
     focused: jboolean,
 ) {
     send(Message::Focus(focused));
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_be3_beui_BeuiView_nativeBack<'local>(
+    _env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    phase: jint,
+    progress: jfloat,
+    edge: jint,
+) {
+    if let Some(gesture) = back_gesture(phase, progress, edge) {
+        send(Message::Back(gesture));
+    }
 }
 
 #[unsafe(no_mangle)]

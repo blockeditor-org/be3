@@ -45,21 +45,15 @@ pub(crate) fn refresh() {
 pub(crate) fn poll() {
     STATE.with(|state| {
         let mut state = state.borrow_mut();
-        if let Some(fetch) = &state.runs_fetch {
-            match fetch.poll() {
-                Some(result) => {
-                    state.runs = Some(result.and_then(|body| github::parse_runs(&body)));
-                    state.runs_fetch = None;
-                }
-                None => crate::host::request_repaint_after(std::time::Duration::from_millis(100)),
-            }
+        if let Some(result) = state.runs_fetch.as_ref().and_then(http::Fetch::poll) {
+            state.runs = Some(result.and_then(|body| github::parse_runs(&body)));
+            state.runs_fetch = None;
         }
         #[cfg(target_os = "android")]
         if let Some(install) = &mut state.install
             && !install.finished()
         {
             install.poll();
-            crate::host::request_repaint_after(std::time::Duration::from_millis(100));
         }
     });
 }

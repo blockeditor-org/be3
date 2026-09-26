@@ -4,7 +4,7 @@ use block_editor_beui::be_block::canvas::{
 };
 use block_editor_beui::beui::reactive::{CanvasView, layout_text};
 use block_editor_beui::beui::{
-    Color32, FontId, Painter, Pos2, Rect, TextAlign, TextLayout, Vec2, pos2,
+    Color32, FontId, Image, Painter, Pos2, Rect, TextAlign, TextLayout, Vec2, pos2,
 };
 
 use crate::geometry::*;
@@ -80,6 +80,7 @@ pub(crate) struct EntityPaint {
     pub(crate) glyph: Option<String>,
     pub(crate) automatic: bool,
     pub(crate) covered: bool,
+    pub(crate) placeholder: Option<Image>,
 }
 
 impl PartialEq for EntityPaint {
@@ -91,6 +92,7 @@ impl PartialEq for EntityPaint {
             && self.glyph == other.glyph
             && self.automatic == other.automatic
             && self.covered == other.covered
+            && self.placeholder == other.placeholder
     }
 }
 
@@ -218,12 +220,27 @@ impl EntityPaint {
         painter.galley(origin, galley, color);
     }
 
+    fn fill_uncovered(&self, painter: &Painter, rect: Rect, opacity: f32) {
+        if self.covered {
+            return;
+        }
+        match &self.placeholder {
+            Some(placeholder) => painter.image(
+                rect,
+                Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0)),
+                placeholder,
+                with_opacity(Color32::WHITE, opacity),
+                0.0,
+                true,
+            ),
+            None => painter.rect_filled(rect, 0.0, with_opacity(PLACEHOLDER, opacity)),
+        }
+    }
+
     fn draw_block(&self, painter: &Painter, color: Color32, opacity: f32) {
         let painter = self.turned(painter);
         let rect = self.box_rect();
-        if !self.covered {
-            painter.rect_filled(rect, 0.0, with_opacity(PLACEHOLDER, opacity));
-        }
+        self.fill_uncovered(&painter, rect, opacity);
         let title_size = (18.0 * self.camera.scale).clamp(8.0, 42.0);
         let note_size = (12.0 * self.camera.scale).clamp(7.0, 30.0);
         let title = painter.layout(
@@ -274,9 +291,7 @@ impl EntityPaint {
             (4.0 * scale * self.camera.scale).clamp(1.0, 8.0),
             with_opacity(self.palette.muted, opacity * 0.25),
         );
-        if !self.covered {
-            painter.rect_filled(content, 0.0, with_opacity(PLACEHOLDER, opacity));
-        }
+        self.fill_uncovered(painter, content, opacity);
         let font_size = (16.0 * scale * self.camera.scale).clamp(8.0, 32.0);
         let padding = (6.0 * scale * self.camera.scale).clamp(3.0, 12.0);
         let painter = painter.with_clip_rect(title_bar);

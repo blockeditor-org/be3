@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use crate::base::list::Direction;
 use crate::context::Context;
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
-use crate::input::{Event, ImeEvent, Key, KeyPress};
+use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress};
 use crate::painter::Painter;
 
 use crate::document::Document;
@@ -235,6 +235,10 @@ pub(crate) fn interact(
                 }
                 continue;
             }
+            Event::Back(gesture) if keys != Keys::Ignored => {
+                doc.back(gesture);
+                continue;
+            }
             Event::Text(_) | Event::Key { .. } | Event::Ime(_) if keys == Keys::Ignored => continue,
             Event::Key { .. }
                 if keys == Keys::BesideScreenReader && crate::screen_reader::claims(&event) =>
@@ -300,6 +304,7 @@ pub(crate) fn interact(
                 doc.close_topmost_overlay();
             }
             Key::Escape if pressed => doc.cancel_focus_activation(),
+            Key::BrowserBack if pressed => doc.back(BackGesture::Invoked),
             Key::Enter | Key::Space if !pressed || (!modifiers.ctrl && !modifiers.alt) => {
                 doc.set_focus_key_pressed(key, pressed, repeat);
             }

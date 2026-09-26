@@ -23,6 +23,7 @@ use crate::view::PADDING;
 const SPACING: f32 = 8.0;
 const TARGET_ROW: f32 = 44.0;
 const HEAD_CHARACTERS: usize = 48;
+const MAIN: &str = "main";
 
 #[component]
 pub(crate) fn Workspace(model: Model) -> NodeId {
@@ -367,5 +368,46 @@ pub(crate) fn Notes(
                 </Show>
             </List>
         </Show>
+    }
+}
+
+#[component]
+pub(crate) fn MainActions(model: Model) -> NodeId {
+    let busy = model.running.clone();
+    let busy_pick = busy.clone();
+    let run = clone!(model -> move || model.switch(MAIN, Some(model.common.get_untracked())));
+    let pick = clone!(model -> move |path: Vec<usize>| match path.as_slice() {
+        [index] if *index < COMMON.len() => model.switch(MAIN, Some(*index)),
+        _ => model.switch(MAIN, None),
+    });
+    let run_label = create_memo(clone!(model -> move || {
+        let common = COMMON.get(model.common.get()).unwrap_or(&COMMON[0]);
+        format!("Run {} on main", common.title)
+    }));
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=1.0>
+            <Button
+                label={run_label}
+                glyph=ICON_PLAY_ARROW
+                variant=ButtonVariant::Secondary
+                disabled={busy}
+                on_click={run}
+            />
+            <MenuButton
+                label="Pick what to run on main"
+                variant=ButtonVariant::Secondary
+                icon_only=true
+                disabled={busy_pick}
+                items={view! {
+                    <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
+                        {|index: usize| view! {
+                            <MenuItem label={format!("Run {}", COMMON[index].title)} />
+                        }}
+                    </ForEach>
+                    <MenuItem label="Check out main" />
+                }}
+                on_select={pick}
+            />
+        </List>
     }
 }

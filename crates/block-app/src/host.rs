@@ -1,7 +1,10 @@
 use std::{
     cell::RefCell,
     collections::HashSet,
-    sync::OnceLock,
+    sync::{
+        OnceLock,
+        mpsc::{self, Receiver, SendError},
+    },
     time::{Duration, Instant},
 };
 
@@ -27,6 +30,27 @@ pub(crate) fn wake() {
     if let Some(waker) = WAKER.get() {
         waker.wake();
     }
+}
+
+pub(crate) struct WakingSender<T>(mpsc::Sender<T>);
+
+impl<T> Clone for WakingSender<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T> WakingSender<T> {
+    pub(crate) fn send(&self, value: T) -> Result<(), SendError<T>> {
+        let sent = self.0.send(value);
+        wake();
+        sent
+    }
+}
+
+pub(crate) fn waking_channel<T>() -> (WakingSender<T>, Receiver<T>) {
+    let (sender, receiver) = mpsc::channel();
+    (WakingSender(sender), receiver)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

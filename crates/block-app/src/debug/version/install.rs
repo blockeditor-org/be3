@@ -18,7 +18,7 @@ pub(super) struct Install {
 impl Install {
     pub(super) fn start(run_id: u64, short_sha: &str) -> Self {
         let display_name = format!("block-app-{short_sha}.apk");
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = crate::host::waking_channel();
         thread::spawn(move || {
             let _ = sender.send(run(run_id, &display_name));
         });

@@ -18,7 +18,8 @@ use crate::{
 const EVENT_CAPACITY: usize = 256;
 
 struct Outbound {
-    message: ClientMessage,
+    request: u64,
+    bytes: Vec<u8>,
     reply: oneshot::Sender<ServerMessage>,
 }
 
@@ -61,11 +62,14 @@ impl Connection {
         &self,
         build: impl FnOnce(u64) -> ClientMessage,
     ) -> Result<ServerMessage, ClientError> {
-        let request = self.next.fetch_add(1, Ordering::Relaxed) + 1;
+        let message = build(self.next.fetch_add(1, Ordering::Relaxed) + 1);
+        let request = message.request();
+        let bytes = encode(&message).map_err(|error| ClientError::Encoding(error.to_string()))?;
         let (reply, response) = oneshot::channel();
         self.commands
             .send(Outbound {
-                message: build(request),
+                request,
+                bytes,
                 reply,
             })
             .map_err(|_| ClientError::Disconnected("the connection worker stopped".into()))?;
@@ -103,11 +107,8 @@ async fn carry(
         match select(command, frame).await {
             Either::Left((command, _)) => {
                 let Some(command) = command else { return };
-                let Ok(bytes) = encode(&command.message) else {
-                    continue;
-                };
-                pending.insert(command.message.request(), command.reply);
-                if writer.send(bytes).await.is_err() {
+                pending.insert(command.request, command.reply);
+                if writer.send(command.bytes).await.is_err() {
                     return;
                 }
             }
