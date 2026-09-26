@@ -1,5 +1,0 @@
-# Windows API imports as raw-dylib, which rustc turns into import stubs itself,
-# rather than through the import library windows_<arch>_msvc vendors. That
-# library is needed by every final link, and a build script's link search path
-# reaches only the compile of its own crate under Buck.
-rustc_flags = ["--cfg=windows_raw_dylib"]

@@ -1,0 +1,16 @@
+[package]
+name = "be-vcs"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block = { path = "../be-block" }
+be-commit = { path = "../be-commit" }
+be-store = { path = "../be-store" }
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[lints]
+workspace = true
