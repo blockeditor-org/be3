@@ -5,13 +5,15 @@ use beui_macros::component;
 use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::image::{Image, ImageFit};
+use crate::image::{Image, ImageFit, Thumbhash};
 use crate::node::{Element, InteractInput, NodeId, NodeMap};
 use crate::painter::Painter;
 use crate::reactive::{Prop, create_effect, with_document};
 
 pub(crate) struct PictureNode {
     image: Option<Image>,
+    thumbhash: Option<Thumbhash>,
+    placeholder: Option<Image>,
     source: Option<Rect>,
     fit: ImageFit,
     tint: Color32,
@@ -25,8 +27,17 @@ const WHOLE: Rect = Rect {
 };
 
 impl PictureNode {
-    fn shown_size(&self, image: &Image) -> Vec2 {
-        let size = image.size();
+    fn shown(&self) -> Option<(&Image, Vec2, bool)> {
+        match (&self.image, &self.placeholder, &self.thumbhash) {
+            (Some(image), _, _) => Some((image, self.cropped(image.size()), self.smooth)),
+            (None, Some(placeholder), Some(thumbhash)) => {
+                Some((placeholder, self.cropped(thumbhash.size()), true))
+            }
+            _ => None,
+        }
+    }
+
+    fn cropped(&self, size: Vec2) -> Vec2 {
         match self.source {
             Some(source) => Vec2::new(size.x * source.width(), size.y * source.height()),
             None => size,
@@ -36,10 +47,9 @@ impl PictureNode {
 
 impl Element for PictureNode {
     fn measure(&self, _doc: &mut Document, _painter: &Painter, available: Vec2) -> Vec2 {
-        let Some(image) = self.image.as_ref() else {
+        let Some((_, size, _)) = self.shown() else {
             return Vec2::ZERO;
         };
-        let size = self.shown_size(image);
         if !available.x.is_finite() || available.x <= 0.0 {
             return size;
         }
@@ -59,16 +69,16 @@ impl Element for PictureNode {
     }
 
     fn paint(&self, _doc: &Document, painter: &Painter, _rects: &NodeMap<Rect>, rect: Rect) {
-        let Some(image) = self.image.as_ref() else {
+        let Some((image, size, smooth)) = self.shown() else {
             return;
         };
         painter.image(
-            self.fit.place(rect, self.shown_size(image)),
+            self.fit.place(rect, size),
             self.source.unwrap_or(WHOLE),
             image,
             self.tint,
             self.radius,
-            self.smooth,
+            smooth,
         );
     }
 
@@ -93,9 +103,14 @@ impl Element for PictureNode {
     }
 
     fn detail(&self) -> Option<String> {
-        self.image
-            .as_ref()
-            .map(|image| format!("{}x{}", image.width(), image.height()))
+        match (&self.image, &self.placeholder) {
+            (Some(image), _) => Some(format!("{}x{}", image.width(), image.height())),
+            (None, Some(_)) => self
+                .thumbhash
+                .as_ref()
+                .map(|thumbhash| format!("thumbhash {}x{}", thumbhash.width, thumbhash.height)),
+            (None, None) => None,
+        }
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -110,6 +125,7 @@ impl Element for PictureNode {
 #[component]
 pub fn Picture(
     image: Prop<Option<Image>>,
+    #[prop(default = None)] thumbhash: Prop<Option<Thumbhash>>,
     #[prop(default = None)] source: Prop<Option<Rect>>,
     #[prop(default = ImageFit::Contain)] fit: Prop<ImageFit>,
     #[prop(default = Color32::WHITE)] tint: Prop<Color32>,
@@ -120,6 +136,10 @@ pub fn Picture(
     create_effect(move || {
         let image = image.get();
         with_document(|document| document.set_picture_image(picture, image));
+    });
+    create_effect(move || {
+        let thumbhash = thumbhash.get();
+        with_document(|document| document.set_picture_thumbhash(picture, thumbhash));
     });
     create_effect(move || {
         let source = source.get();
@@ -148,6 +168,8 @@ impl Document {
     pub(crate) fn create_picture(&mut self) -> NodeId {
         self.arena.insert(PictureNode {
             image: None,
+            thumbhash: None,
+            placeholder: None,
             source: None,
             fit: ImageFit::Contain,
             tint: Color32::WHITE,
@@ -159,6 +181,14 @@ impl Document {
     pub(crate) fn set_picture_image(&mut self, picture: NodeId, image: Option<Image>) {
         if self.arena.get_as::<PictureNode>(picture).image != image {
             self.arena.get_mut_as::<PictureNode>(picture).image = image;
+        }
+    }
+
+    pub(crate) fn set_picture_thumbhash(&mut self, picture: NodeId, thumbhash: Option<Thumbhash>) {
+        if self.arena.get_as::<PictureNode>(picture).thumbhash != thumbhash {
+            let node = self.arena.get_mut_as::<PictureNode>(picture);
+            node.placeholder = thumbhash.as_ref().and_then(Thumbhash::decode);
+            node.thumbhash = thumbhash;
         }
     }
 

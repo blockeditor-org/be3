@@ -1071,6 +1071,14 @@ pub struct BlockInfo {
     pub references: Vec<[u8; 16]>,
     pub access: AccessLevel,
     pub artifact: Option<ArtifactSource>,
+    pub thumbhash: Option<Thumbhash>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Thumbhash {
+    pub hash: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

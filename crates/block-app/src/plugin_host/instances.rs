@@ -101,7 +101,7 @@ struct ContentLink {
     origin: u64,
     sent: Option<u64>,
     peers_sent: Option<u64>,
-    named: Option<u64>,
+    described: Option<u64>,
 }
 
 impl ContentLink {
@@ -112,19 +112,19 @@ impl ContentLink {
             origin: crate::be::next_origin(),
             sent: None,
             peers_sent: None,
-            named: None,
+            described: None,
         }
     }
 
-    fn name(&mut self, block: Uuid) {
+    fn describe(&mut self, block: Uuid) {
         let Some(content) = crate::be::content(block) else {
             return;
         };
-        if self.named == Some(content.revision) || !crate::be::access(block).can_edit() {
+        if self.described == Some(content.revision) || !crate::be::access(block).can_edit() {
             return;
         }
-        self.named = Some(content.revision);
-        crate::be::name_implicitly(block, crate::be::name_of(&content));
+        self.described = Some(content.revision);
+        crate::be::describe_implicitly(block, crate::be::describe_of(&content).unwrap_or_default());
     }
 
     fn content_message(&mut self, instance: EditorInstanceId, block: Uuid) -> Option<Message> {
@@ -364,10 +364,10 @@ impl Instance {
 
     fn name_content(&mut self) {
         if let (Some(block), Some(link)) = (self.role.block(), self.content.as_mut()) {
-            link.name(block.id);
+            link.describe(block.id);
         }
         for (block, link) in &mut self.watched {
-            link.name(*block);
+            link.describe(*block);
         }
     }
 }
@@ -2034,6 +2034,7 @@ impl Instances {
                         data: artifact.data,
                     }),
                     local_id: None,
+                    derived: be_block::DerivedMetadata::default(),
                 };
                 crate::be::create(
                     block,

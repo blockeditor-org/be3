@@ -488,19 +488,27 @@ otherwise show a state older than the one on screen; the worker settles the
 change when the server has answered, and refreshes the block from the server
 once nothing is pending.
 
-### Names
+### Names and derived metadata
 
 A block's name lives in its metadata (`be_block::BlockMetadata`: `name`,
-`named_by_hand` and, for a dynamic artifact, the `ArtifactSource` it was made
-from), which the peer seals with the content key before the server stores it
-(`Peer::seal_metadata`). `be::set_name` names a block by hand, and clearing it
-hands the name back to the content, which renames the block the next time an
-editor sees a revision. `be::name_implicitly` is the automatic name:
-whenever an instance that may edit a block is sent a new revision of it, the
-host derives `BlockContent::name` from the content and writes it, unless the
+`named_by_hand`, `derived` and, for a dynamic artifact, the `ArtifactSource` it
+was made from), which the peer seals with the content key before the server
+stores it (`Peer::seal_metadata`). `be::set_name` names a block by hand, and
+clearing it hands the name back to the content, which renames the block the
+next time an editor sees a revision. `be::describe_implicitly` is the automatic
+name: whenever an instance that may edit a block is sent a new revision of it,
+the host derives `BlockContent::name` from the content and writes it, unless the
 name was set by hand. The file tree, the block picker and the top bar read the
 name out of the mirror, so a block nobody has open keeps the name it was last
 given.
+
+`DerivedMetadata` is written the same way, from
+`BlockContent::derived_metadata`, and is for what a block's content says about
+itself that others want before the content has loaded. An image's is its
+thumbhash and exact size, which the image editor records in the header when it
+decodes the image; it reaches plugins as `BlockInfo::thumbhash`, and a beui
+`Picture` given it as a `beui::Thumbhash` lays out at the image's size and
+paints the blurred placeholder until the image arrives.
 
 ### Content on the plugin protocol
 

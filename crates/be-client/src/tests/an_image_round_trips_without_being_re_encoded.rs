@@ -42,6 +42,7 @@ async fn an_image_round_trips_without_being_re_encoded() {
         width: 960,
         height: 540,
         failure: None,
+        thumbhash: None,
     });
     let second = author.save(block, &replaced, Some(head)).await.unwrap();
     assert!(matches!(second, Saved::Published(_)));

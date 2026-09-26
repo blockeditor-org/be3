@@ -62,7 +62,7 @@ pub use kinds::{
 pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
-pub use metadata::{ArtifactSource, BlockMetadata};
+pub use metadata::{ArtifactSource, BlockMetadata, DerivedMetadata, Thumbhash};
 pub use model::Root;
 pub use paint::{PaintReview, PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
 pub use pdf::{PdfContent, PdfHeader};
@@ -116,6 +116,10 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
 
     fn name(&self) -> Option<String> {
         None
+    }
+
+    fn derived_metadata(&self) -> DerivedMetadata {
+        DerivedMetadata::default()
     }
 }
 

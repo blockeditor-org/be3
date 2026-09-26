@@ -9,6 +9,19 @@ pub struct BlockMetadata {
     pub named_by_hand: bool,
     pub artifact: Option<ArtifactSource>,
     pub local_id: Option<Uuid>,
+    pub derived: DerivedMetadata,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DerivedMetadata {
+    pub thumbhash: Option<Thumbhash>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Thumbhash {
+    pub hash: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -32,6 +45,7 @@ impl BlockMetadata {
             named_by_hand: true,
             artifact: None,
             local_id: None,
+            derived: DerivedMetadata::default(),
         }
     }
 }
