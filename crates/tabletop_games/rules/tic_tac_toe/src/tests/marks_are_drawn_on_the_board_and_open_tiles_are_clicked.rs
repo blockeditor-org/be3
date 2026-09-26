@@ -11,7 +11,7 @@ fn marks_are_drawn_on_the_board_and_open_tiles_are_clicked() {
     let actions = vec![play(&[], x, 4)];
 
     let screen = show(&actions, o);
-    let Board::Grid(grid) = &screen.board else {
+    let Board::Grid(grid) = &*screen.board else {
         panic!("tic-tac-toe is played on a grid");
     };
     assert_eq!((grid.columns, grid.rows), (3, 3));

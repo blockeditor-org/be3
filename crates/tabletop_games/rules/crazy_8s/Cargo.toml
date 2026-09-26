@@ -9,6 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 game-api = { path = "../../api" }
+uuid = { version = "1", default-features = false }
 
 [build-dependencies]
 game-api = { path = "../../api" }

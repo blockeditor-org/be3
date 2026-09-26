@@ -13,11 +13,11 @@ use game_api::GameAction;
 use game_host::{Game, Session};
 use uuid::Uuid;
 
-mod ui;
+pub(crate) mod ui;
 
 use ui::{
-    CreationSnapshot, Game as GameView, GameCreation as GameCreationView, GameCreationModel,
-    GameModel, GameSnapshot, Seat, Turn,
+    CreationSnapshot, Ending, Game as GameView, GameCreation as GameCreationView,
+    GameCreationModel, GameModel, GameSnapshot, Seat, Table, Turn,
 };
 
 const INTRINSIC_SIZE: Vec2 = Vec2::new(560.0, 560.0);
@@ -161,12 +161,24 @@ impl BlockGame {
             .map(|turn| Turn {
                 description: turn.description.clone(),
                 player: self.name(turn.actor, &actions),
+                column: turn.column,
             })
             .collect();
-        let shown = self.shown.get().filter(|shown| *shown < history.len());
+        let table = Table {
+            columns: live.columns.to_vec(),
+            history,
+            ending: live.ending.as_ref().map(|ending| Ending {
+                score: ending.score.clone(),
+                description: live.description.clone(),
+            }),
+        };
+        let shown = self
+            .shown
+            .get()
+            .filter(|shown| *shown < table.history.len());
         let editable = self.editor.editable().get();
         let Some(shown) = shown else {
-            return GameSnapshot::screen(live, seat, editable, history, None);
+            return GameSnapshot::screen(live, seat, editable, table, None);
         };
         let until = match shown {
             0 => 0,
@@ -174,9 +186,8 @@ impl BlockGame {
         };
         match follow(game, past, &actions[..until]).and_then(|session| session.show(player)) {
             Ok(mut past) => {
-                past.description = format!("Looking back at move {shown} of {}", history.len());
                 past.actions.clear();
-                GameSnapshot::screen(past, seat, false, history, Some(shown))
+                GameSnapshot::screen(past, seat, false, table, Some(shown))
             }
             Err(error) => GameSnapshot::Error(error),
         }
