@@ -22,6 +22,13 @@ _PKG_CONFIG = {
     "build_script_env": {"PKG_CONFIG": "$(exe_target //buck/sysroot:pkg-config)"},
 }
 
+# cc-rs adds a --target without an API level unless it sees one in the flags,
+# and the NDK's headers then declare nothing newer than the oldest Android.
+_ANDROID_API = {
+    "CFLAGS_aarch64_linux_android": "--target=aarch64-linux-android26",
+    "CXXFLAGS_aarch64_linux_android": "--target=aarch64-linux-android26",
+}
+
 FIXUPS = {
     # The text-changed event, ported from Flutter, counts back from len() - 1
     # as a signed index and relies on an empty string's wrapping to -1. With
@@ -30,6 +37,9 @@ FIXUPS = {
     # build.
     "accesskit_android": {"rustc_flags": ["-Coverflow-checks=off"]},
     "alsa-sys": _PKG_CONFIG,
+    # With the game-activity feature the build script compiles the
+    # GameActivity glue the crate vendors, with its own static libc++.
+    "android-activity": {"build_script_env": _ANDROID_API},
     "atk-sys": _PKG_CONFIG,
     "cairo-sys-rs": _PKG_CONFIG,
     # The build script runs bindgen over the SDK's CoreAudio headers. It asks
@@ -91,14 +101,8 @@ FIXUPS = {
         "build_script_env": {"SDKROOT": "$(location //buck/tools:macos-sdk)"},
     },
     # The build script compiles Oboe against the NDK. PROFILE only names a
-    # prebuilt it would otherwise fetch. cc-rs adds a --target without an API
-    # level unless it sees one in CXXFLAGS.
-    "oboe-sys": {
-        "build_script_env": {
-            "CXXFLAGS_aarch64_linux_android": "--target=aarch64-linux-android26",
-            "PROFILE": "debug",
-        },
-    },
+    # prebuilt it would otherwise fetch.
+    "oboe-sys": {"build_script_env": _ANDROID_API | {"PROFILE": "debug"}},
     "pango-sys": _PKG_CONFIG,
     # The build script asks pkg-config for gbm and compiles a probe against its
     # headers, with warnings as errors, to learn which of gbm's newer functions
