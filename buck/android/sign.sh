@@ -4,14 +4,14 @@
 # only installs an update signed with the same key. The keystore is --keystore,
 # target/android-debug.keystore by default, made on first use. CI's APK is
 # signed on a worker instead (signed_apk). --install installs it with adb and
-# starts it.
+# starts ACTIVITY. NAME names the APK in target/android.
 #
 # Usage:
 #   ./scripts/buck run //crates/block-app:android -- [--out APK] [--keystore FILE] [--install]
 set -eu
-jdk="$1" build_tools="$2" platform_tools="$3" unsigned="$4"
-shift 4
-out=target/android/block-app.apk
+jdk="$1" build_tools="$2" platform_tools="$3" unsigned="$4" name="$5" activity="$6"
+shift 6
+out="target/android/$name.apk"
 keystore=target/android-debug.keystore
 install=false
 while [ $# -gt 0 ]; do
@@ -19,7 +19,7 @@ while [ $# -gt 0 ]; do
         --out) out="$2"; shift 2 ;;
         --keystore) keystore="$2"; shift 2 ;;
         --install) install=true; shift ;;
-        *) echo "Usage: ./scripts/buck run //crates/block-app:android -- [--out APK] [--keystore FILE] [--install]" >&2; exit 1 ;;
+        *) echo "Usage: ./scripts/buck run //crates/$name:android -- [--out APK] [--keystore FILE] [--install]" >&2; exit 1 ;;
     esac
 done
 
@@ -39,5 +39,5 @@ echo "Wrote $out"
 if $install; then
     package="$("$build_tools/aapt2" dump packagename "$out")"
     "$platform_tools/adb" install -r "$out"
-    "$platform_tools/adb" shell am start -n "$package/com.be3.block.MainActivity"
+    "$platform_tools/adb" shell am start -n "$package/$activity"
 fi

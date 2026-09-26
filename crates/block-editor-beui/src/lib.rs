@@ -13,6 +13,7 @@ mod file_chooser;
 pub mod headless;
 mod instance;
 mod related_content;
+pub mod version_control;
 
 use be_block::presence::PresenceColor;
 
@@ -24,6 +25,7 @@ pub use editor::{Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, fit
 pub use file_chooser::{FileChooser, content_file_creation};
 pub use instance::BeuiPlugin;
 pub use related_content::RelatedContent;
+pub use version_control::{VersionHistory, short_id};
 
 pub trait BeuiApp: 'static {
     fn view(editor: Editor) -> beui::NodeId;

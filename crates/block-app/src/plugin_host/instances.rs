@@ -92,6 +92,7 @@ struct Instance {
     block_queries: Vec<block_plugin_api::BlockQuery>,
     sent_blocks: HashMap<block_plugin_api::BlockQuery, Vec<block_plugin_api::BlockInfo>>,
     blocks_seen: Option<u64>,
+    version_sent: Option<u64>,
 }
 
 struct ContentLink {
@@ -259,6 +260,7 @@ impl Instance {
             block_queries: Vec::new(),
             sent_blocks: HashMap::new(),
             blocks_seen: None,
+            version_sent: None,
             content: match role {
                 InstanceRole::Editor(block) => crate::be::is_known(block.block_type)
                     .then(|| ContentLink::new(block.block_type)),
@@ -304,6 +306,18 @@ impl Instance {
         }
         for (block, link) in &mut self.watched {
             link.messages(instance, *block, &mut messages);
+        }
+        if let InstanceRole::Editor(block) = self.role
+            && crate::be::is_versioned(block.block_type)
+            && let Some((revision, status)) =
+                crate::be::version_since(block.id, block.block_type, self.version_sent)
+        {
+            self.version_sent = Some(revision);
+            messages.push(Message::Editor(EditorMessage::VersionStatus {
+                instance,
+                block_id: block.id.into_bytes(),
+                status,
+            }));
         }
         messages
     }
@@ -483,6 +497,32 @@ pub(super) struct NextScreens {
 impl Instances {
     pub(super) fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+
+    pub(super) fn translate(&self, message: &mut Message, inward: bool) {
+        let mut carries = false;
+        message.visit_block_ids(&mut |_, _, _| carries = true);
+        if !carries {
+            return;
+        }
+        let mut scopes: HashMap<EditorInstanceId, Option<crate::be::Scope>> = HashMap::new();
+        crate::be::with_graph(|graph| {
+            message.visit_block_ids(&mut |instance, role, id| {
+                let scope = *scopes.entry(instance).or_insert_with(|| {
+                    let block = self.entries.get(&instance)?.role.block()?.id;
+                    graph.scope_of(block)
+                });
+                let Some(scope) = scope else {
+                    return;
+                };
+                let block = Uuid::from_bytes(*id);
+                let translated = match inward {
+                    true => graph.to_real(scope, block, role),
+                    false => graph.to_local(scope, block),
+                };
+                *id = translated.into_bytes();
+            });
+        });
     }
 
     pub(super) fn gate(&mut self, messages: Vec<Message>) -> Vec<Message> {
@@ -1927,6 +1967,28 @@ impl Instances {
                 link.sent = None;
                 true
             }
+            EditorMessage::VersionControl {
+                instance,
+                block_id,
+                command,
+            } => {
+                let block = Uuid::from_bytes(block_id);
+                let own = self
+                    .entries
+                    .get(&instance)
+                    .and_then(|entry| entry.role.block())
+                    .is_some_and(|own| own.id == block);
+                if !own || !self.editable(block) {
+                    return false;
+                }
+                if let block_plugin_api::VersionCommand::Adopt { block_id } = &command
+                    && !self.editable(Uuid::from_bytes(*block_id))
+                {
+                    return false;
+                }
+                crate::be::version(block, command);
+                true
+            }
             EditorMessage::ReplaceContent {
                 block_id,
                 content_type,
@@ -1971,6 +2033,7 @@ impl Instances {
                         source_type: Uuid::from_bytes(artifact.source_type),
                         data: artifact.data,
                     }),
+                    local_id: None,
                 };
                 crate::be::create(
                     block,

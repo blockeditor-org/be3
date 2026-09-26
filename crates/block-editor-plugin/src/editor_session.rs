@@ -177,6 +177,10 @@ impl EditorSession {
         self.host.set_artifacts(states);
     }
 
+    pub(crate) fn set_version_status(&self, status: &block_plugin_api::VersionStatus) {
+        self.host.set_version_status(status.clone());
+    }
+
     pub(crate) fn set_histories(&self, states: &[block_plugin_api::HistoryState]) {
         self.host.set_histories(states.iter().map(|state| {
             (
@@ -581,6 +585,13 @@ impl EditorSession {
         }
         for (block_id, command) in self.host.take_block_commands() {
             messages.push(Message::Editor(EditorMessage::BlockCommand {
+                instance,
+                block_id: block_id.into_bytes(),
+                command,
+            }));
+        }
+        for (block_id, command) in self.host.take_version_commands() {
+            messages.push(Message::Editor(EditorMessage::VersionControl {
                 instance,
                 block_id: block_id.into_bytes(),
                 command,

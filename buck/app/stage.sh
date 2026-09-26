@@ -3,16 +3,18 @@
 # Lays out the app as it runs: the executable under cargo's name, --file beside
 # it as it is (PDFium), and each plugin's manifest renamed <id>.plugin.json with
 # the module it names and its .cwasm. For the web bundle, --tree copies in what
-# wasm-bindgen wrote and --index writes plugins.json.
+# wasm-bindgen wrote and --index writes plugins.json. --compiled-only leaves out
+# each module that has a .cwasm, for the APK, which only falls back to one.
 #
 # Usage:
 #   stage.sh OUT [--executable=EXECUTABLE=NAME] [--file=FILE]... [--tree=DIR]...
-#            [--index] (MANIFEST=MODULE [--artifact=CWASM])...
+#            [--index] [--compiled-only] (MANIFEST=MODULE [--artifact=CWASM])...
 set -eu
 out="$1"
 shift
 mkdir -p "$out"
 index=false
+compiled_only=false
 manifests=''
 staged=''
 
@@ -36,8 +38,14 @@ for argument in "$@"; do
         --index)
             index=true
             ;;
+        --compiled-only)
+            compiled_only=true
+            ;;
         --artifact=*)
             cp "${argument#--artifact=}" "${staged%.wasm}.cwasm"
+            if $compiled_only; then
+                rm "$staged"
+            fi
             ;;
         *)
             manifest="${argument%%=*}"

@@ -24,7 +24,7 @@ use crate::styled::Theme;
 use panel::Summary;
 use tree::{Entry, Key};
 
-const DEFAULT_WIDTH: f32 = 320.0;
+const DEFAULT_WIDTH: f32 = 340.0;
 const MINIMUM_WIDTH: f32 = 200.0;
 const GRIP_WIDTH: f32 = 4.0;
 const GRIP_PAINT_WIDTH: f32 = 2.0;
@@ -35,6 +35,7 @@ const BAR_HEIGHT: f32 = 44.0;
 pub(crate) enum InspectorTab {
     #[default]
     Beui,
+    Components,
     AccessKit,
     Performance,
     Simulation,
@@ -43,9 +44,10 @@ pub(crate) enum InspectorTab {
 impl InspectorTab {
     fn from_index(index: usize) -> Self {
         match index {
-            1 => Self::AccessKit,
-            2 => Self::Performance,
-            3 => Self::Simulation,
+            1 => Self::Components,
+            2 => Self::AccessKit,
+            3 => Self::Performance,
+            4 => Self::Simulation,
             _ => Self::Beui,
         }
     }
@@ -56,6 +58,7 @@ pub(crate) struct State {
     tab: Cell<InspectorTab>,
     pub(crate) hovered: Cell<Option<NodeId>>,
     pub(crate) selected: Cell<Option<NodeId>>,
+    selected_component: Cell<Option<Key>>,
     pub(crate) picking: Cell<bool>,
     pub(crate) touch_emulation: Cell<bool>,
     pub(crate) mouse_simulation: Cell<bool>,
@@ -71,7 +74,6 @@ pub(crate) struct State {
     commands: RefCell<Vec<Command>>,
     pub(crate) theme: Cell<Theme>,
     requested_theme: Cell<Option<Theme>>,
-    reveal: Cell<Option<NodeId>>,
     revision: Cell<u64>,
     reset_performance: Cell<bool>,
     closed: Cell<bool>,
@@ -86,6 +88,7 @@ impl State {
             tab: Cell::new(InspectorTab::default()),
             hovered: Cell::new(None),
             selected: Cell::new(None),
+            selected_component: Cell::new(None),
             picking: Cell::new(false),
             touch_emulation: Cell::new(ctx.touch_emulation()),
             mouse_simulation: Cell::new(ctx.mouse_simulation()),
@@ -101,7 +104,6 @@ impl State {
             commands: RefCell::new(Vec::new()),
             theme: Cell::new(theme),
             requested_theme: Cell::new(None),
-            reveal: Cell::new(None),
             revision: Cell::new(0),
             reset_performance: Cell::new(false),
             closed: Cell::new(false),
@@ -120,6 +122,15 @@ impl State {
 
     fn set_expanded(&self, key: Key, expanded: bool) {
         self.expansion.borrow_mut().insert(key, expanded);
+        self.touch();
+    }
+
+    fn expand_ancestors(&self, ancestors: &[Key]) {
+        let mut expansion = self.expansion.borrow_mut();
+        for key in ancestors {
+            expansion.insert(*key, true);
+        }
+        drop(expansion);
         self.touch();
     }
 
@@ -202,8 +213,15 @@ impl State {
 
     fn select(&self, id: NodeId) {
         self.selected.set(Some(id));
-        self.reveal.set(Some(id));
+        self.selected_component.set(None);
         self.touch();
+    }
+
+    fn select_row(&self, key: Key) {
+        self.select(key.node());
+        if let Key::Component(..) = key {
+            self.selected_component.set(Some(key));
+        }
     }
 
     fn toggle_picking(&self) {
@@ -264,8 +282,7 @@ pub(crate) struct Inspector {
     set_summary: WriteSignal<Summary>,
     set_performance: WriteSignal<panel::PerformanceSummary>,
     set_renderer: WriteSignal<panel::RendererRows>,
-    set_selection: WriteSignal<Option<Key>>,
-    set_reveal: WriteSignal<Option<Key>>,
+    set_selection: WriteSignal<Vec<Key>>,
     tree: NodeRef,
     bar: panel::Bar,
     pub(crate) width: f32,
@@ -294,7 +311,6 @@ impl Inspector {
             set_performance: panel.set_performance,
             set_renderer: panel.set_renderer,
             set_selection: panel.set_selection,
-            set_reveal: panel.set_reveal,
             width: DEFAULT_WIDTH,
             grabbed: None,
             grip: false,
@@ -341,8 +357,15 @@ impl Inspector {
     }
 
     #[cfg(test)]
+    pub(crate) fn selected_row(&self, target: &Document) -> Option<String> {
+        let key = self.selection_path(target).last().copied()?;
+        let entry = self.entries.iter().find(|entry| entry.key == key)?;
+        Some(entry.kind.clone())
+    }
+
+    #[cfg(test)]
     pub(crate) fn focused_row(&self) -> Option<Key> {
-        crate::unstyled::tree_focused::<Key>(&self.document, self.tree.get())
+        crate::styled::tree_focused::<Key>(&self.document, self.tree.get())
     }
 
     pub(crate) fn panel_width(&self, ctx: &Context, rect: Rect) -> f32 {
@@ -481,7 +504,6 @@ impl Inspector {
             self.pick(target, ctx, content);
         }
         self.release_focus(ctx);
-        self.reveal();
         if app_visible {
             self.read(target, ctx, content, keyboard_interactive);
             self.paint(target, ctx, content, panel);
@@ -560,19 +582,17 @@ impl Inspector {
     fn sync(&mut self, target: &Document, ctx: &Context) {
         let entries = match self.state.tab.get() {
             InspectorTab::Beui => tree::collect(target, &self.state),
+            InspectorTab::Components => tree::collect_components(target, &self.state),
             InspectorTab::AccessKit => tree::collect_accesskit(target, &self.state),
             InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),
         };
-        let summary = self.summary(target, ctx, &entries);
+        let selection = self.selection_path(target);
+        let summary = self.summary(target, ctx, &entries, selection.last().copied());
         let performance = panel::PerformanceSummary::from(target.performance());
         let renderer = ctx
             .renderer_info()
             .map(|info| info.rows())
             .unwrap_or_default();
-        let selection = entries
-            .iter()
-            .find(|entry| entry.selected)
-            .map(|entry| entry.key);
         let Self {
             document,
             set_keys,
@@ -599,14 +619,25 @@ impl Inspector {
         self.entries = entries;
     }
 
-    fn summary(&self, target: &Document, ctx: &Context, entries: &[Entry]) -> Summary {
+    fn summary(
+        &self,
+        target: &Document,
+        ctx: &Context,
+        entries: &[Entry],
+        selected_key: Option<Key>,
+    ) -> Summary {
         let selected = self.state.selected.get();
-        let selection = selected
-            .and_then(|id| entries.iter().find(|entry| entry.key.node() == id))
-            .map_or_else(nothing_selected, entry_label);
+        let selection = selected.map_or_else(nothing_selected, |id| {
+            entries
+                .iter()
+                .find(|entry| Some(entry.key) == selected_key)
+                .or_else(|| entries.iter().find(|entry| entry.key.node() == id))
+                .map_or_else(|| tree::label(target, id), entry_label)
+        });
         Summary {
             total: match self.state.tab.get() {
                 InspectorTab::Beui => target.root().map_or(0, |root| tree::count(target, root)),
+                InspectorTab::Components => tree::component_count(target),
                 InspectorTab::AccessKit => tree::accesskit_count(target),
                 InspectorTab::Performance | InspectorTab::Simulation => 0,
             },
@@ -648,7 +679,10 @@ impl Inspector {
         let order = self.document.focusables_within(root);
         let rows = self
             .tree_node()
-            .map(|tree| self.document.focusables_within(tree))
+            .map(|tree| {
+                let rows = crate::styled::tree_rows(&self.document, tree);
+                self.document.focusables_within(rows)
+            })
             .unwrap_or_default();
         order
             .iter()
@@ -696,45 +730,27 @@ impl Inspector {
             self.state.picking.set(false);
             self.state.hovered.set(None);
             self.state.app_shown.set(false);
-            self.choose(target, id);
+            self.state.select(id);
         }
     }
 
-    fn choose(&mut self, target: &Document, id: NodeId) {
-        let path = match self.state.tab.get() {
+    fn selection_path(&self, target: &Document) -> Vec<Key> {
+        let Some(id) = self.state.selected.get() else {
+            return Vec::new();
+        };
+        match self.state.tab.get() {
             InspectorTab::Beui => tree::path(target, id),
-            InspectorTab::AccessKit => tree::accesskit_path(target, id),
-            InspectorTab::Performance | InspectorTab::Simulation => return,
-        };
-        if let Some((_, ancestors)) = path.split_last() {
-            for key in ancestors {
-                self.state.set_expanded(*key, true);
+            InspectorTab::Components => {
+                let mut path = tree::component_path(target, id);
+                let chosen = self.state.selected_component.get();
+                if let Some(end) = path.iter().position(|key| Some(*key) == chosen) {
+                    path.truncate(end + 1);
+                }
+                path
             }
+            InspectorTab::AccessKit => tree::accesskit_path(target, id),
+            InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),
         }
-        self.state.select(id);
-    }
-
-    fn reveal(&mut self) {
-        let Some(id) = self.state.reveal.get() else {
-            return;
-        };
-        let key = match self.state.tab.get() {
-            InspectorTab::Beui => Key::Node(id),
-            InspectorTab::AccessKit => Key::AccessKit(id),
-            InspectorTab::Performance | InspectorTab::Simulation => return,
-        };
-        if !self.entries.iter().any(|entry| entry.key == key) {
-            return;
-        }
-        self.state.reveal.set(None);
-        let Self {
-            document,
-            set_reveal,
-            ..
-        } = self;
-        with_reactive_scope(document, || set_reveal.set(Some(key)));
-        with_reactive_scope(document, || set_reveal.set(None));
-        self.state.touch();
     }
 
     fn paint(&self, target: &Document, ctx: &Context, content: Rect, panel: Rect) {

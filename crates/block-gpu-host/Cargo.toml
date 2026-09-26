@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 block-gpu-abi = { path = "../block-gpu-abi" }
+serde = { version = "1", features = ["derive"] }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
 [lints]

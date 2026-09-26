@@ -47,8 +47,8 @@ platform(
 )
 
 # Target platforms for WebAssembly. The constraints are the ones
-# prelude//rust:cargo_package.bzl maps to reindeer's platform names, "wasi" and
-# "wasm32", so reindeer.toml has to agree.
+# prelude//rust:cargo_package.bzl maps to its platform names, "wasi" and
+# "wasm32", which are what buck/cargo's plans are keyed by.
 platform(
     name = "wasi",
     constraint_values = [

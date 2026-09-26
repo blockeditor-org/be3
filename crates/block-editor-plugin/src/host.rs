@@ -318,10 +318,11 @@ pub enum Pushed {
     Catalog,
     WebView,
     Shows,
+    Version,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::Replies,
         Self::Peers,
         Self::Histories,
@@ -331,6 +332,7 @@ impl Pushed {
         Self::Catalog,
         Self::WebView,
         Self::Shows,
+        Self::Version,
     ];
 }
 
@@ -350,6 +352,8 @@ pub struct EditorHost {
     reported_history: Rc<RefCell<Option<Vec<Uuid>>>>,
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
+    version_commands: Rc<RefCell<Vec<(Uuid, block_plugin_api::VersionCommand)>>>,
+    version_status: Rc<RefCell<block_plugin_api::VersionStatus>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
     drag: Rc<Cell<Option<BlockDrag>>>,
     files: Rc<RefCell<Option<FileDrop>>>,
@@ -660,6 +664,23 @@ impl EditorHost {
                 linked,
             },
         ));
+    }
+
+    pub fn version(&self, block_id: Uuid, command: block_plugin_api::VersionCommand) {
+        self.version_commands.borrow_mut().push((block_id, command));
+    }
+
+    pub fn take_version_commands(&self) -> Vec<(Uuid, block_plugin_api::VersionCommand)> {
+        std::mem::take(&mut self.version_commands.borrow_mut())
+    }
+
+    pub fn set_version_status(&self, status: block_plugin_api::VersionStatus) {
+        *self.version_status.borrow_mut() = status;
+        self.push(Pushed::Version);
+    }
+
+    pub fn version_status(&self) -> block_plugin_api::VersionStatus {
+        self.version_status.borrow().clone()
     }
 
     pub fn take_block_commands(&self) -> Vec<(Uuid, BlockCommand)> {

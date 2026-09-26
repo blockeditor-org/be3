@@ -1,5 +1,0 @@
-# The build script names the pregenerated bindings to include, for the target
-# and the libinput version the features ask for, through LIBINPUT_* variables.
-# It asks nothing of the system; the crate links libinput itself, which the
-# sysroot in buck/sysroot has.
-buildscript.run = true

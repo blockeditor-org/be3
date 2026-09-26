@@ -66,7 +66,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     let mut options = run_options();
     for argument in std::env::args().skip(1) {
         if argument == "--dev-workspace" {
-            app.open_dev_workspace();
+            app.open_dev_workspace(None);
         } else if let Some(path) = argument.strip_prefix("--accessibility-tree=") {
             options.accessibility_dump = Some(PathBuf::from(path));
         } else {
@@ -82,11 +82,26 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     wasi_threads::initialize_main_thread();
     panic_guard::install();
     editors::plugin::discovery::load().await;
-    let app =
+    let mut app =
         BlockApp::new().map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
-    beui::run_web(&canvas_id, run_options(), Shell::new(app))
+    let mut options = run_options();
+    let location = web_sys::window()
+        .map(|window| window.location())
+        .ok_or("no browser window is available")?;
+    let page = web_sys::Url::new(&location.href()?)?;
+    if page.search_params().has("dev-workspace") {
+        app.open_dev_workspace(Some(location.origin()?));
+    }
+    options.accessibility_tree = page.search_params().has("accessibility-tree");
+    beui::run_web(&canvas_id, options, Shell::new(app))
         .await
         .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn accessibility_tree() -> Option<String> {
+    beui::accessibility_tree()
 }
 
 #[cfg(target_os = "android")]
@@ -94,7 +109,10 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
 fn android_main(app: winit::platform::android::activity::AndroidApp) {
     editors::plugin::discovery::load(&app);
     panic_guard::install();
-    let storage_root = app.internal_data_path();
+    let storage_root = match platform::launched() {
+        Some(launched) => Some(launched.data().to_path_buf()),
+        None => app.internal_data_path(),
+    };
     let mut options = run_options();
     options.android_app = Some(app);
     let exit_code = match BlockApp::new(storage_root)
@@ -433,16 +451,20 @@ impl BlockApp {
         })
     }
 
-    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-    fn open_dev_workspace(&mut self) {
+    #[cfg(not(target_os = "android"))]
+    fn open_dev_workspace(&mut self, remote_url: Option<String>) {
         self.dev_workspace = true;
         if self.signed_in {
             return;
         }
+        let server = match &remote_url {
+            Some(url) => ServerLocation::Remote(url.clone()),
+            None => ServerLocation::Local,
+        };
         if let Some(account) = self
             .accounts
             .iter()
-            .find(|account| account.server == ServerLocation::Local)
+            .find(|account| account.server == server)
             .cloned()
         {
             self.switch_account(account);
@@ -450,8 +472,8 @@ impl BlockApp {
         }
         self.begin_account_request(AccountForm {
             register: true,
-            remote: false,
-            remote_url: String::new(),
+            remote: remote_url.is_some(),
+            remote_url: remote_url.unwrap_or_default(),
             email: "dev@localhost".to_owned(),
             display_name: "Dev".to_owned(),
             password: "dev-password".to_owned(),
@@ -503,13 +525,26 @@ impl BlockApp {
             password,
             ..
         } = form;
+        let dev = self.dev_workspace;
         let receiver = platform::spawn_request(async move {
-            if register {
-                accounts::register(requested, email, display_name, password).await
-            } else {
-                accounts::login(requested, email, password).await
+            if !register {
+                return accounts::login(requested, email, password)
+                    .await
+                    .map_err(|error| error.to_string());
             }
-            .map_err(|error| error.to_string())
+            match accounts::register(
+                requested.clone(),
+                email.clone(),
+                display_name,
+                password.clone(),
+            )
+            .await
+            {
+                Err(error) if dev => accounts::login(requested, email, password)
+                    .await
+                    .map_err(|_| error.to_string()),
+                registered => registered.map_err(|error| error.to_string()),
+            }
         });
         self.account_error = None;
         self.pending_account_request = Some(PendingAccountRequest {

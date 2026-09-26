@@ -6,6 +6,7 @@ use std::{
 
 use be_block::{BlockContent, BlockMetadata, LiveEdit, Merge, Undo};
 use be_client::{ClientError, Credentials, Journaled, Live, Peer, PeerConfig, Saved};
+use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
 use be_protocol::{AccessEntry, BlockSummary, ServerMessage};
 use be_store::ContentKey;
@@ -14,6 +15,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use uuid::Uuid;
 
 use super::graph::{Graph, Node};
+use super::version::{Context, Versions};
 use super::{Config, Content, platform};
 
 const SEAL_INTERVAL: Duration = Duration::from_millis(750);
@@ -75,6 +77,11 @@ pub(super) enum Command {
         block: Uuid,
         reply: crate::host::WakingSender<Result<Vec<AccessEntry>, String>>,
     },
+    Version {
+        block: Uuid,
+        command: block_plugin_api::VersionCommand,
+    },
+    WatchVersion(Uuid),
 }
 
 #[derive(Default)]
@@ -88,6 +95,8 @@ pub(crate) struct Shared {
     pub(crate) unsealed: usize,
     pub(crate) connected: bool,
     pub(crate) error: Option<String>,
+    pub(crate) version_watch: std::collections::HashSet<Uuid>,
+    pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -180,6 +189,8 @@ pub(super) trait Session {
 
     fn bytes(&self) -> Vec<u8>;
 
+    fn head(&self) -> Option<CommitId>;
+
     fn is_clean(&self) -> bool;
 
     fn owes_seal(&self) -> bool;
@@ -205,6 +216,11 @@ pub(super) trait Session {
     ) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
     fn take_presence(&mut self) -> Option<Vec<Presence>>;
+
+    fn published_elsewhere(
+        &mut self,
+        head: CommitId,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
     fn history(&self) -> History {
         History::default()
@@ -284,6 +300,10 @@ where
         self.live.content().encode()
     }
 
+    fn head(&self) -> Option<CommitId> {
+        self.live.head()
+    }
+
     fn is_clean(&self) -> bool {
         self.live.is_clean()
     }
@@ -317,7 +337,10 @@ where
     }
 
     fn poll(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
-        Box::pin(async move { self.live.poll().await.map(|_| ()) })
+        Box::pin(async move {
+            self.live.poll().await?;
+            self.live.catch_up().await
+        })
     }
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
@@ -348,6 +371,13 @@ where
 
     fn take_presence(&mut self) -> Option<Vec<Presence>> {
         take_presence(&mut self.live)
+    }
+
+    fn published_elsewhere(
+        &mut self,
+        head: CommitId,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { self.live.published_elsewhere(head).await })
     }
 
     fn history(&self) -> History {
@@ -445,6 +475,10 @@ where
         self.live.content().encode()
     }
 
+    fn head(&self) -> Option<CommitId> {
+        self.live.head()
+    }
+
     fn is_clean(&self) -> bool {
         self.live.is_clean()
     }
@@ -475,7 +509,10 @@ where
     }
 
     fn poll(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
-        Box::pin(async move { self.live.poll().await.map(|_| ()) })
+        Box::pin(async move {
+            self.live.poll().await?;
+            self.live.catch_up().await
+        })
     }
 
     fn seal(&mut self) -> LocalBoxFuture<'_, Result<(), ClientError>> {
@@ -504,6 +541,13 @@ where
 
     fn take_presence(&mut self) -> Option<Vec<Presence>> {
         take_presence(&mut self.live)
+    }
+
+    fn published_elsewhere(
+        &mut self,
+        head: CommitId,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move { self.live.published_elsewhere(head).await })
     }
 }
 
@@ -598,7 +642,26 @@ async fn connected<S: Fn() -> Result<Store, String>>(
         }
     };
     let peer = match connect(config, store).await {
-        Ok(peer) => Arc::new(peer),
+        Ok(peer) => {
+            let resolving = Arc::clone(shared);
+            peer.set_resolver(Arc::new(move |block, references| {
+                let held = resolving.lock().unwrap();
+                let Some(scope) = held.graph.scope_of(block) else {
+                    return references;
+                };
+                references
+                    .into_iter()
+                    .map(|reference| {
+                        held.graph.to_real(
+                            scope,
+                            reference,
+                            block_plugin_api::BlockIdRole::Existing,
+                        )
+                    })
+                    .collect()
+            }));
+            Arc::new(peer)
+        }
         Err(error) => {
             fail(shared, error.to_string());
             return Outcome::Lost;
@@ -618,7 +681,15 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     for (block, content_type) in open.clone() {
         rejoin(&peer, &mut sessions, shared, block, content_type).await;
     }
+    let mut versions = Versions::default();
     publish(&mut sessions, shared);
+    versions
+        .refresh(&mut Context {
+            peer: &peer,
+            shared,
+            sessions: &mut sessions,
+        })
+        .await;
     changed.notify_all();
     crate::host::wake();
     let mut unsealed_since: Option<Instant> = None;
@@ -642,7 +713,9 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 return Outcome::Stopped;
             }
             Woken::Disconnected => return Outcome::Lost,
-            Woken::Command(command) => apply(&peer, &mut sessions, shared, open, command).await,
+            Woken::Command(command) => {
+                apply(&peer, &mut sessions, shared, open, &mut versions, command).await
+            }
             Woken::Event(event) => {
                 match event {
                     Some(ServerMessage::BlockChanged { block }) => {
@@ -651,6 +724,9 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                     }
                     Some(ServerMessage::BlockRemoved { block }) => {
                         shared.lock().unwrap().graph.remove(block);
+                    }
+                    Some(ServerMessage::HeadChanged { block, head, .. }) => {
+                        shared.lock().unwrap().graph.set_head(block, Some(head));
                     }
                     Some(_) => {}
                     None => load_graph(&peer, shared).await,
@@ -674,7 +750,16 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             true => unsealed_since.or_else(|| Some(Instant::now())),
             false => None,
         };
-        let moved = publish(&mut sessions, shared);
+        let mut moved = publish(&mut sessions, shared);
+        let before = version_revisions(shared);
+        versions
+            .refresh(&mut Context {
+                peer: &peer,
+                shared,
+                sessions: &mut sessions,
+            })
+            .await;
+        moved |= version_revisions(shared) != before;
         changed.notify_all();
         if moved {
             crate::host::wake();
@@ -728,14 +813,64 @@ async fn rejoin(
     }
 }
 
+fn remember_head(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
+    shared
+        .lock()
+        .unwrap()
+        .graph
+        .set_head(block, peer.local_head(block));
+}
+
+fn version_revisions(shared: &Arc<Mutex<Shared>>) -> u64 {
+    shared
+        .lock()
+        .unwrap()
+        .versions
+        .values()
+        .map(|state| state.revision)
+        .sum()
+}
+
+fn set_busy(shared: &Arc<Mutex<Shared>>, block: Uuid, busy: bool, error: Option<String>) {
+    let mut held = shared.lock().unwrap();
+    let state = held.versions.entry(block).or_default();
+    state.status.busy = busy;
+    state.status.error = error;
+    state.revision += 1;
+}
+
 async fn apply(
     peer: &Arc<Peer<Store>>,
     sessions: &mut HashMap<Uuid, Box<dyn Session>>,
     shared: &Arc<Mutex<Shared>>,
     open: &mut HashMap<Uuid, Uuid>,
+    versions: &mut Versions,
     command: Command,
 ) -> bool {
     match command {
+        Command::WatchVersion(block) => {
+            Versions::watch(shared, block);
+            false
+        }
+        Command::Version { block, command } => {
+            set_busy(shared, block, true, None);
+            crate::host::wake();
+            seal_all(sessions, shared).await;
+            publish(sessions, shared);
+            let outcome = versions
+                .run(
+                    &mut Context {
+                        peer,
+                        shared,
+                        sessions,
+                    },
+                    block,
+                    command,
+                )
+                .await;
+            set_busy(shared, block, false, outcome.err());
+            true
+        }
         Command::Open(block, content_type) => {
             open.insert(block, content_type);
             if sessions.contains_key(&block) {
@@ -789,6 +924,7 @@ async fn apply(
             if let Err(error) = copy(peer, from, to, shown).await {
                 record(shared, error);
             }
+            remember_head(peer, shared, to);
             false
         }
         Command::Replace {
@@ -806,6 +942,7 @@ async fn apply(
             if let Err(error) = outcome {
                 record(shared, error);
             }
+            remember_head(peer, shared, block);
             false
         }
         Command::Seed {
@@ -822,6 +959,7 @@ async fn apply(
             if let Err(error) = seed(peer, block, bytes).await {
                 record(shared, error);
             }
+            remember_head(peer, shared, block);
             false
         }
         Command::Presence { block, kind, value } => {
@@ -861,6 +999,7 @@ async fn apply(
             {
                 record(shared, error);
             }
+            remember_head(peer, shared, block);
             true
         }
         Command::SetParent { block, parent } => {
@@ -951,7 +1090,7 @@ async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uu
     }
 }
 
-fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
+pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
     Node {
         id: summary.id,
         content_type: summary.content_type,
@@ -960,6 +1099,7 @@ fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         access: summary.access,
         references: summary.references.clone(),
         metadata: peer.metadata(summary),
+        head: summary.head,
         version: summary.version,
     }
 }
@@ -991,6 +1131,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             held.presence.insert(*block, (revision, presence));
             changed = true;
         }
+        held.graph.set_head(*block, session.head());
         let log = session.take_log();
         let Some(content) = held.blocks.get_mut(block) else {
             held.blocks.insert(

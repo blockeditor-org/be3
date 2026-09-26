@@ -47,12 +47,14 @@ pub struct Live<S: ObjectStore, C: LiveEdit> {
     presence: BTreeMap<(ClientId, Uuid), Vec<u8>>,
     shown: BTreeMap<Uuid, Vec<u8>>,
     presence_changed: bool,
+    moved: bool,
 }
 
 impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
     pub async fn join(peer: Arc<Peer<S>>, block: Uuid) -> Result<Self, ClientError> {
         let events = peer.connection().subscribe();
         let (client, state) = peer.join_session(block).await?;
+        peer.watch(block).await?;
         let head = peer.remote_head(block).await?;
         let confirmed = match head {
             Some(head) => peer.open_commit::<C>(head).await?,
@@ -80,6 +82,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             presence: BTreeMap::new(),
             shown: BTreeMap::new(),
             presence_changed: false,
+            moved: false,
         };
         if let Role::Follower(follower) = &live.role {
             let catchup = follower.catchup();
@@ -253,6 +256,12 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             ServerMessage::SessionChanged { block, state } if block == self.block => {
                 self.adopt(state).await?;
                 Ok(1)
+            }
+            ServerMessage::HeadChanged { block, head, .. } if block == self.block => {
+                if self.is_owner() && self.base != Some(head) {
+                    self.moved = true;
+                }
+                Ok(0)
             }
             ServerMessage::Relayed {
                 block,
@@ -620,6 +629,25 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
 }
 
 impl<S: ObjectStore, C: LiveEdit + Merge + Clone + Default> Live<S, C> {
+    pub async fn catch_up(&mut self) -> Result<(), ClientError> {
+        if std::mem::take(&mut self.moved) {
+            self.reconcile().await?;
+        }
+        Ok(())
+    }
+
+    pub async fn published_elsewhere(&mut self, head: CommitId) -> Result<(), ClientError> {
+        if self.base == Some(head) {
+            return Ok(());
+        }
+        if self.is_owner() {
+            self.moved = true;
+            return self.catch_up().await;
+        }
+        let owner = self.state.owner;
+        self.send(owner, &SessionMessage::Replaced { head }).await
+    }
+
     pub async fn reconcile(&mut self) -> Result<MergeResult<()>, ClientError> {
         let remote = self.peer.remote_head(self.block).await?;
         if let Some(remote) = remote {

@@ -143,6 +143,19 @@ pub(crate) fn label(value: Option<&str>) -> String {
     value.unwrap_or_default().to_owned()
 }
 
+pub(crate) fn texel_copy_texture(
+    value: wgpu::TexelCopyTextureInfo<'_>,
+) -> abi::TexelCopyTextureInfo {
+    abi::TexelCopyTextureInfo {
+        texture: texture_handle(value.texture),
+        mip_level: value.mip_level,
+        origin_x: value.origin.x,
+        origin_y: value.origin.y,
+        origin_z: value.origin.z,
+        aspect: texture_aspect(value.aspect),
+    }
+}
+
 pub(crate) fn extent(value: wgpu::Extent3d) -> abi::Extent3d {
     abi::Extent3d {
         width: value.width,

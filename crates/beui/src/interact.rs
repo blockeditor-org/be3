@@ -40,6 +40,7 @@ pub(crate) fn interact(
         pressed_this_frame: ctx.input(|input| input.pointer.primary_pressed()),
         released_this_frame: ctx.input(|input| input.pointer.primary_released()),
         secondary_pressed_this_frame: ctx.input(|input| input.pointer.secondary_pressed()),
+        secondary_drag: ctx.input(|input| input.pointer.secondary_drag),
         middle_down: ctx.input(|input| input.pointer.middle_down),
         middle_pressed_this_frame: ctx.input(|input| input.pointer.middle_pressed()),
         scroll: wheel,
@@ -135,6 +136,7 @@ pub(crate) fn interact(
         false => input,
         true => InteractInput {
             pointer_pos: None,
+            secondary_drag: None,
             zoom_pos: None,
             wheel_target: None,
             zoom_target: None,
@@ -187,6 +189,7 @@ pub(crate) fn interact(
             false => input,
             true => InteractInput {
                 pointer_pos: None,
+                secondary_drag: None,
                 zoom_pos: None,
                 wheel_target: None,
                 zoom_target: None,
@@ -327,6 +330,7 @@ fn without_pointer(input: InteractInput) -> InteractInput {
         pressed_this_frame: false,
         released_this_frame: false,
         secondary_pressed_this_frame: false,
+        secondary_drag: None,
         middle_down: false,
         middle_pressed_this_frame: false,
         scroll: Vec2::ZERO,

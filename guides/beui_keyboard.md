@@ -12,7 +12,7 @@ The styled controls follow the keyboard conventions in the [W3C Authoring Practi
 | Text inputs | Left/Right, Home/End, Shift-selection, Ctrl/Alt word navigation and deletion, Ctrl+A, Ctrl+C/X, Ctrl+Z, Ctrl+Shift+Z/Ctrl+Y, and Enter to submit. Up and Down move to the start and the end of the text, as they would on the one line of a multiline area. Space inserts text. Paste replaces the selection. A secondary click opens the Copy, Cut, Paste and Select All menu that a touch tap on the selection or the caret handle opens. The desktop runner maps Command to Ctrl on macOS. |
 | Scroll areas | Tab focuses the area. Up/Down scroll by a line; Page Up/Down and Space/Shift+Space scroll by a page; Home/End reach the endpoints. Tabbing to a child or navigating a choice scrolls it into view. Unused Up/Down, Home/End, and Page keys on child controls scroll the nearest containing area. Virtual lists can be paged before tabbing into their realized controls. |
 | Select (dropdown) | Clicking or activating the trigger opens the popup and focuses its search box; typing filters the options by case-insensitive substring. Up/Down/Home/End on the closed trigger also open the popup and move the highlight in that direction. Up/Down move the highlighted option without moving the text caret; Home/End jump to the first/last visible option. Enter confirms the highlighted option and closes the popup. Escape or an outside click closes the popup without changing the selection and returns focus to the trigger. |
-| Tree views | One Tab stop, at the selected row or the first row. Up/Down move to the previous/next visible row and stop at the ends; Home/End reach the first/last row. Right expands a collapsed row and then moves to its first child; Left collapses an expanded row and then moves to its parent. Space or Enter selects a row and opens or closes it, the same as clicking it. Typing searches case-insensitive prefixes over the visible rows. Selection follows the focused row. |
+| Tree views | One Tab stop, at the selected row or the first row. Up/Down move to the previous/next visible row and stop at the ends; Home/End reach the first/last row. Right expands a collapsed row and then moves to its first child; Left collapses an expanded row and then moves to its parent. Space or Enter selects a row, the same as clicking it, and leaves it open or closed; only Left, Right and the chevron expand or collapse. Typing searches case-insensitive prefixes over the visible rows. Selection follows the focused row. |
 | Pan and zoom areas | Tab focuses the area. Arrows pan by a step; `+` and `-` zoom around the middle of the viewport and `0` returns the scale to one. The area owns the keys it uses, so arrows pan it rather than scrolling whatever contains it. |
 | Dock | One Tab stop per tab bar, at the tab the pane is showing, walked like any other tab list; the bar scrolls the tab that takes focus into view. The bar between two panes is a Tab stop with a `Splitter` role that the arrows move. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in, wherever the focus is inside it. |
 | Context menu | Secondary click opens the menu at the pointer and focuses its first item, which is shown with a highlighted background; Tab is trapped on the menu's single roving Tab stop while it is open. Up/Down move between items and update the highlight; Home/End jump to the first/last item. Right Arrow (or hovering an item) opens its submenu and focuses its first item; Left Arrow closes a submenu and refocuses the item that opened it. Only one submenu per level stays open. Enter or clicking a leaf item selects it and closes the entire menu stack; Escape closes one level at a time; an outside click closes the whole stack. |
@@ -42,9 +42,10 @@ all three.
 
 `<Tree>` takes the `keys` of the rows that are visible in tree order, an `item`
 callback that answers with the `TreeItem` (label, depth, whether it can expand,
-whether it is expanded) for one key, the `selected` key, and optional `reveal`
-key to scroll into view. It reports `on_select`, `on_expand` and
-`on_hover_change`, and its children build the cells of one row. The tree owns
+whether it is expanded) for one key, and the `selected` key, which may be a
+row hidden inside a collapsed one. It reports `on_select`, `on_expand`,
+`on_reveal` and `on_hover_change`, and its children build the cells of one
+row. The tree owns
 the roving Tab stop, the marker, the indent and the keyboard model; the caller
 owns the rows themselves, so a tree of anything keyed by anything hashable
 works. The demo's Tree tab and the beui inspector both use it.
@@ -114,6 +115,14 @@ pointer so existing pressable controls, sliders, text selection, focus, and
 overlays work without a separate touch-only control API. A second contact or
 a cancelled contact cancels a pending tap rather than activating it.
 
+A second finger that lands while the first is still held where it touched
+down is a secondary drag rather than a pinch: it reports through
+`ClickCatcher`'s `on_secondary_drag` exactly as a right-button drag does
+(`SecondaryDrag`: where it began, where it is, whether it started, ended or was
+cancelled, and the modifiers), which is how a board marks up arrows by either
+means. The moment the held finger moves, the gesture is a pinch after all and
+the secondary drag is cancelled.
+
 A tap may drift by up to eight logical points. Beyond that threshold beui
 locks the gesture to its dominant axis. Vertical gestures drag the deepest
 scroll view under the initial contact, keep that scroll captured when the
@@ -132,4 +141,5 @@ with Ctrl+Shift+I and enable “Emulate touch with mouse” to turn the primary
 mouse button into a touch contact. Embedded beui plugins receive the same touch
 data over the block plugin input protocol. `block_ui_test::BeuiTest` provides
 `touch_start`, `touch_move`, `touch_end`, and `touch_cancel` for headless
-gesture tests.
+gesture tests, `finger` for a gesture of more than one finger, and
+`secondary_drag` for a right-button drag.

@@ -1,7 +1,6 @@
 use block_editor_beui::be_block::BlockContent;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::sync::Arc;
 
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::{DeterministicGame, DeterministicGameContent, GameModuleContent};
@@ -11,14 +10,14 @@ use block_editor_beui::beui::reactive::{
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{BlockFilter, BlockList, BlockPicker, BlockQuery, Creation, Editor};
 use game_api::GameAction;
-use game_host::Game;
+use game_host::{Game, Session};
 use uuid::Uuid;
 
-mod ui;
+pub(crate) mod ui;
 
 use ui::{
-    CreationSnapshot, Game as GameView, GameCreation as GameCreationView, GameCreationModel,
-    GameModel, GameSnapshot, Seat,
+    CreationSnapshot, Ending, Game as GameView, GameCreation as GameCreationView,
+    GameCreationModel, GameModel, GameSnapshot, Seat, Table, Turn,
 };
 
 const INTRINSIC_SIZE: Vec2 = Vec2::new(560.0, 560.0);
@@ -27,7 +26,9 @@ const GUEST: u64 = 0x6775_6573_7473;
 struct Loaded {
     module: Uuid,
     revision: u64,
-    game: Result<Arc<Game>, String>,
+    game: Result<Game, String>,
+    live: Option<Session>,
+    past: Option<Session>,
 }
 
 struct BlockGame {
@@ -36,6 +37,8 @@ struct BlockGame {
     account: Uuid,
     player: ReadSignal<Uuid>,
     set_player: WriteSignal<Uuid>,
+    shown: ReadSignal<Option<usize>>,
+    set_shown: WriteSignal<Option<usize>>,
     seats: RefCell<Vec<Uuid>>,
     module: RefCell<Option<(Uuid, Rc<ContentProjection<GameModuleContent>>)>>,
     loaded: RefCell<Option<Loaded>>,
@@ -46,12 +49,15 @@ impl BlockGame {
         let account = editor.blocks().account_id();
         let block = editor.block_content::<DeterministicGameContent>();
         let (player, set_player) = create_signal(account);
+        let (shown, set_shown) = create_signal(None);
         Self {
             editor,
             block,
             account,
             player,
             set_player,
+            shown,
+            set_shown,
             seats: RefCell::new(Vec::new()),
             module: RefCell::new(None),
             loaded: RefCell::new(None),
@@ -106,30 +112,38 @@ impl BlockGame {
             .as_ref()
             .is_none_or(|loaded| loaded.module != module || loaded.revision != revision);
         if stale {
-            let Some(game) = projection.read(|module| Game::load(module.data()).map(Arc::new))
-            else {
+            let Some(game) = projection.read(|module| Game::load(module.data())) else {
                 return GameSnapshot::Loading;
             };
             *self.loaded.borrow_mut() = Some(Loaded {
                 module,
                 revision,
                 game,
+                live: None,
+                past: None,
             });
         }
 
-        let loaded = self.loaded.borrow();
-        let loaded = loaded.as_ref().expect("the module was just loaded");
-        let game = match &loaded.game {
-            Ok(game) => game.clone(),
+        let mut loaded = self.loaded.borrow_mut();
+        let Loaded {
+            game, live, past, ..
+        } = loaded.as_mut().expect("the module was just loaded");
+        let game = match game {
+            Ok(game) => &*game,
             Err(error) => return GameSnapshot::Error(error.clone()),
         };
         let seats = seats(self.account, &actions);
         let player = Some(self.player.get())
             .filter(|player| seats.contains(player))
             .unwrap_or(self.account);
+        let newcomer = seats.last().copied();
         let seat = Seat {
-            names: (0..seats.len())
-                .map(|seat| seat_name(seat, seats.len()))
+            names: seats
+                .iter()
+                .map(|seated| match Some(*seated) == newcomer {
+                    true => "New player".to_owned(),
+                    false => self.name(*seated, &actions),
+                })
                 .collect(),
             playing: seats
                 .iter()
@@ -137,10 +151,69 @@ impl BlockGame {
                 .expect("the player is seated"),
         };
         *self.seats.borrow_mut() = seats;
-        match game.show(&actions, player) {
-            Ok(screen) => GameSnapshot::screen(screen, seat, self.editor.editable().get()),
+        let live = match follow(game, live, &actions).and_then(|session| session.show(player)) {
+            Ok(screen) => screen,
+            Err(error) => return GameSnapshot::Error(error),
+        };
+        let history: Vec<Turn> = live
+            .history
+            .iter()
+            .map(|turn| Turn {
+                description: turn.description.clone(),
+                player: self.name(turn.actor, &actions),
+                column: turn.column,
+            })
+            .collect();
+        let table = Table {
+            columns: live.columns.to_vec(),
+            history,
+            ending: live.ending.as_ref().map(|ending| Ending {
+                score: ending.score.clone(),
+                description: live.description.clone(),
+            }),
+        };
+        let shown = self
+            .shown
+            .get()
+            .filter(|shown| *shown < table.history.len());
+        let editable = self.editor.editable().get();
+        let Some(shown) = shown else {
+            return GameSnapshot::screen(live, seat, editable, table, None);
+        };
+        let until = match shown {
+            0 => 0,
+            shown => live.history[shown - 1].entry as usize + 1,
+        };
+        match follow(game, past, &actions[..until]).and_then(|session| session.show(player)) {
+            Ok(mut past) => {
+                past.actions.clear();
+                GameSnapshot::screen(past, seat, false, table, Some(shown))
+            }
             Err(error) => GameSnapshot::Error(error),
         }
+    }
+
+    fn name(&self, actor: Uuid, actions: &[GameAction]) -> String {
+        if actor == self.account {
+            return "You".to_owned();
+        }
+        if let Some(guest) = guest_number(self.account, actor) {
+            return format!("Guest {guest}");
+        }
+        let mut others: Vec<Uuid> = Vec::new();
+        for action in actions {
+            if action.actor != self.account
+                && guest_number(self.account, action.actor).is_none()
+                && !others.contains(&action.actor)
+            {
+                others.push(action.actor);
+            }
+        }
+        let position = others
+            .iter()
+            .position(|other| *other == actor)
+            .unwrap_or(others.len());
+        format!("Player {}", position + 2)
     }
 }
 
@@ -160,6 +233,10 @@ impl GameModel for BlockGame {
         if let Some(player) = player {
             self.set_player.set(player);
         }
+    }
+
+    fn show_turns(&self, turns: Option<usize>) {
+        self.set_shown.set(turns);
     }
 }
 
@@ -251,7 +328,7 @@ impl block_editor_beui::BeuiApp for DeterministicGameApp {
         create_effect(clone!(game -> move || set_snapshot.set(game.snapshot())));
         let model: Rc<dyn GameModel> = game;
         view! {
-            <GameView game={model} snapshot={snapshot} />
+            <GameView editor game={model} snapshot={snapshot} />
         }
     }
 
@@ -271,28 +348,50 @@ impl block_editor_beui::BeuiApp for DeterministicGameApp {
     }
 }
 
-pub(crate) fn seats(account: Uuid, actions: &[GameAction]) -> Vec<Uuid> {
-    let mut seats = vec![account];
-    for action in actions {
-        if !seats.contains(&action.actor) {
-            seats.push(action.actor);
-        }
+fn follow<'a>(
+    game: &Game,
+    slot: &'a mut Option<Session>,
+    actions: &[GameAction],
+) -> Result<&'a mut Session, String> {
+    if slot
+        .as_ref()
+        .is_none_or(|session| !actions.starts_with(session.played()))
+    {
+        *slot = Some(game.start()?);
     }
-    let (high, low) = account.as_u64_pair();
+    let session = slot.as_mut().expect("a session was just started");
+    let played = session.played().len();
+    for action in &actions[played..] {
+        session.play(action)?;
+    }
+    Ok(session)
+}
+
+pub(crate) fn seats(account: Uuid, actions: &[GameAction]) -> Vec<Uuid> {
+    let mut guests: Vec<u64> = actions
+        .iter()
+        .filter_map(|action| guest_number(account, action.actor))
+        .collect();
+    guests.sort_unstable();
+    guests.dedup();
     let newcomer = (1..)
-        .map(|guest| Uuid::from_u64_pair(high ^ GUEST, low ^ guest))
-        .find(|guest| !seats.contains(guest))
+        .find(|guest| !guests.contains(guest))
         .expect("there is always another guest");
-    seats.push(newcomer);
+    let mut seats = vec![account];
+    seats.extend(guests.into_iter().map(|guest| guest_of(account, guest)));
+    seats.push(guest_of(account, newcomer));
     seats
 }
 
-fn seat_name(seat: usize, seats: usize) -> String {
-    match seat {
-        0 => "You".to_owned(),
-        seat if seat + 1 == seats => "New player".to_owned(),
-        seat => format!("Player {}", seat + 1),
-    }
+fn guest_of(account: Uuid, guest: u64) -> Uuid {
+    let (high, low) = account.as_u64_pair();
+    Uuid::from_u64_pair(high ^ GUEST, low ^ guest)
+}
+
+fn guest_number(account: Uuid, actor: Uuid) -> Option<u64> {
+    let (high, low) = account.as_u64_pair();
+    let (actor_high, actor_low) = actor.as_u64_pair();
+    (actor_high == high ^ GUEST && actor_low != low).then_some(actor_low ^ low)
 }
 
 pub(crate) fn module_filter() -> BlockFilter {

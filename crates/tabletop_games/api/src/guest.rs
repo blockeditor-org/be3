@@ -1,68 +1,76 @@
-use std::alloc::{Layout, alloc, dealloc};
 use std::convert::Infallible;
 
-use crate::{GameHelper, GameRequest, GameScreen};
+use crate::{Command, GameHelper, GameScreen};
 
-pub fn allocate(length: u32) -> u32 {
-    let Ok(layout) = layout(length) else {
-        return 0;
-    };
-    unsafe { alloc(layout) as u32 }
+const FIRST_BUFFER: usize = 256;
+
+#[cfg(target_arch = "wasm32")]
+#[link(wasm_import_module = "game")]
+unsafe extern "C" {
+    #[link_name = "next"]
+    fn host_next(buffer: u32, capacity: u32) -> u64;
+    #[link_name = "present"]
+    fn host_present(pointer: u32, length: u32);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+unsafe fn host_next(_: u32, _: u32) -> u64 {
+    panic!("only a game module running in the game host is handed commands")
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+unsafe fn host_present(_: u32, _: u32) {
+    panic!("only a game module running in the game host presents screens")
 }
 
 pub fn text(value: &str) -> u64 {
-    hand_back(value.as_bytes().to_vec())
+    let bytes = value.as_bytes().to_vec().into_boxed_slice();
+    let length = bytes.len() as u64;
+    let pointer = Box::into_raw(bytes) as *mut u8 as u64;
+    (pointer << 32) | length
 }
 
-pub fn show(
-    pointer: u32,
-    length: u32,
-    play: fn(GameHelper<'_>) -> Result<Infallible, GameScreen>,
-) -> u64 {
-    let request = take(pointer, length);
-    let request: GameRequest =
-        bincode::deserialize(&request).expect("the host encodes the request it asks about");
-    let screen = match play(GameHelper::new(&request.actions, request.player)) {
+pub(crate) fn next() -> Command {
+    let mut buffer: Vec<u8> = Vec::with_capacity(FIRST_BUFFER);
+    loop {
+        let length =
+            unsafe { host_next(buffer.as_mut_ptr() as u32, buffer.capacity() as u32) } as usize;
+        if length <= buffer.capacity() {
+            unsafe { buffer.set_len(length) };
+            return bincode::deserialize(&buffer).expect("the host encodes the commands it sends");
+        }
+        buffer.reserve(length);
+    }
+}
+
+pub(crate) fn present(screen: &GameScreen) {
+    let bytes = bincode::serialize(screen).expect("a screen is always encodable");
+    unsafe { host_present(bytes.as_ptr() as u32, bytes.len() as u32) };
+}
+
+pub fn play(game: fn(GameHelper<'_>) -> Result<Infallible, GameScreen>) {
+    let screen = match game(GameHelper::hosted()) {
         Ok(never) => match never {},
         Err(screen) => screen,
     };
-    hand_back(bincode::serialize(&screen).expect("a screen is always encodable"))
-}
-
-fn layout(length: u32) -> Result<Layout, std::alloc::LayoutError> {
-    Layout::from_size_align(length.max(1) as usize, 1)
-}
-
-fn take(pointer: u32, length: u32) -> Vec<u8> {
-    let layout = layout(length).expect("the host asked for this allocation itself");
-    let bytes =
-        unsafe { std::slice::from_raw_parts(pointer as *const u8, length as usize) }.to_vec();
-    unsafe { dealloc(pointer as *mut u8, layout) };
-    bytes
-}
-
-fn hand_back(bytes: Vec<u8>) -> u64 {
-    let length = bytes.len() as u64;
-    let pointer = Box::into_raw(bytes.into_boxed_slice()) as *mut u8 as u64;
-    (pointer << 32) | length
+    loop {
+        if let Command::Show(_) = next() {
+            present(&screen);
+        }
+    }
 }
 
 #[macro_export]
 macro_rules! game {
     ($name:expr, $play:path) => {
-        #[unsafe(no_mangle)]
-        pub extern "C" fn name() -> u64 {
+        #[unsafe(export_name = "name")]
+        pub extern "C" fn game_module_name() -> u64 {
             $crate::guest::text($name)
         }
 
-        #[unsafe(no_mangle)]
-        pub extern "C" fn allocate(length: u32) -> u32 {
-            $crate::guest::allocate(length)
-        }
-
-        #[unsafe(no_mangle)]
-        pub extern "C" fn show(pointer: u32, length: u32) -> u64 {
-            $crate::guest::show(pointer, length, $play)
+        #[unsafe(export_name = "play")]
+        pub extern "C" fn game_module_play() {
+            $crate::guest::play($play)
         }
     };
 }

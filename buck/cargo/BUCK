@@ -1,11 +1,8 @@
 load("//buck/tools:defs.bzl", "rust_sysroot")
 load(":cargo_install.bzl", "cargo_install")
 
-# reindeer, and the cargo and nightly it and buck-tools run in buckify.bxl
-# (--unit-graph is nightly-only), pinned like buck/tools.
-
-# The commit reindeer is built from, and the nightly its rust-toolchain asks for.
-reindeer_revision = "3be7bd2e11d8fe949ae6db0bcbc46db8adab7264"
+# The cargo and nightly buckify.bxl plans the workspace with (--unit-graph is
+# nightly-only), pinned like buck/tools.
 
 nightly = "2026-07-05"
 
@@ -33,18 +30,9 @@ rust_sysroot(
     components = [":nightly-" + component for component in sorted(nightly_components)],
 )
 
-cargo_install(
-    name = "reindeer",
-    package = "reindeer",
-    repository = "https://github.com/facebookincubator/reindeer.git",
-    revision = reindeer_revision,
-    toolchain = ":nightly",
-    visibility = ["PUBLIC"],
-)
-
-# The cargo reindeer asks for `cargo metadata`, beside the rustc it asks for
-# the host's details: rust-toolchain.toml's, the same one the workspace builds
-# with, so the resolution is the one a developer's cargo makes.
+# The cargo that brings Cargo.lock up to date and builds buck-tools:
+# rust-toolchain.toml's, the same one the workspace builds with, so the
+# lockfile is the one a developer's cargo leaves.
 http_archive(
     name = "cargo-component",
     sha256 = "2f512d170d3dd23e16ababcda32ee2e6d5172d861a7af1f504e0b1e270cafab9",

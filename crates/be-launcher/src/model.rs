@@ -1,4 +1,6 @@
-use std::cell::{Cell, RefCell};
+#[cfg(not(target_os = "android"))]
+use std::cell::Cell;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -7,22 +9,34 @@ use beui::reactive::{
     KeyedStore, ReadSignal, Selector, WriteSignal, clone, create_selector, create_signal,
 };
 
-use crate::github::{Entry, Filter, PullRequest, branch_deleted, timeline_images};
+#[cfg(not(target_os = "android"))]
+use crate::github::branch_deleted;
+use crate::github::{Entry, Filter, PullRequest, timeline_images};
+#[cfg(not(target_os = "android"))]
 use crate::pane::Pane;
+#[cfg(target_os = "android")]
+use crate::phone::Phone;
+#[cfg(not(target_os = "android"))]
 use crate::targets::{Action, Target};
 use crate::tasks::{Event, Tasks, open_url};
 
+#[cfg(not(target_os = "android"))]
 const BOLD: &str = "\x1b[1m";
+#[cfg(not(target_os = "android"))]
 const GREEN: &str = "\x1b[32m";
+#[cfg(not(target_os = "android"))]
 const RED: &str = "\x1b[31m";
+#[cfg(not(target_os = "android"))]
 const RESET: &str = "\x1b[0m";
 
+#[cfg(not(target_os = "android"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Common {
     pub(crate) title: &'static str,
     pub(crate) args: &'static str,
 }
 
+#[cfg(not(target_os = "android"))]
 pub(crate) const COMMON: [Common; 7] = [
     Common {
         title: "the app",
@@ -54,6 +68,7 @@ pub(crate) const COMMON: [Common; 7] = [
     },
 ];
 
+#[cfg(not(target_os = "android"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Tab {
     PullRequest,
@@ -61,10 +76,12 @@ pub(crate) enum Tab {
     Log,
 }
 
+#[cfg(not(target_os = "android"))]
 impl Tab {
     pub(crate) const ALL: [Tab; 3] = [Tab::PullRequest, Tab::Targets, Tab::Log];
 }
 
+#[cfg(not(target_os = "android"))]
 fn words(args: &str) -> Vec<String> {
     args.split_whitespace().map(str::to_owned).collect()
 }
@@ -77,7 +94,7 @@ pub(crate) enum Loaded<T> {
 }
 
 type Slot<T> = (ReadSignal<T>, WriteSignal<T>);
-type Cache<K, T> = Rc<RefCell<HashMap<K, Slot<Loaded<T>>>>>;
+pub(crate) type Cache<K, T> = Rc<RefCell<HashMap<K, Slot<Loaded<T>>>>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Viewer {
@@ -102,28 +119,60 @@ pub(crate) struct Model {
     pub(crate) selection: Selector<Option<u64>>,
     timelines: Cache<u64, Vec<Entry>>,
     images: Cache<String, Image>,
+    #[cfg(not(target_os = "android"))]
     pub(crate) head: ReadSignal<String>,
+    #[cfg(not(target_os = "android"))]
     set_head: WriteSignal<String>,
+    #[cfg(not(target_os = "android"))]
     pub(crate) head_summary: ReadSignal<String>,
+    #[cfg(not(target_os = "android"))]
     set_head_summary: WriteSignal<String>,
+    #[cfg(not(target_os = "android"))]
     pub(crate) common: ReadSignal<usize>,
+    #[cfg(not(target_os = "android"))]
     set_common: WriteSignal<usize>,
     pub(crate) viewer: ReadSignal<Option<Viewer>>,
     set_viewer: WriteSignal<Option<Viewer>>,
+    #[cfg(not(target_os = "android"))]
     pub(crate) tab: ReadSignal<Tab>,
+    #[cfg(not(target_os = "android"))]
     set_tab: WriteSignal<Tab>,
+    #[cfg(not(target_os = "android"))]
     stopped: Rc<Cell<bool>>,
+    #[cfg(not(target_os = "android"))]
     pub(crate) targets: ReadSignal<Option<Loaded<Vec<Target>>>>,
+    #[cfg(not(target_os = "android"))]
     set_targets: WriteSignal<Option<Loaded<Vec<Target>>>>,
+    #[cfg(not(target_os = "android"))]
     pub(crate) target_query: ReadSignal<String>,
+    #[cfg(not(target_os = "android"))]
     pub(crate) set_target_query: WriteSignal<String>,
+    #[cfg(not(target_os = "android"))]
     pub(crate) running: ReadSignal<bool>,
+    #[cfg(not(target_os = "android"))]
     set_running: WriteSignal<bool>,
+    #[cfg(not(target_os = "android"))]
     pub(crate) pane: Pane,
+    #[cfg(target_os = "android")]
+    pub(crate) phone: Phone,
 }
 
 impl Model {
+    #[cfg(target_os = "android")]
+    pub(crate) fn new(tasks: Tasks, phone: Phone) -> Self {
+        Self::shared(tasks, phone)
+    }
+
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn new(tasks: Tasks, pane: Pane) -> Self {
+        Self::shared(tasks, pane)
+    }
+
+    fn shared(
+        tasks: Tasks,
+        #[cfg(not(target_os = "android"))] pane: Pane,
+        #[cfg(target_os = "android")] phone: Phone,
+    ) -> Self {
         let (repository, set_repository) = create_signal(Loaded::Loading);
         let (filter, set_filter) = create_signal(Filter::Open);
         let (listing, set_listing) = create_signal(Loaded::Loading);
@@ -132,13 +181,20 @@ impl Model {
         let selection = create_selector(clone!(selected -> move || {
             selected.with(|selected| selected.as_ref().map(|pull_request| pull_request.number))
         }));
+        #[cfg(not(target_os = "android"))]
         let (head, set_head) = create_signal(String::new());
+        #[cfg(not(target_os = "android"))]
         let (head_summary, set_head_summary) = create_signal(String::new());
+        #[cfg(not(target_os = "android"))]
         let (common, set_common) = create_signal(0usize);
+        #[cfg(not(target_os = "android"))]
         let (tab, set_tab) = create_signal(Tab::PullRequest);
         let (viewer, set_viewer) = create_signal(None);
+        #[cfg(not(target_os = "android"))]
         let (targets, set_targets) = create_signal(None);
+        #[cfg(not(target_os = "android"))]
         let (target_query, set_target_query) = create_signal(String::new());
+        #[cfg(not(target_os = "android"))]
         let (running, set_running) = create_signal(false);
         Self {
             tasks,
@@ -156,33 +212,55 @@ impl Model {
             selection,
             timelines: Rc::default(),
             images: Rc::default(),
+            #[cfg(not(target_os = "android"))]
             head,
+            #[cfg(not(target_os = "android"))]
             set_head,
+            #[cfg(not(target_os = "android"))]
             head_summary,
+            #[cfg(not(target_os = "android"))]
             set_head_summary,
+            #[cfg(not(target_os = "android"))]
             common,
+            #[cfg(not(target_os = "android"))]
             set_common,
             viewer,
             set_viewer,
+            #[cfg(not(target_os = "android"))]
             tab,
+            #[cfg(not(target_os = "android"))]
             set_tab,
+            #[cfg(not(target_os = "android"))]
             stopped: Rc::default(),
+            #[cfg(not(target_os = "android"))]
             targets,
+            #[cfg(not(target_os = "android"))]
             set_targets,
+            #[cfg(not(target_os = "android"))]
             target_query,
+            #[cfg(not(target_os = "android"))]
             set_target_query,
+            #[cfg(not(target_os = "android"))]
             running,
+            #[cfg(not(target_os = "android"))]
             set_running,
+            #[cfg(not(target_os = "android"))]
             pane,
+            #[cfg(target_os = "android")]
+            phone,
         }
     }
 
     pub(crate) fn start(&self) {
+        #[cfg(not(target_os = "android"))]
         self.pane
             .write_line("Output from ./scripts/switch and ./scripts/buck shows here.");
         self.tasks.connect();
         self.tasks.list(Filter::Open);
+        #[cfg(not(target_os = "android"))]
         self.tasks.read_head();
+        #[cfg(target_os = "android")]
+        self.phone.start();
     }
 
     pub(crate) fn show(&self, filter: Filter) {
@@ -202,7 +280,25 @@ impl Model {
         if let Some(pull_request) = self.pull_requests.try_get(&number) {
             self.set_selected.set(Some(pull_request.get_untracked()));
         }
+        #[cfg(not(target_os = "android"))]
         self.set_tab.set(Tab::PullRequest);
+    }
+
+    #[cfg(target_os = "android")]
+    pub(crate) fn deselect(&self) {
+        self.set_selected.set(None);
+    }
+
+    #[cfg(not(target_os = "android"))]
+    pub(crate) fn current(&self, pull_request: &PullRequest) -> bool {
+        let head = self.head.get();
+        !head.is_empty() && head == pull_request.head_sha
+    }
+
+    #[cfg(target_os = "android")]
+    pub(crate) fn current(&self, pull_request: &PullRequest) -> bool {
+        self.phone
+            .holds(crate::builds::Slot::PullRequest(pull_request.number))
     }
 
     pub(crate) fn timeline(&self, pull_request: &PullRequest) -> ReadSignal<Loaded<Vec<Entry>>> {
@@ -227,6 +323,11 @@ impl Model {
             write.set(Loaded::Loading);
         }
         self.tasks.timeline(pull_request.clone());
+        #[cfg(target_os = "android")]
+        self.phone.refresh(
+            crate::builds::Slot::PullRequest(pull_request.number),
+            &pull_request.head_sha,
+        );
     }
 
     pub(crate) fn view_image(&self, url: &str) {
@@ -273,6 +374,7 @@ impl Model {
         read
     }
 
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn show_tab(&self, tab: Tab) {
         self.set_tab.set(tab);
         if tab == Tab::Targets && self.targets.get_untracked().is_none() {
@@ -280,11 +382,13 @@ impl Model {
         }
     }
 
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn refresh_targets(&self) {
         self.set_targets.set(Some(Loaded::Loading));
         self.tasks.targets();
     }
 
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn run(&self, args: Vec<String>) {
         if args.is_empty() || self.running.get_untracked() {
             return;
@@ -293,10 +397,12 @@ impl Model {
         self.tasks.run("buck", args);
     }
 
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn run_target(&self, target: &Target, action: Action) {
         self.run(vec![action.verb().to_owned(), target.label.clone()]);
     }
 
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn check_out(&self, pull_request: &PullRequest, then_run: Option<usize>) {
         if self.running.get_untracked() {
             return;
@@ -312,6 +418,7 @@ impl Model {
         self.tasks.run("switch", args);
     }
 
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn run_again(&self) {
         let common = self.common.get_untracked();
         match self.selected.get_untracked() {
@@ -326,6 +433,7 @@ impl Model {
         }
     }
 
+    #[cfg(not(target_os = "android"))]
     fn can_check_out(&self, pull_request: &PullRequest) -> bool {
         let deleted = self
             .timelines
@@ -338,6 +446,7 @@ impl Model {
         pull_request.same_repository && !deleted
     }
 
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn stop(&self) {
         self.stopped.set(true);
         self.tasks.stop();
@@ -408,6 +517,7 @@ impl Model {
                     });
                 }
             }
+            #[cfg(not(target_os = "android"))]
             Event::Head { sha, summary } => {
                 let previous = self.head.get_untracked();
                 if !previous.is_empty() && previous != sha {
@@ -419,17 +529,21 @@ impl Model {
                 self.set_head.set(sha);
                 self.set_head_summary.set(summary);
             }
+            #[cfg(not(target_os = "android"))]
             Event::Started(description) => {
                 self.set_running.set(true);
                 self.stopped.set(false);
                 self.pane
                     .write_line(&format!("{BOLD}$ {description}{RESET}"));
             }
+            #[cfg(not(target_os = "android"))]
             Event::Targets(targets) => self.set_targets.set(Some(match targets {
                 Ok(targets) => Loaded::Ready(targets),
                 Err(error) => Loaded::Failed(error),
             })),
+            #[cfg(not(target_os = "android"))]
             Event::Output(bytes) => self.pane.write(&bytes),
+            #[cfg(not(target_os = "android"))]
             Event::Finished { summary, success } => {
                 let color = if success { GREEN } else { RED };
                 self.pane.write_line(&format!("{color}{summary}{RESET}\n"));
@@ -438,6 +552,8 @@ impl Model {
                     self.set_tab.set(Tab::Log);
                 }
             }
+            #[cfg(target_os = "android")]
+            Event::Phone(event) => self.phone.receive(event),
         }
     }
 }

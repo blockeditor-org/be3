@@ -177,6 +177,17 @@ pub extern "C" fn queue_write_texture(pointer: u32, length: u32, data: u32, data
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn encoder_copy_texture_to_texture(pointer: u32, length: u32) {
+    with(
+        |shim| {
+            let request = read(&shim.scratch, pointer, length);
+            shim.gpu.copy_texture_to_texture(&request);
+        },
+        (),
+    )
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn queue_submit(pointer: u32, length: u32) {
     with(
         |shim| {
@@ -209,50 +220,15 @@ pub extern "C" fn surface_configure(surface: u32, pointer: u32, length: u32) {
     with(
         |shim| {
             let bytes = read(&shim.scratch, pointer, length);
-            let configuration = match abi::decode(&bytes) {
-                Ok(configuration) => configuration,
-                Err(message) => return shim.report(message),
-            };
-            let device = shim.gpu.device().clone();
-            if let Err(message) = shim.canvas.configure(&device, &configuration) {
-                shim.report(message);
-                return;
-            }
-            let _ = surface;
+            shim.gpu.configure_surface(surface, &bytes);
         },
         (),
     )
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn surface_acquire(surface: u32) -> u32 {
-    with(
-        |shim| {
-            let device = shim.gpu.device().clone();
-            match shim.canvas.acquire(&device) {
-                Ok(texture) => {
-                    shim.gpu.attach_surface(surface, texture);
-                    shim.gpu.acquire_surface(surface)
-                }
-                Err(message) => {
-                    shim.report(message);
-                    abi::NULL_HANDLE
-                }
-            }
-        },
-        abi::NULL_HANDLE,
-    )
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn surface_present(surface: u32) {
-    with(
-        |shim| {
-            shim.canvas.present();
-            shim.gpu.present_surface(surface);
-        },
-        (),
-    )
+scalar! {
+    fn surface_acquire(surface: u32) -> u32 => acquire_surface;
+    fn surface_present(surface: u32) => present_surface;
 }
 
 #[unsafe(no_mangle)]
