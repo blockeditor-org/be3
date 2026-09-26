@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
-    Frame, Func, ItemSize, List, ReadSignal, Show, clone, component, create_memo, create_signal,
-    view,
+    Frame, Func, ItemSize, List, ReadSignal, Show, clone, component, create_effect, create_memo,
+    create_signal, view,
 };
 use block_editor_plugin::beui::styled::{Caption, Code, Scroll, Tree, TreeRowFace};
 use block_editor_plugin::beui::unstyled::TreeItem;
@@ -30,7 +30,7 @@ pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
     let (data, set_data) = create_signal(None::<String>);
     let reading = Rc::downgrade(&workspace);
     let read_info = info.clone();
-    workspace.editor().each_frame(move || {
+    create_effect(move || {
         let Some(workspace) = reading.upgrade() else {
             return;
         };

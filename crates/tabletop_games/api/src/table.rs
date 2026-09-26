@@ -3,8 +3,13 @@ use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
 use uuid::Uuid;
 
+use crate::board::{CardTable, Pile, PilePlace, Spot, Spread, Sprite};
 use crate::cards::{Card, deck};
 
+pub const DRAW_PILE: u32 = 0;
+pub const DISCARD_PILE: u32 = 1;
+
+#[derive(Clone)]
 pub struct Table {
     players: Vec<Uuid>,
     hands: Vec<Vec<Card>>,
@@ -100,6 +105,61 @@ impl Table {
             .zip(&self.hands)
             .find(|(_, hand)| hand.is_empty())
             .map(|(player, _)| *player)
+    }
+
+    pub fn hand_pile(&self, player: Uuid) -> Option<u32> {
+        self.players
+            .iter()
+            .position(|seated| *seated == player)
+            .map(|seat| seat as u32 + 2)
+    }
+
+    pub fn in_hand(&self, card: Card) -> Spot {
+        let position = self.hands[self.turn]
+            .iter()
+            .rposition(|held| *held == card)
+            .expect("only a card in the hand has a place in it");
+        Spot::card(self.turn as u32 + 2, position as u32)
+    }
+
+    pub fn board(&self, viewer: Uuid) -> CardTable {
+        let mut piles = vec![
+            Pile {
+                label: "Draw pile".to_owned(),
+                place: PilePlace::Deck,
+                spread: Spread::Stacked,
+                cards: vec![Sprite::CardBack; self.draw_pile.len()],
+            },
+            Pile {
+                label: "Discard pile".to_owned(),
+                place: PilePlace::Discard,
+                spread: Spread::Stacked,
+                cards: self
+                    .discard_pile
+                    .iter()
+                    .copied()
+                    .map(Sprite::Card)
+                    .collect(),
+            },
+        ];
+        for (seat, (player, hand)) in self.players.iter().zip(&self.hands).enumerate() {
+            piles.push(if *player == viewer {
+                Pile {
+                    label: "Your hand".to_owned(),
+                    place: PilePlace::Hand,
+                    spread: Spread::Fanned,
+                    cards: hand.iter().copied().map(Sprite::Card).collect(),
+                }
+            } else {
+                Pile {
+                    label: format!("Player {}", seat + 1),
+                    place: PilePlace::Opponent,
+                    spread: Spread::Fanned,
+                    cards: vec![Sprite::CardBack; hand.len()],
+                }
+            });
+        }
+        CardTable { piles }
     }
 }
 

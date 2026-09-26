@@ -149,6 +149,9 @@ way for the test to fail.
   request CI does the same, and when that writes a painting it fails the run and pushes the
   painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/buck run //:verify -- --check, which sets nothing,
   so a painting that was never committed fails there.
+- Once every plugin test passes, //:verify deletes each painting in snapshots/ that no test
+  compared, so renaming or removing a snapshot takes its old file with it; with --check it
+  fails on them instead. A single editor's test run leaves the folder alone.
 - A changed painting is for a person to review, not for you. They review it in a Paint
   review block, which reads the folder from the repository's dev branch, so a painting is
   reviewed once it has been pushed rather than from the machine that made it. Approving is

@@ -5,6 +5,7 @@ use super::Table;
 mod dealing_gives_every_player_a_hand_and_turns_one_card_face_up;
 mod drawing_shuffles_the_discard_pile_back_under_the_face_up_card;
 mod drawing_with_nothing_left_to_draw_answers_nothing;
+mod each_viewer_sees_their_own_hand_and_the_backs_of_everyone_elses;
 mod playing_a_card_moves_it_from_the_hand_to_the_face_up_card;
 mod the_turn_passes_to_the_left_and_comes_back_round;
 

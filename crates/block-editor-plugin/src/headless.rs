@@ -33,10 +33,10 @@ pub struct HeadlessPlugin {
 }
 
 impl HeadlessPlugin {
-    pub fn new<A: BeuiApp>(id: &str, name: &str, version: &str) -> Self {
+    pub fn new(id: &str, name: &str, version: &str) -> Self {
         Self {
             session: ClientSession::new(id, name, version),
-            screens: Screens::new::<A>(Waker::default()),
+            screens: Screens::new(Vec::new(), Waker::default()),
             generation: 0,
         }
     }

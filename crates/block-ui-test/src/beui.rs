@@ -131,6 +131,10 @@ impl<A: BeuiApp> BeuiTest<A> {
             Adopted::Creation(creation) => creation.host().clone(),
             Adopted::Artifacts(artifacts) => artifacts.host().clone(),
         };
+        let template = match &adopted {
+            Adopted::Creation(creation) => creation.template().to_owned(),
+            _ => String::new(),
+        };
         let artifact = match &adopted {
             Adopted::Artifacts(artifacts) => Some(artifacts.block_id()),
             _ => None,
@@ -138,7 +142,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         let wakes = Arc::new(Wakes::default());
         let woken = Arc::clone(&wakes);
         host.waker().install(move || woken.wake());
-        let mut plugin = HeadlessPlugin::new::<A>("block-ui-test", "block-ui-test", "0");
+        let mut plugin = HeadlessPlugin::new("block-ui-test", "block-ui-test", "0");
         plugin.adopt::<A>(INSTANCE, adopted);
         let store = ContentStore::new(host.workspace_id());
         let block_type = host.block_type().unwrap_or_default();
@@ -162,12 +166,15 @@ impl<A: BeuiApp> BeuiTest<A> {
             }
             Kind::Creation => EditorMessage::OpenCreation {
                 instance: INSTANCE,
+                block_type: block_type.into_bytes(),
+                template: template.clone(),
                 account_id,
                 workspace_id,
                 client_id,
             },
             Kind::Settings => EditorMessage::OpenArtifact {
                 instance: INSTANCE,
+                source_type: block_type.into_bytes(),
                 block_id: artifact.unwrap_or_default().into_bytes(),
                 block_type: block_type.into_bytes(),
                 account_id,
@@ -281,6 +288,10 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn content<C: LiveEdit + Clone>(&self, block: Option<Uuid>) -> C {
         self.store.content(block)
+    }
+
+    pub fn applied(&self, block: Option<Uuid>) -> u64 {
+        self.store.applied(block)
     }
 
     pub fn holds(&self, block: Option<Uuid>) -> bool {

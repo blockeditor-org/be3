@@ -6,6 +6,7 @@ use crate::app::FileTreeApp;
 
 mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
+mod inspecting_a_row_shows_what_is_known_about_its_block;
 
 struct Fixture {
     test: BeuiTest<FileTreeApp>,

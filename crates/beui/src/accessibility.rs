@@ -199,6 +199,11 @@ impl AccessibilityView<'_> {
     pub(crate) fn len(&self) -> usize {
         self.tree.entries.iter().count()
     }
+
+    #[cfg(test)]
+    pub(crate) fn nodes(&self) -> impl Iterator<Item = &Node> {
+        self.tree.entries.iter().map(|(_, entry)| &entry.node)
+    }
 }
 
 struct Pass<'a> {

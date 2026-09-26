@@ -428,6 +428,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
         (state.clone(), state.clone(), state.clone(), state.clone());
     let reader_state = state.clone();
     let filter_state = state.clone();
+    let band_state = state.clone();
     view! {
         <Scroll focus_color={Some(THEME.accent)}>
             <List spacing=PERFORMANCE_SPACING>
@@ -442,6 +443,12 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                     label="Simulate mouse with touch"
                     checked={state.mouse_simulation.get()}
                     on_change={move |enabled| mouse_state.mouse_simulation.set(enabled)}
+                />
+                <Checkbox
+                    @test_id={"inspector.simulation.rubber_banding"}
+                    label="Rubber-band scrolls and windows"
+                    checked={state.rubber_banding.get()}
+                    on_change={move |enabled| band_state.rubber_banding.set(enabled)}
                 />
                 <Separator />
                 <List spacing=TIMING_SPACING>

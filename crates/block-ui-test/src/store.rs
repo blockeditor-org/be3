@@ -246,6 +246,15 @@ impl ContentStore {
         held.content.typed::<C>().clone()
     }
 
+    pub fn applied(&self, block: Option<Uuid>) -> u64 {
+        let key = self.key(block);
+        self.0
+            .borrow()
+            .blocks
+            .get(&key)
+            .map_or(0, |held| held.taken)
+    }
+
     pub fn holds(&self, block: Option<Uuid>) -> bool {
         let key = self.key(block);
         self.0.borrow().blocks.contains_key(&key)

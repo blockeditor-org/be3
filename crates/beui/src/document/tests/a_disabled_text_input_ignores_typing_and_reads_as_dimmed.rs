@@ -19,7 +19,6 @@ fn a_disabled_text_input_ignores_typing_and_reads_as_dimmed() {
     });
     let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
-    let text = unstyled::text_input_text(harness.document(), input);
 
     let tree = output.accessibility_tree("Test", VIEWPORT);
     let field = tree
@@ -35,6 +34,9 @@ fn a_disabled_text_input_ignores_typing_and_reads_as_dimmed() {
     harness.type_text("b");
     harness.frame(Vec::new());
 
-    assert_eq!(text_of(harness.document(), text), "Locked");
+    assert_eq!(
+        unstyled::text_input_shown(harness.document(), input),
+        "Locked"
+    );
     assert!(changes.borrow().is_empty());
 }

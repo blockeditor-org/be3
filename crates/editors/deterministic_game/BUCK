@@ -1,6 +1,12 @@
 load("@root//buck/wasm:defs.bzl", "editor")
 
+# The tests play real games, so they are compiled against the modules those
+# games build.
 editor(
     name = "deterministic_game",
     module = "deterministic_game",
+    test_env = {
+        "CRAZY_8S_WASM": "$(location //crates/tabletop_games/rules/crazy_8s:module)",
+        "TIC_TAC_TOE_WASM": "$(location //crates/tabletop_games/rules/tic_tac_toe:module)",
+    },
 )

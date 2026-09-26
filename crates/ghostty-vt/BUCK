@@ -1,7 +1,7 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 
-# libghostty-vt, block-app's terminal emulator: Zig, built on a worker by
+# libghostty-vt, be-launcher's terminal emulator: Zig, built on a worker by
 # scripts/internal/build-ghostty-vt.sh, which downloads Zig and Ghostty pinned
 # by hash and commit - the one action that needs the network. Zig
 # cross-compiles, so every platform's archive comes from the same worker;
