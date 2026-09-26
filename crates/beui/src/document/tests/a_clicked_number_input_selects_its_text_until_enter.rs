@@ -19,10 +19,9 @@ fn a_clicked_number_input_selects_its_text_until_enter() {
     harness.frame(Vec::new());
     let field = number_input_field(harness.document(), input).expect("a click opens the field");
 
-    assert_eq!(
-        unstyled::text_input_selection(harness.document(), field),
-        [0..4]
-    );
+    let opened = unstyled::text_input_selection(harness.document(), field);
+    assert_eq!(opened.len(), 1);
+    assert_eq!(opened[0], 0..4);
 
     let left = pos2(harness.rect(field).left() + 12.0, middle.y);
     harness.drag(left, left + Vec2::new(18.0, 0.0));
