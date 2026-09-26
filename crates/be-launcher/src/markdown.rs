@@ -1,3 +1,6 @@
+use comrak::nodes::{AstNode, NodeValue};
+use comrak::{Arena, Options, parse_document};
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Block {
     Heading(String),
@@ -27,194 +30,157 @@ pub(crate) fn images(blocks: &[Block], found: &mut Vec<String>) {
 }
 
 pub(crate) fn blocks(markdown: &str) -> Vec<Block> {
-    let text = html_breaks(&without_comments(&markdown.replace('\r', "")));
-    let mut parsed = Parsed::default();
-    let mut lines = text.lines();
-    while let Some(line) = lines.next() {
-        let trimmed = line.trim();
-        if let Some(fence) = fence(trimmed) {
-            parsed.flush();
-            let mut code = Vec::new();
-            for line in lines.by_ref() {
-                if line.trim().starts_with(fence) {
-                    break;
+    parse(markdown, true)
+}
+
+fn parse(markdown: &str, html: bool) -> Vec<Block> {
+    let arena = Arena::new();
+    let mut options = Options::default();
+    options.extension.table = true;
+    options.extension.strikethrough = true;
+    options.extension.autolink = true;
+    options.extension.tasklist = true;
+    let root = parse_document(&arena, markdown, &options);
+    let mut found = Vec::new();
+    for child in root.children() {
+        block(child, html, &mut found);
+    }
+    found
+}
+
+fn block<'a>(node: &'a AstNode<'a>, html: bool, found: &mut Vec<Block>) {
+    let value = node.data().value.clone();
+    match value {
+        NodeValue::Paragraph => inline(node, Block::Paragraph, found),
+        NodeValue::Heading(_) => inline(node, Block::Heading, found),
+        NodeValue::CodeBlock(code) => {
+            found.push(Block::Code(code.literal.trim_end_matches('\n').to_owned()));
+        }
+        NodeValue::ThematicBreak => found.push(Block::Rule),
+        NodeValue::BlockQuote | NodeValue::MultilineBlockQuote(_) | NodeValue::Alert(_) => {
+            for child in node.children() {
+                match child.data().value {
+                    NodeValue::Paragraph => inline(child, Block::Quote, found),
+                    _ => block(child, html, found),
                 }
-                code.push(line);
             }
-            parsed.blocks.push(Block::Code(code.join("\n")));
-        } else if trimmed.starts_with('|') {
-            parsed.flush();
-            let mut rows = vec![trimmed];
-            while let Some(next) = lines.clone().next().map(str::trim)
-                && next.starts_with('|')
-            {
-                rows.push(next);
-                lines.next();
-            }
-            parsed.blocks.push(table(&rows));
-        } else if trimmed.is_empty() {
-            parsed.flush();
-        } else if is_rule(trimmed) {
-            parsed.flush();
-            parsed.blocks.push(Block::Rule);
-        } else if let Some(heading) = heading(trimmed) {
-            parsed.flush();
-            parsed.inline(heading, Block::Heading);
-        } else if let Some(quoted) = trimmed.strip_prefix('>') {
-            parsed.continue_with(Kind::Quote, quoted.trim());
-        } else if let Some(item) = item(trimmed) {
-            parsed.flush();
-            parsed.continue_with(Kind::Item, item);
-        } else {
-            let kind = match parsed.open {
-                Some((Kind::Item, _)) if line.starts_with([' ', '\t']) => Kind::Item,
-                _ => Kind::Paragraph,
-            };
-            parsed.continue_with(kind, trimmed);
         }
-    }
-    parsed.flush();
-    parsed.blocks
-}
-
-#[derive(Clone, Copy, PartialEq)]
-enum Kind {
-    Paragraph,
-    Quote,
-    Item,
-}
-
-#[derive(Default)]
-struct Parsed {
-    blocks: Vec<Block>,
-    open: Option<(Kind, String)>,
-}
-
-impl Parsed {
-    fn continue_with(&mut self, kind: Kind, text: &str) {
-        match &mut self.open {
-            Some((open, collected)) if *open == kind && kind != Kind::Item => {
-                collected.push(' ');
-                collected.push_str(text);
+        NodeValue::Item(_) | NodeValue::TaskItem(_) => {
+            for child in node.children() {
+                match child.data().value {
+                    NodeValue::Paragraph => inline(child, Block::Item, found),
+                    _ => block(child, html, found),
+                }
             }
-            Some((Kind::Item, collected)) if kind == Kind::Item && !collected.is_empty() => {
-                collected.push(' ');
-                collected.push_str(text);
-            }
-            _ => {
-                self.flush();
-                self.open = Some((kind, text.to_owned()));
+        }
+        NodeValue::Table(_) => {
+            let rows = node
+                .children()
+                .map(|row| {
+                    row.children()
+                        .map(|cell| {
+                            let mut blocks = Vec::new();
+                            inline(cell, Block::Paragraph, &mut blocks);
+                            blocks
+                        })
+                        .collect()
+                })
+                .collect();
+            found.push(Block::Table(rows));
+        }
+        NodeValue::HtmlBlock(block) if html => {
+            found.extend(parse(
+                &html_breaks(&without_comments(&block.literal)),
+                false,
+            ));
+        }
+        NodeValue::HtmlBlock(block) => raw_html(&block.literal, found),
+        _ => {
+            for child in node.children() {
+                self::block(child, html, found);
             }
         }
     }
-
-    fn flush(&mut self) {
-        let Some((kind, text)) = self.open.take() else {
-            return;
-        };
-        let wrap = match kind {
-            Kind::Paragraph => Block::Paragraph,
-            Kind::Quote => Block::Quote,
-            Kind::Item => Block::Item,
-        };
-        self.inline(&text, wrap);
-    }
-
-    fn inline(&mut self, text: &str, wrap: fn(String) -> Block) {
-        let mut rest = text;
-        while let Some((start, end, url, alt)) = next_image(rest) {
-            self.text(&rest[..start], wrap);
-            self.blocks.push(Block::Image { url, alt });
-            rest = &rest[end..];
-        }
-        self.text(rest, wrap);
-    }
-
-    fn text(&mut self, text: &str, wrap: fn(String) -> Block) {
-        let cleaned = plain(text);
-        if !cleaned.is_empty() {
-            self.blocks.push(wrap(cleaned));
-        }
-    }
 }
 
-fn table(rows: &[&str]) -> Block {
-    Block::Table(
-        rows.iter()
-            .map(|row| cells(row))
-            .filter(|cells| !cells.iter().all(|cell| is_divider(cell)))
-            .map(|cells| {
-                cells
-                    .into_iter()
-                    .map(|cell| {
-                        let mut parsed = Parsed::default();
-                        parsed.inline(cell, Block::Paragraph);
-                        parsed.blocks
-                    })
-                    .collect()
-            })
-            .collect(),
-    )
+fn inline<'a>(node: &'a AstNode<'a>, wrap: fn(String) -> Block, found: &mut Vec<Block>) {
+    let mut text = String::new();
+    gather(node, wrap, &mut text, found);
+    flush(&mut text, wrap, found);
 }
 
-fn cells(row: &str) -> Vec<&str> {
-    let row = row.trim();
-    let row = row.strip_prefix('|').unwrap_or(row);
-    let row = row.strip_suffix('|').unwrap_or(row);
-    row.split('|').map(str::trim).collect()
-}
-
-fn is_divider(cell: &str) -> bool {
-    !cell.is_empty()
-        && cell
-            .chars()
-            .all(|character| matches!(character, '-' | ':' | ' '))
-}
-
-fn fence(line: &str) -> Option<&'static str> {
-    if line.starts_with("```") {
-        Some("```")
-    } else if line.starts_with("~~~") {
-        Some("~~~")
-    } else {
-        None
-    }
-}
-
-fn is_rule(line: &str) -> bool {
-    let compact: String = line.chars().filter(|character| *character != ' ').collect();
-    compact.len() >= 3
-        && ['-', '*', '_']
-            .iter()
-            .any(|marker| compact.chars().all(|character| character == *marker))
-}
-
-fn heading(line: &str) -> Option<&str> {
-    let level = line
-        .chars()
-        .take_while(|character| *character == '#')
-        .count();
-    if (1..=6).contains(&level) {
-        line[level..].strip_prefix(' ').map(str::trim)
-    } else {
-        None
-    }
-}
-
-fn item(line: &str) -> Option<&str> {
-    for marker in ["- ", "* ", "+ "] {
-        if let Some(rest) = line.strip_prefix(marker) {
-            return Some(rest.trim());
+fn gather<'a>(
+    node: &'a AstNode<'a>,
+    wrap: fn(String) -> Block,
+    text: &mut String,
+    found: &mut Vec<Block>,
+) {
+    for child in node.children() {
+        let value = child.data().value.clone();
+        match value {
+            NodeValue::Text(literal) => text.push_str(&literal),
+            NodeValue::Code(code) => text.push_str(&code.literal),
+            NodeValue::SoftBreak | NodeValue::LineBreak => text.push(' '),
+            NodeValue::Image(link) => {
+                flush(text, wrap, found);
+                let mut alt = String::new();
+                gather(child, wrap, &mut alt, &mut Vec::new());
+                found.push(Block::Image {
+                    url: link.url.clone(),
+                    alt: alt.trim().to_owned(),
+                });
+            }
+            NodeValue::HtmlInline(tag) => {
+                if let Some((_, _, url, alt)) = html_image(&tag) {
+                    flush(text, wrap, found);
+                    found.push(Block::Image { url, alt });
+                } else if tag.to_ascii_lowercase().starts_with("<br") {
+                    text.push(' ');
+                }
+            }
+            _ => gather(child, wrap, text, found),
         }
     }
-    let digits = line.chars().take_while(char::is_ascii_digit).count();
-    if digits > 0 {
-        let rest = &line[digits..];
-        if let Some(rest) = rest.strip_prefix(". ").or_else(|| rest.strip_prefix(") ")) {
-            return Some(rest.trim());
+}
+
+fn flush(text: &mut String, wrap: fn(String) -> Block, found: &mut Vec<Block>) {
+    let collapsed = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    text.clear();
+    if !collapsed.is_empty() {
+        found.push(wrap(collapsed));
+    }
+}
+
+fn raw_html(html: &str, found: &mut Vec<Block>) {
+    let mut rest = html;
+    while let Some((start, end, url, alt)) = html_image(rest) {
+        plain_text(&rest[..start], found);
+        found.push(Block::Image { url, alt });
+        rest = &rest[end..];
+    }
+    plain_text(rest, found);
+}
+
+fn plain_text(html: &str, found: &mut Vec<Block>) {
+    let mut text = String::new();
+    let mut in_tag = false;
+    for character in html.chars() {
+        match character {
+            '<' => in_tag = true,
+            '>' if in_tag => in_tag = false,
+            _ if in_tag => {}
+            _ => text.push(character),
         }
     }
-    None
+    let text = text
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&");
+    let mut text = text;
+    flush(&mut text, Block::Paragraph, found);
 }
 
 fn without_comments(text: &str) -> String {
@@ -250,41 +216,13 @@ fn html_breaks(text: &str) -> String {
             "li" if !tag[1..].starts_with('/') => out.push_str("\n\n- "),
             "p" | "br" | "div" | "ul" | "ol" | "li" | "details" | "summary" | "blockquote"
             | "table" | "tr" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => out.push_str("\n\n"),
+            "td" | "th" => out.push(' '),
             _ => out.push_str(&tag[..=close]),
         }
         rest = &tag[close + 1..];
     }
     out.push_str(rest);
     out
-}
-
-fn next_image(text: &str) -> Option<(usize, usize, String, String)> {
-    let markdown = markdown_image(text);
-    let html = html_image(text);
-    match (markdown, html) {
-        (Some(markdown), Some(html)) if html.0 < markdown.0 => Some(html),
-        (Some(markdown), _) => Some(markdown),
-        (None, html) => html,
-    }
-}
-
-fn markdown_image(text: &str) -> Option<(usize, usize, String, String)> {
-    let mut from = 0;
-    while let Some(offset) = text[from..].find("![") {
-        let start = from + offset;
-        let after = &text[start + 2..];
-        if let Some(close) = after.find("](") {
-            let alt = &after[..close];
-            let target = &after[close + 2..];
-            if let Some(end) = target.find(')') {
-                let url = target[..end].split_whitespace().next().unwrap_or_default();
-                let consumed = start + 2 + close + 2 + end + 1;
-                return Some((start, consumed, url.to_owned(), alt.to_owned()));
-            }
-        }
-        from = start + 2;
-    }
-    None
 }
 
 fn html_image(text: &str) -> Option<(usize, usize, String, String)> {
@@ -324,55 +262,4 @@ fn attribute(tag: &str, name: &str) -> Option<String> {
         from = at + name.len();
     }
     None
-}
-
-fn plain(text: &str) -> String {
-    let linked = links_as_text(text);
-    let mut plain = String::with_capacity(linked.len());
-    let mut in_tag = false;
-    let characters: Vec<char> = linked.chars().collect();
-    for (index, &character) in characters.iter().enumerate() {
-        let spaced = |at: Option<&char>| at.is_none_or(|neighbour| neighbour.is_whitespace());
-        match character {
-            '<' => in_tag = true,
-            '>' if in_tag => in_tag = false,
-            _ if in_tag => {}
-            '`' => {}
-            '*' if !(spaced(
-                index
-                    .checked_sub(1)
-                    .and_then(|before| characters.get(before)),
-            ) && spaced(characters.get(index + 1))) => {}
-            _ => plain.push(character),
-        }
-    }
-    let plain = plain.replace("__", "").replace("~~", "");
-    let plain = plain
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&nbsp;", " ")
-        .replace("&amp;", "&");
-    plain.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-fn links_as_text(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut rest = text;
-    while let Some(open) = rest.find('[') {
-        let after = &rest[open + 1..];
-        let Some(close) = after.find("](") else {
-            break;
-        };
-        let target = &after[close + 2..];
-        let Some(end) = target.find(')') else {
-            break;
-        };
-        out.push_str(&rest[..open]);
-        out.push_str(&after[..close]);
-        rest = &target[end + 1..];
-    }
-    out.push_str(rest);
-    out
 }

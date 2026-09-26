@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -112,6 +112,7 @@ pub(crate) struct Model {
     set_viewer: WriteSignal<Option<Viewer>>,
     pub(crate) tab: ReadSignal<Tab>,
     set_tab: WriteSignal<Tab>,
+    stopped: Rc<Cell<bool>>,
     pub(crate) targets: ReadSignal<Option<Loaded<Vec<Target>>>>,
     set_targets: WriteSignal<Option<Loaded<Vec<Target>>>>,
     pub(crate) target_query: ReadSignal<String>,
@@ -165,6 +166,7 @@ impl Model {
             set_viewer,
             tab,
             set_tab,
+            stopped: Rc::default(),
             targets,
             set_targets,
             target_query,
@@ -200,7 +202,6 @@ impl Model {
         if let Some(pull_request) = self.pull_requests.try_get(&number) {
             self.set_selected.set(Some(pull_request.get_untracked()));
         }
-        self.set_tab.set(Tab::PullRequest);
     }
 
     pub(crate) fn timeline(&self, pull_request: &PullRequest) -> ReadSignal<Loaded<Vec<Entry>>> {
@@ -288,7 +289,6 @@ impl Model {
             return;
         }
         self.set_running.set(true);
-        self.set_tab.set(Tab::Log);
         self.tasks.run("buck", args);
     }
 
@@ -308,11 +308,11 @@ impl Model {
             args.extend(words(common.1.args));
         }
         self.set_running.set(true);
-        self.set_tab.set(Tab::Log);
         self.tasks.run("switch", args);
     }
 
     pub(crate) fn stop(&self) {
+        self.stopped.set(true);
         self.tasks.stop();
     }
 
@@ -394,6 +394,7 @@ impl Model {
             }
             Event::Started(description) => {
                 self.set_running.set(true);
+                self.stopped.set(false);
                 self.pane
                     .write_line(&format!("{BOLD}$ {description}{RESET}"));
             }
@@ -406,6 +407,9 @@ impl Model {
                 let color = if success { GREEN } else { RED };
                 self.pane.write_line(&format!("{color}{summary}{RESET}\n"));
                 self.set_running.set(false);
+                if !success && !self.stopped.replace(false) {
+                    self.set_tab.set(Tab::Log);
+                }
             }
         }
     }

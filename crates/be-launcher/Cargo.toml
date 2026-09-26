@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 beui = { path = "../beui" }
+comrak = { version = "0.55", default-features = false }
 ghostty-vt = { path = "../ghostty-vt" }
 image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 portable-pty = "0.9"
