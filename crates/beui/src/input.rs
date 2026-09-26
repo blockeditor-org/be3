@@ -165,6 +165,35 @@ pub struct DragGesture {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
+pub struct SecondaryDrag {
+    pub from: Pos2,
+    pub pos: Pos2,
+    pub started: bool,
+    pub ended: bool,
+    pub cancelled: bool,
+    pub modifiers: Modifiers,
+}
+
+impl SecondaryDrag {
+    fn new(pos: Pos2, modifiers: Modifiers) -> Self {
+        Self {
+            from: pos,
+            pos,
+            started: true,
+            ended: false,
+            cancelled: false,
+            modifiers,
+        }
+    }
+
+    fn cancel(drag: &mut Option<Self>) {
+        if let Some(drag) = drag {
+            drag.cancelled = true;
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ZoomGesture {
     pub factor: f32,
     pub pos: Pos2,
@@ -356,11 +385,19 @@ impl InputState {
                 .any(|event| matches!(event, Event::Touch { .. }));
         for event in &raw.events {
             match event {
-                Event::PointerMoved(pos) if !suppress_mouse => self.pointer.pos = Some(*pos),
+                Event::PointerMoved(pos) if !suppress_mouse => {
+                    self.pointer.pos = Some(*pos);
+                    if self.pointer.secondary_down
+                        && let Some(drag) = &mut self.pointer.secondary_drag
+                    {
+                        drag.pos = *pos;
+                    }
+                }
                 Event::PointerMotion(delta) => {
                     self.pointer.motion += *delta;
                 }
                 Event::PointerGone if !suppress_mouse => {
+                    SecondaryDrag::cancel(&mut self.pointer.secondary_drag);
                     self.pointer.pos = None;
                     self.pointer.primary_down = false;
                     self.pointer.secondary_down = false;
@@ -368,6 +405,7 @@ impl InputState {
                 }
                 Event::Focus(false) => {
                     self.touch.cancel(&mut self.pointer);
+                    SecondaryDrag::cancel(&mut self.pointer.secondary_drag);
                     self.pointer.pos = None;
                     self.pointer.primary_down = false;
                     self.pointer.secondary_down = false;
@@ -395,8 +433,14 @@ impl InputState {
                             self.pointer.secondary_down = *pressed;
                             if *pressed {
                                 self.pointer.secondary_pressed = true;
+                                self.pointer.secondary_drag =
+                                    Some(SecondaryDrag::new(*pos, *modifiers));
                             } else {
                                 self.pointer.secondary_released = true;
+                                if let Some(drag) = &mut self.pointer.secondary_drag {
+                                    drag.pos = *pos;
+                                    drag.ended = true;
+                                }
                             }
                         }
                         PointerButton::Middle => {
@@ -443,6 +487,7 @@ pub struct Pointer {
     pub middle_down: bool,
     pub middle_pressed: bool,
     pub middle_released: bool,
+    pub secondary_drag: Option<SecondaryDrag>,
     clicks: u32,
     last_click: Option<(Instant, Pos2)>,
     from_touch: bool,
@@ -475,6 +520,7 @@ pub struct TouchState {
     pinch_pan: Vec2,
     pinch_center: Option<Pos2>,
     pinch_span: Option<f32>,
+    hold: Option<(TouchId, Pos2)>,
 }
 
 impl Default for TouchState {
@@ -497,6 +543,7 @@ impl Default for TouchState {
             pinch_pan: Vec2::ZERO,
             pinch_center: None,
             pinch_span: None,
+            hold: None,
         }
     }
 }
@@ -545,7 +592,11 @@ impl TouchState {
     fn start(&mut self, id: TouchId, pos: Pos2, force: Option<f32>, pointer: &mut Pointer) {
         self.points.insert(id, TouchPoint { id, pos, force });
         self.measure_pinch();
-        if self.primary.is_some() {
+        if let Some(anchor) = self.primary_pos() {
+            if !self.dragged && self.hold.is_none() && self.points.len() == 2 {
+                self.hold = Some((id, anchor));
+                pointer.secondary_drag = Some(SecondaryDrag::new(pos, Modifiers::NONE));
+            }
             self.cancelled = true;
             self.dragged = true;
             self.multi = true;
@@ -574,6 +625,16 @@ impl TouchState {
         };
         point.pos = pos;
         point.force = force;
+        if let Some((finger, anchor)) = self.hold {
+            if finger == id {
+                if let Some(drag) = &mut pointer.secondary_drag {
+                    drag.pos = pos;
+                }
+            } else if self.primary == Some(id) && pos.distance(anchor) >= TOUCH_DRAG_THRESHOLD {
+                self.hold = None;
+                SecondaryDrag::cancel(&mut pointer.secondary_drag);
+            }
+        }
         self.measure_pinch();
         if self.primary != Some(id) {
             return;
@@ -613,6 +674,16 @@ impl TouchState {
         self.points.remove(&id);
         self.pinch_span = None;
         self.pinch_center = None;
+        if let Some((finger, _)) = self.hold {
+            let lifted = finger == id;
+            if lifted || self.primary == Some(id) {
+                self.hold = None;
+                match (lifted && !cancelled, &mut pointer.secondary_drag) {
+                    (true, Some(drag)) => drag.ended = true,
+                    _ => SecondaryDrag::cancel(&mut pointer.secondary_drag),
+                }
+            }
+        }
         if self.primary != Some(id) {
             return;
         }
@@ -639,6 +710,7 @@ impl TouchState {
         let span = first.distance(second);
         let center = Pos2::new((first.x + second.x) * 0.5, (first.y + second.y) * 0.5);
         if let (Some(previous_span), Some(previous_center)) = (self.pinch_span, self.pinch_center)
+            && self.hold.is_none()
             && previous_span > 0.0
             && span > 0.0
         {
@@ -660,6 +732,9 @@ impl TouchState {
     fn cancel(&mut self, pointer: &mut Pointer) {
         if self.primary.is_some() {
             self.cancelled = true;
+        }
+        if self.hold.take().is_some() {
+            SecondaryDrag::cancel(&mut pointer.secondary_drag);
         }
         self.points.clear();
         self.primary = None;
@@ -760,6 +835,13 @@ impl TouchState {
 
 impl Pointer {
     fn begin_frame(&mut self) {
+        self.secondary_drag = self
+            .secondary_drag
+            .filter(|drag| !drag.ended && !drag.cancelled)
+            .map(|drag| SecondaryDrag {
+                started: false,
+                ..drag
+            });
         self.primary_pressed = false;
         self.primary_released = false;
         self.secondary_pressed = false;
