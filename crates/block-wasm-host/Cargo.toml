@@ -11,7 +11,7 @@ all-arch = ["wasmtime/all-arch"]
 block-gpu-abi = { path = "../block-gpu-abi" }
 block-gpu-host = { path = "../block-gpu-host" }
 wasmtime = { version = "48", default-features = false, features = ["cache", "cranelift", "gc", "gc-drc", "parallel-compilation", "runtime", "std", "threads"] }
-wasmtime-wasi = { version = "48", default-features = false, features = ["p1"] }
+wasmtime-wasi = { version = "49", default-features = false, features = ["p1"] }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
 [lints]
