@@ -22,8 +22,8 @@ use crate::color::Color32;
 use crate::context::Context;
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, RawInput,
-    TouchId, TouchPhase,
+    BackGesture, CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton,
+    RawInput, TouchId, TouchPhase,
 };
 use crate::renderer::{Renderer, RendererInfo, Repaint, clear_color};
 
@@ -36,27 +36,38 @@ const TOUCH_CURSOR_SAMPLES: u16 = 4;
 enum UserEvent {
     AccessKit(AccessKitEvent),
     SafeArea(SafeArea),
+    Back(BackGesture),
     Wake,
 }
 
-static SAFE_AREA: Mutex<(SafeArea, Option<EventLoopProxy<UserEvent>>)> = Mutex::new((
-    SafeArea {
-        left: 0.0,
-        top: 0.0,
-        right: 0.0,
-        bottom: 0.0,
-    },
-    None,
-));
+static PROXY: Mutex<Option<EventLoopProxy<UserEvent>>> = Mutex::new(None);
+
+static SAFE_AREA: Mutex<SafeArea> = Mutex::new(SafeArea {
+    left: 0.0,
+    top: 0.0,
+    right: 0.0,
+    bottom: 0.0,
+});
+
+fn locked<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+fn send(event: UserEvent) {
+    if let Some(proxy) = &*locked(&PROXY) {
+        let _ = proxy.send_event(event);
+    }
+}
 
 pub fn set_safe_area(area: SafeArea) {
-    let mut shared = SAFE_AREA
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    shared.0 = area;
-    if let Some(proxy) = &shared.1 {
-        let _ = proxy.send_event(UserEvent::SafeArea(area));
-    }
+    *locked(&SAFE_AREA) = area;
+    send(UserEvent::SafeArea(area));
+}
+
+pub fn send_back(gesture: BackGesture) {
+    send(UserEvent::Back(gesture));
 }
 
 impl From<AccessKitEvent> for UserEvent {
@@ -80,13 +91,8 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
     }
     let event_loop = builder.build()?;
     event_loop.set_control_flow(ControlFlow::Wait);
-    let safe_area = {
-        let mut shared = SAFE_AREA
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        shared.1 = Some(event_loop.create_proxy());
-        shared.0
-    };
+    *locked(&PROXY) = Some(event_loop.create_proxy());
+    let safe_area = *locked(&SAFE_AREA);
     let accessibility_dump = options
         .accessibility_dump
         .clone()
@@ -117,6 +123,8 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
         held_modifiers: Vec::new(),
         #[cfg(target_os = "android")]
         tapped_at: None,
+        #[cfg(target_os = "android")]
+        handles_back: false,
     };
     event_loop.run_app(&mut runner)?;
     match runner.error {
@@ -233,6 +241,8 @@ struct Runner {
     held_modifiers: Vec<KeyCode>,
     #[cfg(target_os = "android")]
     tapped_at: Option<Pos2>,
+    #[cfg(target_os = "android")]
+    handles_back: bool,
 }
 
 impl Runner {
@@ -370,6 +380,11 @@ impl Runner {
         {
             use winit::platform::android::ActiveEventLoopExtAndroid;
             self.soft_keyboard.show(event_loop.android_app());
+        }
+        #[cfg(target_os = "android")]
+        if output.handles_back != self.handles_back {
+            self.handles_back = output.handles_back;
+            super::back::set_handled(output.handles_back);
         }
         if let Some(fullscreen) = output.fullscreen
             && fullscreen != surface.fullscreen
@@ -633,6 +648,11 @@ impl ApplicationHandler<UserEvent> for Runner {
             }
             UserEvent::SafeArea(area) => {
                 self.safe_area = area;
+                self.request_redraw();
+                return;
+            }
+            UserEvent::Back(gesture) => {
+                self.push(Event::Back(gesture));
                 self.request_redraw();
                 return;
             }

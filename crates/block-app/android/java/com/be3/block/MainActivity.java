@@ -7,6 +7,8 @@ import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.view.KeyEvent;
 import android.view.View;
+import androidx.activity.BackEventCompat;
+import androidx.activity.OnBackPressedCallback;
 import androidx.core.graphics.Insets;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -21,6 +23,10 @@ public final class MainActivity extends GameActivity {
     private static final int PICK_FILE_REQUEST = 0x8E31;
     private static final int MAX_FILE_BYTES = 128 * 1024 * 1024;
     private static final int COPY_BUFFER_BYTES = 64 * 1024;
+    private static final int BACK_STARTED = 0;
+    private static final int BACK_PROGRESSED = 1;
+    private static final int BACK_CANCELLED = 2;
+    private static final int BACK_INVOKED = 3;
     private static final int COMMAND_META =
             KeyEvent.META_CTRL_ON | KeyEvent.META_ALT_ON | KeyEvent.META_META_ON;
     private static final int MODIFIER_META = COMMAND_META | KeyEvent.META_SHIFT_ON;
@@ -31,6 +37,27 @@ public final class MainActivity extends GameActivity {
         {KeyEvent.META_SHIFT_ON, KeyEvent.KEYCODE_SHIFT_LEFT},
     };
     private static MainActivity current;
+    private final OnBackPressedCallback back = new OnBackPressedCallback(false) {
+        @Override
+        public void handleOnBackStarted(BackEventCompat event) {
+            nativeBack(BACK_STARTED, event.getProgress(), event.getSwipeEdge());
+        }
+
+        @Override
+        public void handleOnBackProgressed(BackEventCompat event) {
+            nativeBack(BACK_PROGRESSED, event.getProgress(), event.getSwipeEdge());
+        }
+
+        @Override
+        public void handleOnBackCancelled() {
+            nativeBack(BACK_CANCELLED, 0f, 0);
+        }
+
+        @Override
+        public void handleOnBackPressed() {
+            nativeBack(BACK_INVOKED, 1f, 0);
+        }
+    };
     private int heldMeta;
     private int synthesizedMeta;
 
@@ -47,6 +74,7 @@ public final class MainActivity extends GameActivity {
         }
         super.onCreate(state);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        getOnBackPressedDispatcher().addCallback(this, back);
         stateChanged(new State("", 0, 0, -1, -1), false);
     }
 
@@ -59,8 +87,18 @@ public final class MainActivity extends GameActivity {
         return applied;
     }
 
+    public void setBackHandled(boolean handled) {
+        runOnUiThread(() -> back.setEnabled(handled));
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                getOnBackPressedDispatcher().onBackPressed();
+            }
+            return true;
+        }
         int code = event.getKeyCode();
         int action = event.getAction();
         if (KeyEvent.isModifierKey(code)) {
@@ -217,6 +255,8 @@ public final class MainActivity extends GameActivity {
     }
 
     private static native void nativeLaunched(String build, String data);
+
+    private static native void nativeBack(int phase, float progress, int edge);
 
     private static native void nativeSafeAreaChanged(int left, int top, int right, int bottom);
 

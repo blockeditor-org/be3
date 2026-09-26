@@ -7,7 +7,7 @@ use std::time::Duration;
 use jni::errors::Error as JniError;
 use jni::objects::{JClass, JObject, JString, JValue};
 use jni::refs::Reference;
-use jni::sys::jint;
+use jni::sys::{jfloat, jint};
 use jni::vm::JavaVM;
 use jni::{Env, EnvUnowned, jni_sig, jni_str};
 use winit::platform::android::activity::AndroidApp;
@@ -226,4 +226,15 @@ pub extern "system" fn Java_com_be3_launcher_LauncherActivity_nativeSafeAreaChan
         right: right as f32,
         bottom: bottom as f32,
     });
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_be3_launcher_LauncherActivity_nativeBack(
+    _env: EnvUnowned<'_>,
+    _: JClass<'_>,
+    phase: jint,
+    progress: jfloat,
+    edge: jint,
+) {
+    beui::send_android_back(phase, progress, edge);
 }
