@@ -437,6 +437,7 @@ impl TextAreaState {
             &snapshot.checkbox_markers,
             &snapshot.hidden,
             &LayoutOptions::wrapped((width - super::shapes::PADDING.x * 2.0).max(1.0)),
+            None,
         )?;
         Some(Vec2::new(width, document.size.y))
     }
