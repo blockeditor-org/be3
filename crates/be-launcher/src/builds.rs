@@ -1,14 +1,11 @@
-use std::collections::HashSet;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
-use flate2::write::GzDecoder;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 pub(crate) const STORE: &str = "https://be3-ci.b-cdn.net/android";
-const DOWNLOADED: &str = "build.json";
 const PART: &str = "part";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -30,7 +27,7 @@ impl Slot {
     }
 
     pub(crate) fn object_url(self, hash: &str) -> String {
-        format!("{STORE}/{}/{hash}.gz", self.name())
+        format!("{STORE}/{}/{hash}.apk", self.name())
     }
 }
 
@@ -41,111 +38,64 @@ pub(crate) struct Object {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Entry {
-    pub(crate) path: String,
-    pub(crate) hash: String,
-    pub(crate) size: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Build {
     pub(crate) commit: String,
-    pub(crate) shell: String,
+    pub(crate) app: Object,
     pub(crate) launcher: Object,
-    pub(crate) files: Vec<Entry>,
 }
 
 impl Build {
     pub(crate) fn parse(document: &[u8]) -> Result<Self, String> {
-        let build: Build = serde_json::from_slice(document)
-            .map_err(|error| format!("be3-ci described the build as {error}"))?;
-        for entry in &build.files {
-            if !is_relative(&entry.path) {
-                return Err(format!(
-                    "be3-ci named a file outside the build: {}",
-                    entry.path
-                ));
-            }
-        }
-        Ok(build)
-    }
-
-    pub(crate) fn size(&self) -> u64 {
-        self.files.iter().map(|entry| entry.size).sum()
+        serde_json::from_slice(document)
+            .map_err(|error| format!("be3-ci described the build as {error}"))
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Downloaded {
+pub(crate) struct Installed {
     pub(crate) slot: Slot,
     pub(crate) commit: String,
+    pub(crate) hash: String,
 }
 
 pub(crate) trait Fetch {
     fn fetch(&mut self, url: &str, into: &mut dyn Write) -> Result<(), String>;
 }
 
-pub(crate) fn downloaded(directory: &Path) -> Option<Downloaded> {
-    let document = fs::read(directory.join(DOWNLOADED)).ok()?;
+pub(crate) fn installed(record: &Path) -> Option<Installed> {
+    let document = fs::read(record).ok()?;
     serde_json::from_slice(&document).ok()
 }
 
-pub(crate) fn sync(
-    directory: &Path,
+pub(crate) fn remember(record: &Path, installed: Option<&Installed>) -> Result<(), String> {
+    match installed {
+        Some(installed) => {
+            let document = serde_json::to_vec(installed).map_err(|error| error.to_string())?;
+            fs::write(record, document).map_err(|error| error.to_string())
+        }
+        None => remove(record),
+    }
+}
+
+pub(crate) fn fetch_apk(
+    path: &Path,
     slot: Slot,
-    build: &Build,
+    object: &Object,
     fetch: &mut dyn Fetch,
     progress: &mut dyn FnMut(u64, u64),
 ) -> Result<(), String> {
-    fs::create_dir_all(directory).map_err(|error| error.to_string())?;
-    remove(&directory.join(DOWNLOADED))?;
-    let total = build.size();
-    let mut done = 0;
-    for entry in &build.files {
-        let target = directory.join(&entry.path);
-        if hash_file(&target).as_deref() != Some(entry.hash.as_str()) {
-            let mut report = |written: u64| progress(done + written, total);
-            download(
-                fetch,
-                &slot.object_url(&entry.hash),
-                &entry.hash,
-                &target,
-                &mut report,
-            )?;
-        }
-        done += entry.size;
-        progress(done, total);
+    if hash_file(path).as_deref() != Some(object.hash.as_str()) {
+        let mut report = |written: u64| progress(written, object.size);
+        download(
+            fetch,
+            &slot.object_url(&object.hash),
+            &object.hash,
+            path,
+            &mut report,
+        )?;
     }
-    let kept: HashSet<PathBuf> = build
-        .files
-        .iter()
-        .map(|entry| directory.join(&entry.path))
-        .collect();
-    remove_stale(directory, &kept)?;
-    let downloaded = Downloaded {
-        slot,
-        commit: build.commit.clone(),
-    };
-    let document = serde_json::to_vec(&downloaded).map_err(|error| error.to_string())?;
-    fs::write(directory.join(DOWNLOADED), document).map_err(|error| error.to_string())
-}
-
-pub(crate) fn fetch_launcher(
-    path: &Path,
-    slot: Slot,
-    build: &Build,
-    fetch: &mut dyn Fetch,
-) -> Result<(), String> {
-    if hash_file(path).as_deref() == Some(build.launcher.hash.as_str()) {
-        return Ok(());
-    }
-    download(
-        fetch,
-        &slot.object_url(&build.launcher.hash),
-        &build.launcher.hash,
-        path,
-        &mut |_| {},
-    )
+    progress(object.size, object.size);
+    Ok(())
 }
 
 fn download(
@@ -164,28 +114,27 @@ fn download(
     let part = PathBuf::from(part);
     remove(&part)?;
     let file = File::create(&part).map_err(|error| error.to_string())?;
-    let mut decoder = GzDecoder::new(Hashing {
+    let mut hashing = Hashing {
         file,
         hasher: Sha256::new(),
         written: 0,
         progress,
-    });
-    fetch.fetch(url, &mut decoder)?;
-    let hashing = decoder
-        .finish()
-        .map_err(|error| format!("{url} is not gzip: {error}"))?;
-    let received = hex(&hashing.hasher.finalize());
+    };
+    let fetched = fetch.fetch(url, &mut hashing);
+    let Hashing { file, hasher, .. } = hashing;
+    if let Err(error) = fetched {
+        drop(file);
+        let _ = fs::remove_file(&part);
+        return Err(error);
+    }
+    let received = hex(&hasher.finalize());
     if received != hash {
+        drop(file);
         let _ = fs::remove_file(&part);
         return Err(format!("{url} held {received}, not {hash}"));
     }
-    hashing.file.sync_all().map_err(|error| error.to_string())?;
-    drop(hashing.file);
-    let mut permissions = fs::metadata(&part)
-        .map_err(|error| error.to_string())?
-        .permissions();
-    permissions.set_readonly(true);
-    fs::set_permissions(&part, permissions).map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())?;
+    drop(file);
     remove(target)?;
     fs::rename(&part, target).map_err(|error| error.to_string())
 }
@@ -209,26 +158,6 @@ impl Write for Hashing<'_> {
     fn flush(&mut self) -> io::Result<()> {
         self.file.flush()
     }
-}
-
-fn remove_stale(directory: &Path, kept: &HashSet<PathBuf>) -> Result<(), String> {
-    let entries = fs::read_dir(directory).map_err(|error| error.to_string())?;
-    for entry in entries {
-        let path = entry.map_err(|error| error.to_string())?.path();
-        if path.is_dir() {
-            remove_stale(&path, kept)?;
-            if fs::read_dir(&path)
-                .map_err(|error| error.to_string())?
-                .next()
-                .is_none()
-            {
-                fs::remove_dir(&path).map_err(|error| error.to_string())?;
-            }
-        } else if !kept.contains(&path) {
-            remove(&path)?;
-        }
-    }
-    Ok(())
 }
 
 fn remove(path: &Path) -> Result<(), String> {
@@ -256,11 +185,4 @@ fn hash_file(path: &Path) -> Option<String> {
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
-fn is_relative(path: &str) -> bool {
-    !path.is_empty()
-        && Path::new(path)
-            .components()
-            .all(|component| matches!(component, Component::Normal(_)))
 }
