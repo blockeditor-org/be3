@@ -46,9 +46,13 @@ impl Game {
             .map_err(|error| format!("this is not a game module: {error}"))?;
         let mut linker = Linker::<Presented>::new(&engine);
         linker
-            .func_wrap("game", "next", |buffer: u32, capacity: u32| -> Result<u64, Error> {
-                Err(Error::host(Waiting { buffer, capacity }))
-            })
+            .func_wrap(
+                "game",
+                "next",
+                |buffer: u32, capacity: u32| -> Result<u64, Error> {
+                    Err(Error::host(Waiting { buffer, capacity }))
+                },
+            )
             .and_then(|linker| {
                 linker.func_wrap(
                     "game",

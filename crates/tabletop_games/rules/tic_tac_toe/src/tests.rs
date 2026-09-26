@@ -5,12 +5,12 @@ use uuid::Uuid;
 
 use super::cell_label;
 
+mod a_session_takes_one_move_at_a_time_and_shows_anyone;
 mod draw_ends_the_game_with_no_actions;
 mod first_and_second_actors_become_x_and_o;
 mod invalid_action_index_is_ignored;
 mod marks_are_drawn_on_the_board_and_open_tiles_are_clicked;
 mod out_of_turn_action_is_ignored;
-mod a_session_takes_one_move_at_a_time_and_shows_anyone;
 mod spectator_sees_no_actions;
 mod winning_line_ends_the_game;
 

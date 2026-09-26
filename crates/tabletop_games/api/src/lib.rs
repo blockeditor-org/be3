@@ -142,7 +142,9 @@ impl<'a> GameHelper<'a> {
                             return Ok(());
                         }
                     }
-                    Command::Show(player) => guest::present(&self.list(player, &describe, &mut body)),
+                    Command::Show(player) => {
+                        guest::present(&self.list(player, &describe, &mut body))
+                    }
                 }
             },
         }
