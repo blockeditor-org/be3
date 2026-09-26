@@ -287,7 +287,6 @@ pub struct EditorManifest {
     pub capabilities: EditorCapabilities,
     pub resize: ResizeMode,
     pub regions: Vec<EditorRegion>,
-    pub chrome: Vec<EditorBand>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -424,17 +423,6 @@ impl EditorRegion {
     pub const ALL: [Self; 3] = [Self::Frame, Self::Preview, Self::ArtifactSettings];
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum EditorBand {
-    Toolbar,
-    LeftSidebar,
-    RightSidebar,
-}
-
-impl EditorBand {
-    pub const ALL: [Self; 3] = [Self::Toolbar, Self::LeftSidebar, Self::RightSidebar];
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ManifestError {
     Malformed(String),
@@ -443,7 +431,6 @@ pub enum ManifestError {
     InvalidIdentity,
     InvalidBlockType,
     InvalidRegions,
-    InvalidChrome,
     InvalidNetworkHost,
     NoEditors,
     DuplicateBlockType,
@@ -461,7 +448,6 @@ impl fmt::Display for ManifestError {
             Self::InvalidRegions => {
                 formatter.write_str("the regions must include the frame exactly once")
             }
-            Self::InvalidChrome => formatter.write_str("a chrome band is declared twice"),
             Self::InvalidNetworkHost => {
                 formatter.write_str("a network host is not a plain host name")
             }
@@ -525,12 +511,6 @@ impl EditorManifest {
                 .any(|region| self.regions.iter().filter(|it| *it == region).count() > 1)
         {
             return Err(ManifestError::InvalidRegions);
-        }
-        if EditorBand::ALL
-            .iter()
-            .any(|band| self.chrome.iter().filter(|it| *it == band).count() > 1)
-        {
-            return Err(ManifestError::InvalidChrome);
         }
         for (index, template) in self.templates.iter().enumerate() {
             manifest_string("template id", &template.id)?;

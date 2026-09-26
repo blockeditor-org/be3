@@ -90,8 +90,7 @@ manifest.json is the plugin's single source of truth: the plugin reads its own i
         "main": {},
         "starter": {"name": "Starter foo", "icon": "\ue264", "category": "template"}
       },
-      "regions": ["Frame"],
-      "chrome": ["Toolbar"]
+      "regions": ["Frame"]
     }
   ],
   "entry_point": "foo.wasm",
@@ -105,7 +104,7 @@ The entry point is the wasm module the build leaves beside the manifest: one art
 
 templates is a map from an id, which only has to be unique within that editor, to how the add-block menu offers it; the menu offers them in the order they are written. category is important, regular (the default) or debug for the menu's main tab, which shows them in that order under the headings Common, More blocks and Debug, or template for its Templates tab, which groups them under the icon and display name of the editor that declares them. name and icon default to the editor's, block_type to the editor's block type, and dialog to false. An editor with no templates is never offered: only another block ever produces one.
 
-regions says which kinds of screen the host may give an instance: Frame, which every editor has and which is the whole rectangle it is edited in, Preview, and ArtifactSettings. chrome says which of the toolbar row and the two sidebars this editor offers inside its frame; the plugin reads that list out of its own manifest and the framework calls only the bands it names. The optional fields default to the plainest answer: children says which of the host's structural edits the block type accepts, interaction says whether an embedded instance is live or only previewed until it is focused, capabilities carries rotation, aspect ratio and pan-and-zoom, and resize says how an embedded instance may be resized.
+regions says which kinds of screen the host may give an instance: Frame, which every editor has and which is the whole rectangle it is edited in, Preview, and ArtifactSettings. The optional fields default to the plainest answer: children says which of the host's structural edits the block type accepts, interaction says whether an embedded instance is live or only previewed until it is focused, capabilities carries rotation, aspect ratio and pan-and-zoom, and resize says how an embedded instance may be resized.
 
 The cursor the node under the pointer asks beui for is passed to the host, which shows it while the pointer is over that screen, so a canvas can offer a crosshair or a grabbing hand without knowing anything about the window it is in.
 

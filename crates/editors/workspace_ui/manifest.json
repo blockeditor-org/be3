@@ -11,8 +11,7 @@
       "resize": "None",
       "regions": [
         "Frame"
-      ],
-      "chrome": []
+      ]
     }
   ],
   "entry_point": "workspace_ui.wasm"
