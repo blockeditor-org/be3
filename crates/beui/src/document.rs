@@ -81,6 +81,7 @@ pub struct Document {
     pub(crate) copied_text: Option<String>,
     next_paint: Option<Instant>,
     reactive_scope: ::reactive::Scope,
+    zone: u64,
     theme: ThemeStore,
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
     sizes: NodeMap<Vec<SizeWatcher>>,
@@ -173,6 +174,8 @@ struct PlacementWatcher {
     write: ::reactive::WriteSignal<Rect>,
 }
 
+static NEXT_ZONE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 impl Document {
     pub fn new() -> Self {
         let theme = ThemeStore::new(Theme::DARK);
@@ -229,6 +232,7 @@ impl Document {
             copied_text: None,
             next_paint: None,
             reactive_scope: ::reactive::Scope::new(),
+            zone: NEXT_ZONE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             theme,
             node_scopes: HashMap::new(),
             sizes: NodeMap::default(),
@@ -265,6 +269,16 @@ impl Document {
 
     pub(crate) fn reactive_scope(&self) -> &::reactive::Scope {
         &self.reactive_scope
+    }
+
+    pub fn zone(&self) -> u64 {
+        self.zone
+    }
+
+    pub fn dispose(&mut self) {
+        let scope = std::mem::replace(&mut self.reactive_scope, ::reactive::Scope::detached());
+        crate::reactive::with_reactive_scope(self, || scope.dispose());
+        ::reactive::forget_zone(self.zone);
     }
 
     pub fn theme(&self) -> Theme {

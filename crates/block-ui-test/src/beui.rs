@@ -224,6 +224,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 max_side: SURFACE_SIDE,
             }),
             theme: Theme::default(),
+            panes: false,
         }));
         test.deliver(Message::Editor(open));
         test.place();

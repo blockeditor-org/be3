@@ -19,9 +19,6 @@
       "regions": [
         "Frame",
         "Preview"
-      ],
-      "chrome": [
-        "Toolbar"
       ]
     }
   ],

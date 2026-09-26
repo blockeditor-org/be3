@@ -21,11 +21,11 @@ mod wasm;
 pub use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioStatus, BlockCommand, BlockFilter, BlockPick, ChildId,
     ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, ConflictSide, CursorIcon,
-    EditorBand, EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, FrameChrome,
-    FrameSpec, HostReply, HostRequest, InputEvent, InteractionMode, Key, Modifiers, Occluder,
-    PointerButton, ResizeMode, ScreenPlacement, TouchPhase, VersionBranch, VersionChange,
-    VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand,
-    WebViewEvent, WheelUnit,
+    EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, FrameChrome, FrameSpec,
+    HostReply, HostRequest, InputEvent, InteractionMode, Key, Modifiers, Occluder, PointerButton,
+    ResizeMode, ScreenPlacement, TouchPhase, VersionBranch, VersionChange, VersionChangeKind,
+    VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand, WebViewEvent,
+    WheelUnit,
 };
 pub use block_ui;
 pub use content::ContentProjection;
@@ -34,9 +34,9 @@ pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphComm
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
     BlockSource, ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock,
-    HostContent, ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
-    PerformanceReporter, PickedBlock, PickedFile, Pushed, SeededContent, ShowRequest,
-    ShownPresence, Waker,
+    HostContent, ImagePaster, OpenRequest, PaneEvent, PastedImage, PeerPresence,
+    PerformanceMeasurementGuard, PerformanceReporter, PickedBlock, PickedFile, Pushed,
+    SeededContent, ShowRequest, ShownPresence, Waker,
 };
 #[cfg(target_arch = "wasm32")]
 pub use plugin::PaintTarget;

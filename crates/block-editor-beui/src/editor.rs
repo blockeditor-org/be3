@@ -189,6 +189,7 @@ struct ChildRecord {
     report: Callback<ChildState>,
     view_change: Callback<ViewChange>,
     child: Cell<Option<ChildId>>,
+    zone: u64,
 }
 
 struct PendingPick {
@@ -299,7 +300,8 @@ struct EditorState {
     set_revealed: WriteSignal<Option<u64>>,
     pending_reveal: Cell<Option<u64>>,
     replace: RefCell<Option<ReplaceChild>>,
-    content: RefCell<Option<NodeRef>>,
+    content: RefCell<Option<(NodeRef, u64)>>,
+    dock: RefCell<Option<Rc<crate::dock::DockLink>>>,
     projections: RefCell<std::collections::HashMap<Option<Uuid>, Rc<dyn std::any::Any>>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
@@ -369,6 +371,7 @@ impl Editor {
             pending_reveal: Cell::new(None),
             replace: RefCell::new(None),
             content: RefCell::new(None),
+            dock: RefCell::new(None),
             projections: RefCell::new(std::collections::HashMap::new()),
             content_rect: Cell::new(Rect::ZERO),
             intrinsic: Cell::new(None),
@@ -648,6 +651,7 @@ impl Editor {
                 report,
                 view_change,
                 child: Cell::new(None),
+                zone: document_zone(),
             }),
         ));
         let editor = Rc::clone(&self.0);
@@ -686,7 +690,29 @@ impl Editor {
     }
 
     pub fn content(&self, node: &NodeRef) {
-        *self.0.content.borrow_mut() = Some(node.clone());
+        *self.0.content.borrow_mut() = Some((node.clone(), document_zone()));
+    }
+
+    pub fn show_pane(&self, tab: beui::unstyled::TabId) {
+        self.0
+            .host
+            .show_pane(beui_plugin_input::panes::pane_of(tab));
+    }
+
+    pub(crate) fn set_dock(&self, link: crate::dock::DockLink) {
+        *self.0.dock.borrow_mut() = Some(Rc::new(link));
+        self.0.host.waker().wake();
+    }
+
+    pub(crate) fn forget_dock(&self, key: u64) {
+        let mut dock = self.0.dock.borrow_mut();
+        if dock.as_ref().is_some_and(|link| link.key == key) {
+            *dock = None;
+        }
+    }
+
+    pub(crate) fn dock(&self) -> Option<Rc<crate::dock::DockLink>> {
+        self.0.dock.borrow().clone()
     }
 
     pub fn content_rect(&self) -> Rect {
@@ -890,7 +916,11 @@ impl Editor {
     }
 
     pub fn end_frame(&self, document: &Document) {
+        let zone = document.zone();
         for record in self.records() {
+            if record.zone != 0 && record.zone != zone {
+                continue;
+            }
             record.child.set(self.place_child(document, &record));
         }
         let unscale = self.ratio().recip();
@@ -902,7 +932,13 @@ impl Editor {
         for rect in document.overlay_rects() {
             self.0.host.occlude(rect.scaled(unscale));
         }
-        let node = self.0.content.borrow().as_ref().and_then(NodeRef::try_get);
+        let node = self
+            .0
+            .content
+            .borrow()
+            .as_ref()
+            .filter(|(_, owner)| *owner == 0 || *owner == zone)
+            .and_then(|(node, _)| node.try_get());
         let Some(rect) = node.and_then(|node| document.node_rect(node)) else {
             return;
         };
@@ -912,6 +948,10 @@ impl Editor {
         }
         self.0.host.report_content(rect.scaled(unscale));
     }
+}
+
+fn document_zone() -> u64 {
+    beui::reactive::try_with_document(|document| document.zone()).unwrap_or(0)
 }
 
 impl Editor {

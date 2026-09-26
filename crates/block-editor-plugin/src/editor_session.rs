@@ -3,8 +3,8 @@ use block_plugin_api::{
     ArtifactDescription, ChildId, ChildPlacement, ChildPlacements, ChildRect, ChildStatus,
     CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
     FrameReport, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS, Message,
-    Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange, ViewportMetrics,
-    WebViewEvent,
+    Occluder, PaneId, PaneLayout, PaneTree, RegionSize, ScreenPlacement, ScreenRequest, Size,
+    ViewChange, ViewportMetrics, WebViewEvent,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -14,7 +14,7 @@ use uuid::Uuid;
 #[cfg(target_arch = "wasm32")]
 use crate::plugin::PaintTarget;
 use crate::plugin::{Frame, Instance, Region};
-use crate::{EditorHost, Waker, host::BlockDrag};
+use crate::{EditorHost, PaneEvent, Waker, host::BlockDrag};
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
 
@@ -32,6 +32,8 @@ pub struct EditorSession {
     artifact: Option<ArtifactState>,
     replacements: Vec<(u64, bool)>,
     generation: u64,
+    arrangement: u64,
+    sent_panes: Option<PaneLayout>,
 }
 
 struct ArtifactState {
@@ -99,7 +101,51 @@ impl EditorSession {
             artifact: None,
             replacements: Vec::new(),
             generation: 0,
+            arrangement: 0,
+            sent_panes: None,
         }
+    }
+
+    pub fn offer_panes(&self, offered: bool) {
+        self.host.offer_panes(offered);
+    }
+
+    pub fn arrange_panes(
+        &mut self,
+        arrangement: u64,
+        tree: PaneTree,
+        detached: Vec<PaneId>,
+        focused: Option<PaneId>,
+    ) {
+        self.arrangement = self.arrangement.max(arrangement);
+        self.host.push_pane_event(PaneEvent::Arranged {
+            tree,
+            detached,
+            focused,
+        });
+    }
+
+    pub fn close_pane(&mut self, pane: PaneId) {
+        self.host.push_pane_event(PaneEvent::Closed(pane));
+    }
+
+    fn pane_messages(&mut self) -> Vec<Message> {
+        let instance = self.instance;
+        let mut messages = Vec::new();
+        let layout = self.host.pane_layout().map(|layout| PaneLayout {
+            arrangement: self.arrangement,
+            ..layout
+        });
+        if let Some(layout) = layout
+            && self.sent_panes.as_ref() != Some(&layout)
+        {
+            self.sent_panes = Some(layout.clone());
+            messages.push(Message::Editor(EditorMessage::Panes { instance, layout }));
+        }
+        for pane in self.host.take_shown_panes() {
+            messages.push(Message::Editor(EditorMessage::ShowPane { instance, pane }));
+        }
+        messages
     }
 
     pub(crate) fn set_block_types(&self, catalog: Rc<BlockCatalog>) {
@@ -297,8 +343,8 @@ impl EditorSession {
         }
     }
 
-    pub(crate) fn outbound(&mut self) -> Vec<Message> {
-        let mut messages = Vec::new();
+    pub fn outbound(&mut self) -> Vec<Message> {
+        let mut messages = self.pane_messages();
         let sizes = self.region_sizes();
         if !sizes.is_empty() {
             messages.push(Message::RegionSizes(sizes));

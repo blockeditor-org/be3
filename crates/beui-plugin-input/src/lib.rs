@@ -1,3 +1,5 @@
+pub mod panes;
+
 use block_plugin_api::{Key, Modifiers, PointerButton, TouchPhase};
 
 pub fn protocol_modifiers(modifiers: beui::Modifiers) -> Modifiers {

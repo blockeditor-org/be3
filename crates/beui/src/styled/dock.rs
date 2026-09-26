@@ -16,7 +16,8 @@ use crate::styled::theme::{CARD_RADIUS, FONT_BODY, RADIUS, use_theme};
 use crate::unstyled;
 use crate::unstyled::{
     DockDragged, DockGripHandle, DockPanelHandle, DockPreviewHandle, DockSplitterHandle, DockState,
-    DockTabHandle, DockWindowHandle, Entry, MenuItem, SPLITTER_THICKNESS, TabId, sidebar_size,
+    DockTabHandle, DockWindowHandle, Entry, GroupId, MenuItem, SPLITTER_THICKNESS, TabId,
+    sidebar_size,
 };
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
@@ -42,13 +43,16 @@ pub fn DockArea(
     on_change: Callback<DockState>,
     on_close: Callback<TabId>,
     title: Func<TabId, String>,
+    group_title: Option<Func<GroupId, Option<String>>>,
     closable: Option<Func<TabId, bool>>,
     #[prop(children)] content: RenderFn<TabId>,
 ) -> NodeId {
     let closable = closable.unwrap_or_else(|| Func::new(|_| true));
+    let group_title = group_title.unwrap_or_else(|| Func::new(|_| None));
     view! {
         <unstyled::Dock
             state
+            group_title
             group_inset=GROUP_INSET
             on_change={move |state: DockState| on_change.call(state)}
             on_close={move |tab: TabId| on_close.call(tab)}
@@ -110,23 +114,34 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
         split,
         ungroup,
         floating,
+        pinned,
         vertical,
+        held,
+        toggle_held,
         ..
     } = handle;
-    let closable =
-        create_memo(move || tabs.with(|tabs| tabs.iter().all(|tab| closable.call(*tab))));
+    let stuck = create_memo(clone!(held -> move || floating || held.get() == Some(true)));
+    let homeless = create_memo(clone!(held -> move || held.get().is_none()));
+    let pin_label = create_memo(move || match held.get() {
+        Some(true) => "Unpin from group".to_owned(),
+        Some(false) | None => "Pin to group".to_owned(),
+    });
+    let closable = create_memo(move || {
+        !pinned && tabs.with(|tabs| tabs.iter().all(|tab| closable.call(*tab)))
+    });
     let alone = create_memo(clone!(has_next -> move || !has_next.get()));
     let grouped = matches!(entry, Entry::Group(_));
     let closing = close.clone();
     let items = match grouped {
         false => view! {
-            <MenuItem label="Pop out into a window" disabled={floating} />
+            <MenuItem label="Pop out into a window" disabled={stuck} />
             <MenuItem label="Group with next tab" disabled={alone.clone()} />
             <MenuItem label="Split with next tab" disabled={alone.clone()} />
             <MenuItem
                 label="Close tab"
                 disabled={create_memo(clone!(closable -> move || !closable.get()))}
             />
+            <MenuItem label={pin_label} disabled={homeless} />
         },
         true => view! {
             <MenuItem label="Pop out into a window" disabled={floating} />
@@ -136,7 +151,7 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
                 label="Close group"
                 disabled={create_memo(clone!(closable -> move || !closable.get()))}
             />
-            <MenuItem label="Ungroup" />
+            <MenuItem label="Ungroup" disabled={pinned} />
         },
     };
     view! {
@@ -147,7 +162,8 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
                 Some(1) => group.call(),
                 Some(2) => split.call(),
                 Some(3) => closing.call(),
-                Some(4) => ungroup.call(),
+                Some(4) if grouped => ungroup.call(),
+                Some(4) => toggle_held.call(),
                 _ => {}
             }}
         >
@@ -515,6 +531,7 @@ fn DockDropHighlight() -> NodeId {
     let fill = create_memo(clone!(theme -> move || translucent(theme.accent.get(), DROP_ALPHA)));
     view! {
         <Frame
+            @test_id={"dock.drop"}
             color={fill}
             outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH

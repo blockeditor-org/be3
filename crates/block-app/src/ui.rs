@@ -12,6 +12,7 @@ use be_protocol::WorkspaceRole;
 use beui::reactive::{Dynamic, Frame, List, Store, component, view};
 use beui::styled::use_theme;
 use beui::{ItemSize, NodeId};
+use block_plugin_api::{PaneId, PaneLayout, PaneTree};
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
@@ -176,6 +177,12 @@ pub(crate) struct ArtifactSettingsView {
     pub(crate) summary: Option<String>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct PanesView {
+    pub(crate) layout: Option<PaneLayout>,
+    pub(crate) shown: Option<(u64, PaneId)>,
+}
+
 #[derive(Clone, Default, PartialEq, Store)]
 pub(crate) struct AppView {
     pub(crate) screen: Screen,
@@ -195,6 +202,7 @@ pub(crate) struct AppView {
     pub(crate) unlink: bool,
     pub(crate) share: Option<ShareView>,
     pub(crate) pickers: Vec<PickerView>,
+    pub(crate) panes: PanesView,
     pub(crate) presenting: bool,
     pub(crate) debug: DebugView,
 }
@@ -241,6 +249,13 @@ pub(crate) enum UiCommand {
     Share(ShareCommand),
     Picker(PickerCommand),
     Debug(DebugCommand),
+    ArrangePanes {
+        arrangement: u64,
+        tree: PaneTree,
+        detached: Vec<PaneId>,
+        focused: Option<PaneId>,
+    },
+    ClosePane(PaneId),
 }
 
 pub(crate) fn root(view: AppViewStore) -> NodeId {

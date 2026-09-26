@@ -30,8 +30,8 @@ use crate::unstyled::{
 };
 
 pub use state::{
-    DockDrop, DockLayout, DockSplitter, DockState, Entry, GroupId, LeafId, Side, SplitId,
-    SurfaceId, TabId, TabPosition, Tree, layout_surface, layout_tree,
+    DockDrop, DockLayout, DockSplitter, DockState, DockTree, DockTreeEntry, Entry, GroupId, LeafId,
+    Side, SplitId, SurfaceId, TabId, TabPosition, Tree, layout_surface, layout_tree,
 };
 use state::{FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_moved};
 pub use state::{MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
@@ -53,6 +53,7 @@ pub struct DockTabHandle {
     pub leaf: LeafId,
     pub index: usize,
     pub floating: bool,
+    pub pinned: bool,
     pub vertical: bool,
     pub title: Memo<String>,
     pub tabs: Memo<Vec<TabId>>,
@@ -67,6 +68,8 @@ pub struct DockTabHandle {
     pub group: ClickCallback,
     pub split: ClickCallback,
     pub ungroup: ClickCallback,
+    pub held: Memo<Option<bool>>,
+    pub toggle_held: ClickCallback,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -145,6 +148,7 @@ struct State {
     drag: ReadSignal<Option<Drag>>,
     set_drag: WriteSignal<Option<Drag>>,
     title: Func<TabId, String>,
+    group_title: Func<GroupId, Option<String>>,
     thickness: f32,
     group_inset: f32,
     rect: ReadSignal<Rect>,
@@ -185,6 +189,9 @@ impl State {
         match entry {
             Entry::Tab(tab) => self.title(tab),
             Entry::Group(group) => {
+                if let Some(title) = self.group_title.call(group) {
+                    return title;
+                }
                 let tabs = self.state.with(|state| state.group_tabs(group));
                 group_title(tabs.into_iter().map(|tab| self.title(tab)).collect())
             }
@@ -291,6 +298,11 @@ impl State {
     }
 
     fn close_entry(&self, entry: Entry) {
+        if let Entry::Group(group) = entry
+            && self.state.with_untracked(|state| state.is_pinned(group))
+        {
+            return;
+        }
         let tabs = self.state.with_untracked(|state| state.entry_tabs(entry));
         for tab in tabs {
             self.close_tab(tab);
@@ -364,7 +376,7 @@ impl State {
             return;
         };
         let (target, highlight) = match point {
-            Some(point) => self.resolve(point.pos, point.modifiers.alt, drag.dragged),
+            Some(point) => self.admitted(point.pos, point.modifiers.alt, drag.dragged),
             None => (None, None),
         };
         drag.target = target;
@@ -377,7 +389,7 @@ impl State {
     }
 
     fn drop_at(&self, dragged: DockDragged, point: DragPoint) {
-        let (target, _) = self.resolve(point.pos, point.modifiers.alt, dragged);
+        let (target, _) = self.admitted(point.pos, point.modifiers.alt, dragged);
         let Some(target) = target else {
             return;
         };
@@ -385,6 +397,25 @@ impl State {
             DockDragged::Entry(entry) => state.drop_entry(entry, target),
             DockDragged::Pane(leaf) => state.drop_leaf(leaf, target),
         });
+    }
+
+    fn admitted(
+        &self,
+        pos: Pos2,
+        float: bool,
+        dragged: DockDragged,
+    ) -> (Option<DockDrop>, Option<Rect>) {
+        let (target, highlight) = self.resolve(pos, float, dragged);
+        let refused = target.is_some_and(|target| {
+            self.state.with_untracked(|state| match dragged {
+                DockDragged::Entry(entry) => !state.admits(entry, target),
+                DockDragged::Pane(leaf) => !state.admits_leaf(leaf, target),
+            })
+        });
+        match refused {
+            true => (None, None),
+            false => (target, highlight),
+        }
     }
 
     fn resolve(
@@ -700,6 +731,7 @@ pub fn Dock(
     on_change: Callback<DockState>,
     on_close: Callback<TabId>,
     title: Func<TabId, String>,
+    group_title: Option<Func<GroupId, Option<String>>>,
     #[prop(default = SPLITTER_THICKNESS)] splitter_thickness: f32,
     #[prop(default = 0.0)] group_inset: f32,
     tab: RenderFn<DockTabHandle>,
@@ -725,6 +757,7 @@ pub fn Dock(
         drag,
         set_drag,
         title,
+        group_title: group_title.unwrap_or_else(|| Func::new(|_| None)),
         thickness: splitter_thickness,
         group_inset,
         rect: component_rect(),
@@ -1305,6 +1338,25 @@ fn DockTabView(
             dock.edit(|state| state.ungroup(group));
         }
     }));
+    let pinned = match entry {
+        Entry::Group(group) => dock.state.with_untracked(|state| state.is_pinned(group)),
+        Entry::Tab(_) => false,
+    };
+    let held = create_memo(clone!(state -> move || match entry {
+        Entry::Tab(tab) => state.with(|state| {
+            let pinned = state.is_tab_pinned(tab);
+            (pinned || state.at_home(tab)).then_some(pinned)
+        }),
+        Entry::Group(_) => None,
+    }));
+    let toggle_held = ClickCallback::new(clone!(dock -> move || {
+        if let Entry::Tab(tab) = entry {
+            dock.edit(|state| {
+                let pinned = state.is_tab_pinned(tab);
+                state.set_tab_pinned(tab, !pinned);
+            });
+        }
+    }));
     let floating = dock.state.with_untracked(|state| {
         !state.is_nested(leaf)
             && state
@@ -1317,6 +1369,7 @@ fn DockTabView(
         leaf,
         index,
         floating,
+        pinned,
         vertical,
         title: title.clone(),
         tabs,
@@ -1331,6 +1384,8 @@ fn DockTabView(
         group,
         split,
         ungroup,
+        held,
+        toggle_held,
     });
     let carried = dock.clone();
     let preview = dock.preview.clone();

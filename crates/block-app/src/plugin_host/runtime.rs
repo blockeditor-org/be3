@@ -3,9 +3,9 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc, time::Duration};
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockCommand, BlockPick, DEFAULT_SURFACE_SIDE, EditorInstanceId,
-    EditorMessage, EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest,
-    ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat, SurfaceSpec, Theme,
-    ViewChange,
+    EditorMessage, EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PaneId, PaneLayout,
+    PaneTree, PluginManifest, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat,
+    SurfaceSpec, Theme, ViewChange,
 };
 use uuid::Uuid;
 
@@ -952,6 +952,41 @@ pub(crate) fn take_artifact_watch(
     .flatten()
 }
 
+pub(crate) fn panes(plugin_id: &str, instance: EditorInstanceId) -> Option<PaneLayout> {
+    with(plugin_id, |runtime| runtime.instances.panes(instance)).flatten()
+}
+
+pub(crate) fn take_shown_panes(plugin_id: &str, instance: EditorInstanceId) -> Vec<PaneId> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_shown_panes(instance)
+    })
+    .unwrap_or_default()
+}
+
+pub(crate) fn arrange_panes(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    arrangement: u64,
+    tree: PaneTree,
+    detached: Vec<PaneId>,
+    focused: Option<PaneId>,
+) {
+    with(plugin_id, |runtime| {
+        let messages =
+            runtime
+                .instances
+                .arrange_panes(instance, arrangement, tree, detached, focused);
+        runtime.send(messages);
+    });
+}
+
+pub(crate) fn close_pane(plugin_id: &str, instance: EditorInstanceId, pane: PaneId) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.close_pane(instance, pane);
+        runtime.send(messages);
+    });
+}
+
 pub(crate) fn show_block(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -1194,7 +1229,7 @@ pub(crate) fn running() -> Vec<RuntimeStatus> {
 }
 
 fn session() -> HostSession {
-    HostSession::new(HOST_NAME, Some(SURFACE), theme())
+    HostSession::new(HOST_NAME, Some(SURFACE), theme()).offer_panes()
 }
 
 fn theme() -> Theme {

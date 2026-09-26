@@ -6,7 +6,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::{
-    ChildOperations, EditorBand, EditorCapabilities, EditorManifest, EditorRegion, InteractionMode,
+    ChildOperations, EditorCapabilities, EditorManifest, EditorRegion, InteractionMode,
     ManifestError, PluginIdentity, PluginManifest, ResizeMode, TemplateCategory, TemplateManifest,
 };
 
@@ -42,8 +42,6 @@ pub struct EditorDocument {
     #[serde(default)]
     pub resize: ResizeMode,
     pub regions: Vec<EditorRegion>,
-    #[serde(default)]
-    pub chrome: Vec<EditorBand>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -168,7 +166,6 @@ impl EditorDocument {
             capabilities: self.capabilities,
             resize: self.resize,
             regions: self.regions,
-            chrome: self.chrome,
         })
     }
 }

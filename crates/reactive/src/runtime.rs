@@ -13,6 +13,8 @@ pub(crate) struct Runtime {
     pub(crate) depth: Cell<usize>,
     pub(crate) flushing: Cell<bool>,
     pub(crate) memo_depth: Cell<usize>,
+    pub(crate) zone: Cell<u64>,
+    pub(crate) parked: RefCell<HashMap<u64, Vec<Weak<Computation>>>>,
 }
 
 thread_local! {
@@ -120,6 +122,18 @@ pub(crate) fn flush() {
         let Some(computation) = next.upgrade() else {
             continue;
         };
+        let current = RUNTIME.with(|runtime| runtime.zone.get());
+        if computation.zone != 0 && current != 0 && computation.zone != current {
+            RUNTIME.with(|runtime| {
+                runtime
+                    .parked
+                    .borrow_mut()
+                    .entry(computation.zone)
+                    .or_default()
+                    .push(next);
+            });
+            continue;
+        }
         computation.queued.set(false);
         let count = runs.entry(Rc::as_ptr(&computation)).or_insert(0);
         *count += 1;
@@ -129,4 +143,42 @@ pub(crate) fn flush() {
         }
         computation.refresh();
     }
+}
+
+pub struct ZoneGuard {
+    previous: u64,
+}
+
+impl Drop for ZoneGuard {
+    fn drop(&mut self) {
+        RUNTIME.with(|runtime| runtime.zone.set(self.previous));
+    }
+}
+
+pub fn enter_zone(zone: u64) -> ZoneGuard {
+    let previous = RUNTIME.with(|runtime| runtime.zone.replace(zone));
+    let parked = RUNTIME.with(|runtime| runtime.parked.borrow_mut().remove(&zone));
+    if let Some(parked) = parked {
+        RUNTIME.with(|runtime| runtime.queue.borrow_mut().extend(parked));
+        flush();
+    }
+    ZoneGuard { previous }
+}
+
+pub fn zone_pending(zone: u64) -> bool {
+    RUNTIME.with(|runtime| {
+        runtime.parked.borrow().get(&zone).is_some_and(|parked| {
+            parked
+                .iter()
+                .any(|computation| computation.strong_count() > 0)
+        })
+    })
+}
+
+pub fn forget_zone(zone: u64) {
+    RUNTIME.with(|runtime| runtime.parked.borrow_mut().remove(&zone));
+}
+
+pub(crate) fn current_zone() -> u64 {
+    RUNTIME.with(|runtime| runtime.zone.get())
 }

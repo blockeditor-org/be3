@@ -28,7 +28,9 @@ use be_block::{BlockContent, FileTreeContent, UiSettingsContent, WorkspaceUiCont
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
-use block_plugin_api::{AccessLevel, ArtifactAction, BlockCommand, BlockLocation};
+use block_plugin_api::{
+    AccessLevel, ArtifactAction, BlockCommand, BlockLocation, PaneId, PaneLayout,
+};
 use editors::{
     ArtifactSession, ArtifactStatus, BlockLabel, EditorAccess, EditorAction, EditorRegistry,
     PluginEditor, SidebarDragSource, direct_editor_tab_ui,
@@ -237,6 +239,8 @@ struct BlockApp {
     file_tree: RootSetting<FileTreeContent>,
     workspace_ui: RootSetting<WorkspaceUiContent>,
     shell: Option<Uuid>,
+    shell_panes: Option<PaneLayout>,
+    shown_pane: Option<(u64, PaneId)>,
     ui_settings: Option<Uuid>,
     block_types: HashMap<Uuid, Uuid>,
     registry: EditorRegistry,
@@ -421,6 +425,8 @@ impl BlockApp {
             file_tree: RootSetting::default(),
             workspace_ui: RootSetting::default(),
             shell: None,
+            shell_panes: None,
+            shown_pane: None,
             ui_settings: None,
             block_types: HashMap::new(),
             registry: EditorRegistry::new(),
@@ -821,6 +827,7 @@ impl BlockApp {
         self.file_tree = RootSetting::default();
         self.workspace_ui = RootSetting::default();
         self.shell = None;
+        self.shell_panes = None;
         self.ui_settings = None;
         self.workspace = Some(workspace.clone());
         self.account.last_workspace_id = Some(workspace.id);
@@ -897,6 +904,7 @@ impl BlockApp {
         self.file_tree = RootSetting::default();
         self.workspace_ui = RootSetting::default();
         self.shell = None;
+        self.shell_panes = None;
         self.ui_settings = None;
         self.account = account;
         self.server_url = server_url;
@@ -1245,11 +1253,30 @@ impl BlockApp {
                 &mut self.editors,
                 &self.editor_access,
             );
-            surfaces::with(SurfaceId::Main, |ui| {
+            let main = surfaces::with(SurfaceId::Main, |ui| {
                 direct_editor_tab_ui(&mut editor, ui, &mut editors)
             })
-            .flatten()
+            .flatten();
+            let panes: Vec<PaneId> = editor
+                .panes()
+                .map(|layout| layout.panes.iter().map(|info| info.pane).collect())
+                .unwrap_or_default();
+            let mut action = main;
+            for pane in &panes {
+                let acted = surfaces::with(SurfaceId::Pane(pane.0), |ui| {
+                    editor.pane_ui(ui, &mut editors, *pane)
+                })
+                .flatten();
+                action = action.or(acted);
+            }
+            surfaces::keep_panes(&panes.iter().map(|pane| pane.0).collect::<Vec<_>>());
+            action
         };
+        self.shell_panes = editor.panes();
+        for pane in editor.take_shown_panes() {
+            let count = self.shown_pane.map_or(0, |(count, _)| count) + 1;
+            self.shown_pane = Some((count, pane));
+        }
         let focus = editor.take_focus_report();
         let watch = editor.take_artifact_watch();
         self.editors.insert(shell, editor);
@@ -1731,6 +1758,21 @@ impl BlockApp {
             UiCommand::Share(command) => self.share.command(command),
             UiCommand::Picker(command) => block_picker::deliver(command),
             UiCommand::Debug(command) => debug::command(command),
+            UiCommand::ArrangePanes {
+                arrangement,
+                tree,
+                detached,
+                focused,
+            } => {
+                if let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) {
+                    shell.arrange_panes(arrangement, tree, detached, focused);
+                }
+            }
+            UiCommand::ClosePane(pane) => {
+                if let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) {
+                    shell.close_pane(pane);
+                }
+            }
         }
     }
 
@@ -1849,6 +1891,10 @@ impl BlockApp {
             unlink: self.dynamic_artifact_unlink.is_some(),
             share: self.share.view(),
             pickers: block_picker::views(),
+            panes: ui::PanesView {
+                layout: self.shell_panes.clone(),
+                shown: self.shown_pane,
+            },
             presenting: surfaces::handle(SurfaceId::Presenting)
                 .shown()
                 .get_untracked(),
