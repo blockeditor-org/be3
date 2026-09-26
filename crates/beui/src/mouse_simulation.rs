@@ -7,7 +7,7 @@ use crate::color::Color32;
 use crate::font::FontId;
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::icons;
-use crate::input::{Event, Modifiers, PointerButton, RawInput, TouchId, TouchPhase};
+use crate::input::{CursorIcon, Event, Modifiers, PointerButton, RawInput, TouchId, TouchPhase};
 use crate::painter::Painter;
 use crate::styled::Theme;
 use crate::styled::theme::{CARD_RADIUS, ICON_SIZE};
@@ -21,6 +21,10 @@ const BAR_WIDTH: f32 = 520.0;
 const CURSOR_SIZE: f32 = 26.0;
 const CURSOR_SHADOW: f32 = 1.5;
 const TAP_DISTANCE: f32 = 10.0;
+const TAP_TRAVEL: f32 = 4.0;
+const IBEAM_HEIGHT: f32 = 18.0;
+const IBEAM_SERIF: f32 = 3.5;
+const IBEAM_WIDTH: f32 = 1.5;
 const TAP_TIME: Duration = Duration::from_millis(300);
 const DOUBLE_TAP_TIME: Duration = Duration::from_millis(350);
 const MIDDLE_HOLD: Duration = Duration::from_millis(180);
@@ -64,6 +68,7 @@ struct Finger {
     last: Pos2,
     started: Instant,
     moved: bool,
+    travel: f32,
 }
 
 struct Layout {
@@ -88,6 +93,7 @@ pub(crate) struct MouseSimulation {
     middle_travel: f32,
     scroll: Vec2,
     dragging: bool,
+    armed: Option<Vec2>,
     scrolling: bool,
     last_tap: Option<Instant>,
     keyboard_open: bool,
@@ -112,6 +118,7 @@ impl Default for MouseSimulation {
             middle_travel: 0.0,
             scroll: Vec2::ZERO,
             dragging: false,
+            armed: None,
             scrolling: false,
             last_tap: None,
             keyboard_open: false,
@@ -207,6 +214,7 @@ impl MouseSimulation {
         self.middle = Middle::Up;
         self.middle_travel = 0.0;
         self.dragging = false;
+        self.armed = None;
         self.scrolling = false;
         self.last_tap = None;
         self.keyboard.clear();
@@ -226,23 +234,29 @@ impl MouseSimulation {
 
     fn flush(&mut self, out: &mut Vec<Event>) {
         let modifiers = self.keyboard.modifiers();
+        let pressed_at = self.reported.unwrap_or(self.cursor);
+        for index in 0..BUTTONS.len() {
+            if self.held(index) && !self.emitted[index] {
+                self.emitted[index] = true;
+                out.push(self.button_event(index, pressed_at, true, modifiers));
+            }
+        }
         if self.reported != Some(self.cursor) {
             self.reported = Some(self.cursor);
             out.push(Event::PointerMoved(self.cursor));
         }
         for index in 0..BUTTONS.len() {
-            let desired = self.held(index);
-            if desired != self.emitted[index] {
-                self.emitted[index] = desired;
-                out.push(self.button_event(index, desired, modifiers));
+            if !self.held(index) && self.emitted[index] {
+                self.emitted[index] = false;
+                out.push(self.button_event(index, self.cursor, false, modifiers));
             }
         }
         for index in std::mem::take(&mut self.clicks) {
             if self.emitted[index] {
                 continue;
             }
-            out.push(self.button_event(index, true, modifiers));
-            out.push(self.button_event(index, false, modifiers));
+            out.push(self.button_event(index, self.cursor, true, modifiers));
+            out.push(self.button_event(index, self.cursor, false, modifiers));
         }
         if self.scroll != Vec2::ZERO {
             out.push(Event::Modifiers(modifiers));
@@ -254,9 +268,9 @@ impl MouseSimulation {
         self.keyboard.drain(out);
     }
 
-    fn button_event(&self, index: usize, pressed: bool, modifiers: Modifiers) -> Event {
+    fn button_event(&self, index: usize, pos: Pos2, pressed: bool, modifiers: Modifiers) -> Event {
         Event::PointerButton {
-            pos: self.cursor,
+            pos,
             button: BUTTONS[index],
             pressed,
             modifiers,
@@ -298,12 +312,13 @@ impl MouseSimulation {
                 if self.trackpad_fingers() > 0 {
                     self.scrolling = true;
                     self.dragging = false;
+                    self.armed = None;
                 } else if self
                     .last_tap
+                    .take()
                     .is_some_and(|at| at.elapsed() <= DOUBLE_TAP_TIME)
                 {
-                    self.dragging = true;
-                    self.last_tap = None;
+                    self.armed = Some(Vec2::ZERO);
                 }
             }
             Role::Ignored => {}
@@ -316,6 +331,7 @@ impl MouseSimulation {
                 last: pos,
                 started: Instant::now(),
                 moved: false,
+                travel: 0.0,
             },
         ));
     }
@@ -330,6 +346,7 @@ impl MouseSimulation {
             let finger = &mut self.fingers[index].1;
             let delta = pos - finger.last;
             finger.last = pos;
+            finger.travel += delta.length();
             if !finger.moved && finger.origin.distance(pos) >= TAP_DISTANCE * scale {
                 finger.moved = true;
             }
@@ -339,6 +356,15 @@ impl MouseSimulation {
             Role::Trackpad => {
                 if self.scrolling {
                     self.scroll += delta * count.recip();
+                } else if let Some(held) = self.armed {
+                    match moved {
+                        true => {
+                            self.armed = None;
+                            self.dragging = true;
+                            self.move_cursor(held + delta);
+                        }
+                        false => self.armed = Some(held + delta),
+                    }
                 } else {
                     self.move_cursor(delta);
                 }
@@ -366,6 +392,7 @@ impl MouseSimulation {
         };
         let (_, finger) = self.fingers.remove(index);
         let quick = !cancelled && !finger.moved && finger.started.elapsed() <= TAP_TIME;
+        let tapped = quick && finger.travel < TAP_TRAVEL * self.scale;
         match finger.role {
             Role::Button(1) => {
                 self.holders[1] = None;
@@ -381,14 +408,14 @@ impl MouseSimulation {
                 if self.trackpad_fingers() > 0 {
                     return;
                 }
+                let armed = self.armed.take().is_some();
                 if self.scrolling {
                     self.scrolling = false;
                 } else if self.dragging {
                     self.dragging = false;
-                    if quick {
-                        self.last_tap = Some(Instant::now());
-                    }
-                } else if quick {
+                } else if armed && quick {
+                    self.clicks.push(0);
+                } else if tapped {
                     self.clicks.push(0);
                     self.last_tap = Some(Instant::now());
                 }
@@ -514,7 +541,7 @@ impl MouseSimulation {
         }
     }
 
-    pub(crate) fn paint(&mut self, painter: &Painter) -> Rect {
+    pub(crate) fn paint(&mut self, painter: &Painter, icon: CursorIcon) -> Rect {
         if !self.enabled || !self.bounds().is_positive() {
             let damage = self.painted;
             self.painted = Rect::NOTHING;
@@ -555,7 +582,7 @@ impl MouseSimulation {
         if let Some(rect) = layout.keyboard {
             self.keyboard.paint(painter, rect);
         }
-        let cursor = self.paint_cursor(painter);
+        let cursor = self.paint_cursor(painter, icon);
         let damage = layout
             .bar
             .union(layout.keyboard.unwrap_or(Rect::NOTHING))
@@ -568,23 +595,68 @@ impl MouseSimulation {
         damage
     }
 
-    fn paint_cursor(&self, painter: &Painter) -> Rect {
+    fn paint_cursor(&self, painter: &Painter, icon: CursorIcon) -> Rect {
         let at = self.local(self.cursor);
         let color = if self.held(0) {
             Theme::DARK.accent
         } else {
             Theme::DARK.knob
         };
-        let font = FontId::icons(CURSOR_SIZE);
-        let galley = painter.layout(icons::ICON_ARROW_SELECTOR_TOOL, font, f32::INFINITY);
-        let origin = at - vec2(CURSOR_SIZE, CURSOR_SIZE) * 0.25;
-        painter.galley(
-            origin + vec2(CURSOR_SHADOW, CURSOR_SHADOW),
-            galley.clone(),
-            SHADOW,
+        let shadow = vec2(CURSOR_SHADOW, CURSOR_SHADOW);
+        match icon {
+            CursorIcon::None => {}
+            CursorIcon::Text => {
+                ibeam(painter, at + shadow, SHADOW);
+                ibeam(painter, at, color);
+            }
+            icon => {
+                let (text, hotspot, angle) = cursor_glyph(icon);
+                let painter = painter.rotated(at, angle);
+                let galley = painter.layout(text, FontId::icons(CURSOR_SIZE), f32::INFINITY);
+                let origin = at - hotspot * CURSOR_SIZE;
+                painter.galley(origin + shadow, galley.clone(), SHADOW);
+                painter.galley(origin, galley, color);
+            }
+        }
+        Rect::from_center_size(at, vec2(CURSOR_SIZE, CURSOR_SIZE) * 3.0)
+    }
+}
+
+fn cursor_glyph(icon: CursorIcon) -> (&'static str, Vec2, f32) {
+    let center = vec2(0.48, 0.56);
+    let diagonal = std::f32::consts::FRAC_PI_4;
+    match icon {
+        CursorIcon::Default | CursorIcon::None | CursorIcon::Text => {
+            (icons::ICON_ARROW_SELECTOR_TOOL, vec2(0.23, 0.19), 0.0)
+        }
+        CursorIcon::PointingHand => (icons::ICON_PAN_TOOL_ALT, vec2(0.29, 0.15), 0.0),
+        CursorIcon::Crosshair => (icons::ICON_ADD, center, 0.0),
+        CursorIcon::Grab => (icons::ICON_PAN_TOOL, center, 0.0),
+        CursorIcon::Grabbing => (icons::ICON_BACK_HAND, center, 0.0),
+        CursorIcon::NotAllowed => (icons::ICON_BLOCK, center, 0.0),
+        CursorIcon::ResizeHorizontal => (icons::ICON_WIDTH, center, 0.0),
+        CursorIcon::ResizeVertical => (icons::ICON_HEIGHT, center, 0.0),
+        CursorIcon::ResizeNwSe => (icons::ICON_WIDTH, center, diagonal),
+        CursorIcon::ResizeNeSw => (icons::ICON_WIDTH, center, -diagonal),
+        CursorIcon::Wait => (icons::ICON_HOURGLASS, center, 0.0),
+        CursorIcon::Progress => (icons::ICON_PROGRESS_ACTIVITY, center, 0.0),
+        CursorIcon::Move => (icons::ICON_OPEN_WITH, center, 0.0),
+        CursorIcon::Help => (icons::ICON_HELP, center, 0.0),
+        CursorIcon::Alias => (icons::ICON_SHORTCUT, center, 0.0),
+    }
+}
+
+fn ibeam(painter: &Painter, at: Pos2, color: Color32) {
+    let half = IBEAM_HEIGHT / 2.0;
+    let (top, bottom) = (at.y - half, at.y + half);
+    painter.line(pos2(at.x, top), pos2(at.x, bottom), IBEAM_WIDTH, color);
+    for y in [top, bottom] {
+        painter.line(
+            pos2(at.x - IBEAM_SERIF, y),
+            pos2(at.x + IBEAM_SERIF, y),
+            IBEAM_WIDTH,
+            color,
         );
-        painter.galley(origin, galley, color);
-        Rect::from_min_size(origin, vec2(CURSOR_SIZE, CURSOR_SIZE)).expand(CURSOR_SHADOW * 2.0)
     }
 }
 
