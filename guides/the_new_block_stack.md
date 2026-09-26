@@ -456,9 +456,10 @@ given.
 `DerivedMetadata` is written the same way, from
 `BlockContent::derived_metadata`, and is for what a block's content says about
 itself that others want before the content has loaded. An image's is its
-thumbhash, which the image editor records in the header when it decodes the
-image; it reaches plugins as `BlockInfo::thumbhash`, and a beui `Picture` given
-it paints the blurred placeholder until its image arrives.
+thumbhash and exact size, which the image editor records in the header when it
+decodes the image; it reaches plugins as `BlockInfo::thumbhash`, a
+`beui::Thumbhash`, and a beui `Picture` given it lays out at the image's size
+and paints the blurred placeholder until the image arrives.
 
 ### Content on the plugin protocol
 

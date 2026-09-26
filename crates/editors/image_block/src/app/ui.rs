@@ -4,7 +4,7 @@ use block_editor_plugin::beui::reactive::{
     Spacer, clone, component, component_rect, create_effect, create_memo, view,
 };
 use block_editor_plugin::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
-use block_editor_plugin::beui::{Image, ImageFit, NodeId, Pos2, Rect, Vec2};
+use block_editor_plugin::beui::{Image, ImageFit, NodeId, Pos2, Rect, Thumbhash, Vec2};
 use block_editor_plugin::{Editor, FileChooser, Sidebar, fit_content};
 
 use super::picture::{thumbhash, watch};
@@ -80,14 +80,15 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn Artwork(editor: Editor, image: Memo<Option<Image>>, thumbhash: Memo<Option<Vec<u8>>>) -> NodeId {
+fn Artwork(
+    editor: Editor,
+    image: Memo<Option<Image>>,
+    thumbhash: Memo<Option<Thumbhash>>,
+) -> NodeId {
     let placed = component_rect();
     let world = editor.world();
     let placeholder = create_memo(clone!(thumbhash -> move || {
-        thumbhash
-            .get()
-            .and_then(|hash| Image::from_thumbhash(&hash))
-            .map(|placeholder| placeholder.size())
+        thumbhash.get().map(|thumbhash| thumbhash.size())
     }));
     let shape = create_memo(clone!(image placeholder world placed -> move || {
         let Some(size) = image.get().map(|image| image.size()).or_else(|| placeholder.get()) else {

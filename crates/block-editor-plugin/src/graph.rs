@@ -91,7 +91,7 @@ pub struct BlockInfo {
     pub references: Vec<Uuid>,
     pub access: AccessLevel,
     pub artifact: Option<ArtifactSource>,
-    pub thumbhash: Option<Vec<u8>>,
+    pub thumbhash: Option<beui::Thumbhash>,
 }
 
 impl BlockInfo {
@@ -140,7 +140,14 @@ impl BlockInfo {
                     source_type: artifact.source_type.into_bytes(),
                     data: artifact.data.clone(),
                 }),
-            thumbhash: self.thumbhash.clone(),
+            thumbhash: self
+                .thumbhash
+                .as_ref()
+                .map(|thumbhash| block_plugin_api::Thumbhash {
+                    hash: thumbhash.hash.clone(),
+                    width: thumbhash.width,
+                    height: thumbhash.height,
+                }),
         }
     }
 
@@ -158,7 +165,11 @@ impl BlockInfo {
                 source_type: Uuid::from_bytes(artifact.source_type),
                 data: artifact.data,
             }),
-            thumbhash: info.thumbhash,
+            thumbhash: info.thumbhash.map(|thumbhash| beui::Thumbhash {
+                hash: thumbhash.hash,
+                width: thumbhash.width,
+                height: thumbhash.height,
+            }),
         }
     }
 }

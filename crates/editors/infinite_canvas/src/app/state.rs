@@ -19,7 +19,7 @@ use block_editor_plugin::be_block::{CanvasContent, ObjectId};
 use block_editor_plugin::beui::reactive::{
     CanvasView, ReadSignal, WriteSignal, create_effect, create_signal, untrack,
 };
-use block_editor_plugin::beui::{Pos2, Rect, Vec2};
+use block_editor_plugin::beui::{Pos2, Rect, Thumbhash, Vec2};
 use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_plugin::{
     BlockFilter, ChildState, Drag, Editor, FileDrop, FilePicker, ImagePaster, InteractionMode,
@@ -261,8 +261,8 @@ pub(crate) struct CanvasState {
     set_labels: WriteSignal<HashMap<Uuid, BlockLabel>>,
     pub(crate) types: ReadSignal<HashMap<Uuid, Uuid>>,
     set_types: WriteSignal<HashMap<Uuid, Uuid>>,
-    thumbhashes: ReadSignal<HashMap<Uuid, Vec<u8>>>,
-    set_thumbhashes: WriteSignal<HashMap<Uuid, Vec<u8>>>,
+    thumbhashes: ReadSignal<HashMap<Uuid, Thumbhash>>,
+    set_thumbhashes: WriteSignal<HashMap<Uuid, Thumbhash>>,
     pub(crate) child_states: ReadSignal<HashMap<Uuid, ChildState>>,
     set_child_states: WriteSignal<HashMap<Uuid, ChildState>>,
     pub(crate) presence: ReadSignal<Presence>,
@@ -420,7 +420,7 @@ impl CanvasState {
         self.labels.get().get(&reference).cloned()
     }
 
-    pub(crate) fn thumbhash_of(&self, reference: Uuid) -> Option<Vec<u8>> {
+    pub(crate) fn thumbhash_of(&self, reference: Uuid) -> Option<Thumbhash> {
         self.thumbhashes.get().get(&reference).cloned()
     }
 
@@ -1731,7 +1731,7 @@ impl CanvasState {
             .iter()
             .map(|reference| (reference.id, reference.block_type))
             .collect();
-        let thumbhashes: HashMap<Uuid, Vec<u8>> = dependencies
+        let thumbhashes: HashMap<Uuid, Thumbhash> = dependencies
             .iter()
             .filter_map(|reference| Some((reference.id, reference.thumbhash.clone()?)))
             .collect();

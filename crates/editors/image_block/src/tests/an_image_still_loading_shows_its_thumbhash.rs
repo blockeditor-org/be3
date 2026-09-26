@@ -2,16 +2,14 @@ use super::*;
 
 #[test]
 fn an_image_still_loading_shows_its_thumbhash() {
-    let loaded = editor(png(8, 4));
-    let thumbhash = loaded
-        .content::<ImageContent>(None)
-        .header()
+    let loaded = editor(png(8, 3));
+    let image = loaded.content::<ImageContent>(None);
+    let derived = image
+        .derived_metadata()
         .thumbhash
-        .clone();
-    assert!(
-        thumbhash.is_some(),
-        "decoding an image records its thumbhash in the header"
-    );
+        .expect("decoding an image records its thumbhash in the header");
+    assert_eq!((derived.width, derived.height), (8, 3));
+    let shown = loaded.rect_of("image.picture");
 
     let block = Uuid::new_v4();
     let host = EditorHost::default();
@@ -19,7 +17,11 @@ fn an_image_still_loading_shows_its_thumbhash() {
     let mut loading: ContentHarness<ImageApp> =
         ContentHarness::new(BeuiTest::new(Editor::new(host.clone(), block)), host);
     let mut info = BlockInfo::new(block, ImageContent::CONTENT_TYPE, BlockParent::Root);
-    info.thumbhash = thumbhash;
+    info.thumbhash = Some(Thumbhash {
+        hash: derived.hash,
+        width: derived.width,
+        height: derived.height,
+    });
     loading.store().add_block(info);
     loading.run();
     loading.run();
@@ -28,10 +30,10 @@ fn an_image_still_loading_shows_its_thumbhash() {
         !loading.store().holds(None),
         "the content has not arrived yet"
     );
-    let rect = loading.rect_of("image.picture");
-    assert!(
-        rect.width() > rect.height(),
-        "the placeholder takes the image's shape before the image arrives"
+    assert_eq!(
+        loading.rect_of("image.picture"),
+        shown,
+        "the placeholder takes the place the image will"
     );
     loading.snapshot("an_image_still_loading_shows_its_thumbhash");
 }

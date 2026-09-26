@@ -1,5 +1,6 @@
 use block_editor_plugin::be_block::BlockContent;
 use block_editor_plugin::be_block::ImageContent;
+use block_editor_plugin::beui::Thumbhash;
 use block_editor_plugin::{BlockInfo, BlockParent, Editor, EditorHost};
 use block_ui_test::{BeuiTest, ContentHarness};
 use image::ImageEncoder;

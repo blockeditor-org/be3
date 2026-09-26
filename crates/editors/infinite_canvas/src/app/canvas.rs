@@ -9,7 +9,7 @@ use block_editor_plugin::beui::reactive::{
     view,
 };
 use block_editor_plugin::beui::styled::use_theme;
-use block_editor_plugin::beui::{Image, KeyPress, NodeId, PointerPress, Rect, Vec2, pos2};
+use block_editor_plugin::beui::{KeyPress, NodeId, PointerPress, Rect, Vec2, pos2};
 use block_editor_plugin::{ChildBlock, ChildMode, ChildState, ChildTarget, ViewChange};
 use uuid::Uuid;
 
@@ -187,11 +187,7 @@ fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> Ca
     let thumbhash = create_memo(clone!(entity -> move || {
         hashed.thumbhash_of(reference_of(&entity.get()?)?)
     }));
-    let placeholder = create_memo(move || {
-        thumbhash
-            .get()
-            .and_then(|hash| Image::from_thumbhash(&hash))
-    });
+    let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
     let theme = use_theme();
     let drawn = Rc::clone(&state);
     let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));

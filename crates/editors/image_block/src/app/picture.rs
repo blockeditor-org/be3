@@ -4,8 +4,8 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 use block_editor_plugin::be_block::{ImageContent, ImageHeader, ImageOp};
-use block_editor_plugin::beui::Image;
 use block_editor_plugin::beui::reactive::{Memo, create_effect, create_memo, create_signal};
+use block_editor_plugin::beui::{Image, Thumbhash};
 use block_editor_plugin::{BlockQuery, ContentProjection, Editor};
 
 #[derive(Clone, Default, PartialEq)]
@@ -53,7 +53,7 @@ pub(crate) fn watch(editor: &Editor, block: &Rc<ContentProjection<ImageContent>>
                     width: found.width,
                     height: found.height,
                     failure: None,
-                    thumbhash: Some(image.thumbhash()),
+                    thumbhash: Some(image.thumbhash().hash),
                     ..header.clone()
                 };
                 let shown = Shown {
@@ -84,7 +84,7 @@ pub(crate) fn watch(editor: &Editor, block: &Rc<ContentProjection<ImageContent>>
     create_memo(move || shown.get())
 }
 
-pub(crate) fn thumbhash(editor: &Editor) -> Memo<Option<Vec<u8>>> {
+pub(crate) fn thumbhash(editor: &Editor) -> Memo<Option<Thumbhash>> {
     let info = editor.watch_blocks(BlockQuery::Block(editor.block_id()));
     create_memo(move || {
         info.get()?

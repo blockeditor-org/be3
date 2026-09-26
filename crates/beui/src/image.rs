@@ -29,6 +29,27 @@ struct ImageData {
 #[derive(Clone)]
 pub struct Image(Arc<ImageData>);
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Thumbhash {
+    pub hash: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Thumbhash {
+    pub fn size(&self) -> Vec2 {
+        Vec2::new(self.width as f32, self.height as f32)
+    }
+
+    pub fn decode(&self) -> Option<Image> {
+        if self.width == 0 || self.height == 0 {
+            return None;
+        }
+        let (width, height, pixels) = thumbhash::thumb_hash_to_rgba(&self.hash).ok()?;
+        (width > 0 && height > 0).then(|| Image::from_rgba(width as u32, height as u32, pixels))
+    }
+}
+
 impl Image {
     pub fn from_rgba(width: u32, height: u32, pixels: Vec<u8>) -> Self {
         assert_eq!(
@@ -44,21 +65,24 @@ impl Image {
         }))
     }
 
-    pub fn from_thumbhash(hash: &[u8]) -> Option<Self> {
-        let (width, height, pixels) = thumbhash::thumb_hash_to_rgba(hash).ok()?;
-        (width > 0 && height > 0).then(|| Self::from_rgba(width as u32, height as u32, pixels))
-    }
-
-    pub fn thumbhash(&self) -> Vec<u8> {
+    pub fn thumbhash(&self) -> Thumbhash {
         let (width, height) = (self.0.width, self.0.height);
         if width == 0 || height == 0 {
-            return Vec::new();
+            return Thumbhash {
+                hash: Vec::new(),
+                width,
+                height,
+            };
         }
         let scale = (THUMBHASH_SIDE as f32 / width.max(height) as f32).min(1.0);
         let to_width = ((width as f32 * scale).round() as u32).clamp(1, THUMBHASH_SIDE);
         let to_height = ((height as f32 * scale).round() as u32).clamp(1, THUMBHASH_SIDE);
         let pixels = shrink(&self.0.pixels, width, height, to_width, to_height);
-        thumbhash::rgba_to_thumb_hash(to_width as usize, to_height as usize, &pixels)
+        Thumbhash {
+            hash: thumbhash::rgba_to_thumb_hash(to_width as usize, to_height as usize, &pixels),
+            width,
+            height,
+        }
     }
 
     pub fn id(&self) -> ImageId {

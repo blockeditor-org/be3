@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::DerivedMetadata;
 use crate::blob::{Blob, BlobKind, BlobOp};
+use crate::{DerivedMetadata, Thumbhash};
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ImageHeader {
@@ -32,8 +32,13 @@ impl BlobKind for ImageFile {
     }
 
     fn derived_metadata(header: &ImageHeader) -> DerivedMetadata {
+        let thumbhash = header.size().zip(header.thumbhash.as_ref());
         DerivedMetadata {
-            thumbhash: header.thumbhash.clone(),
+            thumbhash: thumbhash.map(|((width, height), hash)| Thumbhash {
+                hash: hash.clone(),
+                width,
+                height,
+            }),
         }
     }
 }

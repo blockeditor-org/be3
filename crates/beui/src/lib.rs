@@ -56,7 +56,7 @@ pub use font::{
     line_height,
 };
 pub use geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
-pub use image::{Image, ImageFit, ImageId};
+pub use image::{Image, ImageFit, ImageId, Thumbhash};
 pub use input::{
     CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, InputState, Key, KeyPress, Modifiers,
     PointerButton, PointerPress, RawInput, ScrollGesture, TouchId, TouchPhase, TouchPoint,

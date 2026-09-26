@@ -5,14 +5,14 @@ use beui_macros::component;
 use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::image::{Image, ImageFit};
+use crate::image::{Image, ImageFit, Thumbhash};
 use crate::node::{Element, InteractInput, NodeId, NodeMap};
 use crate::painter::Painter;
 use crate::reactive::{Prop, create_effect, with_document};
 
 pub(crate) struct PictureNode {
     image: Option<Image>,
-    thumbhash: Option<Vec<u8>>,
+    thumbhash: Option<Thumbhash>,
     placeholder: Option<Image>,
     source: Option<Rect>,
     fit: ImageFit,
@@ -27,16 +27,17 @@ const WHOLE: Rect = Rect {
 };
 
 impl PictureNode {
-    fn shown(&self) -> Option<(&Image, bool)> {
-        match (&self.image, &self.placeholder) {
-            (Some(image), _) => Some((image, self.smooth)),
-            (None, Some(placeholder)) => Some((placeholder, true)),
-            (None, None) => None,
+    fn shown(&self) -> Option<(&Image, Vec2, bool)> {
+        match (&self.image, &self.placeholder, &self.thumbhash) {
+            (Some(image), _, _) => Some((image, self.cropped(image.size()), self.smooth)),
+            (None, Some(placeholder), Some(thumbhash)) => {
+                Some((placeholder, self.cropped(thumbhash.size()), true))
+            }
+            _ => None,
         }
     }
 
-    fn shown_size(&self, image: &Image) -> Vec2 {
-        let size = image.size();
+    fn cropped(&self, size: Vec2) -> Vec2 {
         match self.source {
             Some(source) => Vec2::new(size.x * source.width(), size.y * source.height()),
             None => size,
@@ -46,10 +47,9 @@ impl PictureNode {
 
 impl Element for PictureNode {
     fn measure(&self, _doc: &mut Document, _painter: &Painter, available: Vec2) -> Vec2 {
-        let Some((image, _)) = self.shown() else {
+        let Some((_, size, _)) = self.shown() else {
             return Vec2::ZERO;
         };
-        let size = self.shown_size(image);
         if !available.x.is_finite() || available.x <= 0.0 {
             return size;
         }
@@ -69,11 +69,11 @@ impl Element for PictureNode {
     }
 
     fn paint(&self, _doc: &Document, painter: &Painter, _rects: &NodeMap<Rect>, rect: Rect) {
-        let Some((image, smooth)) = self.shown() else {
+        let Some((image, size, smooth)) = self.shown() else {
             return;
         };
         painter.image(
-            self.fit.place(rect, self.shown_size(image)),
+            self.fit.place(rect, size),
             self.source.unwrap_or(WHOLE),
             image,
             self.tint,
@@ -105,7 +105,10 @@ impl Element for PictureNode {
     fn detail(&self) -> Option<String> {
         match (&self.image, &self.placeholder) {
             (Some(image), _) => Some(format!("{}x{}", image.width(), image.height())),
-            (None, Some(_)) => Some("thumbhash".to_owned()),
+            (None, Some(_)) => self
+                .thumbhash
+                .as_ref()
+                .map(|thumbhash| format!("thumbhash {}x{}", thumbhash.width, thumbhash.height)),
             (None, None) => None,
         }
     }
@@ -122,7 +125,7 @@ impl Element for PictureNode {
 #[component]
 pub fn Picture(
     image: Prop<Option<Image>>,
-    #[prop(default = None)] thumbhash: Prop<Option<Vec<u8>>>,
+    #[prop(default = None)] thumbhash: Prop<Option<Thumbhash>>,
     #[prop(default = None)] source: Prop<Option<Rect>>,
     #[prop(default = ImageFit::Contain)] fit: Prop<ImageFit>,
     #[prop(default = Color32::WHITE)] tint: Prop<Color32>,
@@ -181,10 +184,10 @@ impl Document {
         }
     }
 
-    pub(crate) fn set_picture_thumbhash(&mut self, picture: NodeId, thumbhash: Option<Vec<u8>>) {
+    pub(crate) fn set_picture_thumbhash(&mut self, picture: NodeId, thumbhash: Option<Thumbhash>) {
         if self.arena.get_as::<PictureNode>(picture).thumbhash != thumbhash {
             let node = self.arena.get_mut_as::<PictureNode>(picture);
-            node.placeholder = thumbhash.as_deref().and_then(Image::from_thumbhash);
+            node.placeholder = thumbhash.as_ref().and_then(Thumbhash::decode);
             node.thumbhash = thumbhash;
         }
     }

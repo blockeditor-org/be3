@@ -13,7 +13,14 @@ pub struct BlockMetadata {
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DerivedMetadata {
-    pub thumbhash: Option<Vec<u8>>,
+    pub thumbhash: Option<Thumbhash>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Thumbhash {
+    pub hash: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
