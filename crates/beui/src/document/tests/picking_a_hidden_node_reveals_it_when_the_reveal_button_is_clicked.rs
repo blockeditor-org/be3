@@ -2,7 +2,7 @@ use super::*;
 use crate::reactive::{Frame, List, NodeRef, Text, build, view};
 
 #[test]
-fn picking_a_node_reveals_it_in_the_tree() {
+fn picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked() {
     let text = NodeRef::new();
     let document = build({
         let text = text.clone();
@@ -49,6 +49,16 @@ fn picking_a_node_reveals_it_in_the_tree() {
 
     assert!(!harness.inspector().state.picking.get());
     assert_eq!(harness.inspector().state.selected.get(), Some(text));
+    assert_eq!(
+        harness.tree(),
+        ["column", "  frame", "    frame", "      frame"],
+        "picking a node leaves the tree as it was"
+    );
+    assert!(harness.reveal_shown(), "a hidden pick offers to reveal it");
+
+    harness.click(harness.reveal_center());
+    harness.frame(Vec::new());
+
     assert_eq!(
         harness.tree(),
         [
