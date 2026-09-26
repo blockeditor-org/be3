@@ -1437,12 +1437,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "checkers"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "game-api",
+ "game-host",
+ "game-pieces",
+ "uuid",
+]
+
+[[package]]
 name = "checklist"
 version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "uuid",
+]
+
+[[package]]
+name = "chess"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "game-api",
+ "game-host",
+ "game-pieces",
+ "uuid",
+]
+
+[[package]]
+name = "chess_vs_checkers"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "game-api",
+ "game-host",
+ "game-pieces",
  "uuid",
 ]
 
@@ -2674,6 +2707,14 @@ dependencies = [
  "game-api",
  "uuid",
  "wasmi",
+]
+
+[[package]]
+name = "game-pieces"
+version = "0.1.0"
+dependencies = [
+ "game-api",
+ "uuid",
 ]
 
 [[package]]

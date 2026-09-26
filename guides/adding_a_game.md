@@ -72,9 +72,9 @@ offered by calling `action(Move::new(label))`; when it answers `true`, that
 move is the one the log records next for that actor, so the state updates
 happen right there, inline. A move is identified by its position among the
 `action` calls reached for its actor, never by its label or its gesture, so
-nothing a client sends can name a move it was not offered. When the log runs
-out, `action` returns the screen for the viewing player, which `?` propagates
-out.
+nothing a client sends can name a move it was not offered. While the game
+waits in `action`, the host can also ask it for any player's screen, which
+`action` answers from the same `describe` and `body` and then goes on waiting.
 
 ### What the player sees
 
@@ -85,9 +85,11 @@ what lets a player pick their own skin for the pieces. There are two boards:
 
 - `Grid` - columns and rows of `Tile`s, the top row first, each holding a
   stack of `Sprite` layers painted bottom first. A layer is a `Square` (a
-  light or dark board square), a `Piece` (a `kind` such as `"x"`, `"o"` or
-  `"disc"`, and the `seat` it belongs to, which decides its colour), a
-  `Card` or a `CardBack`. Tic-Tac-Toe and Connect Four use it.
+  light or dark board square), a `Tint` over it (the last move, or a king in
+  danger), a `Piece` (a `kind` such as `"x"`, `"o"`, `"disc"`, `"knight"` or
+  `"man"`, and the `seat` it belongs to, which decides its colour), a
+  `Card` or a `CardBack`. A grid whose every tile starts with a `Square` is
+  drawn as one checkered board; any other grid as separate cells.
 - `CardTable` - a list of `Pile`s, each with a label, a `PilePlace` (the deck,
   the discard pile, an extra pile, the viewer's own hand, or someone else's)
   that says where on the table it goes, a `Spread` (stacked, showing its top
@@ -101,7 +103,29 @@ another - or clicking the first and then the second. The editor highlights
 every spot a move can start from, and once one is picked up, every spot it
 can land on. Two moves may share a gesture - playing an eight onto the
 discard pile is four moves, one per suit it can call - and the editor then
-asks which one was meant. A move with no gesture is a button under the board.
+asks which one was meant. A move with no gesture is a button beside the board.
+
+The editor lays the board out in a world of its own and draws it on a
+pan-and-zoom canvas, so a Game block plays the same in a tab of its own as
+inside an infinite canvas. Players can mark it up the way they would a chess
+board online - arrows and circles drawn with a right-drag, or with a second
+finger while one is held down - and none of that reaches the game.
+
+### The history
+
+Every move the log records becomes a line of the game's history (`Turn`s on
+the `GameScreen`), which the editor lists beside the board and steps back
+through by showing the log up to that move. The line reads as the move's
+label, unless `.recorded(text)` says otherwise. The history is shown to every
+player, so a move whose label names something only its player may know is
+recorded as what the table saw: Crazy 8s records "Drew a card", never which.
+`helper.annotate(suffix)` adds to the last line once the game knows more about
+it (chess marks a check `+` on the move that gave it), and
+`helper.describe_last_turn(text)` replaces it. `helper.listing()` says whether
+the moves being offered are listed for the viewer rather than matched against
+the log, which is the only time their labels are read, so a game whose labels
+are costly to write can offer unlabelled moves while it plays one out and
+describe the one that was chosen.
 
 Some of what a rulebook says in one sentence is a paragraph of Rust, so
 `GameHelper` says those the short way too:
@@ -132,9 +156,35 @@ follows its `rulebook.md` section by section - so what is left in it is
 what makes Crazy 8s that game: eights are wild, a played eight calls a
 suit, and drawing gets you one card you may play.
 
-The game keeps no state between calls: the log is replayed from the top every
-time, in a fresh instance, and the interpreter cuts a module off that never
-returns.
+The game runs once, as one long call the host pauses. `game_api::game!`
+exports `play`, which runs the game function against the host: whenever
+`action` needs the next move it calls the host's `next` import, and the host
+pauses the whole instance there (a wasmi resumable call) until a move arrives
+or a screen is asked for, then resumes it. `game-host`'s `Session` is that
+paused instance: `play(action)` feeds it one move, `show(player)` asks it for a
+screen, and each of those gets a fuel budget of its own, so a move that never
+finishes is cut off as that move's failure however long the game has run.
+wasmi cannot copy a paused instance, so there are no snapshots: looking back at
+an earlier move, or opening a game again, starts a fresh session and plays the
+log into it from the top, each move again on its own budget. `Game::show`
+is that in one call.
+
+### Games with pieces on a board
+
+`crates/tabletop_games/pieces` (`game-pieces`) is the same idea for games
+like chess and checkers, where the rules are mostly how each piece moves. A
+piece is an implementation of `Piece`: its name (which is also its sprite
+kind), its letter for notation, whether it is royal - a side may never leave
+a royal piece where an enemy move could capture it - and the `Step`s it can
+make from a square: where it lands, what it captures, where it stops on the
+way, another piece that moves with it, what it becomes. `Rider` and `Leaper`
+describe most pieces in a line; `chess` and `checkers` hold the rest. A game
+is then a `Rules` - the board's size, the setup, each side's `Army` (its
+name, colour, and whether it must capture when it can) and how moves are
+written - and `play(helper, &RULES)` runs all of it: seating, turns, check,
+the endings, resigning, and the history in the game's notation. Chess,
+Checkers and Chess vs Checkers are three `Rules` over the same pieces, so a
+new variant is a new setup, and a new kind of piece is one `Piece`.
 
 ## 3. Test it
 
@@ -169,6 +219,7 @@ there and then - and the module travels with the workspace rather than with the
 app.
 
 To try a game without a second client, the Game block's "Playing as" menu
-switches which player this client is: you, anyone who has moved already, or a
-new player who has not. Each is a player of their own in the log, so one person
-can play every side of a game.
+switches which player this client is: you, a guest you have already played as,
+or a new guest. Each guest is a player of their own in the log, so one person
+can play every side of a game. Other people are never in the menu: playing as
+them would show their hand and move in their name.

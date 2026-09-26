@@ -114,6 +114,14 @@ pointer so existing pressable controls, sliders, text selection, focus, and
 overlays work without a separate touch-only control API. A second contact or
 a cancelled contact cancels a pending tap rather than activating it.
 
+A second finger that lands while the first is still held where it touched
+down is a secondary drag rather than a pinch: it reports through
+`ClickCatcher`'s `on_secondary_drag` exactly as a right-button drag does
+(`SecondaryDrag`: where it began, where it is, whether it started, ended or was
+cancelled, and the modifiers), which is how a board marks up arrows by either
+means. The moment the held finger moves, the gesture is a pinch after all and
+the secondary drag is cancelled.
+
 A tap may drift by up to eight logical points. Beyond that threshold beui
 locks the gesture to its dominant axis. Vertical gestures drag the deepest
 scroll view under the initial contact, keep that scroll captured when the
@@ -132,4 +140,5 @@ with Ctrl+Shift+I and enable “Emulate touch with mouse” to turn the primary
 mouse button into a touch contact. Embedded beui plugins receive the same touch
 data over the block plugin input protocol. `block_ui_test::BeuiTest` provides
 `touch_start`, `touch_move`, `touch_end`, and `touch_cancel` for headless
-gesture tests.
+gesture tests, `finger` for a gesture of more than one finger, and
+`secondary_drag` for a right-button drag.

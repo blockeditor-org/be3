@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
+use block_editor_beui::beui::Pos2;
 use block_editor_beui::beui::reactive::{Memo, ReadSignal, WriteSignal};
-use game_api::{Board, Gesture, Spot};
+use game_api::{Gesture, Spot};
 
 use super::{Action, GameModel};
 
@@ -14,16 +15,25 @@ pub(crate) enum Mark {
     Over,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Dragging {
+    pub(crate) from: Spot,
+    pub(crate) at: Pos2,
+}
+
 #[derive(Clone)]
 pub(crate) struct Play {
     pub(crate) game: Rc<dyn GameModel>,
     pub(crate) actions: Memo<Vec<Action>>,
     pub(crate) editable: Memo<bool>,
-    pub(crate) board: Memo<Board>,
     pub(crate) selected: ReadSignal<Option<Spot>>,
     pub(crate) set_selected: WriteSignal<Option<Spot>>,
     pub(crate) choices: ReadSignal<Vec<Action>>,
     pub(crate) set_choices: WriteSignal<Vec<Action>>,
+    pub(crate) dragging: ReadSignal<Option<Dragging>>,
+    pub(crate) set_dragging: WriteSignal<Option<Dragging>>,
+    pub(crate) over: ReadSignal<Option<Spot>>,
+    pub(crate) set_over: WriteSignal<Option<Spot>>,
 }
 
 impl Play {
@@ -34,6 +44,9 @@ impl Play {
         let selected = self.selected.get();
         if selected == Some(spot) {
             return Mark::Selected;
+        }
+        if self.over.get() == Some(spot) && selected.is_some_and(|from| self.leads(from, spot)) {
+            return Mark::Over;
         }
         self.actions.with(|actions| {
             let offers = |wanted: &dyn Fn(Gesture) -> bool| {
@@ -54,15 +67,6 @@ impl Play {
                 Mark::None
             }
         })
-    }
-
-    pub(crate) fn movable(&self, spot: Spot) -> bool {
-        self.editable.get()
-            && self.actions.with(|actions| {
-                actions.iter().any(|action| {
-                    matches!(action.gesture, Some(Gesture::Drag { from, .. }) if from == spot)
-                })
-            })
     }
 
     pub(crate) fn leads(&self, from: Spot, to: Spot) -> bool {
@@ -134,6 +138,10 @@ impl Play {
                 .cloned()
                 .collect()
         })
+    }
+
+    pub(crate) fn can_drag(&self, spot: Spot) -> bool {
+        self.editable.get_untracked() && self.movable_untracked(spot)
     }
 
     fn movable_untracked(&self, spot: Spot) -> bool {

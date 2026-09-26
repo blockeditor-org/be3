@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::convert::Infallible;
 
 use serde::{Deserialize, Serialize};
@@ -23,6 +23,14 @@ pub struct GameScreen {
     pub description: String,
     pub board: Board,
     pub actions: Vec<GameActionOption>,
+    pub history: Vec<Turn>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+pub struct Turn {
+    pub actor: Uuid,
+    pub entry: u32,
+    pub description: String,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -33,25 +41,75 @@ pub struct GameActionOption {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-pub struct GameRequest {
-    pub actions: Vec<GameAction>,
-    pub player: Uuid,
+pub enum Command {
+    Play(GameAction),
+    Show(Uuid),
 }
 
 pub type Choose<'a> = dyn FnMut(Move) -> bool + 'a;
 
+enum Source<'a> {
+    Log {
+        actions: &'a [GameAction],
+        cursor: Cell<usize>,
+        player: Uuid,
+    },
+    Host {
+        played: Cell<u32>,
+    },
+}
+
 pub struct GameHelper<'a> {
-    actions: &'a [GameAction],
-    cursor: Cell<usize>,
-    player: Uuid,
+    source: Source<'a>,
+    history: RefCell<Vec<Turn>>,
+    listing: Cell<bool>,
 }
 
 impl<'a> GameHelper<'a> {
     pub fn new(actions: &'a [GameAction], player: Uuid) -> Self {
-        Self {
+        Self::from(Source::Log {
             actions,
             cursor: Cell::new(0),
             player,
+        })
+    }
+
+    pub fn hosted() -> GameHelper<'static> {
+        GameHelper::from(Source::Host {
+            played: Cell::new(0),
+        })
+    }
+
+    fn from(source: Source<'a>) -> Self {
+        Self {
+            source,
+            history: RefCell::new(Vec::new()),
+            listing: Cell::new(false),
+        }
+    }
+
+    pub fn listing(&self) -> bool {
+        self.listing.get()
+    }
+
+    pub fn describe_last_turn(&self, description: String) {
+        if let Some(last) = self.history.borrow_mut().last_mut() {
+            last.description = description;
+        }
+    }
+
+    pub fn annotate(&self, suffix: &str) {
+        if let Some(last) = self.history.borrow_mut().last_mut() {
+            last.description.push_str(suffix);
+        }
+    }
+
+    fn screen(&self, scene: Scene, actions: Vec<GameActionOption>) -> GameScreen {
+        GameScreen {
+            description: scene.description,
+            board: scene.board,
+            actions,
+            history: self.history.borrow().clone(),
         }
     }
 
@@ -60,26 +118,78 @@ impl<'a> GameHelper<'a> {
         describe: impl Fn(Uuid) -> S,
         mut body: impl FnMut(Uuid, &mut Choose<'_>),
     ) -> Result<(), GameScreen> {
-        while let Some(entry) = self.actions.get(self.cursor.get()) {
-            self.cursor.set(self.cursor.get() + 1);
-            let Ok(target) = bincode::deserialize::<u32>(&entry.action) else {
-                continue;
-            };
-            let mut seen = 0u32;
-            let mut matched = false;
-            body(entry.actor, &mut |_offered: Move| {
-                let is_target = !matched && seen == target;
-                seen += 1;
-                matched |= is_target;
-                is_target
-            });
-            if matched {
-                return Ok(());
+        match &self.source {
+            Source::Log {
+                actions,
+                cursor,
+                player,
+            } => {
+                while let Some(entry) = actions.get(cursor.get()) {
+                    let index = cursor.get();
+                    cursor.set(index + 1);
+                    if self.replay(entry, index as u32, &mut body) {
+                        return Ok(());
+                    }
+                }
+                Err(self.list(*player, &describe, &mut body))
             }
+            Source::Host { played } => loop {
+                match guest::next() {
+                    Command::Play(entry) => {
+                        let index = played.get();
+                        played.set(index + 1);
+                        if self.replay(&entry, index, &mut body) {
+                            return Ok(());
+                        }
+                    }
+                    Command::Show(player) => {
+                        guest::present(&self.list(player, &describe, &mut body))
+                    }
+                }
+            },
         }
+    }
+
+    fn replay(
+        &self,
+        entry: &GameAction,
+        index: u32,
+        body: &mut impl FnMut(Uuid, &mut Choose<'_>),
+    ) -> bool {
+        let Ok(target) = bincode::deserialize::<u32>(&entry.action) else {
+            return false;
+        };
+        let mut seen = 0u32;
+        let mut matched = None;
+        body(entry.actor, &mut |offered: Move| {
+            let is_target = matched.is_none() && seen == target;
+            seen += 1;
+            if is_target {
+                matched = Some(offered.recorded.unwrap_or(offered.label));
+            }
+            is_target
+        });
+        let Some(description) = matched else {
+            return false;
+        };
+        self.history.borrow_mut().push(Turn {
+            actor: entry.actor,
+            entry: index,
+            description,
+        });
+        true
+    }
+
+    fn list<S: Into<Scene>>(
+        &self,
+        player: Uuid,
+        describe: &impl Fn(Uuid) -> S,
+        body: &mut impl FnMut(Uuid, &mut Choose<'_>),
+    ) -> GameScreen {
         let mut index = 0u32;
         let mut actions = Vec::new();
-        body(self.player, &mut |offered: Move| {
+        self.listing.set(true);
+        body(player, &mut |offered: Move| {
             actions.push(GameActionOption {
                 label: offered.label,
                 gesture: offered.gesture,
@@ -88,12 +198,8 @@ impl<'a> GameHelper<'a> {
             index += 1;
             false
         });
-        let scene = describe(self.player).into();
-        Err(GameScreen {
-            description: scene.description,
-            board: scene.board,
-            actions,
-        })
+        self.listing.set(false);
+        self.screen(describe(player).into(), actions)
     }
 
     pub fn turn(
@@ -131,10 +237,12 @@ impl<'a> GameHelper<'a> {
                 },
                 |player, choose| {
                     if !players.contains(&player) {
-                        if choose(Move::new("Join the game")) {
+                        if choose(Move::new("Join the game").recorded("Joined the game")) {
                             players.push(player);
                         }
-                    } else if players.len() >= minimum && choose(Move::new("Start the game")) {
+                    } else if players.len() >= minimum
+                        && choose(Move::new("Start the game").recorded("Started the game"))
+                    {
                         started = true;
                     }
                 },
@@ -149,12 +257,14 @@ impl<'a> GameHelper<'a> {
         &self,
         describe: impl Fn(Uuid) -> S,
     ) -> Result<Infallible, GameScreen> {
-        let scene = describe(self.player).into();
-        Err(GameScreen {
-            description: scene.description,
-            board: scene.board,
-            actions: Vec::new(),
-        })
+        match &self.source {
+            Source::Log { player, .. } => Err(self.screen(describe(*player).into(), Vec::new())),
+            Source::Host { .. } => loop {
+                if let Command::Show(player) = guest::next() {
+                    guest::present(&self.screen(describe(player).into(), Vec::new()));
+                }
+            },
+        }
     }
 }
 
