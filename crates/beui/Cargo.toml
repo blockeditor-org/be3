@@ -101,3 +101,7 @@ required-features = ["window"]
 [[example]]
 name = "dock"
 required-features = ["window"]
+
+[[example]]
+name = "survey"
+required-features = ["window"]
