@@ -2,27 +2,33 @@
   "id": "be3.map",
   "name": "Map",
   "version": "0.1.0",
-  "block_type": "6d617076-6965-7762-6c6f-636b00000001",
-  "display_name": "Map",
-  "icon": "\ue55b",
-  "creation": "Immediate",
-  "children": {
-    "add": true,
-    "delete": true,
-    "replace": true
-  },
-  "capabilities": {
-    "rotation": false,
-    "preserve_aspect_ratio": true,
-    "pan_and_zoom": true
-  },
-  "regions": [
-    "Frame",
-    "Preview"
-  ],
-  "chrome": [
-    "Toolbar",
-    "RightSidebar"
+  "editors": [
+    {
+      "block_type": "6d617076-6965-7762-6c6f-636b00000001",
+      "display_name": "Map",
+      "icon": "\ue55b",
+      "templates": {
+        "main": {}
+      },
+      "children": {
+        "add": true,
+        "delete": true,
+        "replace": true
+      },
+      "capabilities": {
+        "rotation": false,
+        "preserve_aspect_ratio": true,
+        "pan_and_zoom": true
+      },
+      "regions": [
+        "Frame",
+        "Preview"
+      ],
+      "chrome": [
+        "Toolbar",
+        "RightSidebar"
+      ]
+    }
   ],
   "entry_point": "map.wasm",
   "network": [

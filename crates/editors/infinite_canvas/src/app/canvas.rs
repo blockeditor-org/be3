@@ -210,7 +210,6 @@ fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> Ca
                 .and_then(|label| label.icon)
                 .map(str::to_owned),
             automatic: label.is_some_and(|label| label.automatic),
-            measure: drawn.measure_text(entity.id),
             entity,
         };
         if shown.borrow().as_ref() == Some(&paint) {

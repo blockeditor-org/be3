@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use super::column_label;
 
+mod discs_fall_to_the_bottom_and_the_landing_tile_is_clicked;
 mod draw_ends_the_game_with_no_actions;
 mod first_and_second_actors_become_red_and_yellow;
 mod full_column_is_not_offered_as_a_move;

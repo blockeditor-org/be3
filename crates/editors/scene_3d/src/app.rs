@@ -11,9 +11,9 @@ use ui::Scene3DView;
 pub struct Scene3DApp;
 
 impl block_editor_beui::BeuiApp for Scene3DApp {
-    fn view(editor: Editor) -> NodeId {
+    fn view(_editor: Editor) -> NodeId {
         view! {
-            <Scene3DView editor={editor} />
+            <Scene3DView />
         }
     }
 

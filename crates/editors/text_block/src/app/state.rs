@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use beui::reactive::{ReadSignal, WriteSignal, create_signal};
+use beui::reactive::{ReadSignal, WriteSignal, create_effect, create_signal, untrack};
 use beui::unstyled::TextAreaState;
 use beui::{Rect, Vec2};
 use block_editor_beui::BlockQuery;
@@ -38,13 +38,13 @@ pub(crate) struct State {
     pub text: TextAreaState,
     pub dependencies: BlockList,
     pub paster: RefCell<ImagePaster>,
-    pub embed_sizes: RefCell<HashMap<Uuid, Vec2>>,
+    pub embed_sizes: ReadSignal<HashMap<Uuid, Vec2>>,
+    pub set_embed_sizes: WriteSignal<HashMap<Uuid, Vec2>>,
     pub embed_children: RefCell<HashMap<FocusedEmbed, ChildState>>,
     pub published_cursor: Cell<Option<TextCursor>>,
     pub focused_embed: ReadSignal<Option<FocusedEmbed>>,
     pub set_focused_embed: WriteSignal<Option<FocusedEmbed>>,
     pub focus_confirmed: Cell<bool>,
-    pub paste_requested: Cell<bool>,
 
     pub embeds: ReadSignal<Vec<ResolvedEmbed>>,
     pub set_embeds: WriteSignal<Vec<ResolvedEmbed>>,
@@ -59,7 +59,7 @@ pub(crate) struct State {
     pub presence_revision: ReadSignal<u64>,
     set_presence_revision: WriteSignal<u64>,
     presence_counter: Cell<u64>,
-    peers: ReadSignal<Vec<(u64, TextCursor)>>,
+    pub peers: ReadSignal<Vec<(u64, TextCursor)>>,
     remote_cursors: RefCell<Vec<(u64, TextCursor)>>,
 }
 
@@ -80,6 +80,7 @@ impl State {
         let (import_error, set_import_error) = create_signal(None);
         let (presence_revision, set_presence_revision) = create_signal(0);
         let (focused_embed, set_focused_embed) = create_signal(None);
+        let (embed_sizes, set_embed_sizes) = create_signal(HashMap::new());
         let state = Rc::new(Self {
             workspace_id: editor.host().workspace_id(),
             peers: editor.peers::<TextCursor>(),
@@ -92,13 +93,13 @@ impl State {
             text,
             dependencies,
             paster: RefCell::new(ImagePaster::default()),
-            embed_sizes: RefCell::new(HashMap::new()),
+            embed_sizes,
+            set_embed_sizes,
             embed_children: RefCell::new(HashMap::new()),
             published_cursor: Cell::new(None),
             focused_embed,
             set_focused_embed,
             focus_confirmed: Cell::new(false),
-            paste_requested: Cell::new(false),
             embeds,
             set_embeds,
             hex_view,
@@ -115,12 +116,15 @@ impl State {
             remote_cursors: RefCell::new(Vec::new()),
         });
         let pumped = Rc::downgrade(&state);
-        state.editor.each_frame(move || {
-            if let Some(state) = pumped.upgrade() {
-                state.pump();
-            }
+        let edited = state.text.content();
+        create_effect(move || {
+            edited.get();
+            let Some(state) = pumped.upgrade() else {
+                return;
+            };
+            state.content.revision();
+            untrack(|| state.pump());
         });
-        state.pump();
         state
     }
 
@@ -138,18 +142,17 @@ impl State {
         }
         let first = self.adopted.replace(revision).is_none();
         self.content.read(|content| self.document.adopt(content));
+        if self.document.take_external_edit() {
+            self.text.external_edit();
+        } else {
+            self.text.sync();
+        }
         if first {
             let start = self.text.core().position(0);
             self.text.execute(EditorCommand::SetSelection {
                 anchor: start,
                 focus: start,
             });
-        }
-    }
-
-    pub fn poll_external_edit(&self) {
-        if self.document.take_external_edit() {
-            self.text.external_edit();
         }
     }
 

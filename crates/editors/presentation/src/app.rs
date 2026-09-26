@@ -5,6 +5,7 @@ use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 mod slides;
+pub mod templates;
 mod ui;
 
 use ui::{PresentationPreview, PresentationView};
@@ -25,6 +26,11 @@ impl block_editor_beui::BeuiApp for PresentationApp {
     }
 
     fn create_block(creation: &Creation) -> Result<Uuid, String> {
-        Ok(creation.create(&PresentationContent::default()))
+        if creation.template() == Creation::MAIN {
+            return Ok(creation.create(&PresentationContent::default()));
+        }
+        let template = templates::SlideTemplate::from_id(creation.template())
+            .ok_or_else(|| format!("there is no slide template {}", creation.template()))?;
+        Ok(creation.create(&templates::build_template_canvas(template)))
     }
 }

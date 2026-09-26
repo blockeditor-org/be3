@@ -2,19 +2,27 @@
   "id": "be3.pan_zoom",
   "name": "Pan and Zoom",
   "version": "0.1.0",
-  "block_type": "70616e5f-7a6f-6f6d-2d62-6c6f636b0001",
-  "display_name": "Pan and Zoom",
-  "icon": "",
-  "creation": "Immediate",
-  "interaction": "Live",
-  "resize": "Both",
-  "capabilities": {
-    "rotation": false,
-    "preserve_aspect_ratio": false,
-    "pan_and_zoom": true
-  },
-  "regions": [
-    "Frame"
+  "editors": [
+    {
+      "block_type": "70616e5f-7a6f-6f6d-2d62-6c6f636b0001",
+      "display_name": "Pan and Zoom",
+      "icon": "\uf655",
+      "templates": {
+        "main": {
+          "category": "debug"
+        }
+      },
+      "interaction": "Live",
+      "capabilities": {
+        "rotation": false,
+        "preserve_aspect_ratio": false,
+        "pan_and_zoom": true
+      },
+      "resize": "Both",
+      "regions": [
+        "Frame"
+      ]
+    }
   ],
   "entry_point": "pan_zoom.wasm"
 }

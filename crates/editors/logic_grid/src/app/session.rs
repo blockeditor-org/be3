@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use beui::reactive::{ReadSignal, WriteSignal, create_signal};
+use beui::reactive::{ReadSignal, WriteSignal, create_effect, create_signal};
 use block_editor_beui::Editor;
 
 use super::*;
@@ -37,12 +37,12 @@ impl Session {
             set_graph_hover,
         });
         let synced = Rc::downgrade(&session);
-        editor.each_frame(move || {
+        create_effect(move || {
             if let Some(session) = synced.upgrade() {
+                session.version.get();
                 session.sync();
             }
         });
-        session.sync();
         session
     }
 

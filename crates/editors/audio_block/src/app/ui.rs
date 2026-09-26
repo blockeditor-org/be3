@@ -1,16 +1,14 @@
-use std::rc::Rc;
-
 use block_editor_beui::be_block::AudioContent;
 use block_editor_beui::beui::icons::{ICON_AUDIO_FILE, ICON_PAUSE, ICON_PLAY_ARROW};
 use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, NodeRef, Show, Spacer, clone, component, create_memo,
-    create_signal, view,
+    view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, IconButton, IconSized, use_theme,
 };
 use block_editor_beui::beui::{NodeId, TextAlign};
-use block_editor_beui::{AudioStatus, Editor, FileChooser, Sidebar};
+use block_editor_beui::{Editor, FileChooser, Sidebar};
 
 use super::{decode, filter, format_micros};
 
@@ -22,16 +20,7 @@ const ICON_SIZE: f32 = 48.0;
 pub fn AudioView(editor: Editor) -> NodeId {
     let audio = editor.block_content::<AudioContent>();
     let source = audio.project(|audio| audio.header().source_name.clone());
-    let (status, set_status) = create_signal(AudioStatus::default());
-    let host = editor.host().clone();
-    let waker = editor.host().waker();
-    editor.each_frame(move || {
-        let next = host.audio();
-        if next.playing {
-            waker.wake();
-        }
-        set_status.set(next);
-    });
+    let status = editor.audio();
 
     let playing = create_memo(clone!(status -> move || status.with(|status| status.playing)));
     let glyph = create_memo(clone!(playing -> move || match playing.get() {
@@ -117,12 +106,10 @@ pub fn AudioView(editor: Editor) -> NodeId {
 fn AudioPanel(editor: Editor) -> NodeId {
     let replacing = editor.clone();
     let chooser = FileChooser::new(filter(), decode);
-    let polled = Rc::clone(&chooser);
     let host = editor.host().clone();
     let block = editor.block_id();
-    editor.each_frame(move || {
-        polled.poll(&host);
-        if let Some(replacement) = polled.take() {
+    chooser.on_reply(editor.replies(), editor.host().clone(), move |chooser| {
+        if let Some(replacement) = chooser.take() {
             replacing.replace_content(block, &replacement);
             host.reset_audio(block);
         }

@@ -5,12 +5,11 @@ use std::time::{Duration, Instant};
 use beui::accesskit::{Node, Role};
 use beui::reactive::{
     Align, Direction, Frame, ItemSize, List, NodeRef, Viewport, clone, component, create_memo,
-    create_signal, view, with_document,
+    create_signal, create_timer, view,
 };
 use beui::styled::{Card, Shortcut};
 use beui::unstyled::{Edge, Floating, PointerLock, PointerLockHandle};
-use beui::{CursorIcon, Drawing, Key, KeyPress, NodeId, Vec2};
-use block_editor_beui::Editor;
+use beui::{CursorIcon, Key, KeyPress, NodeId, Vec2};
 
 use crate::camera::Camera;
 use crate::renderer::Scene;
@@ -46,47 +45,47 @@ impl Walking {
     fn forward(self) -> f32 {
         f32::from(self.forward) - f32::from(self.back)
     }
+
+    fn moving(self) -> bool {
+        self.strafe() != 0.0 || self.forward() != 0.0
+    }
 }
 
 #[component]
-pub(crate) fn Scene3DView(editor: Editor) -> NodeId {
+pub(crate) fn Scene3DView() -> NodeId {
     let scene = Scene::default();
-    let camera = Rc::new(Cell::new(Camera::default()));
+    let (camera, set_camera) = create_signal(Camera::default());
     let walking = Rc::new(Cell::new(Walking::default()));
     let clock = Rc::new(Cell::new(Instant::now()));
-    let (drawing, set_drawing) = create_signal(None::<Drawing>);
+    let drawing = create_memo(clone!(camera -> move || Some(scene.drawing(camera.get()))));
     let (looking, set_looking) = create_signal(false);
     let idle = create_memo(clone!(looking -> move || !looking.get()));
 
-    editor.each_frame(clone!(
-        camera walking looking drawing -> move || {
-            let now = Instant::now();
-            let elapsed = now
-                .saturating_duration_since(clock.replace(now))
-                .as_secs_f32()
-                .min(LONGEST_STEP);
-            let mut next = camera.get();
-            if looking.get_untracked() {
-                let walk = walking.get();
-                next.walk(walk.strafe(), walk.forward(), elapsed);
-                with_document(|document| document.request_repaint_after(Duration::ZERO));
-            }
-            if next != camera.get() || drawing.get_untracked().is_none() {
-                camera.set(next);
-                set_drawing.set(Some(scene.drawing(next)));
-            }
+    let stepping = create_timer(clone!(walking looking clock set_camera -> move || {
+        let now = Instant::now();
+        let elapsed = now
+            .saturating_duration_since(clock.replace(now))
+            .as_secs_f32()
+            .min(LONGEST_STEP);
+        let walk = walking.get();
+        if !looking.get_untracked() || !walk.moving() {
+            return None;
         }
-    ));
+        set_camera.update(|camera| camera.walk(walk.strafe(), walk.forward(), elapsed));
+        Some(Duration::ZERO)
+    }));
 
-    let look = clone!(camera -> move |motion: Vec2| {
-        let mut next = camera.get();
-        next.look([motion.x, motion.y]);
-        camera.set(next);
+    let look = clone!(set_camera -> move |motion: Vec2| {
+        set_camera.update(|camera| camera.look([motion.x, motion.y]));
     });
-    let walked = clone!(walking -> move |press: KeyPress| {
+    let walked = clone!(walking stepping -> move |press: KeyPress| {
         let mut held = walking.get();
         let handled = held.hold(press.key, press.pressed);
         walking.set(held);
+        if held.moving() && !stepping.running() {
+            clock.set(Instant::now());
+            stepping.start(Duration::ZERO);
+        }
         handled
     });
     let released = clone!(walking set_looking -> move |looking: bool| {

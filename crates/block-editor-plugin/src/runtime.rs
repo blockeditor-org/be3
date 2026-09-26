@@ -21,10 +21,16 @@ pub(crate) struct Runtime {
 }
 
 impl Runtime {
-    pub(crate) fn new<P: crate::Plugin>(id: &str, name: &str, version: &str, waker: Waker) -> Self {
+    pub(crate) fn new(
+        apps: Vec<(uuid::Uuid, crate::screens::Opener)>,
+        id: &str,
+        name: &str,
+        version: &str,
+        waker: Waker,
+    ) -> Self {
         Self {
             session: ClientSession::new(id, name, version),
-            screens: Screens::new(P::open, waker),
+            screens: Screens::new(apps, waker),
             surface: None,
             generation: 0,
             asked: false,

@@ -1,7 +1,5 @@
 use std::collections::BTreeSet;
 
-use block_editor_beui::be_block::pixel_art::PixelColor;
-
 pub const MAX_BRUSH_SIZE: u16 = 64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,13 +70,6 @@ impl ActiveDrawing {
         }
         self.end = pixel;
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct CommittedPreview {
-    pub pixels: Vec<(u16, u16)>,
-    pub color: PixelColor,
-    pub frames_remaining: u8,
 }
 
 #[derive(Clone, Copy, Debug)]

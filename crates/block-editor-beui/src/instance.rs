@@ -6,9 +6,10 @@ use std::time::Duration;
 
 use block_editor_plugin::wgpu;
 use block_editor_plugin::{
-    Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Instance, PaintTarget, Region,
+    Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Ime, Instance, PaintTarget,
+    Region,
 };
-use block_plugin_api::{CursorIcon, InputEvent, Key, PointerButton, WheelUnit};
+use block_plugin_api::{CursorIcon, ImeInput, InputEvent, Key, PointerButton, WheelUnit};
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar};
@@ -159,9 +160,9 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         self.views.preview_document = None;
     }
 
-    fn connect_creation(&mut self) {
+    fn connect_creation(&mut self, template: String) {
         self.views.creating = true;
-        let creation = Creation::new(self.host.clone());
+        let creation = Creation::for_template(self.host.clone(), template);
         let built = creation.clone();
         self.views.dialog = Some(beui::reactive::build(move || A::creation_view(built)));
         self.views.creation = Some(creation);
@@ -322,6 +323,10 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             content: content.map(|rect| rect.scaled(unscale)),
             painted: painted.iter().map(|rect| rect.scaled(unscale)).collect(),
             floating: floating.iter().map(|rect| rect.scaled(unscale)).collect(),
+            ime: output.ime.map(|area| Ime {
+                rect: area.rect.scaled(unscale),
+                cursor: area.cursor.scaled(unscale),
+            }),
         };
         state.output = Some(output);
         let locked = self
@@ -505,7 +510,13 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 state.emulated_touch = false;
                 state.events.push(beui::Event::Focus(false));
             }
-            InputEvent::Ime(_) | InputEvent::Focus(_) => {}
+            InputEvent::Ime(ime) => state.events.push(beui::Event::Ime(match ime {
+                ImeInput::Enabled => beui::ImeEvent::Enabled,
+                ImeInput::Preedit(text) => beui::ImeEvent::Preedit(text.clone()),
+                ImeInput::Commit(text) => beui::ImeEvent::Commit(text.clone()),
+                ImeInput::Disabled => beui::ImeEvent::Disabled,
+            })),
+            InputEvent::Focus(_) => {}
         }
     }
 }

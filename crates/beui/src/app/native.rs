@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use accesskit_winit::{Adapter as AccessKitAdapter, Event as AccessKitEvent};
@@ -15,8 +15,9 @@ use winit::window::{
     CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Window, WindowId,
 };
 
+use super::accessibility_dump::AccessibilityDump;
 use super::clipboard::Clipboard;
-use super::{App, RunOptions, Setup, Waker};
+use super::{App, RunOptions, SafeArea, Setup, Waker};
 use crate::color::Color32;
 use crate::context::Context;
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
@@ -34,7 +35,28 @@ const TOUCH_CURSOR_SAMPLES: u16 = 4;
 
 enum UserEvent {
     AccessKit(AccessKitEvent),
+    SafeArea(SafeArea),
     Wake,
+}
+
+static SAFE_AREA: Mutex<(SafeArea, Option<EventLoopProxy<UserEvent>>)> = Mutex::new((
+    SafeArea {
+        left: 0.0,
+        top: 0.0,
+        right: 0.0,
+        bottom: 0.0,
+    },
+    None,
+));
+
+pub fn set_safe_area(area: SafeArea) {
+    let mut shared = SAFE_AREA
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    shared.0 = area;
+    if let Some(proxy) = &shared.1 {
+        let _ = proxy.send_event(UserEvent::SafeArea(area));
+    }
 }
 
 impl From<AccessKitEvent> for UserEvent {
@@ -58,6 +80,17 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
     }
     let event_loop = builder.build()?;
     event_loop.set_control_flow(ControlFlow::Wait);
+    let safe_area = {
+        let mut shared = SAFE_AREA
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        shared.1 = Some(event_loop.create_proxy());
+        shared.0
+    };
+    let accessibility_dump = options
+        .accessibility_dump
+        .clone()
+        .map(AccessibilityDump::new);
     let mut runner = Runner {
         options,
         app: Box::new(app),
@@ -75,7 +108,15 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
         clipboard: Clipboard::new(),
         event_loop_proxy: event_loop.create_proxy(),
         accessibility_active: false,
+        accessibility_dump,
         exiting: false,
+        safe_area,
+        #[cfg(target_os = "android")]
+        soft_keyboard: super::soft_keyboard::SoftKeyboard::new(),
+        #[cfg(target_os = "android")]
+        held_modifiers: Vec::new(),
+        #[cfg(target_os = "android")]
+        tapped_at: None,
     };
     event_loop.run_app(&mut runner)?;
     match runner.error {
@@ -183,7 +224,15 @@ struct Runner {
     clipboard: Clipboard,
     event_loop_proxy: EventLoopProxy<UserEvent>,
     accessibility_active: bool,
+    accessibility_dump: Option<AccessibilityDump>,
     exiting: bool,
+    safe_area: SafeArea,
+    #[cfg(target_os = "android")]
+    soft_keyboard: super::soft_keyboard::SoftKeyboard,
+    #[cfg(target_os = "android")]
+    held_modifiers: Vec<KeyCode>,
+    #[cfg(target_os = "android")]
+    tapped_at: Option<Pos2>,
 }
 
 impl Runner {
@@ -237,8 +286,6 @@ impl Runner {
 
         self.context
             .set_pixels_per_point(surface.window.scale_factor() as f32);
-        self.context
-            .set_accessibility_active(self.accessibility_active);
         self.context.set_test_ids_published(false);
         let scale = self.context.pixels_per_point();
         let physical = vec2(surface.config.width as f32, surface.config.height as f32);
@@ -248,13 +295,17 @@ impl Runner {
             events: super::next_batch(&mut self.events),
         };
         let app = &mut self.app;
+        let safe_area = self.safe_area;
         let output = self.context.run(raw, |context| {
-            app.update(context, Rect::from_min_size(Pos2::ZERO, screen));
+            app.update(context, safe_rect(screen, safe_area, scale));
         });
         if self.accessibility_active {
             surface
                 .accessibility
                 .update_if_active(|| output.accessibility_tree(&self.options.title, screen));
+        }
+        if let Some(dump) = &mut self.accessibility_dump {
+            dump.update(output.accessibility_tree(&self.options.title, screen));
         }
 
         if let Some(text) = &output.copied_text {
@@ -287,8 +338,21 @@ impl Runner {
                 }
             }
         }
+        #[cfg(target_os = "android")]
+        let keyboard_asked = surface.ime.is_some();
         if output.ime != surface.ime {
             if output.ime.is_some() != surface.ime.is_some() {
+                #[cfg(target_os = "android")]
+                {
+                    use winit::platform::android::ActiveEventLoopExtAndroid;
+                    let app = event_loop.android_app();
+                    if output.ime.is_some() {
+                        self.soft_keyboard.show(app);
+                    } else {
+                        self.soft_keyboard.hide(app);
+                    }
+                }
+                #[cfg(not(target_os = "android"))]
                 surface.window.set_ime_allowed(output.ime.is_some());
             }
             if let Some(area) = output.ime {
@@ -298,6 +362,14 @@ impl Runner {
                 );
             }
             surface.ime = output.ime;
+        }
+        #[cfg(target_os = "android")]
+        if let Some(tap) = self.tapped_at.take()
+            && keyboard_asked
+            && output.ime.is_some_and(|area| area.rect.contains(tap))
+        {
+            use winit::platform::android::ActiveEventLoopExtAndroid;
+            self.soft_keyboard.show(event_loop.android_app());
         }
         if let Some(fullscreen) = output.fullscreen
             && fullscreen != surface.fullscreen
@@ -445,6 +517,12 @@ impl Runner {
 
 impl ApplicationHandler<UserEvent> for Runner {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        #[cfg(target_os = "android")]
+        {
+            use winit::platform::android::ActiveEventLoopExtAndroid;
+            self.soft_keyboard
+                .read(event_loop.android_app(), &mut self.events);
+        }
         if (!self.events.is_empty()
             || self
                 .next_update
@@ -553,6 +631,11 @@ impl ApplicationHandler<UserEvent> for Runner {
                 self.request_redraw();
                 return;
             }
+            UserEvent::SafeArea(area) => {
+                self.safe_area = area;
+                self.request_redraw();
+                return;
+            }
             UserEvent::AccessKit(event) => event,
         };
         let Some(surface) = &self.surface else {
@@ -564,6 +647,7 @@ impl ApplicationHandler<UserEvent> for Runner {
         match event.window_event {
             accesskit_winit::WindowEvent::InitialTreeRequested => {
                 self.accessibility_active = true;
+                self.context.reset_accessibility();
                 self.request_redraw();
             }
             accesskit_winit::WindowEvent::ActionRequested(request) => {
@@ -612,6 +696,12 @@ impl ApplicationHandler<UserEvent> for Runner {
                     self.emulated_touch = false;
                     self.held_buttons = 0;
                     self.pointer_left = false;
+                    #[cfg(target_os = "android")]
+                    if !self.held_modifiers.is_empty() {
+                        self.held_modifiers.clear();
+                        self.modifiers = Modifiers::NONE;
+                        self.push(Event::Modifiers(self.modifiers));
+                    }
                 }
                 self.push(Event::Focus(focused));
             }
@@ -685,6 +775,10 @@ impl ApplicationHandler<UserEvent> for Runner {
                 }
             }
             WindowEvent::Touch(touch) => {
+                #[cfg(target_os = "android")]
+                if touch.phase == winit::event::TouchPhase::Ended {
+                    self.tapped_at = Some(self.logical(touch.location));
+                }
                 self.push(Event::Touch {
                     id: TouchId {
                         device: hash(touch.device_id),
@@ -709,6 +803,26 @@ impl ApplicationHandler<UserEvent> for Runner {
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 let pressed = event.state == ElementState::Pressed;
+                #[cfg(target_os = "android")]
+                if let PhysicalKey::Code(code) = event.physical_key
+                    && modifier_of(code).is_some()
+                {
+                    self.held_modifiers.retain(|held| *held != code);
+                    if pressed {
+                        self.held_modifiers.push(code);
+                    }
+                    let held = |wanted: Modifier| {
+                        self.held_modifiers
+                            .iter()
+                            .any(|code| modifier_of(*code) == Some(wanted))
+                    };
+                    self.modifiers = Modifiers {
+                        alt: held(Modifier::Alt),
+                        ctrl: held(Modifier::Ctrl),
+                        shift: held(Modifier::Shift),
+                    };
+                    self.push(Event::Modifiers(self.modifiers));
+                }
                 #[cfg(target_os = "linux")]
                 if !event.repeat {
                     use winit::platform::scancode::PhysicalKeyExtScancode;
@@ -741,6 +855,11 @@ impl ApplicationHandler<UserEvent> for Runner {
                     && !text.chars().any(char::is_control)
                 {
                     self.push(Event::Text(text.to_string()));
+                }
+            }
+            WindowEvent::Ime(Ime::Commit(text)) => {
+                if !text.is_empty() {
+                    self.push(Event::Text(text));
                 }
             }
             WindowEvent::Ime(ime) => self.push(Event::Ime(match ime {
@@ -1073,4 +1192,33 @@ fn lock_pointer(window: &Window, locked: bool) {
         let _ = window.set_cursor_grab(CursorGrabMode::Confined);
     }
     window.set_cursor_visible(!locked);
+}
+
+#[cfg(target_os = "android")]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Modifier {
+    Alt,
+    Ctrl,
+    Shift,
+}
+
+#[cfg(target_os = "android")]
+fn modifier_of(code: KeyCode) -> Option<Modifier> {
+    match code {
+        KeyCode::AltLeft | KeyCode::AltRight => Some(Modifier::Alt),
+        KeyCode::ControlLeft | KeyCode::ControlRight | KeyCode::SuperLeft | KeyCode::SuperRight => {
+            Some(Modifier::Ctrl)
+        }
+        KeyCode::ShiftLeft | KeyCode::ShiftRight => Some(Modifier::Shift),
+        _ => None,
+    }
+}
+
+fn safe_rect(screen: Vec2, area: SafeArea, scale: f32) -> Rect {
+    let min = pos2(area.left / scale, area.top / scale);
+    let max = pos2(
+        screen.x - area.right / scale,
+        screen.y - area.bottom / scale,
+    );
+    Rect::from_min_max(min, pos2(max.x.max(min.x), max.y.max(min.y)))
 }

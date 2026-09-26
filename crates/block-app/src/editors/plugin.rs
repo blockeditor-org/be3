@@ -1,7 +1,8 @@
 use beui::{Pos2, Rect, Vec2, vec2};
 use block_plugin_api::{
-    BlockPick, BlockTypeDescriptor, ChildRect, CreationMode, EditorCapabilities, EditorInstanceId,
-    EditorRegion, FrameChrome, FrameSpec, InteractionMode, PluginManifest, ResizeMode, ViewChange,
+    BlockPick, BlockTypeDescriptor, ChildRect, EditorCapabilities, EditorInstanceId,
+    EditorManifest, EditorRegion, FrameChrome, FrameSpec, InteractionMode, PluginManifest,
+    ResizeMode, ViewChange,
 };
 use std::sync::{
     Arc,
@@ -119,8 +120,18 @@ fn next_instance() -> EditorInstanceId {
     EditorInstanceId(NEXT_INSTANCE.fetch_add(1, Ordering::Relaxed))
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct CreationTarget {
+    pub(crate) editor: Uuid,
+    pub(crate) template: &'static str,
+    pub(crate) block_type: Uuid,
+    pub(crate) dialog: bool,
+    pub(crate) name: &'static str,
+}
+
 pub(super) struct PluginCreation {
     plugin: Arc<PluginManifest>,
+    target: CreationTarget,
     instance: EditorInstanceId,
     opened: bool,
     state: CreationState,
@@ -129,15 +140,20 @@ pub(super) struct PluginCreation {
 }
 
 impl PluginCreation {
-    pub(super) fn new(plugin: Arc<PluginManifest>) -> Self {
+    pub(super) fn new(plugin: Arc<PluginManifest>, target: CreationTarget) -> Self {
         Self {
             plugin,
+            target,
             instance: next_instance(),
             opened: false,
             state: CreationState::Starting,
             committed: false,
             block_pick: None,
         }
+    }
+
+    fn role(&self) -> InstanceRole {
+        InstanceRole::Creation(self.target.editor, self.target.template)
     }
 
     fn dialog_ui(&mut self, ui: &mut Ui, editors: &mut EditorAccess<'_>) {
@@ -148,7 +164,7 @@ impl PluginCreation {
                 plugin: &self.plugin,
                 block_types: editors.registry().plugin_block_types(),
                 client_id: editors.client_id(),
-                role: InstanceRole::Creation,
+                role: self.role(),
                 instance: self.instance,
                 region: EditorRegion::Frame,
                 frame: Some(FrameSpec::default()),
@@ -171,7 +187,7 @@ impl Drop for PluginCreation {
 impl PendingCreation for PluginCreation {
     fn ui(&mut self, ui: &mut Ui, editors: &mut EditorAccess<'_>) -> CreationStep {
         self.opened = true;
-        if self.plugin.creation == CreationMode::Dialog {
+        if self.target.dialog {
             self.dialog_ui(ui, editors);
             serve_block_pick(
                 &self.plugin.identity.id,
@@ -192,12 +208,13 @@ impl PendingCreation for PluginCreation {
             block_types: editors.registry().plugin_block_types(),
             client_id: editors.client_id(),
             instance: self.instance,
+            role: self.role(),
         });
         CreationStep::Working
     }
 
     fn height(&self) -> Option<f32> {
-        (self.plugin.creation == CreationMode::Dialog).then(|| {
+        self.target.dialog.then(|| {
             crate::plugin_host::region_size(
                 &self.plugin.identity.id,
                 self.instance,
@@ -207,13 +224,13 @@ impl PendingCreation for PluginCreation {
         })
     }
 
-    fn create(&mut self) -> Result<Option<PluginEditor>, String> {
+    fn create(&mut self) -> Result<Option<Uuid>, String> {
         match &self.state {
             CreationState::Starting => return Ok(None),
             CreationState::Failed(error) => {
                 return Err(format!(
                     "{} could not be created: {error}",
-                    self.plugin.display_name
+                    self.target.name
                 ));
             }
             CreationState::Ready => {}
@@ -224,19 +241,12 @@ impl PendingCreation for PluginCreation {
         }
         match crate::plugin_host::take_created(&self.plugin.identity.id, self.instance) {
             None => Ok(None),
-            Some(Ok(block_id)) => {
-                let block_type = Uuid::from_bytes(self.plugin.block_type);
-                Ok(Some(PluginEditor::new(
-                    Arc::clone(&self.plugin),
-                    block_id,
-                    block_type,
-                )))
-            }
+            Some(Ok(block_id)) => Ok(Some(block_id)),
             Some(Err(error)) => {
                 self.committed = false;
                 Err(format!(
                     "{} could not be created: {error}",
-                    self.plugin.display_name
+                    self.target.name
                 ))
             }
         }
@@ -335,10 +345,13 @@ impl PluginEditor {
         }
     }
 
+    fn manifest(&self) -> Option<&EditorManifest> {
+        self.plugin.as_ref()?.editor(self.block_type.into_bytes())
+    }
+
     fn capabilities(&self) -> EditorCapabilities {
-        self.plugin
-            .as_ref()
-            .map_or_else(EditorCapabilities::default, |plugin| plugin.capabilities)
+        self.manifest()
+            .map_or_else(EditorCapabilities::default, |editor| editor.capabilities)
     }
 
     fn sync_active_presence(&mut self, active: bool) {
@@ -481,7 +494,10 @@ impl PluginEditor {
         view: Option<EditorView>,
     ) -> Option<EditorAction> {
         let plugin = self.plugin.clone()?;
-        if !plugin.regions.contains(&region) {
+        if !self
+            .manifest()
+            .is_some_and(|editor| editor.regions.contains(&region))
+        {
             return None;
         }
         self.opened = true;
@@ -525,7 +541,7 @@ impl PluginEditor {
         let mut statuses = Vec::new();
         let mut views = Vec::new();
         let mut child_viewport = DirectEditorViewport::new();
-        child_viewport.set_gestures_read(plugin.capabilities.pan_and_zoom);
+        child_viewport.set_gestures_read(self.capabilities().pan_and_zoom);
         for child in presentation
             .children
             .iter()
@@ -731,7 +747,7 @@ impl PluginEditor {
         let Some(plugin) = &self.plugin else {
             return;
         };
-        if !plugin.capabilities.pan_and_zoom {
+        if !self.capabilities().pan_and_zoom {
             return;
         }
         for change in crate::plugin_host::take_view_changes(&plugin.identity.id, self.instance) {
@@ -776,7 +792,10 @@ impl PluginEditor {
         let Some(plugin) = &self.plugin else {
             return self.change_child(replace);
         };
-        if !plugin.children.replace {
+        if !self
+            .manifest()
+            .is_some_and(|editor| editor.children.replace)
+        {
             return None;
         }
         match crate::plugin_host::replace_child(&plugin.identity.id, self.instance, old, new) {
@@ -799,7 +818,10 @@ impl PluginEditor {
         let Some(plugin) = self.plugin.clone() else {
             return false;
         };
-        if !plugin.regions.contains(&EditorRegion::Preview) {
+        if !self
+            .manifest()
+            .is_some_and(|editor| editor.regions.contains(&EditorRegion::Preview))
+        {
             return false;
         }
         self.opened = true;
@@ -847,10 +869,10 @@ impl PluginEditor {
     }
 
     pub(crate) fn direct_editor_interaction(&self) -> DirectEditorInteraction {
-        let Some(plugin) = &self.plugin else {
+        let Some(editor) = self.manifest() else {
             return DirectEditorInteraction::Preview;
         };
-        match plugin.interaction {
+        match editor.interaction {
             InteractionMode::Preview => DirectEditorInteraction::Preview,
             InteractionMode::Live => DirectEditorInteraction::Live,
             InteractionMode::Playback => DirectEditorInteraction::Playback,
@@ -858,10 +880,10 @@ impl PluginEditor {
     }
 
     pub(crate) fn direct_editor_resize(&self) -> DirectEditorResize {
-        let Some(plugin) = &self.plugin else {
+        let Some(editor) = self.manifest() else {
             return DirectEditorResize::None;
         };
-        match plugin.resize {
+        match editor.resize {
             ResizeMode::None => DirectEditorResize::None,
             ResizeMode::Horizontal => DirectEditorResize::Horizontal,
             ResizeMode::Vertical => DirectEditorResize::Vertical,
@@ -1040,6 +1062,7 @@ impl Drop for PluginEditor {
 
 pub(super) struct PluginArtifact {
     plugin: Arc<PluginManifest>,
+    source_type: Uuid,
     block: EditorBlock,
     client_id: Uuid,
     instance: EditorInstanceId,
@@ -1052,12 +1075,14 @@ pub(super) struct PluginArtifact {
 impl PluginArtifact {
     pub(super) fn new(
         plugin: Arc<PluginManifest>,
+        source_type: Uuid,
         target_id: Uuid,
         target_type: Uuid,
         client_id: Uuid,
     ) -> Self {
         Self {
             plugin,
+            source_type,
             client_id,
             block: EditorBlock {
                 id: target_id,
@@ -1088,6 +1113,7 @@ impl ArtifactSession for PluginArtifact {
             block_types: registry.plugin_block_types(),
             client_id: self.client_id,
             instance: self.instance,
+            source_type: self.source_type,
             block: self.block,
             data,
             resync: std::mem::take(&mut self.resync),
@@ -1116,7 +1142,7 @@ impl ArtifactSession for PluginArtifact {
                 plugin: &self.plugin,
                 block_types: registry.plugin_block_types(),
                 client_id: self.client_id,
-                role: InstanceRole::Artifact(self.block),
+                role: InstanceRole::Artifact(self.source_type, self.block),
                 instance: self.instance,
                 region: EditorRegion::ArtifactSettings,
                 frame: None,

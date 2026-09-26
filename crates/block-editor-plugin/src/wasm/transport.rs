@@ -11,8 +11,13 @@ thread_local! {
 
 static WOKEN: AtomicBool = AtomicBool::new(false);
 
-pub(crate) fn start<P: crate::Plugin>(id: &str, name: &str, version: &str) -> Result<(), String> {
-    let runtime = Runtime::new::<P>(id, name, version, waker());
+pub(crate) fn start(
+    apps: Vec<(uuid::Uuid, crate::screens::Opener)>,
+    id: &str,
+    name: &str,
+    version: &str,
+) -> Result<(), String> {
+    let runtime = Runtime::new(apps, id, name, version, waker());
     surface::initialize()?;
     post(vec![runtime.hello()]);
     PLUGIN.with(|plugin| *plugin.borrow_mut() = Some(runtime));

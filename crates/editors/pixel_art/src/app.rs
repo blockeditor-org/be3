@@ -162,10 +162,7 @@ fn PixelArtPreview(editor: Editor) -> NodeId {
     let shown = pane.shown();
     let refreshed = Rc::clone(&pane);
     let watched = Rc::clone(&block);
-    let frame = editor.clone();
-    editor.each_frame(move || {
-        refreshed.refresh(&frame, &watched, true, &[], PixelColor::TRANSPARENT);
-    });
+    create_effect(move || refreshed.refresh(&watched, true, &[], PixelColor::TRANSPARENT));
     let image = create_memo(clone!(shown -> move || shown.get().artwork));
     view! {
         <Picture image={image} fit=ImageFit::Contain smooth=false />

@@ -2,7 +2,7 @@ use block_editor_beui::be_block::canvas::{
     CanvasColor, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasTextAlign,
     CanvasTextStyle, CanvasTextWeight,
 };
-use block_editor_beui::beui::reactive::CanvasView;
+use block_editor_beui::beui::reactive::{CanvasView, layout_text};
 use block_editor_beui::beui::{
     Color32, FontId, Painter, Pos2, Rect, TextAlign, TextLayout, Vec2, pos2,
 };
@@ -71,8 +71,6 @@ pub(crate) struct Palette {
     pub(crate) muted: Color32,
 }
 
-pub(crate) type TextMeasure = std::rc::Rc<std::cell::Cell<Option<(uuid::Uuid, Vec2)>>>;
-
 #[derive(Clone)]
 pub(crate) struct EntityPaint {
     pub(crate) entity: CanvasEntity,
@@ -82,7 +80,6 @@ pub(crate) struct EntityPaint {
     pub(crate) glyph: Option<String>,
     pub(crate) automatic: bool,
     pub(crate) covered: bool,
-    pub(crate) measure: Option<TextMeasure>,
 }
 
 impl PartialEq for EntityPaint {
@@ -94,11 +91,6 @@ impl PartialEq for EntityPaint {
             && self.glyph == other.glyph
             && self.automatic == other.automatic
             && self.covered == other.covered
-            && match (&self.measure, &other.measure) {
-                (Some(ours), Some(theirs)) => std::rc::Rc::ptr_eq(ours, theirs),
-                (None, None) => true,
-                _ => false,
-            }
     }
 }
 
@@ -204,28 +196,12 @@ impl EntityPaint {
         };
         let painter = self.turned(painter);
         let rect = self.box_rect();
-        let font_size = (text_style.font_size * self.camera.scale).clamp(4.0, 256.0);
-        let layout = TextLayout {
-            wrap_width: match text_style.wrap {
-                true => rect.width().max(1.0),
-                false => f32::INFINITY,
-            },
-            align: match text_style.alignment {
-                CanvasTextAlign::Left => TextAlign::Start,
-                CanvasTextAlign::Center => TextAlign::Center,
-                CanvasTextAlign::Right => TextAlign::End,
-            },
-            line_spacing: text_style.line_height.max(0.5),
-            ..TextLayout::DEFAULT
-        };
-        let galley = painter.layout_text(shown, FontId::proportional(font_size), layout);
+        let galley = painter.layout_text(
+            shown,
+            text_font(text_style, self.camera.scale),
+            text_layout(text_style, rect.width()),
+        );
         let size = galley.size();
-        if let Some(measure) = &self.measure {
-            measure.set(Some((
-                self.entity.id,
-                Vec2::new(size.x / self.camera.scale, size.y / self.camera.scale),
-            )));
-        }
         let x = match text_style.alignment {
             CanvasTextAlign::Left => rect.left(),
             CanvasTextAlign::Center => rect.center().x - size.x / 2.0,
@@ -442,4 +418,47 @@ pub(crate) fn handle(painter: &Painter, at: Pos2, color: Color32) {
         pos2(at.x + HANDLE_RADIUS, at.y + HANDLE_RADIUS),
     );
     painter.rect_filled(rect, HANDLE_RADIUS, color);
+}
+
+fn text_font(text_style: CanvasTextStyle, scale: f32) -> FontId {
+    FontId::proportional((text_style.font_size * scale).clamp(4.0, 256.0))
+}
+
+fn text_layout(text_style: CanvasTextStyle, width: f32) -> TextLayout {
+    TextLayout {
+        wrap_width: match text_style.wrap {
+            true => width.max(1.0),
+            false => f32::INFINITY,
+        },
+        align: match text_style.alignment {
+            CanvasTextAlign::Left => TextAlign::Start,
+            CanvasTextAlign::Center => TextAlign::Center,
+            CanvasTextAlign::Right => TextAlign::End,
+        },
+        line_spacing: text_style.line_height.max(0.5),
+        ..TextLayout::DEFAULT
+    }
+}
+
+pub(crate) fn measure_text(entity: &CanvasEntity, scale: f32) -> Option<Vec2> {
+    let CanvasEntityKind::Text {
+        text,
+        text_style,
+        placeholder,
+    } = &entity.kind
+    else {
+        return None;
+    };
+    let shown = match text.is_empty() {
+        true => placeholder,
+        false => text,
+    };
+    let width = entity.transform.size.x * scale;
+    let galley = layout_text(
+        shown,
+        text_font(*text_style, scale),
+        text_layout(*text_style, width),
+    )?;
+    let size = galley.size();
+    Some(Vec2::new(size.x / scale, size.y / scale))
 }

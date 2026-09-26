@@ -8,10 +8,8 @@ license.workspace = true
 be-block = { path = "../be-block" }
 block-plugin-api = { path = "../block-plugin-api" }
 block-ui = { path = "../block-ui" }
-futures-util = "0.3"
 geometry = { path = "../geometry" }
 reactive = { path = "../reactive" }
-serde = "1"
 serde_bytes = "0.11"
 serde_json = "1"
 uuid = "1"

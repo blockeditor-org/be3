@@ -24,6 +24,7 @@ fn the_inspector_shows_the_renderer_the_host_reports() {
     harness.toggle_inspector();
 
     harness.click(harness.performance_tab_center());
+    harness.context.reset_accessibility();
     let output = harness.frame(Vec::new());
 
     let tree = output.accessibility_tree("Test", TALL_VIEWPORT);

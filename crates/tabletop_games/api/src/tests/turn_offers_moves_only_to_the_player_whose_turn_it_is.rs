@@ -1,5 +1,7 @@
 use uuid::Uuid;
 
+use crate::{Board, Move};
+
 use super::{GameHelper, taken};
 
 #[test]
@@ -7,9 +9,15 @@ fn turn_offers_moves_only_to_the_player_whose_turn_it_is() {
     let mine = Uuid::new_v4();
     let theirs = Uuid::new_v4();
     let offer = |helper: &GameHelper<'_>| {
-        helper.turn(mine, "Your turn", "Waiting", |choose| {
-            choose("Do the thing");
-        })
+        helper.turn(
+            mine,
+            "Your turn",
+            "Waiting",
+            |_| Board::Empty,
+            |choose| {
+                choose(Move::new("Do the thing"));
+            },
+        )
     };
 
     let waiting = offer(&GameHelper::new(&[], theirs)).expect_err("the log is empty");

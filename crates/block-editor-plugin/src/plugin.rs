@@ -15,7 +15,7 @@ pub trait Plugin: 'static {
 pub trait Instance {
     fn connect(&mut self, block_id: Uuid);
 
-    fn connect_creation(&mut self) {}
+    fn connect_creation(&mut self, _template: String) {}
 
     fn create_block(&mut self) -> Result<Uuid, String> {
         Err("this editor does not create blocks".into())
@@ -78,6 +78,13 @@ pub struct Frame {
     pub content: Option<Rect>,
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
+    pub ime: Option<Ime>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Ime {
+    pub rect: Rect,
+    pub cursor: Rect,
 }
 
 pub struct PaintTarget<'a> {

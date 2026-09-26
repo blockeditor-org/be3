@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use block_editor_beui::be_block::{BrowserTab, BrowserTabContent, Edit, HistoryItem};
 use block_editor_beui::beui::reactive::{
-    Memo, ReadSignal, WriteSignal, create_memo, create_signal,
+    Memo, ReadSignal, WriteSignal, create_effect, create_memo, create_signal, untrack,
 };
 use block_editor_beui::{ContentProjection, Editor, WebViewEvent};
 
@@ -39,8 +39,18 @@ impl Session {
             error,
             set_error,
         });
-        let frame = Rc::clone(&session);
-        editor.each_frame(move || frame.poll());
+        let events = editor.web_view_events();
+        let receiving = Rc::clone(&session);
+        create_effect(move || {
+            events.get();
+            untrack(|| receiving.process_events());
+        });
+        let opening = Rc::clone(&session);
+        create_effect(move || opening.open());
+        let synchronizing = Rc::clone(&session);
+        create_effect(move || synchronizing.synchronize());
+        let placing = Rc::clone(&session);
+        create_effect(move || placing.place());
         session
     }
 
@@ -90,24 +100,16 @@ impl Session {
         self.push(url);
     }
 
-    fn poll(self: &Rc<Self>) {
-        self.process_events();
-        self.open();
-        self.synchronize();
-        self.place();
-    }
-
     fn place(&self) {
         let rect = self.error.with(Option::is_none).then(|| {
-            let rect = self.editor.content_rect();
+            let rect = self.editor.placed().get();
             rect.is_positive().then_some(rect)
         });
         self.editor.place_web_view(rect.flatten());
     }
 
     fn open(&self) {
-        let mut navigation = self.navigation.borrow_mut();
-        if navigation.opened {
+        if self.navigation.borrow().opened {
             return;
         }
         let Some((index, url)) = self.tab.read(|tab| {
@@ -116,6 +118,7 @@ impl Session {
         }) else {
             return;
         };
+        let mut navigation = self.navigation.borrow_mut();
         navigation.opened = true;
         navigation.current = Some(url.clone());
         navigation.programmatic = Some(url.clone());
@@ -239,6 +242,10 @@ impl Session {
         }) else {
             return;
         };
+        untrack(|| self.follow(selected));
+    }
+
+    fn follow(&self, selected: (usize, String)) {
         let mut navigation = self.navigation.borrow_mut();
         if navigation.synchronized.as_ref() == Some(&selected) {
             return;

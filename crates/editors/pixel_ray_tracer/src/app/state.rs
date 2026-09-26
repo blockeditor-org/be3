@@ -1,7 +1,6 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
-use std::thread;
 use std::time::{Duration, Instant};
 
 use block_editor_beui::be_block::PixelRayTracerContent;
@@ -11,14 +10,14 @@ use block_editor_beui::be_block::pixel_ray_tracer::{
 };
 use block_editor_beui::beui::Image;
 use block_editor_beui::beui::reactive::Draw;
-use block_editor_beui::beui::reactive::{ReadSignal, WriteSignal, create_signal};
-use block_editor_beui::{ContentProjection, Editor, PerformanceReporter};
+use block_editor_beui::beui::reactive::{
+    ReadSignal, WriteSignal, create_effect, create_signal, untrack,
+};
+use block_editor_beui::{ContentProjection, Editor, PerformanceReporter, Waker};
 
 use crate::geometry::{distance, distance_to_segment, inside, pixel_at, raster_line, snap};
 use crate::overlay::{self, Preview};
 use crate::raytracer;
-
-const JOB_POLL: Duration = Duration::from_millis(8);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Tool {
@@ -129,6 +128,9 @@ pub(crate) struct RayState {
     pub(crate) new_surface: ReadSignal<Surface>,
     set_new_surface: WriteSignal<Surface>,
     pointer: Cell<Option<Point>>,
+    poked: ReadSignal<u64>,
+    set_poked: WriteSignal<u64>,
+    waker: RefCell<Waker>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -172,6 +174,7 @@ impl RayState {
         let (selected, set_selected) = create_signal(None);
         let (new_light_intensity, set_new_light_intensity) = create_signal(2.0);
         let (new_surface, set_new_surface) = create_signal(Surface::default());
+        let (poked, set_poked) = create_signal(0);
         Rc::new(Self {
             editor: editor.clone(),
             block,
@@ -202,6 +205,9 @@ impl RayState {
             new_surface,
             set_new_surface,
             pointer: Cell::new(None),
+            poked,
+            set_poked,
+            waker: RefCell::new(Waker::default()),
         })
     }
 
@@ -237,6 +243,12 @@ impl RayState {
         if tool != Tool::Select {
             self.set_selected.set(None);
         }
+        self.poke();
+    }
+
+    fn poke(&self) {
+        self.set_poked
+            .update(|poked| *poked = poked.wrapping_add(1));
     }
 
     pub(crate) fn choose_color(&self, index: u8) {
@@ -290,7 +302,9 @@ impl RayState {
     }
 
     pub(crate) fn hover(&self, at: Option<Point>) {
-        self.pointer.set(at);
+        if self.pointer.replace(at) != at {
+            self.poke();
+        }
     }
 
     pub(crate) fn press(&self, at: Point) {
@@ -329,9 +343,15 @@ impl RayState {
             Tool::Select => self.select_or_drag(at),
             Tool::RayTrace => {}
         }
+        self.poke();
     }
 
     pub(crate) fn drag(&self, at: Point) {
+        self.follow(at);
+        self.poke();
+    }
+
+    fn follow(&self, at: Point) {
         let tool = self.tool.get_untracked();
         let mut held = self.interaction.borrow_mut();
         let Some(interaction) = held.as_mut() else {
@@ -418,6 +438,7 @@ impl RayState {
             }
             Interaction::Entity { .. } => {}
         }
+        self.poke();
     }
 
     fn select_or_drag(&self, at: Point) {
@@ -497,18 +518,26 @@ impl RayState {
         }
     }
 
-    pub(crate) fn poll(&self) {
+    pub(crate) fn watch(self: &Rc<Self>) {
+        let (waker, woken) = self.editor.woken();
+        *self.waker.borrow_mut() = waker;
+        let state = Rc::clone(self);
+        create_effect(move || {
+            woken.with(|_| ());
+            state.poked.with(|_| ());
+            state.entities.with(|_| ());
+            state.tool.with(|_| ());
+            state.selected.with(|_| ());
+            state.color_index.with(|_| ());
+            state.block.content.revision();
+            untrack(|| state.settle());
+        });
+    }
+
+    pub(crate) fn settle(&self) {
         self.settle_lighting();
         self.settle_rays();
         self.settle_overlay();
-        self.await_jobs();
-    }
-
-    fn await_jobs(&self) {
-        if self.lighting_job.borrow().is_none() && self.ray_job.borrow().is_none() {
-            return;
-        }
-        self.editor.host().request_frame_in(JOB_POLL);
     }
 
     fn settle_overlay(&self) {
@@ -547,26 +576,7 @@ impl RayState {
                 false => 0,
             },
         };
-        let landed =
-            self.lighting_job
-                .borrow()
-                .as_ref()
-                .and_then(|receiver| match receiver.try_recv() {
-                    Ok(result) => Some(Ok(result)),
-                    Err(TryRecvError::Disconnected) => Some(Err(())),
-                    Err(TryRecvError::Empty) => None,
-                });
-        if let Some(landed) = landed {
-            self.lighting_job.borrow_mut().take();
-            if let Ok((landed_key, pixels, duration)) = landed {
-                self.performance.record_duration("Lighting trace", duration);
-                self.set_lighting.set(Some(image_of(&pixels)));
-                *self.rendered.borrow_mut() = pixels;
-                self.ray_state.borrow_mut().take();
-                self.set_rays.set(None);
-                self.lighting_key.set(Some(landed_key));
-            }
-        }
+        self.land_lighting();
         if self.lighting_key.get() == Some(key) {
             self.performance.record_count("Lighting cache hits", 1);
             return;
@@ -589,19 +599,40 @@ impl RayState {
             .collect::<Vec<_>>();
         let settings = scene.lighting_ray_settings();
         drop(scene);
-        let waker = self.editor.host().waker();
+        let waker = self.waker.borrow().clone();
         let (sender, receiver) = mpsc::channel();
-        thread::Builder::new()
-            .name("pixel-ray-tracer-lighting".into())
-            .spawn(move || {
-                let started = Instant::now();
-                let result = raytracer::trace_lighting(&pixels, &entities, settings);
-                let _ = sender.send((key, result, started.elapsed()));
-                waker.wake();
-            })
-            .expect("failed to start pixel ray tracer lighting job");
+        run_job("pixel-ray-tracer-lighting", move || {
+            let started = Instant::now();
+            let result = raytracer::trace_lighting(&pixels, &entities, settings);
+            let _ = sender.send((key, result, started.elapsed()));
+            waker.wake();
+        });
         *self.lighting_job.borrow_mut() = Some(receiver);
         self.performance.record_count("Lighting cache misses", 1);
+        self.land_lighting();
+    }
+
+    fn land_lighting(&self) {
+        let landed =
+            self.lighting_job
+                .borrow()
+                .as_ref()
+                .and_then(|receiver| match receiver.try_recv() {
+                    Ok(result) => Some(Ok(result)),
+                    Err(TryRecvError::Disconnected) => Some(Err(())),
+                    Err(TryRecvError::Empty) => None,
+                });
+        if let Some(landed) = landed {
+            self.lighting_job.borrow_mut().take();
+            if let Ok((landed_key, pixels, duration)) = landed {
+                self.performance.record_duration("Lighting trace", duration);
+                self.set_lighting.set(Some(image_of(&pixels)));
+                *self.rendered.borrow_mut() = pixels;
+                self.ray_state.borrow_mut().take();
+                self.set_rays.set(None);
+                self.lighting_key.set(Some(landed_key));
+            }
+        }
     }
 
     fn settle_rays(&self) {
@@ -611,27 +642,7 @@ impl RayState {
         let Some(origin) = self.pointer.get() else {
             return;
         };
-        let landed =
-            self.ray_job
-                .borrow()
-                .as_ref()
-                .and_then(|receiver| match receiver.try_recv() {
-                    Ok(result) => Some(Ok(result)),
-                    Err(TryRecvError::Disconnected) => Some(Err(())),
-                    Err(TryRecvError::Empty) => None,
-                });
-        if let Some(landed) = landed {
-            self.ray_job.borrow_mut().take();
-            if let Ok((origin, pixels, revision, settings, duration)) = landed {
-                self.performance.record_duration("View-ray trace", duration);
-                self.set_rays.set(Some(image_of(&pixels)));
-                *self.ray_state.borrow_mut() = Some(TracedRays {
-                    origin,
-                    revision,
-                    settings,
-                });
-            }
-        }
+        self.land_rays();
         let Some(scene) = self.block.read() else {
             return;
         };
@@ -658,20 +669,55 @@ impl RayState {
         let source = self.rendered.borrow().clone();
         let entities = scene.entities().to_vec();
         drop(scene);
-        let waker = self.editor.host().waker();
+        let waker = self.waker.borrow().clone();
         let (sender, receiver) = mpsc::channel();
-        thread::Builder::new()
-            .name("pixel-ray-tracer-view-rays".into())
-            .spawn(move || {
-                let started = Instant::now();
-                let pixels = raytracer::trace_rays(&source, &entities, origin, settings);
-                let _ = sender.send((origin, pixels, revision, settings, started.elapsed()));
-                waker.wake();
-            })
-            .expect("failed to start pixel ray tracer view-ray job");
+        run_job("pixel-ray-tracer-view-rays", move || {
+            let started = Instant::now();
+            let pixels = raytracer::trace_rays(&source, &entities, origin, settings);
+            let _ = sender.send((origin, pixels, revision, settings, started.elapsed()));
+            waker.wake();
+        });
         *self.ray_job.borrow_mut() = Some(receiver);
         self.performance.record_count("View-ray cache misses", 1);
+        self.land_rays();
     }
+
+    fn land_rays(&self) {
+        let landed =
+            self.ray_job
+                .borrow()
+                .as_ref()
+                .and_then(|receiver| match receiver.try_recv() {
+                    Ok(result) => Some(Ok(result)),
+                    Err(TryRecvError::Disconnected) => Some(Err(())),
+                    Err(TryRecvError::Empty) => None,
+                });
+        if let Some(landed) = landed {
+            self.ray_job.borrow_mut().take();
+            if let Ok((origin, pixels, revision, settings, duration)) = landed {
+                self.performance.record_duration("View-ray trace", duration);
+                self.set_rays.set(Some(image_of(&pixels)));
+                *self.ray_state.borrow_mut() = Some(TracedRays {
+                    origin,
+                    revision,
+                    settings,
+                });
+            }
+        }
+    }
+}
+
+#[cfg(not(test))]
+fn run_job(name: &str, work: impl FnOnce() + Send + 'static) {
+    std::thread::Builder::new()
+        .name(name.into())
+        .spawn(work)
+        .expect("failed to start a pixel ray tracer job");
+}
+
+#[cfg(test)]
+fn run_job(_name: &str, work: impl FnOnce() + Send + 'static) {
+    work();
 }
 
 fn image_of(pixels: &[[u8; 4]]) -> Image {

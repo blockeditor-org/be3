@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use accesskit::Node;
 
-use crate::accessibility;
+use crate::accessibility::{self, AccessibilityTree};
 use crate::base::child_list::{ChildHost, SlotId};
 use crate::context::Context;
 use crate::damage::{Damage, Region};
@@ -40,7 +40,10 @@ pub struct Document {
     pub(crate) portal_holders: std::collections::HashMap<NodeId, NodeId>,
     pub(crate) overlay_stack: Vec<NodeId>,
     pub(crate) passive_overlays: Vec<NodeId>,
-    frame_hooks: RefCell<Vec<Weak<dyn Fn()>>>,
+    timers: RefCell<crate::timer::Timers>,
+    scale: (::reactive::ReadSignal<f32>, ::reactive::WriteSignal<f32>),
+    attached: (::reactive::ReadSignal<u64>, ::reactive::WriteSignal<u64>),
+    reattached: Cell<bool>,
     shortcuts: RefCell<Vec<Weak<Shortcut>>>,
     pub(crate) touch_scroll_vertical: Option<NodeId>,
     pub(crate) touch_scroll_horizontal: Option<NodeId>,
@@ -82,12 +85,14 @@ pub struct Document {
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
     pub(crate) accessibility_id: u32,
     pub(crate) accessibility: NodeMap<Node>,
+    pub(crate) accessibility_tree: RefCell<AccessibilityTree>,
     performance: PerformanceTracker,
-    work: WorkCounters,
+    pub(crate) work: WorkCounters,
     changes: FlashLog<NodeId>,
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
     clips: NodeMap<Rect>,
+    rubber_banding: bool,
 }
 
 struct SizeWatcher {
@@ -115,13 +120,14 @@ fn constrained(held: Vec2, available: Vec2) -> Vec2 {
 }
 
 #[derive(Default)]
-struct WorkCounters {
+pub(crate) struct WorkCounters {
     measured: Cell<usize>,
     reused_measurements: Cell<usize>,
     placed: Cell<usize>,
     reused_placements: Cell<usize>,
     painted_nodes: Cell<usize>,
     replayed_nodes: Cell<usize>,
+    described_nodes: Cell<usize>,
 }
 
 impl WorkCounters {
@@ -132,6 +138,11 @@ impl WorkCounters {
         self.reused_placements.set(0);
         self.painted_nodes.set(0);
         self.replayed_nodes.set(0);
+        self.described_nodes.set(0);
+    }
+
+    pub(crate) fn note_described(&self, nodes: usize) {
+        self.described_nodes.set(self.described_nodes.get() + nodes);
     }
 
     fn gathered(&self) -> FrameWork {
@@ -142,6 +153,7 @@ impl WorkCounters {
             reused_placements: self.reused_placements.get(),
             painted_nodes: self.painted_nodes.get(),
             replayed_nodes: self.replayed_nodes.get(),
+            described_nodes: self.described_nodes.get(),
         }
     }
 }
@@ -172,7 +184,10 @@ impl Document {
             portal_holders: std::collections::HashMap::new(),
             overlay_stack: Vec::new(),
             passive_overlays: Vec::new(),
-            frame_hooks: RefCell::new(Vec::new()),
+            timers: RefCell::new(Vec::new()),
+            scale: ::reactive::create_signal(1.0),
+            attached: ::reactive::create_signal(0),
+            reattached: Cell::new(false),
             shortcuts: RefCell::new(Vec::new()),
             touch_scroll_vertical: None,
             touch_scroll_horizontal: None,
@@ -214,12 +229,14 @@ impl Document {
             component_states: HashMap::new(),
             accessibility_id: accessibility::next_document_id(),
             accessibility: NodeMap::default(),
+            accessibility_tree: RefCell::default(),
             performance: PerformanceTracker::default(),
             work: WorkCounters::default(),
             changes: FlashLog::default(),
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
             clips: NodeMap::default(),
+            rubber_banding: true,
         }
     }
 
@@ -268,8 +285,16 @@ impl Document {
         }
     }
 
-    pub(crate) fn register_frame_hook(&self, work: Weak<dyn Fn()>) {
-        self.frame_hooks.borrow_mut().push(work);
+    pub(crate) fn register_timer(&self, timer: Weak<crate::timer::TimerState>) {
+        self.timers.borrow_mut().push(timer);
+    }
+
+    pub(crate) fn watch_context(&self) -> ::reactive::ReadSignal<u64> {
+        self.attached.0.clone()
+    }
+
+    pub(crate) fn watch_pixels_per_point(&self) -> ::reactive::ReadSignal<f32> {
+        self.scale.0.clone()
     }
 
     pub(crate) fn register_shortcut(&self, shortcut: Weak<Shortcut>) {
@@ -284,14 +309,35 @@ impl Document {
         live.into_iter().any(|shortcut| shortcut(press))
     }
 
-    fn run_frame_hooks(&self) {
-        let mut hooks = self.frame_hooks.borrow_mut();
-        hooks.retain(|hook| hook.strong_count() > 0);
-        let live: Vec<Rc<dyn Fn()>> = hooks.iter().filter_map(Weak::upgrade).collect();
-        drop(hooks);
-        for hook in live {
-            hook();
+    fn run_timers(&self) {
+        let scale = self.pixels_per_point();
+        if self.scale.0.get_untracked() != scale {
+            self.scale.1.set(scale);
         }
+        if self.reattached.replace(false) {
+            self.attached.1.update(|attached| *attached += 1);
+        }
+        let now = Instant::now();
+        let mut timers = self.timers.borrow_mut();
+        timers.retain(|timer| timer.strong_count() > 0);
+        let due: Vec<_> = timers
+            .iter()
+            .filter_map(Weak::upgrade)
+            .filter(|timer| timer.due().is_some_and(|due| due <= now))
+            .collect();
+        drop(timers);
+        for timer in due {
+            timer.fire(now);
+        }
+    }
+
+    fn next_timer(&self) -> Option<Instant> {
+        self.timers
+            .borrow()
+            .iter()
+            .filter_map(Weak::upgrade)
+            .filter_map(|timer| timer.due())
+            .min()
     }
 
     pub(crate) fn register_node_scope(&mut self, node: NodeId, scope: ::reactive::Scope) {
@@ -383,6 +429,14 @@ impl Document {
 
     pub(crate) fn track_changes(&mut self, enabled: bool) {
         self.changes.set_enabled(enabled);
+    }
+
+    pub fn rubber_banding(&self) -> bool {
+        self.rubber_banding
+    }
+
+    pub(crate) fn set_rubber_banding(&mut self, enabled: bool) {
+        self.rubber_banding = enabled;
     }
 
     pub(crate) fn track_damage(&mut self, enabled: bool) {
@@ -493,6 +547,7 @@ impl Document {
         self.reached_pass.remove(&id);
         self.scroll_shifts.remove(&id);
         self.accessibility.remove(&id);
+        self.accessibility_tree.get_mut().forget(id, &self.arena);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
             if self.test_ids.get(&test_id) == Some(&id) {
                 self.test_ids.remove(&test_id);
@@ -590,6 +645,11 @@ impl Document {
                 !ctx.same(old_ctx) || *old_rect != rect || *old_scale != scale
             })
         {
+            let reattached = self
+                .viewport
+                .as_ref()
+                .is_none_or(|(old_ctx, _, _)| !ctx.same(old_ctx));
+            self.reattached.set(self.reattached.get() || reattached);
             self.arena.invalidate();
             self.viewport = Some((ctx.clone(), rect, scale));
         }
@@ -611,7 +671,7 @@ impl Document {
         {
             let context = self.reactive_scope().context();
             let _guard = crate::reactive::install(self);
-            context.run(|| crate::reactive::with_document(|document| document.run_frame_hooks()));
+            context.run(|| crate::reactive::with_document(|document| document.run_timers()));
         }
 
         if pointer || keys != Keys::Ignored {
@@ -628,6 +688,11 @@ impl Document {
                     });
                 }
             });
+        }
+        if keys != Keys::Ignored
+            && let Some(area) = self.focused_ime_area()
+        {
+            ctx.set_ime_area(Some(area));
         }
 
         if let Some(text) = self.copied_text.take() {
@@ -654,6 +719,7 @@ impl Document {
             self.damage.everything();
         }
         for id in self.arena.take_changed() {
+            self.accessibility_tree.get_mut().mark(id, &self.arena);
             self.changes.record(id, now);
             if let Some(node) = self.rects.get(&id)
                 && self.paints(id)
@@ -707,13 +773,22 @@ impl Document {
         if let Some(deadline) = self.next_paint {
             ctx.request_repaint_after(deadline.saturating_duration_since(Instant::now()));
         }
+        if let Some(deadline) = self.next_timer() {
+            ctx.request_repaint_after(deadline.saturating_duration_since(Instant::now()));
+        }
         ctx.extend(&self.shapes);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             if !ctx.accessibility_active() {
+                let mut tree = self.accessibility_tree.borrow_mut();
+                match tree.take_inspected() {
+                    true => tree.discard_changes(),
+                    false => tree.reset(),
+                }
                 return;
             }
-            if let Some(fragment) = self.accessibility_fragment() {
-                ctx.publish_accessibility(fragment);
+            let full = !ctx.accessibility_known(self.accessibility_id);
+            if let Some(fragment) = self.accessibility_update(full) {
+                ctx.publish_accessibility(self.accessibility_id, fragment);
             }
         });
         measurement.work = self.work.gathered();
@@ -988,6 +1063,7 @@ impl Document {
         }
         let clip = self.clips.remove(&id).unwrap_or(Rect::EVERYTHING);
         if let Some(rect) = out.remove(&id) {
+            self.accessibility_tree.get_mut().mark(id, &self.arena);
             if self.paints(id) {
                 self.damage.add(rect.intersect(clip));
             }
@@ -1116,6 +1192,7 @@ impl Document {
         if previous == Some(rect) && previous_clip == clip {
             return;
         }
+        self.accessibility_tree.get_mut().mark(id, &self.arena);
         if self.paints(id) {
             self.damage.add(rect.intersect(clip));
             if let Some(previous) = previous {

@@ -71,4 +71,7 @@ macro_rules! beui_plugin {
     ($app:ty, $manifest:expr) => {
         $crate::block_editor_plugin::plugin!($crate::BeuiPlugin<$app>, $manifest);
     };
+    ($manifest:expr, { $($content:ty => $app:ty),+ $(,)? }) => {
+        $crate::block_editor_plugin::plugin!($manifest, { $($content => $crate::BeuiPlugin<$app>),+ });
+    };
 }

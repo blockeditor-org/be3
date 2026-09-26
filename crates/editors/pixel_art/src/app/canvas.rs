@@ -4,7 +4,8 @@ use block_editor_beui::be_block::pixel_art::{PixelArtOperation, PixelColor, Pixe
 use block_editor_beui::beui::icons::ICON_ARROW_FORWARD;
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, ClickCatcher, Focusable, ForEach, Frame, ItemSize, List, Memo,
-    NodeRef, Picture, ReadSignal, WriteSignal, clone, component, component_rect, create_memo, view,
+    NodeRef, Picture, ReadSignal, WriteSignal, clone, component, component_rect, create_effect,
+    create_memo, view,
 };
 use block_editor_beui::beui::styled::{Code, use_theme};
 use block_editor_beui::beui::{
@@ -14,9 +15,7 @@ use block_editor_beui::beui::{
 use crate::canvas::ZOOM_STEP;
 use crate::canvas::{canvas_rect, pixel_at};
 use crate::color::format_hex_color;
-use crate::drawing::{
-    ActiveDrawing, CommittedPreview, MAX_BRUSH_SIZE, PixelTool, rasterize_drawing,
-};
+use crate::drawing::{ActiveDrawing, MAX_BRUSH_SIZE, PixelTool, rasterize_drawing};
 
 use super::pane::{Pane, Shown};
 use super::state::Tools;
@@ -64,7 +63,7 @@ pub(crate) fn ArtworkCanvas(
         if width == 0 || pressing.busy() || !pressing.editable() {
             return;
         }
-        pressing.constrained.set(press.modifiers.shift);
+        pressing.set_constrained.set(press.modifiers.shift);
         let Some(pixel) = pixel_of(
             press.pos,
             press_view.get_untracked(),
@@ -88,7 +87,7 @@ pub(crate) fn ArtworkCanvas(
         if width == 0 || dragging.busy() || !dragging.editable() {
             return;
         }
-        dragging.constrained.set(press.modifiers.shift);
+        dragging.set_constrained.set(press.modifiers.shift);
         let Some(pixel) = pixel_of(
             press.pos,
             drag_view.get_untracked(),
@@ -99,9 +98,11 @@ pub(crate) fn ArtworkCanvas(
         ) else {
             return;
         };
-        if let Some(drawing) = dragging.drawing.borrow_mut().as_mut() {
-            drawing.extend(pixel);
-        }
+        dragging.draw(|drawing| {
+            if let Some(drawing) = drawing.as_mut() {
+                drawing.extend(pixel);
+            }
+        });
     };
 
     let releasing = Rc::clone(&tools);
@@ -114,7 +115,7 @@ pub(crate) fn ArtworkCanvas(
         if width == 0 || releasing.busy() || !releasing.editable() {
             return;
         }
-        releasing.constrained.set(press.modifiers.shift);
+        releasing.set_constrained.set(press.modifiers.shift);
         if let Some(pixel) = pixel_of(
             press.pos,
             release_view.get_untracked(),
@@ -160,7 +161,7 @@ pub(crate) fn ArtworkCanvas(
         if width == 0 {
             return;
         }
-        moving.constrained.set(press.modifiers.shift);
+        moving.set_constrained.set(press.modifiers.shift);
         set_hover.set(pixel_of(
             press.pos,
             hover_view.get_untracked(),
@@ -183,27 +184,14 @@ pub(crate) fn ArtworkCanvas(
     let frame_size = size.clone();
     let theme = use_theme();
     let background = theme.background.clone();
-    editor.each_frame(move || {
-        let (width, height) = frame_size.get_untracked();
+    create_effect(move || {
+        let (width, height) = frame_size.get();
         if width == 0 {
             return;
         }
-        let (pixels, color) = pending(&refreshing, hover.get_untracked(), width, height);
-        let dark = is_dark(background.get_untracked());
-        refreshed.refresh(
-            refreshing.editor(),
-            refreshing.block(),
-            dark,
-            &pixels,
-            color,
-        );
-        let mut committed = refreshing.committed.borrow_mut();
-        if let Some(preview) = committed.as_mut() {
-            preview.frames_remaining = preview.frames_remaining.saturating_sub(1);
-            if preview.frames_remaining == 0 {
-                *committed = None;
-            }
-        }
+        let (pixels, color) = pending(&refreshing, hover.get(), width, height);
+        let dark = is_dark(background.get());
+        refreshed.refresh(refreshing.block(), dark, &pixels, color);
     });
 
     let keys = Rc::clone(&tools);
@@ -249,7 +237,7 @@ fn shortcut(tools: &Rc<Tools>, editor: &block_editor_beui::Editor, press: KeyPre
     match shortcut_kind(press.key) {
         Shortcut::Tool(tool) => tools.select_tool(tool),
         Shortcut::Cancel => {
-            tools.drawing.borrow_mut().take();
+            tools.draw(|drawing| drawing.take());
         }
         Shortcut::Larger => {
             let size = tools.brush_size.get_untracked();
@@ -519,8 +507,7 @@ fn begin(tools: &Rc<Tools>, pixel: (u16, u16)) {
     let tool = tools.tool.get_untracked();
     match tool {
         tool if tool.is_drawing() => {
-            tools.committed.borrow_mut().take();
-            *tools.drawing.borrow_mut() = Some(ActiveDrawing::new(tool, pixel));
+            tools.draw(|drawing| *drawing = Some(ActiveDrawing::new(tool, pixel)));
         }
         _ => {}
     }
@@ -557,7 +544,7 @@ fn finish(tools: &Rc<Tools>, pixel: (u16, u16), width: u16, height: u16) {
 }
 
 fn commit(tools: &Rc<Tools>, width: u16, height: u16) {
-    let Some(drawing) = tools.drawing.borrow_mut().take() else {
+    let Some(drawing) = tools.draw(|drawing| drawing.take()) else {
         return;
     };
     let pixels = rasterize_drawing(&drawing, width, height, tools.brush());
@@ -568,11 +555,6 @@ fn commit(tools: &Rc<Tools>, width: u16, height: u16) {
     if drawing.tool != PixelTool::Eraser {
         tools.remember_color(tools.color.get_untracked());
     }
-    *tools.committed.borrow_mut() = Some(CommittedPreview {
-        pixels: pixels.clone(),
-        color,
-        frames_remaining: 2,
-    });
     tools.operate(PixelArtOperation::Paint {
         pixels: pixels
             .into_iter()
@@ -604,20 +586,23 @@ fn pending(
     width: u16,
     height: u16,
 ) -> (Vec<(u16, u16)>, PixelColor) {
-    let color = tools.color.get_untracked();
-    if !tools.editable() || tools.busy() {
+    let color = tools.color.get();
+    if !tools.editor().editable().get() || tools.busy() {
         return (Vec::new(), color);
     }
-    if let Some(drawing) = tools.drawing.borrow().as_ref() {
-        return (
-            rasterize_drawing(drawing, width, height, tools.brush()),
-            stroke_color(tools, drawing.tool),
-        );
+    let brush = tools.brush();
+    let drawn = tools.drawing(|drawing| {
+        drawing.map(|drawing| {
+            (
+                rasterize_drawing(drawing, width, height, brush),
+                stroke_color(tools, drawing.tool),
+            )
+        })
+    });
+    if let Some(drawn) = drawn {
+        return drawn;
     }
-    if let Some(preview) = tools.committed.borrow().as_ref() {
-        return (preview.pixels.clone(), preview.color);
-    }
-    let tool = tools.tool.get_untracked();
+    let tool = tools.tool.get();
     match hovered.filter(|_| tool.is_drawing()) {
         Some(pixel) => {
             let drawing = ActiveDrawing::new(tool, pixel);

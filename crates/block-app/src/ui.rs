@@ -22,8 +22,6 @@ pub(crate) use debug::{
     DebugCommand, DebugView, DebugWindow, Line, LineStyle, PerformanceRow, PluginsView, RunView,
     RuntimeView, VersionRuns, VersionView,
 };
-#[cfg(feature = "terminal")]
-pub(crate) use debug::{TerminalInput, TerminalRow, TerminalSpan, TerminalView};
 
 thread_local! {
     static COMMANDS: RefCell<Vec<UiCommand>> = const { RefCell::new(Vec::new()) };
@@ -196,7 +194,7 @@ pub(crate) struct AppView {
     pub(crate) artifact_settings: Option<ArtifactSettingsView>,
     pub(crate) unlink: bool,
     pub(crate) share: Option<ShareView>,
-    pub(crate) picker: Option<PickerView>,
+    pub(crate) pickers: Vec<PickerView>,
     pub(crate) presenting: bool,
     pub(crate) debug: DebugView,
 }

@@ -13,7 +13,6 @@ mod platform;
 mod plugin_host;
 mod root_settings;
 mod share;
-mod slide_templates;
 mod surfaces;
 mod ui;
 
@@ -63,8 +62,18 @@ fn storage_dir() -> Option<PathBuf> {
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 pub fn run() -> Result<(), Box<dyn Error>> {
     panic_guard::install();
-    let app = BlockApp::new(None).map_err(|error| error.to_string())?;
-    beui::run_with(run_options(), Shell::new(app))
+    let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
+    let mut options = run_options();
+    for argument in std::env::args().skip(1) {
+        if argument == "--dev-workspace" {
+            app.open_dev_workspace();
+        } else if let Some(path) = argument.strip_prefix("--accessibility-tree=") {
+            options.accessibility_dump = Some(PathBuf::from(path));
+        } else {
+            return Err(format!("unknown argument {argument}").into());
+        }
+    }
+    beui::run_with(options, Shell::new(app))
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -242,6 +251,7 @@ struct BlockApp {
     error: Option<String>,
     pending_error_action: Option<ErrorAction>,
     inspector_requested: Option<bool>,
+    dev_workspace: bool,
 }
 
 type Account = SavedAccount;
@@ -321,6 +331,7 @@ impl BlockApp {
             .or_else(storage_dir)
             .ok_or_else(|| io::Error::other("application-data directory is unavailable"))?;
         std::fs::create_dir_all(&data_dir)?;
+        panic_guard::report_in(&data_dir);
         plugin_host::cache_in(data_dir.join("plugin-cache"));
         let embedded_server = platform::start_embedded_server(data_dir.join("server"))?;
         let url = embedded_server.url.clone();
@@ -418,7 +429,46 @@ impl BlockApp {
             error: None,
             pending_error_action: None,
             inspector_requested: None,
+            dev_workspace: false,
         })
+    }
+
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    fn open_dev_workspace(&mut self) {
+        self.dev_workspace = true;
+        if self.signed_in {
+            return;
+        }
+        if let Some(account) = self
+            .accounts
+            .iter()
+            .find(|account| account.server == ServerLocation::Local)
+            .cloned()
+        {
+            self.switch_account(account);
+            return;
+        }
+        self.begin_account_request(AccountForm {
+            register: true,
+            remote: false,
+            remote_url: String::new(),
+            email: "dev@localhost".to_owned(),
+            display_name: "Dev".to_owned(),
+            password: "dev-password".to_owned(),
+        });
+    }
+
+    fn open_any_workspace(&mut self) {
+        if !std::mem::take(&mut self.dev_workspace) || self.workspace.is_some() {
+            return;
+        }
+        match self.workspaces.first().cloned() {
+            Some(workspace) => self.open_workspace(workspace),
+            None => {
+                self.begin_workspace_request(WorkspaceOperation::Create("Dev".to_owned()));
+                host::request_repaint();
+            }
+        }
     }
 
     fn account_by_key(&self, key: &str) -> Option<Account> {
@@ -599,6 +649,7 @@ impl BlockApp {
                 {
                     self.open_workspace(workspace);
                 }
+                self.open_any_workspace();
             }
             Ok(WorkspaceResult::Created(workspace)) => {
                 self.workspaces.push(workspace.clone());
@@ -1762,7 +1813,7 @@ impl BlockApp {
             }),
             unlink: self.dynamic_artifact_unlink.is_some(),
             share: self.share.view(),
-            picker: block_picker::view(),
+            pickers: block_picker::views(),
             presenting: surfaces::handle(SurfaceId::Presenting)
                 .shown()
                 .get_untracked(),

@@ -227,9 +227,9 @@ impl EditorSession {
         self.app.connect(block_id);
     }
 
-    pub(crate) fn connect_creation(&mut self) {
+    pub(crate) fn connect_creation(&mut self, template: String) {
         self.host.set_editable(true);
-        self.app.connect_creation();
+        self.app.connect_creation(template);
     }
 
     pub(crate) fn connect_artifact(&mut self, block_id: Uuid, block_type: Uuid, data: Vec<u8>) {
@@ -804,6 +804,10 @@ impl EditorSession {
             state.children = placed;
             state.occluders = occluders;
             state.cursor = frame.cursor;
+            state.ime = frame.ime.map(|ime| ImeArea {
+                rect: reported(ime.rect),
+                cursor: reported(ime.cursor),
+            });
             state.report = (region == EditorRegion::Frame).then(|| FrameReport {
                 screen,
                 content: reported(reported_content),

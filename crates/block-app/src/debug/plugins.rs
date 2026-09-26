@@ -47,10 +47,8 @@ fn discovered(lines: &mut Vec<Line>) {
             LineStyle::Body,
             0,
             format!(
-                "{} {} — {}",
-                manifest.identity.id,
-                manifest.identity.version,
-                uuid::Uuid::from_bytes(manifest.block_type)
+                "{} {} ({})",
+                manifest.identity.id, manifest.identity.version, manifest.identity.name
             ),
         );
         manifest_lines(lines, manifest);
@@ -61,25 +59,47 @@ fn discovered(lines: &mut Vec<Line>) {
 }
 
 fn manifest_lines(lines: &mut Vec<Line>, manifest: &PluginManifest) {
-    let mut small = |text: String| push(lines, LineStyle::Muted, 1, text);
-    small(format!(
-        "name {} ({})",
-        manifest.display_name, manifest.identity.name
-    ));
-    small(format!("regions {}", regions(&manifest.regions)));
-    small(format!(
-        "creation {:?} · interaction {:?} · resize {:?} · important {}",
-        manifest.creation, manifest.interaction, manifest.resize, manifest.important
-    ));
-    small(format!(
-        "children add {} · delete {} · replace {}",
-        manifest.children.add, manifest.children.delete, manifest.children.replace
-    ));
-    small(format!(
-        "capabilities {}",
-        capabilities(&manifest.capabilities)
-    ));
-    small(format!("entry point {}", manifest.entry_point));
+    for editor in &manifest.editors {
+        push(
+            lines,
+            LineStyle::Body,
+            1,
+            format!(
+                "{} — {}",
+                editor.display_name,
+                uuid::Uuid::from_bytes(editor.block_type)
+            ),
+        );
+        let mut small = |text: String| push(lines, LineStyle::Muted, 2, text);
+        small(format!("regions {}", regions(&editor.regions)));
+        small(format!(
+            "interaction {:?} · resize {:?}",
+            editor.interaction, editor.resize
+        ));
+        small(format!(
+            "children add {} · delete {} · replace {}",
+            editor.children.add, editor.children.delete, editor.children.replace
+        ));
+        small(format!(
+            "capabilities {}",
+            capabilities(&editor.capabilities)
+        ));
+        for template in &editor.templates {
+            small(format!(
+                "template {} ({}) · {:?}{}",
+                template.id,
+                template.name,
+                template.category,
+                if template.dialog { " · dialog" } else { "" }
+            ));
+        }
+    }
+    push(
+        lines,
+        LineStyle::Muted,
+        1,
+        format!("entry point {}", manifest.entry_point),
+    );
 }
 
 fn runtime_lines(runtime: &RuntimeStatus) -> Vec<Line> {

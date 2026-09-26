@@ -139,11 +139,12 @@ impl From<PerformanceSnapshot> for PerformanceSummary {
                     percentage(snapshot.paint_cache_hits, snapshot.samples)
                 ),
                 format!(
-                    "Reused: {} of {} measured | {} of {} painted",
+                    "Reused: {} of {} measured | {} of {} painted | {} accessibility nodes rebuilt",
                     work.reused_measurements,
                     work.reused_measurements + work.measured,
                     work.replayed_nodes,
-                    work.replayed_nodes + work.painted_nodes
+                    work.replayed_nodes + work.painted_nodes,
+                    work.described_nodes
                 ),
             )
         };
@@ -427,6 +428,7 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
         (state.clone(), state.clone(), state.clone(), state.clone());
     let reader_state = state.clone();
     let filter_state = state.clone();
+    let band_state = state.clone();
     view! {
         <Scroll focus_color={Some(THEME.accent)}>
             <List spacing=PERFORMANCE_SPACING>
@@ -441,6 +443,12 @@ fn SimulationPanel(state: Rc<State>) -> NodeId {
                     label="Simulate mouse with touch"
                     checked={state.mouse_simulation.get()}
                     on_change={move |enabled| mouse_state.mouse_simulation.set(enabled)}
+                />
+                <Checkbox
+                    @test_id={"inspector.simulation.rubber_banding"}
+                    label="Rubber-band scrolls and windows"
+                    checked={state.rubber_banding.get()}
+                    on_change={move |enabled| band_state.rubber_banding.set(enabled)}
                 />
                 <Separator />
                 <List spacing=TIMING_SPACING>
@@ -564,11 +572,18 @@ fn contrast_label(amount: f32) -> String {
 #[component]
 fn ScreenReaderSection(state: Rc<State>) -> NodeId {
     let enable_state = state.clone();
+    let accessibility_state = state.clone();
     let (first_state, second_state, third_state) = (state.clone(), state.clone(), state.clone());
     let (fourth_state, fifth_state) = (state.clone(), state.clone());
     view! {
         <List spacing=TIMING_SPACING>
             <Heading content="Screen reader" />
+            <Checkbox
+                @test_id={"inspector.accessibility.enabled"}
+                label="Expose the accessibility tree"
+                checked={state.accessibility.get()}
+                on_change={move |enabled| accessibility_state.enable_accessibility(enabled)}
+            />
             <Checkbox
                 @test_id={"inspector.screen_reader.enabled"}
                 label="Simulate a screen reader"

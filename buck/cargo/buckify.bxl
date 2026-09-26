@@ -1,6 +1,7 @@
 # Generates third-party/rust/BUCK (reindeer) and buck/cargo/crates.bzl
 # (crates/buck-tools' generate, from cargo's plans) on a worker and prints their directory;
-# ./scripts/buck copies them into place when their inputs change.
+# ./scripts/buck copies them into place when their inputs change. Beside them
+# is the Cargo.lock they were generated from.
 #
 # The action's inputs are the manifests, Cargo.lock, reindeer.toml, the fixups
 # and buck-tools' sources, plus empty files at the paths cargo discovers targets at
@@ -91,6 +92,12 @@ for manifest in $(find crates -name Cargo.toml); do
     done
 done
 export CARGO_HOME="$scratch/cargo-home"
+
+# Cargo.lock as the cargo a developer runs would leave it: brought up to date
+# with the manifests, changing nothing it does not have to. Everything below
+# reads it, and //:verify's lint writes it back to the checkout.
+PATH="$toolchain/bin:$PATH" "$toolchain/bin/cargo" metadata --format-version 1 --quiet > /dev/null
+cp Cargo.lock "$out/Cargo.lock"
 
 PATH="$toolchain/bin:$PATH" "$reindeer"     --cargo-path "$toolchain/bin/cargo" --rustc-path "$toolchain/bin/rustc"     buckify --stdout > "$scratch/BUCK"
 

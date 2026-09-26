@@ -295,6 +295,15 @@ impl ContentStore {
         }
     }
 
+    pub fn applied(&self, block: Option<Uuid>) -> u64 {
+        self.sync();
+        self.0
+            .borrow()
+            .blocks
+            .get(&block)
+            .map_or(0, |held| held.applied)
+    }
+
     pub fn holds(&self, block: Option<Uuid>) -> bool {
         self.sync();
         self.0.borrow().blocks.contains_key(&block)
@@ -430,6 +439,10 @@ impl<A: BeuiApp> ContentHarness<A> {
 
     pub fn seeded(&mut self) -> Vec<SeededContent> {
         self.store.seeded()
+    }
+
+    pub fn applied(&self, block: Option<Uuid>) -> u64 {
+        self.store.applied(block)
     }
 
     pub fn run(&mut self) {

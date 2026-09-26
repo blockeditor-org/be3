@@ -122,8 +122,14 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
                             on_state={clone!(report -> move |next: ChildState| {
                                 set_child.set(next.clone());
                                 report.embed_children.borrow_mut().insert(key, next.clone());
-                                if let Some(size) = next.intrinsic_size {
-                                    report.embed_sizes.borrow_mut().insert(key.id, size);
+                                if let Some(size) = next.intrinsic_size
+                                    && report
+                                        .embed_sizes
+                                        .with_untracked(|sizes| sizes.get(&key.id) != Some(&size))
+                                {
+                                    report.set_embed_sizes.update(|sizes| {
+                                        sizes.insert(key.id, size);
+                                    });
                                 }
                                 confirm_focus(&report, key, next.active);
                             })}

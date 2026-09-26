@@ -59,10 +59,12 @@ pub(crate) struct State {
     pub(crate) picking: Cell<bool>,
     pub(crate) touch_emulation: Cell<bool>,
     pub(crate) mouse_simulation: Cell<bool>,
+    pub(crate) rubber_banding: Cell<bool>,
     pub(crate) flash_changes: Cell<bool>,
     pub(crate) flash_damage: Cell<bool>,
     pub(crate) simulated_pixels_per_point: Cell<Option<f32>>,
     pub(crate) screen_reader: Cell<bool>,
+    pub(crate) accessibility: Cell<bool>,
     pub(crate) blur: Cell<f32>,
     pub(crate) contrast_reduction: Cell<f32>,
     pub(crate) color_vision: Cell<ColorVision>,
@@ -87,10 +89,12 @@ impl State {
             picking: Cell::new(false),
             touch_emulation: Cell::new(ctx.touch_emulation()),
             mouse_simulation: Cell::new(ctx.mouse_simulation()),
+            rubber_banding: Cell::new(true),
             flash_changes: Cell::new(false),
             flash_damage: Cell::new(false),
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
             screen_reader: Cell::new(false),
+            accessibility: Cell::new(ctx.accessibility_active()),
             blur: Cell::new(0.0),
             contrast_reduction: Cell::new(0.0),
             color_vision: Cell::new(ColorVision::Typical),
@@ -136,6 +140,11 @@ impl State {
 
     fn simulate_pixels_per_point(&self, pixels_per_point: Option<f32>) {
         self.simulated_pixels_per_point.set(pixels_per_point);
+        self.touch();
+    }
+
+    fn enable_accessibility(&self, enabled: bool) {
+        self.accessibility.set(enabled);
         self.touch();
     }
 
@@ -459,6 +468,8 @@ impl Inspector {
         }
         ctx.set_touch_emulation(self.state.touch_emulation.get());
         ctx.set_mouse_simulation(self.state.mouse_simulation.get());
+        target.set_rubber_banding(self.state.rubber_banding.get());
+        ctx.set_accessibility_active(self.state.accessibility.get());
         target.track_changes(self.state.flash_changes.get());
         target.track_damage(self.state.flash_damage.get());
         ctx.set_simulated_pixels_per_point(self.state.simulated_pixels_per_point.get());
