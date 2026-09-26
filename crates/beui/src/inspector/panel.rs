@@ -199,12 +199,20 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                     performance.with(|performance| performance.samples.clone())
                 }
                 InspectorTab::Simulation => String::new(),
-                _ => total_label(summary.with(|summary| summary.total)),
+                InspectorTab::Components => {
+                    total_label(summary.with(|summary| summary.total), "component")
+                }
+                _ => total_label(summary.with(|summary| summary.total), "node"),
             }
         });
         let tree_visible = create_memo({
             let tab = tab.clone();
-            move || matches!(tab.get(), InspectorTab::Beui | InspectorTab::AccessKit)
+            move || {
+                matches!(
+                    tab.get(),
+                    InspectorTab::Beui | InspectorTab::Components | InspectorTab::AccessKit
+                )
+            }
         });
         let performance_visible = create_memo({
             let tab = tab.clone();
@@ -266,6 +274,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                     @test_id={"inspector.tabs"}
                                     options={view! {
                                         <ChoiceOption label="Beui" />
+                                        <ChoiceOption label="Comp" />
                                         <ChoiceOption label="A11y" />
                                         <ChoiceOption label="Perf" />
                                         <ChoiceOption label="Sim" />
@@ -293,7 +302,7 @@ pub(crate) fn build(state: &Rc<State>) -> Panel {
                                         focus_color={Some(THEME.accent)}
                                         row_test_id={move |key: Key| key.test_id()}
                                         reveal_test_id={"inspector.reveal".to_owned()}
-                                        on_select={move |key: Key| select_state.select(key.node())}
+                                        on_select={move |key: Key| select_state.select_row(key)}
                                         on_expand={move |(key, expanded): (Key, bool)| {
                                             expand_state.set_expanded(key, expanded);
                                         }}
@@ -642,10 +651,10 @@ fn CommandRow(row: usize, state: Rc<State>) -> NodeId {
     }
 }
 
-pub(crate) fn total_label(total: usize) -> String {
+pub(crate) fn total_label(total: usize, noun: &str) -> String {
     match total {
-        1 => "1 node".to_owned(),
-        total => format!("{total} nodes"),
+        1 => format!("1 {noun}"),
+        total => format!("{total} {noun}s"),
     }
 }
 
