@@ -7,7 +7,7 @@ use beui::reactive::{
     KeyedStore, ReadSignal, Selector, WriteSignal, clone, create_selector, create_signal,
 };
 
-use crate::github::{Entry, Filter, PullRequest, timeline_images};
+use crate::github::{Entry, Filter, PullRequest, branch_deleted, timeline_images};
 use crate::pane::Pane;
 use crate::targets::{Action, Target};
 use crate::tasks::{Event, Tasks, open_url};
@@ -310,6 +310,32 @@ impl Model {
         }
         self.set_running.set(true);
         self.tasks.run("switch", args);
+    }
+
+    pub(crate) fn run_again(&self) {
+        let common = self.common.get_untracked();
+        match self.selected.get_untracked() {
+            Some(pull_request) if self.can_check_out(&pull_request) => {
+                self.check_out(&pull_request, Some(common));
+            }
+            _ => {
+                if let Some(common) = COMMON.get(common) {
+                    self.run(words(common.args));
+                }
+            }
+        }
+    }
+
+    fn can_check_out(&self, pull_request: &PullRequest) -> bool {
+        let deleted = self
+            .timelines
+            .borrow()
+            .get(&pull_request.number)
+            .is_some_and(|(timeline, _)| match timeline.get_untracked() {
+                Loaded::Ready(entries) => branch_deleted(&entries),
+                _ => false,
+            });
+        pull_request.same_repository && !deleted
     }
 
     pub(crate) fn stop(&self) {

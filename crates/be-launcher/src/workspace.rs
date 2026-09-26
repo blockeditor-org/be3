@@ -49,6 +49,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
         }
     });
     let stop = clone!(model -> move || model.stop());
+    let run = clone!(model -> move || model.run_again());
     let on_pull_request = create_memo(clone!(model -> move || model.tab.get() == Tab::PullRequest));
     let on_targets = create_memo(clone!(model -> move || model.tab.get() == Tab::Targets));
     let on_log = create_memo(clone!(model -> move || model.tab.get() == Tab::Log));
@@ -72,13 +73,22 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                     <Show condition={running.clone()}>
                         <Spinner width=18.0 label="A command is running" />
                     </Show>
-                    <Button
-                        label="Stop"
-                        glyph=ICON_STOP
-                        variant=ButtonVariant::Secondary
-                        disabled={idle}
-                        on_click={stop}
-                    />
+                    <Show condition={running.clone()}>
+                        <Button
+                            label="Stop"
+                            glyph=ICON_STOP
+                            variant=ButtonVariant::Secondary
+                            on_click={stop}
+                        />
+                    </Show>
+                    <Show condition={idle}>
+                        <Button
+                            label="Run"
+                            glyph=ICON_PLAY_ARROW
+                            variant=ButtonVariant::Primary
+                            on_click={run}
+                        />
+                    </Show>
                 </List>
             </Frame>
             <Show condition={on_pull_request}>
