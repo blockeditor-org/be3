@@ -56,6 +56,7 @@ Design principles:
   - the plugin protocol passes textures without them leaving the GPU.
 - gui:
   - we use an icon library for icons. if one is not available, then do not use icons. do not use unicode for icons.
+  - a scroll view reaches the edges of the area it fills; its padding goes inside it, around the scrolled content, so content is not cut off short of the edge or inset beside the scrollbar.
 
 In your handoff message:
 - If any, mention any small issues you encountered or small things you noticed that could make the code / application better.
