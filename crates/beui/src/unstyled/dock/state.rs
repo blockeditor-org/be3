@@ -1,3 +1,8 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::fmt;
+use std::rc::Rc;
+
 use crate::base::Direction;
 use crate::geometry::{Pos2, Rect, Vec2};
 
@@ -144,20 +149,25 @@ impl Node {
         }
     }
 
-    fn leaf(&self, id: LeafId) -> Option<&Leaf> {
-        match self {
-            Node::Leaf(leaf) => (leaf.id == id).then_some(leaf),
-            Node::Split(split) => split.first.leaf(id).or_else(|| split.second.leaf(id)),
+    fn at(&self, path: &[bool]) -> Option<&Leaf> {
+        match (self, path.split_first()) {
+            (Node::Leaf(leaf), None) => Some(leaf),
+            (Node::Split(split), Some((second, rest))) => match second {
+                false => split.first.at(rest),
+                true => split.second.at(rest),
+            },
+            _ => None,
         }
     }
 
-    fn leaf_mut(&mut self, id: LeafId) -> Option<&mut Leaf> {
-        match self {
-            Node::Leaf(leaf) => (leaf.id == id).then_some(leaf),
-            Node::Split(split) => match split.first.leaf_mut(id) {
-                Some(leaf) => Some(leaf),
-                None => split.second.leaf_mut(id),
+    fn at_mut(&mut self, path: &[bool]) -> Option<&mut Leaf> {
+        match (self, path.split_first()) {
+            (Node::Leaf(leaf), None) => Some(leaf),
+            (Node::Split(split), Some((second, rest))) => match second {
+                false => split.first.at_mut(rest),
+                true => split.second.at_mut(rest),
             },
+            _ => None,
         }
     }
 
@@ -258,12 +268,73 @@ struct Group {
     root: Node,
 }
 
+#[derive(Debug, Default, PartialEq)]
+struct Index {
+    leaves: HashMap<LeafId, (Tree, Vec<bool>)>,
+    entries: HashMap<Entry, (LeafId, usize)>,
+}
+
+impl Index {
+    fn build(state: &DockState) -> Self {
+        let mut index = Self::default();
+        let mut path = Vec::new();
+        for surface in &state.surfaces {
+            index.add(Tree::Surface(surface.id), &surface.root, &mut path);
+        }
+        for group in &state.groups {
+            index.add(Tree::Group(group.id), &group.root, &mut path);
+        }
+        index
+    }
+
+    fn add(&mut self, tree: Tree, node: &Node, path: &mut Vec<bool>) {
+        match node {
+            Node::Leaf(leaf) => {
+                self.leaves.entry(leaf.id).or_insert((tree, path.clone()));
+                for (position, entry) in leaf.entries.iter().enumerate() {
+                    self.entries.entry(*entry).or_insert((leaf.id, position));
+                }
+            }
+            Node::Split(split) => {
+                path.push(false);
+                self.add(tree, &split.first, path);
+                path.pop();
+                path.push(true);
+                self.add(tree, &split.second, path);
+                path.pop();
+            }
+        }
+    }
+}
+
+#[derive(Default)]
+struct Lookup(RefCell<Option<Rc<Index>>>);
+
+impl Clone for Lookup {
+    fn clone(&self) -> Self {
+        Self(RefCell::new(self.0.borrow().clone()))
+    }
+}
+
+impl PartialEq for Lookup {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+impl fmt::Debug for Lookup {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("Lookup")
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct DockState {
     surfaces: Vec<Surface>,
     groups: Vec<Group>,
     focus: Option<LeafId>,
     next: u64,
+    lookup: Lookup,
 }
 
 impl Default for DockState {
@@ -279,6 +350,7 @@ impl DockState {
             groups: Vec::new(),
             focus: None,
             next: 0,
+            lookup: Lookup::default(),
         };
         let leaf = state.new_leaf(tabs.into_iter().map(Entry::Tab).collect());
         let focus = leaf.id;
@@ -290,6 +362,29 @@ impl DockState {
         });
         state.focus = Some(focus);
         state
+    }
+
+    fn index(&self) -> Rc<Index> {
+        let cached = self.lookup.0.borrow().clone();
+        let index = match cached {
+            Some(index) => index,
+            None => {
+                let index = Rc::new(Index::build(self));
+                *self.lookup.0.borrow_mut() = Some(Rc::clone(&index));
+                index
+            }
+        };
+        #[cfg(test)]
+        assert_eq!(
+            *index,
+            Index::build(self),
+            "the dock lookup went stale after a change"
+        );
+        index
+    }
+
+    fn invalidate(&mut self) {
+        *self.lookup.0.get_mut() = None;
     }
 
     fn mint(&mut self) -> u64 {
@@ -312,6 +407,7 @@ impl DockState {
     }
 
     fn surface_mut(&mut self, id: SurfaceId) -> Option<&mut Surface> {
+        self.invalidate();
         self.surfaces.iter_mut().find(|surface| surface.id == id)
     }
 
@@ -327,6 +423,7 @@ impl DockState {
     }
 
     fn root_mut(&mut self, tree: Tree) -> Option<&mut Node> {
+        self.invalidate();
         match tree {
             Tree::Surface(surface) => self.surface_mut(surface).map(|surface| &mut surface.root),
             Tree::Group(group) => self
@@ -344,24 +441,15 @@ impl DockState {
             .chain(self.groups.iter().map(|group| &group.root))
     }
 
-    fn every_leaf(&self) -> Vec<&Leaf> {
-        let mut leaves = Vec::new();
-        for root in self.roots() {
-            root.walk(&mut leaves);
-        }
-        leaves
-    }
-
     fn leaf(&self, id: LeafId) -> Option<&Leaf> {
-        self.roots().find_map(|root| root.leaf(id))
+        let index = self.index();
+        let (tree, path) = index.leaves.get(&id)?;
+        self.root(*tree)?.at(path)
     }
 
     fn leaf_mut(&mut self, id: LeafId) -> Option<&mut Leaf> {
-        self.surfaces
-            .iter_mut()
-            .map(|surface| &mut surface.root)
-            .chain(self.groups.iter_mut().map(|group| &mut group.root))
-            .find_map(|root| root.leaf_mut(id))
+        let (tree, path) = self.index().leaves.get(&id)?.clone();
+        self.root_mut(tree)?.at_mut(&path)
     }
 
     pub fn main(&self) -> SurfaceId {
@@ -400,6 +488,7 @@ impl DockState {
         let leaf = self.new_leaf(entries);
         let focus = leaf.id;
         let id = SurfaceId(self.mint());
+        self.invalidate();
         self.surfaces.push(Surface {
             id,
             root: Node::Leaf(leaf),
@@ -417,6 +506,7 @@ impl DockState {
             return;
         }
         let nested = self.nested_groups(Tree::Surface(surface));
+        self.invalidate();
         self.groups.retain(|group| !nested.contains(&group.id));
         self.surfaces.retain(|candidate| candidate.id != surface);
         self.settle_focus();
@@ -434,21 +524,12 @@ impl DockState {
             return;
         }
         let raised = self.surfaces.remove(index);
+        self.invalidate();
         self.surfaces.push(raised);
     }
 
     pub fn tree_of(&self, leaf: LeafId) -> Option<Tree> {
-        if let Some(surface) = self
-            .surfaces
-            .iter()
-            .find(|surface| surface.root.leaf(leaf).is_some())
-        {
-            return Some(Tree::Surface(surface.id));
-        }
-        self.groups
-            .iter()
-            .find(|group| group.root.leaf(leaf).is_some())
-            .map(|group| Tree::Group(group.id))
+        self.index().leaves.get(&leaf).map(|(tree, _)| *tree)
     }
 
     pub fn holder(&self, group: GroupId) -> Option<(LeafId, usize)> {
@@ -530,13 +611,7 @@ impl DockState {
     }
 
     pub fn locate(&self, entry: Entry) -> Option<(LeafId, usize)> {
-        self.every_leaf().into_iter().find_map(|leaf| {
-            let index = leaf
-                .entries
-                .iter()
-                .position(|candidate| *candidate == entry)?;
-            Some((leaf.id, index))
-        })
+        self.index().entries.get(&entry).copied()
     }
 
     pub fn find(&self, tab: TabId) -> Option<TabPosition> {
@@ -993,6 +1068,7 @@ impl DockState {
             .filter(|focus| self.tree_of(*focus) == Some(Tree::Group(group)))
             .and_then(|focus| self.active_entry(focus))
             .or_else(|| entries.first().copied());
+        self.invalidate();
         self.groups.retain(|candidate| candidate.id != group);
         let Some(leaf) = self.leaf_mut(holder) else {
             return;
@@ -1036,6 +1112,7 @@ impl DockState {
                 inner.active = 1;
                 let inner_id = inner.id;
                 let group = GroupId(self.mint());
+                self.invalidate();
                 self.groups.push(Group {
                     id: group,
                     root: Node::Leaf(inner),
@@ -1087,10 +1164,12 @@ impl DockState {
             None => match tree {
                 Tree::Surface(surface) if surface == main => {}
                 Tree::Surface(surface) => {
+                    self.invalidate();
                     self.surfaces.retain(|candidate| candidate.id != surface);
                 }
                 Tree::Group(group) => {
                     self.take(Entry::Group(group));
+                    self.invalidate();
                     self.groups.retain(|candidate| candidate.id != group);
                 }
             },
@@ -1105,6 +1184,7 @@ impl DockState {
         let groups: Vec<GroupId> = self.groups.iter().map(|group| group.id).collect();
         for group in groups {
             let Some((holder, index)) = self.holder(group) else {
+                self.invalidate();
                 self.groups.retain(|candidate| candidate.id != group);
                 return true;
             };
@@ -1114,6 +1194,7 @@ impl DockState {
             if let Node::Leaf(inner) = &root
                 && inner.entries.len() <= 1
             {
+                self.invalidate();
                 self.groups.retain(|candidate| candidate.id != group);
                 let Some(leaf) = self.leaf_mut(holder) else {
                     return true;
@@ -1136,6 +1217,7 @@ impl DockState {
             }
             match root {
                 Node::Leaf(inner) => {
+                    self.invalidate();
                     self.groups.retain(|candidate| candidate.id != group);
                     if let Some(leaf) = self.leaf_mut(holder) {
                         leaf.entries = inner.entries;
@@ -1159,6 +1241,7 @@ impl DockState {
                         continue;
                     };
                     let first = root.first_leaf().id;
+                    self.invalidate();
                     self.groups.retain(|candidate| candidate.id != group);
                     if let Some(parent) = self.root_mut(tree) {
                         parent.replace_leaf(holder, move |_| root);
