@@ -1,34 +1,24 @@
 #![cfg(target_arch = "wasm32")]
 
 mod exports;
-mod surface;
 
 use std::{cell::RefCell, collections::VecDeque};
 
-use block_gpu_host::Gpu;
+use block_gpu_host::Recorder;
 use wasm_bindgen::prelude::*;
-
-use surface::Canvas;
 
 thread_local! {
     static SHIM: RefCell<Option<Shim>> = const { RefCell::new(None) };
 }
 
 struct Shim {
-    gpu: Gpu,
-    canvas: Canvas,
+    gpu: Recorder,
     inbox: VecDeque<Vec<u8>>,
     outbox: Vec<Vec<u8>>,
     scratch: Vec<u8>,
     started: f64,
     woken: bool,
     failure: Option<String>,
-}
-
-impl Shim {
-    fn report(&mut self, message: String) {
-        self.gpu.report(message);
-    }
 }
 
 fn with<R>(act: impl FnOnce(&mut Shim) -> R, absent: R) -> R {
@@ -39,17 +29,13 @@ fn with<R>(act: impl FnOnce(&mut Shim) -> R, absent: R) -> R {
 }
 
 #[wasm_bindgen]
-pub async fn start(canvas: JsValue) -> Result<(), JsValue> {
+pub fn start(limits: &[u8]) -> Result<(), JsValue> {
     std::panic::set_hook(Box::new(|info| {
         web_sys::console::error_1(&format!("the plugin's gpu shim panicked: {info}").into());
     }));
-    let canvas: web_sys::OffscreenCanvas = canvas.dyn_into()?;
-    let (canvas, device, queue) = Canvas::open(canvas)
-        .await
-        .map_err(|error| JsValue::from_str(&error))?;
+    let gpu = Recorder::new(limits).map_err(|error| JsValue::from_str(&error))?;
     let shim = Shim {
-        gpu: Gpu::new(device, queue),
-        canvas,
+        gpu,
         inbox: VecDeque::new(),
         outbox: Vec::new(),
         scratch: Vec::new(),
@@ -81,8 +67,11 @@ pub fn collect() -> js_sys::Array {
 }
 
 #[wasm_bindgen]
-pub fn picture() -> Option<web_sys::ImageBitmap> {
-    with(|shim| shim.canvas.take_picture(), None)
+pub fn calls() -> Vec<u8> {
+    with(
+        |shim| block_gpu_abi::encode(&shim.gpu.take_calls()),
+        Vec::new(),
+    )
 }
 
 #[wasm_bindgen]

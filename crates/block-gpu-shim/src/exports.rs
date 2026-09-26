@@ -209,43 +209,15 @@ pub extern "C" fn surface_configure(surface: u32, pointer: u32, length: u32) {
     with(
         |shim| {
             let bytes = read(&shim.scratch, pointer, length);
-            let configuration = match abi::decode(&bytes) {
-                Ok(configuration) => configuration,
-                Err(message) => return shim.report(message),
-            };
-            let device = shim.gpu.device().clone();
-            if let Err(message) = shim.canvas.configure(&device, &configuration) {
-                shim.report(message);
-                return;
-            }
             shim.gpu.configure_surface(surface, &bytes);
         },
         (),
     )
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn surface_acquire(surface: u32) -> u32 {
-    with(|shim| shim.gpu.acquire_surface(surface), abi::NULL_HANDLE)
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn surface_present(surface: u32) {
-    with(
-        |shim| {
-            shim.gpu.present_surface(surface);
-            let Some((drawn, _)) = shim.gpu.surface(surface) else {
-                return;
-            };
-            let drawn = drawn.clone();
-            let device = shim.gpu.device().clone();
-            let queue = shim.gpu.queue().clone();
-            if let Err(message) = shim.canvas.present(&device, &queue, &drawn) {
-                shim.report(message);
-            }
-        },
-        (),
-    )
+scalar! {
+    fn surface_acquire(surface: u32) -> u32 => acquire_surface;
+    fn surface_present(surface: u32) => present_surface;
 }
 
 #[unsafe(no_mangle)]

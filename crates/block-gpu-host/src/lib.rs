@@ -1,4 +1,5 @@
 mod convert;
+mod record;
 mod tables;
 
 #[cfg(test)]
@@ -10,7 +11,12 @@ use block_gpu_abi as abi;
 use tables::Table;
 
 pub use convert::texture_format;
+pub use record::{Call, Recorder};
 pub use wgpu;
+
+const SURFACE_USAGE: wgpu::TextureUsages = wgpu::TextureUsages::RENDER_ATTACHMENT
+    .union(wgpu::TextureUsages::TEXTURE_BINDING)
+    .union(wgpu::TextureUsages::COPY_SRC);
 
 pub struct Gpu {
     device: wgpu::Device,
@@ -131,6 +137,9 @@ impl Gpu {
 
     pub fn create_buffer(&mut self, bytes: &[u8]) -> abi::Handle {
         let result = self.try_create_buffer(bytes);
+        if result.is_err() {
+            self.buffers.skip();
+        }
         self.handle(result)
     }
 
@@ -147,6 +156,9 @@ impl Gpu {
 
     pub fn create_texture(&mut self, bytes: &[u8]) -> abi::Handle {
         let result = self.try_create_texture(bytes);
+        if result.is_err() {
+            self.textures.skip();
+        }
         self.handle(result)
     }
 
@@ -172,6 +184,9 @@ impl Gpu {
 
     pub fn create_texture_view(&mut self, bytes: &[u8]) -> abi::Handle {
         let result = self.try_create_texture_view(bytes);
+        if result.is_err() {
+            self.views.skip();
+        }
         self.handle(result)
     }
 
@@ -194,6 +209,9 @@ impl Gpu {
 
     pub fn create_sampler(&mut self, bytes: &[u8]) -> abi::Handle {
         let result = self.try_create_sampler(bytes);
+        if result.is_err() {
+            self.samplers.skip();
+        }
         self.handle(result)
     }
 
@@ -218,6 +236,9 @@ impl Gpu {
 
     pub fn create_bind_group_layout(&mut self, bytes: &[u8]) -> abi::Handle {
         let result = self.try_create_bind_group_layout(bytes);
+        if result.is_err() {
+            self.group_layouts.skip();
+        }
         self.handle(result)
     }
 
@@ -244,6 +265,9 @@ impl Gpu {
 
     pub fn create_bind_group(&mut self, bytes: &[u8]) -> abi::Handle {
         let result = self.try_create_bind_group(bytes);
+        if result.is_err() {
+            self.groups.skip();
+        }
         self.handle(result)
     }
 
@@ -311,6 +335,9 @@ impl Gpu {
 
     pub fn create_pipeline_layout(&mut self, bytes: &[u8]) -> abi::Handle {
         let result = self.try_create_pipeline_layout(bytes);
+        if result.is_err() {
+            self.pipeline_layouts.skip();
+        }
         self.handle(result)
     }
 
@@ -338,6 +365,9 @@ impl Gpu {
 
     pub fn create_shader_module(&mut self, bytes: &[u8]) -> abi::Handle {
         let result = self.try_create_shader_module(bytes);
+        if result.is_err() {
+            self.modules.skip();
+        }
         self.handle(result)
     }
 
@@ -354,6 +384,9 @@ impl Gpu {
 
     pub fn create_render_pipeline(&mut self, bytes: &[u8]) -> abi::Handle {
         let result = self.try_create_render_pipeline(bytes);
+        if result.is_err() {
+            self.pipelines.skip();
+        }
         self.handle(result)
     }
 
@@ -486,6 +519,9 @@ impl Gpu {
 
     pub fn create_command_encoder(&mut self, bytes: &[u8]) -> abi::Handle {
         let result = self.try_create_command_encoder(bytes);
+        if result.is_err() {
+            self.encoders.skip();
+        }
         self.handle(result)
     }
 
@@ -575,6 +611,9 @@ impl Gpu {
 
     pub fn begin_render_pass(&mut self, bytes: &[u8]) -> abi::Handle {
         let result = self.try_begin_render_pass(bytes);
+        if result.is_err() {
+            self.passes.skip();
+        }
         self.handle(result)
     }
 
@@ -664,6 +703,9 @@ impl Gpu {
             .encoders
             .take(encoder, "command encoder")
             .map(|encoder| self.command_buffers.insert(encoder.finish()));
+        if result.is_err() {
+            self.command_buffers.skip();
+        }
         self.handle(result)
     }
 
@@ -920,9 +962,7 @@ impl Gpu {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                | wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_SRC,
+            usage: SURFACE_USAGE,
             view_formats: &[],
         });
         self.attach_surface(surface, texture);
@@ -931,6 +971,7 @@ impl Gpu {
     pub fn acquire_surface(&mut self, surface: u32) -> abi::Handle {
         let Some(target) = self.surfaces.get(&surface) else {
             self.error = Some(format!("surface {surface} has no target texture"));
+            self.textures.skip();
             return abi::NULL_HANDLE;
         };
         let texture = target.texture.clone();
