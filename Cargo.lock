@@ -960,8 +960,6 @@ dependencies = [
  "block-gpu-guest",
  "block-plugin-api",
  "block-ui",
- "futures-util",
- "serde",
  "serde_bytes",
  "serde_json",
  "uuid",
@@ -6349,7 +6347,6 @@ dependencies = [
 name = "test-third-party"
 version = "0.1.0"
 dependencies = [
- "naga",
  "wat",
  "wayland-client",
  "wayland-protocols",
