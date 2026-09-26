@@ -11,7 +11,7 @@ fn discs_fall_to_the_bottom_and_the_landing_tile_is_clicked() {
     let actions = vec![play(&[], red, 3)];
 
     let screen = show(&actions, yellow);
-    let Board::Grid(grid) = &screen.board else {
+    let Board::Grid(grid) = &*screen.board else {
         panic!("connect four is played on a grid");
     };
     assert_eq!((grid.columns, grid.rows), (7, 6));

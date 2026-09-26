@@ -12,6 +12,7 @@ Guides:
 - guides/pan_and_zoom.md
 - guides/reactive.md
 - guides/running_the_app.md
+- guides/running_the_web_app.md
 - guides/testing_a_gui.md
 - guides/the_new_block_stack.md
 

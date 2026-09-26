@@ -21,7 +21,7 @@ fn playing_greedily_from_all_sides_eventually_ends_the_game() {
                 .count();
             let losers = screens
                 .iter()
-                .filter(|(_, screen)| screen.description == "You lose!")
+                .filter(|(_, screen)| screen.description.starts_with("You lose"))
                 .count();
             let draws = screens
                 .iter()

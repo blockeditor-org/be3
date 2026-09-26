@@ -22,7 +22,6 @@ fn clicking_a_tree_marker_expands_the_row_without_opening_it() {
                 depth: usize::from(key > 0),
                 expandable: key == 0,
                 expanded: expanded.get(),
-                marked: false,
             };
             view! {
                 <Tree
@@ -31,7 +30,6 @@ fn clicking_a_tree_marker_expands_the_row_without_opening_it() {
                     selected=None
                     on_select={move |key: usize| opened.borrow_mut().push(key)}
                     on_expand={move |(_, open): (usize, bool)| set_expanded.set(open)}
-                    expand_on_select=false
                 >
                     {move |row: TreeRowFace<usize>| view! {
                         <Text

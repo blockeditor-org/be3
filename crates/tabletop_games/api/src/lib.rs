@@ -4,7 +4,7 @@ use std::convert::Infallible;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use board::{Board, Gesture, Move, Scene, Spot};
+pub use board::{Board, Control, Gesture, Move, Scene, Spot};
 
 pub mod board;
 pub mod build;
@@ -21,9 +21,16 @@ pub struct GameAction {
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct GameScreen {
     pub description: String,
-    pub board: Board,
+    pub board: Box<Board>,
     pub actions: Vec<GameActionOption>,
     pub history: Vec<Turn>,
+    pub columns: Box<[String]>,
+    pub ending: Option<Ending>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+pub struct Ending {
+    pub score: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -31,6 +38,7 @@ pub struct Turn {
     pub actor: Uuid,
     pub entry: u32,
     pub description: String,
+    pub column: Option<u32>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -62,6 +70,7 @@ enum Source<'a> {
 pub struct GameHelper<'a> {
     source: Source<'a>,
     history: RefCell<Vec<Turn>>,
+    columns: RefCell<Vec<String>>,
     listing: Cell<bool>,
 }
 
@@ -84,8 +93,13 @@ impl<'a> GameHelper<'a> {
         Self {
             source,
             history: RefCell::new(Vec::new()),
+            columns: RefCell::new(Vec::new()),
             listing: Cell::new(false),
         }
+    }
+
+    pub fn columns<Name: Into<String>>(&self, names: impl IntoIterator<Item = Name>) {
+        *self.columns.borrow_mut() = names.into_iter().map(Into::into).collect();
     }
 
     pub fn listing(&self) -> bool {
@@ -104,12 +118,14 @@ impl<'a> GameHelper<'a> {
         }
     }
 
-    fn screen(&self, scene: Scene, actions: Vec<GameActionOption>) -> GameScreen {
+    fn screen(&self, scene: Scene, actions: Vec<GameActionOption>, over: bool) -> GameScreen {
         GameScreen {
             description: scene.description,
-            board: scene.board,
+            board: Box::new(scene.board),
             actions,
             history: self.history.borrow().clone(),
+            columns: self.columns.borrow().clone().into_boxed_slice(),
+            ending: over.then_some(Ending { score: scene.score }),
         }
     }
 
@@ -165,17 +181,18 @@ impl<'a> GameHelper<'a> {
             let is_target = matched.is_none() && seen == target;
             seen += 1;
             if is_target {
-                matched = Some(offered.recorded.unwrap_or(offered.label));
+                matched = Some((offered.recorded.unwrap_or(offered.label), offered.column));
             }
             is_target
         });
-        let Some(description) = matched else {
+        let Some((description, column)) = matched else {
             return false;
         };
         self.history.borrow_mut().push(Turn {
             actor: entry.actor,
             entry: index,
             description,
+            column,
         });
         true
     }
@@ -199,7 +216,7 @@ impl<'a> GameHelper<'a> {
             false
         });
         self.listing.set(false);
-        self.screen(describe(player).into(), actions)
+        self.screen(describe(player).into(), actions, false)
     }
 
     pub fn turn(
@@ -220,28 +237,34 @@ impl<'a> GameHelper<'a> {
         )
     }
 
-    pub fn gather(&self, minimum: usize) -> Result<Vec<Uuid>, GameScreen> {
+    pub fn gather(
+        &self,
+        minimum: usize,
+        seat: Spot,
+        board: impl Fn(&[Uuid], Uuid) -> Board,
+    ) -> Result<Vec<Uuid>, GameScreen> {
         let mut players: Vec<Uuid> = Vec::new();
         loop {
             let joined = players.clone();
             let mut started = false;
             self.action(
-                move |player| {
-                    if !joined.contains(&player) {
+                |player| {
+                    let description = if !joined.contains(&player) {
                         "Join the game".to_owned()
                     } else if joined.len() < minimum {
                         "Waiting for another player to join...".to_owned()
                     } else {
                         format!("{} players joined - start when ready", joined.len())
-                    }
+                    };
+                    Scene::new(description).on(board(&joined, player))
                 },
                 |player, choose| {
                     if !players.contains(&player) {
-                        if choose(Move::new("Join the game").recorded("Joined the game")) {
+                        if choose(Move::new("Join the game").click(seat).recorded("joins")) {
                             players.push(player);
                         }
                     } else if players.len() >= minimum
-                        && choose(Move::new("Start the game").recorded("Started the game"))
+                        && choose(Move::new("Start the game").click(seat).recorded("deals"))
                     {
                         started = true;
                     }
@@ -258,10 +281,12 @@ impl<'a> GameHelper<'a> {
         describe: impl Fn(Uuid) -> S,
     ) -> Result<Infallible, GameScreen> {
         match &self.source {
-            Source::Log { player, .. } => Err(self.screen(describe(*player).into(), Vec::new())),
+            Source::Log { player, .. } => {
+                Err(self.screen(describe(*player).into(), Vec::new(), true))
+            }
             Source::Host { .. } => loop {
                 if let Command::Show(player) = guest::next() {
-                    guest::present(&self.screen(describe(player).into(), Vec::new()));
+                    guest::present(&self.screen(describe(player).into(), Vec::new(), true));
                 }
             },
         }

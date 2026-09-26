@@ -54,7 +54,7 @@ fn cell(column: usize, row: usize) -> usize {
 }
 
 fn column_label(column: usize) -> String {
-    format!("Column {}", column + 1)
+    (column + 1).to_string()
 }
 
 fn in_bounds(column: isize, row: isize) -> bool {
@@ -89,13 +89,21 @@ fn connect_four(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
     let mut players: [Option<Uuid>; 2] = [None, None];
     let mut move_count = 0;
 
+    helper.columns(["Red", "Yellow"]);
     loop {
         if let Some(winner) = winning_symbol(&board) {
-            return helper
-                .game_over(|_| Scene::new(format!("{} wins!", winner.label())).on(grid(&board)));
+            let score = match winner {
+                Symbol::Red => "1-0",
+                Symbol::Yellow => "0-1",
+            };
+            return helper.game_over(|_| {
+                Scene::new(format!("{} wins!", winner.label()))
+                    .score(score)
+                    .on(grid(&board))
+            });
         }
         if move_count >= CELL_COUNT {
-            return helper.game_over(|_| Scene::new("Draw!").on(grid(&board)));
+            return helper.game_over(|_| Scene::new("Draw!").score("½-½").on(grid(&board)));
         }
 
         let turn = move_count % 2;
@@ -128,7 +136,11 @@ fn connect_four(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
                 for column in 0..COLUMNS {
                     let height = column_heights[column];
                     if height < ROWS
-                        && action(Move::new(column_label(column)).click(spot(column, height)))
+                        && action(
+                            Move::new(column_label(column))
+                                .click(spot(column, height))
+                                .column(turn as u32),
+                        )
                     {
                         if players[turn].is_none() {
                             players[turn] = Some(player);

@@ -19,7 +19,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
-| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's: no plugins, signed on a worker with CI's key) |
+| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's, signed on a worker with CI's key) |
 | `./scripts/buck run //crates/beui:demo-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 | `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
@@ -201,11 +201,11 @@ A native target depends on a wasm one through a transition in
   through `wasm-bindgen` (`buck/cargo:wasm-bindgen`, pinned to `Cargo.lock`'s
   version), with the page and shims from `crates/block-app/web` and a
   `plugins.json` the browser finds the plugins through. `:web-serve` runs Caddy
-  (`buck/tools:caddy`) with `web/Caddyfile`; a deployment uses the same
-  Caddyfile with `BE3_DOMAIN_NAME` and `BE3_WEB_ROOT`.
+  (`buck/tools:caddy`) with `web/Caddyfile`, and `-- --domain DOMAIN` serves
+  that domain over https, which is how the app is deployed.
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
-  plugins precompiled for arm64, and `zipalign -P 16`. The app is a
+  plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The app is a
   GameActivity, so the APK also carries its AAR and the AppCompat closure it
   needs, pinned as Maven downloads in `buck/android/BUCK`
   (`maven_artifacts`); the tool links their resources beside

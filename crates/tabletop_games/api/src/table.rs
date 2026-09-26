@@ -152,7 +152,7 @@ impl Table {
                 }
             } else {
                 Pile {
-                    label: format!("Player {}", seat + 1),
+                    label: format!("P{}", seat + 1),
                     place: PilePlace::Opponent,
                     spread: Spread::Fanned,
                     cards: vec![Sprite::CardBack; hand.len()],

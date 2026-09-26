@@ -16,6 +16,7 @@ mod instances;
 mod pieces;
 mod presenter;
 mod runtime;
+mod surface;
 #[cfg(not(target_arch = "wasm32"))]
 mod wasm;
 #[cfg(target_arch = "wasm32")]
