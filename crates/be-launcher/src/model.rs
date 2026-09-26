@@ -202,6 +202,7 @@ impl Model {
         if let Some(pull_request) = self.pull_requests.try_get(&number) {
             self.set_selected.set(Some(pull_request.get_untracked()));
         }
+        self.set_tab.set(Tab::PullRequest);
     }
 
     pub(crate) fn timeline(&self, pull_request: &PullRequest) -> ReadSignal<Loaded<Vec<Entry>>> {
