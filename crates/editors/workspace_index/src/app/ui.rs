@@ -101,10 +101,6 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let entries = folder.entries();
     let drop = super::drop::watch(&editor, &folder);
 
-    let adds = Rc::clone(&folder);
-    let pumped = index.clone();
-    editor.each_frame(move || adds.poll_adds(&pumped));
-
     let sized = editor.clone();
     create_effect(clone!(entries mode -> move || {
         let rows = entries.with(Vec::len).max(1);

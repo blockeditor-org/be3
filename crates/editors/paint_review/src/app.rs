@@ -46,8 +46,7 @@ impl block_editor_plugin::BeuiApp for PaintReviewApp {
 #[component]
 pub fn PaintReviewEditor(editor: Editor, source: Source) -> NodeId {
     let review = Review::new(&editor, source);
-    let polled = Rc::clone(&review);
-    editor.each_frame(move || polled.poll());
+    review.watch();
 
     let counted = Rc::clone(&review);
     let count = create_memo(move || {

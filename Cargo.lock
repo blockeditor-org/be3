@@ -236,6 +236,7 @@ dependencies = [
  "ndk-context",
  "ndk-sys 0.6.0+11769913",
  "num_enum",
+ "simd_cesu8",
  "thiserror 2.0.18",
 ]
 
@@ -781,7 +782,9 @@ dependencies = [
  "bytemuck",
  "freetype",
  "harfbuzz_rs",
+ "jni 0.22.4",
  "js-sys",
+ "ndk-context",
  "pollster",
  "reactive",
  "text-editor-core",

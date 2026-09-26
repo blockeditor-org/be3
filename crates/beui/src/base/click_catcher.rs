@@ -13,7 +13,7 @@ use beui_macros::component;
 
 pub(crate) struct ClickCatcherNode {
     pub(crate) child: Option<NodeId>,
-    pub(crate) cursor: CursorIcon,
+    pub(crate) cursor: Option<CursorIcon>,
     pub(crate) scroll_axis: Option<Direction>,
     pub(crate) armed: bool,
     pub(crate) capture_presses: bool,
@@ -42,10 +42,10 @@ pub(crate) struct ClickCatcherNode {
 }
 
 impl ClickCatcherNode {
-    pub(crate) fn new(cursor: CursorIcon) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             child: None,
-            cursor,
+            cursor: None,
             scroll_axis: None,
             armed: false,
             capture_presses: false,
@@ -250,8 +250,10 @@ impl Element for ClickCatcherNode {
             self.dragged = None;
         }
         let hovered = contains_pointer && !input.touch_active && !input.touch_ended;
-        if hovered || self.is_active() {
-            painter.ctx().set_cursor_icon(self.cursor);
+        if (hovered || self.is_active())
+            && let Some(cursor) = self.cursor
+        {
+            painter.ctx().set_cursor_icon(cursor);
         }
         if hovered != self.hovered {
             self.hovered = hovered;
@@ -330,8 +332,8 @@ impl Element for ClickCatcherNode {
 }
 
 impl Document {
-    pub(crate) fn create_click_catcher(&mut self, cursor: CursorIcon) -> NodeId {
-        self.arena.insert(ClickCatcherNode::new(cursor))
+    pub(crate) fn create_click_catcher(&mut self) -> NodeId {
+        self.arena.insert(ClickCatcherNode::new())
     }
 
     pub(crate) fn capture_pointer(&mut self, captor: NodeId) {
@@ -349,7 +351,7 @@ impl Document {
             .child = Some(child);
     }
 
-    pub(crate) fn set_click_catcher_cursor(&mut self, id: NodeId, cursor: CursorIcon) {
+    pub(crate) fn set_click_catcher_cursor(&mut self, id: NodeId, cursor: Option<CursorIcon>) {
         if self.arena.get_as::<ClickCatcherNode>(id).cursor != cursor {
             self.arena.get_mut_as::<ClickCatcherNode>(id).cursor = cursor;
         }
@@ -393,7 +395,7 @@ impl Document {
 
 #[component]
 pub fn ClickCatcher(
-    #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
+    cursor: Option<Prop<CursorIcon>>,
     #[prop(default = false)] key_active: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = false)] repeat_drag: Prop<bool>,
@@ -415,7 +417,7 @@ pub fn ClickCatcher(
     children: Option<Child>,
 ) -> NodeId {
     let click_catcher = with_document(|document| {
-        let click_catcher = document.create_click_catcher(CursorIcon::Default);
+        let click_catcher = document.create_click_catcher();
         let node = document.arena.get_mut_as::<ClickCatcherNode>(click_catcher);
         node.on_click = on_click;
         node.on_click_at = on_click_at;
@@ -436,9 +438,13 @@ pub fn ClickCatcher(
         }
         click_catcher
     });
-    create_effect(move || {
-        with_document(|document| document.set_click_catcher_cursor(click_catcher, cursor.get()))
-    });
+    if let Some(cursor) = cursor {
+        create_effect(move || {
+            with_document(|document| {
+                document.set_click_catcher_cursor(click_catcher, Some(cursor.get()))
+            })
+        });
+    }
     create_effect(move || {
         with_document(|document| {
             document.set_click_catcher_capture_presses(click_catcher, capture_presses.get())

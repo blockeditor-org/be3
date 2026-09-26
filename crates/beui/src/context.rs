@@ -1,5 +1,5 @@
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -52,6 +52,8 @@ struct Inner {
     accessibility: RefCell<Vec<Fragment>>,
     accessibility_actions: RefCell<Vec<ActionRequest>>,
     accessibility_active: Cell<bool>,
+    accessibility_known: RefCell<HashSet<u32>>,
+    accessibility_published: RefCell<HashSet<u32>>,
     test_ids_published: Cell<bool>,
     renderer_info: RefCell<Option<RendererInfo>>,
 }
@@ -147,6 +149,8 @@ impl Context {
                 accessibility: RefCell::new(Vec::new()),
                 accessibility_actions: RefCell::new(Vec::new()),
                 accessibility_active: Cell::new(true),
+                accessibility_known: RefCell::new(HashSet::new()),
+                accessibility_published: RefCell::new(HashSet::new()),
                 test_ids_published: Cell::new(true),
                 renderer_info: RefCell::new(None),
             }),
@@ -163,6 +167,18 @@ impl Context {
 
     pub fn set_accessibility_active(&self, active: bool) {
         self.inner.accessibility_active.set(active);
+        if !active {
+            self.reset_accessibility();
+        }
+    }
+
+    pub fn reset_accessibility(&self) {
+        self.inner.accessibility_known.borrow_mut().clear();
+        self.inner.accessibility_published.borrow_mut().clear();
+    }
+
+    pub(crate) fn accessibility_known(&self, document: u32) -> bool {
+        self.inner.accessibility_known.borrow().contains(&document)
     }
 
     pub(crate) fn accessibility_active(&self) -> bool {
@@ -200,6 +216,8 @@ impl Context {
         self.inner.fullscreen.set(None);
         self.inner.close_requested.set(false);
         self.inner.accessibility.borrow_mut().clear();
+        let published = std::mem::take(&mut *self.inner.accessibility_published.borrow_mut());
+        *self.inner.accessibility_known.borrow_mut() = published;
     }
 
     pub fn end_frame(&self) -> FrameOutput {
@@ -504,7 +522,11 @@ impl Context {
             .insert(test_id.to_owned(), rect);
     }
 
-    pub(crate) fn publish_accessibility(&self, fragment: Fragment) {
+    pub(crate) fn publish_accessibility(&self, document: u32, fragment: Fragment) {
+        self.inner
+            .accessibility_published
+            .borrow_mut()
+            .insert(document);
         self.inner.accessibility.borrow_mut().push(fragment);
     }
 

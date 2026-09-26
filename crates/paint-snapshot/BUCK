@@ -7,3 +7,4 @@ cargo_test()
 # The examples: `./scripts/buck run //crates/paint-snapshot:<example>-example`.
 
 cargo_example("rasterize")
+cargo_example("preview")

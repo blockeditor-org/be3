@@ -6,7 +6,7 @@ use std::rc::Rc;
 use block_editor_plugin::beui::NodeId;
 use block_editor_plugin::beui::reactive::{
     Align, Frame, Func, ItemSize, List, NodeRef, ReadSignal, Show, Spacer, WriteSignal, clone,
-    component, create_memo, create_signal, view,
+    component, create_effect, create_memo, create_signal, untrack, view,
 };
 use block_editor_plugin::beui::styled::{Caption, DockArea, Heading, use_theme};
 use block_editor_plugin::beui::unstyled::{
@@ -16,7 +16,7 @@ use block_editor_plugin::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_plugin::root_settings::RootSetting;
 use block_editor_plugin::{
     AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
-    Editor, EditorHost, FocusedBlock, PickedBlock,
+    Editor, EditorHost, FocusedBlock, PickedBlock, Pushed,
 };
 use block_editor_plugin::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -56,6 +56,8 @@ pub(crate) struct Workspace {
     handles: RefCell<HashMap<Uuid, BlockList>>,
     block_types: RefCell<HashMap<Uuid, Uuid>>,
     opened_via: RefCell<HashMap<Uuid, Uuid>>,
+    routes: ReadSignal<u64>,
+    set_routes: WriteSignal<u64>,
     next_tab: Cell<u64>,
     active: Cell<Option<Uuid>>,
 }
@@ -69,6 +71,7 @@ impl Workspace {
         let (debugged, set_debugged) = create_signal(HashSet::new());
         let (error, set_error) = create_signal(None);
         let (files, set_files) = create_signal(None);
+        let (routes, set_routes) = create_signal(0);
         let workspace = Rc::new(Self {
             editor,
             layout,
@@ -89,13 +92,41 @@ impl Workspace {
             handles: RefCell::new(HashMap::new()),
             block_types: RefCell::new(HashMap::new()),
             opened_via: RefCell::new(HashMap::new()),
+            routes,
+            set_routes,
             next_tab: Cell::new(FIRST_BLOCK_TAB),
             active: Cell::new(None),
         });
-        let each_frame = Rc::downgrade(&workspace);
-        workspace.editor.each_frame(move || {
-            if let Some(workspace) = each_frame.upgrade() {
-                workspace.frame();
+        let shows = workspace.editor.pushed(Pushed::Shows);
+        let showing = Rc::downgrade(&workspace);
+        create_effect(move || {
+            shows.get();
+            if let Some(workspace) = showing.upgrade() {
+                untrack(|| workspace.show_requested());
+            }
+        });
+        let finding = Rc::downgrade(&workspace);
+        create_effect(move || {
+            if let Some(workspace) = finding.upgrade() {
+                workspace.find_files();
+            }
+        });
+        let titling = Rc::downgrade(&workspace);
+        create_effect(move || {
+            if let Some(workspace) = titling.upgrade() {
+                workspace.refresh_titles();
+            }
+        });
+        let focusing = Rc::downgrade(&workspace);
+        create_effect(move || {
+            if let Some(workspace) = focusing.upgrade() {
+                workspace.report_focus();
+            }
+        });
+        let watching = Rc::downgrade(&workspace);
+        create_effect(move || {
+            if let Some(workspace) = watching.upgrade() {
+                workspace.watch_artifacts();
             }
         });
         workspace
@@ -161,7 +192,7 @@ impl Workspace {
         self.debugged.with(|debugged| debugged.contains(&id))
     }
 
-    fn frame(&self) {
+    fn show_requested(&self) {
         for request in self.host().take_show_requests() {
             self.open(
                 TabItem {
@@ -171,19 +202,19 @@ impl Workspace {
                 request.via,
             );
         }
+    }
+
+    fn find_files(&self) {
         let files = self
             .file_tree
             .borrow_mut()
             .find(&self.editor, self.host().client_id());
         self.set_files.set(files);
-        self.refresh_titles();
-        self.report_focus();
-        self.watch_artifacts();
     }
 
     fn refresh_titles(&self) {
         let types = self.types();
-        let titles = self.tabs.with_untracked(|tabs| {
+        let titles = self.tabs.with(|tabs| {
             tabs.iter()
                 .map(|(tab, item)| {
                     let label = self.info(item.id).map_or_else(
@@ -198,10 +229,11 @@ impl Workspace {
     }
 
     fn report_focus(&self) {
-        let shown = self.layout.with_untracked(DockState::focused_tab);
+        let shown = self.layout.with(DockState::focused_tab);
         let current = shown
-            .and_then(|tab| self.tabs.with_untracked(|tabs| tabs.get(&tab).copied()))
+            .and_then(|tab| self.tabs.with(|tabs| tabs.get(&tab).copied()))
             .map(|item| item.id);
+        self.routes.get();
         let active = current.or_else(|| self.active.get());
         self.active.set(active);
         let focused = active.and_then(|id| {
@@ -216,7 +248,7 @@ impl Workspace {
     }
 
     fn watch_artifacts(&self) {
-        let watched = self.tabs.with_untracked(|tabs| {
+        let watched = self.tabs.with(|tabs| {
             tabs.values()
                 .map(|item| item.id)
                 .filter(|id| self.info(*id).is_some_and(|info| info.is_artifact()))
@@ -242,15 +274,26 @@ impl Workspace {
     }
 
     fn record_via(&self, id: Uuid, via: Option<Uuid>) {
-        let mut opened_via = self.opened_via.borrow_mut();
-        match via {
-            Some(container) => opened_via.insert(id, container),
-            None => opened_via.remove(&id),
+        let previous = {
+            let mut opened_via = self.opened_via.borrow_mut();
+            match via {
+                Some(container) => opened_via.insert(id, container),
+                None => opened_via.remove(&id),
+            }
         };
+        if previous != via {
+            self.rerouted();
+        }
     }
 
     pub(crate) fn forget_container(&self, id: Uuid) {
-        self.opened_via.borrow_mut().remove(&id);
+        if self.opened_via.borrow_mut().remove(&id).is_some() {
+            self.rerouted();
+        }
+    }
+
+    fn rerouted(&self) {
+        self.set_routes.update(|routes| *routes += 1);
     }
 
     pub(crate) fn container_of(&self, id: Uuid) -> Option<Uuid> {
@@ -258,7 +301,10 @@ impl Workspace {
     }
 
     pub(crate) fn record_type(&self, id: Uuid, block_type: Uuid) {
-        self.block_types.borrow_mut().insert(id, block_type);
+        let previous = self.block_types.borrow_mut().insert(id, block_type);
+        if previous != Some(block_type) {
+            self.rerouted();
+        }
     }
 
     pub(crate) fn known_type(&self, id: Uuid) -> Option<Uuid> {
@@ -327,6 +373,7 @@ impl Workspace {
         self.set_debugged.set(debugged);
         if self.active.get() == Some(id) {
             self.active.set(None);
+            self.rerouted();
         }
         self.host().close_editor(id);
     }
@@ -532,13 +579,13 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let compact = narrower_than(COMPACT_FILES_WIDTH);
     let sizing = Rc::downgrade(&workspace);
     let was_compact = Cell::new(false);
-    workspace.editor().each_frame(move || {
+    create_effect(move || {
+        let now = compact.get();
         let Some(workspace) = sizing.upgrade() else {
             return;
         };
-        let now = compact.get_untracked();
         if was_compact.replace(now) != now {
-            workspace.set_compact(now);
+            untrack(|| workspace.set_compact(now));
         }
     });
     let surface = NodeRef::new();

@@ -49,6 +49,10 @@ def _android_apk_impl(ctx: AnalysisContext) -> list[Provider]:
     )
     for source in ctx.attrs.java:
         command.add(cmd_args(source, format = "--java={}"))
+    if ctx.attrs.java_libraries:
+        command.add(cmd_args(ctx.attrs.java_libraries, format = "--java-libraries={}"))
+    if ctx.attrs.resources:
+        command.add(cmd_args(ctx.attrs.resources, format = "--resources={}"))
     if ctx.attrs.assets:
         command.add(cmd_args(ctx.attrs.assets[DefaultInfo].default_outputs[0], format = "--assets={}"))
     ctx.actions.run(command, category = "apk")
@@ -59,11 +63,13 @@ android_apk = rule(
         "application_id": attrs.string(),
         "assets": attrs.option(attrs.dep(), default = None),
         "java": attrs.list(attrs.source(), default = []),
+        "java_libraries": attrs.option(attrs.source(allow_directory = True), default = None),
         "label": attrs.string(),
         "library": attrs.transition_dep(cfg = android_transition),
         "manifest": attrs.source(),
         "min_sdk": attrs.int(),
         "package": attrs.string(),
+        "resources": attrs.option(attrs.source(allow_directory = True), default = None),
         "target_sdk": attrs.int(),
         "version_code": attrs.int(),
         "version_name": attrs.string(),

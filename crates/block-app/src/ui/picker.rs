@@ -13,7 +13,8 @@ use uuid::Uuid;
 use super::onboarding::ErrorText;
 use super::{AppViewStore, UiCommand, send};
 use crate::block_picker::{
-    ChooseView, CreateView, LinkRow, PickerAction, PickerCommand, PickerTab, Tile, TileAction,
+    ChooseView, CreateView, LinkRow, PickerAction, PickerCommand, PickerTab, PickerView, Tile,
+    TileAction, creation_surface,
 };
 use crate::surfaces::{self, HostSurface, SurfaceId};
 
@@ -28,10 +29,32 @@ fn act(picker: Uuid, action: PickerAction) {
 
 #[component]
 pub(super) fn PickerDialogs(view: AppViewStore) -> NodeId {
-    let picker = view.picker.clone();
-    let id = create_memo(
-        clone!(picker -> move || picker.get().map(|picker| picker.id).unwrap_or_default()),
+    let pickers = view.pickers.clone();
+    let ids = create_memo(clone!(pickers -> move || {
+        pickers.with(|pickers| pickers.iter().map(|picker| picker.id).collect::<Vec<_>>())
+    }));
+    view! {
+        <List spacing=0.0>
+            <ForEach keys={ids}>
+                {move |id: Uuid| {
+                    let picker = create_memo(clone!(pickers -> move || {
+                        pickers.with(|pickers| pickers.iter().find(|picker| picker.id == id).cloned())
+                    }));
+                    view! {
+                        <PickerDialog id picker />
+                    }
+                }}
+            </ForEach>
+        </List>
+    }
+}
+
+#[component]
+fn PickerDialog(id: Uuid, picker: Memo<Option<PickerView>>) -> NodeId {
+    let surface = creation_surface(
+        picker.with_untracked(|picker| picker.as_ref().map_or(0, |picker| picker.depth)),
     );
+    let id = create_memo(move || id);
     let choose =
         create_memo(clone!(picker -> move || picker.get().and_then(|picker| picker.choose)));
     let create =
@@ -40,7 +63,7 @@ pub(super) fn PickerDialogs(view: AppViewStore) -> NodeId {
     view! {
         <List spacing=0.0>
             <ChooseDialog id={id.clone()} choose />
-            <CreateDialog id={id.clone()} create />
+            <CreateDialog id={id.clone()} create surface />
             <PickerError id error />
         </List>
     }
@@ -271,7 +294,7 @@ fn LinkButton(id: Memo<Uuid>, link: Memo<Option<LinkRow>>) -> NodeId {
 }
 
 #[component]
-fn CreateDialog(id: Memo<Uuid>, create: Memo<Option<CreateView>>) -> NodeId {
+fn CreateDialog(id: Memo<Uuid>, create: Memo<Option<CreateView>>, surface: SurfaceId) -> NodeId {
     let open = create_memo(clone!(create -> move || create.get().is_some()));
     let title = create_memo(clone!(create -> move || {
         format!(
@@ -291,7 +314,7 @@ fn CreateDialog(id: Memo<Uuid>, create: Memo<Option<CreateView>>) -> NodeId {
     let not_ready =
         create_memo(clone!(create -> move || !create.get().is_some_and(|create| create.ready)));
     let dialog = create_memo(move || create.get().is_some_and(|create| create.dialog));
-    let height = surfaces::handle(SurfaceId::Creation).height();
+    let height = surfaces::handle(surface).height();
     let (create_id, cancel_id) = (id.clone(), id.clone());
     view! {
         <Dialog
@@ -303,7 +326,7 @@ fn CreateDialog(id: Memo<Uuid>, create: Memo<Option<CreateView>>) -> NodeId {
             <List spacing=10.0>
                 <Show condition={dialog}>
                     <Frame height={height}>
-                        <HostSurface id=SurfaceId::Creation />
+                        <HostSurface id=surface />
                     </Frame>
                 </Show>
                 <Separator />

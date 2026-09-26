@@ -7,7 +7,7 @@ use accesskit::{Action, ActionRequest, Node as AccessNode, NodeId as AccessNodeI
 
 use crate::context::Context;
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect, pos2};
+use crate::geometry::{Pos2, Rect};
 use crate::input::{Event, Key, TouchId, TouchPhase};
 use crate::painter::Painter;
 
@@ -579,18 +579,17 @@ fn shortcut(event: &Event) -> Option<Command> {
 }
 
 fn collect(target: &Document) -> (Vec<Item>, Option<AccessNodeId>) {
-    let Some(fragment) = target.accessibility_fragment() else {
+    let Some(nodes) = target.accessibility_view() else {
         return (Vec::new(), None);
     };
-    let nodes: Nodes = fragment.nodes.into_iter().collect();
     let mut items = Vec::new();
-    gather(target, &nodes, fragment.root, false, &mut items);
-    (items, fragment.focus)
+    gather(target, &nodes, nodes.root(), false, &mut items);
+    (items, nodes.focus())
 }
 
 fn gather(
     target: &Document,
-    nodes: &Nodes,
+    nodes: &Nodes<'_>,
     access: AccessNodeId,
     inside: bool,
     items: &mut Vec<Item>,
@@ -612,7 +611,7 @@ fn gather(
 
 fn item(
     target: &Document,
-    nodes: &Nodes,
+    nodes: &Nodes<'_>,
     access: AccessNodeId,
     node: &AccessNode,
     control: bool,
@@ -623,20 +622,13 @@ fn item(
     if !control && !scrollable && (inside || !named) {
         return None;
     }
-    target.local_node_id(access)?;
+    let local = target.local_node_id(access)?;
     Some(Item {
         access,
-        rect: node.bounds().map(access_rect).unwrap_or(Rect::NOTHING),
+        rect: target.node_rect(local).unwrap_or(Rect::NOTHING),
         phrase: speech::phrase(nodes, node, control),
         control,
         adjustable: speech::adjustable(node),
         scrollable,
     })
-}
-
-fn access_rect(rect: accesskit::Rect) -> Rect {
-    Rect::from_min_max(
-        pos2(rect.x0 as f32, rect.y0 as f32),
-        pos2(rect.x1 as f32, rect.y1 as f32),
-    )
 }

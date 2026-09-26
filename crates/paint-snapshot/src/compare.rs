@@ -62,7 +62,7 @@ fn within(before: &Frame, after: &Frame) -> String {
     }
     if before.primitives.len() != after.primitives.len() {
         return format!(
-            "the painting has {} draw calls, it used to have {}",
+            "the painting has {} shapes, it used to have {}",
             after.primitives.len(),
             before.primitives.len()
         );
@@ -74,7 +74,7 @@ fn within(before: &Frame, after: &Frame) -> String {
         .position(|(before, after)| before != after);
     match index {
         Some(index) => format!(
-            "draw call {index} changed: {}",
+            "shape {index} changed: {}",
             changes(
                 &before.primitives[index].content,
                 &after.primitives[index].content

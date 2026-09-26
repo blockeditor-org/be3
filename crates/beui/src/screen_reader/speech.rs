@@ -1,10 +1,8 @@
-use std::collections::HashMap;
-
 use accesskit::{Action, Node as AccessNode, NodeId as AccessNodeId, Role, Toggled};
 
 const NAME_LIMIT: usize = 80;
 
-pub(super) type Nodes = HashMap<AccessNodeId, AccessNode>;
+pub(super) type Nodes<'a> = crate::accessibility::AccessibilityView<'a>;
 
 pub(super) fn container(role: Role) -> bool {
     matches!(
@@ -46,7 +44,7 @@ pub(super) fn own_name(node: &AccessNode) -> Option<String> {
         .filter(|text| !text.is_empty())
 }
 
-pub(super) fn name(nodes: &Nodes, node: &AccessNode, derive: bool) -> Option<String> {
+pub(super) fn name(nodes: &Nodes<'_>, node: &AccessNode, derive: bool) -> Option<String> {
     own_name(node).or_else(|| {
         if !derive {
             return None;
@@ -60,7 +58,7 @@ pub(super) fn name(nodes: &Nodes, node: &AccessNode, derive: bool) -> Option<Str
     })
 }
 
-fn gather_text(nodes: &Nodes, id: AccessNodeId, words: &mut Vec<String>) {
+fn gather_text(nodes: &Nodes<'_>, id: AccessNodeId, words: &mut Vec<String>) {
     let Some(node) = nodes.get(&id) else {
         return;
     };
@@ -77,7 +75,7 @@ fn gather_text(nodes: &Nodes, id: AccessNodeId, words: &mut Vec<String>) {
     }
 }
 
-pub(super) fn phrase(nodes: &Nodes, node: &AccessNode, derive: bool) -> String {
+pub(super) fn phrase(nodes: &Nodes<'_>, node: &AccessNode, derive: bool) -> String {
     let mut parts = Vec::new();
     let name = name(nodes, node, derive);
     if let Some(name) = name.clone() {
