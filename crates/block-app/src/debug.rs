@@ -2,9 +2,6 @@ mod client;
 mod plugins;
 pub(crate) mod version;
 
-#[cfg(feature = "terminal")]
-mod terminal;
-
 use std::{cell::RefCell, collections::HashSet};
 
 use crate::ui::{DebugCommand, DebugView, DebugWindow};
@@ -35,10 +32,6 @@ pub(crate) fn poll() {
     if is_open(DebugWindow::Version) {
         version::poll();
     }
-    #[cfg(feature = "terminal")]
-    if is_open(DebugWindow::Terminal) {
-        terminal::poll();
-    }
 }
 
 pub(crate) fn command(command: DebugCommand) {
@@ -51,19 +44,11 @@ pub(crate) fn command(command: DebugCommand) {
         }
         DebugCommand::Close(window) => {
             set_open(window, false);
-            #[cfg(feature = "terminal")]
-            if window == DebugWindow::Terminal {
-                terminal::close();
-            }
         }
         DebugCommand::KillPlugin(plugin_id) => crate::plugin_host::kill(&plugin_id),
         DebugCommand::RefreshVersions => version::refresh(),
         DebugCommand::Install(run) => version::install(run),
         DebugCommand::OpenUrl(url) => crate::platform::open_url(&url),
-        #[cfg(feature = "terminal")]
-        DebugCommand::Terminal(input) => terminal::input(input),
-        #[cfg(not(feature = "terminal"))]
-        DebugCommand::Terminal(_) => {}
     }
 }
 
@@ -73,9 +58,5 @@ pub(crate) fn view() -> DebugView {
         performance: is_open(DebugWindow::Performance).then(crate::performance::rows),
         plugins: is_open(DebugWindow::Plugins).then(plugins::view),
         version: is_open(DebugWindow::Version).then(version::view),
-        #[cfg(feature = "terminal")]
-        terminal: is_open(DebugWindow::Terminal).then(terminal::view),
-        #[cfg(not(feature = "terminal"))]
-        terminal: None,
     }
 }

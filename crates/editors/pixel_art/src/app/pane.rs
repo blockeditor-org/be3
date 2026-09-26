@@ -1,11 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_editor_plugin::Editor;
-use block_editor_plugin::be_block::pixel_art::Artwork;
-use block_editor_plugin::be_block::pixel_art::PixelColor;
-use block_editor_plugin::beui::Image;
-use block_editor_plugin::beui::reactive::{Memo, create_memo, create_signal};
+use block_editor_beui::be_block::pixel_art::Artwork;
+use block_editor_beui::be_block::pixel_art::PixelColor;
+use block_editor_beui::beui::Image;
+use block_editor_beui::beui::reactive::{Memo, create_memo, create_signal};
 
 use super::state::{ArtBlock, artwork_of};
 
@@ -33,7 +32,7 @@ pub(crate) struct Pane {
     held: RefCell<Held>,
     art: RefCell<Option<(u64, Rc<Artwork>)>>,
     shown: Memo<Shown>,
-    set_shown: block_editor_plugin::beui::reactive::WriteSignal<Shown>,
+    set_shown: block_editor_beui::beui::reactive::WriteSignal<Shown>,
 }
 
 impl Pane {
@@ -56,13 +55,11 @@ impl Pane {
 
     pub(crate) fn refresh(
         &self,
-        editor: &Editor,
         block: &ArtBlock,
         dark_mode: bool,
         pixels: &[(u16, u16)],
         color: PixelColor,
     ) {
-        let _ = editor;
         let Some(revision) = block.revision() else {
             return;
         };

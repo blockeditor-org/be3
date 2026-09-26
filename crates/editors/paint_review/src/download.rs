@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 #[cfg(test)]
 use std::sync::{Arc, Mutex};
 
-use block_editor_plugin::{EditorHost, FetchResult};
+use block_editor_beui::{EditorHost, FetchResult};
 use serde_json::Value;
 
 const AT_ONCE: usize = 8;
@@ -50,6 +50,10 @@ pub struct Download {
 }
 
 impl Download {
+    pub fn finished(&self) -> bool {
+        matches!(self.stage, Stage::Finished)
+    }
+
     pub fn poll(&mut self, host: &EditorHost) -> Option<Result<Vec<Painting>, String>> {
         let found = self.advance(host)?;
         self.stage = Stage::Finished;

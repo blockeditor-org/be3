@@ -35,13 +35,18 @@ the same id the edit names), never by the order they happen to be drawn in.
 
 Tests live inside the editor's crate, one test per file under src/tests/, like every other
 test in the repository. block-ui-test's BeuiTest is built from the same Editor the view is
-handed, lays the view out over a frame of its own, and runs it headless.
+handed and runs it headless through the plugin's own session (block_editor_plugin::headless):
+the Screens and EditorSession the shipped plugin runs, fed the protocol messages the app's
+host would send, with every message in both directions encoded and decoded as it would be on
+the wire. Gestures are turned into the protocol's input events the way block-app turns
+beui's, so a key or a modifier the protocol cannot carry never reaches the editor here
+either, and a message the plugin refuses fails the test.
 
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
-    let editor = Editor::new(host.clone(), block);
-    let mut test = ContentHarness::new(BeuiTest::<ChecklistApp>::new(editor), host);
+    let editor = Editor::new(host, block);
+    let mut test = BeuiTest::<ChecklistApp>::new(editor);
     test.hold(None, ChecklistContent::default());
     test.run();
 
@@ -56,32 +61,49 @@ handed, lays the view out over a frame of its own, and runs it headless.
     assert_eq!(items.root().items[0].text, "buy milk");
     test.snapshot("adding_an_item_puts_it_on_the_list");
 
-There is no server and no block store in an editor test: the test is the host.
-block_ui_test::ContentHarness wraps the BeuiTest and an EditorHost and does what the app's
-host does for the editor's block. hold(block, content) gives it the content of a block -
-None for the editor's own, Some(id) for one it watches with content_of - and run() paints a
-frame, applies every operation the editor sent to what it holds, and sends the result back
-as the snapshot the editor sees next, until nothing changes. content::<C>(block) reads what a
-block holds now, edit::<C>(block, &operation) is an edit arriving from someone else, and
-seeded() is the content the editor seeded or replaced. Its store() is a ContentStore, which
-also stands in for the graph: own and add_block put blocks in it, block reads one back, and
-created lists the blocks the editor made through its Blocks handle. A test can instead do
-the host's part itself, as the counter's and the checklist's do: take_content_operations()
-off the EditorHost, apply them to its own content, and hand the result back with
-set_block_content. Call run() after
+There is no server and no block store in an editor test: BeuiTest is the host, and does
+what the app's host does for the editor's block. hold(block, content) gives it the content of
+a block - None for the editor's own, Some(id) for one the editor watches with content_of,
+which it only hands over once the editor has asked for it - and run() paints a frame, applies
+every operation the editor sent to what it holds, and sends them back as operations marked as
+the editor's own, until nothing changes: the first content a block gets is a snapshot and
+everything after it an operation, as in the app. content::<C>(block) reads what a block holds
+now, edit::<C>(block, &operation) is an edit arriving from someone else, and seeded() is the
+content the editor seeded or replaced. store() is the ContentStore behind it, which also
+stands in for the graph: own and add_block put blocks in it, block reads one back, created
+lists the blocks the editor made through its Blocks handle, and defer(true) holds the
+editor's operations back until defer(false), for a test of what the editor shows before the
+host has taken an edit.
+
+Whatever else the plugin sends the host is kept for the test to read: take_view_changes(),
+take_requests(), take_opens(), take_block_commands() and the other take_ methods drain one
+kind, and sent() is all of it. The host's side of a conversation goes in the same way the
+app sends it: set_view, set_chrome, with_top_bar, drag_block, reply, set_histories,
+set_peers, report_children, resize and presence_visible each queue the message the app
+would send. Setting the same state on the EditorHost directly skips the protocol, and the
+session overwrites what it owns - the chrome, the view, a drag - on the next frame.
+
+Call run() after
 every gesture — the view only sees an event on the frame it is delivered in — and click a
 text field before typing into it. click() panics when no node has that test id, which is
 usually a node that was never given one; shown() and label() ask about one without clicking
 it.
 
-run() paints one frame for each gesture queued since the last one, and step(events) paints
-one frame with exactly the events it is handed.
+run() hands the editor what was queued since the last one in the frames a person would
+produce it in, as the app batches input between frames: a click (the move to it, the press
+and the release), a key press or typed text arrives in a single frame, and a drag spans three
+- the press, the move, and the last move with the release - since beui folds a frame's
+pointer events into one position. next_frame() ends the frame being queued, and
+step(events) paints one frame with exactly the events it is handed.
 
 An editor that hands work to another thread paints a spinner until the work lands, so which
 of the two a test captures is down to whether the thread beat it to the frame: a snapshot
 that passes on an idle machine and fails when the suite is running thirty editors at once.
 settle_until paints until a predicate over the harness holds, and fails the test rather
-than the painting if it never does.
+than the painting if it never does. Between frames it waits the way the app does: for the
+editor's Waker, or for the delay the editor asked to be painted again after, and never for a
+fixed time. Work that lands without waking the editor and without asking for a frame stalls
+it until the deadline, which is the stall a person would see in the app.
 
     editor.settle_until("the lighting to land", |editor| editor.shown("scene.lit"));
 
@@ -94,6 +116,9 @@ region: it holds a zoom and an offset, hands the editor a view over its region, 
 the pan, zoom and fit the editor asks for, fitting the content until the first of them
 arrives. An editor that is not in a viewport is told nothing about a view and fills its
 region, which is what an editor without that capability does anyway.
+
+The region is 800 by 600 points at a scale factor of 1; with_scale_factor(2.0) draws it the
+way a high-density screen does.
 
 4. Snapshots of the painting
 
@@ -124,6 +149,9 @@ way for the test to fail.
   request CI does the same, and when that writes a painting it fails the run and pushes the
   painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/buck run //:verify -- --check, which sets nothing,
   so a painting that was never committed fails there.
+- Once every plugin test passes, //:verify deletes each painting in snapshots/ that no test
+  compared, so renaming or removing a snapshot takes its old file with it; with --check it
+  fails on them instead. A single editor's test run leaves the folder alone.
 - A changed painting is for a person to review, not for you. They review it in a Paint
   review block, which reads the folder from the repository's dev branch, so a painting is
   reviewed once it has been pushed rather than from the machine that made it. Approving is
@@ -175,7 +203,9 @@ While working on one editor, run its tests alone:
   ./scripts/buck test //crates/editors/checklist:test
   ./scripts/buck test //crates/editors/checklist:test -- --env UPDATE_SNAPSHOTS=1
 
-The first compares, the second accepts. A single test is a filter handed through to the
+The first compares, the second accepts. A panic aborts a wasm guest, so a failing test ends
+its binary's run; the runner then lists the tests and runs each in an instance of its own, and
+reports every one that failed. A single test is a filter handed through to the
 test binary: ./scripts/buck test //crates/editors/checklist:test -- --test-arg some_test_name.
 
 Cranelift compiles each test module once, as an action of its own, and leaves the machine

@@ -1,16 +1,16 @@
-use block_editor_plugin::be_block::{BlockContent, ImageContent};
+use block_editor_beui::be_block::{BlockContent, ImageContent};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::pixel_art::PixelColor;
-use block_editor_plugin::be_block::pixel_art::{default_palette, size_of};
-use block_editor_plugin::be_block::{ObjectId, PixelArtContent, PixelArtDocument};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::pixel_art::PixelColor;
+use block_editor_beui::be_block::pixel_art::{default_palette, size_of};
+use block_editor_beui::be_block::{ObjectId, PixelArtContent, PixelArtDocument};
+use block_editor_beui::beui::reactive::{
     Direction, ItemSize, List, Picture, clone, component, create_effect, create_memo,
     create_signal, view,
 };
-use block_editor_plugin::beui::{ImageFit, NodeId, Vec2};
-use block_editor_plugin::{
+use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
+use block_editor_beui::{
     ArtifactDescription, Artifacts, BlockParent, Creation, Editor, Side, Sidebar,
 };
 
@@ -32,7 +32,7 @@ const TOOLS_WIDTH: f32 = 180.0;
 
 pub struct PixelArtApp;
 
-impl block_editor_plugin::BeuiApp for PixelArtApp {
+impl block_editor_beui::BeuiApp for PixelArtApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <PixelArtEditor editor={editor} />
@@ -162,10 +162,7 @@ fn PixelArtPreview(editor: Editor) -> NodeId {
     let shown = pane.shown();
     let refreshed = Rc::clone(&pane);
     let watched = Rc::clone(&block);
-    let frame = editor.clone();
-    editor.each_frame(move || {
-        refreshed.refresh(&frame, &watched, true, &[], PixelColor::TRANSPARENT);
-    });
+    create_effect(move || refreshed.refresh(&watched, true, &[], PixelColor::TRANSPARENT));
     let image = create_memo(clone!(shown -> move || shown.get().artwork));
     view! {
         <Picture image={image} fit=ImageFit::Contain smooth=false />

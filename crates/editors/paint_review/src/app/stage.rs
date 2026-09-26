@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, ForEach, Frame, ItemSize, List, Memo, Picture, Show, clone, component,
-    create_effect, create_memo, set_component_state, view,
+    create_effect, create_memo, create_timer, set_component_state, untrack, view,
 };
-use block_editor_plugin::beui::styled::{Body, Caption, use_theme};
-use block_editor_plugin::beui::{Document, ImageFit, NodeId, Pos2, Rect, Vec2};
+use block_editor_beui::beui::styled::{Body, Caption, use_theme};
+use block_editor_beui::beui::{Document, ImageFit, NodeId, Pos2, Rect, Vec2};
 
 use crate::render::Rendered;
 
@@ -40,19 +40,33 @@ pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
         shown.shown(&path, shown.shown_as(status), frame.get())
     }));
 
+    let clamped = Rc::clone(&review);
+    let clamping = count.clone();
+    create_effect(move || {
+        let count = clamping.get();
+        clamped.frame.with(|_| ());
+        untrack(|| clamped.clamp_frame(count));
+    });
+
     let advanced = Rc::clone(&review);
     let advancing = painting.clone();
     let advancing_count = count.clone();
-    review.editor().each_frame(move || {
-        match advanced.selected.get_untracked() {
-            Some(path) => {
-                advanced.request(&path);
-                advanced.clamp_frame(advancing_count.get_untracked());
-            }
-            None => advanced.forget(),
-        }
+    let stepper = create_timer(move || {
         let ready = !matches!(advancing.get_untracked(), Shown::Waiting(_));
-        advanced.advance(advancing_count.get_untracked(), ready);
+        advanced.advance(advancing_count.get_untracked(), ready)
+    });
+    let scheduled = Rc::clone(&review);
+    let scheduling = painting.clone();
+    let scheduling_count = count.clone();
+    create_effect(move || {
+        scheduled.playing.with(|_| ());
+        scheduled.frame.with(|_| ());
+        let ready = !matches!(scheduling.get(), Shown::Waiting(_));
+        let count = scheduling_count.get();
+        untrack(|| match scheduled.next_advance(count, ready) {
+            Some(delay) => stepper.start(delay),
+            None => stepper.stop(),
+        });
     });
 
     let panels = create_memo(clone!(painting -> move || match painting.get() {
@@ -95,6 +109,7 @@ pub(crate) fn Stage(review: Rc<Review>, count: Memo<usize>) -> NodeId {
             working.downloading.get()
                 || working.pending.get().is_some()
                 || working.loading().is_some()
+                || working.rastering()
         })),
     });
 

@@ -1,9 +1,9 @@
 use std::time::Duration;
 
-use block_editor_plugin::be_block::AudioContent;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{Creation, Editor, FileFilter, PickedFile, content_file_creation};
+use block_editor_beui::be_block::AudioContent;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::{Creation, Editor, FileFilter, PickedFile, content_file_creation};
 
 mod ui;
 
@@ -13,7 +13,7 @@ const INTRINSIC_SIZE: Vec2 = Vec2::new(320.0, 180.0);
 
 pub struct AudioApp;
 
-impl block_editor_plugin::BeuiApp for AudioApp {
+impl block_editor_beui::BeuiApp for AudioApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <AudioView editor={editor} />

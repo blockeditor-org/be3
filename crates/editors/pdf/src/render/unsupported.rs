@@ -1,6 +1,6 @@
 use std::{sync::mpsc, time::Instant};
 
-use block_editor_plugin::{PerformanceReporter, Waker};
+use block_editor_beui::{PerformanceReporter, Waker};
 
 use super::{RenderJob, RenderJobMessage, RenderTarget};
 

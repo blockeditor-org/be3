@@ -21,8 +21,9 @@ fn the_export_scale_setting_writes_the_artifact_draft() {
 
     settings.click("pixel-art.export-scale");
     settings.run();
-    settings.key_press_modifiers(Modifiers::CTRL, Key::A);
     settings.text("3");
+    settings.run();
+    settings.key_press(Key::Enter);
     settings.run();
 
     assert_eq!(

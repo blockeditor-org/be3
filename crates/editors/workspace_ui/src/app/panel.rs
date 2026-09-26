@@ -1,17 +1,17 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::ICON_LOCK;
-use block_editor_plugin::beui::reactive::{
-    Align, Dynamic, Frame, ItemSize, List, ReadSignal, clone, component, create_memo,
-    create_signal, view,
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::ICON_LOCK;
+use block_editor_beui::beui::reactive::{
+    Align, Dynamic, Frame, ItemSize, List, ReadSignal, clone, component, create_effect,
+    create_memo, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{Caption, Heading};
-use block_editor_plugin::beui::unstyled::TabId;
-use block_editor_plugin::block_ui::BlockTypes;
-use block_editor_plugin::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
-use block_editor_plugin::{
+use block_editor_beui::beui::styled::{Caption, Heading};
+use block_editor_beui::beui::unstyled::TabId;
+use block_editor_beui::block_ui::BlockTypes;
+use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
+use block_editor_beui::{
     ArtifactState, ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor,
 };
 use uuid::Uuid;
@@ -125,7 +125,10 @@ fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> O
         parents,
         references,
         backrefs,
-        artifact: workspace.host().artifact(item.id),
+        artifact: {
+            workspace.editor().artifacts().get();
+            workspace.host().artifact(item.id)
+        },
     })
 }
 
@@ -134,7 +137,7 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
     let (info, set_info) = create_signal(None::<Info>);
     let reading = Rc::downgrade(&workspace);
     let watched = RefCell::new(Watched::default());
-    workspace.editor().each_frame(move || {
+    create_effect(move || {
         let Some(workspace) = reading.upgrade() else {
             return;
         };

@@ -1,9 +1,9 @@
-use block_editor_plugin::be_block::MapContent;
+use block_editor_beui::be_block::MapContent;
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{Direction, ItemSize, List, component, view};
-use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{Creation, Editor, Sidebar};
+use block_editor_beui::beui::reactive::{Direction, ItemSize, List, component, view};
+use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::{Creation, Editor, Sidebar};
 use uuid::Uuid;
 
 pub(crate) mod canvas;
@@ -19,7 +19,7 @@ use toolbar::MapToolbar;
 
 pub struct MapApp;
 
-impl block_editor_plugin::BeuiApp for MapApp {
+impl block_editor_beui::BeuiApp for MapApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <MapEditor editor={editor} />
@@ -40,13 +40,12 @@ impl block_editor_plugin::BeuiApp for MapApp {
 #[component]
 fn MapEditor(editor: Editor) -> NodeId {
     let state = MapState::new(&editor, false);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
+    state.watch();
 
     let sized = Rc::clone(&state);
     let sizing = editor.clone();
     let region = state.displayed_region.clone();
-    block_editor_plugin::beui::reactive::create_effect(move || {
+    block_editor_beui::beui::reactive::create_effect(move || {
         let aspect = crate::geo::region_aspect_ratio(region.get()).max(0.01);
         let _ = sized.block_id();
         sizing.set_intrinsic_size(Some(match aspect >= 1.0 {
@@ -74,8 +73,7 @@ fn MapEditor(editor: Editor) -> NodeId {
 #[component]
 fn MapPreview(editor: Editor) -> NodeId {
     let state = MapState::new(&editor, true);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
+    state.watch();
     view! {
         <MapCanvas state={state} />
     }

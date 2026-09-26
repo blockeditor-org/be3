@@ -1,4 +1,4 @@
-use block_editor_plugin::beui::Image;
+use block_editor_beui::beui::Image;
 
 #[test]
 fn the_difference_counts_the_pixels_that_changed() {

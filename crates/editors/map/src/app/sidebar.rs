@@ -1,23 +1,21 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::Map;
-use block_editor_plugin::be_block::map::{MAX_LATITUDE, MapColor, MapPoint};
-use block_editor_plugin::beui::Color32;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::accesskit::{Node, Role};
-use block_editor_plugin::beui::icons::{
-    ICON_ARROW_BACK, ICON_CIRCLE, ICON_DELETE, ICON_MY_LOCATION,
-};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::Map;
+use block_editor_beui::be_block::map::{MAX_LATITUDE, MapColor, MapPoint};
+use block_editor_beui::beui::Color32;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::accesskit::{Node, Role};
+use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_CIRCLE, ICON_DELETE, ICON_MY_LOCATION};
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, clone, component,
     create_memo, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Checkbox, ColorInput, Heading, IconButton, IconSized,
     ListRow, NumberInput, Separator, Tooltip, use_theme,
 };
-use block_editor_plugin::beui::unstyled::Pressable;
-use block_editor_plugin::{ChildBlock, ChildMode, ChildTarget};
+use block_editor_beui::beui::unstyled::Pressable;
+use block_editor_beui::{ChildBlock, ChildMode, ChildTarget};
 use uuid::Uuid;
 
 use crate::points::marker_color;
@@ -244,8 +242,8 @@ struct MapRegionEdges {
     east: f64,
 }
 
-impl From<block_editor_plugin::be_block::map::MapRegion> for MapRegionEdges {
-    fn from(region: block_editor_plugin::be_block::map::MapRegion) -> Self {
+impl From<block_editor_beui::be_block::map::MapRegion> for MapRegionEdges {
+    fn from(region: block_editor_beui::be_block::map::MapRegion) -> Self {
         Self {
             north: region.north,
             south: region.south,
@@ -255,7 +253,7 @@ impl From<block_editor_plugin::be_block::map::MapRegion> for MapRegionEdges {
     }
 }
 
-impl From<MapRegionEdges> for block_editor_plugin::be_block::map::MapRegion {
+impl From<MapRegionEdges> for block_editor_beui::be_block::map::MapRegion {
     fn from(edges: MapRegionEdges) -> Self {
         Self::new(edges.west, edges.south, edges.east, edges.north)
     }
@@ -266,7 +264,7 @@ fn Coordinate(
     label: &'static str,
     value: Memo<f64>,
     limit: f64,
-    on_change: block_editor_plugin::beui::reactive::Callback<f64>,
+    on_change: block_editor_beui::beui::reactive::Callback<f64>,
 ) -> NodeId {
     view! {
         <NumberInput

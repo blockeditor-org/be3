@@ -1,0 +1,27 @@
+{
+  "id": "be3.version-control",
+  "name": "Version control",
+  "version": "0.1.0",
+  "editors": [
+    {
+      "block_type": "6be37c5e-0a1d-4f6e-9c20-7265706f0001",
+      "display_name": "Repository",
+      "icon": "",
+      "templates": {
+        "main": {}
+      },
+      "regions": [
+        "Frame"
+      ]
+    },
+    {
+      "block_type": "6be37c5e-0a1d-4f6e-9c20-636b6f750001",
+      "display_name": "Checkout",
+      "icon": "",
+      "regions": [
+        "Frame"
+      ]
+    }
+  ],
+  "entry_point": "version_control.wasm"
+}

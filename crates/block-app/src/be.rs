@@ -245,6 +245,7 @@ const KINDS: &[Kind] = &[
     kind::<be_block::FileTreeContent>(),
     kind::<be_block::PanZoomContent>(),
     kind::<be_block::Scene3dContent>(),
+    kind::<be_block::TriangleContent>(),
     kind::<be_block::WorkspaceUiContent>(),
     kind::<be_block::RepositoryContent>(),
     kind::<be_block::CheckoutContent>(),

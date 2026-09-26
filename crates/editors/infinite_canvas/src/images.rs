@@ -1,5 +1,5 @@
-use block_editor_plugin::be_block::ImageContent;
-use block_editor_plugin::{FileFilter, PickedFile};
+use block_editor_beui::be_block::ImageContent;
+use block_editor_beui::{FileFilter, PickedFile};
 
 pub(crate) fn image_filter() -> FileFilter {
     FileFilter::new(

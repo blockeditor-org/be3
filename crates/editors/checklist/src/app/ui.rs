@@ -1,18 +1,18 @@
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::{
+use block_editor_beui::be_block::{
     Checklist as ChecklistModel, ChecklistContent, ChecklistItem, ObjectId,
 };
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, clone, component,
     create_memo, create_selector, create_signal, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Card, Checkbox, Heading, Progress, Scroll, TextInput,
     ToggleButton, use_theme,
 };
-use block_editor_plugin::beui::{NodeId, TextAlign};
-use block_editor_plugin::{ContentProjection, Editor};
+use block_editor_beui::beui::{NodeId, TextAlign};
+use block_editor_beui::{ContentProjection, Editor};
 
 const PAGE_PADDING: f32 = 24.0;
 const SECTION_SPACING: f32 = 18.0;

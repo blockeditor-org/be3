@@ -2,12 +2,12 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Memo, WriteSignal, create_effect, create_memo, create_signal, untrack,
 };
-use block_editor_plugin::block_ui::BlockTypes;
-use block_editor_plugin::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
-use block_editor_plugin::{BlockSource, Editor};
+use block_editor_beui::block_ui::BlockTypes;
+use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
+use block_editor_beui::{BlockSource, Editor};
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -38,6 +38,20 @@ pub(crate) struct Row {
     pub(crate) can_edit: bool,
     pub(crate) can_delete: bool,
     pub(crate) unlink: Result<(), &'static str>,
+    pub(crate) inspection: Option<Inspection>,
+}
+
+#[derive(Clone, PartialEq, Default)]
+pub(crate) struct Inspection {
+    pub(crate) name: String,
+    pub(crate) id: String,
+    pub(crate) block_type: String,
+    pub(crate) author: String,
+    pub(crate) parent: String,
+    pub(crate) references: String,
+    pub(crate) access: String,
+    pub(crate) generated: String,
+    pub(crate) shown_as: String,
 }
 
 impl Row {
@@ -62,6 +76,7 @@ impl Row {
             can_edit: false,
             can_delete: false,
             unlink: Err("Loading…"),
+            inspection: None,
         }
     }
 }
@@ -78,8 +93,8 @@ pub(crate) struct Tree {
     watched: Rc<RefCell<Watched>>,
     rows: Memo<Vec<Row>>,
     orphans_open: Memo<bool>,
-    set_expanded: block_editor_plugin::beui::reactive::WriteSignal<HashSet<Uuid>>,
-    set_orphans_open: block_editor_plugin::beui::reactive::WriteSignal<bool>,
+    set_expanded: block_editor_beui::beui::reactive::WriteSignal<HashSet<Uuid>>,
+    set_orphans_open: block_editor_beui::beui::reactive::WriteSignal<bool>,
     set_remembered: WriteSignal<u64>,
 }
 
@@ -269,6 +284,7 @@ impl Builder<'_> {
         key_path.push(reference.id);
         let expanded = expandable && self.watched.expanded.contains_key(&reference.id);
         let label = reference.label(self.types);
+        let inspection = self.inspect(&reference, &label.name, access, is_reference);
         self.rows.push(Row {
             key: RowKey::Block(key_path.clone()),
             id: Some(reference.id),
@@ -289,6 +305,7 @@ impl Builder<'_> {
             can_edit,
             can_delete,
             unlink,
+            inspection: Some(inspection),
         });
         if !expanded || path.contains(&reference.id) {
             return;
@@ -306,6 +323,60 @@ impl Builder<'_> {
             self.push(child, depth + 1, Some(reference.id), path);
         }
         path.pop();
+    }
+
+    fn inspect(
+        &self,
+        block: &BlockInfo,
+        name: &str,
+        access: AccessLevel,
+        is_reference: bool,
+    ) -> Inspection {
+        let named = match block.named_by_hand {
+            true => name.to_owned(),
+            false => format!("{name} (automatic)"),
+        };
+        let parent = match block.parent {
+            BlockParent::Root => "Root".to_owned(),
+            BlockParent::Detached => "Recently Deleted".to_owned(),
+            BlockParent::Block(id) => self.described(id),
+        };
+        let author = match block.author.is_nil() {
+            true => "Unknown".to_owned(),
+            false => block.author.to_string(),
+        };
+        let generated = block.artifact.as_ref().map_or_else(
+            || "No".to_owned(),
+            |artifact| format!("From {}", self.type_name(artifact.source_type)),
+        );
+        Inspection {
+            name: named,
+            id: block.id.to_string(),
+            block_type: self.type_name(block.block_type),
+            author,
+            parent,
+            references: block.references.len().to_string(),
+            access: access_name(access).to_owned(),
+            generated,
+            shown_as: match is_reference {
+                true => "A link to a block that lives elsewhere".to_owned(),
+                false => "The block itself".to_owned(),
+            },
+        }
+    }
+
+    fn type_name(&self, block_type: Uuid) -> String {
+        match self.types.display_name(block_type) {
+            Some(name) => format!("{name} ({block_type})"),
+            None => block_type.to_string(),
+        }
+    }
+
+    fn described(&self, id: Uuid) -> String {
+        self.rows
+            .iter()
+            .find(|row| row.id == Some(id))
+            .map_or_else(|| id.to_string(), |row| format!("{} ({id})", row.label))
     }
 
     fn can_move_out_of(&self, source: BlockSource, child: Uuid, is_reference: bool) -> bool {
@@ -368,6 +439,15 @@ pub(crate) fn unlink_permission(
     }
 }
 
+pub(crate) fn access_name(access: AccessLevel) -> &'static str {
+    match access {
+        AccessLevel::Edit => "Can edit",
+        AccessLevel::View => "Can view",
+        AccessLevel::KnowExists => "Can see that it exists",
+        AccessLevel::None => "None",
+    }
+}
+
 pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
     match access {
         AccessLevel::Edit => "",
@@ -381,9 +461,9 @@ pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
 pub(crate) fn access_marker(access: AccessLevel) -> Option<&'static str> {
     match access {
         AccessLevel::Edit => None,
-        AccessLevel::View => Some(block_editor_plugin::beui::icons::ICON_VISIBILITY),
+        AccessLevel::View => Some(block_editor_beui::beui::icons::ICON_VISIBILITY),
         AccessLevel::KnowExists | AccessLevel::None => {
-            Some(block_editor_plugin::beui::icons::ICON_LOCK)
+            Some(block_editor_beui::beui::icons::ICON_LOCK)
         }
     }
 }

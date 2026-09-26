@@ -56,7 +56,9 @@ pub use folder::{Folder, FolderContent};
 pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, GameMove};
 pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use image::{ImageContent, ImageHeader, ImageOp};
-pub use kinds::{FileTreeContent, PanZoomContent, Scene3dContent, WorkspaceUiContent};
+pub use kinds::{
+    FileTreeContent, PanZoomContent, Scene3dContent, TriangleContent, WorkspaceUiContent,
+};
 pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};

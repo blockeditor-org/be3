@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
-use block_editor_plugin::Waker;
-use block_editor_plugin::beui::{Image, Vec2};
+use block_editor_beui::Waker;
+use block_editor_beui::beui::{Image, Vec2};
 use paint_snapshot::{Content, Snapshot};
 
 mod difference;
@@ -112,21 +112,18 @@ impl Paintings {
     }
 
     pub fn settle(&mut self, waker: &Waker) -> bool {
-        let finished = self.receive();
-        if self.active.is_none()
-            && !finished
+        let mut changed = self.receive();
+        while self.active.is_none()
             && let Some((hash, data)) = self.queue.pop_front()
         {
             self.active = Some(Job {
                 messages: start_raster(data, waker.clone()),
                 hash,
             });
+            changed = true;
+            changed |= self.receive();
         }
-        let working = self.active.is_some() || !self.queue.is_empty();
-        if working {
-            waker.wake();
-        }
-        finished || working
+        changed
     }
 
     pub fn count(&self, hash: &str) -> Option<usize> {
@@ -171,6 +168,10 @@ impl Paintings {
         rendered
     }
 
+    pub fn working(&self) -> bool {
+        self.active.is_some() || !self.queue.is_empty()
+    }
+
     pub fn rastered(&self) -> usize {
         self.rastered
     }
@@ -204,16 +205,18 @@ impl Paintings {
     }
 
     fn receive(&mut self) -> bool {
+        let mut received = false;
         loop {
             let Some(job) = &self.active else {
-                return false;
+                return received;
             };
             match job.messages.try_recv() {
                 Ok(message) => {
                     let hash = job.hash.clone();
                     self.apply(&hash, message);
+                    received = true;
                 }
-                Err(TryRecvError::Empty) => return false,
+                Err(TryRecvError::Empty) => return received,
                 Err(TryRecvError::Disconnected) => {
                     self.active = None;
                     return true;
@@ -304,7 +307,7 @@ pub fn describe(snapshot: &Snapshot, frame: usize) -> Result<String, String> {
         })
         .collect();
     Ok(format!(
-        "{width}x{height}, {} draw calls, {} textures",
+        "{width}x{height}, {} shapes, {} textures",
         frame.primitives.len(),
         textures.len()
     ))

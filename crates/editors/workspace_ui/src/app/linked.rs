@@ -1,16 +1,14 @@
 use std::rc::Rc;
 
-use block_editor_plugin::BlockParent;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::{ICON_LINK, ICON_LINK_OFF};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::BlockParent;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{ICON_LINK, ICON_LINK_OFF};
+use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, clone, component,
     create_memo, view,
 };
-use block_editor_plugin::beui::styled::theme::FONT_SMALL;
-use block_editor_plugin::beui::styled::{
-    Body, Button, ButtonVariant, Caption, IconSized, use_theme,
-};
+use block_editor_beui::beui::styled::theme::FONT_SMALL;
+use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, Caption, IconSized, use_theme};
 
 use super::menu::unlink_permission;
 use super::panel::Info;

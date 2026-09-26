@@ -1,7 +1,7 @@
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::database::create_database;
-use block_editor_plugin::{Creation, Editor};
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::database::create_database;
+use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 mod ui;
@@ -10,7 +10,7 @@ use ui::DatabaseEditor;
 
 pub struct DatabaseApp;
 
-impl block_editor_plugin::BeuiApp for DatabaseApp {
+impl block_editor_beui::BeuiApp for DatabaseApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <DatabaseEditor editor={editor} />

@@ -8,7 +8,7 @@ use beui::styled::{
     Title,
 };
 use beui::unstyled::{DockState, Side, TabId};
-use beui::{Align, Color32, Context, Direction, Document, ItemSize, NodeId, Rect};
+use beui::{Align, Color32, Context, Direction, Document, ItemSize, NodeId, Rect, pos2};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     beui::run("beui dock", DockDemo::new())
@@ -23,6 +23,10 @@ const PANEL_PADDING: f32 = 14.0;
 const ROW_SPACING: f32 = 4.0;
 const TOOLBAR_SPACING: f32 = 8.0;
 const NEXT_TAB: u64 = 100;
+const SWATCH: TabId = TabId::new(9);
+const SWATCH_COLOR: Color32 = Color32::from_rgb(0x2f, 0x9e, 0x6e);
+const SWATCH_TEXT: Color32 = Color32::from_rgb(0x0b, 0x1f, 0x16);
+const SWATCH_WINDOW: Rect = Rect::from_min_max(pos2(560.0, 160.0), pos2(920.0, 420.0));
 
 #[derive(Clone, PartialEq)]
 struct Paper {
@@ -31,7 +35,7 @@ struct Paper {
     body: String,
 }
 
-const PAPERS: [(u64, &str, &str); 6] = [
+const PAPERS: [(u64, &str, &str); 7] = [
     (
         3,
         "Welcome",
@@ -56,7 +60,9 @@ const PAPERS: [(u64, &str, &str); 6] = [
         "Tabs",
         "The tab bar is a tab list: the arrow keys walk it and Home and End jump to its \
          ends. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of whichever pane you are in, \
-         and the counter below keeps its value while you switch between tabs.",
+         and the counter below keeps its value while you switch between tabs. Drag the grip \
+         at the start of a pane's bar to move the whole pane, or right-click it to move \
+         the tabs into a sidebar and back.",
     ),
     (
         7,
@@ -71,6 +77,12 @@ const PAPERS: [(u64, &str, &str); 6] = [
          to the edge of a group to split the group, or right-click a tab to group it or \
          split it with the tab after it. A group ungroups from its own right-click menu, \
          and one left holding a single tab turns back into that tab.",
+    ),
+    (
+        9,
+        "Swatch",
+        "Opens in a window of its own and fills it edge to edge, so any gap between the \
+         panel and the chrome around it shows.",
     ),
 ];
 
@@ -120,6 +132,7 @@ fn starting_state() -> DockState {
         FILES_SHARE,
         vec![TabId::new(PAPERS[0].0)],
     );
+    state.open_window(SWATCH_WINDOW, vec![SWATCH]);
     state
 }
 
@@ -127,7 +140,7 @@ fn settled(mut state: DockState) -> DockState {
     let open = state
         .all_tabs()
         .into_iter()
-        .any(|tab| tab != FILES && tab != EMPTY);
+        .any(|tab| tab != FILES && tab != EMPTY && tab != SWATCH);
     if open {
         state.remove(EMPTY);
         return state;
@@ -154,6 +167,10 @@ fn settled(mut state: DockState) -> DockState {
 fn open(state: &mut DockState, tab: TabId) {
     if state.contains(tab) {
         state.show(tab);
+        return;
+    }
+    if tab == SWATCH {
+        state.open_window(SWATCH_WINDOW, vec![SWATCH]);
         return;
     }
     if state.replace(EMPTY, tab) {
@@ -222,6 +239,9 @@ fn DockShell() -> NodeId {
                             },
                             EMPTY => view! {
                                 <EmptyPanel />
+                            },
+                            SWATCH => view! {
+                                <SwatchPanel />
                             },
                             tab => view! {
                                 <PaperPanel tab papers />
@@ -308,6 +328,21 @@ fn EmptyPanel() -> NodeId {
             <List spacing=ROW_SPACING align=Align::Center>
                 <Heading content="Nothing open" />
                 <Caption content="Open a paper from Files to get started." />
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn SwatchPanel() -> NodeId {
+    view! {
+        <Frame color=SWATCH_COLOR padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+            <List spacing=ROW_SPACING>
+                <Heading content="Swatch" color=SWATCH_TEXT />
+                <Caption
+                    content="This fill should reach every edge of the pane."
+                    color=SWATCH_TEXT
+                />
             </List>
         </Frame>
     }

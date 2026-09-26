@@ -7,7 +7,7 @@ use std::{
 
 use be_block::be_model::{Document, Field, FieldRef, List, Model};
 use be_block::{LiveEdit, ObjectId, Root, Touched};
-use beui::reactive::{KeyedStore, ReadSignal, WriteSignal, batch, create_signal, on_cleanup};
+use reactive::{KeyedStore, ReadSignal, WriteSignal, batch, create_signal, on_cleanup};
 
 use crate::{EditorHost, host::ContentUpdate};
 
@@ -39,11 +39,14 @@ pub struct ContentProjection<C: LiveEdit> {
     next_watcher: Cell<u64>,
     touched: RefCell<Vec<Touched>>,
     revision: Cell<u64>,
+    announced: ReadSignal<u64>,
+    announce: WriteSignal<u64>,
     loaded_signals: RefCell<Vec<WriteSignal<bool>>>,
 }
 
 impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
-    pub(crate) fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
+    pub fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
+        let (announced, announce) = create_signal(0);
         Self {
             host,
             block,
@@ -56,6 +59,8 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
             next_watcher: Cell::new(0),
             touched: RefCell::new(Vec::new()),
             revision: Cell::new(0),
+            announced,
+            announce,
             loaded_signals: RefCell::new(Vec::new()),
         }
     }
@@ -75,11 +80,13 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
     }
 
     pub fn revision(&self) -> Option<u64> {
+        self.announced.get();
         self.adopt();
         self.loaded.get().then(|| self.revision.get())
     }
 
     pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
+        self.announced.get();
         self.adopt();
         self.loaded.get().then(|| read(&self.visible.borrow()))
     }
@@ -152,11 +159,13 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
             .operate_content_at(self.block, C::encode_operation(&operation));
         self.pending.borrow_mut().push_back(operation);
         self.notify();
+        self.announce.set(self.revision.get());
     }
 
-    pub(crate) fn pump(&self) {
+    pub fn pump(&self) {
         self.adopt();
         self.notify();
+        self.announce.set(self.revision.get());
     }
 
     fn notify(&self) {

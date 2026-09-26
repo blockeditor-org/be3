@@ -1,13 +1,13 @@
 use std::rc::Rc;
 
-use block_editor_plugin::Toolbar;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::Toolbar;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, ItemSize, List, Memo, ReadSignal, Show, Spacer, clone, component,
     create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Caption, MenuButton};
-use block_editor_plugin::beui::unstyled::MenuItem;
+use block_editor_beui::beui::styled::{Caption, MenuButton};
+use block_editor_beui::beui::unstyled::MenuItem;
 use uuid::Uuid;
 
 use super::access::AccessMode;

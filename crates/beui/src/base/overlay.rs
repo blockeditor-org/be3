@@ -36,9 +36,11 @@ impl IntoProp<OverlayAnchor> for &NodeRef {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Placement {
+    At,
     BelowStart,
     RightStart,
     Center,
+    Fill,
     InsideTop,
     InsideBottom,
 }
@@ -95,6 +97,12 @@ fn resolve_rect(
     placement: Placement,
     content_size: Vec2,
 ) -> Rect {
+    if placement == Placement::At {
+        return Rect::from_min_size(anchor_rect.min, content_size);
+    }
+    if placement == Placement::Fill {
+        return viewport;
+    }
     if placement == Placement::Center {
         let origin = pos2(
             viewport.left() + (viewport.width() - content_size.x) / 2.0,
@@ -125,7 +133,11 @@ fn resolve_rect(
     let mut origin = match placement {
         Placement::BelowStart => pos2(anchor_rect.left(), anchor_rect.bottom()),
         Placement::RightStart => pos2(anchor_rect.right(), anchor_rect.top()),
-        Placement::Center | Placement::InsideTop | Placement::InsideBottom => {
+        Placement::At
+        | Placement::Center
+        | Placement::Fill
+        | Placement::InsideTop
+        | Placement::InsideBottom => {
             unreachable!("a centred or pinned overlay is placed above")
         }
     };
@@ -278,12 +290,23 @@ impl Document {
     pub(crate) fn create_overlay(&mut self, anchor: OverlayAnchor, placement: Placement) -> NodeId {
         let overlay_cell: Rc<Cell<Option<NodeId>>> = Rc::new(Cell::new(None));
         let press_cell = overlay_cell.clone();
+        let tap_cell = overlay_cell.clone();
         let scrim = with_reactive_scope(self, || {
             view! {
                 <ClickCatcher
                     cursor=CursorIcon::Default
                     on_press={move |press: PointerPress| {
+                        if press.touch {
+                            return;
+                        }
                         let id = press_cell.get().expect("overlay not yet initialized");
+                        with_document(|document| document.dismiss_overlay_if_outside(id, press.pos));
+                    }}
+                    on_click_at={move |press: PointerPress| {
+                        if !press.touch {
+                            return;
+                        }
+                        let id = tap_cell.get().expect("overlay not yet initialized");
                         with_document(|document| document.dismiss_overlay_if_outside(id, press.pos));
                     }}
                 ></ClickCatcher>
@@ -409,7 +432,6 @@ impl Document {
         self.arena.get_mut_as::<OverlayNode>(overlay).on_dismiss = Some(Box::new(handler));
     }
 
-    #[cfg(test)]
     pub(crate) fn is_overlay_open(&self, overlay: NodeId) -> bool {
         self.arena.get_as::<OverlayNode>(overlay).open
     }
@@ -478,14 +500,43 @@ impl Document {
     }
 
     fn close_overlay_at(&mut self, level: usize) {
-        let closing: Vec<NodeId> = self.overlay_stack.split_off(level);
-        for id in closing {
+        let Some(&closed) = self.overlay_stack.get(level) else {
+            return;
+        };
+        let above = self.overlay_stack.split_off(level + 1);
+        let nested = self.overlays_within(closed, &above);
+        let (nested, kept): (Vec<NodeId>, Vec<NodeId>) =
+            above.into_iter().partition(|id| nested.contains(id));
+        self.overlay_stack.pop();
+        self.overlay_stack.extend(kept);
+        for id in std::iter::once(closed).chain(nested) {
             if self.contains(id) {
                 self.arena.get_mut_as::<OverlayNode>(id).open = false;
             }
             self.arena.invalidate_node(id);
             self.call_overlay_dismiss(id);
         }
+    }
+
+    fn overlays_within(&self, overlay: NodeId, candidates: &[NodeId]) -> Vec<NodeId> {
+        if candidates.is_empty() || !self.contains(overlay) {
+            return Vec::new();
+        }
+        let mut found = Vec::new();
+        let mut pending = self.arena.get(overlay).children();
+        while let Some(node) = pending.pop() {
+            if !self.contains(node) {
+                continue;
+            }
+            if candidates.contains(&node) {
+                found.push(node);
+                if found.len() == candidates.len() {
+                    break;
+                }
+            }
+            pending.extend(self.arena.get(node).children());
+        }
+        found
     }
 
     fn call_overlay_dismiss(&mut self, id: NodeId) {

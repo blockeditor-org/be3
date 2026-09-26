@@ -1,11 +1,11 @@
-use block_editor_plugin::be_block::settings::{ActivationCondition, Settings};
-use block_editor_plugin::be_block::{BlockContent, SettingsContent, UiSettingsContent};
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::settings::{ActivationCondition, Settings};
+use block_editor_beui::be_block::{BlockContent, SettingsContent, UiSettingsContent};
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, List, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
-use block_editor_plugin::{ContentProjection, Editor};
+use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
+use block_editor_beui::{ContentProjection, Editor};
 use uuid::Uuid;
 
 const PADDING: f32 = 20.0;

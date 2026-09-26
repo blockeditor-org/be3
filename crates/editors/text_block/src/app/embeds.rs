@@ -3,8 +3,8 @@ use std::ops::Range;
 
 use beui::Vec2;
 use beui::unstyled::TextWidget;
-use block_editor_plugin::be_block::block_url::{block_url, parse_block_urls};
-use block_editor_plugin::block_ui::{self, BlockLabel};
+use block_editor_beui::be_block::block_url::{block_url, parse_block_urls};
+use block_editor_beui::block_ui::{self, BlockLabel};
 use text_editor_core::TextLanguage;
 use uuid::Uuid;
 
@@ -65,7 +65,7 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
         })
         .collect::<HashMap<_, _>>();
     let block_id = state.block_id;
-    let types = state.host().block_types();
+    let types = state.editor.block_types();
     parsed
         .into_iter()
         .filter(|embed| embed.reference != block_id)
@@ -79,7 +79,7 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
             });
             let frame_size = embed
                 .large
-                .then(|| state.embed_sizes.borrow().get(&id).copied())
+                .then(|| state.embed_sizes.with(|sizes| sizes.get(&id).copied()))
                 .flatten()
                 .map(|intrinsic| {
                     let (width, height) =

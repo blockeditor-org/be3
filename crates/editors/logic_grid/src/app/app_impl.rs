@@ -2,14 +2,14 @@ use std::cell::RefCell;
 
 use beui::NodeId;
 use beui::reactive::view;
-use block_editor_plugin::{ArtifactDescription, Artifacts, Creation, Editor};
+use block_editor_beui::{ArtifactDescription, Artifacts, Creation, Editor};
 
 use super::ui::LogicGridView;
 use super::*;
 
 pub struct LogicGridApp;
 
-impl block_editor_plugin::BeuiApp for LogicGridApp {
+impl block_editor_beui::BeuiApp for LogicGridApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <LogicGridView editor={editor} />

@@ -86,8 +86,9 @@ wasi_app_flags = plugin_exports + [
 
 # An editor: the guest cdylib (wasm32 only; a plugin is all behind
 # cfg(target_arch = "wasm32")), :module named after its manifest's entry point,
-# :manifest, and its wasm :test.
-def editor(name, module, visibility = ["PUBLIC"]):
+# :manifest, and its wasm :test. test_env is extra environment for compiling the
+# tests, which is how a test names a module it loads with include_bytes!.
+def editor(name, module, visibility = ["PUBLIC"], test_env = {}):
     facts = cargo_wasm_facts()
     native.rust_library(
         name = name + "_wasm",
@@ -115,13 +116,15 @@ def editor(name, module, visibility = ["PUBLIC"]):
         visibility = visibility,
     )
     plugin_tests(
+        env = test_env,
         exports = plugin_exports,
         srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
     )
 
 # A crate's tests compiled to wasm and run by plugin-test-runner, which gives
-# the module a plugin's imports; an editor's, and block-editor-plugin's.
-def plugin_tests(srcs, exports = []):
+# the module a plugin's imports; an editor's, block-editor-plugin's and
+# block-editor-beui's.
+def plugin_tests(srcs, exports = [], env = {}):
     facts = cargo_wasm_facts()
     native.rust_binary(
         name = "test_module",
@@ -129,7 +132,7 @@ def plugin_tests(srcs, exports = []):
         crate_root = facts.crate_root,
         deps = facts.test_deps,
         edition = facts.edition,
-        env = facts.env,
+        env = facts.env | env,
         features = facts.test_features,
         rustc_flags = exports + ["--test"],
         srcs = srcs,

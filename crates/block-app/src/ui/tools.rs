@@ -6,8 +6,7 @@ use beui::unstyled::{DockState, TabId};
 use beui::{NodeId, Rect, pos2, vec2};
 
 use super::debug::{
-    ClientPanel, DebugCommand, DebugWindow, PerformancePanel, PluginsPanel, TerminalPanel,
-    VersionPanel,
+    ClientPanel, DebugCommand, DebugWindow, PerformancePanel, PluginsPanel, VersionPanel,
 };
 use super::dialogs::{AboutPanel, InvitePanel};
 use super::{AppViewStore, UiCommand, send};
@@ -23,12 +22,11 @@ enum Tool {
 }
 
 impl Tool {
-    const ALL: [Tool; 7] = [
+    const ALL: [Tool; 6] = [
         Tool::Debug(DebugWindow::Client),
         Tool::Debug(DebugWindow::Performance),
         Tool::Debug(DebugWindow::Plugins),
         Tool::Debug(DebugWindow::Version),
-        Tool::Debug(DebugWindow::Terminal),
         Tool::Invite,
         Tool::About,
     ];
@@ -51,7 +49,6 @@ impl Tool {
             Tool::Debug(DebugWindow::Performance) => "Performance",
             Tool::Debug(DebugWindow::Plugins) => "Plugins",
             Tool::Debug(DebugWindow::Version) => "App Version",
-            Tool::Debug(DebugWindow::Terminal) => "Terminal",
             Tool::Invite => "Invite member",
             Tool::About => "About",
         }
@@ -63,7 +60,6 @@ impl Tool {
             Tool::Debug(DebugWindow::Performance) => (pos2(120.0, 100.0), vec2(520.0, 420.0)),
             Tool::Debug(DebugWindow::Plugins) => (pos2(150.0, 90.0), vec2(560.0, 440.0)),
             Tool::Debug(DebugWindow::Version) => (pos2(180.0, 110.0), vec2(640.0, 480.0)),
-            Tool::Debug(DebugWindow::Terminal) => (pos2(200.0, 120.0), vec2(820.0, 520.0)),
             Tool::Invite => (pos2(120.0, 96.0), vec2(380.0, 360.0)),
             Tool::About => (pos2(160.0, 120.0), vec2(420.0, 230.0)),
         };
@@ -80,7 +76,6 @@ impl Tool {
                     DebugWindow::Performance => debug.performance.is_some(),
                     DebugWindow::Plugins => debug.plugins.is_some(),
                     DebugWindow::Version => debug.version.is_some(),
-                    DebugWindow::Terminal => debug.terminal.is_some(),
                 }
             }
             Tool::Invite => view.invite.get().is_some(),
@@ -163,12 +158,6 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
                         let version = create_memo(move || debug.get().version);
                         view! {
                             <VersionPanel version />
-                        }
-                    }
-                    Some(Tool::Debug(DebugWindow::Terminal)) => {
-                        let terminal = create_memo(move || debug.get().terminal);
-                        view! {
-                            <TerminalPanel terminal />
                         }
                     }
                     Some(Tool::Invite) => view! {

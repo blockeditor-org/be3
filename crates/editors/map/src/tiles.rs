@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::sync::mpsc::{Receiver, Sender, channel};
 
-use block_editor_plugin::{EditorHost, FetchResult, Waker};
+use block_editor_beui::{EditorHost, FetchResult, Waker};
 
 use crate::{mvt, raster};
 
@@ -68,13 +68,17 @@ impl TileWorker {
         self.queued.push(id);
     }
 
-    pub(crate) fn poll(&mut self, host: &EditorHost) -> Vec<TileResult> {
+    pub(crate) fn dispatch(&mut self, host: &EditorHost) {
         while self.downloads.len() < MAX_IN_FLIGHT {
             let Some(id) = self.queued.pop() else {
                 break;
             };
             self.downloads.insert(host.fetch(id.url()), id);
         }
+    }
+
+    pub(crate) fn poll(&mut self, host: &EditorHost) -> Vec<TileResult> {
+        self.dispatch(host);
         let mut failures = Vec::new();
         let answered: Vec<u64> = self.downloads.keys().copied().collect();
         for request in answered {
@@ -95,6 +99,7 @@ impl TileWorker {
                 }),
             }
         }
+        self.dispatch(host);
         while let Ok(result) = self.rasterized.try_recv() {
             failures.push(result);
         }

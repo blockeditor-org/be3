@@ -1,19 +1,19 @@
 use std::rc::Rc;
 use uuid::Uuid;
 
-use block_editor_plugin::be_block::FolderContent;
-use block_editor_plugin::beui::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER};
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::FolderContent;
+use block_editor_beui::beui::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER};
+use block_editor_beui::beui::reactive::{
     Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Show,
     Spacer, WriteSignal, clone, component, create_effect, create_memo, create_selector,
     create_signal, view,
 };
-use block_editor_plugin::beui::styled::{
+use block_editor_beui::beui::styled::{
     Body, Caption, IconButton, IconSized, ListRow, Scroll, Select, use_theme,
 };
-use block_editor_plugin::beui::unstyled::ChoiceOption;
-use block_editor_plugin::beui::{Color32, NodeId, TextAlign, Vec2};
-use block_editor_plugin::{Editor, Toolbar};
+use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::beui::{Color32, NodeId, TextAlign, Vec2};
+use block_editor_beui::{Editor, Toolbar};
 
 use super::entries::{Entry, Folder, FolderSort};
 
@@ -100,10 +100,6 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     ));
     let entries = folder.entries();
     let drop = super::drop::watch(&editor, &folder);
-
-    let adds = Rc::clone(&folder);
-    let pumped = index.clone();
-    editor.each_frame(move || adds.poll_adds(&pumped));
 
     let sized = editor.clone();
     create_effect(clone!(entries mode -> move || {

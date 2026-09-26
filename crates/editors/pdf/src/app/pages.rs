@@ -1,12 +1,12 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::PdfContent;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::be_block::PdfContent;
+use block_editor_beui::beui::reactive::{
     Memo, ReadSignal, WriteSignal, create_memo, create_signal,
 };
-use block_editor_plugin::beui::{Image, Rect, Vec2};
-use block_editor_plugin::{ContentProjection, Editor, PerformanceReporter};
+use block_editor_beui::beui::{Image, Rect, Vec2};
+use block_editor_beui::{ContentProjection, PerformanceReporter, Waker};
 
 use crate::pane::Pane;
 
@@ -29,7 +29,8 @@ impl Shown {
 
 pub(crate) struct Pages {
     pane: RefCell<Pane>,
-    page: Cell<usize>,
+    page: ReadSignal<usize>,
+    set_page: WriteSignal<usize>,
     shown: ReadSignal<Shown>,
     set_shown: WriteSignal<Shown>,
 }
@@ -43,9 +44,11 @@ pub(crate) struct Viewport {
 impl Pages {
     pub(crate) fn new() -> Rc<Self> {
         let (shown, set_shown) = create_signal(Shown::default());
+        let (page, set_page) = create_signal(0);
         Rc::new(Self {
             pane: RefCell::new(Pane::default()),
-            page: Cell::new(0),
+            page,
+            set_page,
             shown,
             set_shown,
         })
@@ -57,26 +60,26 @@ impl Pages {
     }
 
     pub(crate) fn page(&self) -> usize {
-        self.page.get()
+        self.page.get_untracked()
     }
 
     pub(crate) fn go(&self, page: usize) {
-        self.page.set(page);
+        self.set_page.set(page);
     }
 
     pub(crate) fn pump(
         &self,
-        editor: &Editor,
         block: &ContentProjection<PdfContent>,
         performance: &PerformanceReporter,
+        waker: Waker,
         viewport: Viewport,
     ) {
         let mut pane = self.pane.borrow_mut();
         let mut shown = self.shown.get_untracked();
         if let Some(facts) = pane.poll(Some(performance)) {
             shown.page_count = Some(facts.page_count);
-            if self.page.get() >= facts.page_count {
-                self.page.set(facts.page_index);
+            if self.page.get_untracked() >= facts.page_count {
+                self.set_page.set(facts.page_index);
             }
             shown.page_size = Some(facts.page_size_pts);
         }
@@ -90,12 +93,12 @@ impl Pages {
             viewport.page_rect,
             viewport.visible,
             viewport.pixels_per_point,
-            editor.host().waker(),
+            waker,
             Some(performance),
             || block.read(|pdf| pdf.data().to_vec()),
         );
         shown.tiles = pane.tiles();
-        shown.page = self.page.get();
+        shown.page = self.page.get_untracked();
         shown.error = pane.error().map(str::to_owned);
         drop(pane);
         self.set_shown.set(shown);

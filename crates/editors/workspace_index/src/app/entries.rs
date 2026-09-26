@@ -1,12 +1,12 @@
-use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::rc::Rc;
 
-use block_editor_plugin::BlockQuery;
-use block_editor_plugin::be_block::FolderContent;
-use block_editor_plugin::beui::reactive::{Memo, ReadSignal, create_memo, create_signal, untrack};
-use block_editor_plugin::block_ui::BlockTypes;
-use block_editor_plugin::{ContentProjection, Editor};
+use block_editor_beui::BlockQuery;
+use block_editor_beui::be_block::FolderContent;
+use block_editor_beui::beui::reactive::{Memo, ReadSignal, create_memo, untrack};
+use block_editor_beui::block_ui::BlockTypes;
+use block_editor_beui::{ContentProjection, Editor};
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -43,13 +43,13 @@ pub(crate) struct Entry {
 
 pub(crate) struct Folder {
     entries: Memo<Vec<Entry>>,
-    adds: RefCell<Vec<Uuid>>,
+    index: Rc<ContentProjection<FolderContent>>,
 }
 
 impl Folder {
     pub(crate) fn watch(
         editor: &Editor,
-        index: &ContentProjection<FolderContent>,
+        index: &Rc<ContentProjection<FolderContent>>,
         sort: ReadSignal<FolderSort>,
         descending: ReadSignal<bool>,
     ) -> Self {
@@ -57,17 +57,16 @@ impl Folder {
             .blocks()
             .watch(BlockQuery::References(editor.block_id()));
         let referenced = index.project(|index| index.root().blocks());
-        let (rows, set_rows) = create_signal(Vec::<Entry>::new());
-        let host = editor.host().clone();
-        editor.each_frame(move || {
+        let catalog = editor.clone();
+        let entries = create_memo(move || {
             let metadata: HashMap<_, _> = references
                 .read()
                 .into_iter()
                 .map(|reference| (reference.id, reference))
                 .collect();
-            let types = host.block_types();
+            let types = catalog.block_types();
             let mut entries: Vec<_> = referenced
-                .get_untracked()
+                .get()
                 .into_iter()
                 .map(|reference| {
                     let id = Some(reference);
@@ -93,16 +92,12 @@ impl Folder {
                     }
                 })
                 .collect();
-            sort_entries(
-                &mut entries,
-                sort.get_untracked(),
-                descending.get_untracked(),
-            );
-            set_rows.set(entries);
+            sort_entries(&mut entries, sort.get(), descending.get());
+            entries
         });
         Self {
-            entries: create_memo(move || rows.get()),
-            adds: RefCell::default(),
+            entries,
+            index: Rc::clone(index),
         }
     }
 
@@ -119,14 +114,8 @@ impl Folder {
     }
 
     pub(crate) fn add(&self, block_id: Uuid) {
-        self.adds.borrow_mut().push(block_id);
-    }
-
-    pub(crate) fn poll_adds(&self, index: &ContentProjection<FolderContent>) {
-        for reference in std::mem::take(&mut *self.adds.borrow_mut()) {
-            if let Some(edit) = index.read(|index| index.root().add(reference)) {
-                index.operate(edit);
-            }
+        if let Some(edit) = self.index.read(|index| index.root().add(block_id)) {
+            self.index.operate(edit);
         }
     }
 }

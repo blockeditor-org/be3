@@ -38,8 +38,11 @@ pub(crate) fn check(result: sys::Result) -> Result<(), Error> {
     }
 }
 
+type Reply = Box<dyn FnMut(&[u8])>;
+
 pub struct Terminal {
     handle: sys::Terminal,
+    reply: Option<Box<Reply>>,
 }
 
 impl Terminal {
@@ -48,7 +51,10 @@ impl Terminal {
         check(unsafe {
             sys::ghostty_terminal_new(ptr::null(), &mut handle, cols.max(1), rows.max(1))
         })?;
-        let terminal = Self { handle };
+        let terminal = Self {
+            handle,
+            reply: None,
+        };
         check(unsafe {
             sys::ghostty_terminal_set(
                 terminal.handle,
@@ -57,6 +63,24 @@ impl Terminal {
             )
         })?;
         Ok(terminal)
+    }
+
+    pub fn on_reply(&mut self, reply: impl FnMut(&[u8]) + 'static) -> Result<(), Error> {
+        let mut reply: Box<Reply> = Box::new(Box::new(reply));
+        let userdata: *mut Reply = &mut *reply;
+        check(unsafe {
+            sys::ghostty_terminal_set(self.handle, sys::TERMINAL_OPT_USERDATA, userdata.cast())
+        })?;
+        let callback: sys::WritePtyFn = forward_reply;
+        check(unsafe {
+            sys::ghostty_terminal_set(
+                self.handle,
+                sys::TERMINAL_OPT_WRITE_PTY,
+                callback as *const std::ffi::c_void,
+            )
+        })?;
+        self.reply = Some(reply);
+        Ok(())
     }
 
     pub fn write(&mut self, data: &[u8]) {
@@ -116,6 +140,19 @@ impl Terminal {
     pub(crate) fn handle(&self) -> sys::Terminal {
         self.handle
     }
+}
+
+unsafe extern "C" fn forward_reply(
+    _terminal: sys::Terminal,
+    userdata: *mut std::ffi::c_void,
+    data: *const u8,
+    len: usize,
+) {
+    if userdata.is_null() || data.is_null() {
+        return;
+    }
+    let reply = unsafe { &mut *userdata.cast::<Reply>() };
+    reply(unsafe { std::slice::from_raw_parts(data, len) });
 }
 
 impl Drop for Terminal {

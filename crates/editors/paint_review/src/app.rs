@@ -1,11 +1,9 @@
-use block_editor_plugin::be_block::PaintReviewContent;
+use block_editor_beui::be_block::PaintReviewContent;
 use std::rc::Rc;
 
-use block_editor_plugin::beui::reactive::{
-    Direction, ItemSize, List, component, create_memo, view,
-};
-use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{Creation, Editor, Side, Sidebar};
+use block_editor_beui::beui::reactive::{Direction, ItemSize, List, component, create_memo, view};
+use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::{Creation, Editor, Side, Sidebar};
 use uuid::Uuid;
 
 use crate::download::Source;
@@ -27,7 +25,7 @@ const SIDEBAR_WIDTH: f32 = 300.0;
 
 pub struct PaintReviewApp;
 
-impl block_editor_plugin::BeuiApp for PaintReviewApp {
+impl block_editor_beui::BeuiApp for PaintReviewApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <PaintReviewEditor editor={editor} source=Source::Branch />
@@ -46,8 +44,7 @@ impl block_editor_plugin::BeuiApp for PaintReviewApp {
 #[component]
 pub fn PaintReviewEditor(editor: Editor, source: Source) -> NodeId {
     let review = Review::new(&editor, source);
-    let polled = Rc::clone(&review);
-    editor.each_frame(move || polled.poll());
+    review.watch();
 
     let counted = Rc::clone(&review);
     let count = create_memo(move || {

@@ -1,8 +1,7 @@
-use block_editor_plugin::be_block::{BlockContent, FileTreeContent};
+use block_editor_beui::be_block::{BlockContent, FileTreeContent};
 
-use block_editor_plugin::beui::icons::ICON_CLOSE;
-use block_editor_plugin::beui::{Document, NodeId, Rect};
-use block_editor_plugin::{Editor, EditorHost};
+use block_editor_beui::beui::{Document, NodeId, Rect};
+use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -16,6 +15,7 @@ mod an_open_menu_is_withheld_from_the_block_under_it;
 mod closing_the_only_tab_leaves_the_blank_workspace;
 
 const SETTLE_FRAMES: usize = 8;
+const MAX_TAB: u64 = 64;
 
 struct Fixture {
     test: BeuiTest<WorkspaceUiApp>,
@@ -49,21 +49,25 @@ impl Fixture {
     }
 
     fn open_tabs(&self) -> usize {
-        let document = self.test.document();
-        let root = document.root().expect("the workspace built a root");
-        let mut crosses = Vec::new();
-        collect_crosses(document, root, &mut crosses);
-        crosses.len()
+        self.tab_closes().len()
     }
 
     fn close_active_tab(&mut self) {
-        let document = self.test.document();
-        let root = document.root().expect("the workspace built a root");
-        let mut crosses = Vec::new();
-        collect_crosses(document, root, &mut crosses);
-        let cross = crosses.first().copied().expect("an open tab can be closed");
+        let cross = self
+            .tab_closes()
+            .first()
+            .copied()
+            .expect("an open tab can be closed");
         self.test.click_at(cross.center());
         self.settle();
+    }
+
+    fn tab_closes(&self) -> Vec<Rect> {
+        let document = self.test.document();
+        (0..MAX_TAB)
+            .filter_map(|tab| document.find_test_id(&format!("dock.tab.{tab}.close")))
+            .filter_map(|close| document.node_rect(close))
+            .collect()
     }
 }
 
@@ -75,18 +79,6 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
         .children(id)
         .into_iter()
         .find_map(|child| text_within(document, child, words))
-}
-
-fn collect_crosses(document: &Document, id: NodeId, out: &mut Vec<Rect>) {
-    if document.node_kind(id) == "text"
-        && document.text(id) == ICON_CLOSE
-        && let Some(rect) = document.node_rect(id)
-    {
-        out.push(rect);
-    }
-    for child in document.children(id) {
-        collect_crosses(document, child, out);
-    }
 }
 
 fn editor() -> (Fixture, Uuid) {

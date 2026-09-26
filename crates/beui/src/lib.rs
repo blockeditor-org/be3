@@ -13,7 +13,7 @@ mod drawing;
 mod filter;
 mod flash;
 mod font;
-mod geometry;
+use ::geometry;
 pub mod icons;
 mod image;
 mod input;
@@ -32,16 +32,17 @@ pub mod reactive;
 mod renderer;
 mod screen_reader;
 pub mod styled;
+mod timer;
 pub mod unstyled;
 
 pub use accesskit;
 #[cfg(feature = "web")]
 pub use app::run_web;
 #[cfg(any(feature = "window", feature = "web"))]
-pub use app::{App, OpenDevice, RunOptions, Setup, Waker};
+pub use app::{App, OpenDevice, RunOptions, SafeArea, Setup, Waker};
 #[cfg(feature = "window")]
-pub use app::{run, run_with};
-pub use base::{Align, Direction, ItemSize, ScrollPosition, TextAlign, focus_within};
+pub use app::{run, run_with, set_safe_area};
+pub use base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition, TextAlign, focus_within};
 pub use color::Color32;
 pub use context::{Context, FrameOutput};
 pub use document::Document;

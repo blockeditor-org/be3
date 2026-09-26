@@ -52,12 +52,17 @@ impl Plugins {
                 return;
             }
         };
-        let block_type = Uuid::from_bytes(manifest.block_type);
-        if !crate::be::is_known(block_type) {
-            self.errors.push(format!(
-                "{source}: {block_type} is not a block type this app has"
-            ));
-            return;
+        for block_type in manifest.editors.iter().flat_map(|editor| {
+            std::iter::once(editor.block_type)
+                .chain(editor.templates.iter().map(|template| template.block_type))
+        }) {
+            let block_type = Uuid::from_bytes(block_type);
+            if !crate::be::is_known(block_type) {
+                self.errors.push(format!(
+                    "{source}: {block_type} is not a block type this app has"
+                ));
+                return;
+            }
         }
         if let Some(existing) = self
             .manifests
@@ -70,16 +75,19 @@ impl Plugins {
             ));
             return;
         }
-        if let Some(existing) = self
-            .manifests
-            .iter()
-            .find(|existing| existing.block_type == manifest.block_type)
-        {
-            self.errors.push(format!(
-                "{source}: {} already edits {block_type}",
-                existing.identity.id
-            ));
-            return;
+        for editor in &manifest.editors {
+            if let Some(existing) = self
+                .manifests
+                .iter()
+                .find(|existing| existing.editor(editor.block_type).is_some())
+            {
+                self.errors.push(format!(
+                    "{source}: {} already edits {}",
+                    existing.identity.id,
+                    Uuid::from_bytes(editor.block_type)
+                ));
+                return;
+            }
         }
         self.manifests.push(Arc::new(manifest));
     }

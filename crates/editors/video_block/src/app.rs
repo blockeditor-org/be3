@@ -1,20 +1,18 @@
-use block_editor_plugin::be_block::VideoContent;
+use block_editor_beui::be_block::VideoContent;
 use std::rc::Rc;
 
-use block_editor_plugin::be_block::video::{VideoFrameRate, VideoOperation};
-use block_editor_plugin::beui::icons::{
+use block_editor_beui::be_block::video::{VideoFrameRate, VideoOperation};
+use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CONTENT_CUT, ICON_DELETE, ICON_FIT_SCREEN, ICON_PAUSE, ICON_PLAY_ARROW,
     ICON_SKIP_NEXT, ICON_SKIP_PREVIOUS, ICON_SUBDIRECTORY_ARROW_RIGHT, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Prop, clone, component, create_memo, view,
 };
-use block_editor_plugin::beui::styled::{
-    Caption, IconButton, Scroll, Select, Separator, use_theme,
-};
-use block_editor_plugin::beui::unstyled::ChoiceOption;
-use block_editor_plugin::beui::{NodeId, Vec2};
-use block_editor_plugin::{Creation, Editor, Toolbar};
+use block_editor_beui::beui::styled::{Caption, IconButton, Scroll, Select, Separator, use_theme};
+use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::{Creation, Editor, Toolbar};
 use uuid::Uuid;
 
 pub(crate) mod effects;
@@ -44,7 +42,7 @@ const FRAME_RATES: [VideoFrameRate; 7] = [
 
 pub struct VideoApp;
 
-impl block_editor_plugin::BeuiApp for VideoApp {
+impl block_editor_beui::BeuiApp for VideoApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <VideoEditor editor={editor} />
@@ -69,8 +67,6 @@ impl block_editor_plugin::BeuiApp for VideoApp {
 #[component]
 fn VideoEditor(editor: Editor) -> NodeId {
     let state = VideoState::new(&editor);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
 
     let chrome = editor.chrome_shown();
     let bar = Rc::clone(&state);
@@ -106,8 +102,6 @@ fn VideoEditor(editor: Editor) -> NodeId {
 #[component]
 fn VideoPreview(editor: Editor) -> NodeId {
     let state = VideoState::new(&editor);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
     view! {
         <Player state={state} />
     }

@@ -1,6 +1,7 @@
 # Generates third-party/rust/BUCK (reindeer) and buck/cargo/crates.bzl
 # (crates/buck-tools' generate, from cargo's plans) on a worker and prints their directory;
-# ./scripts/buck copies them into place when their inputs change.
+# ./scripts/buck copies them into place when their inputs change. Beside them
+# is the Cargo.lock they were generated from.
 #
 # The action's inputs are the manifests, Cargo.lock, reindeer.toml, the fixups
 # and buck-tools' sources, plus empty files at the paths cargo discovers targets at
@@ -92,6 +93,12 @@ for manifest in $(find crates -name Cargo.toml); do
 done
 export CARGO_HOME="$scratch/cargo-home"
 
+# Cargo.lock as the cargo a developer runs would leave it: brought up to date
+# with the manifests, changing nothing it does not have to. Everything below
+# reads it, and //:verify's lint writes it back to the checkout.
+PATH="$toolchain/bin:$PATH" "$toolchain/bin/cargo" metadata --format-version 1 --quiet > /dev/null
+cp Cargo.lock "$out/Cargo.lock"
+
 PATH="$toolchain/bin:$PATH" "$reindeer"     --cargo-path "$toolchain/bin/cargo" --rustc-path "$toolchain/bin/rustc"     buckify --stdout > "$scratch/BUCK"
 
 # Every crate archive's size beside its hash, so that buck2 knows each digest
@@ -124,12 +131,12 @@ plan() {
     RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" "$@" --unit-graph -Z unstable-options --locked
 }
 "$nightly/bin/cargo" metadata --no-deps --format-version 1 --locked > "$scratch/metadata.json"
-plan test --workspace $excluded --exclude block-editor-plugin --exclude block-gpu-shim \
+plan test --workspace $excluded --exclude block-editor-plugin --exclude block-editor-beui --exclude block-gpu-shim \
     --exclude test-third-party --features block-app/full > "$scratch/host.json"
 plan build --target wasm32-wasip1-threads -p block-app --lib --features block-app/full > "$scratch/wasi.json"
-plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin > "$scratch/wasi-guest.json"
+plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin -p block-editor-beui > "$scratch/wasi-guest.json"
 plan build --target wasm32-unknown-unknown $games -p block-gpu-shim > "$scratch/wasm32.json"
-host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-gpu-shim --exclude test-third-party"
+host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-editor-beui --exclude block-gpu-shim --exclude test-third-party"
 plan test --target aarch64-linux-android $host_packages --features block-app/full > "$scratch/android-arm64.json"
 plan test --target aarch64-unknown-linux-gnu $host_packages --features block-app/full > "$scratch/linux-arm64.json"
 plan test --target aarch64-apple-darwin $host_packages --features block-app/full > "$scratch/macos-arm64.json"

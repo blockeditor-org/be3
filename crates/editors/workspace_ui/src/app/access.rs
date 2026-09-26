@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
-use block_editor_plugin::AccessLevel;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::icons::{ICON_DATA_OBJECT, ICON_EDIT, ICON_LOCK, ICON_VISIBILITY};
-use block_editor_plugin::beui::reactive::{ReadSignal, clone, component, create_memo, view};
-use block_editor_plugin::beui::styled::MenuButton;
-use block_editor_plugin::beui::unstyled::MenuItem;
+use block_editor_beui::AccessLevel;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{ICON_DATA_OBJECT, ICON_EDIT, ICON_LOCK, ICON_VISIBILITY};
+use block_editor_beui::beui::reactive::{ReadSignal, clone, component, create_memo, view};
+use block_editor_beui::beui::styled::MenuButton;
+use block_editor_beui::beui::unstyled::MenuItem;
 
 use super::panel::Info;
 use super::workspace::Workspace;

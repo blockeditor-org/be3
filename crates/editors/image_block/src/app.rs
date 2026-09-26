@@ -1,7 +1,7 @@
-use block_editor_plugin::be_block::ImageContent;
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::reactive::view;
-use block_editor_plugin::{Creation, Editor, FileFilter, PickedFile, content_file_creation};
+use block_editor_beui::be_block::ImageContent;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::reactive::view;
+use block_editor_beui::{Creation, Editor, FileFilter, PickedFile, content_file_creation};
 
 mod picture;
 mod ui;
@@ -10,7 +10,7 @@ use ui::{ImageEditor, ImagePreview};
 
 pub struct ImageApp;
 
-impl block_editor_plugin::BeuiApp for ImageApp {
+impl block_editor_beui::BeuiApp for ImageApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <ImageEditor editor={editor} />

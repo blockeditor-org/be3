@@ -1,12 +1,12 @@
-use block_editor_plugin::be_block::CanvasContent;
+use block_editor_beui::be_block::CanvasContent;
 use std::rc::Rc;
 
-use block_editor_plugin::beui::NodeId;
-use block_editor_plugin::beui::Vec2;
-use block_editor_plugin::beui::reactive::{
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::Vec2;
+use block_editor_beui::beui::reactive::{
     Direction, ItemSize, List, NodeRef, component, create_effect, view,
 };
-use block_editor_plugin::{Creation, Editor};
+use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
 pub(crate) mod canvas;
@@ -28,7 +28,7 @@ use crate::geometry::{MIN_SIZE, preview_region_for_entities};
 
 pub struct CanvasApp;
 
-impl block_editor_plugin::BeuiApp for CanvasApp {
+impl block_editor_beui::BeuiApp for CanvasApp {
     fn view(editor: Editor) -> NodeId {
         view! {
             <CanvasEditor editor={editor} />
@@ -49,8 +49,7 @@ impl block_editor_plugin::BeuiApp for CanvasApp {
 #[component]
 fn CanvasEditor(editor: Editor) -> NodeId {
     let state = CanvasState::new(&editor, false);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
+    state.watch();
 
     let replacing = Rc::clone(&state);
     editor.on_replace_child(move |old, new| replacing.replace_referenced_block(old, new));
@@ -76,8 +75,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
 #[component]
 fn CanvasPreview(editor: Editor) -> NodeId {
     let state = CanvasState::new(&editor, true);
-    let polled = Rc::clone(&state);
-    editor.each_frame(move || polled.poll());
+    state.watch();
     report_intrinsic_size(&editor, &state);
     view! {
         <CanvasStage state={state} />
