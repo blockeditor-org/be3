@@ -36,7 +36,10 @@ fn a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked()
     harness.frame(Vec::new());
     assert!(open(&harness));
 
-    let elsewhere = pos2(harness.rect(button).left() + 10.0, harness.rect(button).center().y);
+    let elsewhere = pos2(
+        harness.rect(button).left() + 10.0,
+        harness.rect(button).center().y,
+    );
     let hovered = harness.frame(vec![Event::PointerMoved(elsewhere)]);
     assert_eq!(
         hovered.cursor_icon,

@@ -239,7 +239,6 @@ mod jumping_up_a_virtual_scroll_only_builds_the_items_in_view;
 mod keys_without_alt_reach_the_control_the_screen_reader_focused;
 mod moving_a_dock_tab_to_another_pane_keeps_its_panel;
 mod on_a_narrow_screen_picking_a_date_moves_on_to_the_time;
-||||||| 0754129f
 mod opening_a_menu_button_damages_only_the_button_and_its_menu;
 mod opening_a_menu_damages_only_where_it_appears;
 mod opening_a_select_focuses_its_search_box_and_highlights_the_selected_option;

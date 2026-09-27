@@ -9,23 +9,22 @@ use crate::icons::{ICON_CALENDAR_MONTH, ICON_SCHEDULE};
 use crate::input::{CursorIcon, PointerPress};
 use crate::node::NodeId;
 use crate::reactive::{
-    Child, Dynamic,
-    Callback, Children, ClickCallback, ClickCatcher, Frame, ItemSize, List, ListChild, Memo,
-    NodeRef, Prop, ReadSignal, Show, Spacer, Text, WriteSignal, clone, component_rect,
-    create_effect, create_memo, create_signal, create_timer, focus_ring,
+    Callback, Child, Children, ClickCallback, ClickCatcher, Dynamic, Frame, ItemSize, List,
+    ListChild, Memo, NodeRef, Prop, ReadSignal, Show, Spacer, Text, WriteSignal, clone,
+    component_rect, create_effect, create_memo, create_signal, create_timer, focus_ring,
 };
 use crate::styled::button::{Button, ButtonVariant};
 use crate::styled::calendar::{CALENDAR_WIDTH, Calendar};
-use crate::styled::tabs::Tabs;
 use crate::styled::popover::{PANEL_PADDING, PopoverPanel};
 use crate::styled::scroll::scrollbar_style;
+use crate::styled::tabs::Tabs;
 use crate::styled::text::IconSized;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, ThemeStore, use_theme};
 use crate::styled::tooltip::Tooltip;
 use crate::unstyled;
 use crate::unstyled::{
-    ChoiceOption, DateDraft, DateSegment, DateSegmentHandle, DateTimeParts, PopoverHandle, PopoverPlacement,
-    PopoverTriggerHandle, TimeOptionHandle, narrower_than,
+    ChoiceOption, DateDraft, DateSegment, DateSegmentHandle, DateTimeParts, PopoverHandle,
+    PopoverPlacement, PopoverTriggerHandle, TimeOptionHandle, narrower_than,
 };
 
 const HEIGHT: f32 = 34.0;
@@ -451,15 +450,17 @@ fn PickerPanel(
     let list_focused = create_memo(clone!(open from_field tab -> move || {
         open.get() && !from_field.get() && (!parts.has_date() || tab.get() == 1)
     }));
-    let pick_date = Callback::new(clone!(current report close layout set_tab -> move |date: Date| {
-        let time = current.get_untracked().map_or(Time::MIDNIGHT, |value| value.time);
-        report.call(Some(DateTime::new(date, time)));
-        match layout.get_untracked() {
-            PanelLayout::Date => close.call(()),
-            PanelLayout::Paged => set_tab.set(1),
-            PanelLayout::Beside | PanelLayout::Time => {}
-        }
-    }));
+    let pick_date = Callback::new(
+        clone!(current report close layout set_tab -> move |date: Date| {
+            let time = current.get_untracked().map_or(Time::MIDNIGHT, |value| value.time);
+            report.call(Some(DateTime::new(date, time)));
+            match layout.get_untracked() {
+                PanelLayout::Date => close.call(()),
+                PanelLayout::Paged => set_tab.set(1),
+                PanelLayout::Beside | PanelLayout::Time => {}
+            }
+        }),
+    );
     let pick_time = Callback::new(clone!(current report close -> move |time: Time| {
         let date = current.get_untracked().map_or_else(Date::today, |value| value.date);
         report.call(Some(DateTime::new(date, time)));
@@ -703,7 +704,9 @@ fn TimePane(pieces: Pieces, columns: usize, height: f32) -> NodeId {
 
 fn grid_columns(step_minutes: u32) -> usize {
     match step_minutes {
-        step if step > 0 && step < 60 && 60 % step == 0 => (60 / step).min(MAX_GRID_COLUMNS) as usize,
+        step if step > 0 && step < 60 && 60 % step == 0 => {
+            (60 / step).min(MAX_GRID_COLUMNS) as usize
+        }
         _ => 1,
     }
 }

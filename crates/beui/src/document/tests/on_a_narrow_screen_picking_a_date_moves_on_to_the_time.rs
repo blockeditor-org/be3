@@ -41,13 +41,22 @@ fn on_a_narrow_screen_picking_a_date_moves_on_to_the_time() {
     let rect = harness.rect(field.get());
     harness.click(pos2(rect.left() + 20.0, rect.top() + 3.0));
     harness.frame(Vec::new());
-    assert!(find(&harness, Role::Tab, "Date").is_some(), "a narrow picker shows tabs");
-    assert!(find(&harness, Role::ListBox, "Time").is_none(), "and starts on the date");
+    assert!(
+        find(&harness, Role::Tab, "Date").is_some(),
+        "a narrow picker shows tabs"
+    );
+    assert!(
+        find(&harness, Role::ListBox, "Time").is_none(),
+        "and starts on the date"
+    );
 
     let day = find(&harness, Role::GridCell, "Monday, 28 September 2026").expect("the day");
     harness.click(harness.center(day));
     harness.frame(Vec::new());
-    assert!(find(&harness, Role::ListBox, "Time").is_some(), "picking a day shows the times");
+    assert!(
+        find(&harness, Role::ListBox, "Time").is_some(),
+        "picking a day shows the times"
+    );
 
     let ten = find(&harness, Role::ListBoxOption, "10:00").expect("ten o'clock");
     harness.click(harness.center(ten));
@@ -55,6 +64,9 @@ fn on_a_narrow_screen_picking_a_date_moves_on_to_the_time() {
 
     assert_eq!(
         reported.borrow().last(),
-        Some(&Some(DateTime::new(Date::new(2026, 9, 28), Time::new(10, 0))))
+        Some(&Some(DateTime::new(
+            Date::new(2026, 9, 28),
+            Time::new(10, 0)
+        )))
     );
 }
