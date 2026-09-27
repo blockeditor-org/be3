@@ -5,7 +5,7 @@ use crate::color::Color32;
 
 use crate::input::{Key, KeyPress, PointerPress};
 use crate::node::NodeId;
-use crate::reactive::{Child, ClickCallback, Frame, Prop, clone, create_memo};
+use crate::reactive::{Child, ClickCallback, Frame, Prop, clone, create_memo, focus_ring};
 use crate::styled::theme::{RADIUS, ThemeStore, use_theme};
 use crate::unstyled::{Button, ButtonHandle};
 
@@ -68,7 +68,7 @@ fn ListRowFace(handle: ButtonHandle, selected: Prop<bool>, children: Child) -> N
             outline={theme.accent.clone()}
             outline_width=2.0
             radius=RADIUS
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=PADDING_VERTICAL
         >

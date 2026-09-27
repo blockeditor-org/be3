@@ -16,7 +16,7 @@ use crate::node::NodeId;
 use crate::reactive::{
     Align, Callback, ClickCatcher, Direction, Frame, Func, ItemSize, List, Memo, NodeRef, Prop,
     ReadSignal, RenderFn, Show, Spacer, clone, create_effect, create_memo, create_selector,
-    create_signal, node_placed, node_rect, set_component_state, with_document,
+    create_signal, focus_ring, node_placed, node_rect, set_component_state, with_document,
 };
 use crate::styled::button::{Button, ButtonVariant};
 use crate::styled::scroll::Scroll;
@@ -307,8 +307,9 @@ where
     let outline_color = create_memo(clone!(theme highlight -> move || {
         highlight.get().unwrap_or_else(|| theme.accent.get())
     }));
-    let outlined = create_memo(clone!(highlight focused -> move || {
-        highlight.get().is_some() || focused.get()
+    let ring = focus_ring(focused.clone());
+    let outlined = create_memo(clone!(highlight -> move || {
+        highlight.get().is_some() || ring.get()
     }));
     let face = TreeRowFace {
         key,
@@ -407,7 +408,8 @@ fn ChevronFace(
             (false, false, false) => Color32::TRANSPARENT,
         }
     }));
-    let outlined = create_memo(clone!(marked focused -> move || marked.get() || focused.get()));
+    let ring = focus_ring(focused);
+    let outlined = create_memo(clone!(marked -> move || marked.get() || ring.get()));
     let color = create_memo(clone!(theme marked hovered -> move || {
         match marked.get() || hovered.get() {
             true => theme.text.get(),

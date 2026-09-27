@@ -209,6 +209,9 @@ pub(crate) fn interact(
     }
     doc.put_back_interact_pool(pool);
 
+    if pointer && (input.pressed_this_frame || input.touch_started) {
+        doc.set_focus_visible(false);
+    }
     if doc.pointer_capture.is_none()
         && ((input.pressed_this_frame && !input.touch_started)
             || (input.touch_ended && !input.touch_dragged && !input.touch_cancelled))
@@ -281,6 +284,9 @@ pub(crate) fn interact(
             repeat,
             modifiers,
         };
+        if pressed && !modifiers.ctrl && !modifiers.alt {
+            doc.set_focus_visible(true);
+        }
         if doc.overlay_stack.is_empty() && doc.key_shortcut(press) {
             doc.reveal_focus(painter);
             continue;
