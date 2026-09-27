@@ -21,7 +21,7 @@ fn dragging_a_curved_slider_reads_its_midpoint_at_the_centre() {
     for slider in [curved, linear] {
         let track = harness.rect(slider);
         let middle = track.center();
-        harness.drag(pos2(track.left() + 1.0, middle.y), middle);
+        harness.drag(pos2(track.left() + 8.0, middle.y), middle);
         harness.frame(Vec::new());
     }
 

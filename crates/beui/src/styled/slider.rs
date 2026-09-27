@@ -45,6 +45,7 @@ pub fn Slider(
             min
             max
             scale
+            thumb=KNOB_SIZE
             disabled
             accessibility
             on_change={move |value| on_change.call(value)}

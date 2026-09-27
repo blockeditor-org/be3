@@ -1,8 +1,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use block_editor_beui::be_block::{CalendarEvent, Item, ObjectId};
+use block_editor_beui::beui::datetime::DateTime;
 pub(crate) use block_ui::datetime::SECONDS_PER_DAY;
-use block_ui::datetime::{DateTimeFields, MONTH_NAMES, civil_from_days, days_from_civil};
+use block_ui::datetime::{MONTH_NAMES, civil_from_days, days_from_civil};
 
 pub(crate) const WEEKDAY_ABBR: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 pub(crate) const WEEKDAY_FULL: [&str; 7] = [
@@ -119,8 +120,8 @@ pub(crate) enum FormAction {
 pub(crate) struct EventForm {
     pub(crate) editing_id: Option<ObjectId>,
     pub(crate) title: String,
-    pub(crate) start: DateTimeFields,
-    pub(crate) end: DateTimeFields,
+    pub(crate) start: DateTime,
+    pub(crate) end: DateTime,
 }
 
 impl EventForm {
@@ -129,8 +130,8 @@ impl EventForm {
         Self {
             editing_id: None,
             title: String::new(),
-            start: DateTimeFields::from_unix(start),
-            end: DateTimeFields::from_unix(start + 3600),
+            start: DateTime::from_unix(start),
+            end: DateTime::from_unix(start + 3600),
         }
     }
 
@@ -138,9 +139,15 @@ impl EventForm {
         Self {
             editing_id: Some(event.id),
             title: event.title.clone(),
-            start: DateTimeFields::from_unix(event.start),
-            end: DateTimeFields::from_unix(event.end),
+            start: DateTime::from_unix(event.start),
+            end: DateTime::from_unix(event.end),
         }
+    }
+
+    pub(crate) fn move_start(&mut self, start: DateTime) {
+        let length = self.end.to_unix() - self.start.to_unix();
+        self.start = start;
+        self.end = DateTime::from_unix(start.to_unix() + length.max(0));
     }
 
     pub(crate) fn event(&self) -> CalendarEvent {

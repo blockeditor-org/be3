@@ -14,7 +14,7 @@ fn holding_the_simulated_left_button_drags_while_another_finger_moves_the_cursor
     harness.enable_mouse_simulation();
 
     let track = harness.rect(slider);
-    harness.point_at(pos2(track.left() + 1.0, track.center().y));
+    harness.point_at(pos2(track.left() + 8.0, track.center().y));
 
     let left = harness.simulated_button(0);
     harness.finger(1, TouchPhase::Start, left);

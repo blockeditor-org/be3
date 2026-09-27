@@ -7,7 +7,7 @@ use beui::reactive::{
 };
 use beui::styled::theme::FONT_BODY;
 use beui::styled::{
-    Button, ButtonVariant, Caption, Code, Icon, IconButton, MenuButton, Scroll, Spinner, Tabs,
+    Button, ButtonVariant, Caption, Code, Icon, IconButton, Scroll, Spinner, SplitButton, Tabs,
     TextInput, use_theme,
 };
 use beui::unstyled::{ChoiceOption, MenuItem};
@@ -296,37 +296,29 @@ pub(crate) fn Actions(
         _ => model.show_tab(Tab::Targets),
     });
     let busy_run = busy.clone();
-    let busy_pick = busy.clone();
     let run_label = create_memo(clone!(model -> move || {
         let common = COMMON.get(model.common.get()).unwrap_or(&COMMON[0]);
         format!("Check out and run {}", common.title)
     }));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=1.0>
-                <Button
-                    label={run_label}
-                    glyph=ICON_PLAY_ARROW
-                    variant=ButtonVariant::Primary
-                    disabled={busy_run}
-                    on_click={check_out_and_run}
-                />
-                <MenuButton
-                    label="Pick what to run"
-                    variant=ButtonVariant::Primary
-                    icon_only=true
-                    disabled={busy_pick}
-                    items={view! {
-                        <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
-                            {|index: usize| view! {
-                                <MenuItem label={format!("Run {}", COMMON[index].title)} />
-                            }}
-                        </ForEach>
-                        <MenuItem label="All targets" />
-                    }}
-                    on_select={pick}
-                />
-            </List>
+            <SplitButton
+                label={run_label}
+                glyph=ICON_PLAY_ARROW
+                variant=ButtonVariant::Primary
+                menu_label="Pick what to run"
+                disabled={busy_run}
+                items={view! {
+                    <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
+                        {|index: usize| view! {
+                            <MenuItem label={format!("Run {}", COMMON[index].title)} />
+                        }}
+                    </ForEach>
+                    <MenuItem label="All targets" />
+                }}
+                on_click={check_out_and_run}
+                on_select={pick}
+            />
             <Button
                 label="Check out"
                 glyph=ICON_DOWNLOAD
@@ -374,7 +366,6 @@ pub(crate) fn Notes(
 #[component]
 pub(crate) fn MainActions(model: Model) -> NodeId {
     let busy = model.running.clone();
-    let busy_pick = busy.clone();
     let run = clone!(model -> move || model.switch(MAIN, Some(model.common.get_untracked())));
     let pick = clone!(model -> move |path: Vec<usize>| match path.as_slice() {
         [index] if *index < COMMON.len() => model.switch(MAIN, Some(*index)),
@@ -385,29 +376,22 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
         format!("Run {} on main", common.title)
     }));
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=1.0>
-            <Button
-                label={run_label}
-                glyph=ICON_PLAY_ARROW
-                variant=ButtonVariant::Secondary
-                disabled={busy}
-                on_click={run}
-            />
-            <MenuButton
-                label="Pick what to run on main"
-                variant=ButtonVariant::Secondary
-                icon_only=true
-                disabled={busy_pick}
-                items={view! {
-                    <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
-                        {|index: usize| view! {
-                            <MenuItem label={format!("Run {}", COMMON[index].title)} />
-                        }}
-                    </ForEach>
-                    <MenuItem label="Check out main" />
-                }}
-                on_select={pick}
-            />
-        </List>
+        <SplitButton
+            label={run_label}
+            glyph=ICON_PLAY_ARROW
+            variant=ButtonVariant::Secondary
+            menu_label="Pick what to run on main"
+            disabled={busy}
+            items={view! {
+                <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
+                    {|index: usize| view! {
+                        <MenuItem label={format!("Run {}", COMMON[index].title)} />
+                    }}
+                </ForEach>
+                <MenuItem label="Check out main" />
+            }}
+            on_click={run}
+            on_select={pick}
+        />
     }
 }

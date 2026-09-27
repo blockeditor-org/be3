@@ -18,6 +18,7 @@ fn a_color_input_reports_the_hex_it_was_typed() {
     harness.frame(Vec::new());
 
     harness.key(Key::Tab, Modifiers::NONE);
+    harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Backspace, Modifiers::NONE);
     harness.frame(Vec::new());
 

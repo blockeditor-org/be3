@@ -31,6 +31,7 @@ const MINIMUM_WIDTH: f32 = 200.0;
 const GRIP_WIDTH: f32 = 4.0;
 const GRIP_PAINT_WIDTH: f32 = 2.0;
 const MINIMUM_APP_WIDTH: f32 = 480.0;
+const NARROWEST_APP_WIDTH: f32 = 200.0;
 const BAR_HEIGHT: f32 = 44.0;
 const HANDLE_REACH: f32 = crate::screen_simulation::MARGIN;
 const HANDLE_THICKNESS: f32 = 4.0;
@@ -453,8 +454,7 @@ impl Inspector {
     pub(crate) fn panel_width(&self, ctx: &Context, rect: Rect) -> f32 {
         let scale = scale(ctx);
         (self.width * scale)
-            .min(rect.width() / 2.0)
-            .min(rect.width() - MINIMUM_APP_WIDTH * scale)
+            .min(rect.width() - NARROWEST_APP_WIDTH * scale)
             .max(0.0)
     }
 
@@ -557,9 +557,7 @@ impl Inspector {
             self.grabbed = Some(pointer.x - edge);
         }
         if let Some(grabbed) = self.grabbed {
-            let maximum = (rect.width() / scale / 2.0)
-                .min(rect.width() / scale - MINIMUM_APP_WIDTH)
-                .max(MINIMUM_WIDTH);
+            let maximum = (rect.width() / scale - NARROWEST_APP_WIDTH).max(MINIMUM_WIDTH);
             self.width =
                 ((rect.right() - pointer.x + grabbed) / scale).clamp(MINIMUM_WIDTH, maximum);
         }

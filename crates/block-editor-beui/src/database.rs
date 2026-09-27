@@ -4,14 +4,15 @@ use be_block::database::{DatabaseColor, DatabaseValue};
 use be_block::database_schema::{
     DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
 };
+use beui::datetime::DateTime;
 use beui::icons::ICON_CLEAR;
 use beui::reactive::{
     Align, Callback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer,
     clone, component, create_memo, view,
 };
 use beui::styled::{
-    Body, Button, ButtonVariant, Caption, Checkbox, ColorInput, IconButton, NumberDrag,
-    NumberInput, Select, TextInput,
+    Body, Button, ButtonVariant, Caption, Checkbox, ColorInput, DateTimeField, IconButton,
+    NumberDrag, NumberInput, Select, TextInput,
 };
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId};
@@ -19,10 +20,7 @@ use block_ui::BlockLabel;
 use block_ui::database::{
     DatabaseBlockPickRequest, DatabaseValueChange, block_reference_text, field_type_label,
 };
-use block_ui::datetime::DateTimeFields;
 use uuid::Uuid;
-
-use crate::DateTimeRow;
 
 const SPACING: f32 = 6.0;
 const FIELD_SPACING: f32 = 12.0;
@@ -447,44 +445,26 @@ fn DatetimeValue(
     id: String,
     on_change: Callback<DatabaseValueChange>,
 ) -> NodeId {
-    let seconds = create_memo(clone!(value -> move || match value.get() {
-        Some(DatabaseValue::Datetime(seconds)) => Some(seconds),
+    let moment = create_memo(clone!(value -> move || match value.get() {
+        Some(DatabaseValue::Datetime(seconds)) => Some(DateTime::from_unix(seconds)),
         _ => None,
     }));
-    let unset = create_memo(clone!(seconds -> move || seconds.get().is_none()));
-    let known = create_memo(clone!(seconds -> move || seconds.get().is_some()));
-    let parts = create_memo(clone!(seconds -> move || {
-        DateTimeFields::from_unix(seconds.get().unwrap_or_default())
+    let label = create_memo(clone!(field -> move || {
+        field.with(|field| field.as_ref().map(|field| field.name.clone()).unwrap_or_default())
     }));
-    let edited = changer(
-        field.clone(),
-        on_change.clone(),
-        true,
-        |parts: DateTimeFields| Some(DatabaseValue::Datetime(parts.to_unix())),
-    );
-    let now = changer(field, on_change, false, |(): ()| {
-        Some(DatabaseValue::Datetime(current_utc_minute()))
-    });
-    let set = move || now(());
-    let set_disabled = disabled.clone();
+    let edited = move |next: Option<DateTime>| {
+        let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id))
+        else {
+            return;
+        };
+        on_change.call(DatabaseValueChange {
+            field_id,
+            value: next.map(|next| DatabaseValue::Datetime(next.to_unix())),
+            continuous: true,
+        });
+    };
     view! {
-        <List spacing=SPACING>
-            <Show condition={unset}>
-                <List direction=Direction::Horizontal spacing=0.0>
-                    <Button
-                        label="Set"
-                        variant=ButtonVariant::Secondary
-                        disabled={set_disabled}
-                        @test_id={format!("{id}.set")}
-                        on_click={set}
-                    />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </List>
-            </Show>
-            <Show condition={known}>
-                <DateTimeRow value={parts} disabled={disabled} on_change={edited} />
-            </Show>
-        </List>
+        <DateTimeField value={moment} label disabled @test_id={id} on_change={edited} />
     }
 }
 
@@ -542,13 +522,6 @@ pub fn DatabaseValueSummary(text: Prop<String>, aligned: Prop<bool>) -> NodeId {
 
 pub fn color_of(color: DatabaseColor) -> Color32 {
     Color32::from_rgba_unmultiplied(color.red, color.green, color.blue, color.alpha)
-}
-
-pub fn current_utc_minute() -> i64 {
-    let seconds = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_secs() as i64);
-    seconds - seconds.rem_euclid(60)
 }
 
 fn number_drag(options: DatabaseNumberOptions) -> NumberDrag {

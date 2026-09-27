@@ -85,6 +85,11 @@ pub(crate) fn interact(
         swallows_escape,
     } = autoscroll::track(doc, ctx, rects, root, input);
 
+    if (input.pressed_this_frame || input.touch_started || input.secondary_pressed_this_frame)
+        && let Some(pos) = input.pointer_pos
+    {
+        doc.dismiss_light_overlays(pos);
+    }
     if input.touch_started {
         doc.touch_scroll_vertical = target(doc, rects, root, input.pointer_pos, &|element| {
             catches_drag(element, Direction::Vertical)
@@ -175,6 +180,20 @@ pub(crate) fn interact(
             &mut pool,
         );
     } else {
+        if input
+            .pointer_pos
+            .is_some_and(|pos| doc.pointer_passes_under_overlays(pos))
+        {
+            interact_node(
+                doc,
+                painter,
+                &under,
+                rects,
+                root,
+                &mut focus_target,
+                &mut pool,
+            );
+        }
         for overlay in doc.overlay_stack.clone() {
             interact_node(
                 doc,
