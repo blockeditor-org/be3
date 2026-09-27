@@ -230,9 +230,15 @@ impl PaintCache {
             own: recorded.own,
             bounds: recorded.bounds,
         };
-        match self.entries.remove(&id) {
+        let old = self.entries.remove(&id);
+        let redrawn = old
+            .as_ref()
+            .and_then(|old| redrawn_damage(&old.items, &painted.items));
+        match old {
             None => self.damage.add(painted.bounds),
-            Some(old) if old.items == painted.items => {}
+            Some(_) if redrawn.is_some() => {
+                self.damage = self.damage.union(redrawn.unwrap_or_default());
+            }
             Some(old) if children(&old.items).eq(children(&painted.items)) => {
                 self.damage.add(old.own);
                 self.damage.add(painted.own);
@@ -261,6 +267,51 @@ fn kept(roots: &[(NodeId, Rect)], others: &[(NodeId, Rect)]) -> Vec<(NodeId, Rec
         .filter(|(id, _)| contains(others, *id))
         .copied()
         .collect()
+}
+
+fn redrawn_damage(old: &[Item], new: &[Item]) -> Option<Region> {
+    if old.len() != new.len() {
+        return None;
+    }
+    let mut region = Region::NOTHING;
+    for pair in old.iter().zip(new) {
+        match pair {
+            (old, new) if old == new => {}
+            (Item::Main(old), Item::Main(new)) | (Item::Top(old), Item::Top(new)) => {
+                region = region.union(redrawn_in_place(old, new)?);
+            }
+            _ => return None,
+        }
+    }
+    Some(region)
+}
+
+pub(crate) fn redrawn_in_place(old: &Shape, new: &Shape) -> Option<Region> {
+    let (
+        Shape::Drawing {
+            rect,
+            clip,
+            drawing,
+        },
+        Shape::Drawing {
+            rect: new_rect,
+            clip: new_clip,
+            drawing: new_drawing,
+        },
+    ) = (old, new)
+    else {
+        return None;
+    };
+    if rect != new_rect || clip != new_clip {
+        return None;
+    }
+    let damage = new_drawing.damage_since(drawing)?;
+    let visible = rect.intersect(*clip);
+    let mut region = Region::NOTHING;
+    for damaged in damage.rects() {
+        region.add(damaged.translate(rect.min.to_vec2()).intersect(visible));
+    }
+    Some(region)
 }
 
 fn children(items: &[Item]) -> impl Iterator<Item = NodeId> + '_ {

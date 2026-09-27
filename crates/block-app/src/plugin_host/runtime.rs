@@ -1,11 +1,16 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc, time::Duration};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, VecDeque},
+    rc::Rc,
+    time::Duration,
+};
 
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockCommand, BlockPick, DEFAULT_SURFACE_SIDE, EditorInstanceId,
     EditorMessage, EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest,
-    ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat, SurfaceSpec, Theme,
-    ViewChange,
+    PresentedFrame, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat,
+    SurfaceRect, SurfaceSpec, Theme, ViewChange,
 };
 use uuid::Uuid;
 
@@ -26,6 +31,7 @@ const CROWDED: &str = "Too many plugin runtimes are already presenting.";
 const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 const FRAME_TIMEOUT_SECONDS: f64 = 1.0;
+const REMEMBERED_PRESENTS: usize = 16;
 const SURFACE: SurfaceSpec = SurfaceSpec {
     format: SurfaceFormat::Rgba8Unorm,
     max_side: DEFAULT_SURFACE_SIDE,
@@ -119,6 +125,37 @@ pub(super) struct Runtime {
     paint_at: Option<f64>,
     requested_at: Option<f64>,
     theme: Theme,
+    presents: Presents,
+}
+
+#[derive(Default)]
+struct Presents {
+    reported: VecDeque<PresentedFrame>,
+    shown: u64,
+}
+
+impl Presents {
+    fn report(&mut self, presented: PresentedFrame) {
+        if self.reported.len() == REMEMBERED_PRESENTS {
+            self.reported.pop_front();
+        }
+        self.reported.push_back(presented);
+    }
+
+    fn damage_through(&mut self, presents: u64) -> Option<Vec<SurfaceRect>> {
+        let since = std::mem::replace(&mut self.shown, presents);
+        let mut damage = Vec::new();
+        let mut found = 0;
+        for presented in &self.reported {
+            if presented.sequence > since && presented.sequence <= presents {
+                damage.extend_from_slice(&presented.damage);
+                found += 1;
+            }
+        }
+        self.reported
+            .retain(|presented| presented.sequence > presents);
+        (presents > since && found == presents - since).then_some(damage)
+    }
 }
 
 impl Runtime {
@@ -148,6 +185,7 @@ impl Runtime {
             paint_at: None,
             requested_at: None,
             theme: theme(),
+            presents: Presents::default(),
         }
     }
 
@@ -171,6 +209,7 @@ impl Runtime {
         self.paint_at = None;
         self.requested_at = None;
         self.theme = theme();
+        self.presents = Presents::default();
         self.instances.reopen();
         self.backend.start(&plugin);
     }
@@ -276,7 +315,8 @@ impl Runtime {
             }
         }
         self.apply(forwarded);
-        if let Some(frame) = self.backend.received_frame() {
+        if let Some(mut frame) = self.backend.received_frame() {
+            frame.damage = self.presents.damage_through(frame.presents);
             self.shared.borrow_mut().publish(&self.layout, Some(frame));
         }
     }
@@ -301,6 +341,9 @@ impl Runtime {
                 }
                 Message::FrameReady(frame) => {
                     self.await_next_frame(frame.repaint_after_micros);
+                    if let Some(presented) = frame.presented {
+                        self.presents.report(presented);
+                    }
                     false
                 }
                 Message::RegionSizes(sizes) => self.instances.set_region_sizes(sizes),

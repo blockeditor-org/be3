@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-#[cfg(target_arch = "wasm32")]
-use block_plugin_api::ScreenPlacement;
 use block_plugin_api::{CursorIcon, EditorRegion, FrameChrome, FrameSpec, InputEvent};
+#[cfg(target_arch = "wasm32")]
+use block_plugin_api::{ScreenPlacement, SurfaceRect};
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
 
@@ -54,7 +54,7 @@ pub trait Instance: std::any::Any {
     fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame;
 
     #[cfg(target_arch = "wasm32")]
-    fn paint(&mut self, target: &PaintTarget<'_>);
+    fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -102,6 +102,16 @@ pub struct PaintTarget<'a> {
 
 #[cfg(target_arch = "wasm32")]
 impl PaintTarget<'_> {
+    pub fn whole(&self) -> Vec<SurfaceRect> {
+        let (x, y, width, height) = self.scissor();
+        vec![SurfaceRect {
+            x,
+            y,
+            width,
+            height,
+        }]
+    }
+
     pub fn scissor(&self) -> (u32, u32, u32, u32) {
         let placement = self.placement;
         let x = placement.x.min(self.width);

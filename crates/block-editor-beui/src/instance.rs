@@ -10,7 +10,7 @@ use block_editor_plugin::{
     Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Ime, Instance, Region,
 };
 #[cfg(target_arch = "wasm32")]
-use block_editor_plugin::{PaintTarget, wgpu};
+use block_editor_plugin::{PaintTarget, SurfaceRect, wgpu};
 use block_plugin_api::{CursorIcon, ImeInput, InputEvent, PointerButton, WheelUnit};
 use uuid::Uuid;
 
@@ -482,13 +482,13 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn paint(&mut self, target: &PaintTarget<'_>) {
+    fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
         let Some(state) = self.regions.get_mut(&target.placement.region) else {
-            return;
+            return Vec::new();
         };
         let damage = state.take_repaint(target.age);
         let (Some(output), Some(damage)) = (state.output.as_ref(), damage) else {
-            return;
+            return Vec::new();
         };
         let repaint = match (target.age, damage) {
             (0, _) => beui::Repaint::Everything,
@@ -504,7 +504,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         if let beui::Repaint::Region { region, .. } = repaint
             && region.is_empty()
         {
-            return;
+            return Vec::new();
         }
         let renderer = self
             .renderers
@@ -548,6 +548,18 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             wgpu::LoadOp::Load,
         );
         target.queue.submit([encoder.finish()]);
+        match renderer.scissors() {
+            Some(scissors) => scissors
+                .iter()
+                .map(|[x, y, width, height]| SurfaceRect {
+                    x: *x,
+                    y: *y,
+                    width: *width,
+                    height: *height,
+                })
+                .collect(),
+            None => target.whole(),
+        }
     }
 
     fn input(&mut self, region: &Region, event: &InputEvent) {

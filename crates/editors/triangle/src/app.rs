@@ -1,7 +1,7 @@
 use block_editor_plugin::be_block::TriangleContent;
 use block_editor_plugin::wgpu;
 use block_editor_plugin::{
-    BlockParent, EditorHost, Frame, InputEvent, Instance, PaintTarget, Plugin, Region,
+    BlockParent, EditorHost, Frame, InputEvent, Instance, PaintTarget, Plugin, Region, SurfaceRect,
 };
 use uuid::Uuid;
 
@@ -49,11 +49,11 @@ impl Instance for Triangle {
         }
     }
 
-    fn paint(&mut self, target: &PaintTarget<'_>) {
+    fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
         let (x, y, width, height) = target.scissor();
         let side = width.min(height);
         if side == 0 {
-            return;
+            return Vec::new();
         }
         let pipeline = match &self.pipeline {
             Some((format, pipeline)) if *format == target.format => pipeline,
@@ -96,6 +96,7 @@ impl Instance for Triangle {
         }
         target.queue.submit([encoder.finish()]);
         self.painted = true;
+        target.whole()
     }
 }
 

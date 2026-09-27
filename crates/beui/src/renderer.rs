@@ -778,6 +778,10 @@ impl Renderer {
         }
     }
 
+    pub fn scissors(&self) -> Option<&[[u32; 4]]> {
+        self.scissors.as_deref()
+    }
+
     pub fn paint(&self, pass: &mut wgpu::RenderPass<'_>) {
         let Some(scissors) = &self.scissors else {
             self.draw(pass, &self.runs, None);

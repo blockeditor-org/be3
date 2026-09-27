@@ -23,9 +23,9 @@ pub use block_plugin_api::{
     ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, ConflictSide, CursorIcon,
     DataListing, EditorBand, EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult,
     FrameChrome, FrameSpec, HostReply, HostRequest, InputEvent, InteractionMode, Key, Modifiers,
-    Occluder, PointerButton, ResizeMode, ScreenPlacement, TouchPhase, VersionBranch, VersionChange,
-    VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand,
-    WebViewEvent, WheelUnit,
+    Occluder, PointerButton, ResizeMode, ScreenPlacement, SurfaceRect, TouchPhase, VersionBranch,
+    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange,
+    WebViewCommand, WebViewEvent, WheelUnit,
 };
 pub use block_ui;
 pub use content::ContentProjection;

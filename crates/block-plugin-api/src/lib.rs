@@ -1924,6 +1924,21 @@ pub struct Modifiers {
 pub struct FrameReady {
     pub generation: u64,
     pub repaint_after_micros: Option<u64>,
+    pub presented: Option<PresentedFrame>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PresentedFrame {
+    pub sequence: u64,
+    pub damage: Vec<SurfaceRect>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SurfaceRect {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2019,6 +2034,10 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             Ok(())
         }
         Message::Layout(value) => collection(value.screens.len()),
+        Message::FrameReady(value) => value
+            .presented
+            .as_ref()
+            .map_or(Ok(()), |presented| collection(presented.damage.len())),
         Message::RegionSizes(value) => collection(value.len()),
         Message::Editor(value) => validate_editor(value),
         Message::BlockTypes(value) => {

@@ -17,6 +17,7 @@ pub(super) struct Web {
     adapter: Option<WebProtocolAdapter>,
     gpu: Option<Gpu>,
     presented: bool,
+    presents: u64,
     started: f64,
     error: Option<String>,
 }
@@ -34,6 +35,7 @@ impl Backend for Web {
             adapter: None,
             gpu: None,
             presented: false,
+            presents: 0,
             started: now(),
             error: None,
         }
@@ -87,8 +89,14 @@ impl Backend for Web {
             }
             received.extend(delivery.messages);
         }
-        if gpu.take_presented().contains(&SCREENS_SURFACE) {
+        let presents = gpu
+            .take_presented()
+            .into_iter()
+            .filter(|surface| *surface == SCREENS_SURFACE)
+            .count() as u64;
+        if presents > 0 {
             self.presented = true;
+            self.presents += presents;
         }
         if let Some(error) = gpu.take_error() {
             self.error.get_or_insert(error);
@@ -108,6 +116,8 @@ impl Backend for Web {
         Some(SurfaceFrame {
             texture: texture.clone(),
             generation,
+            presents: self.presents,
+            damage: None,
         })
     }
 
@@ -135,6 +145,7 @@ impl Backend for Web {
         }
         self.gpu = None;
         self.presented = false;
+        self.presents = 0;
     }
 }
 
