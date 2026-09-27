@@ -327,6 +327,15 @@ cancellation, and a second finger landing, as `on_cancel`, which is where a
 gesture in progress is dropped rather than committed. A finger dragged across a
 `ClickCatcher` is read as a scroll of whatever holds it unless the catcher sets
 `touch_drags`, which a canvas that draws or moves things under the finger does.
+A finger that lands on no control is taken to the nearest `ClickCatcher` that
+takes presses within `TOUCH_REACH` of it, for the whole touch, so every control's
+touch zone is bigger than it looks without anything growing; a direct hit always
+wins, so a neighbour never takes a tap aimed at the control beside it. A quick
+tap with two or more fingers that did not move is a finger tap, which
+`on_finger_tap` hears the way `on_shortcut` hears keys; the editor frame's top
+bar undoes on two and redoes on three. `Sheet` is the panel that rises from the
+bottom of a narrow screen: its handle drags it between stops, and dragging it
+low or going back closes it.
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, a multiline text

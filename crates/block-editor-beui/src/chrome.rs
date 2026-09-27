@@ -6,7 +6,7 @@ use beui::reactive::{
     create_memo, create_signal, on_cleanup, provide_context, untrack, use_context, view,
 };
 use beui::styled::theme::BORDER_WIDTH;
-use beui::styled::{Scroll, Separator, ToggleButton, use_theme};
+use beui::styled::{Scroll, Separator, Sheet, ToggleButton, use_theme};
 
 pub const SIDEBAR_WIDTH: f32 = 260.0;
 pub const NARROW_WIDTH: f32 = 640.0;
@@ -16,7 +16,6 @@ const SPACING: f32 = 10.0;
 const BAND_PADDING_HORIZONTAL: f32 = 12.0;
 const BAND_PADDING_VERTICAL: f32 = 8.0;
 const BAND_SPACING: f32 = 8.0;
-const SHEET_SHARE: f32 = 80.0;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Side {
@@ -75,8 +74,8 @@ pub(crate) fn ChromeRoot(#[prop(children)] content: Render<()>) -> NodeId {
     let bare = create_memo(clone!(offers toolbars -> move || offers.get() && toolbars.get() == 0));
     let theme = use_theme();
     let bar_color = theme.surface.clone();
-    let sheet_color = theme.surface.clone();
-    let border = theme.border.clone();
+    let extent = create_memo(clone!(size -> move || size.get().y));
+    let close = layout.set_open.clone();
     view! {
         <List spacing=0.0>
             <Show condition={bare}>
@@ -95,24 +94,18 @@ pub(crate) fn ChromeRoot(#[prop(children)] content: Render<()>) -> NodeId {
                 </Frame>
             </Show>
             {content} @sizing=ItemSize::Percent(100.0)
-            <Show condition={sheet}>
-                <Frame @sizing=ItemSize::Percent(SHEET_SHARE) color={sheet_color}>
+            <Show condition={sheet.clone()}>
+                <Sheet extent={extent} open={sheet} on_close={move || close.set(false)}>
                     <List spacing=0.0>
-                        <Frame height=BORDER_WIDTH color={border} />
-                        <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                            <ForEach keys={panels}>
-                                {move |panel: NodeId| {
-                                    view! {
-                                        <Portal
-                                            @sizing=ItemSize::Percent(100.0)
-                                            node={Some(panel)}
-                                        />
-                                    }
-                                }}
-                            </ForEach>
-                        </List>
+                        <ForEach keys={panels}>
+                            {move |panel: NodeId| {
+                                view! {
+                                    <Portal @sizing=ItemSize::Percent(100.0) node={Some(panel)} />
+                                }
+                            }}
+                        </ForEach>
                     </List>
-                </Frame>
+                </Sheet>
             </Show>
         </List>
     }
@@ -203,6 +196,8 @@ pub fn Toolbar(
 ) -> NodeId {
     let shown = create_memo(move || shown.get());
     let theme = use_theme();
+    let narrow = narrow_chrome();
+    let roomy = create_memo(clone!(narrow -> move || !narrow.get()));
     let offers = match use_context::<ChromeLayout>() {
         Some(layout) => {
             count_toolbar(&layout, shown.clone());
@@ -210,30 +205,48 @@ pub fn Toolbar(
         }
         None => create_memo(|| false),
     };
+    let row = view! {
+        <List
+            direction=Direction::Horizontal
+            align=Align::Center
+            spacing={spacing}
+            children={children}
+        />
+    };
+    let spread = create_memo(clone!(roomy -> move || roomy.get().then_some(row)));
+    let scrolled = create_memo(clone!(narrow -> move || narrow.get().then_some(row)));
     view! {
         <Frame visible={shown} color={theme.surface.clone()}>
             <List spacing=0.0>
-                <Frame
-                    padding_horizontal=BAND_PADDING_HORIZONTAL
-                    padding_vertical=BAND_PADDING_VERTICAL
-                >
-                    <List
-                        direction=Direction::Horizontal
-                        align=Align::Center
-                        spacing={spacing.clone()}
+                <Show condition={roomy}>
+                    <Frame
+                        padding_horizontal=BAND_PADDING_HORIZONTAL
+                        padding_vertical=BAND_PADDING_VERTICAL
                     >
-                        <List
-                            @sizing=ItemSize::Percent(100.0)
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing={spacing}
-                            children={children}
-                        />
-                        <Show condition={offers}>
-                            <SheetToggle />
-                        </Show>
-                    </List>
-                </Frame>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                            <Portal @sizing=ItemSize::Percent(100.0) node={spread} />
+                        </List>
+                    </Frame>
+                </Show>
+                <Show condition={narrow}>
+                    <Frame padding_vertical=BAND_PADDING_VERTICAL>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                            <Scroll
+                                @sizing=ItemSize::Percent(100.0)
+                                direction=Direction::Horizontal
+                            >
+                                <Frame padding_horizontal=BAND_PADDING_HORIZONTAL>
+                                    <Portal node={scrolled} />
+                                </Frame>
+                            </Scroll>
+                            <Show condition={offers}>
+                                <Frame padding_horizontal=BAND_PADDING_HORIZONTAL>
+                                    <SheetToggle />
+                                </Frame>
+                            </Show>
+                        </List>
+                    </Frame>
+                </Show>
                 <Separator />
             </List>
         </Frame>

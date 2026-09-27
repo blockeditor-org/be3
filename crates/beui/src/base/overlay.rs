@@ -186,7 +186,7 @@ impl Element for OverlayNode {
         let anchor_rect = match &self.anchor {
             OverlayAnchor::Node(node) => node
                 .try_get()
-                .and_then(|id| out.get(&id).copied())
+                .and_then(|id| out.get(&id).copied().or_else(|| doc.node_rect(id)))
                 .unwrap_or(viewport),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
         };

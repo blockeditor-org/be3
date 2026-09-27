@@ -6,7 +6,7 @@ fn a_narrow_canvas_opens_its_inspector_under_the_stage() {
     let mut editor = phone(std::slice::from_ref(&rectangle));
 
     assert!(
-        !editor.shown("infinite-canvas.preview-region"),
+        !editor.shown("infinite-canvas.selection"),
         "a narrow canvas gives the stage the whole width"
     );
     editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
@@ -16,10 +16,10 @@ fn a_narrow_canvas_opens_its_inspector_under_the_stage() {
     editor.run();
     editor.record();
 
-    assert!(editor.shown("infinite-canvas.preview-region"));
+    assert!(editor.shown("infinite-canvas.selection"));
     editor.snapshot("a_narrow_canvas_opens_its_inspector_under_the_stage");
 
     editor.click("chrome.sidebar");
     editor.run();
-    assert!(!editor.shown("infinite-canvas.preview-region"));
+    assert!(!editor.shown("infinite-canvas.selection"));
 }

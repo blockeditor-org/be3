@@ -165,6 +165,12 @@ pub fn on_shortcut(shortcut: impl Fn(crate::input::KeyPress) -> bool + 'static) 
     on_cleanup(move || drop(shortcut));
 }
 
+pub fn on_finger_tap(tap: impl Fn(usize) -> bool + 'static) {
+    let tap: Rc<crate::document::FingerTap> = Rc::new(tap);
+    with_document(|document| document.register_finger_tap(Rc::downgrade(&tap)));
+    on_cleanup(move || drop(tap));
+}
+
 pub fn focus_takes_text() -> bool {
     with_document(|document| document.focus_takes_text())
 }
