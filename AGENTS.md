@@ -49,7 +49,7 @@ Design principles:
   - guides and markdown files are for agents to read to help them understand the codebase and implement features. not every tiny change deserves a mention in a guide. when adding something to a guide, consider if a summary written from scratch would include the feature. if it wouldn't, don't add it to the guide. information that is only helpful to humans also doesn't belong in a guide. that can go in a PR description and/or handoff message.
   - every agent immediately, automatically reads AGENTS.md when it starts up. do not duplicate information that is already in AGENTS.md in other files.
   - do not edit any file named 'README.md'. if one is out of date, you may say so in your handoff message.
-  - all code in the repo is in scope for editing for any task. for example, if you find a bug or missing feature in beui, fix it at the source rather than working around it.
+  - everything in the repo is in scope for editing for any task. for example, if you find a bug or missing feature in beui, fix it at the source rather than working around it. if you find a guide out of date or inaccurate, update it.
 - beui:
   - beui is a retained-mode ui that you interact with using a solidjs-like reactive framework.
   - beui layout is O(n) or better on the number of nodes in the tree.
