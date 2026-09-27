@@ -34,6 +34,7 @@ struct Inner {
     deadlines: RefCell<Vec<NodeId>>,
     damage: RefCell<Vec<Rect>>,
     test_ids: RefCell<HashMap<String, Rect>>,
+    ambiguous_test_ids: RefCell<HashSet<String>>,
     copied_text: RefCell<Option<String>>,
     paste_requested: Cell<bool>,
     cursor_icon: Cell<CursorIcon>,
@@ -66,6 +67,7 @@ pub struct FrameOutput {
     pub(crate) shapes: Rc<Vec<Shape>>,
     pub(crate) filter: Option<(Filter, usize)>,
     test_ids: HashMap<String, Rect>,
+    ambiguous_test_ids: HashSet<String>,
     pub cursor_icon: CursorIcon,
     pub ime: Option<ImeArea>,
     pub fullscreen: Option<bool>,
@@ -104,6 +106,9 @@ impl FrameOutput {
     }
 
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {
+        if self.ambiguous_test_ids.contains(test_id) {
+            panic!("test id {test_id:?} names more than one node on screen; give each its own id");
+        }
         self.test_ids.get(test_id).copied()
     }
 
@@ -135,6 +140,7 @@ impl Context {
                 deadlines: RefCell::new(Vec::new()),
                 damage: RefCell::new(Vec::new()),
                 test_ids: RefCell::new(HashMap::new()),
+                ambiguous_test_ids: RefCell::new(HashSet::new()),
                 copied_text: RefCell::new(None),
                 paste_requested: Cell::new(false),
                 cursor_icon: Cell::new(CursorIcon::Default),
@@ -222,6 +228,7 @@ impl Context {
         self.inner.deadlines.borrow_mut().clear();
         self.inner.damage.borrow_mut().clear();
         self.inner.test_ids.borrow_mut().clear();
+        self.inner.ambiguous_test_ids.borrow_mut().clear();
         self.inner.copied_text.borrow_mut().take();
         self.inner.paste_requested.set(false);
         self.inner.cursor_icon.set(CursorIcon::Default);
@@ -272,6 +279,7 @@ impl Context {
             filter,
             damage,
             test_ids: std::mem::take(&mut *self.inner.test_ids.borrow_mut()),
+            ambiguous_test_ids: std::mem::take(&mut *self.inner.ambiguous_test_ids.borrow_mut()),
             copied_text: self.inner.copied_text.borrow_mut().take(),
             paste_requested: self.inner.paste_requested.replace(false),
             changed,
@@ -547,6 +555,15 @@ impl Context {
             .test_ids
             .borrow_mut()
             .insert(test_id.to_owned(), rect);
+    }
+
+    pub(crate) fn publish_ambiguous_test_id(&self, test_id: &str) {
+        if self.inner.test_ids_published.get() {
+            self.inner
+                .ambiguous_test_ids
+                .borrow_mut()
+                .insert(test_id.to_owned());
+        }
     }
 
     pub(crate) fn publish_accessibility(&self, document: u32, fragment: Fragment) {

@@ -231,6 +231,13 @@ impl Element for OverlayNode {
         children
     }
 
+    fn live_children(&self) -> Vec<NodeId> {
+        match self.open {
+            true => self.children(),
+            false => Vec::new(),
+        }
+    }
+
     fn kind(&self) -> &'static str {
         "overlay"
     }

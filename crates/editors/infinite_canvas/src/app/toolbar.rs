@@ -66,7 +66,7 @@ pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId
                                 {move |index: usize| {
                                     let state = Rc::clone(&tools);
                                     view! {
-                                        <ToolChoice state index compact=false />
+                                        <ToolChoice state index docked=false />
                                     }
                                 }}
                             </ForEach>
@@ -112,7 +112,7 @@ pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool
                             {move |index: usize| {
                                 let state = Rc::clone(&tools);
                                 view! {
-                                    <ToolChoice state index compact=true />
+                                    <ToolChoice state index docked=true />
                                 }
                             }}
                         </ForEach>
@@ -124,7 +124,7 @@ pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool
 }
 
 #[component]
-fn ToolChoice(state: Rc<CanvasState>, index: usize, compact: bool) -> NodeId {
+fn ToolChoice(state: Rc<CanvasState>, index: usize, docked: bool) -> NodeId {
     let (tool, glyph, label) = TOOLS[index];
     let pressed = create_memo(clone!(state -> move || state.tool.get() == tool));
     let choose = clone!(state -> move |_: bool| state.set_tool(tool));
@@ -132,9 +132,12 @@ fn ToolChoice(state: Rc<CanvasState>, index: usize, compact: bool) -> NodeId {
         <ToggleButton
             label={label}
             glyph={glyph.to_owned()}
-            icon_only={compact}
+            icon_only={docked}
             pressed={pressed}
-            @test_id={format!("infinite-canvas.tool.{label}")}
+            @test_id={match docked {
+                true => format!("infinite-canvas.dock.tool.{label}"),
+                false => format!("infinite-canvas.tool.{label}"),
+            }}
             on_change={choose}
         />
     }

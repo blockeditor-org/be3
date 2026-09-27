@@ -438,14 +438,25 @@ impl Document {
         }
     }
 
-    fn shown_test_id(&self, test_id: &str) -> Option<NodeId> {
-        let named = self.test_ids.get(test_id)?;
-        named
-            .iter()
-            .rev()
-            .find(|node| self.rects.contains_key(node))
-            .or(named.last())
+    fn live_nodes(&self) -> HashSet<NodeId> {
+        let mut live = HashSet::new();
+        let mut pending: Vec<NodeId> = self.root.into_iter().collect();
+        while let Some(id) = pending.pop() {
+            if self.arena.contains(id) && live.insert(id) {
+                pending.extend(self.arena.get(id).live_children());
+            }
+        }
+        live
+    }
+
+    fn named_live(&self, test_id: &str, live: &HashSet<NodeId>) -> Vec<NodeId> {
+        self.test_ids
+            .get(test_id)
+            .into_iter()
+            .flatten()
             .copied()
+            .filter(|node| live.contains(node))
+            .collect()
     }
 
     fn forget_test_id(&mut self, id: NodeId, test_id: &str) {
@@ -458,7 +469,14 @@ impl Document {
     }
 
     pub fn find_test_id(&self, test_id: &str) -> Option<NodeId> {
-        self.shown_test_id(test_id)
+        let named = self.named_live(test_id, &self.live_nodes());
+        if named.len() > 1 {
+            panic!(
+                "test id {test_id:?} names {} nodes in the tree; give each its own id",
+                named.len()
+            );
+        }
+        named.first().copied()
     }
 
     pub fn contains(&self, id: NodeId) -> bool {
@@ -784,11 +802,23 @@ impl Document {
                 usize::from(self.update_layout(ctx, rect))
             });
         if ctx.test_ids_published() {
-            for test_id in self.test_ids.keys() {
-                if let Some(node_rect) = self
-                    .shown_test_id(test_id)
-                    .and_then(|id| self.rects.get(&id))
-                {
+            let mut live = None;
+            for (test_id, nodes) in &self.test_ids {
+                let shown = match nodes.as_slice() {
+                    [node] => Some(*node),
+                    _ => {
+                        let live = live.get_or_insert_with(|| self.live_nodes());
+                        match self.named_live(test_id, live).as_slice() {
+                            [] => None,
+                            [node] => Some(*node),
+                            _ => {
+                                ctx.publish_ambiguous_test_id(test_id);
+                                None
+                            }
+                        }
+                    }
+                };
+                if let Some(node_rect) = shown.and_then(|id| self.rects.get(&id)) {
                     ctx.publish_test_id(test_id, *node_rect);
                 }
             }
