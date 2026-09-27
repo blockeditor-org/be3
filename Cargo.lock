@@ -650,7 +650,6 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "js-sys",
- "serde",
  "tokio",
  "tokio-tungstenite",
  "uuid",
@@ -726,7 +725,6 @@ dependencies = [
 name = "be-model-derive"
 version = "0.1.0"
 dependencies = [
- "proc-macro2",
  "quote",
  "syn 2.0.117",
 ]
@@ -757,7 +755,6 @@ dependencies = [
  "futures-util",
  "rand 0.9.4",
  "rusqlite",
- "serde",
  "sha2",
  "tokio",
  "tokio-tungstenite",
@@ -944,18 +941,14 @@ dependencies = [
  "block-gpu-abi",
  "block-gpu-host",
  "block-plugin-api",
- "block-ui",
  "block-wasm-host",
  "bytemuck",
  "directories-next",
- "flate2",
  "futures-util",
- "game-host",
  "image",
  "jni 0.22.4",
  "js-sys",
  "libc",
- "logicgame",
  "ndk-context",
  "reactive",
  "rfd",
@@ -1032,7 +1025,6 @@ version = "0.1.0"
 dependencies = [
  "block-gpu-abi",
  "serde",
- "web-sys",
  "wgpu",
 ]
 
@@ -1061,12 +1053,10 @@ name = "block-plugin-api"
 version = "0.1.0"
 dependencies = [
  "bincode",
- "libc",
  "serde",
  "serde_bytes",
  "serde_json",
  "uuid",
- "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1449,7 +1439,6 @@ dependencies = [
 name = "checkers"
 version = "0.1.0"
 dependencies = [
- "bincode",
  "game-api",
  "game-host",
  "game-pieces",
@@ -1481,7 +1470,6 @@ dependencies = [
 name = "chess_vs_checkers"
 version = "0.1.0"
 dependencies = [
- "bincode",
  "game-api",
  "game-host",
  "game-pieces",
@@ -4749,7 +4737,6 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "pdfium-render",
- "uuid",
 ]
 
 [[package]]
@@ -6382,7 +6369,6 @@ name = "text-editor-core"
 version = "0.1.0"
 dependencies = [
  "serde",
- "serde_json",
  "similar",
  "tree-sitter",
  "tree-sitter-md",
