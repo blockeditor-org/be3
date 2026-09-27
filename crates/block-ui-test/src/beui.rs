@@ -374,6 +374,13 @@ impl<A: BeuiApp> BeuiTest<A> {
         }));
     }
 
+    pub fn with_size(mut self, size: Vec2) -> Self {
+        self.size = size;
+        self.place();
+        self.run();
+        self
+    }
+
     pub fn with_scale_factor(mut self, scale_factor: f32) -> Self {
         self.scale_factor = scale_factor;
         self.place();
