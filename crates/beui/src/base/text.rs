@@ -8,7 +8,7 @@ use crate::painter::Painter;
 use crate::pixel_grid::PixelGrid;
 
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, InteractInput, NodeId, Rects};
 use crate::reactive::{Prop, create_effect, with_document};
 
 use beui_macros::component;
@@ -144,17 +144,11 @@ impl Element for TextNode {
         self.galley(painter, &self.content, available.x).size()
     }
 
-    fn layout(
-        &mut self,
-        _doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        _out: &mut NodeMap<Rect>,
-    ) {
+    fn layout(&mut self, _doc: &mut Document, painter: &Painter, rect: Rect, _out: &Rects) {
         self.place(painter, rect);
     }
 
-    fn paint(&self, _doc: &Document, painter: &Painter, _rects: &NodeMap<Rect>, rect: Rect) {
+    fn paint(&self, _doc: &Document, painter: &Painter, _rects: &Rects, rect: Rect) {
         let clipped = painter.with_clip_rect(if self.clip { rect } else { Rect::EVERYTHING });
         let placed = self.placed(&clipped, rect);
         clipped.galley(placed.origin, placed.galley.clone(), self.color);

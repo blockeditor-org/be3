@@ -5,7 +5,7 @@ use beui_macros::component;
 use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, InteractInput, NodeId, Rects};
 use crate::painter::Painter;
 use crate::reactive::{
     Child, ChildValue, Children, NodeSlot, Prop, Scope, SlotChild, create_effect, with_document,
@@ -73,13 +73,11 @@ impl Element for CanvasNode {
         self.size
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &mut NodeMap<Rect>,
-    ) {
+    fn relayout_boundary(&self) -> bool {
+        true
+    }
+
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let view = self.placement(rect);
         let clipped = painter.with_clip_rect(rect);
         for item in self.items.iter() {
@@ -92,7 +90,7 @@ impl Element for CanvasNode {
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
         let clipped = painter.with_clip_rect(rect);
         for item in self.items.iter() {
             if rects.contains_key(item) {
@@ -154,19 +152,17 @@ impl Element for CanvasItemNode {
         self.rect.size()
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &mut NodeMap<Rect>,
-    ) {
+    fn relayout_boundary(&self) -> bool {
+        true
+    }
+
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, _rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
         }

@@ -100,6 +100,10 @@ impl FrameOutput {
         self.pixels_per_point
     }
 
+    pub fn damaged(&self) -> Option<Region> {
+        (!self.damage.is_empty()).then_some(self.damage)
+    }
+
     #[cfg(test)]
     pub(crate) fn damage(&self) -> Option<Rect> {
         let bounds = self.damage.bounds();
@@ -538,9 +542,9 @@ impl Context {
     pub(crate) fn take_accessibility_actions(&self, document_id: u32) -> Vec<ActionRequest> {
         let mut actions = self.inner.accessibility_actions.borrow_mut();
         let all = std::mem::take(&mut *actions);
-        let (matched, remaining) = all
-            .into_iter()
-            .partition(|request| request.target_node.0 >> 32 == document_id as u64);
+        let (matched, remaining) = all.into_iter().partition(|request| {
+            crate::accessibility::document_of(request.target_node) == document_id as u64
+        });
         *actions = remaining;
         matched
     }

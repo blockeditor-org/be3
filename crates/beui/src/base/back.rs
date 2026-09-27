@@ -5,7 +5,7 @@ use beui_macros::component;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
 use crate::input::{BackEdge, BackGesture};
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, InteractInput, NodeId, Rects};
 use crate::painter::Painter;
 use crate::reactive::{Child, ClickCallback, Prop, create_effect, with_document};
 
@@ -43,20 +43,14 @@ impl Element for BackNode {
         }
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &mut NodeMap<Rect>,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         if let Some(child) = self.child {
             let rect = rect.translate(self.progress.shift(rect.width()));
             crate::layout::layout(doc, painter, child, rect, out);
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, _rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
         }

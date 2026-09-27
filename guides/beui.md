@@ -1579,6 +1579,12 @@ handlers, a cursor, a tab stop: only the accessibility tree hears of it. A field
 places from its alignment, counts as layout. Only call them when the value
 actually changes.
 
+A node whose size cannot depend on its children - a `Frame` with a fixed width
+and height, a `Canvas`, a canvas item - returns true from `relayout_boundary`.
+A change under it stops there: its ancestors keep their placement, and it is laid
+out again on its own from the rectangle and painter it was last placed with. Only
+return true when `measure` never reads the children.
+
 Painting is retained per node. A node's `paint` runs again when the node
 changed, when it was laid out again, when its rectangle or the painter it is
 handed changed, or when a repaint it asked for falls due; otherwise the shapes
@@ -1587,8 +1593,17 @@ under them has to paint. `paint` must therefore be a function of the node, its
 rectangle, the painter and the rectangles its own layout gave its children -
 anything else it reads goes unnoticed when it changes. What a node damages is
 where its shapes changed, so a repaint that paints the same thing costs no
-pixels. beui's own tests paint every frame again from scratch and fail when the
-retained painting differs from it or changed outside the damage.
+pixels. beui's own tests, and every test that drives a plugin through
+`block-ui-test` (which turns on `beui::verify_paint`), paint every frame again
+from scratch and fail when the retained painting differs from it or changed
+outside the damage.
+Pointer input only visits a node when the pointer lies within the rects of it
+and everything `children` returns under it, or when it leads to a node that
+holds pointer state. A node that keeps state between events - hovered, pressed,
+dragging - returns true from `engaged` until it lets go, so it still hears the
+pointer leave, release or move away. Keyboard input goes to the focused node and
+its ancestors rather than through this walk.
+
 Return children from both interaction traversal and `children`, give the node a
 stable `kind` for the inspector, and add a concise `detail` when it makes the
 tree easier to understand.

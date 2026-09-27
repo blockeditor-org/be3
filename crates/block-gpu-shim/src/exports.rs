@@ -228,6 +228,7 @@ pub extern "C" fn surface_configure(surface: u32, pointer: u32, length: u32) {
 
 scalar! {
     fn surface_acquire(surface: u32) -> u32 => acquire_surface;
+    fn surface_age(surface: u32) -> u32 => surface_age;
     fn surface_present(surface: u32) => present_surface;
 }
 

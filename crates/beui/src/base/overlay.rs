@@ -11,7 +11,7 @@ use crate::painter::Painter;
 use beui_macros::{component, view};
 
 use crate::document::Document;
-use crate::node::{ClickHandler, Element, InteractInput, NodeId, NodeMap};
+use crate::node::{ClickHandler, Element, InteractInput, NodeId, Rects};
 use crate::reactive::{
     Child, ClickCallback, ClickCatcher, IntoProp, NodeRef, Prop, create_effect, with_document,
     with_reactive_scope,
@@ -185,13 +185,7 @@ impl Element for OverlayNode {
         Vec2::ZERO
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        _rect: Rect,
-        out: &mut NodeMap<Rect>,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, _rect: Rect, out: &Rects) {
         if !self.open {
             return;
         }
@@ -205,7 +199,7 @@ impl Element for OverlayNode {
         let anchor_rect = match &self.anchor {
             OverlayAnchor::Node(node) => node
                 .try_get()
-                .and_then(|id| out.get(&id).copied().or_else(|| doc.node_rect(id)))
+                .and_then(|id| out.get(&id))
                 .unwrap_or(viewport),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
         };
@@ -214,7 +208,7 @@ impl Element for OverlayNode {
         crate::layout::layout(doc, painter, content, rect, out);
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, _rects: &NodeMap<Rect>, _rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, _rects: &Rects, _rect: Rect) {
         if self.paints() {
             let [red, green, blue, alpha] = self.dim.to_array();
             let alpha = (f32::from(alpha) * (1.0 - self.back.progress)).round() as u8;

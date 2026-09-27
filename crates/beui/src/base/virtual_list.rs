@@ -7,7 +7,7 @@ use crate::base::list::Direction;
 use crate::base::offset::item_rect;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, InteractInput, NodeId, Rects};
 use crate::painter::Painter;
 use crate::reactive::{
     KeyedItems, Prop, RenderFn, ScopeContext, create_effect, owner_scope, settle, with_document,
@@ -361,13 +361,7 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         self.direction.axes(self.metrics.total(), content)
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &mut NodeMap<Rect>,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let node = doc.laying_out();
         let (main, cross) = self.direction.main_and_cross(rect.size());
         let start = self.direction.main(rect.min.to_vec2());
@@ -408,7 +402,7 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         self.keep(doc, Vec::new());
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, _rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
         for row in &self.placed {
             if rects.contains_key(&row.node) {
                 crate::paint::paint(doc, painter, rects, row.node);

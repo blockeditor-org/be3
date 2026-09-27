@@ -5,7 +5,7 @@ use beui_macros::component;
 use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, InteractInput, NodeId, Rects};
 use crate::painter::Painter;
 use crate::pixel_grid::PixelGrid;
 use crate::reactive::{Child, Prop, create_effect, with_document};
@@ -147,13 +147,7 @@ impl Element for FrameNode {
         }
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &mut NodeMap<Rect>,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         if let Some(child) = self.shown() {
             let grid = doc.pixel_grid();
             let padding = self.padding(grid);
@@ -163,7 +157,11 @@ impl Element for FrameNode {
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, rect: Rect) {
+    fn relayout_boundary(&self) -> bool {
+        self.width.is_some() && self.height.is_some()
+    }
+
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
         if !self.visible {
             return;
         }

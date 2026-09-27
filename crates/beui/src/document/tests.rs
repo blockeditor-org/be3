@@ -72,6 +72,7 @@ mod a_quick_tap_with_several_fingers_is_a_finger_tap;
 mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
 mod a_reactive_test_id_follows_its_signal;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
+mod a_removed_nodes_slot_is_reused_under_a_new_id;
 mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
@@ -263,6 +264,7 @@ mod picking_a_node_leaves_the_document_alone;
 mod pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it;
 mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale;
+mod pointer_motion_only_reaches_what_lies_under_the_pointer;
 mod pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still;
 mod pressing_a_sliders_knob_keeps_its_value_until_it_is_dragged;
 mod pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view;
@@ -1277,7 +1279,7 @@ pub(crate) fn toolbar_of<const N: usize>(
     (document, nodes)
 }
 
-use crate::node::{Element, InteractInput, NodeMap};
+use crate::node::{Element, InteractInput, Rects};
 use crate::painter::Painter;
 use std::any::Any;
 use std::time::{Duration, Instant};
@@ -1287,6 +1289,7 @@ struct Counted {
     layouts: Rc<Cell<usize>>,
     paints: Rc<Cell<usize>>,
     measures: Rc<Cell<usize>>,
+    interactions: Rc<Cell<usize>>,
 }
 
 impl Element for Counted {
@@ -1295,18 +1298,12 @@ impl Element for Counted {
         self.inner.measure(doc, painter, available)
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &mut NodeMap<Rect>,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         self.layouts.set(self.layouts.get() + 1);
         self.inner.layout(doc, painter, rect, out);
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
         self.paints.set(self.paints.get() + 1);
         self.inner.paint(doc, painter, rects, rect);
     }
@@ -1325,8 +1322,17 @@ impl Element for Counted {
         focus_target: &mut Option<NodeId>,
         children: &mut Vec<NodeId>,
     ) {
+        self.interactions.set(self.interactions.get() + 1);
         self.inner
             .interact(doc, painter, input, id, rect, focus_target, children)
+    }
+
+    fn engaged(&self) -> bool {
+        self.inner.engaged()
+    }
+
+    fn relayout_boundary(&self) -> bool {
+        self.inner.relayout_boundary()
     }
 
     fn children(&self) -> Vec<NodeId> {
@@ -1347,6 +1353,7 @@ struct Counts {
     layouts: Rc<Cell<usize>>,
     paints: Rc<Cell<usize>>,
     measures: Rc<Cell<usize>>,
+    interactions: Rc<Cell<usize>>,
 }
 
 const BLINK: Duration = Duration::from_millis(530);
@@ -1374,6 +1381,7 @@ fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
         layouts: Rc::new(Cell::new(0)),
         paints: Rc::new(Cell::new(0)),
         measures: Rc::new(Cell::new(0)),
+        interactions: Rc::new(Cell::new(0)),
     };
     document.verifies_paint = false;
     let inner = document.arena.take(node);
@@ -1384,10 +1392,12 @@ fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
             layouts: counts.layouts.clone(),
             paints: counts.paints.clone(),
             measures: counts.measures.clone(),
+            interactions: counts.interactions.clone(),
         }),
     );
     counts
 }
+mod a_change_inside_a_fixed_size_frame_lays_out_only_that_frame;
 mod a_clean_panel_is_not_laid_out_again_when_the_one_beside_it_changes;
 mod a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes;
 mod a_click_handler_can_mutate_the_tree_in_the_current_frame;

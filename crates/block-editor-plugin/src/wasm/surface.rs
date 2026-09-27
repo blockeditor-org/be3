@@ -71,6 +71,7 @@ impl Surface {
         let repaint = ran.repaint;
         if ran.changed {
             let texture = block_gpu_guest::acquire_surface_texture(SCREENS_SURFACE)?;
+            let age = block_gpu_guest::surface_age(SCREENS_SURFACE);
             let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
             self.panes.paint(
                 &self.gpu.device,
@@ -79,6 +80,7 @@ impl Surface {
                 &self.layout,
                 screens,
                 ran,
+                age,
             );
             block_gpu_guest::present_surface(SCREENS_SURFACE);
         }

@@ -48,6 +48,36 @@ type Outcome<T> = Result<T, String>;
 struct Surface {
     textures: Vec<(wgpu::Texture, u64)>,
     drawn: usize,
+    ages: Ages,
+}
+
+pub(crate) struct Ages {
+    presented: Vec<Option<u64>>,
+    frames: u64,
+    drawn: usize,
+}
+
+impl Ages {
+    pub(crate) fn new(textures: usize) -> Self {
+        Self {
+            presented: vec![None; textures],
+            frames: 0,
+            drawn: 0,
+        }
+    }
+
+    pub(crate) fn age(&self) -> u32 {
+        match self.presented[self.drawn] {
+            Some(frame) => (self.frames + 1 - frame) as u32,
+            None => 0,
+        }
+    }
+
+    pub(crate) fn present(&mut self) {
+        self.frames += 1;
+        self.presented[self.drawn] = Some(self.frames);
+        self.drawn = (self.drawn + 1) % self.presented.len();
+    }
 }
 
 impl Surface {
@@ -95,15 +125,22 @@ impl Gpu {
     }
 
     fn insert_surface(&mut self, surface: u32, textures: Vec<wgpu::Texture>) {
-        let textures = textures
+        let textures: Vec<(wgpu::Texture, u64)> = textures
             .into_iter()
             .map(|texture| {
                 self.generation += 1;
                 (texture, self.generation)
             })
             .collect();
-        self.surfaces
-            .insert(surface, Surface { textures, drawn: 0 });
+        let ages = Ages::new(textures.len());
+        self.surfaces.insert(
+            surface,
+            Surface {
+                textures,
+                drawn: 0,
+                ages,
+            },
+        );
     }
 
     pub fn detach_surface(&mut self, surface: u32) {
@@ -1039,9 +1076,16 @@ impl Gpu {
         self.textures.insert(texture)
     }
 
+    pub fn surface_age(&mut self, surface: u32) -> u32 {
+        self.surfaces
+            .get(&surface)
+            .map_or(0, |target| target.ages.age())
+    }
+
     pub fn present_surface(&mut self, surface: u32) {
         if let Some(target) = self.surfaces.get_mut(&surface) {
             target.drawn = (target.drawn + 1) % target.textures.len();
+            target.ages.present();
         }
         self.presented.push(surface);
     }

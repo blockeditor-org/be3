@@ -11,7 +11,6 @@ use crate::filter::Filter;
 use crate::font::{GlyphId, GlyphImage};
 use crate::geometry::{Rect, Vec2};
 use crate::image::{Image, ImageId};
-use crate::painter::Shape;
 
 mod filter;
 
@@ -253,6 +252,8 @@ pub struct Renderer {
     samplers: [wgpu::Sampler; 2],
     filter: Option<filter::Prepared>,
     effects: Option<filter::Effects>,
+    bounds: Option<[u32; 4]>,
+    whole: bool,
 }
 
 struct Run {
@@ -411,6 +412,8 @@ impl Renderer {
             samplers: [nearest, sampler],
             filter: None,
             effects: None,
+            bounds: None,
+            whole: true,
         }
     }
 
@@ -483,6 +486,10 @@ impl Renderer {
         self.origin = origin;
     }
 
+    pub fn set_bounds(&mut self, bounds: Option<[u32; 4]>) {
+        self.bounds = bounds;
+    }
+
     pub fn prepare(
         &mut self,
         device: &wgpu::Device,
@@ -518,12 +525,7 @@ impl Renderer {
         let damaged = match repaint {
             Repaint::Everything => None,
             Repaint::Region { region, background } => {
-                let joined = prepared.is_some()
-                    || output
-                        .shapes()
-                        .iter()
-                        .any(|shape| matches!(shape, Shape::Drawing { .. }));
-                let regions: Vec<[f32; 4]> = match joined {
+                let regions: Vec<[f32; 4]> = match prepared.is_some() {
                     true => vec![physical(
                         region.bounds(),
                         self.origin,
@@ -543,7 +545,22 @@ impl Renderer {
                         .collect(),
                     None => regions,
                 };
+                let [.., alpha] = background.to_array();
                 for region in &regions {
+                    if alpha < u8::MAX {
+                        Run::push(&mut runs, true, instances.len() as u32);
+                        instances.push(Instance {
+                            rect: *region,
+                            clip: *region,
+                            uv: [0.0; 4],
+                            color: [0.0, 0.0, 0.0, 1.0],
+                            params: [0.0, 0.0, 0.0, 0.0],
+                            turn: turn(Turn::NONE),
+                        });
+                    }
+                    if alpha == 0 {
+                        continue;
+                    }
                     Run::push(&mut runs, false, instances.len() as u32);
                     instances.push(Instance {
                         rect: *region,
@@ -698,12 +715,23 @@ impl Renderer {
             used
         });
         let origin = self.origin;
-        self.scissors = damaged.map(|damaged| {
+        self.whole = damaged.is_none();
+        let scissors = damaged.map(|damaged| {
             damaged
                 .into_iter()
                 .map(|damaged| scissor(damaged, origin))
-                .collect()
+                .collect::<Vec<_>>()
         });
+        self.scissors = match (scissors, self.bounds) {
+            (scissors, None) => scissors,
+            (None, Some(bounds)) => Some(vec![bounds]),
+            (Some(scissors), Some(bounds)) => Some(
+                scissors
+                    .into_iter()
+                    .map(|scissor| intersected(scissor, bounds))
+                    .collect(),
+            ),
+        };
         self.runs = runs;
         self.overlay = overlay;
         self.filter = prepared;
@@ -796,7 +824,11 @@ impl Renderer {
             let Some(scene) = self.effects.as_ref().and_then(filter::Effects::scene) else {
                 return;
             };
-            let mut pass = self.begin(encoder, scene, load);
+            let scene_load = match load {
+                wgpu::LoadOp::Load if self.whole => wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                load => load,
+            };
+            let mut pass = self.begin(encoder, scene, scene_load);
             if let Some(scissor) = scissor {
                 clip(&mut pass, scissor);
             }
@@ -855,12 +887,12 @@ impl Renderer {
         let mut vertices = false;
         for run in runs {
             if let Some((drawing, at)) = run.drawing.as_ref() {
-                if let Some(draw) = drawing.draw() {
-                    let within = scissor.unwrap_or([0, 0, at.screen.x as u32, at.screen.y as u32]);
-                    if clip(pass, clipped(at.clip, within)) {
-                        draw.paint(pass, *at);
+                if let (Some(draw), Some(at)) = (drawing.draw(), within(*at, scissor)) {
+                    let bounds = scissor.unwrap_or([0, 0, at.screen.x as u32, at.screen.y as u32]);
+                    if clip(pass, clipped(at.clip, bounds)) {
+                        draw.paint(pass, at);
                     }
-                    clip(pass, within);
+                    clip(pass, bounds);
                     bound = None;
                     vertices = false;
                 }
@@ -920,6 +952,20 @@ fn clip(pass: &mut wgpu::RenderPass<'_>, [left, top, width, height]: [u32; 4]) -
     true
 }
 
+fn within(at: DrawAt, scissor: Option<[u32; 4]>) -> Option<DrawAt> {
+    let Some([left, top, width, height]) = scissor else {
+        return Some(at);
+    };
+    let [left, top] = [left as f32, top as f32];
+    let clip = [
+        at.clip[0].max(left),
+        at.clip[1].max(top),
+        at.clip[2].min(left + width as f32),
+        at.clip[3].min(top + height as f32),
+    ];
+    (clip[0] < clip[2] && clip[1] < clip[3]).then_some(DrawAt { clip, ..at })
+}
+
 fn clipped(clip: [f32; 4], [left, top, width, height]: [u32; 4]) -> [u32; 4] {
     let (right, bottom) = (left + width, top + height);
     let from = |value: f32, low: u32, high: u32| value.clamp(low as f32, high as f32);
@@ -937,6 +983,15 @@ fn clipped(clip: [f32; 4], [left, top, width, height]: [u32; 4]) -> [u32; 4] {
         (x1 - x0).max(0.0) as u32,
         (y1 - y0).max(0.0) as u32,
     ]
+}
+
+fn intersected([left, top, width, height]: [u32; 4], bounds: [u32; 4]) -> [u32; 4] {
+    let [bound_left, bound_top, bound_width, bound_height] = bounds;
+    let x0 = left.max(bound_left);
+    let y0 = top.max(bound_top);
+    let x1 = (left + width).min(bound_left + bound_width);
+    let y1 = (top + height).min(bound_top + bound_height);
+    [x0, y0, x1.saturating_sub(x0), y1.saturating_sub(y0)]
 }
 
 fn scissor(damaged: [f32; 4], origin: Vec2) -> [u32; 4] {

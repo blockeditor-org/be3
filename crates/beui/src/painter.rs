@@ -60,6 +60,12 @@ pub(crate) struct PainterState {
     rotation: Rotation,
 }
 
+impl PainterState {
+    pub(crate) fn clip(self) -> Rect {
+        self.clip
+    }
+}
+
 pub struct Painter {
     context: Context,
     clip: Rect,

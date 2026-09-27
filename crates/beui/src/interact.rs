@@ -1,5 +1,6 @@
 pub(crate) mod autoscroll;
 
+use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 use crate::base::list::Direction;
@@ -9,7 +10,7 @@ use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress};
 use crate::painter::Painter;
 
 use crate::document::Document;
-use crate::node::{InteractInput, NodeId, NodeMap};
+use crate::node::{InteractInput, NodeId, NodeMap, Rects};
 
 pub(crate) const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
 pub(crate) const TOUCH_REACH: f32 = 12.0;
@@ -25,7 +26,7 @@ pub(crate) fn interact(
     doc: &mut Document,
     ctx: &Context,
     painter: &Painter,
-    rects: &NodeMap<Rect>,
+    rects: &Rects,
     root: NodeId,
     pointer: bool,
     keys: Keys,
@@ -168,14 +169,15 @@ pub(crate) fn interact(
             ..input
         },
     };
+    let reach = Reach::new(doc, rects, &input);
     let mut pool = doc.take_interact_pool();
     if doc.overlay_stack.is_empty() {
         interact_node(
             doc,
             painter,
             &under,
-            rects,
             root,
+            &reach,
             &mut focus_target,
             &mut pool,
         );
@@ -188,8 +190,8 @@ pub(crate) fn interact(
                 doc,
                 painter,
                 &under,
-                rects,
                 root,
+                &reach,
                 &mut focus_target,
                 &mut pool,
             );
@@ -199,8 +201,8 @@ pub(crate) fn interact(
                 doc,
                 painter,
                 &under,
-                rects,
                 overlay,
+                &reach,
                 &mut focus_target,
                 &mut pool,
             );
@@ -239,8 +241,8 @@ pub(crate) fn interact(
             doc,
             painter,
             &above,
-            rects,
             content,
+            &reach,
             &mut focus_target,
             &mut pool,
         );
@@ -408,8 +410,8 @@ fn without_pointer(input: InteractInput) -> InteractInput {
     }
 }
 
-fn captor(doc: &mut Document, rects: &NodeMap<Rect>, id: NodeId, pos: Pos2) -> Option<NodeId> {
-    let rect = *rects.get(&id)?;
+fn captor(doc: &mut Document, rects: &Rects, id: NodeId, pos: Pos2) -> Option<NodeId> {
+    let rect = rects.get(&id)?;
     for child in doc.arena.get(id).children().into_iter().rev() {
         if let Some(found) = captor(doc, rects, child, pos) {
             return Some(found);
@@ -437,7 +439,7 @@ fn wants_wheel(element: &dyn crate::node::Element, wheel: Vec2) -> bool {
 
 fn latched_wheel_target(
     doc: &Document,
-    rects: &NodeMap<Rect>,
+    rects: &Rects,
     pointer: Option<Pos2>,
     wheel: Vec2,
     now: Instant,
@@ -459,7 +461,7 @@ fn wants_gestures(element: &dyn crate::node::Element) -> bool {
 
 fn target(
     doc: &Document,
-    rects: &NodeMap<Rect>,
+    rects: &Rects,
     root: NodeId,
     pos: Option<Pos2>,
     wants: &dyn Fn(&dyn crate::node::Element) -> bool,
@@ -481,7 +483,7 @@ fn target(
 
 fn deepest(
     doc: &Document,
-    rects: &NodeMap<Rect>,
+    rects: &Rects,
     id: NodeId,
     pos: Pos2,
     wants: &dyn Fn(&dyn crate::node::Element) -> bool,
@@ -498,33 +500,110 @@ fn deepest(
     wants(node).then_some(id)
 }
 
+struct Reach<'a> {
+    rects: &'a Rects,
+    wanted: HashSet<NodeId>,
+}
+
+impl<'a> Reach<'a> {
+    fn new(doc: &mut Document, rects: &'a Rects, input: &InteractInput) -> Self {
+        if doc.interact_bounds_version != Some(rects.version()) {
+            doc.interact_bounds = NodeMap::default();
+            doc.interact_bounds_version = Some(rects.version());
+        }
+        let seeds: Vec<NodeId> = std::mem::take(&mut doc.engaged)
+            .into_iter()
+            .chain(doc.pointer_capture)
+            .chain(input.wheel_target)
+            .chain(input.zoom_target)
+            .chain(input.touch_scroll_target)
+            .collect();
+        let mut wanted = HashSet::new();
+        let mut pending = seeds;
+        while let Some(id) = pending.pop() {
+            if !wanted.insert(id) {
+                continue;
+            }
+            pending.extend(doc.arena.parent(id));
+            pending.extend(doc.interact_parents.get(&id).copied());
+        }
+        Self { rects, wanted }
+    }
+
+    fn reaches(&self, doc: &mut Document, input: &InteractInput, id: NodeId) -> bool {
+        if self.wanted.contains(&id) {
+            return true;
+        }
+        let started = input
+            .secondary_drag
+            .filter(|drag| drag.started)
+            .map(|drag| drag.from);
+        let probes = [input.pointer_pos, started];
+        if probes.iter().all(Option::is_none) {
+            return false;
+        }
+        let bounds = subtree_bounds(doc, self.rects, id);
+        probes.into_iter().flatten().any(|pos| bounds.contains(pos))
+    }
+}
+
+fn subtree_bounds(doc: &mut Document, rects: &Rects, id: NodeId) -> Rect {
+    if let Some(bounds) = doc.interact_bounds.get(&id) {
+        return *bounds;
+    }
+    let Some(rect) = rects.get(&id) else {
+        return Rect::NOTHING;
+    };
+    doc.interact_bounds.insert(id, rect);
+    if !doc.arena.contains(id) {
+        return rect;
+    }
+    let mut bounds = rect;
+    for child in doc.arena.get(id).children() {
+        if rects.contains_key(&child) {
+            bounds = bounds.union(subtree_bounds(doc, rects, child));
+        }
+    }
+    doc.interact_bounds.insert(id, bounds);
+    bounds
+}
+
 fn interact_node(
     doc: &mut Document,
     painter: &Painter,
     input: &InteractInput,
-    rects: &NodeMap<Rect>,
     id: NodeId,
+    reach: &Reach<'_>,
     focus_target: &mut Option<NodeId>,
     pool: &mut Vec<Vec<NodeId>>,
 ) {
-    let Some(&rect) = rects.get(&id) else {
+    let rects = reach.rects;
+    let Some(rect) = rects.get(&id) else {
         return;
     };
+    if !reach.reaches(doc, input, id) {
+        return;
+    }
     let mut children = pool.pop().unwrap_or_default();
     let mut element = doc.arena.take(id);
     element.interact(doc, painter, input, id, rect, focus_target, &mut children);
+    let engaged = element.engaged();
     doc.arena.put_back(id, element);
+    if engaged {
+        doc.engaged.push(id);
+    }
 
     for &child in &children {
         if rects.contains_key(&child) {
-            interact_node(doc, painter, input, rects, child, focus_target, pool);
+            doc.interact_parents.insert(child, id);
+            interact_node(doc, painter, input, child, reach, focus_target, pool);
         }
     }
     children.clear();
     pool.push(children);
 }
 
-fn touch_shift(doc: &Document, rects: &NodeMap<Rect>, root: NodeId, pos: Pos2) -> Vec2 {
+fn touch_shift(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Vec2 {
     let modal = !doc.overlay_stack.is_empty();
     for layer in doc.pointer_layers(root) {
         let tops: Vec<NodeId> = match (layer == root, modal) {
@@ -557,7 +636,7 @@ fn touch_shift(doc: &Document, rects: &NodeMap<Rect>, root: NodeId, pos: Pos2) -
 
 fn nearest_press(
     doc: &Document,
-    rects: &NodeMap<Rect>,
+    rects: &Rects,
     id: NodeId,
     pos: Pos2,
     clip: Rect,

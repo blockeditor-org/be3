@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use block_gpu_abi as abi;
 use serde::{Deserialize, Serialize};
 
-use crate::{Gpu, SURFACE_USAGE, tables::Counter};
+use crate::{Ages, Gpu, SURFACE_USAGE, tables::Counter};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Call {
@@ -276,7 +276,7 @@ pub struct Recorder {
     limits: abi::DeviceLimits,
     counters: Counters,
     textures: HashMap<abi::Handle, abi::TextureDescriptor>,
-    surfaces: HashMap<u32, abi::TextureDescriptor>,
+    surfaces: HashMap<u32, (abi::TextureDescriptor, Ages)>,
     calls: Vec<Call>,
     error: Option<String>,
 }
@@ -606,29 +606,38 @@ impl Recorder {
                 "surface {surface} asked for a {width} by {height} target, which this device cannot make"
             ));
         }
-        self.surfaces.insert(
-            surface,
-            abi::TextureDescriptor {
-                label: String::new(),
-                size: abi::Extent3d {
-                    width,
-                    height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: abi::TextureDimension::D2,
-                format,
-                usage: SURFACE_USAGE.bits(),
-                view_formats: Vec::new(),
+        let descriptor = abi::TextureDescriptor {
+            label: String::new(),
+            size: abi::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
             },
-        );
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: abi::TextureDimension::D2,
+            format,
+            usage: SURFACE_USAGE.bits(),
+            view_formats: Vec::new(),
+        };
+        if self
+            .surfaces
+            .get(&surface)
+            .is_some_and(|(held, _)| *held == descriptor)
+        {
+            return;
+        }
+        self.surfaces.insert(surface, (descriptor, Ages::new(2)));
     }
 
     pub fn acquire_surface(&mut self, surface: u32) -> abi::Handle {
         self.calls.push(Call::AcquireSurface(surface));
         let handle = self.counters.textures.take();
-        let Some(descriptor) = self.surfaces.get(&surface).cloned() else {
+        let Some(descriptor) = self
+            .surfaces
+            .get(&surface)
+            .map(|(descriptor, _)| descriptor.clone())
+        else {
             self.report(format!("surface {surface} has no target texture"));
             return abi::NULL_HANDLE;
         };
@@ -636,8 +645,17 @@ impl Recorder {
         handle
     }
 
+    pub fn surface_age(&mut self, surface: u32) -> u32 {
+        self.surfaces
+            .get(&surface)
+            .map_or(0, |(_, ages)| ages.age())
+    }
+
     pub fn present_surface(&mut self, surface: u32) {
         self.calls.push(Call::PresentSurface(surface));
+        if let Some((_, ages)) = self.surfaces.get_mut(&surface) {
+            ages.present();
+        }
     }
 
     pub fn describe_texture(&mut self, texture: abi::Handle) -> Option<Vec<u8>> {

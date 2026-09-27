@@ -6,7 +6,7 @@ use crate::geometry::Rect;
 use crate::painter::{Painter, PainterState, Shape};
 
 use crate::document::Document;
-use crate::node::{ANCESTOR_LIMIT, Arena, NodeId, NodeMap};
+use crate::node::{ANCESTOR_LIMIT, Arena, NodeId, NodeMap, Rects};
 
 #[derive(Clone, PartialEq)]
 pub(crate) enum Item {
@@ -39,6 +39,7 @@ struct Painted {
 struct Dirt {
     own: bool,
     below: bool,
+    batch: u64,
 }
 
 enum Visit {
@@ -55,6 +56,7 @@ pub(crate) struct PaintCache {
     roots: Vec<(NodeId, Rect)>,
     damage: Region,
     recorded: bool,
+    batch: u64,
 }
 
 impl PaintCache {
@@ -74,14 +76,29 @@ impl PaintCache {
         *self = Self::default();
     }
 
-    pub(crate) fn mark(&mut self, id: NodeId, arena: &Arena) {
+    pub(crate) fn mark(&mut self, ids: &[NodeId], arena: &Arena) {
+        self.batch = self.batch.wrapping_add(1);
+        for id in ids {
+            self.mark_one(*id, arena);
+        }
+    }
+
+    fn mark_one(&mut self, id: NodeId, arena: &Arena) {
+        if !arena.current(id) {
+            return;
+        }
         self.dirt.get_or_default(id).own = true;
         let mut current = arena.parent(id);
         for _ in 0..ANCESTOR_LIMIT {
             let Some(node) = current else {
                 return;
             };
-            self.dirt.get_or_default(node).below = true;
+            let dirt = self.dirt.get_or_default(node);
+            if dirt.below && dirt.batch == self.batch {
+                return;
+            }
+            dirt.below = true;
+            dirt.batch = self.batch;
             current = arena.parent(node);
         }
     }
@@ -253,8 +270,8 @@ fn children(items: &[Item]) -> impl Iterator<Item = NodeId> + '_ {
     })
 }
 
-pub(crate) fn paint(doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, id: NodeId) {
-    let rect = rects[&id];
+pub(crate) fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
+    let rect = rects.get(&id).expect("node was not placed");
     let ctx = painter.ctx();
     let placement = Placement {
         rect,
@@ -290,7 +307,6 @@ pub(crate) fn paint(doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, id
     ctx.paint_child(id, bounds);
 }
 
-#[cfg(test)]
 pub(crate) fn same_shape(left: &Shape, right: &Shape) -> bool {
     match (left, right) {
         (

@@ -7,28 +7,17 @@ or painter, or asked for a repaint that fell due paint again. Setters say what
 they invalidate (`Arena::get_mut_as` for layout, `paint_mut_as` for paint only,
 `touch_mut_as` for neither), damage is where a node's shapes changed, and the
 frame carries up to four damaged rects to the renderer, which scissors each one
-(`Repaint::Region` holds a `Region`, and `FrameOutput::repaint` builds it). beui's
-own tests repaint every frame from scratch and check the retained painting and
-its damage against it (`Document::verify_paint`).
+(`Repaint::Region` holds a `Region`, and `FrameOutput::repaint` builds it), drawings
+included. beui's own tests and `block-ui-test` repaint every frame from scratch
+and check the retained painting and its damage against it (`beui::verify_paint`).
+Layout writes the one rect map in place, stops invalidating at relayout
+boundaries and lays those out directly, and removed nodes' slots are reused
+under generational ids.
 
 What follows is the rest, roughly in order of value.
 
 ## Layout
 
-- **Lay out from dirty nodes, not the root.** `update_layout` still walks down
-  from the root, stopping at nodes whose placement is reusable. That is
-  proportional to the depth times the fan-out of the dirty paths. Add relayout
-  boundaries - nodes whose size cannot depend on their children (a `Frame` with
-  a fixed width and height, a `Canvas`, overlay content) - stop `mark_stale` at
-  them, and lay each dirty boundary out directly from the rect and clip it was
-  last placed with. `layout_parent`, `placing` and `placed_children` need
-  seeding for a walk that does not start at the root.
-- **Mutate the rect map in place.** `update_layout` clones the whole
-  `NodeMap<Rect>` every pass so that readers during layout (`node_rect`,
-  `watch_size`, `watch_placement`, `watch_placed`, `forget_placement`) keep
-  seeing last frame's rects. Either give those readers a way to see the map
-  being written, or make the map interior-mutable and pass it by shared
-  reference.
 - **Rects relative to the parent.** Rects are absolute, so scrolling or moving a
   subtree changes the rect of every visible node under it, which lays each out
   and paints each again. Store an offset per node and let containers (scroll,
@@ -50,28 +39,13 @@ What follows is the rest, roughly in order of value.
 - **Scroll by copying.** With local coordinates, an opaque scroll viewport can
   copy the retained frame by the scroll delta and repaint only the exposed
   strip.
-- **Multiple regions with drawings.** A frame holding a `Shape::Drawing` joins
-  its damage into one rect, because a `Draw` sets its own scissor (the plugin
-  presenter and `block-editor-beui` do) and would otherwise be painted once per
-  region. Handing each `DrawAt` a clip already narrowed to the region it is
-  painted for would let drawings take part.
-- **Damage across the plugin boundary.** `block-editor-beui` prepares its
-  renderer with `Repaint::Everything` every time, so a plugin pane repaints all
-  of itself for a caret blink. The plugin protocol could carry damaged rects
-  (plain rectangles keep it framework-independent) and the host could scissor
-  its blit to them.
-- **Verification outside beui.** `verify_paint` only runs under `cfg(test)` in
-  beui's own tests. A debug-only switch (an environment variable or a
-  `Document` setting) would let app and plugin tests check it too.
-- **Marking cost.** `PaintCache::mark` walks every ancestor for every marked
-  node. Stopping at an ancestor already marked in the same frame would bound a
-  frame that marks thousands of nodes.
-
-## Other per-frame work found along the way
-
-- `interact_node` visits every placed node on every input event, pointer motion
-  included. Hit-test through retained bounds, and deliver keyboard input along
-  the focus path.
-- The arena never reuses node ids, so every `NodeMap` grows with the number of
-  nodes ever created rather than the number alive. A free list, or generational
-  ids, would bound it.
+- **Damage across the plugin boundary, host half.** A plugin pane repaints only
+  what changed since the surface texture it draws into was last presented
+  (`surface_age`), but the host still treats every plugin frame as new: each
+  pending frame makes `surfaces::commit` build a new `PluginDrawing`, which
+  damages the whole surface area. `FrameReady` could carry the rects the frame
+  changed (plain surface-pixel rectangles keep the protocol framework-independent)
+  and the host could keep its drawing and damage only those rects, mapped
+  through the blit's quad. The damage has to reach the host with the frame it
+  describes (on the web the frame and the message arrive separately), and fall
+  back to the whole surface when they do not match.

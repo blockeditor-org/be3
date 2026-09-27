@@ -6,7 +6,7 @@ use crate::pixel_grid::PixelGrid;
 
 use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, InteractInput, NodeId, Rects};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
@@ -210,13 +210,7 @@ impl Element for ListNode {
         self.axes(main, cross)
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &mut NodeMap<Rect>,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let (available_main, available_cross) = self.main_and_cross(rect.size());
 
         let grid = doc.pixel_grid();
@@ -286,7 +280,7 @@ impl Element for ListNode {
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, _rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
         for item in self.items.iter() {
             crate::paint::paint(doc, painter, rects, item.child);
         }

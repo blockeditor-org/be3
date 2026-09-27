@@ -6,7 +6,7 @@ use beui_macros::component;
 
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, InteractInput, NodeId, Rects};
 use crate::painter::Painter;
 use crate::reactive::{Child, Prop, create_effect, with_document};
 
@@ -60,13 +60,7 @@ impl Element for EmbedNode {
         )
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &mut NodeMap<Rect>,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let grid = doc.pixel_grid();
         let placed = grid.snap_rect(rect);
         self.state.placement.set(Some(EmbedPlacement {
@@ -78,7 +72,7 @@ impl Element for EmbedNode {
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
         if self.punch {
             painter
                 .rotated(rect.center(), self.rotation)

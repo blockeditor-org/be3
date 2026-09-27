@@ -18,9 +18,9 @@ use crate::input::{BackEdge, Event, Key, KeyPress};
 use crate::inspector::{Inspector, Layout};
 use crate::interact::{self, Keys};
 use crate::layout;
-use crate::node::{Arena, NodeId, NodeMap};
+use crate::node::{Arena, NodeId, NodeMap, Rects};
 use crate::paint::{self, PaintCache};
-use crate::painter::Shape;
+use crate::painter::{Painter, PainterState, Shape};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
@@ -35,7 +35,7 @@ pub struct Document {
     pub(crate) focused: Option<NodeId>,
     pub(crate) activated: Option<NodeId>,
     pub(crate) activation_key: Option<Key>,
-    pub(crate) rects: Rc<NodeMap<Rect>>,
+    pub(crate) rects: Rc<Rects>,
     pub(crate) inspector: Option<Box<Inspector>>,
     pub(crate) inspectable: bool,
     inspector_requested: bool,
@@ -73,6 +73,10 @@ pub struct Document {
     placed_children: NodeMap<Vec<NodeId>>,
     placing: Vec<NodeId>,
     interact_pool: Vec<Vec<NodeId>>,
+    pub(crate) engaged: Vec<NodeId>,
+    pub(crate) interact_parents: NodeMap<NodeId>,
+    pub(crate) interact_bounds: NodeMap<Rect>,
+    pub(crate) interact_bounds_version: Option<u64>,
     placed_pass: NodeMap<u64>,
     reached_pass: NodeMap<u64>,
     layout_pass: u64,
@@ -81,7 +85,6 @@ pub struct Document {
     viewport: Option<(Context, Rect, f32)>,
     shapes: Vec<Shape>,
     pub(crate) paint_cache: RefCell<PaintCache>,
-    #[cfg(test)]
     pub(crate) verifies_paint: bool,
     pub(crate) copied_text: Option<String>,
     next_paint: Option<Instant>,
@@ -101,7 +104,7 @@ pub struct Document {
     changes: FlashLog<NodeId>,
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
-    clips: NodeMap<Rect>,
+    painters: NodeMap<PainterState>,
     rubber_banding: bool,
 }
 
@@ -187,7 +190,7 @@ impl Document {
             focused: None,
             activated: None,
             activation_key: None,
-            rects: Rc::new(NodeMap::default()),
+            rects: Rc::new(Rects::default()),
             inspector: None,
             inspectable: true,
             inspector_requested: false,
@@ -225,6 +228,10 @@ impl Document {
             placed_children: NodeMap::default(),
             placing: Vec::new(),
             interact_pool: Vec::new(),
+            engaged: Vec::new(),
+            interact_parents: NodeMap::default(),
+            interact_bounds: NodeMap::default(),
+            interact_bounds_version: None,
             placed_pass: NodeMap::default(),
             reached_pass: NodeMap::default(),
             layout_pass: 0,
@@ -233,7 +240,6 @@ impl Document {
             viewport: None,
             shapes: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
-            #[cfg(test)]
             verifies_paint: true,
             copied_text: None,
             next_paint: None,
@@ -253,7 +259,7 @@ impl Document {
             changes: FlashLog::default(),
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
-            clips: NodeMap::default(),
+            painters: NodeMap::default(),
             rubber_banding: true,
         }
     }
@@ -414,7 +420,7 @@ impl Document {
     }
 
     pub fn node_rect(&self, id: NodeId) -> Option<Rect> {
-        self.rects.get(&id).copied()
+        self.rects.get(&id)
     }
 
     pub fn set_test_id(&mut self, id: NodeId, test_id: impl Into<String>) {
@@ -809,7 +815,7 @@ impl Document {
                     }
                 };
                 if let Some(node_rect) = shown.and_then(|id| self.rects.get(&id)) {
-                    ctx.publish_test_id(test_id, *node_rect);
+                    ctx.publish_test_id(test_id, node_rect);
                 }
             }
         }
@@ -820,6 +826,7 @@ impl Document {
             self.damage.everything();
             self.paint_cache.get_mut().clear();
         }
+        let released = self.arena.take_released();
         for id in self.arena.take_changed() {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
             self.changes.record(id, now);
@@ -827,18 +834,16 @@ impl Document {
         let mut repaints = self.arena.take_repaints();
         let cache = self.paint_cache.get_mut();
         repaints.extend(cache.take_due(now));
-        for id in &repaints {
-            cache.mark(*id, &self.arena);
-        }
+        cache.mark(&repaints, &self.arena);
+        self.arena.recycle(released);
         if !repaints.is_empty() || self.paint_revision != self.arena.revision {
             measurement.painted = true;
-            #[cfg(test)]
-            let previous = self.shapes.clone();
+            let verifying = self.verifies_paint && verifying_paint();
+            let previous = verifying.then(|| self.shapes.clone());
             FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
             let region = self.damage.take(rect);
-            #[cfg(test)]
-            if self.verifies_paint {
+            if let Some(previous) = previous {
                 self.verify_paint(ctx, rect, &previous, &region);
             }
             for damaged in region.rects() {
@@ -896,7 +901,6 @@ impl Document {
         self.damage.add_region(cache.take_damage());
     }
 
-    #[cfg(test)]
     fn verify_paint(
         &mut self,
         ctx: &Context,
@@ -961,7 +965,7 @@ impl Document {
         if let Some(watcher) = self.sizes.get(&id).and_then(|watchers| watchers.first()) {
             return watcher.read.clone();
         }
-        let size = self.rects.get(&id).map_or(Vec2::ZERO, Rect::size);
+        let size = self.rects.get(&id).map_or(Vec2::ZERO, |rect| rect.size());
         let (read, write) = ::reactive::create_signal(size);
         self.sizes.get_or_default(id).push(SizeWatcher {
             read: read.clone(),
@@ -978,7 +982,7 @@ impl Document {
         {
             return watcher.read.clone();
         }
-        let rect = self.rects.get(&id).copied().unwrap_or(Rect::ZERO);
+        let rect = self.rects.get(&id).unwrap_or(Rect::ZERO);
         let (read, write) = ::reactive::create_signal(rect);
         self.placements.get_or_default(id).push(PlacementWatcher {
             read: read.clone(),
@@ -1185,7 +1189,7 @@ impl Document {
         frame
     }
 
-    pub(crate) fn leave_layout(&mut self, id: NodeId, frame: LayoutFrame, out: &mut NodeMap<Rect>) {
+    pub(crate) fn leave_layout(&mut self, id: NodeId, frame: LayoutFrame, out: &Rects) {
         self.layout_parent = frame.parent;
         if self.delivering {
             let mut dropped = Vec::new();
@@ -1226,11 +1230,11 @@ impl Document {
         dropped
     }
 
-    fn drop_placement(&mut self, id: NodeId, out: &mut NodeMap<Rect>, dropped: &mut Vec<NodeId>) {
+    fn drop_placement(&mut self, id: NodeId, out: &Rects, dropped: &mut Vec<NodeId>) {
         if self.delivering && self.reached_pass.get(&id) == Some(&self.layout_pass) {
             return;
         }
-        self.clips.remove(&id);
+        self.painters.remove(&id);
         if out.remove(&id).is_some() {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
             self.damage.add(self.paint_cache.borrow().bounds(id));
@@ -1245,9 +1249,8 @@ impl Document {
     }
 
     fn forget_placement(&mut self, id: NodeId) {
-        let mut rects = std::mem::take(&mut self.rects);
-        self.drop_placement(id, Rc::make_mut(&mut rects), &mut Vec::new());
-        self.rects = rects;
+        let rects = Rc::clone(&self.rects);
+        self.drop_placement(id, &rects, &mut Vec::new());
     }
 
     pub(crate) fn take_interact_pool(&mut self) -> Vec<Vec<NodeId>> {
@@ -1331,13 +1334,13 @@ impl Document {
         &self,
         id: NodeId,
         rect: Rect,
-        clip: Rect,
-        out: &NodeMap<Rect>,
+        painter: PainterState,
+        out: &Rects,
     ) -> bool {
         self.delivering
             && !self.arena.unplaced(id)
-            && out.get(&id) == Some(&rect)
-            && self.clips.get(&id) == Some(&clip)
+            && out.get(&id) == Some(rect)
+            && self.painters.get(&id).copied().map(PainterState::clip) == Some(painter.clip())
             && self.placed_children.contains_key(&id)
     }
 
@@ -1345,8 +1348,8 @@ impl Document {
         &mut self,
         id: NodeId,
         rect: Rect,
-        clip: Rect,
-        out: &mut NodeMap<Rect>,
+        painter: PainterState,
+        out: &Rects,
     ) {
         let previous = out.insert(id, rect);
         if !self.delivering {
@@ -1355,8 +1358,8 @@ impl Document {
         self.arena.clear_unplaced(id);
         self.arena.note_relaid(id);
         self.placed_pass.insert(id, self.layout_pass);
-        let previous_clip = self.clips.insert(id, clip);
-        if previous != Some(rect) || previous_clip != Some(clip) {
+        let previous_clip = self.painters.insert(id, painter).map(PainterState::clip);
+        if previous != Some(rect) || previous_clip != Some(painter.clip()) {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
         }
     }
@@ -1401,12 +1404,12 @@ impl Document {
             return false;
         }
         self.layout_pass = self.layout_pass.wrapping_add(1);
-        let mut rects = (*self.rects).clone();
+        let rects = Rc::clone(&self.rects);
         self.placing.clear();
         if let Some(root) = self.root {
             let painter = ctx.painter();
             let context = self.reactive_scope().context();
-            let placed = &mut rects;
+            let placed = &*rects;
             self.constrained.clear();
             self.layout_parent = None;
             self.delivering = true;
@@ -1420,8 +1423,8 @@ impl Document {
             }
             self.delivering = false;
         }
-        self.rects = Rc::new(rects);
         self.placing.clear();
+        self.lay_out_boundaries(ctx, &rects);
         self.layout_revision = self.arena.layout_revision;
         for node in std::mem::take(&mut self.deferred_reveals) {
             if self.arena.contains(node) {
@@ -1429,6 +1432,48 @@ impl Document {
             }
         }
         true
+    }
+}
+
+static VERIFY_PAINT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn verify_paint(enabled: bool) {
+    VERIFY_PAINT.store(enabled, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn verifying_paint() -> bool {
+    cfg!(test) || VERIFY_PAINT.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+impl Document {
+    fn lay_out_boundaries(&mut self, ctx: &Context, rects: &Rects) {
+        for boundary in self.arena.take_boundaries() {
+            if !self.arena.contains(boundary)
+                || !self.arena.unplaced(boundary)
+                || self.reached_pass.get(&boundary) == Some(&self.layout_pass)
+            {
+                continue;
+            }
+            let (Some(rect), Some(&state)) = (rects.get(&boundary), self.painters.get(&boundary))
+            else {
+                continue;
+            };
+            let painter = Painter::resumed(ctx.clone(), state);
+            let context = self.reactive_scope().context();
+            self.layout_parent = self.arena.parent(boundary);
+            self.delivering = true;
+            {
+                let _guard = crate::reactive::install(self);
+                context.run(|| {
+                    crate::reactive::with_document(|document| {
+                        layout::layout(document, &painter, boundary, rect, rects);
+                    });
+                });
+            }
+            self.delivering = false;
+            self.layout_parent = None;
+            self.placing.clear();
+        }
     }
 }
 

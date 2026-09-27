@@ -5,7 +5,7 @@ use beui_macros::component;
 use crate::document::Document;
 use crate::drawing::Drawing;
 use crate::geometry::{Rect, Vec2, vec2};
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, InteractInput, NodeId, Rects};
 use crate::painter::Painter;
 use crate::reactive::{Prop, create_effect, with_document};
 
@@ -25,16 +25,9 @@ impl Element for ViewportNode {
         vec2(bounded(available.x), bounded(available.y))
     }
 
-    fn layout(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _rect: Rect,
-        _out: &mut NodeMap<Rect>,
-    ) {
-    }
+    fn layout(&mut self, _doc: &mut Document, _painter: &Painter, _rect: Rect, _out: &Rects) {}
 
-    fn paint(&self, _doc: &Document, painter: &Painter, _rects: &NodeMap<Rect>, rect: Rect) {
+    fn paint(&self, _doc: &Document, painter: &Painter, _rects: &Rects, rect: Rect) {
         if let Some(drawing) = self.drawing.as_ref() {
             painter.drawing(rect, drawing);
         }
