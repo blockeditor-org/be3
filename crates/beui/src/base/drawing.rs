@@ -85,6 +85,6 @@ impl Document {
         if held.is_some_and(|held| Rc::ptr_eq(held, &draw)) {
             return;
         }
-        self.arena.get_mut_as::<DrawingNode>(drawing).draw = Some(draw);
+        self.arena.paint_mut_as::<DrawingNode>(drawing).draw = Some(draw);
     }
 }

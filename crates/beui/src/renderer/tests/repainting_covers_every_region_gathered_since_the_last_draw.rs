@@ -11,11 +11,11 @@ fn repainting_covers_every_region_gathered_since_the_last_draw() {
     });
 
     let region = Repaint::Region {
-        region: left,
+        region: left.into(),
         background: Color32::BLACK,
     }
     .union(Repaint::Region {
-        region: right,
+        region: right.into(),
         background: Color32::BLACK,
     });
     target.draw(Color32::BLACK, region, |_| {});

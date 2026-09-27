@@ -53,6 +53,13 @@ pub enum Shape {
     },
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) struct PainterState {
+    clip: Rect,
+    top: bool,
+    rotation: Rotation,
+}
+
 pub struct Painter {
     context: Context,
     clip: Rect,
@@ -67,6 +74,23 @@ impl Painter {
             clip,
             top: false,
             rotation: Rotation::NONE,
+        }
+    }
+
+    pub(crate) fn resumed(context: Context, state: PainterState) -> Self {
+        Self {
+            context,
+            clip: state.clip,
+            top: state.top,
+            rotation: state.rotation,
+        }
+    }
+
+    pub(crate) fn state(&self) -> PainterState {
+        PainterState {
+            clip: self.clip,
+            top: self.top,
+            rotation: self.rotation,
         }
     }
 

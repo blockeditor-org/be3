@@ -124,7 +124,7 @@ pub fn quads(output: &FrameOutput, pixels_per_point: f32) -> Quads {
 pub fn quads_within(
     output: &FrameOutput,
     pixels_per_point: f32,
-    damaged: Option<[f32; 4]>,
+    damaged: Option<&[[f32; 4]]>,
 ) -> Quads {
     let boundary = output.filtered_shapes();
     let mut filtered = 0;
@@ -330,15 +330,17 @@ fn expand(rect: [f32; 4], amount: f32) -> [f32; 4] {
     ]
 }
 
-fn skipped(damaged: Option<[f32; 4]>, rect: [f32; 4], clip: [f32; 4]) -> bool {
+fn skipped(damaged: Option<&[[f32; 4]]>, rect: [f32; 4], clip: [f32; 4]) -> bool {
     let Some(damaged) = damaged else {
         return false;
     };
-    let left = rect[0].max(clip[0]).max(damaged[0]);
-    let top = rect[1].max(clip[1]).max(damaged[1]);
-    let right = rect[2].min(clip[2]).min(damaged[2]);
-    let bottom = rect[3].min(clip[3]).min(damaged[3]);
-    left >= right || top >= bottom
+    !damaged.iter().any(|damaged| {
+        let left = rect[0].max(clip[0]).max(damaged[0]);
+        let top = rect[1].max(clip[1]).max(damaged[1]);
+        let right = rect[2].min(clip[2]).min(damaged[2]);
+        let bottom = rect[3].min(clip[3]).min(damaged[3]);
+        left < right && top < bottom
+    })
 }
 
 fn bounds(rect: Rect, pixels_per_point: f32) -> [f32; 4] {

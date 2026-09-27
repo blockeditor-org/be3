@@ -95,6 +95,7 @@ fn CanvasSurface(state: Rc<CanvasState>, children: Option<Child>) -> NodeId {
     let secondary = Rc::clone(&state);
     let keying = Rc::clone(&state);
     let texting = Rc::clone(&state);
+    let cancelling = Rc::clone(&state);
     let cursor = create_memo(clone!(state -> move || state.cursor()));
     let interactive = !state.previewing();
     view! {
@@ -107,6 +108,8 @@ fn CanvasSurface(state: Rc<CanvasState>, children: Option<Child>) -> NodeId {
         >
             <ClickCatcher
                 cursor={cursor}
+                touch_drags={interactive}
+                on_cancel={move || cancelling.cancel()}
                 on_press={move |press: PointerPress| pressing.press(press)}
                 on_secondary_press={move |press: PointerPress| secondary.secondary_press(press)}
                 on_drag={move |press: PointerPress| dragging.drag(press)}

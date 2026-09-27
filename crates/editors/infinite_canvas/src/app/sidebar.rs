@@ -86,6 +86,15 @@ pub(crate) fn CanvasSidebar(
     state: Rc<CanvasState>,
     shown: block_editor_beui::beui::reactive::Prop<bool>,
 ) -> NodeId {
+    view! {
+        <Sidebar shown={shown}>
+            <Inspector state={state} />
+        </Sidebar>
+    }
+}
+
+#[component]
+fn Inspector(state: Rc<CanvasState>) -> NodeId {
     let region = Rc::clone(&state);
     let summary = Rc::clone(&state);
     let transform = Rc::clone(&state);
@@ -96,28 +105,26 @@ pub(crate) fn CanvasSidebar(
     let empty = create_memo(clone!(state -> move || state.selection.get().is_empty()));
     let chosen = create_memo(clone!(empty -> move || !empty.get()));
     view! {
-        <Sidebar shown={shown}>
-            <List spacing=SPACING>
-                <Heading content="Inspector" />
-                <PreviewRegionSection state={region} />
-                <Separator />
-                <Show condition={empty}>
-                    <Caption content="Select an object to edit its appearance." wrap=true />
-                </Show>
-                <Show condition={chosen.clone()}>
-                    <List spacing=SPACING>
-                        <SelectionSummary state={summary} />
-                        <TransformSection state={transform} />
-                        <BlockSection state={block} />
-                        <CanvasComponents state={components} />
-                        <AppearanceSection state={appearance} />
-                        <ArrangeSection state={arrange} />
-                    </List>
-                </Show>
-                <Separator />
-                <ShortcutsSection />
-            </List>
-        </Sidebar>
+        <List spacing=SPACING>
+            <Heading content="Inspector" />
+            <PreviewRegionSection state={region} />
+            <Separator />
+            <Show condition={empty}>
+                <Caption content="Select an object to edit its appearance." wrap=true />
+            </Show>
+            <Show condition={chosen.clone()}>
+                <List spacing=SPACING>
+                    <SelectionSummary state={summary} />
+                    <TransformSection state={transform} />
+                    <BlockSection state={block} />
+                    <CanvasComponents state={components} />
+                    <AppearanceSection state={appearance} />
+                    <ArrangeSection state={arrange} />
+                </List>
+            </Show>
+            <Separator />
+            <ShortcutsSection />
+        </List>
     }
 }
 
@@ -1281,7 +1288,7 @@ fn TextContent(state: Rc<CanvasState>) -> NodeId {
 const SHORTCUTS: [(&str, &str); 9] = [
     ("Select / Rectangle / Line", "V / R / L"),
     ("Text / Pen", "T / P"),
-    ("Pan", "Space-drag or middle-drag"),
+    ("Pan", "Space-drag, middle-drag, or touch-drag empty space"),
     ("Zoom", "Ctrl-scroll or pinch"),
     ("Select all", "Ctrl+A"),
     ("Nudge", "Arrow keys; Shift for 10×"),

@@ -17,11 +17,15 @@ pub fn MenuButton(
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
-    #[prop(default = true)] arrow: bool,
+    #[prop(default = true)] arrow: Prop<bool>,
     items: Children<MenuItem>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let disabled = create_memo(move || disabled.get());
+    let trailing = create_memo(move || match arrow.get() {
+        true => ICON_ARROW_DROP_DOWN.to_owned(),
+        false => String::new(),
+    });
     let face = disabled.clone();
     let label_text = create_memo(clone!(label -> move || label.get()));
     let named = create_memo(move || !icon_only.get());
@@ -54,10 +58,6 @@ pub fn MenuButton(
                     active,
                     focused,
                 };
-                let trailing = match arrow {
-                    true => ICON_ARROW_DROP_DOWN.to_owned(),
-                    false => String::new(),
-                };
                 view! {
                     <Tooltip label={label_text.clone()} disabled={quiet}>
                         <ButtonFace
@@ -65,7 +65,7 @@ pub fn MenuButton(
                             variant
                             label={face_label.clone()}
                             glyph
-                            trailing_glyph={trailing}
+                            trailing_glyph={trailing.clone()}
                             disabled={face.clone()}
                         />
                     </Tooltip>

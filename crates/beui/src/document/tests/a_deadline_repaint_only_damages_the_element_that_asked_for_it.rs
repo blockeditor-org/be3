@@ -13,7 +13,7 @@ fn a_deadline_repaint_only_damages_the_element_that_asked_for_it() {
                 <List spacing=0.0>
                     <Frame @node_ref=&panel height={PANEL_HEIGHT} color=Color32::WHITE radius=0 />
                     <Frame width=40.0 height=20.0>
-                        <Drawing @node_ref=&drawing draw={blinking()} />
+                        <Drawing @node_ref=&drawing draw={alternating()} />
                     </Frame>
                 </List>
             }
@@ -25,7 +25,11 @@ fn a_deadline_repaint_only_damages_the_element_that_asked_for_it() {
     harness.frame(Vec::new());
     let settled = paints.get();
 
-    harness.document.next_paint = Some(Instant::now());
+    harness
+        .document
+        .paint_cache
+        .get_mut()
+        .expire_deadlines(Instant::now());
     let damage = harness
         .frame(Vec::new())
         .damage()
@@ -38,4 +42,17 @@ fn a_deadline_repaint_only_damages_the_element_that_asked_for_it() {
     );
     assert!(damage.intersects(harness.rect(drawing)));
     assert!(!damage.intersects(harness.rect(panel)));
+}
+
+fn alternating() -> crate::reactive::Draw {
+    let lit = Rc::new(Cell::new(false));
+    Rc::new(move |painter: &crate::painter::Painter, rect: Rect| {
+        lit.set(!lit.get());
+        let color = match lit.get() {
+            true => Color32::WHITE,
+            false => Color32::BLACK,
+        };
+        painter.rect_filled(rect, 0.0, color);
+        painter.ctx().request_repaint_after(BLINK);
+    })
 }

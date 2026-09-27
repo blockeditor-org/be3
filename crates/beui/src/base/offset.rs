@@ -431,7 +431,7 @@ impl Document {
         handler: impl FnMut(ScrollPosition) + 'static,
     ) {
         self.arena
-            .get_mut_as::<OffsetNode>(offset)
+            .touch_mut_as::<OffsetNode>(offset)
             .on_change
             .set(handler);
     }

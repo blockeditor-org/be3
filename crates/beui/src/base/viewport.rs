@@ -90,7 +90,7 @@ impl Document {
 
     pub(crate) fn set_viewport_drawing(&mut self, viewport: NodeId, drawing: Option<Drawing>) {
         if self.arena.get_as::<ViewportNode>(viewport).drawing != drawing {
-            self.arena.get_mut_as::<ViewportNode>(viewport).drawing = drawing;
+            self.arena.paint_mut_as::<ViewportNode>(viewport).drawing = drawing;
         }
     }
 }

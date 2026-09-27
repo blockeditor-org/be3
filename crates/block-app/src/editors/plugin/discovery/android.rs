@@ -1,6 +1,6 @@
 use std::{ffi::CString, io::Read, sync::Arc};
 
-use winit::platform::android::activity::AndroidApp;
+use beui::AndroidApp;
 
 use super::Plugins;
 
@@ -43,9 +43,6 @@ pub(crate) fn load(app: &AndroidApp) {
 }
 
 pub(super) fn read(app: &AndroidApp, path: &str) -> Result<Vec<u8>, String> {
-    if let Some(directory) = crate::platform::launched().map(|launched| launched.assets()) {
-        return std::fs::read(directory.join(path)).map_err(|error| error.to_string());
-    }
     let name = CString::new(path).map_err(|_| "the asset path is not a C string".to_owned())?;
     let mut asset = app.asset_manager().open(&name).ok_or("no such asset")?;
     let mut bytes = Vec::new();

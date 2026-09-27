@@ -118,8 +118,9 @@ the pan, zoom and fit the editor asks for, fitting the content until the first o
 arrives. An editor that is not in a viewport is told nothing about a view and fills its
 region, which is what an editor without that capability does anyway.
 
-The region is 800 by 600 points at a scale factor of 1; with_scale_factor(2.0) draws it the
-way a high-density screen does.
+The region is 800 by 600 points at a scale factor of 1; with_size(Vec2::new(390.0, 800.0))
+places it the size of a phone, and with_scale_factor(2.0) draws it the way a high-density
+screen does.
 
 4. Snapshots of the painting
 

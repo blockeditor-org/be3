@@ -318,7 +318,15 @@ plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
 fix to how text is edited lands in both. `MenuButton` is the button that opens a menu under itself, which is
 what a toolbar reaches for where `Select` would imply the choice sticks;
 `ContextMenu` is the same menu on a secondary press, and it also takes an
-`open_at` point so a touch gesture can raise it where the finger was.
+`open_at` point so a touch gesture can raise it where the finger was. A finger
+held still for the long-press delay (`Context::set_long_press_delay`, which a
+test sets to zero rather than waiting) is a secondary press where it rests, so
+every context menu opens on tap-and-hold; the press the finger began is
+cancelled and lifting it is not a click. A `ClickCatcher` hears that
+cancellation, and a second finger landing, as `on_cancel`, which is where a
+gesture in progress is dropped rather than committed. A finger dragged across a
+`ClickCatcher` is read as a scroll of whatever holds it unless the catcher sets
+`touch_drags`, which a canvas that draws or moves things under the finger does.
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, a multiline text
@@ -959,12 +967,21 @@ Beui has three feature levels:
   painting output. This is enough for headless logic tests.
 - `render` adds the wgpu renderer without creating a window. Embedded hosts use
   this level.
-- `window` adds the desktop runner and enables `render`; it is the default.
+- `window` adds the native runner and enables `render`; it is the default.
+  On the desktop it is winit's. On Android it is beui's own
+  (`src/app/android.rs`, with its Java in `crates/beui/android`): the app's
+  activity extends `com.be3.beui.BeuiActivity`, whose `BeuiView` is the
+  surface, takes touches, keys and the soft keyboard's input connection, and
+  hosts AccessKit. It has to be a view that input reaches through the view
+  system: TalkBack's touch exploration arrives as hover events on it, which
+  NativeActivity's input queue never delivers. The library defines
+  `#[unsafe(no_mangle)] fn android_main(app: beui::AndroidApp)`, which beui
+  calls on a thread of its own, and which calls `beui::run_with`.
 - `web` adds the browser runner, `beui::run_web(canvas_id, options, app)`,
   and enables `render`.
 
-`beui::run_with` takes `RunOptions` (title, app id, starting size, and on
-Android the `AndroidApp`) where `beui::run` takes only a title. The rest of
+`beui::run_with` takes `RunOptions` (title, app id, starting size) where
+`beui::run` takes only a title. The rest of
 `App` is optional:
 
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.
@@ -1480,13 +1497,31 @@ gone, and it may remove the node's own children, which is how a `VirtualList`
 scrolled out of view releases its rows. A node that is laid out again gets
 `layout` as usual and rebuilds whatever it released.
 
-Measurements are memoised per available size and dropped whenever the arena
-changes, so measuring a child repeatedly within a pass is cheap, but a `measure`
-that is not a pure function of the node and its constraint will return a stale
-answer.
+Measurements are memoised per available size and dropped whenever the node or
+something under it changes its layout, so measuring a child repeatedly within a
+pass is cheap, but a `measure` that is not a pure function of the node and its
+constraint will return a stale answer.
 
-Only invalidate retained state when a setter actually changes a value. A
-spurious mutation invalidates layout or paint caching for the entire document.
+A setter reaches its node through one of three arena accessors, chosen by what
+reads the field. `get_mut_as` is for anything `measure` or `layout` reads: the
+node and its ancestors are measured and laid out again. `paint_mut_as` is for
+what only `paint` reads - a colour, a tint, a drawing: that node alone paints
+again and nothing is laid out. `touch_mut_as` is for what neither reads -
+handlers, a cursor, a tab stop: only the accessibility tree hears of it. A field
+`paint` reads through something `layout` computed, like the origin a `Text`
+places from its alignment, counts as layout. Only call them when the value
+actually changes.
+
+Painting is retained per node. A node's `paint` runs again when the node
+changed, when it was laid out again, when its rectangle or the painter it is
+handed changed, or when a repaint it asked for falls due; otherwise the shapes
+it recorded last time stand, and its children are only visited when something
+under them has to paint. `paint` must therefore be a function of the node, its
+rectangle, the painter and the rectangles its own layout gave its children -
+anything else it reads goes unnoticed when it changes. What a node damages is
+where its shapes changed, so a repaint that paints the same thing costs no
+pixels. beui's own tests paint every frame again from scratch and fail when the
+retained painting differs from it or changed outside the damage.
 Return children from both interaction traversal and `children`, give the node a
 stable `kind` for the inspector, and add a concise `detail` when it makes the
 tree easier to understand.

@@ -36,7 +36,7 @@ pub(crate) struct Plugins {
     #[cfg(target_os = "android")]
     modules: std::collections::HashMap<String, Module>,
     #[cfg(target_os = "android")]
-    app: Option<winit::platform::android::activity::AndroidApp>,
+    app: Option<beui::AndroidApp>,
 }
 
 impl Plugins {

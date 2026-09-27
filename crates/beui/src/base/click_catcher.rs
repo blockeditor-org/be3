@@ -20,6 +20,7 @@ pub(crate) struct ClickCatcherNode {
     pub(crate) armed: bool,
     pub(crate) capture_presses: bool,
     pub(crate) repeat_drag: bool,
+    pub(crate) touch_drags: bool,
     pub(crate) key_active: bool,
     pub(crate) hovered: bool,
     pub(crate) hover_pos: Option<Pos2>,
@@ -33,6 +34,7 @@ pub(crate) struct ClickCatcherNode {
     pub(crate) on_hover_change: Callback<bool>,
     pub(crate) on_hover_move: Callback<PointerPress>,
     pub(crate) on_active_change: Callback<bool>,
+    pub(crate) on_cancel: ClickCallback,
     pub(crate) on_press: Callback<PointerPress>,
     pub(crate) on_secondary_press: Callback<PointerPress>,
     pub(crate) on_secondary_drag: Callback<SecondaryDrag>,
@@ -54,6 +56,7 @@ impl ClickCatcherNode {
             armed: false,
             capture_presses: false,
             repeat_drag: false,
+            touch_drags: false,
             key_active: false,
             hovered: false,
             hover_pos: None,
@@ -67,6 +70,7 @@ impl ClickCatcherNode {
             on_hover_change: Callback::empty(),
             on_hover_move: Callback::empty(),
             on_active_change: Callback::empty(),
+            on_cancel: ClickCallback::empty(),
             on_press: Callback::empty(),
             on_secondary_press: Callback::empty(),
             on_secondary_drag: Callback::empty(),
@@ -89,7 +93,9 @@ impl ClickCatcherNode {
     }
 
     pub(crate) fn catches_drag(&self, direction: Direction) -> bool {
-        !self.on_scroll_drag.is_empty() && self.scroll_axis.is_none_or(|axis| axis == direction)
+        self.touch_drags
+            || (!self.on_scroll_drag.is_empty()
+                && self.scroll_axis.is_none_or(|axis| axis == direction))
     }
 
     fn along(&self, wheel: Vec2) -> bool {
@@ -267,7 +273,11 @@ impl Element for ClickCatcherNode {
             let press = self.press(input, rect, pos);
             self.on_secondary_press.call(press);
         }
-        if input.touch_cancelled || (input.touch_scrolling && !captured) {
+        let holds_drag = captured || self.touch_drags;
+        if input.touch_cancelled || (input.touch_scrolling && !holds_drag) {
+            if self.armed {
+                self.on_cancel.call();
+            }
             self.armed = false;
             self.dragged = None;
         }
@@ -307,7 +317,7 @@ impl Element for ClickCatcherNode {
         self.report_active();
         if self.armed
             && input.pointer_down
-            && (!input.touch_scrolling || captured)
+            && (!input.touch_scrolling || holds_drag)
             && let Some(pos) = input.pointer_pos
             && (self.repeat_drag || self.dragged != Some(pos))
         {
@@ -391,27 +401,33 @@ impl Document {
 
     pub(crate) fn set_click_catcher_cursor(&mut self, id: NodeId, cursor: Option<CursorIcon>) {
         if self.arena.get_as::<ClickCatcherNode>(id).cursor != cursor {
-            self.arena.get_mut_as::<ClickCatcherNode>(id).cursor = cursor;
+            self.arena.touch_mut_as::<ClickCatcherNode>(id).cursor = cursor;
         }
     }
 
     pub(crate) fn set_click_catcher_capture_presses(&mut self, id: NodeId, capture_presses: bool) {
         if self.arena.get_as::<ClickCatcherNode>(id).capture_presses != capture_presses {
             self.arena
-                .get_mut_as::<ClickCatcherNode>(id)
+                .touch_mut_as::<ClickCatcherNode>(id)
                 .capture_presses = capture_presses;
         }
     }
 
     pub(crate) fn set_click_catcher_scroll_axis(&mut self, id: NodeId, axis: Option<Direction>) {
         if self.arena.get_as::<ClickCatcherNode>(id).scroll_axis != axis {
-            self.arena.get_mut_as::<ClickCatcherNode>(id).scroll_axis = axis;
+            self.arena.touch_mut_as::<ClickCatcherNode>(id).scroll_axis = axis;
+        }
+    }
+
+    pub(crate) fn set_click_catcher_touch_drags(&mut self, id: NodeId, touch_drags: bool) {
+        if self.arena.get_as::<ClickCatcherNode>(id).touch_drags != touch_drags {
+            self.arena.get_mut_as::<ClickCatcherNode>(id).touch_drags = touch_drags;
         }
     }
 
     pub(crate) fn set_click_catcher_repeat_drag(&mut self, id: NodeId, repeat_drag: bool) {
         if self.arena.get_as::<ClickCatcherNode>(id).repeat_drag != repeat_drag {
-            self.arena.get_mut_as::<ClickCatcherNode>(id).repeat_drag = repeat_drag;
+            self.arena.touch_mut_as::<ClickCatcherNode>(id).repeat_drag = repeat_drag;
         }
     }
 
@@ -419,7 +435,7 @@ impl Document {
         if !self.contains(id) {
             return;
         }
-        let click_catcher = self.arena.get_mut_as::<ClickCatcherNode>(id);
+        let click_catcher = self.arena.touch_mut_as::<ClickCatcherNode>(id);
         click_catcher.key_active = key_active;
         let active = click_catcher.is_active();
         if active == click_catcher.active {
@@ -437,12 +453,14 @@ pub fn ClickCatcher(
     #[prop(default = false)] key_active: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = false)] repeat_drag: Prop<bool>,
+    #[prop(default = false)] touch_drags: Prop<bool>,
     #[prop(default = None)] scroll_axis: Prop<Option<Direction>>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
     on_hover_change: Callback<bool>,
     on_hover_move: Callback<PointerPress>,
     on_active_change: Callback<bool>,
+    on_cancel: ClickCallback,
     on_press: Callback<PointerPress>,
     on_secondary_press: Callback<PointerPress>,
     on_secondary_drag: Callback<SecondaryDrag>,
@@ -457,12 +475,15 @@ pub fn ClickCatcher(
 ) -> NodeId {
     let click_catcher = with_document(|document| {
         let click_catcher = document.create_click_catcher();
-        let node = document.arena.get_mut_as::<ClickCatcherNode>(click_catcher);
+        let node = document
+            .arena
+            .touch_mut_as::<ClickCatcherNode>(click_catcher);
         node.on_click = on_click;
         node.on_click_at = on_click_at;
         node.on_hover_change = on_hover_change;
         node.on_hover_move = on_hover_move;
         node.on_active_change = on_active_change;
+        node.on_cancel = on_cancel;
         node.on_press = on_press;
         node.on_secondary_press = on_secondary_press;
         node.on_secondary_drag = on_secondary_drag;
@@ -493,6 +514,11 @@ pub fn ClickCatcher(
     create_effect(move || {
         with_document(|document| {
             document.set_click_catcher_repeat_drag(click_catcher, repeat_drag.get())
+        })
+    });
+    create_effect(move || {
+        with_document(|document| {
+            document.set_click_catcher_touch_drags(click_catcher, touch_drags.get())
         })
     });
     create_effect(move || {

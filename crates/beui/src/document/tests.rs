@@ -8,6 +8,7 @@ mod a_canvas_lays_out_only_the_items_the_view_can_see;
 mod a_canvas_places_its_items_at_the_view_it_is_given;
 mod a_canvas_without_a_view_places_its_items_from_its_own_corner;
 mod a_capturing_button_takes_the_press_from_the_row_it_sits_in;
+mod a_click_catcher_that_takes_touch_drags_keeps_a_vertical_finger_drag;
 mod a_clicked_number_input_selects_its_text_until_enter;
 mod a_closure_child_receives_the_handle_its_slot_hands_over;
 mod a_color_input_reports_the_hex_it_was_typed;
@@ -65,6 +66,7 @@ mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
 mod a_scroll_mixes_plain_children_with_a_nested_virtual_list;
 mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
+mod a_second_finger_cancels_the_press_the_first_began;
 mod a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch;
 mod a_select_following_its_prop_does_not_report_a_change;
 mod a_selected_radio_option_marks_its_ring_with_the_accent_colour;
@@ -201,6 +203,7 @@ mod flicking_across_the_screen_reader_reads_the_next_item;
 mod flipping_a_switch_can_replace_the_items_of_a_scroll;
 mod for_each_reuses_nodes_for_keys_that_persist_across_an_update;
 mod grabbing_the_bar_between_two_panes_off_centre_moves_it_only_as_far_as_the_pointer;
+mod holding_a_finger_down_opens_a_context_menu;
 mod holding_the_caret_handle_below_a_short_text_area_keeps_scrolling;
 mod holding_the_caret_handle_past_the_edge_of_a_narrow_input_keeps_scrolling;
 mod holding_the_simulated_left_button_drags_while_another_finger_moves_the_cursor;
@@ -231,6 +234,7 @@ mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale;
 mod pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view;
 mod quadruple_clicking_selects_everything_so_typing_replaces_the_value;
+mod recolouring_a_nested_frame_repaints_it_alone;
 mod removing_a_keyed_node_drops_the_test_ids_it_registered;
 mod removing_a_node_forgets_which_layout_pass_placed_it;
 mod removing_a_node_runs_the_cleanups_its_components_registered;
@@ -1289,6 +1293,7 @@ fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
         paints: Rc::new(Cell::new(0)),
         measures: Rc::new(Cell::new(0)),
     };
+    document.verifies_paint = false;
     let inner = document.arena.take(node);
     document.arena.put_back(
         node,
