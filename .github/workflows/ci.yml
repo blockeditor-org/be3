@@ -167,8 +167,9 @@ jobs:
     steps:
       # A pull request is checked out at its head rather than at the merge
       # GitHub makes of it, because what this job fixes is pushed back to that
-      # head and has to apply there. The merge queue only merges a head that
-      # already contains main, so nothing is tested here that main has not seen.
+      # head and has to apply there. What is merged is checked again as it will
+      # land: GitHub's merge queue runs this workflow on the merge group's
+      # commit, which is the pull request on top of main as it will be.
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -204,14 +205,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
             libvulkan1 mesa-vulkan-drivers
-
-      # The merge queue's tests, which the tests part runs when node is here.
-      # The queue runs on the standard library and node:test, so there is
-      # nothing to install beyond node.
-      - uses: actions/setup-node@v7
-        if: matrix.part == 'tests'
-        with:
-          node-version: '22'
 
       - uses: ./.github/actions/buck2
         if: ${{ !cancelled() }}
@@ -294,7 +287,7 @@ jobs:
   # to git, and pushes. The jobs that made them ran the pull request's code
   # with no credentials at all.
   #
-  # The push is made as the merge queue's app rather than with GITHUB_TOKEN,
+  # The push is made as a GitHub App rather than with GITHUB_TOKEN,
   # because a push made with GITHUB_TOKEN starts no workflow, and a fixed head
   # nobody runs CI on is a pull request that can never pass. A fork's branch is
   # not this repository's to push to, and a fork's run has no secrets to push
@@ -359,10 +352,8 @@ jobs:
       # A head that is already this job's own commit and still needed fixing
       # is a fix that does not settle, and pushing again would only start the
       # same run again, so that is where it stops and a person looks. The
-      # author alone does not say which commit is this job's: the merge queue
-      # is the same app, and the merge it makes when it brings main into a
-      # pull request's branch is authored by it too. That merge can need fixes
-      # of its own, so the commit is recognised by its message as well.
+      # commit is recognised by its author and its message together, so that
+      # anything else the app pushes is not mistaken for it.
       #
       # The push is to the branch by name and never forced. If the author
       # pushed while this ran, their commit wins, and the run their push
@@ -609,17 +600,15 @@ jobs:
             fi
           done <<< "$present"
 
-  # The one check the ruleset on main requires, and the only thing the merge
-  # queue in merge-queue.yml waits for. Every job it names in needs other than
-  # autofix has to pass, so requiring this one name requires all of them, and
-  # adding a job to the check below extends the gate without anyone editing
-  # the ruleset.
+  # The one check the ruleset on main requires, on the pull request and on
+  # the merge group GitHub's merge queue builds from it. Every job it names in
+  # needs other than autofix has to pass, so requiring this one name requires
+  # all of them, and adding a job to the check below extends the gate without
+  # anyone editing the ruleset.
   #
-  # It waits for autofix without judging it. A failure here is what makes the
-  # merge queue give up on a pull request, and a verification the autofix job
-  # is about to fix is not one to give up on: the fix is pushed as the queue's
-  # own app, which the queue keeps queued, and CI starts again on it. Waiting
-  # means that by the time this fails, that push has already happened.
+  # It waits for autofix without judging it. Waiting means that by the time
+  # this fails, the push of the fixes has already happened, and CI has
+  # started again on it.
   #
   # always(), and nothing else. A job whose `if` is false does not run, and
   # GitHub reports what did not run as a skipped check run, which a required
