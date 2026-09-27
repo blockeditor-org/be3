@@ -9,12 +9,12 @@ use crate::accessibility::{self, Fragment};
 use crate::damage::{self, Region};
 use crate::filter::Filter;
 use crate::font::{FontId, FontSources, Fonts, Galley, TextLayout};
-use crate::geometry::{Rect, Vec2, pos2};
+use crate::geometry::{Rect, pos2};
 use crate::input::{CursorIcon, Event, ImeArea, InputState, RawInput};
 use crate::mouse_simulation::MouseSimulation;
 use crate::node::NodeId;
 use crate::paint::{Item, Recorded};
-use crate::painter::{Painter, Shape};
+use crate::painter::{Entry, Painter, Shape};
 use crate::renderer::RendererInfo;
 use crate::screen_simulation::ScreenSimulation;
 
@@ -499,7 +499,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn paint_child(&self, id: NodeId, entry: Option<(Vec2, Rect)>, bounds: Rect) {
+    pub(crate) fn paint_child(&self, id: NodeId, entry: Entry, bounds: Rect) {
         if let Some(frame) = self.inner.paint_stack.borrow_mut().last_mut() {
             frame.bounds = frame.bounds.union(bounds);
             if frame.id.is_some() {

@@ -9,7 +9,7 @@ use block_editor_beui::beui::reactive::{
     view,
 };
 use block_editor_beui::beui::styled::use_theme;
-use block_editor_beui::beui::{KeyPress, NodeId, PointerPress, Rect, Vec2, pos2};
+use block_editor_beui::beui::{KeyPress, NodeId, Painter, PointerPress, Rect, Vec2, pos2};
 use block_editor_beui::{ChildBlock, ChildMode, ChildState, ChildTarget, ViewChange};
 use uuid::Uuid;
 
@@ -164,7 +164,9 @@ fn CanvasOverlay(
             return;
         }
         *shown.borrow_mut() = Some(overlay.clone());
-        set_draw.set_unconditionally(Rc::new(move |painter, _rect| overlay.draw(painter)));
+        set_draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
+            overlay.draw(&painter.in_document())
+        }));
     }));
     let x = create_memo(clone!(visible -> move || visible.get().left()));
     let y = create_memo(clone!(visible -> move || visible.get().top()));
@@ -225,7 +227,9 @@ fn EntityShape(state: Rc<CanvasState>, id: Uuid, camera: Memo<CanvasView>) -> Ca
             return;
         }
         *shown.borrow_mut() = Some(paint.clone());
-        set_draw.set_unconditionally(Rc::new(move |painter, _rect| paint.draw(painter)));
+        set_draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
+            paint.draw(&painter.in_document())
+        }));
     }));
     view! {
         <CanvasItem

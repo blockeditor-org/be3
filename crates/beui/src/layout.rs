@@ -1,4 +1,4 @@
-use crate::geometry::{Rect, Vec2};
+use crate::geometry::{Pos2, Rect, Vec2};
 use crate::painter::Painter;
 
 use crate::document::Document;
@@ -37,12 +37,13 @@ pub(crate) fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Re
     let rect = doc.pixel_grid().snap_rect(rect);
     doc.note_placed(id);
     let state = painter.state();
-    if doc.reuse_placement(id, rect, state, out) {
+    let own = painter.entered(id, rect);
+    if doc.reuse_placement(id, rect, state, own.state(), out) {
         doc.note_placed_work(true);
         return;
     }
     doc.note_placed_work(false);
-    doc.record_placement(id, rect, state, out);
+    doc.record_placement(id, rect, state, own.state(), out);
     let watermark = doc.arena.relaid_len();
     doc.deliver_unmeasured_constraint(id, rect.size());
     doc.deliver_placement(id, rect.translate(state.origin));
@@ -53,7 +54,8 @@ pub(crate) fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Re
     let mut element = doc.arena.take(id);
     let frame = doc.enter_layout(id);
     let outer = painter.ctx().swap_space_read(false);
-    element.layout(doc, painter, rect, out);
+    let local = Rect::from_min_size(Pos2::ZERO, rect.size());
+    element.layout(doc, &own, local, out);
     let reads = painter.ctx().swap_space_read(outer);
     doc.note_space_reads(id, reads, frame.base());
     doc.leave_layout(id, frame, out);

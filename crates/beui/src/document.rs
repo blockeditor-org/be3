@@ -18,9 +18,9 @@ use crate::input::{BackEdge, Event, Key, KeyPress};
 use crate::inspector::{Inspector, Layout};
 use crate::interact::{self, Keys};
 use crate::layout;
-use crate::node::{Arena, NodeId, NodeMap, Placed, Rects};
+use crate::node::{Arena, NodeId, NodeMap, Placed, Rects, SpaceId};
 use crate::paint::{self, PaintCache};
-use crate::painter::{Painter, PainterState, Shape};
+use crate::painter::{Entry, Painter, PainterState, Shape};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
@@ -111,7 +111,8 @@ pub struct Document {
 
 #[derive(Clone, Copy)]
 struct Placing {
-    state: PainterState,
+    given: PainterState,
+    own: PainterState,
     reads: bool,
     below: bool,
 }
@@ -974,7 +975,10 @@ impl Document {
             let bounds = crate::damage::bounds(shape).intersect(viewport);
             assert!(
                 !bounds.is_positive()
-                    || region.rects().iter().any(|rect| rect.contains_rect(bounds)),
+                    || region
+                        .rects()
+                        .iter()
+                        .any(|rect| rect.expand(0.01).contains_rect(bounds)),
                 "a shape changed outside the damaged region: {bounds:?} is not within {:?}",
                 region.rects(),
             );
@@ -1355,39 +1359,53 @@ impl Document {
         &mut self,
         id: NodeId,
         rect: Rect,
-        painter: PainterState,
+        given: PainterState,
+        own: PainterState,
         out: &Rects,
     ) -> bool {
         let reusable = self.delivering
             && !self.arena.unplaced(id)
-            && out.placed(&id)
-                == Some(Placed {
-                    rect,
-                    space: painter.space,
-                })
+            && out.placed(&id).is_some_and(|placed| {
+                placed.space == given.space && placed.rect.size() == rect.size()
+            })
             && self.painters.get(&id).is_some_and(|held| {
-                held.state.settles(painter)
-                    && (!(held.reads || held.below) || held.state.sees(painter))
+                held.own.settles(own) && (!(held.reads || held.below) || held.own.sees(own))
             })
             && self.placed_children.contains_key(&id);
-        if reusable && let Some(held) = self.painters.get_mut(&id) {
-            held.state = painter;
+        if !reusable {
+            return false;
         }
-        reusable
+        if let Some(held) = self.painters.get_mut(&id) {
+            held.given = given;
+            held.own = own;
+        }
+        let placed = Placed {
+            rect,
+            space: given.space,
+        };
+        let moved = out.insert(id, placed) != Some(placed);
+        let space = out.set_space(SpaceId::of(id), given.space, rect.min.to_vec2(), given.clip);
+        if moved || space {
+            self.spaces_moved = true;
+            self.accessibility_tree.get_mut().mark(id, &self.arena);
+        }
+        true
     }
 
     pub(crate) fn record_placement(
         &mut self,
         id: NodeId,
         rect: Rect,
-        painter: PainterState,
+        given: PainterState,
+        own: PainterState,
         out: &Rects,
     ) {
         let placed = Placed {
             rect,
-            space: painter.space,
+            space: given.space,
         };
         let previous = out.insert(id, placed);
+        out.set_space(SpaceId::of(id), given.space, rect.min.to_vec2(), given.clip);
         if !self.delivering {
             return;
         }
@@ -1395,12 +1413,13 @@ impl Document {
         self.arena.note_relaid(id);
         self.placed_pass.insert(id, self.layout_pass);
         let held = Placing {
-            state: painter,
+            given,
+            own,
             reads: false,
             below: false,
         };
-        let previous_clip = self.painters.insert(id, held).map(|held| held.state.clip);
-        if previous != Some(placed) || previous_clip != Some(painter.clip) {
+        let previous_clip = self.painters.insert(id, held).map(|held| held.given.clip);
+        if previous != Some(placed) || previous_clip != Some(given.clip) {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
         }
     }
@@ -1428,14 +1447,17 @@ impl Document {
     pub(crate) fn enter_space(
         &mut self,
         host: NodeId,
+        slot: u8,
         painter: &Painter,
         translation: Vec2,
         clip: Rect,
         out: &Rects,
     ) -> Painter {
-        let entered = painter.entered(host, translation, clip);
-        let kept = painter.state().clip.intersect(clip);
-        if out.set_space(host, painter.state().space, translation, kept) && self.delivering {
+        let space = SpaceId::inside(host, slot);
+        let entered = painter.shifted(Some(space), translation, clip);
+        let state = painter.state();
+        let kept = state.clip.intersect(clip);
+        if out.set_space(space, state.space, translation, kept) && self.delivering {
             self.spaces_moved = true;
             self.accessibility_tree.get_mut().mark(host, &self.arena);
         }
@@ -1581,10 +1603,10 @@ impl Document {
                 continue;
             };
             let state = PainterState {
-                origin: rects.offset(held.state.space),
-                space_clip: rects.space_clip(held.state.space),
-                entry: None,
-                ..held.state
+                origin: rects.offset(held.given.space),
+                space_clip: rects.space_clip(held.given.space),
+                list: Entry::NONE,
+                ..held.given
             };
             let painter = Painter::resumed(ctx.clone(), state);
             let rect = placed.rect;

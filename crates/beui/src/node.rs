@@ -215,15 +215,38 @@ impl<T> std::ops::Index<&NodeId> for NodeMap<T> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub(crate) struct SpaceId {
+    node: NodeId,
+    slot: u8,
+}
+
+impl SpaceId {
+    pub(crate) fn of(node: NodeId) -> Self {
+        Self { node, slot: 0 }
+    }
+
+    pub(crate) fn inside(node: NodeId, slot: u8) -> Self {
+        assert!(
+            (1..SPACE_SLOTS as u8).contains(&slot),
+            "a node has {} spaces inside it",
+            SPACE_SLOTS - 1
+        );
+        Self { node, slot }
+    }
+}
+
+const SPACE_SLOTS: usize = 3;
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) struct Placed {
     pub(crate) rect: Rect,
-    pub(crate) space: Option<NodeId>,
+    pub(crate) space: Option<SpaceId>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
 struct Space {
-    parent: Option<NodeId>,
+    parent: Option<SpaceId>,
     translation: Vec2,
     clip: Rect,
 }
@@ -231,8 +254,10 @@ struct Space {
 #[derive(Default)]
 pub(crate) struct Rects {
     map: RefCell<NodeMap<Placed>>,
-    spaces: RefCell<NodeMap<Space>>,
+    spaces: RefCell<NodeMap<[Option<Space>; SPACE_SLOTS]>>,
+    offsets: RefCell<NodeMap<[Option<(u64, Vec2)>; SPACE_SLOTS]>>,
     version: Cell<u64>,
+    moves: Cell<u64>,
 }
 
 impl Rects {
@@ -258,7 +283,10 @@ impl Rects {
     }
 
     pub(crate) fn remove(&self, id: &NodeId) -> Option<Placed> {
-        self.spaces.borrow_mut().remove(id);
+        if self.spaces.borrow_mut().remove(id).is_some() {
+            self.moves.set(self.moves.get().wrapping_add(1));
+        }
+        self.offsets.borrow_mut().remove(id);
         let removed = self.map.borrow_mut().remove(id);
         if removed.is_some() {
             self.bump();
@@ -268,8 +296,8 @@ impl Rects {
 
     pub(crate) fn set_space(
         &self,
-        id: NodeId,
-        parent: Option<NodeId>,
+        id: SpaceId,
+        parent: Option<SpaceId>,
         translation: Vec2,
         clip: Rect,
     ) -> bool {
@@ -278,37 +306,66 @@ impl Rects {
             translation,
             clip,
         };
-        let previous = self.spaces.borrow_mut().insert(id, space);
-        let moved = previous != Some(space);
+        let mut spaces = self.spaces.borrow_mut();
+        let held = &mut spaces.get_or_default(id.node)[id.slot as usize];
+        let moved = *held != Some(space);
         if moved {
+            *held = Some(space);
+            self.moves.set(self.moves.get().wrapping_add(1));
             self.bump();
         }
         moved
     }
 
-    pub(crate) fn offset(&self, space: Option<NodeId>) -> Vec2 {
-        let spaces = self.spaces.borrow();
-        let mut offset = Vec2::ZERO;
+    fn space(&self, id: SpaceId) -> Option<Space> {
+        self.spaces
+            .borrow()
+            .get(&id.node)
+            .and_then(|slots| slots[id.slot as usize])
+    }
+
+    pub(crate) fn offset(&self, space: Option<SpaceId>) -> Vec2 {
+        let stamp = self.moves.get();
+        let mut chain = Vec::new();
         let mut current = space;
-        for _ in 0..ANCESTOR_LIMIT {
-            let Some(held) = current.and_then(|id| spaces.get(&id)) else {
+        let mut offset = Vec2::ZERO;
+        while let Some(id) = current {
+            let held = self
+                .offsets
+                .borrow()
+                .get(&id.node)
+                .and_then(|slots| slots[id.slot as usize]);
+            if let Some((held_stamp, resolved)) = held
+                && held_stamp == stamp
+            {
+                offset = resolved;
+                break;
+            }
+            let Some(space) = self.space(id) else {
                 break;
             };
-            offset += held.translation;
-            current = held.parent;
+            if chain.len() >= ANCESTOR_LIMIT {
+                break;
+            }
+            chain.push((id, space.translation));
+            current = space.parent;
+        }
+        let mut offsets = self.offsets.borrow_mut();
+        for (id, translation) in chain.into_iter().rev() {
+            offset += translation;
+            offsets.get_or_default(id.node)[id.slot as usize] = Some((stamp, offset));
         }
         offset
     }
 
-    pub(crate) fn space_clip(&self, space: Option<NodeId>) -> Rect {
-        let spaces = self.spaces.borrow();
+    pub(crate) fn space_clip(&self, space: Option<SpaceId>) -> Rect {
         let mut chain = Vec::new();
         let mut current = space;
-        while let Some(held) = current.and_then(|id| spaces.get(&id)) {
+        while let Some(held) = current.and_then(|id| self.space(id)) {
             if chain.len() >= ANCESTOR_LIMIT {
                 break;
             }
-            chain.push(*held);
+            chain.push(held);
             current = held.parent;
         }
         chain.iter().rev().fold(Rect::EVERYTHING, |clip, held| {
