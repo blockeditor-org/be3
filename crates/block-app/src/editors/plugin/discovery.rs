@@ -3,6 +3,8 @@ use std::{cell::RefCell, sync::Arc};
 use block_plugin_api::PluginManifest;
 use uuid::Uuid;
 
+use crate::platform::http::Fetch;
+
 #[cfg(target_arch = "wasm32")]
 mod web;
 #[cfg(target_arch = "wasm32")]
@@ -33,6 +35,8 @@ pub(crate) struct Plugins {
     errors: Vec<String>,
     #[cfg(target_os = "android")]
     modules: std::collections::HashMap<String, Module>,
+    #[cfg(target_os = "android")]
+    app: Option<beui::AndroidApp>,
 }
 
 impl Plugins {
@@ -163,4 +167,55 @@ pub(crate) fn module(plugin_id: &str, entry: &str) -> Option<Module> {
         .iter()
         .find(|manifest| manifest.identity.id == plugin_id)?;
     plugins.modules.get(entry).cloned()
+}
+
+const DATA: &str = "data";
+const DATA_INDEX: &str = "index.json";
+const DATA_FILES: &str = "files";
+
+pub(crate) fn data_listing(plugin_id: &str) -> Fetch {
+    staged(plugin_id, DATA_INDEX)
+}
+
+pub(crate) fn data(plugin_id: &str, path: &str) -> Fetch {
+    if !plain(path) {
+        return Fetch::answered(Err(format!("{path:?} is not a plain relative path")));
+    }
+    staged(plugin_id, &format!("{DATA_FILES}/{path}"))
+}
+
+fn staged(plugin_id: &str, path: &str) -> Fetch {
+    let plugins = plugins();
+    if !plain(plugin_id)
+        || !plugins
+            .manifests
+            .iter()
+            .any(|manifest| manifest.identity.id == plugin_id)
+    {
+        return Fetch::answered(Err(format!("{plugin_id} is not a plugin this app found")));
+    }
+    let relative = format!("{DATA}/{plugin_id}/{path}");
+    #[cfg(target_arch = "wasm32")]
+    return Fetch::get(format!("{}{relative}", plugins.root), Vec::new());
+    #[cfg(target_os = "android")]
+    return Fetch::answered(match &plugins.app {
+        Some(app) => android::read(app, &relative).map_err(|error| format!("{relative}: {error}")),
+        None => Err("the plugins were not loaded from the app's assets".to_owned()),
+    });
+    #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
+    return Fetch::answered(
+        std::fs::read(plugins.root.join(&relative)).map_err(|error| format!("{relative}: {error}")),
+    );
+}
+
+fn plain(path: &str) -> bool {
+    !path.is_empty()
+        && path.split('/').all(|segment| {
+            !segment.is_empty()
+                && segment != "."
+                && segment != ".."
+                && segment
+                    .chars()
+                    .all(|character| character.is_ascii_alphanumeric() || "._-".contains(character))
+        })
 }

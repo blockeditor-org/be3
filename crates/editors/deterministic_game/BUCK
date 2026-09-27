@@ -1,9 +1,13 @@
+load("@root//buck/cargo:defs.bzl", "game_packages")
 load("@root//buck/wasm:defs.bzl", "editor")
 
 # The tests play real games, so they are compiled against the modules those
-# games build.
+# games build. Every game is staged beside the app as this plugin's data,
+# games/<game>.wasm, which the creation dialog offers to copy into the
+# workspace.
 editor(
     name = "deterministic_game",
+    data = {"games/{}.wasm".format(package.split("/")[-1]): "//{}:module".format(package) for package in game_packages()},
     module = "deterministic_game",
     test_env = {
         "CHESS_WASM": "$(location //crates/tabletop_games/rules/chess:module)",

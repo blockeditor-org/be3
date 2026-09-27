@@ -8,7 +8,10 @@ use block_editor_beui::beui::reactive::{
     ReadSignal, WriteSignal, clone, create_effect, create_signal, view,
 };
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{BlockFilter, BlockList, BlockPicker, BlockQuery, Creation, Editor};
+use block_editor_beui::{
+    BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Creation, DataListing, Editor,
+    FetchResult,
+};
 use game_api::GameAction;
 use game_host::{Game, Session};
 use uuid::Uuid;
@@ -17,7 +20,7 @@ pub(crate) mod ui;
 
 use ui::{
     CreationSnapshot, Ending, Game as GameView, GameCreation as GameCreationView,
-    GameCreationModel, GameModel, GameSnapshot, Seat, Table, Turn,
+    GameCreationModel, GameModel, GameSnapshot, Seat, StagedChoice, StagedState, Table, Turn,
 };
 
 const INTRINSIC_SIZE: Vec2 = Vec2::new(560.0, 560.0);
@@ -240,82 +243,215 @@ impl GameModel for BlockGame {
     }
 }
 
+const STAGED_GAMES: &str = "games/";
+
+enum Staged {
+    Reading(u64),
+    Loaded(Rc<Vec<u8>>),
+    Failed(String),
+}
+
+struct StagedGame {
+    file: String,
+    name: String,
+    staged: Staged,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Chosen {
+    Staged(usize),
+    Module(Uuid),
+}
+
 struct GameCreation {
     creation: Creation,
     picker: RefCell<BlockPicker>,
-    chosen: Cell<Option<Uuid>>,
+    listing: Cell<Option<u64>>,
+    staged: RefCell<Vec<StagedGame>>,
+    listing_error: RefCell<Option<String>>,
+    chosen: Cell<Option<Chosen>>,
     module: RefCell<Option<BlockList>>,
     error: RefCell<Option<String>>,
-    opened: ReadSignal<u64>,
-    set_opened: WriteSignal<u64>,
+    changed: ReadSignal<u64>,
+    set_changed: WriteSignal<u64>,
 }
 
 impl GameCreation {
     fn new(creation: Creation) -> Self {
         creation.set_ready(false);
-        let (opened, set_opened) = create_signal(0);
+        let (changed, set_changed) = create_signal(0);
+        let listing = creation.host().list_data();
         Self {
-            opened,
-            set_opened,
-            creation,
+            changed,
+            set_changed,
             picker: RefCell::new(BlockPicker::default()),
+            listing: Cell::new(Some(listing)),
+            staged: RefCell::new(Vec::new()),
+            listing_error: RefCell::new(None),
             module: RefCell::new(None),
             chosen: Cell::new(None),
             error: RefCell::new(None),
+            creation,
+        }
+    }
+
+    fn collect_staged(&self) {
+        let host = self.creation.host();
+        if let Some(request) = self.listing.get()
+            && let Some(listing) = host.take_data_listing(request)
+        {
+            self.listing.set(None);
+            match listing {
+                DataListing::Files(files) => {
+                    *self.staged.borrow_mut() = files
+                        .into_iter()
+                        .filter(|file| file.starts_with(STAGED_GAMES) && file.ends_with(".wasm"))
+                        .map(|file| StagedGame {
+                            name: file_name(&file).to_owned(),
+                            staged: Staged::Reading(host.read_data(file.clone())),
+                            file,
+                        })
+                        .collect();
+                }
+                DataListing::Failed(error) => *self.listing_error.borrow_mut() = Some(error),
+            }
+        }
+        for game in self.staged.borrow_mut().iter_mut() {
+            let Staged::Reading(request) = game.staged else {
+                continue;
+            };
+            let Some(read) = host.take_data(request) else {
+                continue;
+            };
+            game.staged = match read {
+                FetchResult::Body(data) => match Game::load(&data) {
+                    Ok(loaded) => {
+                        loaded.name().clone_into(&mut game.name);
+                        Staged::Loaded(Rc::new(data))
+                    }
+                    Err(error) => Staged::Failed(error),
+                },
+                FetchResult::Failed(error) => Staged::Failed(error),
+            };
         }
     }
 
     fn snapshot(&self) -> CreationSnapshot {
-        self.opened.get();
+        self.changed.get();
         self.creation.replies().get();
+        self.collect_staged();
         let picked = self.picker.borrow_mut().poll(self.creation.host());
         match picked {
             Some(Ok(module)) => {
-                self.chosen.set(Some(module.id));
-                *self.error.borrow_mut() = None;
-                self.creation.set_ready(true);
+                self.choose(Chosen::Module(module.id));
             }
             Some(Err(error)) => *self.error.borrow_mut() = Some(error),
             None => {}
         }
         let picking = self.picker.borrow().is_open();
-        let chosen = self.chosen.get().map(|module| {
-            let mut watched = self.module.borrow_mut();
-            if watched
-                .as_ref()
-                .is_none_or(|list| list.query() != BlockQuery::Block(module))
-            {
-                *watched = Some(self.creation.blocks().watch(BlockQuery::Block(module)));
+        let chosen = self.chosen.get();
+        let module = match chosen {
+            Some(Chosen::Module(module)) => {
+                let mut watched = self.module.borrow_mut();
+                if watched
+                    .as_ref()
+                    .is_none_or(|list| list.query() != BlockQuery::Block(module))
+                {
+                    *watched = Some(self.creation.blocks().watch(BlockQuery::Block(module)));
+                }
+                Some(
+                    watched
+                        .as_ref()
+                        .and_then(|list| list.read().into_iter().next())
+                        .and_then(|info| info.name)
+                        .unwrap_or_else(|| "Game module".to_owned()),
+                )
             }
-            watched
-                .as_ref()
-                .and_then(|list| list.read().into_iter().next())
-                .and_then(|info| info.name)
-                .unwrap_or_else(|| "Game module".to_owned())
-        });
+            _ => None,
+        };
+        let games = self
+            .staged
+            .borrow()
+            .iter()
+            .enumerate()
+            .map(|(index, game)| StagedChoice {
+                index,
+                name: game.name.clone(),
+                state: match &game.staged {
+                    Staged::Reading(_) => StagedState::Loading,
+                    Staged::Loaded(_) => StagedState::Ready {
+                        chosen: chosen == Some(Chosen::Staged(index)),
+                    },
+                    Staged::Failed(error) => StagedState::Failed(error.clone()),
+                },
+            })
+            .collect();
         CreationSnapshot {
-            chosen,
+            games,
+            listing: self.listing.get().is_some(),
+            module,
             picking,
-            error: self.error.borrow().clone(),
+            error: self
+                .error
+                .borrow()
+                .clone()
+                .or_else(|| self.listing_error.borrow().clone()),
         }
     }
 
+    fn choose(&self, chosen: Chosen) {
+        self.chosen.set(Some(chosen));
+        *self.error.borrow_mut() = None;
+        self.creation.set_ready(true);
+    }
+
     fn create_block(&self) -> Result<Uuid, String> {
-        let module = self.chosen.get().ok_or("Choose a game module first")?;
-        Ok(self
-            .creation
-            .create(&DeterministicGameContent::new(&DeterministicGame::of(
-                module,
-            ))))
+        match self.chosen.get().ok_or("Choose a game first")? {
+            Chosen::Module(module) => {
+                Ok(self
+                    .creation
+                    .create(&DeterministicGameContent::new(&DeterministicGame::of(
+                        module,
+                    ))))
+            }
+            Chosen::Staged(index) => {
+                let staged = self.staged.borrow();
+                let game = staged.get(index).ok_or("That game is no longer offered")?;
+                let Staged::Loaded(data) = &game.staged else {
+                    return Err(format!("{} has not loaded", game.name));
+                };
+                let blocks = self.creation.blocks();
+                let module = blocks.create(
+                    &GameModuleContent::from_file(file_name(&game.file), data.to_vec()),
+                    BlockParent::Detached,
+                );
+                let block =
+                    self.creation
+                        .create(&DeterministicGameContent::new(&DeterministicGame::of(
+                            module,
+                        )));
+                blocks.set_parent(module, BlockParent::Block(block));
+                Ok(block)
+            }
+        }
     }
 }
 
+fn file_name(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
+}
+
 impl GameCreationModel for GameCreation {
+    fn choose_staged(&self, index: usize) {
+        self.choose(Chosen::Staged(index));
+        self.set_changed.update(|changed| *changed += 1);
+    }
+
     fn choose_module(&self) {
         self.picker
             .borrow_mut()
             .open(self.creation.host(), module_filter());
-        self.set_opened.update(|opened| *opened += 1);
+        self.set_changed.update(|changed| *changed += 1);
     }
 }
 

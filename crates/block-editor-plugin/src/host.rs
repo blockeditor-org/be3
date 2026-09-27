@@ -9,8 +9,8 @@ use std::{
 use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockLocation, BlockPick,
     ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
-    EditorRegion, FetchResult, FilePick, HostReply, HostRequest, Occluder, PerformanceMeasurement,
-    Size, ViewChange, WebViewCommand, WebViewEvent,
+    DataListing, EditorRegion, FetchResult, FilePick, HostReply, HostRequest, Occluder,
+    PerformanceMeasurement, Size, ViewChange, WebViewCommand, WebViewEvent,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter};
 use block_ui::BlockCatalog;
@@ -1007,6 +1007,28 @@ impl EditorHost {
     pub fn take_fetch(&self, request: u64) -> Option<FetchResult> {
         match self.take_reply(request)? {
             HostReply::Fetched(result) => Some(result),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
+    pub fn list_data(&self) -> u64 {
+        self.ask(HostRequest::ListData)
+    }
+
+    pub fn take_data_listing(&self, request: u64) -> Option<DataListing> {
+        match self.take_reply(request)? {
+            HostReply::DataListed(listing) => Some(listing),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
+    pub fn read_data(&self, path: impl Into<String>) -> u64 {
+        self.ask(HostRequest::ReadData(path.into()))
+    }
+
+    pub fn take_data(&self, request: u64) -> Option<FetchResult> {
+        match self.take_reply(request)? {
+            HostReply::DataRead(result) => Some(result),
             reply => self.mismatched(request, reply),
         }
     }

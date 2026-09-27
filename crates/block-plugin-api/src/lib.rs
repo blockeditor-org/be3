@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 53;
+pub const PROTOCOL_VERSION: u16 = 54;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -1274,6 +1274,8 @@ pub enum HostRequest {
     PickBlock(BlockFilter),
     PasteImage,
     Fetch(String),
+    ListData,
+    ReadData(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1282,6 +1284,8 @@ pub enum HostReply {
     BlockPicked(BlockPick),
     ImagePasted(ClipboardImage),
     Fetched(FetchResult),
+    DataListed(DataListing),
+    DataRead(FetchResult),
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1313,6 +1317,12 @@ pub enum FilePick {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FetchResult {
     Body(Vec<u8>),
+    Failed(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DataListing {
+    Files(Vec<String>),
     Failed(String),
 }
 
@@ -2226,8 +2236,9 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
             collection(filter.block_types.len())?;
             collection(filter.excluded.len())
         }
-        HostRequest::PasteImage => Ok(()),
+        HostRequest::PasteImage | HostRequest::ListData => Ok(()),
         HostRequest::Fetch(url) => string(url),
+        HostRequest::ReadData(path) => string(path),
     }
 }
 
@@ -2239,11 +2250,18 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         HostReply::ImagePasted(ClipboardImage::Pasted { name, data }) => {
             string(name).and_then(|()| blob(data))
         }
-        HostReply::Fetched(FetchResult::Body(body)) => blob(body),
+        HostReply::Fetched(FetchResult::Body(body))
+        | HostReply::DataRead(FetchResult::Body(body)) => blob(body),
+        HostReply::DataListed(DataListing::Files(files)) => {
+            collection(files.len())?;
+            strings(files)
+        }
         HostReply::FilePicked(FilePick::Failed(message))
         | HostReply::BlockPicked(BlockPick::Failed(message))
         | HostReply::ImagePasted(ClipboardImage::Failed(message))
-        | HostReply::Fetched(FetchResult::Failed(message)) => string(message),
+        | HostReply::Fetched(FetchResult::Failed(message))
+        | HostReply::DataRead(FetchResult::Failed(message))
+        | HostReply::DataListed(DataListing::Failed(message)) => string(message),
         HostReply::FilePicked(FilePick::Cancelled)
         | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)
         | HostReply::ImagePasted(ClipboardImage::Empty) => Ok(()),

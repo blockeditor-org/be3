@@ -1,4 +1,5 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
+load("@root//buck/app:defs.bzl", "plugin_data")
 load("@root//buck/cargo:defs.bzl", "cargo_wasm_facts")
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
@@ -88,7 +89,7 @@ wasi_app_flags = plugin_exports + [
 # cfg(target_arch = "wasm32")), :module named after its manifest's entry point,
 # :manifest, and its wasm :test. test_env is extra environment for compiling the
 # tests, which is how a test names a module it loads with include_bytes!.
-def editor(name, module, visibility = ["PUBLIC"], test_env = {}):
+def editor(name, module, visibility = ["PUBLIC"], test_env = {}, data = {}):
     facts = cargo_wasm_facts()
     native.rust_library(
         name = name + "_wasm",
@@ -113,6 +114,11 @@ def editor(name, module, visibility = ["PUBLIC"], test_env = {}):
     native.export_file(
         name = "manifest",
         src = "manifest.json",
+        visibility = visibility,
+    )
+    plugin_data(
+        name = "data",
+        files = data,
         visibility = visibility,
     )
     plugin_tests(
