@@ -112,19 +112,21 @@ impl Harness {
 
     fn click(&mut self, test_id: &str) {
         let center = self.rect(test_id).center();
-        self.frame(vec![Event::PointerMoved(center)]);
-        self.frame(vec![Event::PointerButton {
-            pos: center,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers: beui::Modifiers::NONE,
-        }]);
-        self.frame(vec![Event::PointerButton {
-            pos: center,
-            button: PointerButton::Primary,
-            pressed: false,
-            modifiers: beui::Modifiers::NONE,
-        }]);
+        self.frame(vec![
+            Event::PointerMoved(center),
+            Event::PointerButton {
+                pos: center,
+                button: PointerButton::Primary,
+                pressed: true,
+                modifiers: beui::Modifiers::NONE,
+            },
+            Event::PointerButton {
+                pos: center,
+                button: PointerButton::Primary,
+                pressed: false,
+                modifiers: beui::Modifiers::NONE,
+            },
+        ]);
         self.settle();
     }
 
