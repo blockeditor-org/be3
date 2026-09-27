@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use beui_macros::{component, view};
 
 use crate::base::{Align, Direction, TextAlign};
@@ -5,21 +7,23 @@ use crate::color::Color32;
 use crate::datetime::{Date, DateTime, HourCycle, Time, Weekday};
 use crate::icons::{ICON_CALENDAR_MONTH, ICON_SCHEDULE};
 use crate::node::NodeId;
+use crate::input::{CursorIcon, PointerPress};
 use crate::reactive::{
-    Callback, ClickCatcher, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, Spacer, Text,
-    clone, create_effect, create_memo, create_signal,
+    Callback, Children, ClickCallback, ClickCatcher, Frame, ItemSize, List, ListChild, Memo,
+    NodeRef, Prop, ReadSignal, Show, Spacer, Text, WriteSignal, clone, component_rect,
+    create_effect, create_memo, create_signal, create_timer,
 };
 use crate::styled::button::{Button, ButtonVariant};
 use crate::styled::calendar::{CALENDAR_WIDTH, Calendar};
-use crate::styled::popover::PopoverPanel;
+use crate::styled::popover::{PANEL_PADDING, PopoverPanel};
 use crate::styled::scroll::scrollbar_style;
 use crate::styled::text::IconSized;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, ThemeStore, use_theme};
 use crate::styled::tooltip::Tooltip;
 use crate::unstyled;
 use crate::unstyled::{
-    DateSegmentHandle, DateTimeParts, PopoverHandle, PopoverTriggerHandle, TimeOptionHandle,
-    narrower_than,
+    DateDraft, DateSegment, DateSegmentHandle, DateTimeParts, PopoverHandle, PopoverPlacement,
+    PopoverTriggerHandle, TimeOptionHandle, narrower_than,
 };
 
 const HEIGHT: f32 = 34.0;
@@ -29,12 +33,24 @@ const SEGMENT_RADIUS: u8 = 3;
 const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 const TRIGGER_PADDING: f32 = 4.0;
+const TRIGGER_GAP: f32 = 4.0;
 const PANEL_SPACING: f32 = 12.0;
 const TIME_LIST_WIDTH: f32 = 128.0;
 const TIME_LIST_HEIGHT: f32 = 300.0;
 const STACKED_TIME_LIST_HEIGHT: f32 = 168.0;
 const TIME_ROW_HEIGHT: f32 = 32.0;
 const STACK_BREAKPOINT: f32 = 460.0;
+
+#[derive(Clone)]
+struct Field {
+    current: ReadSignal<Option<DateTime>>,
+    report: Callback<Option<DateTime>>,
+    parts: DateTimeParts,
+    hour_cycle: HourCycle,
+    label: Memo<String>,
+    disabled: Memo<bool>,
+    width: Memo<f32>,
+}
 
 #[component]
 pub fn DateTimeField(
@@ -66,16 +82,52 @@ pub fn DateTimeField(
             on_change.call(next);
         }
     }));
+    let placed = component_rect();
+    let width = create_memo(move || placed.get().width());
+    let field = Field {
+        current: current.clone(),
+        report,
+        parts,
+        hour_cycle,
+        label: label.clone(),
+        disabled: disabled.clone(),
+        width,
+    };
+    let (open, set_open) = create_signal(false);
+    let (from_field, set_from_field) = create_signal(false);
+    let (inner_focus, set_inner_focus) = create_signal(None::<DateSegment>);
+    let (outer_focus, set_outer_focus) = create_signal(None::<DateSegment>);
+    let (last_inner, set_last_inner) = create_signal(None::<DateSegment>);
+    let (outer_segment, set_outer_segment) = create_signal(None::<DateSegment>);
     let (within, set_within) = create_signal(false);
-    let (hovered, set_hovered) = create_signal(false);
-    let theme = use_theme();
-    let border = create_memo(clone!(theme within disabled -> move || {
-        border_color(&theme, disabled.get(), within.get(), hovered.get())
+    let first = match parts.has_date() {
+        true => DateSegment::Year,
+        false => DateSegment::Hour,
+    };
+    let open_at = Callback::new(clone!(disabled set_open set_from_field set_inner_focus -> move |segment: DateSegment| {
+        if disabled.get_untracked() {
+            return;
+        }
+        set_from_field.set(true);
+        set_inner_focus.set(Some(segment));
+        set_open.set(true);
     }));
-    let fill = create_memo(clone!(theme disabled -> move || match disabled.get() {
-        true => theme.surface.get(),
-        false => theme.surface_raised.get(),
+    let pressed = create_timer(clone!(outer_segment open_at -> move || {
+        open_at.call(outer_segment.get_untracked().unwrap_or(first));
+        None
     }));
+    let refocus_trigger = create_memo(clone!(from_field -> move || !from_field.get()));
+    let opened = clone!(from_field last_inner set_open set_inner_focus set_outer_focus -> move |now_open: bool| {
+        if now_open {
+            return;
+        }
+        set_open.set(false);
+        set_inner_focus.set(None);
+        if from_field.get_untracked() {
+            set_from_field.set(false);
+            set_outer_focus.set(Some(last_inner.get_untracked().unwrap_or(first)));
+        }
+    });
     let picker_label = create_memo(clone!(label -> move || {
         let what = match parts {
             DateTimeParts::Time => "Choose a time",
@@ -87,70 +139,143 @@ pub fn DateTimeField(
             label => format!("{what} for {label}"),
         }
     }));
-    let field_report = report.clone();
+    let anchor = NodeRef::new();
+    let theme = use_theme();
+    let popover_anchor = anchor.clone();
+    let inner_field = field.clone();
     view! {
         <Frame
+            @node_ref=&anchor
             outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH
             radius={RADIUS + 3}
             outline_offset=FOCUS_RING_OFFSET
             outline_visible={within.clone()}
         >
-            <ClickCatcher on_hover_change={move |inside: bool| set_hovered.set(inside)}>
-                <Frame
-                    height=HEIGHT
-                    color={fill}
-                    outline={border}
-                    outline_width=BORDER_WIDTH
-                    outline_visible=true
-                    radius=RADIUS
-                    padding_horizontal=PADDING_HORIZONTAL
+            <FieldBox
+                field
+                focus={outer_focus}
+                on_focus_change={move |inside: bool| set_within.set(inside)}
+                on_segment_focus={move |segment: Option<DateSegment>| {
+                    set_outer_segment.set(segment);
+                    if segment.is_some() {
+                        set_outer_focus.set(None);
+                    }
+                }}
+                on_open={move |segment: DateSegment| open_at.call(segment)}
+                on_press={move || pressed.restart(Duration::ZERO)}
+            >
+                <unstyled::Popover
+                    label={picker_label.clone()}
+                    disabled={disabled.clone()}
+                    open={open}
+                    anchor=popover_anchor
+                    placement={PopoverPlacement::Over(PANEL_PADDING as u16)}
+                    refocus_trigger
+                    on_open_change={opened}
+                    trigger={move |handle: PopoverTriggerHandle| view! {
+                        <PickerTrigger handle parts label={picker_label} />
+                    }}
                 >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                        <unstyled::DateTimeField
-                            @sizing=ItemSize::Percent(100.0)
-                            value={current.clone()}
-                            parts
-                            hour_cycle
-                            label={label.clone()}
-                            disabled={disabled.clone()}
-                            on_change={move |next| field_report.call(next)}
-                            on_focus_change={move |inside: bool| set_within.set(inside)}
-                            segment={|handle: DateSegmentHandle| view! {
-                                <SegmentFace handle />
-                            }}
-                            literal={|text: String| view! {
-                                <LiteralFace text />
-                            }}
-                        />
-                        <unstyled::Popover
-                            label={picker_label.clone()}
-                            disabled={disabled.clone()}
-                            trigger={move |handle: PopoverTriggerHandle| view! {
-                                <PickerTrigger handle parts label={picker_label} />
-                            }}
-                        >
-                            {move |popover: PopoverHandle| view! {
-                                <PopoverPanel>
-                                    <PickerPanel
-                                        popover
-                                        current
-                                        parts
-                                        hour_cycle
-                                        clearable
-                                        min
-                                        max
-                                        first_weekday
-                                        step_minutes
-                                        report={move |next| report.call(next)}
-                                    />
-                                </PopoverPanel>
-                            }}
-                        </unstyled::Popover>
-                    </List>
-                </Frame>
-            </ClickCatcher>
+                    {move |popover: PopoverHandle| view! {
+                        <PopoverPanel>
+                            <PickerPanel
+                                popover
+                                field={inner_field}
+                                from_field
+                                inner_focus
+                                set_inner_focus
+                                set_last_inner
+                                clearable
+                                min
+                                max
+                                first_weekday
+                                step_minutes
+                            />
+                        </PopoverPanel>
+                    }}
+                </unstyled::Popover>
+            </FieldBox>
         </Frame>
+    }
+}
+
+#[component]
+fn FieldBox(
+    field: Field,
+    focus: Prop<Option<DateSegment>>,
+    on_focus_change: Callback<bool>,
+    on_segment_focus: Callback<Option<DateSegment>>,
+    on_open: Callback<DateSegment>,
+    on_draft: Callback<DateDraft>,
+    on_press: ClickCallback,
+    children: Children<ListChild>,
+) -> NodeId {
+    let Field {
+        current,
+        report,
+        parts,
+        hour_cycle,
+        label,
+        disabled,
+        ..
+    } = field;
+    let (within, set_within) = create_signal(false);
+    let (hovered, set_hovered) = create_signal(false);
+    let theme = use_theme();
+    let border = create_memo(clone!(theme within disabled -> move || {
+        border_color(&theme, disabled.get(), within.get(), hovered.get())
+    }));
+    let fill = create_memo(clone!(theme disabled -> move || match disabled.get() {
+        true => theme.surface.get(),
+        false => theme.surface_raised.get(),
+    }));
+    view! {
+        <ClickCatcher on_hover_change={move |inside: bool| set_hovered.set(inside)}>
+            <Frame
+                height=HEIGHT
+                color={fill}
+                outline={border}
+                outline_width=BORDER_WIDTH
+                outline_visible=true
+                radius=RADIUS
+            >
+                <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                    <ClickCatcher
+                        @sizing=ItemSize::Percent(100.0)
+                        cursor=CursorIcon::Text
+                        on_click_at={move |_: PointerPress| on_press.call()}
+                    >
+                        <Frame padding_horizontal=PADDING_HORIZONTAL>
+                            <unstyled::DateTimeField
+                                value={current}
+                                parts
+                                hour_cycle
+                                label
+                                disabled
+                                focus_segment={focus}
+                                on_change={move |next| report.call(next)}
+                                on_focus_change={move |inside: bool| {
+                                    set_within.set(inside);
+                                    on_focus_change.call(inside);
+                                }}
+                                on_segment_focus={move |segment| on_segment_focus.call(segment)}
+                                on_draft={move |draft| on_draft.call(draft)}
+                                on_open={move |segment| on_open.call(segment)}
+                                segment={|handle: DateSegmentHandle| view! {
+                                    <SegmentFace handle />
+                                }}
+                                literal={|text: String| view! {
+                                    <LiteralFace text />
+                                }}
+                            />
+                        </Frame>
+                    </ClickCatcher>
+                    {children}
+                    <Spacer @sizing=ItemSize::Fixed(TRIGGER_GAP) />
+                </List>
+            </Frame>
+        </ClickCatcher>
     }
 }
 
@@ -244,22 +369,48 @@ fn PickerTrigger(
 #[component]
 fn PickerPanel(
     popover: PopoverHandle,
-    current: ReadSignal<Option<DateTime>>,
-    parts: DateTimeParts,
-    hour_cycle: HourCycle,
+    field: Field,
+    from_field: ReadSignal<bool>,
+    inner_focus: ReadSignal<Option<DateSegment>>,
+    set_inner_focus: WriteSignal<Option<DateSegment>>,
+    set_last_inner: WriteSignal<Option<DateSegment>>,
     clearable: bool,
     min: Memo<Option<Date>>,
     max: Memo<Option<Date>>,
     first_weekday: Weekday,
     step_minutes: u32,
-    report: Callback<Option<DateTime>>,
 ) -> NodeId {
     let PopoverHandle { open, close } = popover;
+    let Field {
+        current,
+        report,
+        parts,
+        hour_cycle,
+        width,
+        ..
+    } = field.clone();
+    let (draft, set_draft) = create_signal(DateDraft::default());
+    let shown = create_memo(clone!(current draft -> move || {
+        let draft = draft.get();
+        let held = current.get().map_or_else(Date::today, |value| value.date);
+        match (draft.year, draft.month) {
+            (None, None) => None,
+            (year, month) => Some(Date::new(
+                year.unwrap_or(held.year),
+                month.unwrap_or(held.month),
+                draft.day.unwrap_or(1),
+            )),
+        }
+    }));
     let narrow = narrower_than(STACK_BREAKPOINT);
     let date = create_memo(clone!(current -> move || current.get().map(|value| value.date)));
     let time = create_memo(clone!(current -> move || current.get().map(|value| value.time)));
-    let calendar_focused = create_memo(clone!(open -> move || open.get() && parts.has_date()));
-    let list_focused = create_memo(clone!(open -> move || open.get() && !parts.has_date()));
+    let calendar_focused = create_memo(clone!(open from_field -> move || {
+        open.get() && !from_field.get() && parts.has_date()
+    }));
+    let list_focused = create_memo(clone!(open from_field -> move || {
+        open.get() && !from_field.get() && !parts.has_date()
+    }));
     let list_height = create_memo(
         clone!(narrow -> move || match narrow.get() && parts.has_date() {
             true => STACKED_TIME_LIST_HEIGHT,
@@ -272,11 +423,14 @@ fn PickerPanel(
             false => TIME_LIST_WIDTH,
         }),
     );
-    let panel_width = create_memo(clone!(narrow -> move || match parts {
-        DateTimeParts::Date => CALENDAR_WIDTH,
-        DateTimeParts::Time => TIME_LIST_WIDTH,
-        DateTimeParts::DateTime if narrow.get() => CALENDAR_WIDTH,
-        DateTimeParts::DateTime => CALENDAR_WIDTH + PANEL_SPACING + TIME_LIST_WIDTH,
+    let panel_width = create_memo(clone!(narrow width -> move || {
+        let content = match parts {
+            DateTimeParts::Date => CALENDAR_WIDTH,
+            DateTimeParts::Time => TIME_LIST_WIDTH,
+            DateTimeParts::DateTime if narrow.get() => CALENDAR_WIDTH,
+            DateTimeParts::DateTime => CALENDAR_WIDTH + PANEL_SPACING + TIME_LIST_WIDTH,
+        };
+        content.max(width.get())
     }));
     let pick_date = clone!(current report close -> move |date: Date| {
         let time = current.get_untracked().map_or(Time::MIDNIGHT, |value| value.time);
@@ -314,6 +468,22 @@ fn PickerPanel(
     view! {
         <Frame width={panel_width}>
             <List spacing=PANEL_SPACING>
+                <List direction=Direction::Horizontal spacing=0.0>
+                    <Frame width={width}>
+                        <FieldBox
+                            field
+                            focus={inner_focus}
+                            on_segment_focus={move |segment: Option<DateSegment>| {
+                                if segment.is_some() {
+                                    set_last_inner.set(segment);
+                                    set_inner_focus.set(None);
+                                }
+                            }}
+                            on_draft={move |draft| set_draft.set(draft)}
+                            children={view! {}}
+                        />
+                    </Frame>
+                </List>
                 <unstyled::Stack spacing=PANEL_SPACING narrow>
                     <Show condition=has_date>
                         <Calendar
@@ -322,6 +492,7 @@ fn PickerPanel(
                             max
                             first_weekday
                             focused={calendar_focused}
+                            show={shown}
                             on_change={pick_date}
                         />
                     </Show>

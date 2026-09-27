@@ -19,21 +19,28 @@ const WEEKS: usize = 6;
 const DAYS_PER_WEEK: usize = 7;
 const MONTH_COLUMNS: usize = 3;
 const MONTH_ROWS: usize = 4;
+const YEAR_COLUMNS: usize = 4;
+const YEAR_ROWS: usize = 5;
+const YEARS_PER_PAGE: i32 = (YEAR_COLUMNS * YEAR_ROWS) as i32;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum CalendarMode {
     #[default]
     Days,
     Months,
+    Years,
 }
 
 pub struct CalendarHeaderHandle {
     pub month: Memo<Date>,
     pub label: Memo<String>,
+    pub month_label: Memo<String>,
+    pub year_label: Memo<String>,
     pub mode: ReadSignal<CalendarMode>,
     pub previous: Callback<()>,
     pub next: Callback<()>,
-    pub toggle_mode: Callback<()>,
+    pub show_months: Callback<()>,
+    pub show_years: Callback<()>,
     pub can_previous: Memo<bool>,
     pub can_next: Memo<bool>,
 }
@@ -59,6 +66,16 @@ pub struct CalendarMonthHandle {
     pub focused: ReadSignal<bool>,
 }
 
+pub struct CalendarYearHandle {
+    pub year: Memo<i32>,
+    pub selected: Memo<bool>,
+    pub current: Memo<bool>,
+    pub disabled: Memo<bool>,
+    pub hovered: ReadSignal<bool>,
+    pub active: ReadSignal<bool>,
+    pub focused: ReadSignal<bool>,
+}
+
 struct State {
     selected: ReadSignal<Option<Date>>,
     set_selected: WriteSignal<Option<Date>>,
@@ -68,6 +85,8 @@ struct State {
     set_day_focus: WriteSignal<Option<Date>>,
     month_focus: ReadSignal<Option<Date>>,
     set_month_focus: WriteSignal<Option<Date>>,
+    year_focus: ReadSignal<Option<i32>>,
+    set_year_focus: WriteSignal<Option<i32>>,
     mode: ReadSignal<CalendarMode>,
     set_mode: WriteSignal<CalendarMode>,
     min: Memo<Option<Date>>,
@@ -87,11 +106,13 @@ pub fn Calendar(
     #[prop(default = None)] today: Prop<Option<Date>>,
     #[prop(default = Weekday::Monday)] first_weekday: Weekday,
     #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = None)] show: Prop<Option<Date>>,
     #[prop(default = 0.0)] spacing: f32,
     header: Render<CalendarHeaderHandle>,
     weekday: RenderFn<Weekday>,
     day: RenderFn<CalendarDayHandle>,
     month: RenderFn<CalendarMonthHandle>,
+    year: RenderFn<CalendarYearHandle>,
     on_change: Callback<Date>,
 ) -> NodeId {
     let today = today.peek().unwrap_or_else(Date::today);
@@ -105,6 +126,7 @@ pub fn Calendar(
     let (active, set_active) = create_signal(starting);
     let (day_focus, set_day_focus) = create_signal(None);
     let (month_focus, set_month_focus) = create_signal(None);
+    let (year_focus, set_year_focus) = create_signal(None);
     let (mode, set_mode) = create_signal(CalendarMode::Days);
     let state: Handle = Rc::new(State {
         selected: selected_read.clone(),
@@ -115,6 +137,8 @@ pub fn Calendar(
         set_day_focus,
         month_focus,
         set_month_focus,
+        year_focus,
+        set_year_focus,
         mode: mode.clone(),
         set_mode,
         min,
@@ -133,6 +157,12 @@ pub fn Calendar(
         }
     }));
     create_effect(clone!(state -> move || {
+        if let Some(date) = show.get() {
+            state.set_active.set(clamp(&state, date));
+            state.set_mode.set(CalendarMode::Days);
+        }
+    }));
+    create_effect(clone!(state -> move || {
         if focused.get() {
             reset(&state);
             state.set_mode.set(CalendarMode::Days);
@@ -141,31 +171,45 @@ pub fn Calendar(
     }));
 
     let shown_month = create_memo(clone!(active -> move || active.get().first_of_month()));
-    let label = create_memo(clone!(shown_month mode -> move || match mode.get() {
+    let first_year = create_memo(clone!(active -> move || page_start(active.get().year)));
+    let label = create_memo(clone!(shown_month mode first_year -> move || match mode.get() {
         CalendarMode::Days => shown_month.get().month_label(),
         CalendarMode::Months => shown_month.get().year.to_string(),
+        CalendarMode::Years => years_label(first_year.get()),
     }));
-    let can_previous = create_memo(clone!(state shown_month -> move || {
+    let month_label = create_memo(clone!(shown_month -> move || {
+        shown_month.get().month_name().to_owned()
+    }));
+    let year_label = create_memo(clone!(shown_month mode first_year -> move || match mode.get() {
+        CalendarMode::Years => years_label(first_year.get()),
+        CalendarMode::Days | CalendarMode::Months => shown_month.get().year.to_string(),
+    }));
+    let can_previous = create_memo(clone!(state shown_month first_year -> move || {
         let edge = match state.mode.get() {
             CalendarMode::Days => shown_month.get().add_days(-1),
             CalendarMode::Months => Date::new(shown_month.get().year - 1, 12, 31),
+            CalendarMode::Years => Date::new(first_year.get() - 1, 12, 31),
         };
-        state.min.get().is_none_or(|min| edge >= min)
+        edge.year >= Date::MIN_YEAR && state.min.get().is_none_or(|min| edge >= min)
     }));
-    let can_next = create_memo(clone!(state shown_month -> move || {
+    let can_next = create_memo(clone!(state shown_month first_year -> move || {
         let edge = match state.mode.get() {
             CalendarMode::Days => shown_month.get().last_of_month().add_days(1),
             CalendarMode::Months => Date::new(shown_month.get().year + 1, 1, 1),
+            CalendarMode::Years => Date::new(first_year.get() + YEARS_PER_PAGE, 1, 1),
         };
-        state.max.get().is_none_or(|max| edge <= max)
+        edge.year <= Date::MAX_YEAR && state.max.get().is_none_or(|max| edge <= max)
     }));
     let header_node = header.call(CalendarHeaderHandle {
         month: shown_month.clone(),
         label: label.clone(),
+        month_label,
+        year_label,
         mode: mode.clone(),
         previous: Callback::new(clone!(state -> move |()| page(&state, -1))),
         next: Callback::new(clone!(state -> move |()| page(&state, 1))),
-        toggle_mode: Callback::new(clone!(state -> move |()| toggle_mode(&state))),
+        show_months: Callback::new(clone!(state -> move |()| show_mode(&state, CalendarMode::Months))),
+        show_years: Callback::new(clone!(state -> move |()| show_mode(&state, CalendarMode::Years))),
         can_previous,
         can_next,
     });
@@ -174,10 +218,13 @@ pub fn Calendar(
         active.get().first_of_month().start_of_week(first_weekday)
     }));
     let days_shown = create_memo(clone!(mode -> move || mode.get() == CalendarMode::Days));
-    let months_shown = create_memo(move || mode.get() == CalendarMode::Months);
+    let months_shown = create_memo(clone!(mode -> move || mode.get() == CalendarMode::Months));
+    let years_shown = create_memo(move || mode.get() == CalendarMode::Years);
     let week_state = state.clone();
     let month_state = state.clone();
+    let year_state = state.clone();
     let days_label = label.clone();
+    let months_label = label.clone();
     view! {
         <List spacing>
             {header_node}
@@ -208,7 +255,7 @@ pub fn Calendar(
                 </CalendarGrid>
             </Show>
             <Show condition={months_shown}>
-                <CalendarGrid label spacing>
+                <CalendarGrid label=months_label spacing>
                     <ForEach keys={(0..MONTH_ROWS).collect::<Vec<_>>()}>
                         {move |row: usize| view! {
                             <CalendarMonthRow
@@ -221,7 +268,108 @@ pub fn Calendar(
                     </ForEach>
                 </CalendarGrid>
             </Show>
+            <Show condition={years_shown}>
+                <CalendarGrid label spacing>
+                    <ForEach keys={(0..YEAR_ROWS).collect::<Vec<_>>()}>
+                        {move |row: usize| view! {
+                            <CalendarYearRow
+                                state={year_state.clone()}
+                                row
+                                first_year={first_year.clone()}
+                                spacing
+                                year={year.clone()}
+                            />
+                        }}
+                    </ForEach>
+                </CalendarGrid>
+            </Show>
         </List>
+    }
+}
+
+#[component]
+fn CalendarYearRow(
+    state: Handle,
+    row: usize,
+    first_year: Memo<i32>,
+    spacing: f32,
+    year: RenderFn<CalendarYearHandle>,
+) -> NodeId {
+    component_accessibility(Node::new(Role::Row));
+    view! {
+        <List direction=Direction::Horizontal spacing>
+            <ForEach keys={(0..YEAR_COLUMNS).collect::<Vec<_>>()}>
+                {move |column: usize| view! {
+                    <CalendarYear
+                        @sizing=ItemSize::Percent(100.0)
+                        state={state.clone()}
+                        offset={(row * YEAR_COLUMNS + column) as i32}
+                        first_year={first_year.clone()}
+                        face={year.clone()}
+                    />
+                }}
+            </ForEach>
+        </List>
+    }
+}
+
+#[component]
+fn CalendarYear(
+    state: Handle,
+    offset: i32,
+    first_year: Memo<i32>,
+    face: RenderFn<CalendarYearHandle>,
+) -> NodeId {
+    let year = create_memo(move || first_year.get() + offset);
+    let selected = create_memo(clone!(state year -> move || {
+        state.selected.get().is_some_and(|selected| selected.year == year.get())
+    }));
+    let current = create_memo(clone!(state year -> move || state.today.year == year.get()));
+    let disabled = create_memo(clone!(state year -> move || {
+        let year = year.get();
+        !(Date::MIN_YEAR..=Date::MAX_YEAR).contains(&year)
+            || state.min.get().is_some_and(|min| year < min.year)
+            || state.max.get().is_some_and(|max| year > max.year)
+    }));
+    let tab_stop = create_memo(clone!(state year -> move || state.active.get().year == year.get()));
+    let focused = create_memo(clone!(state year -> move || state.year_focus.get() == Some(year.get())));
+    let accessibility = create_memo(clone!(year selected -> move || {
+        let mut node = Node::new(Role::GridCell);
+        node.set_label(year.get().to_string());
+        node.set_selected(selected.get());
+        node
+    }));
+    let (focus_state, click_state, key_state) = (state.clone(), state.clone(), state.clone());
+    let (focus_year, click_year, key_year) = (year.clone(), year.clone(), year.clone());
+    let handle_disabled = disabled.clone();
+    view! {
+        <unstyled::Button
+            tab_stop
+            focused
+            disabled
+            accessibility
+            on_focus_change={move |has_focus: bool| {
+                let year = focus_year.get_untracked();
+                if has_focus {
+                    focus_state.set_year_focus.set(Some(year));
+                } else if focus_state.year_focus.get_untracked() == Some(year) {
+                    focus_state.set_year_focus.set(None);
+                }
+            }}
+            on_click={move || pick_year(&click_state, click_year.get_untracked())}
+            on_key={move |press: KeyPress| year_key(&key_state, key_year.get_untracked(), press)}
+            content={move |button: ButtonHandle| {
+                face.call(CalendarYearHandle {
+                    year,
+                    selected,
+                    current,
+                    disabled: handle_disabled,
+                    hovered: button.hovered,
+                    active: button.active,
+                    focused: button.focused,
+                })
+            }}
+        />
     }
 }
 
@@ -468,17 +616,65 @@ fn page(state: &State, direction: i32) {
     let next = match state.mode.get_untracked() {
         CalendarMode::Days => active.add_months(direction),
         CalendarMode::Months => active.add_years(direction),
+        CalendarMode::Years => active.add_years(direction * YEARS_PER_PAGE),
     };
     state.set_active.set(clamp(state, next));
 }
 
-fn toggle_mode(state: &State) {
+fn show_mode(state: &State, wanted: CalendarMode) {
     state.set_mode.update(|mode| {
-        *mode = match mode {
-            CalendarMode::Days => CalendarMode::Months,
-            CalendarMode::Months => CalendarMode::Days,
+        *mode = match *mode == wanted {
+            true => CalendarMode::Days,
+            false => wanted,
         }
     });
+}
+
+fn page_start(year: i32) -> i32 {
+    year - year.rem_euclid(YEARS_PER_PAGE)
+}
+
+fn years_label(first: i32) -> String {
+    format!(
+        "{}–{}",
+        first.max(Date::MIN_YEAR),
+        (first + YEARS_PER_PAGE - 1).min(Date::MAX_YEAR)
+    )
+}
+
+fn pick_year(state: &State, year: i32) {
+    let active = state.active.get_untracked();
+    let date = clamp(state, Date::new(year, active.month, active.day));
+    state.set_active.set(date);
+    state.set_mode.set(CalendarMode::Months);
+    state.set_year_focus.set(None);
+    state.set_month_focus.set(Some(date.first_of_month()));
+}
+
+fn year_key(state: &State, year: i32, press: KeyPress) -> bool {
+    if press.modifiers.ctrl || press.modifiers.alt {
+        return false;
+    }
+    let first = page_start(year);
+    let columns = YEAR_COLUMNS as i32;
+    let next = match press.key {
+        Key::ArrowLeft => year - 1,
+        Key::ArrowRight => year + 1,
+        Key::ArrowUp => year - columns,
+        Key::ArrowDown => year + columns,
+        Key::Home => first,
+        Key::End => first + YEARS_PER_PAGE - 1,
+        Key::PageUp => year - YEARS_PER_PAGE,
+        Key::PageDown => year + YEARS_PER_PAGE,
+        _ => return false,
+    };
+    if press.pressed {
+        let active = state.active.get_untracked();
+        let next = clamp(state, Date::new(next, active.month, active.day));
+        state.set_active.set(next);
+        state.set_year_focus.set(Some(next.year));
+    }
+    true
 }
 
 fn pick_month(state: &State, month: Date) {

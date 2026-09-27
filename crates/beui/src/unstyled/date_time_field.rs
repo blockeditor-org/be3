@@ -94,6 +94,13 @@ impl DateSegment {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct DateDraft {
+    pub year: Option<i32>,
+    pub month: Option<u8>,
+    pub day: Option<u8>,
+}
+
 pub struct DateSegmentHandle {
     pub segment: DateSegment,
     pub text: Memo<String>,
@@ -120,6 +127,7 @@ struct State {
     disabled: Memo<bool>,
     left: Timer,
     on_change: Callback<Option<DateTime>>,
+    on_open: Callback<DateSegment>,
 }
 
 type Handle = Rc<State>;
@@ -131,11 +139,15 @@ pub fn DateTimeField(
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = None)] focus_segment: Prop<Option<DateSegment>>,
     #[prop(default = String::new())] label: Prop<String>,
     segment: RenderFn<DateSegmentHandle>,
     literal: RenderFn<String>,
     on_change: Callback<Option<DateTime>>,
     on_focus_change: Callback<bool>,
+    on_segment_focus: Callback<Option<DateSegment>>,
+    on_draft: Callback<DateDraft>,
+    on_open: Callback<DateSegment>,
 ) -> NodeId {
     let order = segments(parts, hour_cycle);
     let initial = value.peek();
@@ -167,6 +179,7 @@ pub fn DateTimeField(
         disabled: disabled.clone(),
         left,
         on_change,
+        on_open,
     });
     *left_state.borrow_mut() = Rc::downgrade(&state);
     set_component_state(state.clone());
@@ -184,6 +197,31 @@ pub fn DateTimeField(
         if disabled.get() {
             state.set_focus.set(None);
         }
+    }));
+    create_effect(clone!(state -> move || {
+        if let Some(wanted) = focus_segment.get() {
+            let segment = match state.order.contains(&wanted) {
+                true => wanted,
+                false => state.order[0],
+            };
+            state.set_focus.set(Some(segment));
+        }
+    }));
+    create_effect(clone!(state -> move || on_segment_focus.call(state.focus.get())));
+    create_effect(clone!(state -> move || {
+        let values = state.values.get();
+        let typed = state.typing.get();
+        let read = |segment: DateSegment| match &typed {
+            Some((typing, buffer)) if *typing == segment && segment != DateSegment::Year => {
+                buffer.parse::<i32>().ok().filter(|number| *number > 0)
+            }
+            _ => values[segment.index()],
+        };
+        on_draft.call(DateDraft {
+            year: read(DateSegment::Year),
+            month: read(DateSegment::Month).map(|month| month.clamp(1, 12) as u8),
+            day: read(DateSegment::Day).map(|day| day.clamp(1, 31) as u8),
+        });
     }));
     let focus = state.focus.clone();
     let within = create_memo(move || focus.get().is_some());
@@ -560,6 +598,16 @@ fn left_field(state: &State) {
 }
 
 fn segment_key(state: &State, segment: DateSegment, press: KeyPress) -> bool {
+    if press.key == Key::ArrowDown
+        && press.modifiers.alt
+        && !press.modifiers.ctrl
+        && !state.disabled.get_untracked()
+    {
+        if press.pressed {
+            state.on_open.call(segment);
+        }
+        return true;
+    }
     if press.modifiers.ctrl || press.modifiers.alt || state.disabled.get_untracked() {
         return false;
     }
@@ -591,15 +639,12 @@ fn segment_key(state: &State, segment: DateSegment, press: KeyPress) -> bool {
         }
         Key::ArrowLeft | Key::ArrowRight => {
             let offset = if press.key == Key::ArrowLeft { -1 } else { 1 };
-            match neighbour(state, segment, offset) {
-                Some(next) => {
-                    if press.pressed {
-                        state.set_focus.set(Some(next));
-                    }
-                    true
-                }
-                None => false,
+            if press.pressed
+                && let Some(next) = neighbour(state, segment, offset)
+            {
+                state.set_focus.set(Some(next));
             }
+            true
         }
         Key::Backspace | Key::Delete => {
             if press.pressed {

@@ -8,7 +8,7 @@ use crate::styled::tooltip::Tooltip;
 use crate::unstyled;
 use crate::unstyled::{PopoverHandle, PopoverTriggerHandle};
 
-const PANEL_PADDING: f32 = 12.0;
+pub(crate) const PANEL_PADDING: f32 = 12.0;
 
 #[component]
 pub fn Popover(
