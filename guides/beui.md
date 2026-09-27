@@ -296,9 +296,9 @@ A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `TextArea`,
-`Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Container`,
+`Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Popover`, `Container`,
 `PanZoom`, `PointerLock`, `Dock`, `Draggable`, `DropTarget`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
-and `Stack`. `TextArea` is the multiline one: it owns a
+`Stack`, `Calendar`, `DateTimeField`, `TimeList` and `ColorArea`. `TextArea` is the multiline one: it owns a
 `text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
 document out with a gutter, wrapping, collapsible sections and markdown
 checkboxes, and reserves room for the inline and block `TextWidget`s the caller
@@ -339,7 +339,8 @@ low or going back closes it.
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, a multiline text
-editor with its find and replace bar, menus, tabs, trees,
+editor with its find and replace bar, menus, popovers, split buttons, tabs, trees, a calendar,
+date and time fields, a color picker and a color input,
 progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout.
 `Separator` is the rule between them: it runs `Direction::Horizontal` unless the
 tag says otherwise, takes a line's thickness across its `direction` and the
@@ -496,12 +497,61 @@ above the centre of the range as well, which gives the top end the fine part
 of the track instead. A midpoint outside the range, or one that lands where
 the centre already is, leaves the slider linear.
 
+A slider given a `thumb` length maps the pointer to the thumb's centre, which
+travels the track inset by half of it, and a press that lands on the thumb
+drags it from where it was grabbed rather than jumping it to the pointer;
+`ColorArea` takes the same prop for its two axes.
+
 The curve applies everywhere the value and the track meet. Dragging maps the
 position under the pointer through it, the knob sits where the value falls on
 it, and keyboard steps move by a share of the track rather than a share of the
 range, so an arrow key near the fine end moves a little and the same key near
 the coarse end moves a lot. What a screen reader is told the step is follows
 the value the next step would actually reach.
+
+### Dates, times and colors
+
+`beui::datetime` holds the plain values the pickers trade in: a `Date`, a
+`Time` to the minute, a `DateTime` of the two, a `Weekday` and an `HourCycle`.
+They carry no time zone; `DateTime::from_unix` and `to_unix` read and write
+seconds as UTC, which is what block content stores.
+
+`styled::DateTimeField` is the field for any of them, chosen by `parts`
+(`DateTimeParts::Date`, `Time` or `DateTime`). It is a row of spin-button
+segments, one per year, month, day, hour, minute and (on a 12-hour
+`hour_cycle`) AM/PM, beside a button that opens a popover holding a
+`Calendar`, a `TimeList`, or both. A click anywhere in the field, or Alt+Down
+in a segment, opens the same popover over the field with an editable copy of
+the segments on top, focused on the segment that was clicked, so typing goes
+on while the calendar shows the month being typed; closing it puts the focus
+back on the field's own segment. The popover is laid out for what it holds: a
+calendar that grows with the field, a `TimeList` laid out as a grid with an hour
+to a row, the two side by side, or, on a narrow screen, Date and Time tabs where
+picking a day moves on to the time. Its `value` is an `Option<DateTime>`: an
+empty field shows placeholders, a field is reported through `on_change` only
+once every segment is filled, and a field left half filled goes back to its
+value when the focus leaves it. A `Date` field keeps the time of the value it
+was given, and a `Time` field the date. `styled::Calendar` is the month grid on
+its own, with `min` and `max` limits; its title is a month button and a year
+button, which open a grid of months and a grid of twenty years, and `show`
+moves it to a month without selecting anything.
+
+`styled::ColorPicker` is a saturation and brightness area, hue and opacity
+sliders, hex, RGB and HSL fields and a row of swatches; `styled::ColorInput` is a
+hex field whose swatch opens one. Both keep the hue while the color passes
+through grey or black, and a drag is reported through `on_preview` while it
+moves and through `on_change` once, when it ends, the way `NumberInput`
+reports a scrub - so an edit lands in the undo history once per gesture.
+
+`unstyled::Popover` is what both open: a trigger and a modal overlay, built the
+first time it opens, that traps Tab, closes on Escape, a press outside or its
+handle's `close`, and gives the focus back to the trigger when it closes. It
+dims nothing, so it is a `light` overlay: the pointer goes on hovering the
+document around it, and a press outside closes it and then lands on whatever
+was pressed. What
+it holds decides where the focus lands when it opens, by binding a `focused`
+prop to the handle's `open`, as the calendar, the time list and the color area
+all take.
 
 ### Tooltips
 
@@ -555,7 +605,8 @@ An overlay is laid out and painted above the rest of the document rather than
 among it, and it comes in three modes.
 
 A **modal** one - a menu, a select popup, a dialog - takes the document over
-while it is open: it goes on the overlay stack, so input reaches it and
+while it is open (a `light` modal one lets the pointer through outside itself,
+and a press there closes it and still lands): it goes on the overlay stack, so input reaches it and
 nothing else, it can trap focus, Escape closes the topmost one, and a press
 outside it dismisses it.
 
@@ -1059,20 +1110,27 @@ the bottom, and lays the document and the inspector panel out in what is left,
 the way a phone's keyboard pushes a page up. Nothing is drawn over content that
 is still live, so the bars are opaque.
 
-### Screen size and zoom
+### Responsive design mode
 
-The Sim tab's Screen size lays the document out in a screen larger or smaller
-than the rectangle it is shown in, and Screen zoom says how big that screen is
-drawn: Fit shrinks or grows it to the rectangle, a percentage draws it that many
-real points per simulated point. A screen drawn larger than the rectangle
-follows the pointer: the point under the pointer is always the point at the same
-fraction of the simulated screen, so moving the simulated mouse across the
-rectangle looks around the whole screen. The mouse simulation's bars, the
-cursor and the inspector panel stay at their real size.
+The Sim tab's "Responsive design mode", or Ctrl+Shift+M, lays the document out
+in a screen of a chosen width and height in points, the way a browser's
+responsive design mode does. A toolbar above the app picks a device preset,
+types the width and height, rotates the screen and sets its zoom: Fit shrinks
+it to the room beside the inspector but never grows it, and a percentage draws
+it that many real points per simulated point. The screen sits centred at the
+top of a backdrop, with handles on its right edge, bottom edge and corner that
+resize it; a drag holds the scale it started at, so the handle stays under the
+pointer, and the screen refits on release. A screen drawn larger than its room
+follows the pointer: the point under the pointer is always the point at the
+same fraction of the simulated screen, so moving the pointer across the room
+looks around the whole screen. The toolbar is a document of its own that spans
+the toolbar and the room below it, so its selects can open over the app, and
+the app gets no pointer while one is open. The state lives in the `Context`,
+so the screen stays simulated after the inspector closes.
 
 `Document::show` does it with `Context::scaled` and `Context::clipped`, laying
 the document out at a rectangle chosen so that a real point is always the
-document point times the zoom; panning moves where the document is laid out
+document point times the scale; panning moves where the document is laid out
 instead of adding an offset. That keeps every mapping a pure scale, which is
 what an app that reads input or places surfaces outside `Document::show` needs:
 `Context::screen_scale` and `Context::screen_input` give it the scale and the

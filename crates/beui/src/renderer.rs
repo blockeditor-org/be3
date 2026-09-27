@@ -850,10 +850,11 @@ impl Renderer {
         for run in runs {
             if let Some((drawing, at)) = run.drawing.as_ref() {
                 if let (Some(draw), Some(at)) = (drawing.draw(), within(*at, scissor)) {
-                    draw.paint(pass, at);
-                    if let Some(scissor) = scissor {
-                        clip(pass, scissor);
+                    let bounds = scissor.unwrap_or([0, 0, at.screen.x as u32, at.screen.y as u32]);
+                    if clip(pass, clipped(at.clip, bounds)) {
+                        draw.paint(pass, at);
                     }
+                    clip(pass, bounds);
                     bound = None;
                     vertices = false;
                 }
@@ -925,6 +926,25 @@ fn within(at: DrawAt, scissor: Option<[u32; 4]>) -> Option<DrawAt> {
         at.clip[3].min(top + height as f32),
     ];
     (clip[0] < clip[2] && clip[1] < clip[3]).then_some(DrawAt { clip, ..at })
+}
+
+fn clipped(clip: [f32; 4], [left, top, width, height]: [u32; 4]) -> [u32; 4] {
+    let (right, bottom) = (left + width, top + height);
+    let from = |value: f32, low: u32, high: u32| value.clamp(low as f32, high as f32);
+    let (x0, y0) = (
+        from(clip[0].floor(), left, right),
+        from(clip[1].floor(), top, bottom),
+    );
+    let (x1, y1) = (
+        from(clip[2].ceil(), left, right),
+        from(clip[3].ceil(), top, bottom),
+    );
+    [
+        x0 as u32,
+        y0 as u32,
+        (x1 - x0).max(0.0) as u32,
+        (y1 - y0).max(0.0) as u32,
+    ]
 }
 
 fn scissor(damaged: [f32; 4], origin: Vec2) -> [u32; 4] {

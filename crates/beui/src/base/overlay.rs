@@ -38,6 +38,7 @@ impl IntoProp<OverlayAnchor> for &NodeRef {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Placement {
     At,
+    Over(u16),
     Around,
     BelowStart,
     RightStart,
@@ -69,6 +70,7 @@ pub(crate) struct OverlayNode {
     anchor: OverlayAnchor,
     placement: Placement,
     traps_focus: bool,
+    light: bool,
     mode: OverlayMode,
     on_dismiss: Option<ClickHandler>,
     back: BackProgress,
@@ -84,6 +86,7 @@ impl OverlayNode {
             anchor,
             placement,
             traps_focus: true,
+            light: false,
             mode: OverlayMode::Modal,
             on_dismiss: None,
             back: BackProgress::default(),
@@ -103,6 +106,16 @@ fn resolve_rect(
 ) -> Rect {
     if placement == Placement::At {
         return Rect::from_min_size(anchor_rect.min, content_size);
+    }
+    if let Placement::Over(inset) = placement {
+        let inset = f32::from(inset);
+        let right = (viewport.right() - content_size.x).max(viewport.left());
+        let bottom = (viewport.bottom() - content_size.y).max(viewport.top());
+        let origin = pos2(
+            (anchor_rect.left() - inset).min(right).max(viewport.left()),
+            (anchor_rect.top() - inset).min(bottom).max(viewport.top()),
+        );
+        return Rect::from_min_size(origin, content_size);
     }
     if placement == Placement::Around {
         return Rect::from_center_size(anchor_rect.center(), content_size);
@@ -141,6 +154,7 @@ fn resolve_rect(
         Placement::BelowStart => pos2(anchor_rect.left(), anchor_rect.bottom()),
         Placement::RightStart => pos2(anchor_rect.right(), anchor_rect.top()),
         Placement::At
+        | Placement::Over(_)
         | Placement::Around
         | Placement::Center
         | Placement::Fill
@@ -220,7 +234,9 @@ impl Element for OverlayNode {
         if !self.open || self.mode != OverlayMode::Modal {
             return;
         }
-        children.push(self.scrim);
+        if !self.light {
+            children.push(self.scrim);
+        }
         children.extend(self.content);
     }
 
@@ -260,6 +276,7 @@ pub(crate) fn Overlay(
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
     #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
     #[prop(default = true)] traps_focus: Prop<bool>,
+    #[prop(default = false)] light: Prop<bool>,
     #[prop(default = OverlayMode::Modal)] mode: Prop<OverlayMode>,
     open: Prop<bool>,
     on_dismiss: ClickCallback,
@@ -287,6 +304,9 @@ pub(crate) fn Overlay(
     });
     create_effect(move || {
         with_document(|document| document.set_overlay_traps_focus(overlay, traps_focus.get()))
+    });
+    create_effect(move || {
+        with_document(|document| document.set_overlay_light(overlay, light.get()))
     });
     create_effect(move || with_document(|document| document.set_overlay_mode(overlay, mode.get())));
     create_effect(move || {
@@ -584,6 +604,39 @@ impl Document {
                 }
             }
         }
+    }
+
+    pub(crate) fn set_overlay_light(&mut self, overlay: NodeId, light: bool) {
+        if self.arena.get_as::<OverlayNode>(overlay).light != light {
+            self.arena.touch_mut_as::<OverlayNode>(overlay).light = light;
+        }
+    }
+
+    fn overlay_holds(&self, overlay: NodeId, pos: Pos2) -> bool {
+        self.overlay_content(overlay)
+            .and_then(|content| self.node_rect(content))
+            .is_some_and(|rect| rect.contains(pos))
+    }
+
+    fn light_overlay_misses(&self, overlay: NodeId, pos: Pos2) -> bool {
+        self.arena.get_as::<OverlayNode>(overlay).light && !self.overlay_holds(overlay, pos)
+    }
+
+    pub(crate) fn dismiss_light_overlays(&mut self, pos: Pos2) {
+        while let Some(&top) = self.overlay_stack.last() {
+            if !self.light_overlay_misses(top, pos) {
+                return;
+            }
+            self.close_overlay_at(self.overlay_stack.len() - 1);
+        }
+    }
+
+    pub(crate) fn pointer_passes_under_overlays(&self, pos: Pos2) -> bool {
+        !self.overlay_stack.is_empty()
+            && self
+                .overlay_stack
+                .iter()
+                .all(|overlay| self.light_overlay_misses(*overlay, pos))
     }
 
     fn dismiss_overlay_if_outside(&mut self, overlay: NodeId, pos: Pos2) {

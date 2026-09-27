@@ -84,6 +84,7 @@ pub fn Choice(
     selected: Prop<Option<usize>>,
     kind: ChoiceKind,
     direction: Option<Direction>,
+    #[prop(default = false)] wrap: bool,
     on_change: Callback<Option<usize>>,
     #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle>>,
 ) -> NodeId {
@@ -190,7 +191,7 @@ pub fn Choice(
     }));
 
     view! {
-        <List direction spacing=6.0 children={buttons} />
+        <List direction wrap spacing=6.0 children={buttons} />
     }
 }
 

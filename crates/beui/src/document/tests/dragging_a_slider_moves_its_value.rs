@@ -16,7 +16,7 @@ fn dragging_a_slider_moves_its_value() {
 
     let track = harness.rect(slider);
     let middle = track.center();
-    harness.drag(pos2(track.left() + 1.0, middle.y), middle);
+    harness.drag(pos2(track.left() + 8.0, middle.y), middle);
     harness.frame(Vec::new());
 
     let value = styled::slider_value(harness.document(), slider);
