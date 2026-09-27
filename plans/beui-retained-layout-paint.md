@@ -44,9 +44,3 @@ What follows is the rest, roughly in order of value.
   of itself for a caret blink. The plugin protocol could carry damaged rects
   (plain rectangles keep it framework-independent) and the host could scissor
   its blit to them.
-
-## Other per-frame work found along the way
-
-- `interact_node` visits every placed node on every input event, pointer motion
-  included. Hit-test through retained bounds, and deliver keyboard input along
-  the focus path.

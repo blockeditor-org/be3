@@ -1,5 +1,5 @@
 use std::any::Any;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Modifiers, SecondaryDrag};
@@ -69,6 +69,10 @@ pub(crate) trait Element: Any {
     }
 
     fn relayout_boundary(&self) -> bool {
+        false
+    }
+
+    fn engaged(&self) -> bool {
         false
     }
 
@@ -208,23 +212,38 @@ impl<T> std::ops::Index<&NodeId> for NodeMap<T> {
 }
 
 #[derive(Default)]
-pub(crate) struct Rects(RefCell<NodeMap<Rect>>);
+pub(crate) struct Rects {
+    map: RefCell<NodeMap<Rect>>,
+    version: Cell<u64>,
+}
 
 impl Rects {
     pub(crate) fn get(&self, id: &NodeId) -> Option<Rect> {
-        self.0.borrow().get(id).copied()
+        self.map.borrow().get(id).copied()
     }
 
     pub(crate) fn contains_key(&self, id: &NodeId) -> bool {
-        self.0.borrow().contains_key(id)
+        self.map.borrow().contains_key(id)
     }
 
     pub(crate) fn insert(&self, id: NodeId, rect: Rect) -> Option<Rect> {
-        self.0.borrow_mut().insert(id, rect)
+        let previous = self.map.borrow_mut().insert(id, rect);
+        if previous != Some(rect) {
+            self.version.set(self.version.get().wrapping_add(1));
+        }
+        previous
     }
 
     pub(crate) fn remove(&self, id: &NodeId) -> Option<Rect> {
-        self.0.borrow_mut().remove(id)
+        let removed = self.map.borrow_mut().remove(id);
+        if removed.is_some() {
+            self.version.set(self.version.get().wrapping_add(1));
+        }
+        removed
+    }
+
+    pub(crate) fn version(&self) -> u64 {
+        self.version.get()
     }
 }
 

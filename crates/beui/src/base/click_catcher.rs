@@ -244,6 +244,18 @@ impl Element for ClickCatcherNode {
         false
     }
 
+    fn engaged(&self) -> bool {
+        self.armed
+            || self.key_active
+            || self.active
+            || self.hovered
+            || self.hover_pos.is_some()
+            || self.dragged.is_some()
+            || self.pan_active
+            || self.middle_dragged.is_some()
+            || self.secondary_dragged.is_some()
+    }
+
     fn captures(&mut self, _doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
         (self.capture_presses && rect.contains(pos)) || self.capture_at.call(pos)
     }

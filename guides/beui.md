@@ -1597,6 +1597,13 @@ pixels. beui's own tests, and every test that drives a plugin through
 `block-ui-test` (which turns on `beui::verify_paint`), paint every frame again
 from scratch and fail when the retained painting differs from it or changed
 outside the damage.
+Pointer input only visits a node when the pointer lies within the rects of it
+and everything `children` returns under it, or when it leads to a node that
+holds pointer state. A node that keeps state between events - hovered, pressed,
+dragging - returns true from `engaged` until it lets go, so it still hears the
+pointer leave, release or move away. Keyboard input goes to the focused node and
+its ancestors rather than through this walk.
+
 Return children from both interaction traversal and `children`, give the node a
 stable `kind` for the inspector, and add a concise `detail` when it makes the
 tree easier to understand.

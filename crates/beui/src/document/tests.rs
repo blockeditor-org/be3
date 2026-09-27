@@ -264,6 +264,7 @@ mod picking_a_node_leaves_the_document_alone;
 mod pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it;
 mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale;
+mod pointer_motion_only_reaches_what_lies_under_the_pointer;
 mod pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still;
 mod pressing_a_sliders_knob_keeps_its_value_until_it_is_dragged;
 mod pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view;
@@ -1288,6 +1289,7 @@ struct Counted {
     layouts: Rc<Cell<usize>>,
     paints: Rc<Cell<usize>>,
     measures: Rc<Cell<usize>>,
+    interactions: Rc<Cell<usize>>,
 }
 
 impl Element for Counted {
@@ -1320,8 +1322,13 @@ impl Element for Counted {
         focus_target: &mut Option<NodeId>,
         children: &mut Vec<NodeId>,
     ) {
+        self.interactions.set(self.interactions.get() + 1);
         self.inner
             .interact(doc, painter, input, id, rect, focus_target, children)
+    }
+
+    fn engaged(&self) -> bool {
+        self.inner.engaged()
     }
 
     fn relayout_boundary(&self) -> bool {
@@ -1346,6 +1353,7 @@ struct Counts {
     layouts: Rc<Cell<usize>>,
     paints: Rc<Cell<usize>>,
     measures: Rc<Cell<usize>>,
+    interactions: Rc<Cell<usize>>,
 }
 
 const BLINK: Duration = Duration::from_millis(530);
@@ -1373,6 +1381,7 @@ fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
         layouts: Rc::new(Cell::new(0)),
         paints: Rc::new(Cell::new(0)),
         measures: Rc::new(Cell::new(0)),
+        interactions: Rc::new(Cell::new(0)),
     };
     document.verifies_paint = false;
     let inner = document.arena.take(node);
@@ -1383,6 +1392,7 @@ fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
             layouts: counts.layouts.clone(),
             paints: counts.paints.clone(),
             measures: counts.measures.clone(),
+            interactions: counts.interactions.clone(),
         }),
     );
     counts
