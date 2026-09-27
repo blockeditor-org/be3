@@ -109,6 +109,7 @@ pub struct TabPosition {
 }
 
 pub const MIN_FRACTION: f32 = 0.05;
+pub const MIN_PANE_LENGTH: f32 = 120.0;
 pub const MIN_WINDOW_SIZE: Vec2 = Vec2::new(200.0, 140.0);
 pub const FLOATING_SIZE: Vec2 = Vec2::new(420.0, 300.0);
 pub const SIDEBAR_WIDTH: f32 = 180.0;
@@ -1355,18 +1356,28 @@ fn place(node: &Node, area: Rect, thickness: f32, out: &mut DockLayout) {
     match node {
         Node::Leaf(leaf) => out.leaves.push((leaf.id, area)),
         Node::Split(split) => {
-            let (first, handle, second) = divide(area, split.direction, split.fraction, thickness);
+            let fraction = shown_fraction(area, split.direction, split.fraction, thickness);
+            let (first, handle, second) = divide(area, split.direction, fraction, thickness);
             out.splitters.push(DockSplitter {
                 id: split.id,
                 direction: split.direction,
                 handle,
                 area,
-                fraction: split.fraction,
+                fraction,
             });
             place(&split.first, first, thickness, out);
             place(&split.second, second, thickness, out);
         }
     }
+}
+
+fn shown_fraction(area: Rect, direction: Direction, fraction: f32, thickness: f32) -> f32 {
+    let available = direction.main(area.size()) - thickness;
+    if available < MIN_PANE_LENGTH * 2.0 {
+        return fraction;
+    }
+    let least = MIN_PANE_LENGTH / available;
+    fraction.clamp(least, 1.0 - least)
 }
 
 fn divide(area: Rect, direction: Direction, fraction: f32, thickness: f32) -> (Rect, Rect, Rect) {

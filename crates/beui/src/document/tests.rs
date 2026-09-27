@@ -37,7 +37,11 @@ mod a_drag_preview_follows_the_pointer_until_the_drop;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
 mod a_dynamic_child_can_fill_its_available_height;
+mod a_finger_beside_the_bar_between_two_panes_drags_it;
 mod a_finger_dragged_across_a_color_area_picks_rather_than_scrolls;
+mod a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped;
+mod a_finger_moves_a_window_up_and_down_by_its_bar;
+mod a_finger_swiping_along_a_tab_bar_moves_no_tab;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
 mod a_focused_text_input_asks_for_the_keyboard;
 mod a_for_each_gives_a_scroll_items_of_its_own;
@@ -123,6 +127,7 @@ mod a_virtual_list_scrolled_out_of_view_releases_its_rows;
 mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
+mod a_window_larger_than_the_dock_is_drawn_no_larger_than_it;
 mod a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows;
 mod a_window_with_tabs_in_a_sidebar_has_no_title_bar;
 mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
@@ -501,6 +506,17 @@ impl Harness {
             pressed: false,
             modifiers: Modifiers::NONE,
         }]);
+    }
+
+    pub(crate) fn finger_drag(&mut self, path: &[Pos2]) {
+        let (Some(first), Some(last)) = (path.first(), path.last()) else {
+            return;
+        };
+        self.touch(TouchPhase::Start, *first);
+        for point in &path[1..] {
+            self.touch(TouchPhase::Move, *point);
+        }
+        self.touch(TouchPhase::End, *last);
     }
 
     pub(crate) fn scroll(&mut self, pos: Pos2, delta: Vec2, modifiers: Modifiers) {

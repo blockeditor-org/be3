@@ -326,11 +326,17 @@ cancelled and lifting it is not a click. A `ClickCatcher` hears that
 cancellation, and a second finger landing, as `on_cancel`, which is where a
 gesture in progress is dropped rather than committed. A finger dragged across a
 `ClickCatcher` is read as a scroll of whatever holds it unless the catcher sets
-`touch_drags`, which a canvas that draws or moves things under the finger does.
+`touch_drags`, which a canvas that draws or moves things under the finger does,
+or `touch_drag_axis`, which keeps finger drags along one direction only and
+leaves the other to the scroll around it, as a dock tab in a scrolling tab bar
+does.
 A finger that lands on no control is taken to the nearest `ClickCatcher` that
 takes presses within `TOUCH_REACH` of it, for the whole touch, so every control's
 touch zone is bigger than it looks without anything growing; a direct hit always
-wins, so a neighbour never takes a tap aimed at the control beside it. A quick
+wins, so a neighbour never takes a tap aimed at the control beside it. A
+catcher that only watches presses over a whole region - a dock pane focusing
+itself - sets `claims_touch=false`, so landing on it is not a direct hit and the
+controls inside it keep their reach. A quick
 tap with two or more fingers that did not move is a finger tap, which
 `on_finger_tap` hears the way `on_shortcut` hears keys; the editor frame's top
 bar undoes on two and redoes on three. `Sheet` is the panel that rises from the
@@ -732,7 +738,9 @@ inserts it between the tabs there, the middle of a pane joins that pane, and an
 edge of one splits it. Holding Alt while dropping floats the tab into a window
 instead, which is also what "Pop out into a window" on a tab's own menu does. Every pane
 and every window wears the same bar: a grip, the tabs, and a button that closes
-them all, shown only when every tab in it can close. Dragging a docked pane's
+them all, shown only when every tab in it can close. A finger picks a tab up by
+dragging it out of its bar, across the way the bar scrolls; sliding along the
+bar scrolls it. Dragging a docked pane's
 grip carries the whole pane (`DockState::drop_leaf`), with the same drop targets
 a tab has. A window holds one pane, so a tab dropped anywhere inside one joins
 it rather than splitting it, and that pane's bar is the window's title bar:
@@ -741,7 +749,10 @@ that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
 whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
 that mode has no title bar, only the sidebar with the grip and the close button
 at its top. Windows resize from any of
-their eight grips and are raised by whatever takes the focus inside them. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in,
+their eight grips and are raised by whatever takes the focus inside them. A
+split keeps each side at least `MIN_PANE_LENGTH` where the area has room for
+both, and a window is drawn no larger than the dock, so a layout made on a wide
+screen stays usable on a phone. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in,
 registered with `on_shortcut` so they arrive even from inside a text input in a
 panel. The bar between two panes is a tab
 stop with a `Splitter` role: the arrow keys move it, and the tab bar is a
@@ -821,7 +832,10 @@ passive overlay, so it paints above everything and takes no input. The pointer
 it follows is the one the document saw, not the one the draggable's own
 catcher saw: the board is fed the pointer at the start of every frame, even
 where a floating overlay covers the source, so a drag carried over a floating
-window keeps going.
+window keeps going. A finger drag waits for `TOUCH_DRAG_THRESHOLD` and for the
+catcher to hold it rather than a scroll, so a Draggable in a scrolling list
+takes finger drags only where it sets `touch_drags` or `touch_drag_axis`, and
+its preview sits above the finger instead of under it.
 
 A `DropTarget` is registered by the rectangle its content was laid out at. The
 target under the pointer that accepts the payload takes the drop - `accepts`

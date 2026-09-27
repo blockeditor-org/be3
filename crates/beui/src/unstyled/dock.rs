@@ -34,7 +34,7 @@ pub use state::{
     SurfaceId, TabId, TabPosition, Tree, layout_surface, layout_tree,
 };
 use state::{FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_moved};
-pub use state::{MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
+pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
 
 pub const SPLITTER_THICKNESS: f32 = 6.0;
 const EDGE_ZONE: f32 = 0.22;
@@ -1042,6 +1042,7 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
     let pressed = dock.clone();
     view! {
         <ClickCatcher
+            claims_touch=false
             on_press={move |press: PointerPress| {
                 let hosted = pressed.state.with_untracked(|state| state.active_entry(leaf));
                 let inside = hosted
@@ -1121,6 +1122,7 @@ fn DockPaneGrip(dock: Handle, leaf: LeafId, vertical: bool, focused: Memo<bool>)
         <Draggable
             payload={DockDragged::Pane(leaf)}
             cursor=CursorIcon::Grab
+            touch_drags=true
             preview={move |dragged: DockDragged| preview.call(DockPreviewHandle {
                 dragged,
                 title: title.clone(),
@@ -1334,9 +1336,14 @@ fn DockTabView(
     });
     let carried = dock.clone();
     let preview = dock.preview.clone();
+    let across = match vertical {
+        true => Direction::Horizontal,
+        false => Direction::Vertical,
+    };
     view! {
         <Draggable
             payload={DockDragged::Entry(entry)}
+            touch_drag_axis={Some(across)}
             preview={move |dragged: DockDragged| preview.call(DockPreviewHandle {
                 dragged,
                 title: title.clone(),
@@ -1377,7 +1384,11 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
     });
     let held: Rc<Cell<Option<(f32, Pos2)>>> = Rc::new(Cell::new(None));
     let grabbed = held.clone();
-    let start = fraction.clone();
+    let shown = Rc::new(clone!(dock fraction -> move || {
+        dock.splitter_of(tree, split)
+            .map_or_else(|| fraction.get_untracked(), |splitter| splitter.fraction)
+    }));
+    let start = shown.clone();
     let dragged = dock.clone();
     let stepped = dock.clone();
     view! {
@@ -1394,7 +1405,7 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
                     (Direction::Vertical, Key::ArrowDown) => SPLIT_STEP,
                     _ => return false,
                 };
-                let next = fraction.get_untracked() + step;
+                let next = shown() + step;
                 stepped.edit(|state| state.set_split_fraction(split, next));
                 true
             }}
@@ -1404,10 +1415,11 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
                     Direction::Horizontal => CursorIcon::ResizeHorizontal,
                     Direction::Vertical => CursorIcon::ResizeVertical,
                 }}
+                touch_drag_axis={Some(direction)}
                 on_hover_change={move |over: bool| set_hovered.set(over)}
                 on_active_change={move |held: bool| set_active.set(held)}
                 on_press={move |press: PointerPress| {
-                    grabbed.set(Some((start.get_untracked(), press.pos)));
+                    grabbed.set(Some((start(), press.pos)));
                 }}
                 on_drag={move |press: PointerPress| {
                     let Some((start, from)) = held.get() else {
@@ -1432,6 +1444,13 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
                 children={face}
             />
         </Focusable>
+    }
+}
+
+fn fitted(size: Vec2, bounds: Vec2) -> Vec2 {
+    match bounds.x > 0.0 && bounds.y > 0.0 {
+        true => size.min(bounds),
+        false => size,
     }
 }
 
@@ -1522,8 +1541,9 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
         grip_reach(&frame, &grip_ref)
     }));
     let placed = create_memo(clone!(rect area reach -> move || {
-        let rect = rect.get();
-        let origin = reachable_origin(rect, area.get().size(), reach());
+        let bounds = area.get().size();
+        let rect = Rect::from_min_size(rect.get().min, fitted(rect.get().size(), bounds));
+        let origin = reachable_origin(rect, bounds, reach());
         Rect::from_min_size(origin, rect.size())
     }));
     let origin = create_memo(clone!(placed area -> move || {
@@ -1554,9 +1574,9 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
         }),
     );
     let anchor = origin.clone().into_prop().map(OverlayAnchor::Point);
-    let width = create_memo(clone!(rect -> move || rect.get().width()));
-    let height = create_memo(clone!(rect -> move || rect.get().height()));
-    let size = create_memo(clone!(rect -> move || rect.get().size()));
+    let width = create_memo(clone!(placed -> move || placed.get().width()));
+    let height = create_memo(clone!(placed -> move || placed.get().height()));
+    let size = create_memo(clone!(placed -> move || placed.get().size()));
     let focused = create_memo(clone!(state -> move || {
         state.with(|state| {
             state
@@ -1607,6 +1627,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let grabbed: Rc<Cell<Option<(Rect, Pos2)>>> = Rc::new(Cell::new(None));
     let bar_rect = placed.clone();
     let pressed = dock.clone();
+    let captor = dock.clone();
     let start = grabbed.clone();
     let moved = dock.clone();
     let (held, stretched, released) = (band.clone(), band.clone(), band);
@@ -1624,6 +1645,10 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                         <ClickCatcher
+                            capture_at={move |pos: Pos2| {
+                                captor.surface_rect(surface).is_some_and(|window| window.contains(pos))
+                                    && captor.over_window_bar(surface, pos)
+                            }}
                             on_press={move |press: PointerPress| {
                                 let bar = pressed.over_window_bar(surface, press.pos);
                                 start.set(bar.then(|| {
