@@ -5,7 +5,7 @@ use beui_macros::component;
 use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, Rects, SpaceId};
 use crate::painter::Painter;
 use crate::reactive::{
     Child, ChildValue, Children, NodeSlot, Prop, Scope, SlotChild, create_effect, with_document,
@@ -57,15 +57,40 @@ pub(crate) struct CanvasNode {
     view: Option<CanvasView>,
     size: Vec2,
     items: ChildList<NodeId>,
+    host: Option<NodeId>,
+    shift: Vec2,
 }
 
+const CLIPPED: u8 = 1;
+const UNCLIPPED: u8 = 2;
+
 impl CanvasNode {
-    fn placement(&self, rect: Rect) -> CanvasView {
-        self.view.unwrap_or(CanvasView {
-            origin: rect.min,
-            scale: 1.0,
-        })
+    fn shift(&self, doc: &Document, painter: &Painter) -> Vec2 {
+        match self.view {
+            Some(view) => doc
+                .pixel_grid()
+                .snap_vec(view.origin.to_vec2() - painter.origin()),
+            None => Vec2::ZERO,
+        }
     }
+
+    fn scale(&self) -> f32 {
+        self.view.map_or(1.0, |view| view.scale)
+    }
+
+    fn slot(doc: &Document, item: NodeId) -> u8 {
+        match doc.arena.get_as::<CanvasItemNode>(item).clip {
+            true => CLIPPED,
+            false => UNCLIPPED,
+        }
+    }
+}
+
+fn scaled(rect: Rect, scale: f32) -> Rect {
+    Rect::from_min_max(
+        pos2(rect.min.x * scale, rect.min.y * scale),
+        pos2(rect.max.x * scale, rect.max.y * scale),
+    )
 }
 
 impl Element for CanvasNode {
@@ -78,12 +103,22 @@ impl Element for CanvasNode {
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        let view = self.placement(rect);
-        let clipped = painter.with_clip_rect(rect);
+        let host = doc.laying_out().expect("a canvas is laid out as itself");
+        let shift = self.shift(doc, painter);
+        self.host = Some(host);
+        self.shift = shift;
+        let clipped = doc.enter_space(host, CLIPPED, painter, shift, rect, out);
+        let unclipped = doc.enter_space(host, UNCLIPPED, painter, shift, Rect::EVERYTHING, out);
+        let visible = rect.translate(-shift);
+        let scale = self.scale();
         for item in self.items.iter() {
-            let placed = view.rect_to_screen(doc.canvas_item_rect(*item));
-            if placed.intersects(rect) {
-                crate::layout::layout(doc, &clipped, *item, placed, out);
+            let placed = scaled(doc.canvas_item_rect(*item), scale);
+            if placed.intersects(visible) {
+                let painter = match Self::slot(doc, *item) {
+                    CLIPPED => &clipped,
+                    _ => &unclipped,
+                };
+                crate::layout::layout(doc, painter, *item, placed, out);
                 continue;
             }
             doc.note_parent(*item);
@@ -91,12 +126,20 @@ impl Element for CanvasNode {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
-        let clipped = painter.with_clip_rect(rect);
+        let Some(host) = self.host else {
+            return;
+        };
+        let clipped = painter.shifted(Some(SpaceId::inside(host, CLIPPED)), self.shift, rect);
+        let unclipped = painter.shifted(
+            Some(SpaceId::inside(host, UNCLIPPED)),
+            self.shift,
+            Rect::EVERYTHING,
+        );
         for item in self.items.iter() {
             if rects.contains_key(item) {
-                let painter = match doc.arena.get_as::<CanvasItemNode>(*item).clip {
-                    true => &clipped,
-                    false => painter,
+                let painter = match Self::slot(doc, *item) {
+                    CLIPPED => &clipped,
+                    _ => &unclipped,
                 };
                 crate::paint::paint(doc, painter, rects, *item);
             }
@@ -214,6 +257,8 @@ impl Document {
             view: None,
             size: Vec2::ZERO,
             items: ChildList::default(),
+            host: None,
+            shift: Vec2::ZERO,
         })
     }
 

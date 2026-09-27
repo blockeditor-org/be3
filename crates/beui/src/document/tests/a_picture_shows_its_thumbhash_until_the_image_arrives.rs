@@ -4,7 +4,7 @@ use crate::reactive::{Frame, Picture, build, create_signal, view, with_reactive_
 
 fn painted(output: &crate::FrameOutput) -> Vec<(Rect, Image, bool)> {
     output
-        .shapes
+        .shapes()
         .iter()
         .filter_map(|shape| match shape {
             crate::painter::Shape::Image {

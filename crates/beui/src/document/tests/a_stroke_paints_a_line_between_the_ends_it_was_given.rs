@@ -21,7 +21,7 @@ fn a_stroke_paints_a_line_between_the_ends_it_was_given() {
     let output = harness.frame(Vec::new());
 
     let drawn: Vec<_> = output
-        .shapes
+        .shapes()
         .iter()
         .filter_map(|shape| match shape {
             crate::painter::Shape::Line {

@@ -1161,8 +1161,8 @@ the document: they are a post-processing pass in `Renderer`, so whatever a
 document paints - a plugin's beui pane included - is filtered the same way.
 
 `Context::apply_filter` is what turns them on. It records a `Filter` (the region
-in points, a blur radius, a contrast multiplier, and a `ColorVision`) and the
-number of shapes painted so far, which splits the frame in two: everything
+in points, a blur radius, a contrast multiplier, and a `ColorVision`) and how
+much of the frame has been painted so far, which splits the frame in two: everything
 painted before the call goes through the filter, everything painted after it
 lands on top of the result untouched. The inspector calls it once a frame,
 after the document, the panel, the overlays and the screen reader's focus
@@ -1600,25 +1600,31 @@ A change under it stops there: its ancestors keep their placement, and it is lai
 out again on its own from the rectangle and painter it was last placed with. Only
 return true when `measure` never reads the children.
 
-A scroll's `OffsetNode` starts a coordinate space of its own: it lays its items
-out where they sit in its content, unscrolled, and hands them
-`Document::enter_space`'s painter, which carries the scroll's translation and
-clip. Scrolling changes only that translation, so the rows keep their rects and
-their recorded shapes, and neither is laid out nor painted again; the scroll
-repaints by moving them. `layout` and `paint` therefore see rects in their
-space, and so do the shapes they record, while `Document::node_rect`,
-`node_rect`/`component_rect` and the rect `interact` is handed are on the
-screen. A node that needs to know where it sits on the screen asks the painter:
-`painter.origin()` is where its space starts, and `painter.clip_rect()` is what
-of it is visible, in its own space. Asking either marks the node as depending on
-its place, so it is laid out, or painted, again when that changes - an `Embed`
-reports its rectangle this way, and a `VirtualList` realises the rows its clip
-shows.
+Every node is laid out and painted in a coordinate space of its own, starting at
+its top left corner: `layout` and `paint` are handed a rectangle at the origin,
+of the node's size, and the rectangles `layout` gives its children are in those
+coordinates too. A node that only moves - a row pushed down by the one above it
+growing, a panel beside a splitter - keeps its layout and its recorded shapes;
+its parent records where it went. A scroll's `OffsetNode` and a `Canvas` add a
+content space inside their own (`Document::enter_space`, and `Painter::shifted`
+when painting), which carries the scroll offset or the pan: scrolling or panning
+changes only that translation, so the rows keep their rects and their shapes and
+neither is laid out nor painted again. `Document::node_rect`,
+`node_rect`/`component_rect`, the rect `interact` is handed and a `CanvasView`'s
+origin are in the document's coordinates. A node that needs to know where it sits
+in them asks the painter: `painter.origin()` is where its space starts, and
+`painter.clip_rect()` is what of it is visible, in its own space. Asking either
+marks the node as depending on its place, so it is laid out, or painted, again
+when that changes - an `Embed` reports its rectangle this way, and a
+`VirtualList` realises the rows its clip shows. A `Drawing` callback that paints
+in document coordinates rather than relative to the rectangle it is handed, as
+`infinite_canvas` does through its camera, paints through
+`painter.in_document()`.
 
 Painting is retained per node. A node's `paint` runs again when the node
-changed, when it was laid out again, when its rectangle or the painter it is
-handed changed, or when a repaint it asked for falls due; otherwise the shapes
-it recorded last time stand, and its children are only visited when something
+changed, when it was laid out again, when its size or the painter it is handed
+changed, or when a repaint it asked for falls due; otherwise the shapes it
+recorded last time stand, and its children are only visited when something
 under them has to paint. `paint` must therefore be a function of the node, its
 rectangle, the painter and the rectangles its own layout gave its children -
 anything else it reads goes unnoticed when it changes. What a node damages is
@@ -1630,6 +1636,20 @@ rectangles each plugin frame reports it changed). beui's own tests, and every te
 `block-ui-test` (which turns on `beui::verify_paint`), paint every frame again
 from scratch and fail when the retained painting differs from it or changed
 outside the damage.
+
+What a node recorded is an immutable display list (`display.rs`) holding its own
+shapes and its children's lists, and a frame hands the renderer the lists of its
+roots rather than a flat list of shapes; `FrameOutput::shapes` flattens them on
+demand, for tests and software rasterising. `Renderer` encodes a list once and
+keeps its instances in a GPU buffer, only walks the lists that reach the damage,
+and draws a content space through a translation and clip of its own, so a
+scroll or a pan encodes nothing again. A scroll whose content only moved is not
+damaged whole either: the frame reports it as `FrameOutput::moved`, and a host
+that keeps its last frame, as `beui::run` does, copies that region by the
+scroll with `Renderer::shift` and repaints only what the copy cannot supply -
+the rows it exposes, and whatever else changed or does not move with the rows.
+`FrameOutput::repaint` covers the moved region for hosts that do not copy.
+
 Pointer input only visits a node when the pointer lies within the rects of it
 and everything `children` returns under it, or when it leads to a node that
 holds pointer state. A node that keeps state between events - hovered, pressed,

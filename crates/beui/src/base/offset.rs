@@ -8,7 +8,7 @@ use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, Rects, SpaceId};
 use crate::reactive::{Callback, Children, Prop, create_effect, settle, with_document};
 use beui_macros::component;
 
@@ -249,7 +249,7 @@ impl OffsetNode {
         let offset = doc.pixel_grid().snap(position.offset + self.overscroll);
         self.translation = self.direction.axes(-offset, 0.0);
         self.host = Some(host);
-        let entered = doc.enter_space(host, painter, self.translation, rect, out);
+        let entered = doc.enter_space(host, 1, painter, self.translation, rect, out);
         doc.enter_scroll_host(host);
         let extents = &self.extents;
         for index in extents.first_ending_after(offset)..extents.items.len() {
@@ -344,7 +344,7 @@ impl Element for OffsetNode {
         let Some(host) = self.host else {
             return;
         };
-        let entered = painter.entered(host, self.translation, rect);
+        let entered = painter.shifted(Some(SpaceId::inside(host, 1)), self.translation, rect);
         for item in self.items.iter() {
             if rects.contains_key(item) {
                 crate::paint::paint(doc, &entered, rects, *item);

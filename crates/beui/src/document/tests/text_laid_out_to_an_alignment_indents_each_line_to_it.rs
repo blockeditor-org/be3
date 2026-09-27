@@ -30,7 +30,7 @@ fn text_laid_out_to_an_alignment_indents_each_line_to_it() {
         painter.galley(Pos2::ZERO, spaced, Color32::WHITE);
     });
     let galleys: Vec<_> = output
-        .shapes
+        .shapes()
         .iter()
         .filter_map(|shape| match shape {
             crate::Shape::Text { galley, .. } => Some(galley.clone()),

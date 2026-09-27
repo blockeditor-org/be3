@@ -4,7 +4,7 @@ use crate::drawing::Drawing;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Rotation, Vec2};
 use crate::image::Image;
-use crate::node::NodeId;
+use crate::node::{NodeId, SpaceId};
 use crate::pixel_grid::PixelGrid;
 
 #[derive(Clone, PartialEq)]
@@ -55,14 +55,44 @@ pub enum Shape {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) struct Entry {
+    pub(crate) translation: Vec2,
+    pub(crate) clip: Rect,
+    pub(crate) shift: Option<Vec2>,
+}
+
+impl Entry {
+    pub(crate) const NONE: Self = Self {
+        translation: Vec2::ZERO,
+        clip: Rect::EVERYTHING,
+        shift: None,
+    };
+
+    pub(crate) fn place(self, rect: Rect) -> Rect {
+        rect.translate(self.translation).intersect(self.clip)
+    }
+
+    pub(crate) fn compose(self, inner: Self) -> Self {
+        Self {
+            translation: self.translation + inner.translation,
+            clip: self.clip.intersect(inner.clip.translate(self.translation)),
+            shift: match inner.shift {
+                Some(shift) => Some(self.translation + shift),
+                None => self.shift,
+            },
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) struct PainterState {
     pub(crate) clip: Rect,
     pub(crate) space_clip: Rect,
     pub(crate) origin: Vec2,
-    pub(crate) space: Option<NodeId>,
+    pub(crate) space: Option<SpaceId>,
     pub(crate) top: bool,
     pub(crate) rotation: Rotation,
-    pub(crate) entry: Option<(Vec2, Rect)>,
+    pub(crate) list: Entry,
 }
 
 impl PainterState {
@@ -76,6 +106,17 @@ impl PainterState {
     pub(crate) fn sees(self, other: Self) -> bool {
         self.space_clip == other.space_clip && self.origin == other.origin
     }
+
+    pub(crate) fn resumed(self, own: Self) -> Self {
+        Self {
+            origin: own.origin + self.list.translation,
+            space_clip: own
+                .space_clip
+                .intersect(self.list.clip)
+                .translate(-self.list.translation),
+            ..self
+        }
+    }
 }
 
 pub struct Painter {
@@ -83,10 +124,10 @@ pub struct Painter {
     clip: Rect,
     space_clip: Rect,
     origin: Vec2,
-    space: Option<NodeId>,
+    space: Option<SpaceId>,
     top: bool,
     rotation: Rotation,
-    entry: Option<(Vec2, Rect)>,
+    list: Entry,
 }
 
 impl Painter {
@@ -99,7 +140,7 @@ impl Painter {
             space: None,
             top: false,
             rotation: Rotation::NONE,
-            entry: None,
+            list: Entry::NONE,
         }
     }
 
@@ -112,7 +153,7 @@ impl Painter {
             space: state.space,
             top: state.top,
             rotation: state.rotation,
-            entry: state.entry,
+            list: state.list,
         }
     }
 
@@ -124,7 +165,7 @@ impl Painter {
             space: self.space,
             top: self.top,
             rotation: self.rotation,
-            entry: self.entry,
+            list: self.list,
         }
     }
 
@@ -137,29 +178,61 @@ impl Painter {
             space: self.space,
             top,
             rotation,
-            entry: self.entry,
+            list: self.list,
         }
     }
 
-    pub(crate) fn inner(&self) -> Self {
+    pub(crate) fn entered(&self, node: NodeId, rect: Rect) -> Self {
+        let translation = rect.min.to_vec2();
         Self {
-            entry: None,
-            ..self.with(self.clip, self.top, self.rotation)
+            context: self.context.clone(),
+            clip: Rect::EVERYTHING,
+            space_clip: self.space_clip.intersect(self.clip).translate(-translation),
+            origin: self.origin + translation,
+            space: Some(SpaceId::of(node)),
+            top: self.top,
+            rotation: self.rotation.translate(-translation),
+            list: Entry::NONE,
         }
     }
 
-    pub(crate) fn entered(&self, space: NodeId, translation: Vec2, clip: Rect) -> Self {
+    pub(crate) fn entry(&self, rect: Rect) -> Entry {
+        Entry {
+            translation: self.list.translation + rect.min.to_vec2(),
+            clip: self
+                .list
+                .clip
+                .intersect(self.clip.translate(self.list.translation)),
+            shift: self.list.shift,
+        }
+    }
+
+    pub(crate) fn shifted(&self, space: Option<SpaceId>, by: Vec2, clip: Rect) -> Self {
         let kept = self.clip.intersect(clip);
         Self {
             context: self.context.clone(),
             clip: Rect::EVERYTHING,
-            space_clip: self.space_clip.intersect(kept).translate(-translation),
-            origin: self.origin + translation,
-            space: Some(space),
+            space_clip: self.space_clip.intersect(kept).translate(-by),
+            origin: self.origin + by,
+            space,
             top: self.top,
-            rotation: self.rotation.translate(-translation),
-            entry: Some((translation, kept)),
+            rotation: self.rotation.translate(-by),
+            list: Entry {
+                translation: self.list.translation + by,
+                clip: self
+                    .list
+                    .clip
+                    .intersect(kept.translate(self.list.translation)),
+                shift: Some(self.list.shift.unwrap_or(Vec2::ZERO) + by),
+            },
         }
+    }
+
+    pub fn in_document(&self) -> Self {
+        self.context.note_space_read();
+        let mut painter = self.shifted(None, -self.origin, Rect::EVERYTHING);
+        painter.list.shift = self.list.shift;
+        painter
     }
 
     pub fn ctx(&self) -> &Context {
@@ -201,6 +274,10 @@ impl Painter {
     }
 
     fn push(&self, shape: Shape) {
+        let shape = match self.list == Entry::NONE {
+            true => shape,
+            false => placed_shape(&shape, self.list.translation, self.list.clip),
+        };
         if self.top {
             self.context.push_top(shape);
         } else {
@@ -322,4 +399,52 @@ impl Painter {
         let galley = self.layout(text, font, f32::INFINITY);
         self.galley(origin, galley, color);
     }
+}
+
+pub(crate) fn placed_shape(shape: &Shape, offset: Vec2, space_clip: Rect) -> Shape {
+    let mut shape = shape.clone();
+    match &mut shape {
+        Shape::Rect {
+            rect,
+            rotation,
+            clip,
+            ..
+        }
+        | Shape::Image {
+            rect,
+            rotation,
+            clip,
+            ..
+        }
+        | Shape::Punch {
+            rect,
+            rotation,
+            clip,
+            ..
+        } => {
+            *rect = rect.translate(offset);
+            *rotation = rotation.translate(offset);
+            *clip = clip.translate(offset).intersect(space_clip);
+        }
+        Shape::Text {
+            origin,
+            rotation,
+            clip,
+            ..
+        } => {
+            *origin += offset;
+            *rotation = rotation.translate(offset);
+            *clip = clip.translate(offset).intersect(space_clip);
+        }
+        Shape::Line { from, to, clip, .. } => {
+            *from += offset;
+            *to += offset;
+            *clip = clip.translate(offset).intersect(space_clip);
+        }
+        Shape::Drawing { rect, clip, .. } => {
+            *rect = rect.translate(offset);
+            *clip = clip.translate(offset).intersect(space_clip);
+        }
+    }
+    shape
 }

@@ -22,7 +22,7 @@ fn a_picture_paints_the_image_it_is_given() {
     let rect = harness.rect(picture.get());
     assert_eq!(rect.size(), Vec2::new(40.0, 40.0));
     let drawn: Vec<_> = output
-        .shapes
+        .shapes()
         .iter()
         .filter_map(|shape| match shape {
             crate::painter::Shape::Image { rect, image, .. } => Some((*rect, image.clone())),
