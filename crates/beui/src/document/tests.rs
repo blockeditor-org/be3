@@ -54,6 +54,7 @@ mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
 mod a_lone_child_fills_a_children_prop_as_a_run_of_one;
 mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
+mod a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling;
 mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_nested_container_reports_its_own_width_not_the_windows;
 mod a_number_input_reports_what_was_typed_within_its_range;
@@ -67,6 +68,7 @@ mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
 mod a_portal_shows_a_subtree_it_does_not_own;
 mod a_quick_flick_on_the_simulated_trackpad_moves_the_cursor_without_clicking;
+mod a_quick_tap_with_several_fingers_is_a_finger_tap;
 mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
 mod a_reactive_test_id_follows_its_signal;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
@@ -84,8 +86,8 @@ mod a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus;
 mod a_show_adds_and_removes_a_menu_item_among_the_items_beside_it;
 mod a_show_adds_and_removes_a_tab_among_the_tabs_beside_it;
 mod a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame;
-mod a_simulated_larger_screen_is_laid_out_bigger_and_shrunk_to_fit;
 mod a_simulated_mouse_click_lands_where_the_trackpad_moved_its_cursor;
+mod a_simulated_screen_larger_than_the_window_is_shrunk_to_fit;
 mod a_skipped_element_keeps_the_repaint_deadline_it_asked_for;
 mod a_slider_reports_and_steps_within_the_range_it_was_given;
 mod a_spinner_hidden_by_a_show_stops_asking_for_frames;
@@ -97,6 +99,7 @@ mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
+mod a_test_id_names_the_copy_that_is_shown;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
 mod a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field;
 mod a_theme_provider_restyles_its_subtree_when_its_theme_changes;
@@ -104,6 +107,7 @@ mod a_time_field_picks_from_a_grid_of_times;
 mod a_time_list_moves_through_its_times_and_picks_one;
 mod a_timer_asks_for_frames_until_its_work_settles;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
+mod a_touch_beside_a_control_reaches_the_nearest_one;
 mod a_touch_fling_that_ends_without_moving_keeps_its_momentum;
 mod a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
@@ -176,6 +180,7 @@ mod ctrl_f_opens_the_find_bar_over_a_text_area;
 mod ctrl_scrolling_a_pan_zoom_zooms_around_the_pointer;
 mod ctrl_shift_f_moves_focus_between_the_inspector_and_the_document;
 mod ctrl_shift_i_opens_and_closes_the_inspector;
+mod ctrl_shift_m_toggles_responsive_design_mode;
 mod ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in;
 mod ctrl_z_undoes_what_was_typed_into_a_text_input;
 mod dock_tabs_are_the_same_height_whether_or_not_they_close;
@@ -187,6 +192,7 @@ mod dragging_a_curved_slider_reads_its_midpoint_at_the_centre;
 mod dragging_a_number_input_sideways_changes_its_value;
 mod dragging_a_pan_zoom_with_the_middle_button_pans_it;
 mod dragging_a_panes_grip_moves_every_tab_of_the_pane;
+mod dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it;
 mod dragging_a_slider_moves_its_value;
 mod dragging_a_tab_onto_a_window_bar_moves_it_into_the_window;
 mod dragging_a_tab_onto_the_edge_of_a_pane_splits_it;
@@ -199,6 +205,7 @@ mod dragging_again_during_overscroll_continues_from_the_band;
 mod dragging_onto_a_drop_target_hands_it_the_payload;
 mod dragging_the_bar_between_two_panes_moves_the_boundary;
 mod dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window;
+mod dragging_the_edge_of_the_responsive_screen_resizes_it;
 mod dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection;
 mod dragging_the_inspector_edge_resizes_the_panel;
 mod dragging_the_scrollbar_thumb_scrolls_the_content_beside_it;
@@ -237,6 +244,7 @@ mod inserting_above_a_virtual_list_view_keeps_the_rows_in_place;
 mod inserting_into_a_virtual_list_view_builds_only_the_new_row;
 mod jumping_up_a_virtual_scroll_only_builds_the_items_in_view;
 mod keys_without_alt_reach_the_control_the_screen_reader_focused;
+mod middle_clicking_a_scroll_scrolls_it_towards_the_pointer;
 mod moving_a_dock_tab_to_another_pane_keeps_its_panel;
 mod on_a_narrow_screen_picking_a_date_moves_on_to_the_time;
 mod opening_a_menu_button_damages_only_the_button_and_its_menu;
@@ -255,10 +263,12 @@ mod picking_a_node_leaves_the_document_alone;
 mod pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it;
 mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale;
+mod pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still;
 mod pressing_a_sliders_knob_keeps_its_value_until_it_is_dragged;
 mod pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view;
 mod quadruple_clicking_selects_everything_so_typing_replaces_the_value;
 mod recolouring_a_nested_frame_repaints_it_alone;
+mod releasing_a_middle_drag_ends_autoscroll;
 mod removing_a_keyed_node_drops_the_test_ids_it_registered;
 mod removing_a_node_forgets_which_layout_pass_placed_it;
 mod removing_a_node_runs_the_cleanups_its_components_registered;
@@ -270,6 +280,7 @@ mod resizing_a_virtual_scroll_reuses_visible_items;
 mod resizing_a_window_from_its_top_edge_does_not_drag_it;
 mod resizing_an_element_damages_where_it_was_and_where_it_moved_to;
 mod resizing_rows_preserves_the_scroll_anchor;
+mod responsive_design_mode_lays_the_app_out_at_the_chosen_device_size;
 mod right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent_item;
 mod right_click_opens_a_context_menu_at_the_cursor_position;
 mod right_clicking_a_dock_tab_pops_it_out_into_a_window;
@@ -310,6 +321,7 @@ mod tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste;
 mod tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_landed;
 mod the_caret_of_a_focused_text_area_blinks_on_a_deadline;
 mod the_caret_of_a_text_input_paints_two_points_wide;
+mod the_click_that_ends_autoscroll_presses_nothing;
 mod the_color_areas_thumb_shows_a_grab_cursor;
 mod the_components_tab_lists_components_instead_of_base_nodes;
 mod the_demo_body_scrolls_rather_than_spilling_off_a_small_window;
@@ -348,6 +360,7 @@ mod triple_clicking_selects_the_line_so_typing_replaces_the_value;
 mod turning_off_rubber_banding_in_the_inspector_stops_a_scroll_at_its_end;
 mod turning_on_the_screen_reader_reads_what_it_is_on;
 mod turning_the_accessibility_tree_off_in_the_inspector_stops_building_it;
+mod two_nodes_on_screen_with_one_test_id_are_an_error;
 mod typing_a_hex_into_a_color_picker_keeps_its_hue_and_opacity;
 mod typing_in_a_select_search_box_filters_options_case_insensitively;
 mod typing_in_the_inspector_tree_jumps_to_a_matching_row;
@@ -368,7 +381,7 @@ use std::rc::Rc;
 
 use crate::color::Color32;
 use crate::context::Context;
-use crate::geometry::{Pos2, Vec2, pos2};
+use crate::geometry::{Pos2, Vec2, pos2, vec2};
 use crate::input::{Event, Key, Modifiers, PointerButton, RawInput};
 use crate::input::{TouchId, TouchPhase};
 
@@ -499,6 +512,15 @@ impl Harness {
         self.frame(vec![Event::PointerMoved(pos), Event::Zoom(factor)]);
     }
 
+    pub(crate) fn middle_button(&mut self, pos: Pos2, pressed: bool) {
+        self.frame(vec![Event::PointerButton {
+            pos,
+            button: PointerButton::Middle,
+            pressed,
+            modifiers: Modifiers::NONE,
+        }]);
+    }
+
     pub(crate) fn middle_drag(&mut self, from: Pos2, to: Pos2) {
         self.frame(vec![Event::PointerMoved(from)]);
         self.frame(vec![Event::PointerButton {
@@ -548,6 +570,39 @@ impl Harness {
 
     pub(crate) fn toggle_picking(&mut self) {
         self.chord(Key::C);
+    }
+
+    pub(crate) fn toggle_responsive(&mut self) {
+        self.chord(Key::M);
+    }
+
+    pub(crate) fn shown_screen(&self) -> Rect {
+        self.document
+            .shown_screen()
+            .expect("a screen is simulated")
+            .shown()
+    }
+
+    pub(crate) fn assert_screen_size(&self, size: Vec2) {
+        let simulation = self
+            .context
+            .screen_simulation()
+            .expect("a screen is simulated");
+        assert_eq!(simulation.size, size);
+        let root = self.document.root().expect("the document has a root");
+        let pixel = (self.document.screen_scale() * self.context.pixels_per_point()).recip();
+        let laid_out = self.rect(root).size();
+        assert!(
+            (laid_out.x - size.x).abs() <= pixel && (laid_out.y - size.y).abs() <= pixel,
+            "the app was laid out at {laid_out:?} rather than {size:?}"
+        );
+    }
+
+    pub(crate) fn responsive_control_rect(&self, test_id: &str) -> Rect {
+        self.inspector()
+            .toolbar_rect(test_id)
+            .expect("the control was not laid out")
+            .scaled(crate::inspector::scale(&self.context))
     }
 
     pub(crate) fn toggle_inspector_focus(&mut self) {
@@ -843,7 +898,7 @@ impl Harness {
         self.inspector().option_node("inspector.tabs", index)
     }
 
-    fn inspector_center(&self, test_id: &str) -> Pos2 {
+    pub(crate) fn inspector_center(&self, test_id: &str) -> Pos2 {
         self.node_center(self.inspector().find(test_id))
     }
 

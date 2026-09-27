@@ -37,16 +37,16 @@ fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
     let button = button.get();
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let tip = harness.document().find_test_id("tip").expect("the bubble");
     assert_eq!(
-        harness.document().node_rect(tip),
+        harness.document().find_test_id("tip"),
         None,
-        "a tooltip nobody is hovering must not be placed"
+        "a tooltip nobody is hovering is not on screen"
     );
 
     let center = harness.center(button);
     harness.frame(vec![Event::PointerMoved(center)]);
     harness.frame(Vec::new());
+    let tip = harness.document().find_test_id("tip").expect("the bubble");
     assert!(
         harness.document().node_rect(tip).is_some(),
         "the dwell must place the bubble"

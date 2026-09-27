@@ -79,6 +79,7 @@ pub(crate) fn common_value<T: Copy + PartialEq>(
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Tool {
+    Hand,
     Select,
     Line,
     Rectangle,
@@ -281,7 +282,7 @@ impl CanvasState {
         let entities = content.project(|canvas| canvas.root().entities());
         let preview_region =
             content.project(|canvas| canvas.field(ObjectId::ROOT, Canvas::PREVIEW_REGION));
-        let (tool, set_tool) = create_signal(Tool::Select);
+        let (tool, set_tool) = create_signal(Tool::Hand);
         let (selection, set_selection) = create_signal(HashSet::new());
         let (gesture, set_gesture) = create_signal(None);
         let (typed, set_typed) = create_signal(None);
@@ -583,6 +584,12 @@ impl CanvasState {
     pub(crate) fn set_tool(&self, tool: Tool) {
         self.set_tool.set(tool);
         self.set_gesture.set(None);
+    }
+
+    pub(crate) fn put_down_tool(&self) {
+        if !matches!(self.tool.get_untracked(), Tool::Hand | Tool::Select) {
+            self.set_tool(Tool::Hand);
+        }
     }
 
     pub(crate) fn begin_gesture(&self, gesture: Option<Gesture>) {
@@ -1016,7 +1023,7 @@ impl CanvasState {
                     .map(|entity| entity.id)
                     .collect();
                 self.set_selection.set(all);
-                self.set_tool(Tool::Select);
+                self.put_down_tool();
             }
             CanvasCommand::InvertSelection => {
                 let selection = self.selection.get_untracked();
@@ -1028,7 +1035,7 @@ impl CanvasState {
                     .map(|entity| entity.id)
                     .collect();
                 self.set_selection.set(inverted);
-                self.set_tool(Tool::Select);
+                self.put_down_tool();
             }
             CanvasCommand::Duplicate => self.duplicate_selection(),
             CanvasCommand::Delete => {
@@ -1111,7 +1118,7 @@ impl CanvasState {
             self.operate(&InfiniteCanvasOperation::Add { entity });
         }
         self.set_selection.set(selection);
-        self.set_tool(Tool::Select);
+        self.put_down_tool();
         true
     }
 
@@ -1131,7 +1138,7 @@ impl CanvasState {
             .blocks()
             .set_parent(block_id, BlockParent::Block(self.block_id()));
         self.add_direct_editor(block_id, center);
-        self.set_tool(Tool::Select);
+        self.put_down_tool();
     }
 
     pub(crate) fn open_image_picker(&self, center: Option<CanvasPoint>) {
@@ -1556,7 +1563,7 @@ impl CanvasState {
                     let text = matches!(entity.kind, CanvasEntityKind::Text { .. });
                     self.add_entity(entity);
                     if text {
-                        self.set_tool(Tool::Select);
+                        self.put_down_tool();
                     }
                 }
             }
@@ -1685,7 +1692,7 @@ impl CanvasState {
                     components: Vec::new(),
                 })
             }
-            Tool::Line | Tool::Select | Tool::Pen => None,
+            Tool::Line | Tool::Hand | Tool::Select | Tool::Pen => None,
         }
     }
 }
@@ -1804,7 +1811,7 @@ impl CanvasState {
                     .take()
                     .unwrap_or_else(|| self.viewport_center());
                 self.add_imported_image(image, center);
-                self.set_tool(Tool::Select);
+                self.put_down_tool();
             }
             Some(Err(error)) => {
                 self.pending_image_center.set(None);

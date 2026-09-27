@@ -29,7 +29,10 @@ it an icon, or moving it to a sidebar then leaves the tests alone.
 named node was laid out at, which is what block-ui-test clicks. Name them
 `<editor>.<what it does>`, and where there are many of a kind, key them by whatever the
 block itself keys them by (`checklist.item.{id}.done`, where `id` is the item's `ObjectId`,
-the same id the edit names), never by the order they happen to be drawn in.
+the same id the edit names), never by the order they happen to be drawn in. An id names one node in the tree:
+a copy hidden by a Show, a panel a dock is not showing, or a closed overlay does not count, and
+two nodes in the tree with the same id fail the test that asks for it, so a control drawn in two
+places (a toolbar and a dock, say) gives each copy its own id.
 
 3. Write the test
 

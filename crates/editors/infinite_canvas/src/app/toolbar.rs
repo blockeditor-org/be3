@@ -3,21 +3,24 @@ use std::rc::Rc;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_DATA_OBJECT, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_KEYBOARD_ARROW_DOWN, ICON_MORE_HORIZ,
-    ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_PAN_TOOL, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Memo, Prop, Show, Spacer, clone, component,
-    create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, Show, Spacer, clone,
+    component, create_memo, view,
 };
+use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, IconButton, MenuButton, ToggleButton, use_theme,
 };
 use block_editor_beui::beui::unstyled::MenuItem;
+use block_editor_beui::beui::unstyled::{Edge, Floating};
 use block_editor_beui::{Toolbar, narrow_chrome};
 
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
 
-const TOOLS: [(Tool, &str, &str); 5] = [
+const TOOLS: [(Tool, &str, &str); 6] = [
+    (Tool::Hand, ICON_PAN_TOOL, "Pan"),
     (Tool::Select, ICON_SELECT, "Select"),
     (Tool::Line, ICON_DIAGONAL_LINE, "Line"),
     (Tool::Rectangle, ICON_RECTANGLE, "Rectangle"),
@@ -34,6 +37,8 @@ const ACTIONS: [(&str, CanvasCommand); 5] = [
 ];
 
 const ZOOM_PRESETS: [f32; 4] = [0.25, 0.5, 1.0, 2.0];
+const DOCK_MARGIN: f32 = 12.0;
+const DOCK_RADIUS: u8 = 12;
 
 #[component]
 pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId {
@@ -43,22 +48,30 @@ pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId
     let actions = Rc::clone(&state);
     let zoom = Rc::clone(&state);
     let errors = Rc::clone(&state);
-    let compact = narrow.clone();
+    let roomy = create_memo(clone!(narrow -> move || !narrow.get()));
     let menu_compact = narrow.clone();
     let zoom_compact = narrow;
     view! {
         <Toolbar shown={shown}>
             <List @sizing=ItemSize::Percent(100.0) spacing=6.0>
-                <List direction=Direction::Horizontal align=Align::Center spacing=6.0 wrap=true>
-                    <ForEach keys={(0..TOOLS.len()).collect::<Vec<usize>>()}>
-                        {move |index: usize| {
-                            let state = Rc::clone(&tools);
-                            let compact = compact.clone();
-                            view! {
-                                <ToolChoice state index compact />
-                            }
-                        }}
-                    </ForEach>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    spacing=6.0
+                    wrap={roomy.clone()}
+                >
+                    <Show condition={roomy}>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                            <ForEach keys={(0..TOOLS.len()).collect::<Vec<usize>>()}>
+                                {move |index: usize| {
+                                    let state = Rc::clone(&tools);
+                                    view! {
+                                        <ToolChoice state index docked=false />
+                                    }
+                                }}
+                            </ForEach>
+                        </List>
+                    </Show>
                     <IconButton
                         glyph={ICON_DATA_OBJECT.to_owned()}
                         label="Block"
@@ -75,7 +88,43 @@ pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId
 }
 
 #[component]
-fn ToolChoice(state: Rc<CanvasState>, index: usize, compact: Memo<bool>) -> NodeId {
+pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
+    let narrow = narrow_chrome();
+    let previewing = state.previewing();
+    let open = create_memo(move || shown.get() && narrow.get() && !previewing);
+    let theme = use_theme();
+    let tools = Rc::clone(&state);
+    view! {
+        <Floating anchor={anchor} edge=Edge::Bottom open={open}>
+            <Frame padding_vertical=DOCK_MARGIN>
+                <Frame
+                    color={theme.surface.clone()}
+                    outline={theme.border.clone()}
+                    outline_width=BORDER_WIDTH
+                    outline_visible=true
+                    radius=DOCK_RADIUS
+                    padding_horizontal=6.0
+                    padding_vertical=6.0
+                    @test_id={"infinite-canvas.dock"}
+                >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                        <ForEach keys={(0..TOOLS.len()).collect::<Vec<usize>>()}>
+                            {move |index: usize| {
+                                let state = Rc::clone(&tools);
+                                view! {
+                                    <ToolChoice state index docked=true />
+                                }
+                            }}
+                        </ForEach>
+                    </List>
+                </Frame>
+            </Frame>
+        </Floating>
+    }
+}
+
+#[component]
+fn ToolChoice(state: Rc<CanvasState>, index: usize, docked: bool) -> NodeId {
     let (tool, glyph, label) = TOOLS[index];
     let pressed = create_memo(clone!(state -> move || state.tool.get() == tool));
     let choose = clone!(state -> move |_: bool| state.set_tool(tool));
@@ -83,9 +132,12 @@ fn ToolChoice(state: Rc<CanvasState>, index: usize, compact: Memo<bool>) -> Node
         <ToggleButton
             label={label}
             glyph={glyph.to_owned()}
-            icon_only={compact}
+            icon_only={docked}
             pressed={pressed}
-            @test_id={format!("infinite-canvas.tool.{label}")}
+            @test_id={match docked {
+                true => format!("infinite-canvas.dock.tool.{label}"),
+                false => format!("infinite-canvas.tool.{label}"),
+            }}
             on_change={choose}
         />
     }

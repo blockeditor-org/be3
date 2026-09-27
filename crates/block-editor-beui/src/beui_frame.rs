@@ -6,7 +6,8 @@ use beui::NodeId;
 use beui::icons::{ICON_REDO, ICON_SHARE, ICON_UNDO};
 use beui::reactive::{
     ClickCallback, Frame, ItemSize, List, Memo, ReadSignal, Show, Spacer, WriteSignal, clone,
-    component, create_effect, create_memo, create_signal, focus_takes_text, on_shortcut, view,
+    component, create_effect, create_memo, create_signal, focus_takes_text, on_finger_tap,
+    on_shortcut, view,
 };
 use beui::styled::{Button, ButtonVariant, IconButton, TextInput};
 use beui::{Context, Document, Key, KeyPress};
@@ -177,6 +178,18 @@ impl Watched {
             Key::Y => true,
             _ => return false,
         };
+        self.try_step(redo)
+    }
+
+    fn finger_tap(&self, fingers: usize) -> bool {
+        match fingers {
+            2 => self.try_step(false),
+            3 => self.try_step(true),
+            _ => false,
+        }
+    }
+
+    fn try_step(&self, redo: bool) -> bool {
         if !self.editor.host().editable() || !self.can_edit() {
             return false;
         }
@@ -234,6 +247,9 @@ pub(crate) fn TopBar(editor: Editor, bar: ReadSignal<FrameBar>, on_exit: ClickCa
     let shortcuts = Rc::clone(&watched);
     let active = shown.clone();
     on_shortcut(move |press: KeyPress| active.get_untracked() && shortcuts.shortcut(press));
+    let taps = Rc::clone(&watched);
+    let tapping = shown.clone();
+    on_finger_tap(move |fingers: usize| tapping.get_untracked() && taps.finger_tap(fingers));
     create_effect(move || {
         if visible.get() {
             set_state.set(reading.read());

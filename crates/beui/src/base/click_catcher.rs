@@ -3,7 +3,8 @@ use std::any::Any;
 use crate::base::list::Direction;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{
-    CursorIcon, DragGesture, PointerPress, ScrollGesture, SecondaryDrag, ZoomGesture,
+    AutoscrollGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture, SecondaryDrag,
+    ZoomGesture,
 };
 use crate::painter::Painter;
 
@@ -43,6 +44,7 @@ pub(crate) struct ClickCatcherNode {
     pub(crate) on_pan_active_change: Callback<bool>,
     pub(crate) on_scroll: Callback<ScrollGesture>,
     pub(crate) on_scroll_drag: Callback<DragGesture>,
+    pub(crate) on_autoscroll: Callback<AutoscrollGesture>,
     pub(crate) on_zoom: Callback<ZoomGesture>,
     pub(crate) capture_at: Callback<Pos2, bool>,
 }
@@ -79,13 +81,30 @@ impl ClickCatcherNode {
             on_pan_active_change: Callback::empty(),
             on_scroll: Callback::empty(),
             on_scroll_drag: Callback::empty(),
+            on_autoscroll: Callback::empty(),
             on_zoom: Callback::empty(),
             capture_at: Callback::empty(),
         }
     }
 
+    pub(crate) fn takes_presses(&self) -> bool {
+        self.capture_presses
+            || !self.on_click.is_empty()
+            || !self.on_click_at.is_empty()
+            || !self.on_press.is_empty()
+            || !self.on_secondary_press.is_empty()
+    }
+
     pub(crate) fn wants_gestures(&self) -> bool {
         !self.on_zoom.is_empty() || !self.on_pan_drag.is_empty()
+    }
+
+    pub(crate) fn wants_autoscroll(&self) -> bool {
+        !self.on_autoscroll.is_empty()
+    }
+
+    pub(crate) fn claims_middle(&self) -> bool {
+        self.wants_autoscroll() || !self.on_pan_drag.is_empty()
     }
 
     pub(crate) fn wants_wheel(&self, wheel: Vec2) -> bool {
@@ -469,6 +488,7 @@ pub fn ClickCatcher(
     on_pan_active_change: Callback<bool>,
     on_scroll: Callback<ScrollGesture>,
     on_scroll_drag: Callback<DragGesture>,
+    on_autoscroll: Callback<AutoscrollGesture>,
     on_zoom: Callback<ZoomGesture>,
     capture_at: Callback<Pos2, bool>,
     children: Option<Child>,
@@ -492,6 +512,7 @@ pub fn ClickCatcher(
         node.on_pan_active_change = on_pan_active_change;
         node.on_scroll = on_scroll;
         node.on_scroll_drag = on_scroll_drag;
+        node.on_autoscroll = on_autoscroll;
         node.on_zoom = on_zoom;
         node.capture_at = capture_at;
         if let Some(child) = children {

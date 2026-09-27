@@ -8,6 +8,7 @@ const MULTI_CLICK_DISTANCE: f32 = 6.0;
 const MULTI_CLICK_LIMIT: u32 = 4;
 pub(crate) const TOUCH_DRAG_THRESHOLD: f32 = 8.0;
 const LONG_PRESS_DELAY: Duration = Duration::from_millis(500);
+const FINGER_TAP_TIME: Duration = Duration::from_millis(350);
 const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
 const MAX_TOUCH_VELOCITY: f32 = 4_000.0;
 
@@ -163,6 +164,13 @@ pub struct DragGesture {
     pub cancelled: bool,
     pub delta: Vec2,
     pub velocity: Vec2,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct AutoscrollGesture {
+    pub origin: Pos2,
+    pub pos: Pos2,
+    pub ended: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -380,6 +388,9 @@ impl InputState {
         for point in touch.points.values_mut() {
             point.pos = scale(point.pos);
         }
+        for origin in touch.origins.values_mut() {
+            *origin = scale(*origin);
+        }
         touch.start = touch.start.map(scale);
         touch.previous = touch.previous.map(scale);
         touch.scroll_delta *= factor;
@@ -553,6 +564,11 @@ pub struct TouchState {
     hold: Option<(TouchId, Pos2)>,
     held_since: Option<Instant>,
     long_pressed: bool,
+    origins: HashMap<TouchId, Pos2>,
+    fingers: usize,
+    fingers_moved: bool,
+    fingers_since: Option<Instant>,
+    finger_tap: Option<usize>,
 }
 
 impl Default for TouchState {
@@ -578,6 +594,11 @@ impl Default for TouchState {
             hold: None,
             held_since: None,
             long_pressed: false,
+            origins: HashMap::new(),
+            fingers: 0,
+            fingers_moved: false,
+            fingers_since: None,
+            finger_tap: None,
         }
     }
 }
@@ -590,6 +611,7 @@ impl TouchState {
         self.scroll_delta = Vec2::ZERO;
         self.pinch = 1.0;
         self.pinch_pan = Vec2::ZERO;
+        self.finger_tap = None;
         if self.primary.is_none() {
             self.start = None;
             self.previous = None;
@@ -626,7 +648,14 @@ impl TouchState {
     }
 
     fn start(&mut self, id: TouchId, pos: Pos2, force: Option<f32>, pointer: &mut Pointer) {
+        if self.points.is_empty() {
+            self.fingers = 0;
+            self.fingers_moved = false;
+            self.fingers_since = Some(Instant::now());
+        }
         self.points.insert(id, TouchPoint { id, pos, force });
+        self.origins.insert(id, pos);
+        self.fingers = self.fingers.max(self.points.len());
         self.measure_pinch();
         if let Some(anchor) = self.primary_pos() {
             if !self.dragged && self.hold.is_none() && self.points.len() == 2 {
@@ -664,6 +693,13 @@ impl TouchState {
         };
         point.pos = pos;
         point.force = force;
+        if self
+            .origins
+            .get(&id)
+            .is_some_and(|origin| origin.distance(pos) >= TOUCH_DRAG_THRESHOLD)
+        {
+            self.fingers_moved = true;
+        }
         if let Some((finger, anchor)) = self.hold {
             if finger == id {
                 if let Some(drag) = &mut pointer.secondary_drag {
@@ -711,6 +747,16 @@ impl TouchState {
     ) {
         self.move_to(id, pos, force, pointer);
         self.points.remove(&id);
+        self.origins.remove(&id);
+        if self.points.is_empty() {
+            let quick = self
+                .fingers_since
+                .take()
+                .is_some_and(|since| since.elapsed() <= FINGER_TAP_TIME);
+            if !cancelled && quick && !self.fingers_moved && self.fingers >= 2 {
+                self.finger_tap = Some(self.fingers);
+            }
+        }
         self.pinch_span = None;
         self.pinch_center = None;
         if let Some((finger, _)) = self.hold {
@@ -777,6 +823,8 @@ impl TouchState {
             SecondaryDrag::cancel(&mut pointer.secondary_drag);
         }
         self.points.clear();
+        self.origins.clear();
+        self.fingers_since = None;
         self.primary = None;
         self.start = None;
         self.previous = None;
@@ -827,6 +875,10 @@ impl TouchState {
         } else {
             measured
         };
+    }
+
+    pub fn finger_tap(&self) -> Option<usize> {
+        self.finger_tap
     }
 
     pub fn points(&self) -> impl Iterator<Item = &TouchPoint> {

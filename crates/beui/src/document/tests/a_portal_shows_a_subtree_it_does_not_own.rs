@@ -51,10 +51,14 @@ fn a_portal_shows_a_subtree_it_does_not_own() {
     with_reactive_scope(harness.document_mut(), move || set_kept.set(false));
     harness.frame(Vec::new());
 
-    assert_eq!(
-        harness.find("held"),
-        held,
+    assert!(
+        harness.document().contains(held),
         "the subtree outlives the portal that was showing it"
+    );
+    assert_eq!(
+        harness.document().find_test_id("held"),
+        None,
+        "a subtree no portal holds is not in the tree"
     );
     assert!(
         harness.document().node_rect(held).is_none(),

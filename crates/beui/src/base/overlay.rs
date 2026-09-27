@@ -39,6 +39,7 @@ impl IntoProp<OverlayAnchor> for &NodeRef {
 pub(crate) enum Placement {
     At,
     Over(u16),
+    Around,
     BelowStart,
     RightStart,
     Center,
@@ -116,6 +117,9 @@ fn resolve_rect(
         );
         return Rect::from_min_size(origin, content_size);
     }
+    if placement == Placement::Around {
+        return Rect::from_center_size(anchor_rect.center(), content_size);
+    }
     if placement == Placement::Fill {
         return viewport;
     }
@@ -151,6 +155,7 @@ fn resolve_rect(
         Placement::RightStart => pos2(anchor_rect.right(), anchor_rect.top()),
         Placement::At
         | Placement::Over(_)
+        | Placement::Around
         | Placement::Center
         | Placement::Fill
         | Placement::InsideTop
@@ -200,7 +205,7 @@ impl Element for OverlayNode {
         let anchor_rect = match &self.anchor {
             OverlayAnchor::Node(node) => node
                 .try_get()
-                .and_then(|id| out.get(&id).copied())
+                .and_then(|id| out.get(&id).copied().or_else(|| doc.node_rect(id)))
                 .unwrap_or(viewport),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
         };
@@ -245,6 +250,13 @@ impl Element for OverlayNode {
         let mut children = vec![self.scrim];
         children.extend(self.content);
         children
+    }
+
+    fn live_children(&self) -> Vec<NodeId> {
+        match self.open {
+            true => self.children(),
+            false => Vec::new(),
+        }
     }
 
     fn kind(&self) -> &'static str {

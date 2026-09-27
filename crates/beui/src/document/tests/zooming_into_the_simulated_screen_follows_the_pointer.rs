@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{Frame, view};
-use crate::screen_simulation::ScreenSimulation;
+use crate::screen_simulation::{MARGIN, ScreenSimulation};
 use crate::styled::Checkbox;
 
 #[test]
@@ -16,14 +16,17 @@ fn zooming_into_the_simulated_screen_follows_the_pointer() {
         ]
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
-    harness.context.set_screen_simulation(ScreenSimulation {
-        size: 1.0,
-        zoom: Some(2.0),
-    });
+    let margin = vec2(MARGIN, MARGIN);
+    harness
+        .context
+        .set_screen_simulation(Some(ScreenSimulation {
+            size: WIDE_VIEWPORT - margin * 2.0,
+            zoom: Some(2.0),
+        }));
     harness.frame(Vec::new());
 
     let root = harness.document().root().expect("the toolbar was built");
-    let target = harness.center(checkbox) - harness.rect(root).min.to_vec2();
+    let target = harness.center(checkbox) - harness.rect(root).min.to_vec2() + margin;
     let output = harness.frame(vec![Event::PointerMoved(target)]);
 
     let laid_out = harness.rect(checkbox);

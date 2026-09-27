@@ -1,5 +1,6 @@
 mod overlay;
 mod panel;
+mod responsive;
 mod tree;
 
 use std::cell::{Cell, RefCell};
@@ -10,7 +11,7 @@ use std::time::Instant;
 use crate::context::Context;
 use crate::filter::{ColorVision, Filter};
 use crate::flash;
-use crate::geometry::{Rect, pos2};
+use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::input::{CursorIcon, Event, Key as InputKey};
 use crate::interact::Keys;
 use crate::painter::Painter;
@@ -32,6 +33,10 @@ const GRIP_PAINT_WIDTH: f32 = 2.0;
 const MINIMUM_APP_WIDTH: f32 = 480.0;
 const NARROWEST_APP_WIDTH: f32 = 200.0;
 const BAR_HEIGHT: f32 = 44.0;
+const HANDLE_REACH: f32 = crate::screen_simulation::MARGIN;
+const HANDLE_THICKNESS: f32 = 4.0;
+const HANDLE_LENGTH: f32 = 40.0;
+const HANDLE_CORNER: f32 = 14.0;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) enum InspectorTab {
@@ -68,7 +73,7 @@ pub(crate) struct State {
     pub(crate) flash_changes: Cell<bool>,
     pub(crate) flash_damage: Cell<bool>,
     pub(crate) simulated_pixels_per_point: Cell<Option<f32>>,
-    pub(crate) screen_simulation: Cell<ScreenSimulation>,
+    pub(crate) screen_simulation: Cell<Option<ScreenSimulation>>,
     pub(crate) screen_reader: Cell<bool>,
     pub(crate) accessibility: Cell<bool>,
     pub(crate) blur: Cell<f32>,
@@ -153,9 +158,24 @@ impl State {
         self.touch();
     }
 
-    fn simulate_screen(&self, simulation: ScreenSimulation) {
-        self.screen_simulation.set(simulation);
-        self.touch();
+    fn simulate_screen(&self, simulation: Option<ScreenSimulation>) {
+        if self.screen_simulation.replace(simulation) != simulation {
+            self.touch();
+        }
+    }
+
+    fn update_screen(&self, change: impl FnOnce(ScreenSimulation) -> ScreenSimulation) {
+        if let Some(simulation) = self.screen_simulation.get() {
+            self.simulate_screen(Some(change(simulation)));
+        }
+    }
+
+    fn toggle_responsive(&self) {
+        let simulation = match self.screen_simulation.get() {
+            Some(_) => None,
+            None => Some(responsive::DEFAULT),
+        };
+        self.simulate_screen(simulation);
     }
 
     fn simulate_pixels_per_point(&self, pixels_per_point: Option<f32>) {
@@ -257,6 +277,7 @@ impl State {
 
 pub(crate) struct Layout {
     pub(crate) bar: Rect,
+    pub(crate) toolbar: Rect,
     pub(crate) content: Rect,
     pub(crate) readout: Rect,
     pub(crate) panel: Rect,
@@ -267,12 +288,48 @@ impl Layout {
     pub(crate) fn app(rect: Rect) -> Self {
         Self {
             bar: Rect::NOTHING,
+            toolbar: Rect::NOTHING,
             content: rect,
             readout: Rect::NOTHING,
             panel: Rect::NOTHING,
             app_visible: true,
         }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Handle {
+    Right,
+    Bottom,
+    Corner,
+}
+
+impl Handle {
+    fn cursor(self) -> CursorIcon {
+        match self {
+            Handle::Right => CursorIcon::ResizeHorizontal,
+            Handle::Bottom => CursorIcon::ResizeVertical,
+            Handle::Corner => CursorIcon::ResizeNwSe,
+        }
+    }
+
+    fn resized(self, size: Vec2, moved: Vec2) -> Vec2 {
+        let width = size.x + 2.0 * moved.x;
+        let height = size.y + moved.y;
+        match self {
+            Handle::Right => vec2(width, size.y),
+            Handle::Bottom => vec2(size.x, height),
+            Handle::Corner => vec2(width, height),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Resize {
+    handle: Handle,
+    origin: Pos2,
+    size: Vec2,
+    scale: f32,
 }
 
 #[derive(Clone, Copy)]
@@ -294,6 +351,11 @@ pub(crate) struct Inspector {
     set_selection: WriteSignal<Vec<Key>>,
     tree: NodeRef,
     bar: panel::Bar,
+    toolbar: responsive::Toolbar,
+    resizing: Option<Resize>,
+    handle: Option<Handle>,
+    handle_bounds: Cell<Rect>,
+    toolbar_area: Rect,
     pub(crate) width: f32,
     grabbed: Option<f32>,
     grip: bool,
@@ -307,8 +369,14 @@ impl Inspector {
         let state = Rc::new(State::new(ctx, theme));
         let panel = panel::build(&state);
         let bar = panel::build_bar(&state);
+        let toolbar = responsive::build(&state);
         Self {
             bar,
+            toolbar,
+            resizing: None,
+            handle: None,
+            handle_bounds: Cell::new(Rect::NOTHING),
+            toolbar_area: Rect::NOTHING,
             document: panel.document,
             entries: Vec::new(),
             tree: panel.tree,
@@ -354,6 +422,12 @@ impl Inspector {
     }
 
     #[cfg(test)]
+    pub(crate) fn toolbar_rect(&self, test_id: &str) -> Option<Rect> {
+        let document = &self.toolbar.document;
+        document.node_rect(document.find_test_id(test_id)?)
+    }
+
+    #[cfg(test)]
     pub(crate) fn panel_rect(&self) -> Option<Rect> {
         self.document
             .root()
@@ -396,36 +470,59 @@ impl Inspector {
     }
 
     pub(crate) fn layout(&mut self, ctx: &Context, rect: Rect) -> Layout {
+        ctx.set_screen_simulation(self.screen_simulation());
         let scale = scale(ctx);
         let compact = rect.width() < (MINIMUM_APP_WIDTH + DEFAULT_WIDTH) * scale;
         self.state.compact.set(compact);
-        if !compact {
-            self.grab(ctx, rect);
-            let (content, panel) = split(rect, self.panel_width(ctx, rect));
-            return Layout {
-                panel,
-                ..Layout::app(content)
-            };
+        let layout = match compact {
+            false => {
+                self.grab(ctx, rect);
+                let (content, panel) = split(rect, self.panel_width(ctx, rect));
+                Layout {
+                    panel,
+                    ..Layout::app(content)
+                }
+            }
+            true => {
+                self.grabbed = None;
+                self.grip = false;
+                let (bar, rect) = trim_top(rect, BAR_HEIGHT * scale);
+                let app_visible = self.state.app_visible();
+                Layout {
+                    bar,
+                    toolbar: Rect::NOTHING,
+                    content: rect,
+                    readout: Rect::NOTHING,
+                    panel: if app_visible { Rect::NOTHING } else { rect },
+                    app_visible,
+                }
+            }
+        };
+        if !layout.app_visible || self.state.screen_simulation.get().is_none() {
+            return layout;
         }
-        self.grabbed = None;
-        self.grip = false;
-        let (bar, rect) = trim_top(rect, BAR_HEIGHT * scale);
-        let app_visible = self.state.app_visible();
+        let (toolbar, content) = trim_top(layout.content, responsive::HEIGHT * scale);
         Layout {
-            bar,
-            content: rect,
-            readout: Rect::NOTHING,
-            panel: if app_visible { Rect::NOTHING } else { rect },
-            app_visible,
+            toolbar,
+            content,
+            ..layout
         }
+    }
+
+    pub(crate) fn has_focus(&self) -> bool {
+        self.document.focused_node().is_some() || self.toolbar.document.focused_node().is_some()
     }
 
     pub(crate) fn intercepts(&self) -> bool {
-        self.state.picking.get() || self.grabbed.is_some() || self.state.screen_reader.get()
+        self.state.picking.get()
+            || self.grabbed.is_some()
+            || self.resizing.is_some()
+            || self.toolbar.open()
+            || self.state.screen_reader.get()
     }
 
     pub(crate) fn keys(&self) -> Keys {
-        if self.state.picking.get() || self.grabbed.is_some() {
+        if self.state.picking.get() || self.grabbed.is_some() || self.resizing.is_some() {
             return Keys::Ignored;
         }
         match self.state.screen_reader.get() {
@@ -436,6 +533,10 @@ impl Inspector {
 
     pub(crate) fn toggle_picking(&self) {
         self.state.toggle_picking();
+    }
+
+    pub(crate) fn toggle_responsive(&self) {
+        self.state.toggle_responsive();
     }
 
     fn grab(&mut self, ctx: &Context, rect: Rect) {
@@ -472,6 +573,7 @@ impl Inspector {
     ) {
         let Layout {
             bar,
+            toolbar,
             content,
             readout,
             panel,
@@ -482,8 +584,9 @@ impl Inspector {
         let scale = scale(ctx);
         let document = &mut self.document;
         if panel.is_positive() {
+            let focused = document.focused_node().is_some();
             ctx.scaled(scale, || {
-                let keys = match keyboard_interactive {
+                let keys = match keyboard_interactive && focused {
                     true => Keys::All,
                     false => Keys::Ignored,
                 };
@@ -502,12 +605,12 @@ impl Inspector {
         target.track_changes(self.state.flash_changes.get());
         target.track_damage(self.state.flash_damage.get());
         ctx.set_simulated_pixels_per_point(self.state.simulated_pixels_per_point.get());
-        ctx.set_screen_simulation(self.state.screen_simulation.get());
         if let Some(theme) = self.state.requested_theme.take() {
             target.set_theme(theme);
             ctx.request_repaint();
         }
         if app_visible {
+            self.resize(target, ctx, content);
             self.pick(target, ctx, content);
         }
         self.release_focus(ctx);
@@ -518,11 +621,16 @@ impl Inspector {
             if covering {
                 self.cover(ctx, content, readout, Layer::Below(target.screen_scale()));
             }
-            ctx.apply_filter(self.state.filter(content));
+            let screen = target
+                .shown_screen()
+                .map_or(content, |placement| placement.shown().intersect(content));
+            ctx.apply_filter(self.state.filter(screen));
             if covering {
                 self.cover(ctx, content, readout, Layer::Above);
             }
+            self.paint_handles(target, ctx, content);
         }
+        self.show_toolbar(ctx, toolbar, content);
         if target.flashing() {
             ctx.request_repaint();
         }
@@ -530,6 +638,105 @@ impl Inspector {
             self.seen = self.state.revision.get();
             ctx.request_repaint();
         }
+    }
+
+    fn screen_simulation(&self) -> Option<ScreenSimulation> {
+        let simulation = self.state.screen_simulation.get()?;
+        Some(match (self.resizing, simulation.zoom) {
+            (Some(resizing), None) => ScreenSimulation {
+                zoom: Some(resizing.scale),
+                ..simulation
+            },
+            _ => simulation,
+        })
+    }
+
+    fn resize(&mut self, target: &Document, ctx: &Context, content: Rect) {
+        let Some(simulation) = self.state.screen_simulation.get() else {
+            self.resizing = None;
+            self.handle = None;
+            return;
+        };
+        if ctx.input(|input| input.pointer.primary_released()) && self.resizing.take().is_some() {
+            self.state.touch();
+        }
+        let pointer = ctx.input(|input| input.pointer.interact_pos());
+        if let Some(resizing) = self.resizing {
+            if let Some(pointer) = pointer {
+                let moved = (pointer - resizing.origin) / resizing.scale;
+                let size = resizing.handle.resized(resizing.size, moved);
+                self.state
+                    .update_screen(|simulation| simulation.resized(size));
+            }
+            self.handle = Some(resizing.handle);
+            return;
+        }
+        let placement = target.shown_screen();
+        self.handle = placement
+            .zip(pointer)
+            .filter(|_| !self.state.picking.get() && !self.toolbar.open())
+            .and_then(|(placement, pointer)| handle_at(placement.shown(), content, pointer));
+        if let (Some(handle), Some(placement), Some(origin)) = (self.handle, placement, pointer)
+            && ctx.input(|input| input.pointer.primary_pressed())
+        {
+            self.resizing = Some(Resize {
+                handle,
+                origin,
+                size: simulation.size,
+                scale: placement.scale,
+            });
+        }
+    }
+
+    fn paint_handles(&self, target: &Document, ctx: &Context, content: Rect) {
+        let placement = target
+            .shown_screen()
+            .filter(|_| self.state.screen_simulation.get().is_some());
+        let painted = ctx.measure_paint(|| {
+            let Some(placement) = placement else {
+                return;
+            };
+            let painter = ctx.painter().with_clip_rect(content);
+            let shown = placement.shown();
+            for handle in [Handle::Right, Handle::Bottom, Handle::Corner] {
+                let color = match self.handle == Some(handle) {
+                    true => Theme::DARK.accent,
+                    false => Theme::DARK.text_muted,
+                };
+                for grip in handle_grips(shown, handle) {
+                    painter.rect_filled(grip, HANDLE_THICKNESS / 2.0, color);
+                }
+            }
+        });
+        if let Some(handle) = self.handle {
+            ctx.set_cursor_icon(handle.cursor());
+        }
+        ctx.report_damage(painted.union(self.handle_bounds.replace(painted)));
+    }
+
+    fn show_toolbar(&mut self, ctx: &Context, toolbar: Rect, content: Rect) {
+        if std::mem::replace(&mut self.toolbar_area, toolbar) != toolbar {
+            ctx.report_damage(toolbar);
+        }
+        if !toolbar.is_positive() {
+            return;
+        }
+        let scale = scale(ctx);
+        let focused = self.toolbar.document.focused_node().is_some();
+        let responsive::Toolbar {
+            document,
+            set_screen,
+            ..
+        } = &mut self.toolbar;
+        if let Some(simulation) = self.state.screen_simulation.get() {
+            with_reactive_scope(document, || set_screen.set(simulation));
+        }
+        let keys = match focused {
+            true => Keys::All,
+            false => Keys::Ignored,
+        };
+        let area = toolbar.union(content).scaled(scale.recip());
+        ctx.scaled(scale, || document.show_content(ctx, area, true, keys));
     }
 
     fn show_bar(&mut self, ctx: &Context, bar: Rect) {
@@ -650,6 +857,7 @@ impl Inspector {
             },
             native_pixel_ratio: native_pixel_ratio_label(ctx.native_pixels_per_point()),
             picking: self.state.picking.get(),
+            responsive: self.state.screen_simulation.get().is_some(),
             selection,
             bounds: selected
                 .and_then(|id| target.node_rect(id))
@@ -813,6 +1021,49 @@ fn flashes(painter: &Painter, target: &Document, scale: f32) {
             flash::REPAINT,
             flash::remaining(now, at),
         );
+    }
+}
+
+fn handle_at(shown: Rect, content: Rect, pointer: Pos2) -> Option<Handle> {
+    if !content.contains(pointer) {
+        return None;
+    }
+    let right = (shown.right()..=shown.right() + HANDLE_REACH).contains(&pointer.x);
+    let below = (shown.bottom()..=shown.bottom() + HANDLE_REACH).contains(&pointer.y);
+    let beside = (shown.top()..shown.bottom()).contains(&pointer.y);
+    let above = (shown.left()..shown.right()).contains(&pointer.x);
+    match (right, below) {
+        (true, true) => Some(Handle::Corner),
+        (true, false) if beside => Some(Handle::Right),
+        (false, true) if above => Some(Handle::Bottom),
+        _ => None,
+    }
+}
+
+fn handle_grips(shown: Rect, handle: Handle) -> Vec<Rect> {
+    let gap = (HANDLE_REACH - HANDLE_THICKNESS) / 2.0;
+    let right = shown.right() + gap;
+    let bottom = shown.bottom() + gap;
+    let length = HANDLE_LENGTH.min(shown.height()).min(shown.width());
+    match handle {
+        Handle::Right => vec![Rect::from_min_size(
+            pos2(right, shown.center().y - length / 2.0),
+            vec2(HANDLE_THICKNESS, length),
+        )],
+        Handle::Bottom => vec![Rect::from_min_size(
+            pos2(shown.center().x - length / 2.0, bottom),
+            vec2(length, HANDLE_THICKNESS),
+        )],
+        Handle::Corner => vec![
+            Rect::from_min_size(
+                pos2(right, bottom - HANDLE_CORNER + HANDLE_THICKNESS),
+                vec2(HANDLE_THICKNESS, HANDLE_CORNER),
+            ),
+            Rect::from_min_size(
+                pos2(right - HANDLE_CORNER + HANDLE_THICKNESS, bottom),
+                vec2(HANDLE_CORNER, HANDLE_THICKNESS),
+            ),
+        ],
     }
 }
 

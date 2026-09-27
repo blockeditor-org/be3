@@ -15,14 +15,16 @@ pub(crate) mod input;
 pub(crate) mod menu;
 pub(crate) mod overlay;
 pub(crate) mod paint;
+pub(crate) mod selection_bar;
 pub(crate) mod sidebar;
 pub(crate) mod state;
 pub(crate) mod toolbar;
 
 use canvas::CanvasStage;
+use selection_bar::SelectionBar;
 use sidebar::CanvasSidebar;
 use state::CanvasState;
-use toolbar::CanvasToolbar;
+use toolbar::{CanvasToolbar, ToolDock};
 
 use crate::geometry::{MIN_SIZE, preview_region_for_entities};
 
@@ -61,13 +63,22 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let bar = Rc::clone(&state);
     let stage = Rc::clone(&state);
+    let dock = Rc::clone(&state);
+    let bar_state = Rc::clone(&state);
+    let anchor = content.clone();
+    let bar_anchor = content.clone();
+    let docked = chrome.clone();
+    let barred = chrome.clone();
+    let side = chrome.clone();
     view! {
         <List spacing=0.0>
             <CanvasToolbar state={bar} shown={chrome.clone()} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={stage} />
-                <CanvasSidebar state={state} shown={chrome} />
+                <CanvasSidebar state={state} shown={side} />
             </List>
+            <ToolDock state={dock} anchor={anchor} shown={docked} />
+            <SelectionBar state={bar_state} anchor={bar_anchor} shown={barred} />
         </List>
     }
 }

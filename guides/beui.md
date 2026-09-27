@@ -327,6 +327,15 @@ cancellation, and a second finger landing, as `on_cancel`, which is where a
 gesture in progress is dropped rather than committed. A finger dragged across a
 `ClickCatcher` is read as a scroll of whatever holds it unless the catcher sets
 `touch_drags`, which a canvas that draws or moves things under the finger does.
+A finger that lands on no control is taken to the nearest `ClickCatcher` that
+takes presses within `TOUCH_REACH` of it, for the whole touch, so every control's
+touch zone is bigger than it looks without anything growing; a direct hit always
+wins, so a neighbour never takes a tap aimed at the control beside it. A quick
+tap with two or more fingers that did not move is a finger tap, which
+`on_finger_tap` hears the way `on_shortcut` hears keys; the editor frame's top
+bar undoes on two and redoes on three. `Sheet` is the panel that rises from the
+bottom of a narrow screen: its handle drags it between stops, and dragging it
+low or going back closes it.
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, a multiline text
@@ -1101,20 +1110,27 @@ the bottom, and lays the document and the inspector panel out in what is left,
 the way a phone's keyboard pushes a page up. Nothing is drawn over content that
 is still live, so the bars are opaque.
 
-### Screen size and zoom
+### Responsive design mode
 
-The Sim tab's Screen size lays the document out in a screen larger or smaller
-than the rectangle it is shown in, and Screen zoom says how big that screen is
-drawn: Fit shrinks or grows it to the rectangle, a percentage draws it that many
-real points per simulated point. A screen drawn larger than the rectangle
-follows the pointer: the point under the pointer is always the point at the same
-fraction of the simulated screen, so moving the simulated mouse across the
-rectangle looks around the whole screen. The mouse simulation's bars, the
-cursor and the inspector panel stay at their real size.
+The Sim tab's "Responsive design mode", or Ctrl+Shift+M, lays the document out
+in a screen of a chosen width and height in points, the way a browser's
+responsive design mode does. A toolbar above the app picks a device preset,
+types the width and height, rotates the screen and sets its zoom: Fit shrinks
+it to the room beside the inspector but never grows it, and a percentage draws
+it that many real points per simulated point. The screen sits centred at the
+top of a backdrop, with handles on its right edge, bottom edge and corner that
+resize it; a drag holds the scale it started at, so the handle stays under the
+pointer, and the screen refits on release. A screen drawn larger than its room
+follows the pointer: the point under the pointer is always the point at the
+same fraction of the simulated screen, so moving the pointer across the room
+looks around the whole screen. The toolbar is a document of its own that spans
+the toolbar and the room below it, so its selects can open over the app, and
+the app gets no pointer while one is open. The state lives in the `Context`,
+so the screen stays simulated after the inspector closes.
 
 `Document::show` does it with `Context::scaled` and `Context::clipped`, laying
 the document out at a rectangle chosen so that a real point is always the
-document point times the zoom; panning moves where the document is laid out
+document point times the scale; panning moves where the document is laid out
 instead of adding an offset. That keeps every mapping a pure scale, which is
 what an app that reads input or places surfaces outside `Document::show` needs:
 `Context::screen_scale` and `Context::screen_input` give it the scale and the

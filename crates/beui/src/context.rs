@@ -32,6 +32,7 @@ struct Inner {
     paint_stack: RefCell<Vec<PaintFrame>>,
     damage: RefCell<Vec<Rect>>,
     test_ids: RefCell<HashMap<String, Rect>>,
+    ambiguous_test_ids: RefCell<HashSet<String>>,
     copied_text: RefCell<Option<String>>,
     paste_requested: Cell<bool>,
     cursor_icon: Cell<CursorIcon>,
@@ -46,7 +47,8 @@ struct Inner {
     pixels_per_point: Cell<f32>,
     native_pixels_per_point: Cell<f32>,
     simulated_pixels_per_point: Cell<Option<f32>>,
-    screen_simulation: Cell<ScreenSimulation>,
+    screen_simulation: Cell<Option<ScreenSimulation>>,
+    screen_scale: Cell<f32>,
     zoom: Cell<f32>,
     repaint: Cell<bool>,
     repaint_after: Cell<Duration>,
@@ -64,6 +66,7 @@ pub struct FrameOutput {
     pub(crate) shapes: Rc<Vec<Shape>>,
     pub(crate) filter: Option<(Filter, usize)>,
     test_ids: HashMap<String, Rect>,
+    ambiguous_test_ids: HashSet<String>,
     pub cursor_icon: CursorIcon,
     pub ime: Option<ImeArea>,
     pub fullscreen: Option<bool>,
@@ -104,6 +107,9 @@ impl FrameOutput {
     }
 
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {
+        if self.ambiguous_test_ids.contains(test_id) {
+            panic!("test id {test_id:?} names more than one node on screen; give each its own id");
+        }
         self.test_ids.get(test_id).copied()
     }
 
@@ -133,6 +139,7 @@ impl Context {
                 paint_stack: RefCell::new(Vec::new()),
                 damage: RefCell::new(Vec::new()),
                 test_ids: RefCell::new(HashMap::new()),
+                ambiguous_test_ids: RefCell::new(HashSet::new()),
                 copied_text: RefCell::new(None),
                 paste_requested: Cell::new(false),
                 cursor_icon: Cell::new(CursorIcon::Default),
@@ -147,7 +154,8 @@ impl Context {
                 pixels_per_point: Cell::new(1.0),
                 native_pixels_per_point: Cell::new(1.0),
                 simulated_pixels_per_point: Cell::new(None),
-                screen_simulation: Cell::new(ScreenSimulation::default()),
+                screen_simulation: Cell::new(None),
+                screen_scale: Cell::new(1.0),
                 zoom: Cell::new(1.0),
                 repaint: Cell::new(false),
                 repaint_after: Cell::new(Duration::MAX),
@@ -219,6 +227,7 @@ impl Context {
         self.inner.paint_stack.borrow_mut().clear();
         self.inner.damage.borrow_mut().clear();
         self.inner.test_ids.borrow_mut().clear();
+        self.inner.ambiguous_test_ids.borrow_mut().clear();
         self.inner.copied_text.borrow_mut().take();
         self.inner.paste_requested.set(false);
         self.inner.cursor_icon.set(CursorIcon::Default);
@@ -270,6 +279,7 @@ impl Context {
             filter,
             damage,
             test_ids: std::mem::take(&mut *self.inner.test_ids.borrow_mut()),
+            ambiguous_test_ids: std::mem::take(&mut *self.inner.ambiguous_test_ids.borrow_mut()),
             copied_text: self.inner.copied_text.borrow_mut().take(),
             paste_requested: self.inner.paste_requested.replace(false),
             changed,
@@ -503,6 +513,15 @@ impl Context {
             .insert(test_id.to_owned(), rect);
     }
 
+    pub(crate) fn publish_ambiguous_test_id(&self, test_id: &str) {
+        if self.inner.test_ids_published.get() {
+            self.inner
+                .ambiguous_test_ids
+                .borrow_mut()
+                .insert(test_id.to_owned());
+        }
+    }
+
     pub(crate) fn publish_accessibility(&self, document: u32, fragment: Fragment) {
         self.inner
             .accessibility_published
@@ -551,12 +570,16 @@ impl Context {
         self.inner.simulated_pixels_per_point.set(pixels_per_point);
     }
 
-    pub(crate) fn screen_simulation(&self) -> ScreenSimulation {
+    pub(crate) fn screen_simulation(&self) -> Option<ScreenSimulation> {
         self.inner.screen_simulation.get()
     }
 
     pub fn screen_scale(&self) -> f32 {
-        self.screen_simulation().scale().unwrap_or(1.0)
+        self.inner.screen_scale.get()
+    }
+
+    pub(crate) fn set_screen_scale(&self, scale: f32) {
+        self.inner.screen_scale.set(scale);
     }
 
     pub fn screen_input<R>(&self, reader: impl FnOnce(&InputState) -> R) -> R {
@@ -567,7 +590,7 @@ impl Context {
         reader(&self.inner.input.borrow().scaled(scale.recip()))
     }
 
-    pub(crate) fn set_screen_simulation(&self, simulation: ScreenSimulation) {
+    pub(crate) fn set_screen_simulation(&self, simulation: Option<ScreenSimulation>) {
         self.inner.screen_simulation.set(simulation);
     }
 

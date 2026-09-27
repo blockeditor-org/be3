@@ -26,10 +26,14 @@ fn switching_dock_tabs_keeps_the_panel_it_hides() {
         Some(TabId::new(2)),
         "clicking a tab shows the panel it names"
     );
-    assert_eq!(
-        harness.find("content.1"),
-        first,
+    assert!(
+        harness.document().contains(first),
         "the panel that is now hidden keeps the nodes it had"
+    );
+    assert_eq!(
+        harness.document().find_test_id("content.1"),
+        None,
+        "the hidden panel is not in the tree"
     );
     assert!(
         harness.document().node_rect(first).is_none(),

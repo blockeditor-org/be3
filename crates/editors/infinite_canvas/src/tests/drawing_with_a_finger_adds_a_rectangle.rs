@@ -5,7 +5,7 @@ use block_editor_beui::beui::{TouchPhase, Vec2};
 fn drawing_with_a_finger_adds_a_rectangle() {
     let mut editor = phone(&[]);
 
-    editor.click("infinite-canvas.tool.Rectangle");
+    editor.click("infinite-canvas.dock.tool.Rectangle");
     editor.run();
     let from = editor.rect_of("infinite-canvas.canvas").center();
     editor.finger(1, TouchPhase::Start, from);

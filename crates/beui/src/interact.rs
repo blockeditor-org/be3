@@ -1,3 +1,5 @@
+pub(crate) mod autoscroll;
+
 use std::time::{Duration, Instant};
 
 use crate::base::list::Direction;
@@ -10,6 +12,7 @@ use crate::document::Document;
 use crate::node::{InteractInput, NodeId, NodeMap};
 
 pub(crate) const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
+pub(crate) const TOUCH_REACH: f32 = 12.0;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Keys {
@@ -34,8 +37,20 @@ pub(crate) fn interact(
     } else {
         wheel
     };
+    let touching =
+        ctx.input(|input| input.touch.active() || input.touch.ended() || input.touch.cancelled());
+    let raw_pointer = ctx.input(|input| input.pointer.interact_pos());
+    if pointer
+        && ctx.input(|input| input.touch.started())
+        && let Some(pos) = raw_pointer
+    {
+        doc.touch_shift = touch_shift(doc, rects, root, pos);
+    }
+    if !touching {
+        doc.touch_shift = Vec2::ZERO;
+    }
     let input = InteractInput {
-        pointer_pos: ctx.input(|input| input.pointer.interact_pos()),
+        pointer_pos: raw_pointer.map(|pos| pos + doc.touch_shift),
         pointer_down: ctx.input(|input| input.pointer.primary_down),
         pressed_this_frame: ctx.input(|input| input.pointer.primary_pressed()),
         released_this_frame: ctx.input(|input| input.pointer.primary_released()),
@@ -65,6 +80,10 @@ pub(crate) fn interact(
         true => input,
         false => without_pointer(input),
     };
+    let autoscroll::Tracked {
+        input,
+        swallows_escape,
+    } = autoscroll::track(doc, ctx, rects, root, input);
 
     if (input.pressed_this_frame || input.touch_started || input.secondary_pressed_this_frame)
         && let Some(pos) = input.pointer_pos
@@ -227,7 +246,14 @@ pub(crate) fn interact(
         );
     }
     doc.put_back_interact_pool(pool);
+    autoscroll::show_cursor(doc, ctx);
 
+    if pointer
+        && let Some(fingers) = ctx.input(|input| input.touch.finger_tap())
+        && doc.overlay_stack.is_empty()
+    {
+        doc.finger_tap(fingers);
+    }
     if pointer && (input.pressed_this_frame || input.touch_started) {
         doc.set_focus_visible(false);
     }
@@ -250,6 +276,9 @@ pub(crate) fn interact(
     for event in ctx.input(|input| input.events.clone()) {
         doc.validate_focus();
         let (key, pressed, repeat, modifiers) = match event {
+            Event::Key {
+                key: Key::Escape, ..
+            } if swallows_escape => continue,
             Event::Focus(false) => {
                 doc.cancel_focus_activation();
                 if ctx.pointer_locked() {
@@ -493,4 +522,72 @@ fn interact_node(
     }
     children.clear();
     pool.push(children);
+}
+
+fn touch_shift(doc: &Document, rects: &NodeMap<Rect>, root: NodeId, pos: Pos2) -> Vec2 {
+    let modal = !doc.overlay_stack.is_empty();
+    for layer in doc.pointer_layers(root) {
+        let tops: Vec<NodeId> = match (layer == root, modal) {
+            (true, _) => vec![root],
+            (false, true) => doc.arena.get(layer).children().into_iter().rev().collect(),
+            (false, false) => doc.overlay_content(layer).into_iter().collect(),
+        };
+        if tops
+            .iter()
+            .any(|top| deepest(doc, rects, *top, pos, &presses).is_some())
+        {
+            return Vec2::ZERO;
+        }
+        let mut nearest: Option<(f32, Pos2)> = None;
+        for top in &tops {
+            nearest_press(doc, rects, *top, pos, Rect::EVERYTHING, &mut nearest);
+        }
+        if let Some((_, at)) = nearest {
+            return at - pos;
+        }
+        let covered = tops
+            .iter()
+            .any(|top| rects.get(top).is_some_and(|rect| rect.contains(pos)));
+        if layer != root && covered {
+            return Vec2::ZERO;
+        }
+    }
+    Vec2::ZERO
+}
+
+fn nearest_press(
+    doc: &Document,
+    rects: &NodeMap<Rect>,
+    id: NodeId,
+    pos: Pos2,
+    clip: Rect,
+    nearest: &mut Option<(f32, Pos2)>,
+) {
+    let Some(rect) = rects.get(&id).map(|rect| rect.intersect(clip)) else {
+        return;
+    };
+    if !rect.is_positive() || !rect.expand(TOUCH_REACH).contains(pos) {
+        return;
+    }
+    let node = doc.arena.get(id);
+    if presses(node) {
+        let at = Pos2::new(
+            pos.x.clamp(rect.left(), rect.right()),
+            pos.y.clamp(rect.top(), rect.bottom()),
+        );
+        let away = at.distance(pos);
+        if away <= TOUCH_REACH && nearest.is_none_or(|(held, _)| away < held) {
+            *nearest = Some((away, at));
+        }
+    }
+    for child in node.children() {
+        nearest_press(doc, rects, child, pos, rect, nearest);
+    }
+}
+
+fn presses(element: &dyn crate::node::Element) -> bool {
+    element
+        .as_any()
+        .downcast_ref::<crate::base::click_catcher::ClickCatcherNode>()
+        .is_some_and(|catcher| catcher.takes_presses())
 }
