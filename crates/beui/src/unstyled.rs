@@ -1,7 +1,10 @@
 mod button;
+mod calendar;
 mod choice;
+mod color_area;
 mod container;
 mod context_menu;
+mod date_time_field;
 mod disclosure;
 mod dock;
 mod drag;
@@ -10,6 +13,7 @@ mod menu;
 mod menu_button;
 mod pan_zoom;
 mod pointer_lock;
+mod popover;
 mod pressable;
 mod rubber_band;
 mod scroll;
@@ -19,15 +23,25 @@ mod slider;
 mod stack;
 mod text_area;
 mod text_input;
+mod time_list;
 mod toggle;
 mod tooltip;
 mod tree;
 pub(crate) mod typeahead;
 
 pub use button::{Button, ButtonHandle, button_active, button_focused};
+pub use calendar::{
+    Calendar, CalendarDayHandle, CalendarHeaderHandle, CalendarMode, CalendarMonthHandle,
+    calendar_active, calendar_mode, calendar_selected,
+};
 pub use choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, choice_selected};
+pub use color_area::{ColorArea, ColorAreaHandle, color_area_value};
 pub use container::{Container, ContainerSize, container_size, narrower_than, shorter_than};
 pub use context_menu::{ContextMenu, context_menu_menu, context_menu_overlay};
+pub use date_time_field::{
+    DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts, date_time_field_text,
+    date_time_field_value,
+};
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
     Dock, DockDragged, DockDrop, DockGripHandle, DockLayout, DockPanelHandle, DockPreviewHandle,
@@ -47,6 +61,7 @@ pub use menu::{
 pub use menu_button::{MenuButton, MenuButtonHandle};
 pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, pan_zoom_view};
 pub use pointer_lock::{PointerLock, PointerLockHandle};
+pub use popover::{Popover, PopoverHandle, PopoverTriggerHandle, popover_open, popover_trigger};
 pub use pressable::Pressable;
 pub use scroll::{Scroll, ScrollHandle, ScrollbarStyle, scroll_animating};
 pub use scrollbar::{Scrollbar, ScrollbarHandle, thumb_length, thumb_start};
@@ -69,6 +84,7 @@ pub use text_input::{
     text_input_index_at, text_input_menu_row, text_input_selection, text_input_shown,
     text_input_text, text_input_value,
 };
+pub use time_list::{TimeList, TimeOptionHandle, time_list_selected};
 pub use toggle::{Toggle, ToggleHandle, toggle_checked};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
 pub use tree::{Tree, TreeItem, TreeRowHandle, tree_focused, tree_row_node};

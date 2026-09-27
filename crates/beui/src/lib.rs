@@ -7,6 +7,7 @@ mod base;
 mod color;
 mod context;
 mod damage;
+pub mod datetime;
 mod document;
 mod draw;
 mod drawing;
@@ -46,7 +47,7 @@ pub use app::{accessibility_tree, run_web};
 #[cfg(feature = "window")]
 pub use app::{run, run_with};
 pub use base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition, TextAlign, focus_within};
-pub use color::Color32;
+pub use color::{Color32, Hsva, format_hex, parse_hex};
 pub use context::{Context, FrameOutput};
 pub use document::Document;
 pub use draw::{Quad, Quads, Turn, quads, quads_within};
