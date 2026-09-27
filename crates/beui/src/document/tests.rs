@@ -1269,6 +1269,10 @@ impl Element for Counted {
             .interact(doc, painter, input, id, rect, focus_target, children)
     }
 
+    fn relayout_boundary(&self) -> bool {
+        self.inner.relayout_boundary()
+    }
+
     fn children(&self) -> Vec<NodeId> {
         self.inner.children()
     }
@@ -1328,6 +1332,7 @@ fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
     );
     counts
 }
+mod a_change_inside_a_fixed_size_frame_lays_out_only_that_frame;
 mod a_clean_panel_is_not_laid_out_again_when_the_one_beside_it_changes;
 mod a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes;
 mod a_click_handler_can_mutate_the_tree_in_the_current_frame;

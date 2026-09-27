@@ -42,13 +42,13 @@ pub(crate) fn layout(
     doc.note_parent(id);
     let rect = doc.pixel_grid().snap_rect(rect);
     doc.note_placed(id);
-    let clip = painter.clip_rect();
-    if doc.reusable_placement(id, rect, clip, out) {
+    let state = painter.state();
+    if doc.reusable_placement(id, rect, state, out) {
         doc.note_placed_work(true);
         return;
     }
     doc.note_placed_work(false);
-    doc.record_placement(id, rect, clip, out);
+    doc.record_placement(id, rect, state, out);
     let watermark = doc.arena.relaid_len();
     doc.deliver_unmeasured_constraint(id, rect.size());
     doc.deliver_placement(id, rect);

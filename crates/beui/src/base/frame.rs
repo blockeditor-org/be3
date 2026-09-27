@@ -163,6 +163,10 @@ impl Element for FrameNode {
         }
     }
 
+    fn relayout_boundary(&self) -> bool {
+        self.width.is_some() && self.height.is_some()
+    }
+
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
         if !self.visible {
             return;

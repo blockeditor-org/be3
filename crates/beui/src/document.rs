@@ -20,7 +20,7 @@ use crate::interact::{self, Keys};
 use crate::layout;
 use crate::node::{Arena, NodeId, NodeMap, Rects};
 use crate::paint::{self, PaintCache};
-use crate::painter::Shape;
+use crate::painter::{Painter, PainterState, Shape};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::Placement;
@@ -100,7 +100,7 @@ pub struct Document {
     changes: FlashLog<NodeId>,
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
-    clips: NodeMap<Rect>,
+    painters: NodeMap<PainterState>,
     rubber_banding: bool,
 }
 
@@ -251,7 +251,7 @@ impl Document {
             changes: FlashLog::default(),
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
-            clips: NodeMap::default(),
+            painters: NodeMap::default(),
             rubber_banding: true,
         }
     }
@@ -1204,7 +1204,7 @@ impl Document {
         if self.delivering && self.reached_pass.get(&id) == Some(&self.layout_pass) {
             return;
         }
-        self.clips.remove(&id);
+        self.painters.remove(&id);
         if out.remove(&id).is_some() {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
             self.damage.add(self.paint_cache.borrow().bounds(id));
@@ -1304,13 +1304,13 @@ impl Document {
         &self,
         id: NodeId,
         rect: Rect,
-        clip: Rect,
+        painter: PainterState,
         out: &Rects,
     ) -> bool {
         self.delivering
             && !self.arena.unplaced(id)
             && out.get(&id) == Some(rect)
-            && self.clips.get(&id) == Some(&clip)
+            && self.painters.get(&id).copied().map(PainterState::clip) == Some(painter.clip())
             && self.placed_children.contains_key(&id)
     }
 
@@ -1318,7 +1318,7 @@ impl Document {
         &mut self,
         id: NodeId,
         rect: Rect,
-        clip: Rect,
+        painter: PainterState,
         out: &Rects,
     ) {
         let previous = out.insert(id, rect);
@@ -1328,8 +1328,8 @@ impl Document {
         self.arena.clear_unplaced(id);
         self.arena.note_relaid(id);
         self.placed_pass.insert(id, self.layout_pass);
-        let previous_clip = self.clips.insert(id, clip);
-        if previous != Some(rect) || previous_clip != Some(clip) {
+        let previous_clip = self.painters.insert(id, painter).map(PainterState::clip);
+        if previous != Some(rect) || previous_clip != Some(painter.clip()) {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
         }
     }
@@ -1394,6 +1394,7 @@ impl Document {
             self.delivering = false;
         }
         self.placing.clear();
+        self.lay_out_boundaries(ctx, &rects);
         self.layout_revision = self.arena.layout_revision;
         for node in std::mem::take(&mut self.deferred_reveals) {
             if self.arena.contains(node) {
@@ -1412,6 +1413,38 @@ pub fn verify_paint(enabled: bool) {
 
 fn verifying_paint() -> bool {
     cfg!(test) || VERIFY_PAINT.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+impl Document {
+    fn lay_out_boundaries(&mut self, ctx: &Context, rects: &Rects) {
+        for boundary in self.arena.take_boundaries() {
+            if !self.arena.contains(boundary)
+                || !self.arena.unplaced(boundary)
+                || self.reached_pass.get(&boundary) == Some(&self.layout_pass)
+            {
+                continue;
+            }
+            let (Some(rect), Some(&state)) = (rects.get(&boundary), self.painters.get(&boundary))
+            else {
+                continue;
+            };
+            let painter = Painter::resumed(ctx.clone(), state);
+            let context = self.reactive_scope().context();
+            self.layout_parent = self.arena.parent(boundary);
+            self.delivering = true;
+            {
+                let _guard = crate::reactive::install(self);
+                context.run(|| {
+                    crate::reactive::with_document(|document| {
+                        layout::layout(document, &painter, boundary, rect, rects);
+                    });
+                });
+            }
+            self.delivering = false;
+            self.layout_parent = None;
+            self.placing.clear();
+        }
+    }
 }
 
 fn trim_bottom(rect: Rect, height: f32) -> (Rect, Rect) {

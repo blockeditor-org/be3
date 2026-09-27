@@ -15,14 +15,6 @@ What follows is the rest, roughly in order of value.
 
 ## Layout
 
-- **Lay out from dirty nodes, not the root.** `update_layout` still walks down
-  from the root, stopping at nodes whose placement is reusable. That is
-  proportional to the depth times the fan-out of the dirty paths. Add relayout
-  boundaries - nodes whose size cannot depend on their children (a `Frame` with
-  a fixed width and height, a `Canvas`, overlay content) - stop `mark_stale` at
-  them, and lay each dirty boundary out directly from the rect and clip it was
-  last placed with. `layout_parent`, `placing` and `placed_children` need
-  seeding for a walk that does not start at the root.
 - **Rects relative to the parent.** Rects are absolute, so scrolling or moving a
   subtree changes the rect of every visible node under it, which lays each out
   and paints each again. Store an offset per node and let containers (scroll,

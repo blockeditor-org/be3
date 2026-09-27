@@ -74,6 +74,10 @@ pub(crate) trait Element: Any {
         true
     }
 
+    fn relayout_boundary(&self) -> bool {
+        false
+    }
+
     fn captures(&mut self, _doc: &mut Document, _pos: Pos2, _rect: Rect) -> bool {
         false
     }
@@ -241,6 +245,7 @@ pub(crate) struct Arena {
     unplaced: Vec<bool>,
     free: Vec<u32>,
     released: Vec<u32>,
+    boundaries: Vec<NodeId>,
     marked: Option<NodeId>,
     live: usize,
     pub(crate) revision: u64,
@@ -375,6 +380,7 @@ impl Arena {
         self.everything = true;
         self.stale.fill(true);
         self.unplaced.fill(true);
+        self.boundaries.clear();
         self.marked = None;
     }
 
@@ -406,13 +412,29 @@ impl Arena {
         self.marked = Some(id);
         let mut current = Some(id);
         for _ in 0..ANCESTOR_LIMIT {
-            let Some(slot) = current.and_then(|node| self.slot(node)) else {
+            let Some((node, slot)) = current.and_then(|node| Some((node, self.slot(node)?))) else {
                 return;
             };
+            if node != id
+                && self.nodes[slot]
+                    .as_deref()
+                    .is_some_and(Element::relayout_boundary)
+            {
+                self.unplaced[slot] = true;
+                self.boundaries.push(node);
+                return;
+            }
             self.stale[slot] = true;
             self.unplaced[slot] = true;
             current = self.parents[slot];
         }
+    }
+
+    pub(crate) fn take_boundaries(&mut self) -> Vec<NodeId> {
+        let mut boundaries = std::mem::take(&mut self.boundaries);
+        boundaries.sort_unstable_by_key(|id| (id.index, id.generation));
+        boundaries.dedup();
+        boundaries
     }
 
     pub(crate) fn stale(&self, id: NodeId) -> bool {

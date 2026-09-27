@@ -73,6 +73,10 @@ impl Element for CanvasNode {
         self.size
     }
 
+    fn relayout_boundary(&self) -> bool {
+        true
+    }
+
     fn layout(
         &mut self,
         doc: &mut Document,
@@ -152,6 +156,10 @@ pub(crate) struct CanvasItemNode {
 impl Element for CanvasItemNode {
     fn measure(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Vec2 {
         self.rect.size()
+    }
+
+    fn relayout_boundary(&self) -> bool {
+        true
     }
 
     fn layout(
