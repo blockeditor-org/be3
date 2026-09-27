@@ -25,7 +25,9 @@ fn a_scrolled_document_moves_the_rows_it_already_encoded() {
             </Scroll>
         }
     });
-    let scroll = document.find_test_id("scroll").expect("the scroll is built");
+    let scroll = document
+        .find_test_id("scroll")
+        .expect("the scroll is built");
     let context = Context::new();
     let mut target = Target::new();
     let everything = everything();

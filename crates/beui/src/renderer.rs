@@ -3,16 +3,16 @@ use std::collections::HashMap;
 use bytemuck::{Pod, Zeroable};
 
 use crate::color::Color32;
-use crate::context::FrameOutput;
+use crate::context::{FrameOutput, Moved};
 use crate::damage::Region;
 use crate::display::{Display, Layer, Part};
 use crate::draw::{Quad, Turn, push_quads};
-use crate::painter::{Entry, placed_shape};
 use crate::drawing::{DrawAt, Drawing};
 use crate::filter::Filter;
 use crate::font::{GlyphId, GlyphImage};
 use crate::geometry::{Rect, Vec2};
 use crate::image::{Image, ImageId};
+use crate::painter::{Entry, placed_shape};
 
 mod filter;
 
@@ -220,12 +220,23 @@ impl Repaint {
 
 impl FrameOutput {
     pub fn repaint(&self, background: Color32) -> Repaint {
-        match self.damage.is_empty() {
+        let region = self.unmoved();
+        match region.is_empty() {
             true => Repaint::Everything,
-            false => Repaint::Region {
-                region: self.damage,
-                background,
-            },
+            false => Repaint::Region { region, background },
+        }
+    }
+
+    pub fn repaint_moving(&self, background: Color32) -> (Repaint, Option<Moved>) {
+        match (self.moved, self.damage.is_empty() || self.filter.is_some()) {
+            (None, _) | (Some(_), true) => (self.repaint(background), None),
+            (Some(moved), false) => (
+                Repaint::Region {
+                    region: self.damage,
+                    background,
+                },
+                Some(moved),
+            ),
         }
     }
 }
@@ -283,6 +294,7 @@ pub struct Renderer {
     effects: Option<filter::Effects>,
     bounds: Option<[u32; 4]>,
     whole: bool,
+    scratch: Option<wgpu::Texture>,
 }
 
 struct Run {
@@ -456,11 +468,9 @@ impl Frame<'_> {
     fn damages(&self, reach: [f32; 4]) -> bool {
         reach[0] < reach[2]
             && reach[1] < reach[3]
-            && self.damaged.is_none_or(|damaged| {
-                damaged
-                    .iter()
-                    .any(|damaged| overlaps(*damaged, reach))
-            })
+            && self
+                .damaged
+                .is_none_or(|damaged| damaged.iter().any(|damaged| overlaps(*damaged, reach)))
     }
 }
 
@@ -487,7 +497,20 @@ fn overlaps(left: [f32; 4], right: [f32; 4]) -> bool {
     x0 < x1 && y0 < y1
 }
 
-fn moved(rect: [f32; 4], origin: [f32; 2]) -> [f32; 4] {
+fn at(texture: &wgpu::Texture, x: f32, y: f32) -> wgpu::TexelCopyTextureInfo<'_> {
+    wgpu::TexelCopyTextureInfo {
+        texture,
+        mip_level: 0,
+        origin: wgpu::Origin3d {
+            x: x as u32,
+            y: y as u32,
+            z: 0,
+        },
+        aspect: wgpu::TextureAspect::All,
+    }
+}
+
+fn translated(rect: [f32; 4], origin: [f32; 2]) -> [f32; 4] {
     [
         rect[0] + origin[0],
         rect[1] + origin[1],
@@ -583,8 +606,7 @@ impl Renderer {
         let instance_buffer = vertex_buffer(device, "beui instances", instance_capacity);
         let alignment = u64::from(device.limits().min_uniform_buffer_offset_alignment);
         let space_stride = (std::mem::size_of::<Space>() as u64).div_ceil(alignment) * alignment;
-        let (space_buffer, space_group) =
-            space_buffer(device, &space_layout, space_stride, SPACES);
+        let (space_buffer, space_group) = space_buffer(device, &space_layout, space_stride, SPACES);
         let list_buffer = vertex_buffer(device, "beui listed instances", LISTED);
         let atlas = Atlas::new(device);
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -642,6 +664,7 @@ impl Renderer {
             effects: None,
             bounds: None,
             whole: true,
+            scratch: None,
         }
     }
 
@@ -707,6 +730,79 @@ impl Renderer {
                 bind_groups,
                 used: true,
             },
+        );
+    }
+
+    pub fn shift(
+        &mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        texture: &wgpu::Texture,
+        moved: Moved,
+        pixels_per_point: f32,
+    ) {
+        let size = texture.size();
+        let whole = [0.0, 0.0, size.width as f32, size.height as f32];
+        let by = [
+            (moved.by.x * pixels_per_point).round(),
+            (moved.by.y * pixels_per_point).round(),
+        ];
+        let mut from = overlap(
+            translated(
+                pixels(moved.from, pixels_per_point, [0.0; 2]),
+                [-self.origin.x, -self.origin.y],
+            ),
+            whole,
+        );
+        from = overlap(from, translated(whole, [-by[0], -by[1]]));
+        if let Some([left, top, width, height]) = self.bounds {
+            let bounds = [
+                left as f32,
+                top as f32,
+                (left + width) as f32,
+                (top + height) as f32,
+            ];
+            from = overlap(overlap(from, bounds), translated(bounds, [-by[0], -by[1]]));
+        }
+        let [left, top, right, bottom] = from;
+        if left >= right || top >= bottom {
+            return;
+        }
+        let extent = wgpu::Extent3d {
+            width: (right - left) as u32,
+            height: (bottom - top) as u32,
+            depth_or_array_layers: 1,
+        };
+        let scratch = match &self.scratch {
+            Some(scratch)
+                if scratch.format() == texture.format()
+                    && scratch.width() >= extent.width
+                    && scratch.height() >= extent.height =>
+            {
+                scratch
+            }
+            _ => self
+                .scratch
+                .insert(device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("beui moved region"),
+                    size: wgpu::Extent3d {
+                        width: size.width,
+                        height: size.height,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: texture.format(),
+                    usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST,
+                    view_formats: &[],
+                })),
+        };
+        encoder.copy_texture_to_texture(at(texture, left, top), at(scratch, 0.0, 0.0), extent);
+        encoder.copy_texture_to_texture(
+            at(scratch, 0.0, 0.0),
+            at(texture, left + by[0], top + by[1]),
+            extent,
         );
     }
 
@@ -925,8 +1021,7 @@ impl Renderer {
                                 if let Some((image, _)) = &picture {
                                     self.upload(frame.device, frame.queue, image);
                                 }
-                                let picture =
-                                    picture.map(|(image, smooth)| (image.id(), smooth));
+                                let picture = picture.map(|(image, smooth)| (image.id(), smooth));
                                 Run::push(target, frame_run(punch, picture, instances.len()));
                                 instances.push(instance);
                             }
@@ -1035,8 +1130,8 @@ impl Renderer {
                                 frame,
                                 target,
                                 drawing.clone(),
-                                moved(*rect, at.origin),
-                                moved(*clip, at.origin),
+                                translated(*rect, at.origin),
+                                translated(*clip, at.origin),
                                 at.bound,
                             ),
                         }
@@ -1122,8 +1217,12 @@ impl Renderer {
                                 ..
                             }) = runs[from..].last_mut()
                                 && *held == punch
-                                && pictured.as_ref().map(|(image, smooth)| (image.id(), *smooth))
-                                    == picture.as_ref().map(|(image, smooth)| (image.id(), *smooth))
+                                && pictured
+                                    .as_ref()
+                                    .map(|(image, smooth)| (image.id(), *smooth))
+                                    == picture
+                                        .as_ref()
+                                        .map(|(image, smooth)| (image.id(), *smooth))
                             {
                                 *count += 1;
                                 continue;

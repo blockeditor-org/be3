@@ -3,9 +3,9 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use crate::damage::Region;
-use crate::geometry::{Pos2, Rect, Vec2};
 use crate::display::{Display, Item as DisplayItem, Part};
-use crate::painter::{Entry, Painter, PainterState, Shape};
+use crate::geometry::{Pos2, Rect, Vec2};
+use crate::painter::{Entry, Painter, PainterState, Shape, placed_shape};
 
 use crate::document::Document;
 use crate::node::{ANCESTOR_LIMIT, Arena, NodeId, NodeMap, Rects};
@@ -54,8 +54,17 @@ enum Visit {
     Record,
 }
 
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) struct Move {
+    pub(crate) node: NodeId,
+    pub(crate) viewport: Rect,
+    pub(crate) by: Vec2,
+    pub(crate) damaged: Region,
+}
+
 #[derive(Default)]
 pub(crate) struct PaintCache {
+    moves: Vec<Move>,
     entries: NodeMap<Painted>,
     dirt: NodeMap<Dirt>,
     deadlines: HashMap<NodeId, Instant>,
@@ -177,8 +186,22 @@ impl PaintCache {
         std::mem::take(&mut self.damage)
     }
 
+    pub(crate) fn take_moves(&mut self) -> Vec<Move> {
+        std::mem::take(&mut self.moves)
+    }
+
     pub(crate) fn take_recorded(&mut self) -> bool {
         std::mem::take(&mut self.recorded)
+    }
+
+    pub(crate) fn rooted(&self) -> Vec<(NodeId, Rc<Display>, Entry)> {
+        self.roots
+            .iter()
+            .filter_map(|(root, _)| {
+                let painted = self.entries.get(root)?;
+                Some((*root, Rc::clone(&painted.display), painted.entry))
+            })
+            .collect()
     }
 
     pub(crate) fn painting(&self) -> Vec<(Rc<Display>, Entry)> {
@@ -209,7 +232,11 @@ impl PaintCache {
         if !dirt.below && (sees || !painted.below) {
             return Visit::Reuse(painted.display.bounds);
         }
-        let entered: Vec<NodeId> = painted.display.children().map(|(child, ..)| child).collect();
+        let entered: Vec<NodeId> = painted
+            .display
+            .children()
+            .map(|(child, ..)| child)
+            .collect();
         let mut children = Vec::new();
         for child in entered {
             let Some(held) = self.entries.get(&child) else {
@@ -286,7 +313,22 @@ impl PaintCache {
             Some(old) if children(&old.display).eq(children(&painted.display)) => {
                 vec![old.own, painted.own]
             }
-            Some(old) => vec![old.display.bounds, painted.display.bounds],
+            Some(old) => match scrolled(&old, &painted) {
+                Some((by, viewport, damaged)) => {
+                    let mut region = Region::NOTHING;
+                    for rect in damaged {
+                        region.add(absolute(rect, state));
+                    }
+                    self.moves.push(Move {
+                        node: id,
+                        viewport: absolute(viewport, state),
+                        by,
+                        damaged: region,
+                    });
+                    Vec::new()
+                }
+                None => vec![old.display.bounds, painted.display.bounds],
+            },
         };
         for rect in damaged {
             self.damage.add(absolute(rect, state));
@@ -298,6 +340,250 @@ impl PaintCache {
         self.entries.insert(id, painted);
         self.recorded = true;
     }
+}
+
+fn scrolled(old: &Painted, new: &Painted) -> Option<(Vec2, Rect, Vec<Rect>)> {
+    if !old.placement.own.sees(new.placement.own) || !old.placement.own.settles(new.placement.own) {
+        return None;
+    }
+    let (old, new) = (&old.display, &new.display);
+    if unshifted(old) != unshifted(new) {
+        return None;
+    }
+    let content = |display: &Display| {
+        display
+            .children()
+            .filter_map(|(id, entry, child)| Some((id, entry, entry.shift?, Rc::clone(child))))
+            .collect::<Vec<_>>()
+    };
+    let (before, after) = (content(old), content(new));
+    let (first, last) = (before.first()?, after.first()?);
+    let (viewport, shift) = (first.1.clip, last.2);
+    let by = shift - first.2;
+    if by == Vec2::ZERO
+        || before
+            .iter()
+            .any(|(_, entry, held, _)| entry.clip != viewport || *held != first.2)
+        || after
+            .iter()
+            .any(|(_, entry, held, _)| entry.clip != viewport || *held != shift)
+    {
+        return None;
+    }
+    let kept: Vec<NodeId> = after
+        .iter()
+        .filter(|(id, ..)| before.iter().any(|(held, ..)| held == id))
+        .map(|(id, ..)| *id)
+        .collect();
+    let held: Vec<NodeId> = before
+        .iter()
+        .filter(|(id, ..)| kept.contains(id))
+        .map(|(id, ..)| *id)
+        .collect();
+    if kept.is_empty() || kept != held {
+        return None;
+    }
+    for (id, entry, ..) in &after {
+        if let Some((_, previous, ..)) = before.iter().find(|(held, ..)| held == id)
+            && entry.translation - previous.translation != by
+        {
+            return None;
+        }
+    }
+    let within = |rect: Rect| rect.intersect(viewport);
+    let mut damaged = uncovered(viewport, viewport.translate(by));
+    for (id, entry, _, child) in &after {
+        if !kept.contains(id) {
+            damaged.push(within(entry.place(child.bounds)));
+        }
+    }
+    for (id, entry, _, child) in &before {
+        if !kept.contains(id) {
+            damaged.push(within(entry.place(child.bounds).translate(by)));
+        }
+    }
+    for rect in fixed(new) {
+        damaged.push(within(rect));
+        damaged.push(within(rect.translate(by)));
+    }
+    Some((by, viewport, damaged))
+}
+
+fn unshifted(display: &Display) -> Vec<DisplayItem<'_>> {
+    display
+        .items()
+        .into_iter()
+        .filter(|item| !matches!(item, DisplayItem::Child(_, Entry { shift: Some(_), .. })))
+        .collect()
+}
+
+fn fixed(display: &Display) -> Vec<Rect> {
+    display
+        .parts
+        .iter()
+        .flat_map(|part| match part {
+            Part::Shapes { start, end, .. } => display.shapes[*start as usize..*end as usize]
+                .iter()
+                .map(crate::damage::bounds)
+                .collect::<Vec<_>>(),
+            Part::Child(_, entry, child) if entry.shift.is_none() => {
+                vec![entry.place(child.bounds)]
+            }
+            Part::Child(..) => Vec::new(),
+        })
+        .collect()
+}
+
+pub(crate) fn uncovered(rect: Rect, cover: Rect) -> Vec<Rect> {
+    let cover = rect.intersect(cover);
+    if !cover.is_positive() {
+        return vec![rect];
+    }
+    let rows = [
+        (rect.top(), cover.top()),
+        (cover.top(), cover.bottom()),
+        (cover.bottom(), rect.bottom()),
+    ];
+    let mut left = Vec::new();
+    for (index, (top, bottom)) in rows.into_iter().enumerate() {
+        if top >= bottom {
+            continue;
+        }
+        let spans: &[(f32, f32)] = match index {
+            1 => &[(rect.left(), cover.left()), (cover.right(), rect.right())],
+            _ => &[(rect.left(), rect.right())],
+        };
+        for (from, to) in spans {
+            if from < to {
+                left.push(Rect::from_min_max(
+                    Pos2::new(*from, top),
+                    Pos2::new(*to, bottom),
+                ));
+            }
+        }
+    }
+    left
+}
+
+pub(crate) fn fixed_damage(
+    painting: &[(NodeId, Rc<Display>, Entry)],
+    scroll: NodeId,
+    viewport: Rect,
+    by: Vec2,
+) -> (Region, Rect) {
+    let mut fixed = Fixed {
+        scroll,
+        viewport,
+        by,
+        damage: Region::NOTHING,
+        inner: viewport,
+    };
+    for (root, display, entry) in painting {
+        for top in [false, true] {
+            fixed.within(display, *entry, *root == scroll, top);
+        }
+    }
+    (fixed.damage, fixed.inner)
+}
+
+struct Fixed {
+    scroll: NodeId,
+    viewport: Rect,
+    by: Vec2,
+    damage: Region,
+    inner: Rect,
+}
+
+impl Fixed {
+    fn within(&mut self, display: &Display, at: Entry, scrolls: bool, top: bool) {
+        if !at.place(display.bounds).intersects(self.viewport) {
+            return;
+        }
+        for part in display.parts.iter() {
+            match part {
+                Part::Shapes {
+                    top: on_top,
+                    start,
+                    end,
+                } => {
+                    if *on_top != top {
+                        continue;
+                    }
+                    for shape in &display.shapes[*start as usize..*end as usize] {
+                        self.shape(&placed_shape(shape, at.translation, at.clip));
+                    }
+                }
+                Part::Child(_, entry, _) if scrolls && entry.shift.is_some() => {}
+                Part::Child(id, entry, child) => {
+                    self.within(child, at.compose(*entry), *id == self.scroll, top);
+                }
+            }
+        }
+    }
+
+    fn shape(&mut self, shape: &Shape) {
+        let bounds = crate::damage::bounds(shape);
+        if !bounds.intersects(self.viewport) {
+            return;
+        }
+        if covers(shape, self.viewport) {
+            if matches!(shape, Shape::Rect { color, .. } if color.alpha() == u8::MAX) {
+                self.damage = Region::NOTHING;
+            }
+            return;
+        }
+        if let Some(interior) = rim(shape)
+            && bounds.contains_rect(self.viewport)
+        {
+            self.inner = self.inner.intersect(interior);
+            return;
+        }
+        for rect in painted(shape, bounds) {
+            self.damage.add(rect.intersect(self.viewport));
+            self.damage
+                .add(rect.translate(self.by).intersect(self.viewport));
+        }
+    }
+}
+
+fn rim(shape: &Shape) -> Option<Rect> {
+    match shape {
+        Shape::Rect {
+            rect,
+            corner_radius,
+            stroke_width,
+            rotation,
+            ..
+        } if *stroke_width > 0.0 && !rotation.turns() => {
+            Some(rect.shrink(stroke_width + corner_radius + 1.0))
+        }
+        _ => None,
+    }
+}
+
+pub(crate) fn painted(shape: &Shape, bounds: Rect) -> Vec<Rect> {
+    match rim(shape) {
+        Some(interior) => uncovered(bounds, interior),
+        None => vec![bounds],
+    }
+}
+
+pub(crate) fn covers(shape: &Shape, viewport: Rect) -> bool {
+    let Shape::Rect {
+        rect,
+        corner_radius,
+        stroke_width,
+        rotation,
+        clip,
+        ..
+    } = shape
+    else {
+        return false;
+    };
+    *stroke_width == 0.0
+        && !rotation.turns()
+        && clip.contains_rect(viewport)
+        && rect.shrink(*corner_radius).contains_rect(viewport)
 }
 
 fn absolute(rect: Rect, state: PainterState) -> Rect {

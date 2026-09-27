@@ -8,19 +8,19 @@ use accesskit::Node;
 
 use crate::accessibility::{self, AccessibilityTree};
 use crate::base::child_list::{ChildHost, SlotId};
-use crate::context::Context;
-use crate::damage::Damage;
+use crate::context::{Context, Moved};
+use crate::damage::{Damage, Region};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::input::{BackEdge, Event, Key, KeyPress};
 
+use crate::display::Display;
 use crate::inspector::{Inspector, Layout};
 use crate::interact::{self, Keys};
 use crate::layout;
 use crate::node::{Arena, NodeId, NodeMap, Placed, Rects, SpaceId};
 use crate::paint::{self, PaintCache};
-use crate::display::Display;
 use crate::painter::{Entry, Painter, PainterState, Shape};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
@@ -859,13 +859,19 @@ impl Document {
             let previous = verifying.then(|| flatten(&self.painting));
             FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
+            let moves = self.paint_cache.get_mut().take_moves();
             let region = self.damage.take(rect);
+            let (region, moved) = self.settle_moves(moves, region, rect);
             if let Some(previous) = previous {
-                self.verify_paint(ctx, rect, &previous, &region);
+                self.verify_paint(ctx, rect, &previous, &region, moved);
             }
             for damaged in region.rects() {
                 self.damage_flashes.record(*damaged, now);
                 ctx.report_damage(*damaged);
+            }
+            if let Some(moved) = moved {
+                let roots = self.painting.iter().map(|(display, _)| Rc::clone(display));
+                ctx.report_move(moved, roots.collect());
             }
             self.next_paint = self.paint_cache.get_mut().next_deadline();
         }
@@ -919,12 +925,67 @@ impl Document {
         self.damage.add_region(cache.take_damage());
     }
 
+    fn settle_moves(
+        &self,
+        moves: Vec<paint::Move>,
+        region: Region,
+        viewport: Rect,
+    ) -> (Region, Option<Moved>) {
+        let [only] = moves.as_slice() else {
+            let mut region = region;
+            for moved in &moves {
+                region.add(moved.viewport.intersect(viewport));
+            }
+            return (region, None);
+        };
+        let visible = only.viewport.intersect(viewport);
+        let rooted = self.paint_cache.borrow().rooted();
+        let (fixed, inner) = paint::fixed_damage(&rooted, only.node, visible, only.by);
+        let shown = visible.intersect(inner);
+        let landed = shown.intersect(shown.translate(only.by));
+        let damaged = region
+            .rects()
+            .iter()
+            .flat_map(|rect| [*rect, rect.translate(only.by).intersect(landed)])
+            .chain(only.damaged.clipped(viewport).rects().iter().copied())
+            .chain(fixed.rects().iter().copied())
+            .collect::<Vec<Rect>>();
+        let mut settled = Region::NOTHING;
+        for rect in paint::uncovered(visible, shown)
+            .into_iter()
+            .chain(paint::uncovered(shown, landed))
+        {
+            settled.add(rect);
+        }
+        for rect in damaged {
+            settled.add(rect.intersect(shown));
+            for outside in paint::uncovered(rect, visible) {
+                settled.add(outside);
+            }
+        }
+        if !landed.is_positive()
+            || settled
+                .rects()
+                .iter()
+                .any(|rect| rect.contains_rect(landed))
+        {
+            settled.add(visible);
+            return (settled, None);
+        }
+        let moved = Moved {
+            from: landed.translate(-only.by),
+            by: only.by,
+        };
+        (settled, Some(moved))
+    }
+
     fn verify_paint(
         &mut self,
         ctx: &Context,
         viewport: Rect,
         previous: &[Shape],
         region: &crate::damage::Region,
+        moved: Option<Moved>,
     ) {
         let counted = (
             self.work.painted_nodes.get(),
@@ -967,24 +1028,26 @@ impl Document {
             .count();
         let old = &previous[prefix..previous.len() - suffix];
         let new = &shapes[prefix..shapes.len() - suffix];
-        let moved = old
+        let landed = moved.map_or(Rect::NOTHING, |moved| moved.from.translate(moved.by));
+        let changed = old
             .iter()
             .filter(|shape| !new.iter().any(|new| kept(shape, new)))
             .chain(
                 new.iter()
                     .filter(|shape| !old.iter().any(|old| kept(old, shape))),
             );
-        for shape in moved {
+        for shape in changed {
             let bounds = crate::damage::bounds(shape).intersect(viewport);
             assert!(
-                !bounds.is_positive()
-                    || region
-                        .rects()
-                        .iter()
-                        .any(|rect| rect.expand(0.01).contains_rect(bounds)),
+                paint::uncovered(bounds, landed)
+                    .into_iter()
+                    .all(|rect| covered(rect, region)),
                 "a shape changed outside the damaged region: {bounds:?} is not within {:?}",
                 region.rects(),
             );
+        }
+        if let Some(moved) = moved {
+            verify_move(previous, &shapes, region, moved);
         }
     }
 
@@ -1580,6 +1643,85 @@ impl Document {
 }
 
 const LAYOUT_PASSES: usize = 3;
+
+fn covered(rect: Rect, region: &Region) -> bool {
+    let mut left = vec![rect];
+    for damaged in region.rects() {
+        left = left
+            .into_iter()
+            .flat_map(|rect| paint::uncovered(rect, damaged.expand(0.01)))
+            .collect();
+    }
+    left.iter().all(|rect| !rect.is_positive())
+}
+
+fn verify_move(previous: &[Shape], shapes: &[Shape], region: &Region, moved: Moved) {
+    let landed = moved.from.translate(moved.by);
+    let within = |shape: &Shape, area: Rect| crate::damage::bounds(shape).intersects(area);
+    let shown = |shapes: &[Shape], area: Rect| {
+        shapes
+            .iter()
+            .rposition(|shape| {
+                paint::covers(shape, area)
+                    && matches!(shape, Shape::Rect { color, .. } if color.alpha() == u8::MAX)
+            })
+            .unwrap_or(0)
+    };
+    let (previous, shapes) = (
+        &previous[shown(previous, moved.from)..],
+        &shapes[shown(shapes, landed)..],
+    );
+    let before: Vec<Shape> = previous
+        .iter()
+        .filter(|shape| within(shape, moved.from))
+        .map(|shape| crate::painter::placed_shape(shape, moved.by, Rect::EVERYTHING))
+        .collect();
+    let after: Vec<&Shape> = shapes
+        .iter()
+        .filter(|shape| within(shape, landed))
+        .collect();
+    let matches = |old: &Shape, new: &Shape| {
+        (paint::covers(old, landed) && paint::covers(new, landed) && same_fill(old, new))
+            || (unclipped(old) == unclipped(new)
+                && clip_of(old).intersect(landed) == clip_of(new).intersect(landed))
+    };
+    let damaged = |shape: &Shape| {
+        paint::painted(shape, crate::damage::bounds(shape))
+            .into_iter()
+            .all(|rect| covered(rect.intersect(landed), region))
+    };
+    for new in &after {
+        assert!(
+            damaged(new) || before.iter().any(|old| matches(old, new)),
+            "a shape the copy moved into {:?} was not there to be moved",
+            crate::damage::bounds(new).intersect(landed),
+        );
+    }
+    for old in &before {
+        assert!(
+            damaged(old) || after.iter().any(|new| matches(old, new)),
+            "the copy moved a shape into {:?} that is no longer painted there",
+            crate::damage::bounds(old).intersect(landed),
+        );
+    }
+}
+
+fn unclipped(shape: &Shape) -> Shape {
+    let mut shape = shape.clone();
+    *crate::context::shape_clip(&mut shape) = Rect::EVERYTHING;
+    shape
+}
+
+fn clip_of(shape: &Shape) -> Rect {
+    *crate::context::shape_clip(&mut shape.clone())
+}
+
+fn same_fill(left: &Shape, right: &Shape) -> bool {
+    matches!(
+        (left, right),
+        (Shape::Rect { color, .. }, Shape::Rect { color: other, .. }) if color == other
+    )
+}
 
 fn flatten(painting: &[(Rc<Display>, Entry)]) -> Vec<Shape> {
     let mut main = Vec::new();

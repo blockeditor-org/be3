@@ -33,6 +33,7 @@ struct Inner {
     paint_stack: RefCell<Vec<PaintFrame>>,
     space_read: Cell<bool>,
     damage: RefCell<Vec<Rect>>,
+    moves: RefCell<Vec<(Moved, Vec<Rc<Display>>)>>,
     test_ids: RefCell<HashMap<String, Rect>>,
     ambiguous_test_ids: RefCell<HashSet<String>>,
     copied_text: RefCell<Option<String>>,
@@ -64,6 +65,18 @@ struct Inner {
     renderer_info: RefCell<Option<RendererInfo>>,
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Moved {
+    pub from: Rect,
+    pub by: crate::Vec2,
+}
+
+impl Moved {
+    pub fn to(&self) -> Rect {
+        self.from.translate(self.by)
+    }
+}
+
 pub struct FrameOutput {
     pub(crate) layers: Rc<Vec<Layer>>,
     pub(crate) filter: Option<(Filter, usize)>,
@@ -81,6 +94,7 @@ pub struct FrameOutput {
     pub repaint_after: Duration,
     pub changed: bool,
     pub(crate) damage: Region,
+    pub(crate) moved: Option<Moved>,
     accessibility: Vec<Fragment>,
     pixels_per_point: f32,
 }
@@ -115,12 +129,24 @@ impl FrameOutput {
     }
 
     pub fn damaged(&self) -> Option<Region> {
-        (!self.damage.is_empty()).then_some(self.damage)
+        let damage = self.unmoved();
+        (!damage.is_empty()).then_some(damage)
+    }
+
+    pub fn moved(&self) -> Option<Moved> {
+        self.moved
+    }
+
+    pub(crate) fn unmoved(&self) -> Region {
+        match self.moved {
+            Some(moved) => self.damage.union(moved.to().into()),
+            None => self.damage,
+        }
     }
 
     #[cfg(test)]
     pub(crate) fn damage(&self) -> Option<Rect> {
-        let bounds = self.damage.bounds();
+        let bounds = self.unmoved().bounds();
         bounds.is_positive().then_some(bounds)
     }
 
@@ -157,6 +183,7 @@ impl Context {
                 paint_stack: RefCell::new(Vec::new()),
                 space_read: Cell::new(false),
                 damage: RefCell::new(Vec::new()),
+                moves: RefCell::new(Vec::new()),
                 test_ids: RefCell::new(HashMap::new()),
                 ambiguous_test_ids: RefCell::new(HashSet::new()),
                 copied_text: RefCell::new(None),
@@ -245,6 +272,7 @@ impl Context {
         self.inner.filter.set(None);
         self.inner.paint_stack.borrow_mut().clear();
         self.inner.damage.borrow_mut().clear();
+        self.inner.moves.borrow_mut().clear();
         self.inner.test_ids.borrow_mut().clear();
         self.inner.ambiguous_test_ids.borrow_mut().clear();
         self.inner.copied_text.borrow_mut().take();
@@ -267,6 +295,7 @@ impl Context {
         let layers = Rc::new(std::mem::take(&mut *self.inner.layers.borrow_mut()));
         let scale = self.pixels_per_point();
         let filter = self.inner.filter.take();
+        let moved = self.settle_moves(&layers, scale);
         let reported = std::mem::take(&mut *self.inner.damage.borrow_mut());
         let damage = reported
             .iter()
@@ -277,14 +306,18 @@ impl Context {
             Some(old) if old.pixels_per_point != scale || old.filter != filter => true,
             Some(old) => {
                 let same = old.layers.len() == layers.len()
-                    && old.layers.iter().zip(layers.iter()).all(|(old, new)| old.same(new));
+                    && old
+                        .layers
+                        .iter()
+                        .zip(layers.iter())
+                        .all(|(old, new)| old.same(new));
                 if reported.is_empty() && !same {
                     debug_assert!(
                         crate::display::flatten(&old.layers) == crate::display::flatten(&layers),
                         "a frame that reported no damage changed the shapes it painted"
                     );
                 }
-                !reported.is_empty() && !same
+                (!reported.is_empty() || moved.is_some()) && !same
             }
         };
         *previous = Some(Previous {
@@ -296,6 +329,7 @@ impl Context {
             layers,
             filter,
             damage,
+            moved,
             test_ids: std::mem::take(&mut *self.inner.test_ids.borrow_mut()),
             ambiguous_test_ids: std::mem::take(&mut *self.inner.ambiguous_test_ids.borrow_mut()),
             copied_text: self.inner.copied_text.borrow_mut().take(),
@@ -520,6 +554,57 @@ impl Context {
         }
     }
 
+    pub(crate) fn report_move(&self, moved: Moved, roots: Vec<Rc<Display>>) {
+        self.inner.moves.borrow_mut().push((moved, roots));
+    }
+
+    fn settle_moves(&self, layers: &[Layer], pixels_per_point: f32) -> Option<Moved> {
+        let moves = std::mem::take(&mut *self.inner.moves.borrow_mut());
+        let whole = |value: f32| {
+            ((value * pixels_per_point).round() - value * pixels_per_point).abs() < 0.01
+        };
+        let settled = match moves.as_slice() {
+            [(moved, roots)]
+                if whole(moved.by.x)
+                    && whole(moved.by.y)
+                    && layers.iter().all(|layer| {
+                        let reach = match layer {
+                            Layer::Shape(shape) => damage::bounds(shape),
+                            Layer::Display {
+                                display,
+                                entry,
+                                scale,
+                                clip,
+                            } => {
+                                if roots.iter().any(|root| Rc::ptr_eq(root, display)) {
+                                    return true;
+                                }
+                                entry.place(display.bounds).scaled(*scale).intersect(*clip)
+                            }
+                        };
+                        !reach.intersects(moved.from.union(moved.to()))
+                    }) =>
+            {
+                Some(*moved)
+            }
+            _ => None,
+        };
+        if settled.is_none() {
+            for (moved, _) in &moves {
+                self.report_damage(moved.to());
+            }
+        }
+        settled
+    }
+
+    fn unmove(&self, moves: usize) {
+        let unmoved: Vec<(Moved, Vec<Rc<Display>>)> =
+            self.inner.moves.borrow_mut().drain(moves..).collect();
+        for (moved, _) in unmoved {
+            self.report_damage(moved.to());
+        }
+    }
+
     pub(crate) fn report_damage(&self, rect: Rect) {
         if rect.is_positive() {
             self.inner.damage.borrow_mut().push(rect);
@@ -632,7 +717,9 @@ impl Context {
     pub(crate) fn clipped<R>(&self, clip: Rect, content: impl FnOnce() -> R) -> R {
         let layers = self.inner.layers.borrow().len();
         let damage = self.inner.damage.borrow().len();
+        let moves = self.inner.moves.borrow().len();
         let result = content();
+        self.unmove(moves);
         for layer in self.inner.layers.borrow_mut().iter_mut().skip(layers) {
             match layer {
                 Layer::Shape(shape) => {
@@ -678,10 +765,12 @@ impl Context {
             .replace_with(|input| input.scaled(scale.recip()));
         let layers = self.inner.layers.borrow().len();
         let damage = self.inner.damage.borrow().len();
+        let moves = self.inner.moves.borrow().len();
         let fragments = self.inner.accessibility.borrow().len();
         let test_ids = self.inner.test_ids.take();
         let ime = self.inner.ime.take();
         let result = content();
+        self.unmove(moves);
         let scaled_ime = self.inner.ime.replace(ime);
         if let Some(area) = scaled_ime {
             self.inner.ime.set(Some(ImeArea {

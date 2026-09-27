@@ -251,11 +251,13 @@ struct Space {
     clip: Rect,
 }
 
+type Resolved = (u64, Vec2);
+
 #[derive(Default)]
 pub(crate) struct Rects {
     map: RefCell<NodeMap<Placed>>,
     spaces: RefCell<NodeMap<[Option<Space>; SPACE_SLOTS]>>,
-    offsets: RefCell<NodeMap<[Option<(u64, Vec2)>; SPACE_SLOTS]>>,
+    offsets: RefCell<NodeMap<[Option<Resolved>; SPACE_SLOTS]>>,
     version: Cell<u64>,
     moves: Cell<u64>,
 }

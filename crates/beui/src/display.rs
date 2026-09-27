@@ -77,7 +77,11 @@ impl Display {
     pub(crate) fn flatten(&self, at: Entry, main: &mut Vec<Shape>, top: &mut Vec<Shape>) {
         for part in self.parts.iter() {
             match part {
-                Part::Shapes { top: on_top, start, end } => {
+                Part::Shapes {
+                    top: on_top,
+                    start,
+                    end,
+                } => {
                     let into = match on_top {
                         true => &mut *top,
                         false => &mut *main,
@@ -107,7 +111,10 @@ fn children_count(parts: &[Part]) -> usize {
         .sum()
 }
 
-pub(crate) fn parts(items: Vec<crate::paint::Item>, child: impl Fn(NodeId) -> Option<Rc<Display>>) -> (Vec<Shape>, Vec<Part>) {
+pub(crate) fn parts(
+    items: Vec<crate::paint::Item>,
+    child: impl Fn(NodeId) -> Option<Rc<Display>>,
+) -> (Vec<Shape>, Vec<Part>) {
     let mut shapes = Vec::new();
     let mut parts: Vec<Part> = Vec::new();
     for item in items {

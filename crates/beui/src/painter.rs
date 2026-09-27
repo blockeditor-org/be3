@@ -187,10 +187,7 @@ impl Painter {
         Self {
             context: self.context.clone(),
             clip: Rect::EVERYTHING,
-            space_clip: self
-                .space_clip
-                .intersect(self.clip)
-                .translate(-translation),
+            space_clip: self.space_clip.intersect(self.clip).translate(-translation),
             origin: self.origin + translation,
             space: Some(SpaceId::of(node)),
             top: self.top,

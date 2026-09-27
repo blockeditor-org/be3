@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use crate::color::Color32;
-use crate::context::{Context, FrameOutput};
+use crate::context::{Context, FrameOutput, Moved};
 use crate::geometry::{Vec2, vec2};
 use crate::renderer::{Renderer, RendererInfo, Repaint, clear_color};
 
@@ -74,6 +74,7 @@ pub(super) struct Target {
     prepared_size: Option<(Vec2, f32)>,
     clear_color: Option<Color32>,
     pending: Option<Repaint>,
+    moved: Option<(Moved, f32, Repaint)>,
     retained: Option<Retained>,
 }
 
@@ -100,6 +101,7 @@ impl Target {
             prepared_size: None,
             clear_color: None,
             pending: None,
+            moved: None,
             retained: None,
         }
     }
@@ -144,6 +146,7 @@ impl Target {
         self.surface = None;
         self.retained = None;
         self.pending = None;
+        self.moved = None;
     }
 
     pub(super) fn resize(&mut self, gpu: &Gpu, width: u32, height: u32) {
@@ -182,7 +185,9 @@ impl Target {
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: self.config.format,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::COPY_SRC
+                    | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
             });
             let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -212,18 +217,28 @@ impl Target {
         let stale = self.prepared_size != Some(size)
             || self.clear_color != Some(clear_color)
             || !self.retains();
-        let repaint = match stale {
-            true => Repaint::Everything,
-            false => output.repaint(clear_color),
+        let (repaint, moved, whole) = match stale {
+            true => (Repaint::Everything, None, Repaint::Everything),
+            false => {
+                let (repaint, moved) = output.repaint_moving(clear_color);
+                (repaint, moved, output.repaint(clear_color))
+            }
         };
         if output.changed || stale {
-            let repaint = match self.pending {
-                Some(pending) => pending.union(repaint),
-                None => repaint,
+            let (repaint, moved) = match self.pending {
+                Some(pending) => {
+                    let held = self.moved.take().map_or(pending, |(_, _, whole)| whole);
+                    (held.union(whole), None)
+                }
+                None => (repaint, moved),
             };
             let effective =
                 gpu.renderer
                     .prepare(&gpu.device, &gpu.queue, output, physical, scale, repaint);
+            self.moved = match effective {
+                Repaint::Region { .. } => moved.map(|moved| (moved, scale, whole)),
+                Repaint::Everything => None,
+            };
             self.prepared_size = Some(size);
             self.pending = Some(effective);
         }
@@ -258,8 +273,15 @@ impl Target {
         let clear = clear_color(background);
         self.retain(&gpu.device);
         let pending = self.pending.take();
+        let moved = self.moved.take();
         let size = (self.config.width, self.config.height);
         let retained = self.retained.as_ref();
+        if let (Some((moved, scale, _)), Some(retained), Some(Repaint::Region { .. })) =
+            (moved, retained, pending)
+        {
+            gpu.renderer
+                .shift(&gpu.device, &mut encoder, &retained.texture, moved, scale);
+        }
         let (target, load) = match retained {
             Some(retained) => (
                 &retained.view,

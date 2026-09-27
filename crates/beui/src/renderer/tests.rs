@@ -19,6 +19,7 @@ mod a_repaint_of_two_regions_leaves_what_lies_between_them;
 mod a_rotated_rectangle_covers_the_corners_it_turned_onto;
 mod a_scrolled_document_moves_the_rows_it_already_encoded;
 mod an_icon_glyph_paints_over_the_background;
+mod copying_a_scrolled_region_paints_what_a_full_repaint_would;
 mod reducing_contrast_pulls_the_filtered_region_toward_grey;
 mod repainting_a_damaged_region_keeps_the_rest_of_the_retained_frame;
 mod repainting_covers_every_region_gathered_since_the_last_draw;
@@ -115,7 +116,9 @@ impl Target {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: FORMAT,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -142,6 +145,49 @@ impl Target {
         paint: impl FnOnce(&Painter),
     ) {
         self.draw_in(&Context::new(), background, |_| repaint, paint);
+    }
+
+    pub(crate) fn draw_moving(
+        &mut self,
+        context: &Context,
+        background: Color32,
+        paint: impl FnOnce(&Painter),
+    ) -> Option<crate::Moved> {
+        let output = context.run(RawInput::default(), |context| paint(&context.painter()));
+        let (repaint, moved) = output.repaint_moving(background);
+        let effective = self.renderer.prepare(
+            &self.device,
+            &self.queue,
+            &output,
+            vec2(SIZE as f32, SIZE as f32),
+            1.0,
+            repaint,
+        );
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("beui test encoder"),
+            });
+        let load = match effective {
+            Repaint::Region { .. } => {
+                if let Some(moved) = moved {
+                    self.renderer
+                        .shift(&self.device, &mut encoder, &self.texture, moved, 1.0);
+                }
+                wgpu::LoadOp::Load
+            }
+            Repaint::Everything => wgpu::LoadOp::Clear(clear_color(background)),
+        };
+        self.renderer.render(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &self.view,
+            (SIZE, SIZE),
+            load,
+        );
+        self.queue.submit(Some(encoder.finish()));
+        moved
     }
 
     pub(crate) fn draw_in(

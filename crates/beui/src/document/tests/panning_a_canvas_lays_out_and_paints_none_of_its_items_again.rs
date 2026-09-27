@@ -39,8 +39,9 @@ fn panning_a_canvas_lays_out_and_paints_none_of_its_items_again() {
         "panning moves the canvas's items without painting any of them again"
     );
     assert_eq!(output.shapes().len(), first);
-    let moved = output.shapes().iter().any(|shape| {
-        matches!(shape, Shape::Rect { rect, .. } if rect.min == pos2(35.0, 55.0))
-    });
+    let moved = output
+        .shapes()
+        .iter()
+        .any(|shape| matches!(shape, Shape::Rect { rect, .. } if rect.min == pos2(35.0, 55.0)));
     assert!(moved, "the framed item is painted where the pan moved it");
 }
