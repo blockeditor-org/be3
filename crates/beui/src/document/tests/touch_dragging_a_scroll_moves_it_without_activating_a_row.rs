@@ -1,4 +1,5 @@
 use super::*;
+use crate::input::TOUCH_DRAG_THRESHOLD;
 use crate::reactive::{ForEach, ItemSize, List, NodeRef, build, view};
 use crate::unstyled::Scroll;
 
@@ -41,7 +42,7 @@ fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
     assert_eq!(harness.document().focused_node(), None);
     harness.touch(TouchPhase::End, end);
     let released_offset = harness.document().scroll_offset(scroll);
-    assert!((released_offset - 100.0).abs() < 0.01);
+    assert!((released_offset - (100.0 - TOUCH_DRAG_THRESHOLD)).abs() < 0.01);
 
     std::thread::sleep(std::time::Duration::from_millis(20));
     harness.frame(Vec::new());

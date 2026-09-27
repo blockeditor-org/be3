@@ -3,7 +3,7 @@ use beui::icons::{ICON_BUG_REPORT, ICON_GRID_VIEW};
 use beui::reactive::{
     Align, Callback, Canvas, CanvasItem, CanvasView, ForEach, Frame, Keyed, List, Memo, ReadSignal,
     Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
-    create_selector, create_signal, view, with_document,
+    create_selector, create_signal, focus_ring, view, with_document,
 };
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
 use beui::styled::{
@@ -211,7 +211,7 @@ fn ScrollRowFace(
             outline={theme.accent.clone()}
             outline_width=2.0
             radius=RADIUS
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
             padding_horizontal=ROW_PADDING_HORIZONTAL
             padding_vertical={vertical}
         >
@@ -590,7 +590,7 @@ fn CanvasBoard(
         <Frame
             outline={theme.accent.clone()}
             outline_width=2.0
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
             radius=RADIUS
         >
             <Canvas view>

@@ -12,7 +12,6 @@ be-protocol = { path = "../be-protocol" }
 be-session = { path = "../be-session" }
 be-store = { path = "../be-store" }
 futures-util = "0.3"
-serde = { version = "1", features = ["derive"] }
 # Only the synchronisation primitives are shared with the browser build: they
 # carry no runtime of their own, and the socket and the executor come from
 # transport/ instead.

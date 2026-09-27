@@ -18,10 +18,9 @@ fn the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
+    harness.key(Key::Tab, Modifiers::NONE);
     let trigger = unstyled::select_trigger(harness.document(), select);
-    with_installed(harness.document_mut(), |_| {
-        crate::focus_within(trigger);
-    });
+    assert!(harness.document().focus_is_within(trigger));
     let output = harness.frame(Vec::new());
 
     let face = painted(&output, styled::Theme::DARK.surface_raised, 0.0)
