@@ -11,7 +11,6 @@ use crate::filter::Filter;
 use crate::font::{GlyphId, GlyphImage};
 use crate::geometry::{Rect, Vec2};
 use crate::image::{Image, ImageId};
-use crate::painter::Shape;
 
 mod filter;
 
@@ -518,12 +517,7 @@ impl Renderer {
         let damaged = match repaint {
             Repaint::Everything => None,
             Repaint::Region { region, background } => {
-                let joined = prepared.is_some()
-                    || output
-                        .shapes()
-                        .iter()
-                        .any(|shape| matches!(shape, Shape::Drawing { .. }));
-                let regions: Vec<[f32; 4]> = match joined {
+                let regions: Vec<[f32; 4]> = match prepared.is_some() {
                     true => vec![physical(
                         region.bounds(),
                         self.origin,
@@ -752,14 +746,14 @@ impl Renderer {
 
     pub fn paint(&self, pass: &mut wgpu::RenderPass<'_>) {
         let Some(scissors) = &self.scissors else {
-            self.draw(pass, &self.runs);
-            self.draw(pass, &self.overlay);
+            self.draw(pass, &self.runs, None);
+            self.draw(pass, &self.overlay, None);
             return;
         };
         for scissor in scissors {
             if clip(pass, *scissor) {
-                self.draw(pass, &self.runs);
-                self.draw(pass, &self.overlay);
+                self.draw(pass, &self.runs, Some(*scissor));
+                self.draw(pass, &self.overlay, Some(*scissor));
             }
         }
     }
@@ -800,7 +794,7 @@ impl Renderer {
             if let Some(scissor) = scissor {
                 clip(&mut pass, scissor);
             }
-            self.draw(&mut pass, &self.runs);
+            self.draw(&mut pass, &self.runs, scissor);
         }
         if let Some(effects) = self.effects.as_mut() {
             effects.record(device, queue, encoder, &prepared, srgb, scissor);
@@ -812,7 +806,7 @@ impl Renderer {
         if let Some(effects) = self.effects.as_ref() {
             effects.compose(&mut pass);
         }
-        self.draw(&mut pass, &self.overlay);
+        self.draw(&mut pass, &self.overlay, scissor);
     }
 
     fn empty(&self) -> bool {
@@ -847,7 +841,7 @@ impl Renderer {
         })
     }
 
-    fn draw(&self, pass: &mut wgpu::RenderPass<'_>, runs: &[Run]) {
+    fn draw(&self, pass: &mut wgpu::RenderPass<'_>, runs: &[Run], scissor: Option<[u32; 4]>) {
         if runs.is_empty() {
             return;
         }
@@ -855,8 +849,11 @@ impl Renderer {
         let mut vertices = false;
         for run in runs {
             if let Some((drawing, at)) = run.drawing.as_ref() {
-                if let Some(draw) = drawing.draw() {
-                    draw.paint(pass, *at);
+                if let (Some(draw), Some(at)) = (drawing.draw(), within(*at, scissor)) {
+                    draw.paint(pass, at);
+                    if let Some(scissor) = scissor {
+                        clip(pass, scissor);
+                    }
                     bound = None;
                     vertices = false;
                 }
@@ -914,6 +911,20 @@ fn clip(pass: &mut wgpu::RenderPass<'_>, [left, top, width, height]: [u32; 4]) -
     }
     pass.set_scissor_rect(left, top, width, height);
     true
+}
+
+fn within(at: DrawAt, scissor: Option<[u32; 4]>) -> Option<DrawAt> {
+    let Some([left, top, width, height]) = scissor else {
+        return Some(at);
+    };
+    let [left, top] = [left as f32, top as f32];
+    let clip = [
+        at.clip[0].max(left),
+        at.clip[1].max(top),
+        at.clip[2].min(left + width as f32),
+        at.clip[3].min(top + height as f32),
+    ];
+    (clip[0] < clip[2] && clip[1] < clip[3]).then_some(DrawAt { clip, ..at })
 }
 
 fn scissor(damaged: [f32; 4], origin: Vec2) -> [u32; 4] {

@@ -6,6 +6,7 @@ mod a_blurred_region_spreads_light_past_the_shape_that_made_it;
 mod a_clip_rectangle_hides_what_falls_outside_it;
 mod a_colour_vision_filter_recolours_the_region_it_covers;
 mod a_drawing_paints_between_the_shapes_around_it;
+mod a_drawing_repaints_only_within_each_damaged_region;
 mod a_fill_with_fractional_bounds_lands_on_whole_pixels;
 mod a_filled_rectangle_covers_its_bounds;
 mod a_filter_leaves_the_painting_outside_its_region_alone;
@@ -25,7 +26,10 @@ mod text_at_a_fractional_origin_lands_on_whole_pixels;
 mod text_paints_glyphs_over_the_background;
 mod turning_a_filter_off_repaints_the_frame_it_had_blurred;
 
+use std::cell::RefCell;
+
 use crate::context::Context;
+use crate::drawing::{Draw, DrawAt};
 use crate::document::Document;
 use crate::filter::{ColorVision, Filter};
 use crate::font::FontId;
@@ -201,3 +205,132 @@ impl Target {
         Capture { pixels }
     }
 }
+
+const SHADER: &str = r"
+struct Placement {
+    rect: vec4<f32>,
+    screen: vec2<f32>,
+    padding: vec2<f32>,
+};
+
+@group(0) @binding(0) var<uniform> placement: Placement;
+
+fn corner(index: u32) -> vec2<f32> {
+    let right = index == 1u || index == 4u || index == 5u;
+    let bottom = index == 2u || index == 3u || index == 5u;
+    return vec2<f32>(select(0.0, 1.0, right), select(0.0, 1.0, bottom));
+}
+
+@vertex
+fn vertex(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
+    let point = mix(placement.rect.xy, placement.rect.zw, corner(index));
+    return vec4<f32>(
+        point / placement.screen * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0),
+        0.0,
+        1.0,
+    );
+}
+
+@fragment
+fn fragment() -> @location(0) vec4<f32> {
+    return vec4<f32>(0.0, 1.0, 0.0, 1.0);
+}
+";
+
+const PLACEMENT_BYTES: u64 = 32;
+
+struct Patch {
+    pipeline: wgpu::RenderPipeline,
+    bind_group: wgpu::BindGroup,
+    placement: wgpu::Buffer,
+}
+
+#[derive(Default)]
+pub(crate) struct Green(RefCell<Option<Patch>>);
+
+impl Draw for Green {
+    fn prepare(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        _encoder: &mut wgpu::CommandEncoder,
+        at: DrawAt,
+    ) {
+        let mut held = self.0.borrow_mut();
+        let patch = held.get_or_insert_with(|| Patch::new(device, at.format));
+        let mut placement = [0.0_f32; 8];
+        placement[..4].copy_from_slice(&at.rect);
+        placement[4] = at.screen.x;
+        placement[5] = at.screen.y;
+        queue.write_buffer(&patch.placement, 0, bytemuck::cast_slice(&placement));
+    }
+
+    fn paint(&self, pass: &mut wgpu::RenderPass<'_>, at: DrawAt) {
+        let held = self.0.borrow();
+        let Some(patch) = held.as_ref() else {
+            return;
+        };
+        let left = at.clip[0].max(at.rect[0]).max(0.0) as u32;
+        let top = at.clip[1].max(at.rect[1]).max(0.0) as u32;
+        let right = at.clip[2].min(at.rect[2]).min(at.screen.x) as u32;
+        let bottom = at.clip[3].min(at.rect[3]).min(at.screen.y) as u32;
+        pass.set_scissor_rect(left, top, right - left, bottom - top);
+        pass.set_pipeline(&patch.pipeline);
+        pass.set_bind_group(0, &patch.bind_group, &[]);
+        pass.draw(0..6, 0..1);
+    }
+}
+
+impl Patch {
+    fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("beui test patch"),
+            source: wgpu::ShaderSource::Wgsl(SHADER.into()),
+        });
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("beui test patch"),
+            layout: None,
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vertex"),
+                compilation_options: Default::default(),
+                buffers: &[],
+            },
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fragment"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+        let placement = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("beui test patch placement"),
+            size: PLACEMENT_BYTES,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("beui test patch"),
+            layout: &pipeline.get_bind_group_layout(0),
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: placement.as_entire_binding(),
+            }],
+        });
+        Self {
+            pipeline,
+            bind_group,
+            placement,
+        }
+    }
+}
+

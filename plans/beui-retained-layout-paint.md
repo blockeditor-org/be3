@@ -44,11 +44,6 @@ What follows is the rest, roughly in order of value.
 - **Scroll by copying.** With local coordinates, an opaque scroll viewport can
   copy the retained frame by the scroll delta and repaint only the exposed
   strip.
-- **Multiple regions with drawings.** A frame holding a `Shape::Drawing` joins
-  its damage into one rect, because a `Draw` sets its own scissor (the plugin
-  presenter and `block-editor-beui` do) and would otherwise be painted once per
-  region. Handing each `DrawAt` a clip already narrowed to the region it is
-  painted for would let drawings take part.
 - **Damage across the plugin boundary.** `block-editor-beui` prepares its
   renderer with `Repaint::Everything` every time, so a plugin pane repaints all
   of itself for a caret blink. The plugin protocol could carry damaged rects
