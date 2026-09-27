@@ -325,7 +325,8 @@ every context menu opens on tap-and-hold; the press the finger began is
 cancelled and lifting it is not a click. A `ClickCatcher` hears that
 cancellation, and a second finger landing, as `on_cancel`, which is where a
 gesture in progress is dropped rather than committed. A finger dragged across a
-`ClickCatcher` is read as a scroll of whatever holds it unless the catcher sets
+`ClickCatcher` is read as a scroll of whatever holds it that scrolls that way
+(where nothing does, it stays the catcher's drag) unless the catcher sets
 `touch_drags`, which a canvas that draws or moves things under the finger does,
 or `touch_drag_axis`, which keeps finger drags along one direction only and
 leaves the other to the scroll around it, as a dock tab in a scrolling tab bar

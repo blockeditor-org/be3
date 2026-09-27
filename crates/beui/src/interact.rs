@@ -139,7 +139,7 @@ pub(crate) fn interact(
         _ => None,
     };
     let input = InteractInput {
-        touch_scrolling: vertical || (horizontal && touch_scroll_target.is_some()),
+        touch_scrolling: touch_scroll_target.is_some(),
         touch_scroll_target,
         wheel_target,
         zoom_target,
