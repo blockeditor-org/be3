@@ -182,7 +182,9 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
     }
 
     fn window(&self, doc: &Document, painter: &Painter, start: f32, main: f32) -> (f32, f32) {
-        let clip = painter.clip_rect().intersect(doc.viewport_rect());
+        let clip = painter
+            .clip_rect()
+            .intersect(doc.viewport_rect().translate(-painter.origin()));
         let (from, to) = match self.direction {
             Direction::Horizontal => (clip.left(), clip.right()),
             Direction::Vertical => (clip.top(), clip.bottom()),

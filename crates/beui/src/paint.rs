@@ -2,20 +2,22 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use crate::damage::Region;
-use crate::geometry::Rect;
+use crate::geometry::{Rect, Vec2};
 use crate::painter::{Painter, PainterState, Shape};
 
 use crate::document::Document;
 use crate::node::{ANCESTOR_LIMIT, Arena, NodeId, NodeMap, Rects};
 
+pub(crate) type Entry = Option<(Vec2, Rect)>;
+
 #[derive(Clone, PartialEq)]
 pub(crate) enum Item {
     Main(Shape),
     Top(Shape),
-    Child(NodeId),
+    Child(NodeId, Entry),
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy)]
 struct Placement {
     rect: Rect,
     painter: PainterState,
@@ -26,6 +28,7 @@ pub(crate) struct Recorded {
     pub(crate) own: Rect,
     pub(crate) bounds: Rect,
     pub(crate) deadline: Option<Instant>,
+    pub(crate) reads: bool,
 }
 
 struct Painted {
@@ -33,6 +36,8 @@ struct Painted {
     items: Vec<Item>,
     own: Rect,
     bounds: Rect,
+    reads: bool,
+    below: bool,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -60,10 +65,16 @@ pub(crate) struct PaintCache {
 }
 
 impl PaintCache {
-    pub(crate) fn bounds(&self, id: NodeId) -> Rect {
+    fn bounds(&self, id: NodeId) -> Rect {
         self.entries
             .get(&id)
             .map_or(Rect::NOTHING, |painted| painted.bounds)
+    }
+
+    pub(crate) fn absolute_bounds(&self, id: NodeId) -> Rect {
+        self.entries.get(&id).map_or(Rect::NOTHING, |painted| {
+            absolute(painted.bounds, painted.placement.painter)
+        })
     }
 
     pub(crate) fn forget(&mut self, id: NodeId) {
@@ -128,8 +139,10 @@ impl PaintCache {
     }
 
     pub(crate) fn settle_roots(&mut self, roots: Vec<NodeId>) {
-        let roots: Vec<(NodeId, Rect)> =
-            roots.into_iter().map(|id| (id, self.bounds(id))).collect();
+        let roots: Vec<(NodeId, Rect)> = roots
+            .into_iter()
+            .map(|id| (id, self.absolute_bounds(id)))
+            .collect();
         let held: Vec<NodeId> = self.roots.iter().map(|(id, _)| *id).collect();
         if roots.iter().map(|(id, _)| *id).ne(held) {
             let before = kept(&self.roots, &roots);
@@ -162,45 +175,82 @@ impl PaintCache {
         let mut main = Vec::new();
         let mut top = Vec::new();
         for (root, _) in &self.roots {
-            self.flatten_node(*root, &mut main, &mut top);
+            let origin = self
+                .entries
+                .get(root)
+                .map_or(Vec2::ZERO, |painted| painted.placement.painter.origin);
+            self.flatten_node(*root, origin, Rect::EVERYTHING, &mut main, &mut top);
             main.append(&mut top);
         }
         main
     }
 
-    fn flatten_node(&self, id: NodeId, main: &mut Vec<Shape>, top: &mut Vec<Shape>) {
+    fn flatten_node(
+        &self,
+        id: NodeId,
+        origin: Vec2,
+        clip: Rect,
+        main: &mut Vec<Shape>,
+        top: &mut Vec<Shape>,
+    ) {
         let Some(painted) = self.entries.get(&id) else {
             return;
         };
+        let moved = origin != Vec2::ZERO || clip != Rect::EVERYTHING;
+        let place = |shape: &Shape, into: &mut Vec<Shape>| match moved {
+            false => into.push(shape.clone()),
+            true => {
+                let shape = placed_shape(shape, origin, clip);
+                if crate::damage::bounds(&shape).is_positive()
+                    || matches!(shape, Shape::Drawing { .. })
+                {
+                    into.push(shape);
+                }
+            }
+        };
         for item in &painted.items {
             match item {
-                Item::Main(shape) => main.push(shape.clone()),
-                Item::Top(shape) => top.push(shape.clone()),
-                Item::Child(child) => self.flatten_node(*child, main, top),
+                Item::Main(shape) => place(shape, main),
+                Item::Top(shape) => place(shape, top),
+                Item::Child(child, None) => self.flatten_node(*child, origin, clip, main, top),
+                Item::Child(child, Some((translation, kept))) => self.flatten_node(
+                    *child,
+                    origin + *translation,
+                    clip.intersect(kept.translate(origin)),
+                    main,
+                    top,
+                ),
             }
         }
     }
 
     fn visit(&mut self, id: NodeId, placement: Placement) -> Visit {
         let dirt = self.dirt.remove(&id).unwrap_or_default();
-        let Some(painted) = self
-            .entries
-            .get(&id)
-            .filter(|painted| !dirt.own && painted.placement == placement)
-        else {
+        let Some(painted) = self.entries.get_mut(&id).filter(|painted| {
+            !dirt.own
+                && painted.placement.rect == placement.rect
+                && painted.placement.painter.settles(placement.painter)
+        }) else {
             return Visit::Record;
         };
-        if !dirt.below {
+        let sees = painted.placement.painter.sees(placement.painter);
+        if painted.reads && !sees {
+            return Visit::Record;
+        }
+        painted.placement = placement;
+        if !dirt.below && (sees || !painted.below) {
             return Visit::Reuse(painted.bounds);
         }
+        let entered: Vec<(NodeId, Entry)> = children(&painted.items).collect();
         let mut children = Vec::new();
-        for item in &painted.items {
-            if let Item::Child(child) = item {
-                let Some(held) = self.entries.get(child) else {
-                    return Visit::Record;
-                };
-                children.push((*child, held.placement.painter));
-            }
+        for (child, entry) in entered {
+            let Some(held) = self.entries.get(&child) else {
+                return Visit::Record;
+            };
+            children.push((
+                child,
+                resumed(placement.painter, held.placement.painter, entry),
+            ));
         }
         Visit::Descend(children)
     }
@@ -209,44 +259,50 @@ impl PaintCache {
         let Some(painted) = self.entries.get(&id) else {
             return Rect::NOTHING;
         };
-        let bounds = painted
-            .items
-            .iter()
-            .filter_map(|item| match item {
-                Item::Child(child) => Some(self.bounds(*child)),
-                Item::Main(_) | Item::Top(_) => None,
-            })
+        let bounds = children(&painted.items)
+            .map(|(child, entry)| entered_bounds(self.bounds(child), entry))
             .fold(painted.own, |bounds, child| bounds.union(child));
+        let below = self.reads_below(&painted.items);
         if let Some(painted) = self.entries.get_mut(&id) {
             painted.bounds = bounds;
+            painted.below = below;
         }
         bounds
     }
 
+    fn reads_below(&self, items: &[Item]) -> bool {
+        children(items).any(|(child, _)| {
+            self.entries
+                .get(&child)
+                .is_some_and(|painted| painted.reads || painted.below)
+        })
+    }
+
     fn store(&mut self, id: NodeId, placement: Placement, recorded: Recorded) {
+        let below = self.reads_below(&recorded.items);
         let painted = Painted {
             placement,
             items: recorded.items,
             own: recorded.own,
             bounds: recorded.bounds,
+            reads: recorded.reads,
+            below,
         };
+        let state = placement.painter;
         let old = self.entries.remove(&id);
         let redrawn = old
             .as_ref()
             .and_then(|old| redrawn_damage(&old.items, &painted.items));
-        match old {
-            None => self.damage.add(painted.bounds),
-            Some(_) if redrawn.is_some() => {
-                self.damage = self.damage.union(redrawn.unwrap_or_default());
-            }
+        let damaged: Vec<Rect> = match old {
+            None => vec![painted.bounds],
+            Some(_) if redrawn.is_some() => redrawn.unwrap_or_default().rects().to_vec(),
             Some(old) if children(&old.items).eq(children(&painted.items)) => {
-                self.damage.add(old.own);
-                self.damage.add(painted.own);
+                vec![old.own, painted.own]
             }
-            Some(old) => {
-                self.damage.add(old.bounds);
-                self.damage.add(painted.bounds);
-            }
+            Some(old) => vec![old.bounds, painted.bounds],
+        };
+        for rect in damaged {
+            self.damage.add(absolute(rect, state));
         }
         match recorded.deadline {
             Some(deadline) => self.deadlines.insert(id, deadline),
@@ -254,6 +310,33 @@ impl PaintCache {
         };
         self.entries.insert(id, painted);
         self.recorded = true;
+    }
+}
+
+fn resumed(parent: PainterState, held: PainterState, entry: Entry) -> PainterState {
+    let (space_clip, origin) = match entry {
+        Some((translation, kept)) => (
+            parent.space_clip.intersect(kept).translate(-translation),
+            parent.origin + translation,
+        ),
+        None => (parent.space_clip, parent.origin),
+    };
+    PainterState {
+        space_clip,
+        origin,
+        entry,
+        ..held
+    }
+}
+
+fn absolute(rect: Rect, state: PainterState) -> Rect {
+    rect.intersect(state.space_clip).translate(state.origin)
+}
+
+fn entered_bounds(bounds: Rect, entry: Entry) -> Rect {
+    match entry {
+        Some((translation, kept)) => bounds.translate(translation).intersect(kept),
+        None => bounds,
     }
 }
 
@@ -314,15 +397,15 @@ pub(crate) fn redrawn_in_place(old: &Shape, new: &Shape) -> Option<Region> {
     Some(region)
 }
 
-fn children(items: &[Item]) -> impl Iterator<Item = NodeId> + '_ {
+fn children(items: &[Item]) -> impl Iterator<Item = (NodeId, Entry)> + '_ {
     items.iter().filter_map(|item| match item {
-        Item::Child(child) => Some(*child),
+        Item::Child(child, entry) => Some((*child, *entry)),
         Item::Main(_) | Item::Top(_) => None,
     })
 }
 
 pub(crate) fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
-    let rect = rects.get(&id).expect("node was not placed");
+    let rect = rects.placed(&id).expect("node was not placed").rect;
     let ctx = painter.ctx();
     let placement = Placement {
         rect,
@@ -348,14 +431,68 @@ pub(crate) fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId
         Visit::Record => {
             doc.note_painted(false);
             ctx.enter_paint(id);
-            doc.arena.get(id).paint(doc, painter, rects, rect);
-            let recorded = ctx.exit_paint();
+            let outer = ctx.swap_space_read(false);
+            doc.arena.get(id).paint(doc, &painter.inner(), rects, rect);
+            let reads = ctx.swap_space_read(outer);
+            let recorded = Recorded {
+                reads,
+                ..ctx.exit_paint()
+            };
             let bounds = recorded.bounds;
             doc.paint_cache.borrow_mut().store(id, placement, recorded);
             bounds
         }
     };
-    ctx.paint_child(id, bounds);
+    let entry = placement.painter.entry;
+    ctx.paint_child(id, entry, entered_bounds(bounds, entry));
+}
+
+fn placed_shape(shape: &Shape, offset: Vec2, space_clip: Rect) -> Shape {
+    let mut shape = shape.clone();
+    match &mut shape {
+        Shape::Rect {
+            rect,
+            rotation,
+            clip,
+            ..
+        }
+        | Shape::Image {
+            rect,
+            rotation,
+            clip,
+            ..
+        }
+        | Shape::Punch {
+            rect,
+            rotation,
+            clip,
+            ..
+        } => {
+            *rect = rect.translate(offset);
+            *rotation = rotation.translate(offset);
+            *clip = clip.translate(offset).intersect(space_clip);
+        }
+        Shape::Text {
+            origin,
+            rotation,
+            clip,
+            ..
+        } => {
+            *origin += offset;
+            *rotation = rotation.translate(offset);
+            *clip = clip.translate(offset).intersect(space_clip);
+        }
+        Shape::Line { from, to, clip, .. } => {
+            *from += offset;
+            *to += offset;
+            *clip = clip.translate(offset).intersect(space_clip);
+        }
+        Shape::Drawing { rect, clip, .. } => {
+            *rect = rect.translate(offset);
+            *clip = clip.translate(offset).intersect(space_clip);
+        }
+    }
+    shape
 }
 
 pub(crate) fn same_shape(left: &Shape, right: &Shape) -> bool {

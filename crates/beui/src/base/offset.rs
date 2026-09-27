@@ -102,6 +102,8 @@ pub(crate) struct OffsetNode {
     extents: Extents,
     pub(crate) on_change: Callback<ScrollPosition>,
     pub(crate) reported: Option<ScrollPosition>,
+    translation: Vec2,
+    host: Option<NodeId>,
 }
 
 impl OffsetNode {
@@ -117,6 +119,8 @@ impl OffsetNode {
             extents: Extents::default(),
             on_change: Callback::empty(),
             reported: None,
+            translation: Vec2::ZERO,
+            host: None,
         }
     }
 
@@ -232,7 +236,7 @@ impl OffsetNode {
     }
 
     fn place(
-        &self,
+        &mut self,
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
@@ -243,19 +247,21 @@ impl OffsetNode {
         let main = self.direction.main(rect.size());
         let start = self.direction.main(rect.min.to_vec2());
         let offset = doc.pixel_grid().snap(position.offset + self.overscroll);
-        let clipped = painter.with_clip_rect(rect);
+        self.translation = self.direction.axes(-offset, 0.0);
+        self.host = Some(host);
+        let entered = doc.enter_space(host, painter, self.translation, rect, out);
         doc.enter_scroll_host(host);
         let extents = &self.extents;
         for index in extents.first_ending_after(offset)..extents.items.len() {
-            let cursor = start - offset + extents.start(index);
-            if cursor >= start + main {
+            let cursor = start + extents.start(index);
+            if cursor - offset >= start + main {
                 break;
             }
             let length = extents.lengths[index];
-            if cursor + length > start {
+            if cursor - offset + length > start {
                 crate::layout::layout(
                     doc,
-                    &clipped,
+                    &entered,
                     extents.items[index],
                     item_rect(self.direction, rect, cursor, length),
                     out,
@@ -335,10 +341,13 @@ impl Element for OffsetNode {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
-        let clipped = painter.with_clip_rect(rect);
+        let Some(host) = self.host else {
+            return;
+        };
+        let entered = painter.entered(host, self.translation, rect);
         for item in self.items.iter() {
             if rects.contains_key(item) {
-                crate::paint::paint(doc, &clipped, rects, *item);
+                crate::paint::paint(doc, &entered, rects, *item);
             }
         }
     }

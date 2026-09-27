@@ -37,7 +37,7 @@ pub(crate) fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Re
     let rect = doc.pixel_grid().snap_rect(rect);
     doc.note_placed(id);
     let state = painter.state();
-    if doc.reusable_placement(id, rect, state, out) {
+    if doc.reuse_placement(id, rect, state, out) {
         doc.note_placed_work(true);
         return;
     }
@@ -45,14 +45,17 @@ pub(crate) fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Re
     doc.record_placement(id, rect, state, out);
     let watermark = doc.arena.relaid_len();
     doc.deliver_unmeasured_constraint(id, rect.size());
-    doc.deliver_placement(id, rect);
+    doc.deliver_placement(id, rect.translate(state.origin));
     doc.assert_confined(id, watermark);
     if !doc.arena.contains(id) {
         return;
     }
     let mut element = doc.arena.take(id);
     let frame = doc.enter_layout(id);
+    let outer = painter.ctx().swap_space_read(false);
     element.layout(doc, painter, rect, out);
+    let reads = painter.ctx().swap_space_read(outer);
+    doc.note_space_reads(id, reads, frame.base());
     doc.leave_layout(id, frame, out);
     doc.arena.put_back(id, element);
     let settled = doc.arena.relaid_len();

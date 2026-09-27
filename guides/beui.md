@@ -1600,6 +1600,21 @@ A change under it stops there: its ancestors keep their placement, and it is lai
 out again on its own from the rectangle and painter it was last placed with. Only
 return true when `measure` never reads the children.
 
+A scroll's `OffsetNode` starts a coordinate space of its own: it lays its items
+out where they sit in its content, unscrolled, and hands them
+`Document::enter_space`'s painter, which carries the scroll's translation and
+clip. Scrolling changes only that translation, so the rows keep their rects and
+their recorded shapes, and neither is laid out nor painted again; the scroll
+repaints by moving them. `layout` and `paint` therefore see rects in their
+space, and so do the shapes they record, while `Document::node_rect`,
+`node_rect`/`component_rect` and the rect `interact` is handed are on the
+screen. A node that needs to know where it sits on the screen asks the painter:
+`painter.origin()` is where its space starts, and `painter.clip_rect()` is what
+of it is visible, in its own space. Asking either marks the node as depending on
+its place, so it is laid out, or painted, again when that changes - an `Embed`
+reports its rectangle this way, and a `VirtualList` realises the rows its clip
+shows.
+
 Painting is retained per node. A node's `paint` runs again when the node
 changed, when it was laid out again, when its rectangle or the painter it is
 handed changed, or when a repaint it asked for falls due; otherwise the shapes

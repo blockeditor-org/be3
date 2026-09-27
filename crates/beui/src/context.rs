@@ -9,7 +9,7 @@ use crate::accessibility::{self, Fragment};
 use crate::damage::{self, Region};
 use crate::filter::Filter;
 use crate::font::{FontId, FontSources, Fonts, Galley, TextLayout};
-use crate::geometry::{Rect, pos2};
+use crate::geometry::{Rect, Vec2, pos2};
 use crate::input::{CursorIcon, Event, ImeArea, InputState, RawInput};
 use crate::mouse_simulation::MouseSimulation;
 use crate::node::NodeId;
@@ -30,6 +30,7 @@ struct Inner {
     top_shapes: RefCell<Vec<Shape>>,
     filter: Cell<Option<(Filter, usize)>>,
     paint_stack: RefCell<Vec<PaintFrame>>,
+    space_read: Cell<bool>,
     damage: RefCell<Vec<Rect>>,
     test_ids: RefCell<HashMap<String, Rect>>,
     ambiguous_test_ids: RefCell<HashSet<String>>,
@@ -141,6 +142,7 @@ impl Context {
                 top_shapes: RefCell::new(Vec::new()),
                 filter: Cell::new(None),
                 paint_stack: RefCell::new(Vec::new()),
+                space_read: Cell::new(false),
                 damage: RefCell::new(Vec::new()),
                 test_ids: RefCell::new(HashMap::new()),
                 ambiguous_test_ids: RefCell::new(HashSet::new()),
@@ -450,6 +452,14 @@ impl Context {
         self.pop_paint_frame().bounds
     }
 
+    pub(crate) fn note_space_read(&self) {
+        self.inner.space_read.set(true);
+    }
+
+    pub(crate) fn swap_space_read(&self, read: bool) -> bool {
+        self.inner.space_read.replace(read)
+    }
+
     pub(crate) fn enter_paint(&self, id: NodeId) {
         self.push_paint_frame(Some(id));
     }
@@ -485,14 +495,15 @@ impl Context {
             own: frame.own,
             bounds: frame.bounds,
             deadline: (frame.delay < Duration::MAX).then(|| Instant::now() + frame.delay),
+            reads: false,
         }
     }
 
-    pub(crate) fn paint_child(&self, id: NodeId, bounds: Rect) {
+    pub(crate) fn paint_child(&self, id: NodeId, entry: Option<(Vec2, Rect)>, bounds: Rect) {
         if let Some(frame) = self.inner.paint_stack.borrow_mut().last_mut() {
             frame.bounds = frame.bounds.union(bounds);
             if frame.id.is_some() {
-                frame.items.push(Item::Child(id));
+                frame.items.push(Item::Child(id, entry));
             }
         }
     }

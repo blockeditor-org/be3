@@ -213,7 +213,8 @@ impl Element for OverlayNode {
             let [red, green, blue, alpha] = self.dim.to_array();
             let alpha = (f32::from(alpha) * (1.0 - self.back.progress)).round() as u8;
             let dim = Color32::from_rgba_unmultiplied(red, green, blue, alpha);
-            painter.rect_filled(doc.viewport_rect(), 0.0, dim);
+            let viewport = doc.viewport_rect().translate(-painter.origin());
+            painter.rect_filled(viewport, 0.0, dim);
         }
     }
 

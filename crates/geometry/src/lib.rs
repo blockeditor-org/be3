@@ -375,6 +375,16 @@ impl Rotation {
         bounds
     }
 
+    pub fn translate(self, offset: Vec2) -> Self {
+        if !self.turns() {
+            return self;
+        }
+        Self {
+            pivot: self.pivot + offset,
+            angle: self.angle,
+        }
+    }
+
     pub fn scaled(self, scale: f32) -> Self {
         Self {
             pivot: pos2(self.pivot.x * scale, self.pivot.y * scale),
