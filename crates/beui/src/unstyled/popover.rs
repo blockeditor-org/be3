@@ -93,14 +93,16 @@ pub fn Popover(
     }));
 
     let refocus_trigger = create_memo(move || refocus_trigger.get());
-    let close = Callback::new(clone!(open set_open set_refocus refocus_trigger -> move |()| {
-        if open.get_untracked() {
-            if refocus_trigger.get_untracked() {
-                set_refocus.set(true);
+    let close = Callback::new(
+        clone!(open set_open set_refocus refocus_trigger -> move |()| {
+            if open.get_untracked() {
+                if refocus_trigger.get_untracked() {
+                    set_refocus.set(true);
+                }
+                set_open.set(false);
             }
-            set_open.set(false);
-        }
-    }));
+        }),
+    );
     let anchor = anchor.unwrap_or_else(|| trigger_ref.clone());
     let placement = match placement {
         PopoverPlacement::Below => Placement::BelowStart,

@@ -23,7 +23,10 @@ fn grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was() {
     let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let area = harness.rect(picker.get());
-    let grabbed = pos2(area.left() + PICKER_WIDTH / 2.0 + 4.0, area.top() + 78.0 + 4.0);
+    let grabbed = pos2(
+        area.left() + PICKER_WIDTH / 2.0 + 4.0,
+        area.top() + 78.0 + 4.0,
+    );
 
     harness.drag(grabbed, pos2(grabbed.x + 61.0, grabbed.y));
     harness.frame(Vec::new());

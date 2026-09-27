@@ -32,7 +32,10 @@ fn a_calendar_reaches_a_distant_year_from_its_years_view() {
     harness.key(Key::Enter, Modifiers::NONE);
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
-    assert!(picked.borrow().is_empty(), "choosing a year and a month only shows them");
+    assert!(
+        picked.borrow().is_empty(),
+        "choosing a year and a month only shows them"
+    );
     harness.key(Key::Enter, Modifiers::NONE);
 
     assert_eq!(*picked.borrow(), [Date::new(1982, 4, 15)]);

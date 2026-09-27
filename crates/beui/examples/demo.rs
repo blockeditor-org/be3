@@ -1,5 +1,5 @@
 use beui::datetime::{Date, DateTime, HourCycle, Time};
-use beui::icons::{ICON_BUG_REPORT, ICON_GRID_VIEW};
+use beui::icons::{ICON_BUG_REPORT, ICON_GRID_VIEW, ICON_PLAY_ARROW};
 use beui::reactive::{
     Align, Callback, Canvas, CanvasItem, CanvasView, ForEach, Frame, Keyed, List, Memo, ReadSignal,
     Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
@@ -10,8 +10,8 @@ use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Calendar, Caption, Card, Checkbox, ColorInput,
     ColorPicker, ContextMenu, DateTimeField, Display, Heading, IconButton, Link, Listbox,
     NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scroll, Select, Separator,
-    Shortcut, Slider, Stack, Switch, TextArea, TextInput, Title, ToggleButton, Tree, TreeRowFace,
-    use_theme,
+    Shortcut, Slider, SplitButton, Stack, Switch, TextArea, TextInput, Title, ToggleButton, Tree,
+    TreeRowFace, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle,
@@ -1173,6 +1173,8 @@ const FRUITS: [&str; 6] = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"
 fn MenuControls() -> NodeId {
     let (fruit_status_text, set_fruit_status_text) = create_signal("Apple selected".to_string());
     let (menu_status_text, set_menu_status_text) = create_signal("Nothing chosen yet".to_string());
+    let (run_status, set_run_status) = create_signal("Not running".to_owned());
+    let (save_status, set_save_status) = create_signal("Not saved".to_owned());
 
     let (copied, set_copied) = create_signal(false);
     let nothing_copied = create_memo(move || !copied.get());
@@ -1209,6 +1211,39 @@ fn MenuControls() -> NodeId {
                     }}
                 />
                 <Caption content={fruit_status_text} />
+                <Caption content="Split buttons" />
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
+                    <SplitButton
+                        label="Run the app"
+                        glyph={ICON_PLAY_ARROW.to_owned()}
+                        variant=ButtonVariant::Primary
+                        menu_label="More ways to run it"
+                        items={view! {
+                            <unstyled::MenuItem label="Run with fresh data" />
+                            <unstyled::MenuItem label="Run on the web" />
+                        }}
+                        on_click={clone!(set_run_status -> move || set_run_status.set("Running the app".to_owned()))}
+                        on_select={move |path: Vec<usize>| {
+                            let how = match path.as_slice() {
+                                [0] => "with fresh data",
+                                _ => "on the web",
+                            };
+                            set_run_status.set(format!("Running the app {how}"));
+                        }}
+                    />
+                    <SplitButton
+                        label="Save"
+                        variant=ButtonVariant::Secondary
+                        menu_label="More ways to save"
+                        items={view! {
+                            <unstyled::MenuItem label="Save as a copy" />
+                        }}
+                        on_click={clone!(set_save_status -> move || set_save_status.set("Saved".to_owned()))}
+                        on_select={move |_: Vec<usize>| set_save_status.set("Saved a copy".to_owned())}
+                    />
+                </List>
+                <Caption content={run_status} />
+                <Caption content={save_status} />
             </List>
             <List @sizing=ItemSize::Percent(50.0) spacing=8.0>
                 <ContextMenu

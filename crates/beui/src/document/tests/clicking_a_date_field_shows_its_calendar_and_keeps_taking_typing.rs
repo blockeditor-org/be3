@@ -49,7 +49,10 @@ fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
 
     harness.type_text("1982");
     harness.frame(Vec::new());
-    assert!(showing(&harness, "September 1982"), "the calendar follows what is typed");
+    assert!(
+        showing(&harness, "September 1982"),
+        "the calendar follows what is typed"
+    );
     assert_eq!(*reported.borrow(), [Some(Date::new(1982, 9, 27))]);
 
     harness.key(Key::Escape, Modifiers::NONE);
@@ -65,5 +68,8 @@ fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
     let rect = harness.rect(field.get());
     harness.click(pos2(rect.right() - 60.0, rect.center().y));
     harness.frame(Vec::new());
-    assert!(open(&harness), "clicking the space beside the segments shows the calendar too");
+    assert!(
+        open(&harness),
+        "clicking the space beside the segments shows the calendar too"
+    );
 }

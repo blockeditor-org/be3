@@ -330,7 +330,7 @@ gesture in progress is dropped rather than committed. A finger dragged across a
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, a multiline text
-editor with its find and replace bar, menus, popovers, tabs, trees, a calendar,
+editor with its find and replace bar, menus, popovers, split buttons, tabs, trees, a calendar,
 date and time fields, a color picker and a color input,
 progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout.
 `Separator` is the rule between them: it runs `Direction::Horizontal` unless the
@@ -488,6 +488,11 @@ above the centre of the range as well, which gives the top end the fine part
 of the track instead. A midpoint outside the range, or one that lands where
 the centre already is, leaves the slider linear.
 
+A slider given a `thumb` length maps the pointer to the thumb's centre, which
+travels the track inset by half of it, and a press that lands on the thumb
+drags it from where it was grabbed rather than jumping it to the pointer;
+`ColorArea` takes the same prop for its two axes.
+
 The curve applies everywhere the value and the track meet. Dragging maps the
 position under the pointer through it, the knob sits where the value falls on
 it, and keyboard steps move by a share of the track rather than a share of the
@@ -506,15 +511,21 @@ seconds as UTC, which is what block content stores.
 (`DateTimeParts::Date`, `Time` or `DateTime`). It is a row of spin-button
 segments, one per year, month, day, hour, minute and (on a 12-hour
 `hour_cycle`) AM/PM, beside a button that opens a popover holding a
-`Calendar`, a `TimeList`, or both. Its `value` is an `Option<DateTime>`: an
+`Calendar`, a `TimeList`, or both. A click anywhere in the field, or Alt+Down
+in a segment, opens the same popover over the field with an editable copy of
+the segments on top, focused on the segment that was clicked, so typing goes
+on while the calendar shows the month being typed; closing it puts the focus
+back on the field's own segment. Its `value` is an `Option<DateTime>`: an
 empty field shows placeholders, a field is reported through `on_change` only
 once every segment is filled, and a field left half filled goes back to its
 value when the focus leaves it. A `Date` field keeps the time of the value it
 was given, and a `Time` field the date. `styled::Calendar` is the month grid on
-its own, with `min` and `max` limits and a months view behind its title.
+its own, with `min` and `max` limits; its title is a month button and a year
+button, which open a grid of months and a grid of twenty years, and `show`
+moves it to a month without selecting anything.
 
 `styled::ColorPicker` is a saturation and brightness area, hue and opacity
-sliders, hex and RGB fields and a row of swatches; `styled::ColorInput` is a
+sliders, hex, RGB and HSL fields and a row of swatches; `styled::ColorInput` is a
 hex field whose swatch opens one. Both keep the hue while the color passes
 through grey or black, and a drag is reported through `on_preview` while it
 moves and through `on_change` once, when it ends, the way `NumberInput`

@@ -172,18 +172,22 @@ pub fn Calendar(
 
     let shown_month = create_memo(clone!(active -> move || active.get().first_of_month()));
     let first_year = create_memo(clone!(active -> move || page_start(active.get().year)));
-    let label = create_memo(clone!(shown_month mode first_year -> move || match mode.get() {
-        CalendarMode::Days => shown_month.get().month_label(),
-        CalendarMode::Months => shown_month.get().year.to_string(),
-        CalendarMode::Years => years_label(first_year.get()),
-    }));
+    let label = create_memo(
+        clone!(shown_month mode first_year -> move || match mode.get() {
+            CalendarMode::Days => shown_month.get().month_label(),
+            CalendarMode::Months => shown_month.get().year.to_string(),
+            CalendarMode::Years => years_label(first_year.get()),
+        }),
+    );
     let month_label = create_memo(clone!(shown_month -> move || {
         shown_month.get().month_name().to_owned()
     }));
-    let year_label = create_memo(clone!(shown_month mode first_year -> move || match mode.get() {
-        CalendarMode::Years => years_label(first_year.get()),
-        CalendarMode::Days | CalendarMode::Months => shown_month.get().year.to_string(),
-    }));
+    let year_label = create_memo(
+        clone!(shown_month mode first_year -> move || match mode.get() {
+            CalendarMode::Years => years_label(first_year.get()),
+            CalendarMode::Days | CalendarMode::Months => shown_month.get().year.to_string(),
+        }),
+    );
     let can_previous = create_memo(clone!(state shown_month first_year -> move || {
         let edge = match state.mode.get() {
             CalendarMode::Days => shown_month.get().add_days(-1),
@@ -208,8 +212,12 @@ pub fn Calendar(
         mode: mode.clone(),
         previous: Callback::new(clone!(state -> move |()| page(&state, -1))),
         next: Callback::new(clone!(state -> move |()| page(&state, 1))),
-        show_months: Callback::new(clone!(state -> move |()| show_mode(&state, CalendarMode::Months))),
-        show_years: Callback::new(clone!(state -> move |()| show_mode(&state, CalendarMode::Years))),
+        show_months: Callback::new(
+            clone!(state -> move |()| show_mode(&state, CalendarMode::Months)),
+        ),
+        show_years: Callback::new(
+            clone!(state -> move |()| show_mode(&state, CalendarMode::Years)),
+        ),
         can_previous,
         can_next,
     });
@@ -332,7 +340,8 @@ fn CalendarYear(
             || state.max.get().is_some_and(|max| year > max.year)
     }));
     let tab_stop = create_memo(clone!(state year -> move || state.active.get().year == year.get()));
-    let focused = create_memo(clone!(state year -> move || state.year_focus.get() == Some(year.get())));
+    let focused =
+        create_memo(clone!(state year -> move || state.year_focus.get() == Some(year.get())));
     let accessibility = create_memo(clone!(year selected -> move || {
         let mut node = Node::new(Role::GridCell);
         node.set_label(year.get().to_string());

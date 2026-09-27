@@ -12,7 +12,7 @@ use crate::node::NodeId;
 use crate::painter::Painter;
 use crate::reactive::{
     Callback, Draw, Drawing, ForEach, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show,
-    WriteSignal, clone, create_effect, create_memo, create_signal,
+    WriteSignal, clone, create_effect, create_memo, create_signal, focus_ring,
 };
 use crate::styled::number_input::NumberInput;
 use crate::styled::text::Caption;
@@ -302,7 +302,12 @@ fn ColorFields(picker: Picker, alpha: bool) -> NodeId {
             let mut parts = held.hsl();
             parts[index] = typed as f32 / scale;
             let [hue, saturation, lightness] = parts;
-            picker.apply(Hsva::from_hsl(hue.clamp(0.0, 359.999), saturation, lightness, held.alpha));
+            picker.apply(Hsva::from_hsl(
+                hue.clamp(0.0, 359.999),
+                saturation,
+                lightness,
+                held.alpha,
+            ));
         }
     };
     let set_hue = set_hsl(0, 1.0);
@@ -450,7 +455,7 @@ fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
             outline_width=FOCUS_RING_WIDTH
             radius={RADIUS + 2}
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
         >
             <Frame height=AREA_HEIGHT>
                 <Drawing draw />
@@ -509,7 +514,7 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
             outline_width=FOCUS_RING_WIDTH
             radius=10
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
         >
             <Frame height=SLIDER_HEIGHT>
                 <Drawing draw />
@@ -541,19 +546,15 @@ pub(crate) fn ColorSwatch(color: Prop<Color32>, width: f32, height: f32) -> Node
 #[component]
 fn SwatchFace(handle: ChoiceOptionHandle, color: Color32) -> NodeId {
     let ChoiceOptionHandle {
-        selected,
-        hovered,
-        focused,
-        ..
+        selected, focused, ..
     } = handle;
     let theme = use_theme();
-    let ring = create_memo(clone!(selected focused -> move || selected.get() || focused.get()));
-    let ring_color = create_memo(
-        clone!(theme -> move || match (focused.get(), hovered.get()) {
-            (true, _) => theme.accent.get(),
-            (false, _) => theme.text.get(),
-        }),
-    );
+    let keyboard = focus_ring(focused);
+    let ring = create_memo(clone!(selected keyboard -> move || selected.get() || keyboard.get()));
+    let ring_color = create_memo(clone!(theme -> move || match keyboard.get() {
+        true => theme.accent.get(),
+        false => theme.text.get(),
+    }));
     view! {
         <Frame
             outline={ring_color}

@@ -10,7 +10,7 @@ use beui::reactive::{
     create_memo, create_signal, view,
 };
 use beui::styled::theme::FONT_BODY;
-use beui::styled::{Button, ButtonVariant, Caption, MenuButton, Spinner, use_theme};
+use beui::styled::{ButtonVariant, Caption, Spinner, SplitButton, use_theme};
 use beui::unstyled::MenuItem;
 
 use crate::android;
@@ -382,28 +382,20 @@ pub(crate) fn Actions(
             _ => {}
         }
     });
-    let menu_disabled = disabled.clone();
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=1.0>
-            <Button
-                label="Run"
-                glyph=ICON_PLAY_ARROW
-                variant=ButtonVariant::Primary
-                disabled
-                on_click={run}
-            />
-            <MenuButton
-                label="More ways to run it"
-                variant=ButtonVariant::Primary
-                icon_only=true
-                disabled={menu_disabled}
-                items={view! {
-                    <MenuItem label="Run with fresh data" />
-                    <MenuItem label="Install its launcher" />
-                }}
-                on_select={pick}
-            />
-        </List>
+        <SplitButton
+            label="Run"
+            glyph=ICON_PLAY_ARROW
+            variant=ButtonVariant::Primary
+            menu_label="More ways to run it"
+            disabled
+            items={view! {
+                <MenuItem label="Run with fresh data" />
+                <MenuItem label="Install its launcher" />
+            }}
+            on_click={run}
+            on_select={pick}
+        />
     }
 }
 
@@ -451,7 +443,6 @@ pub(crate) fn Notes(
 pub(crate) fn MainActions(model: Model) -> NodeId {
     let phone = model.phone.clone();
     let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
-    let menu_busy = busy.clone();
     let run = clone!(phone -> move || phone.run(Slot::Main, now_key(), false));
     let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
         [0] => phone.run(Slot::Main, now_key(), true),
@@ -468,26 +459,19 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
         <List spacing=8.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Caption @sizing=ItemSize::Percent(100.0) content={summary} />
-                <List direction=Direction::Horizontal align=Align::Center spacing=1.0>
-                    <Button
-                        label="Run main"
-                        glyph=ICON_PLAY_ARROW
-                        variant=ButtonVariant::Secondary
-                        disabled={busy}
-                        on_click={run}
-                    />
-                    <MenuButton
-                        label="More ways to run main"
-                        variant=ButtonVariant::Secondary
-                        icon_only=true
-                        disabled={menu_busy}
-                        items={view! {
-                            <MenuItem label="Run main with fresh data" />
-                            <MenuItem label="Install main's launcher" />
-                        }}
-                        on_select={pick}
-                    />
-                </List>
+                <SplitButton
+                    label="Run main"
+                    glyph=ICON_PLAY_ARROW
+                    variant=ButtonVariant::Secondary
+                    menu_label="More ways to run main"
+                    disabled={busy}
+                    items={view! {
+                        <MenuItem label="Run main with fresh data" />
+                        <MenuItem label="Install main's launcher" />
+                    }}
+                    on_click={run}
+                    on_select={pick}
+                />
             </List>
             <SlotNotes model slot={Slot::Main} />
         </List>

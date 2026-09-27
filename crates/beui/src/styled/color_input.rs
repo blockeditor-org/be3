@@ -5,6 +5,7 @@ use crate::color::{Color32, format_hex};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, Frame, ItemSize, List, Memo, Prop, clone, create_effect, create_memo, create_signal,
+    focus_ring,
 };
 use crate::styled::color_picker::{ColorPicker, ColorSwatch};
 use crate::styled::popover::PopoverPanel;
@@ -113,7 +114,7 @@ fn SwatchTrigger(
                 outline_width=FOCUS_RING_WIDTH
                 radius={RADIUS + 2}
                 outline_offset=FOCUS_RING_OFFSET
-                outline_visible={focused}
+                outline_visible={focus_ring(focused)}
             >
                 <ColorSwatch color width=SWATCH_WIDTH height=SWATCH_HEIGHT />
             </Frame>

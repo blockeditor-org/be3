@@ -10,8 +10,8 @@ use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, ClickCatcher, Focusable, Memo, Prop, ReadSignal, Render, clone,
-    component_accessibility, component_rect, create_effect, create_memo, create_signal, set_component_state,
-    untrack,
+    component_accessibility, component_rect, create_effect, create_memo, create_signal,
+    set_component_state, untrack,
 };
 
 const STEP: f32 = 0.05;

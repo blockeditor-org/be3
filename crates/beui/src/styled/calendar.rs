@@ -4,11 +4,13 @@ use beui_macros::{component, view};
 use crate::base::{Align, Direction, TextAlign};
 use crate::color::Color32;
 use crate::datetime::{Date, Weekday};
-use crate::icons::{ICON_ARROW_DROP_DOWN, ICON_ARROW_DROP_UP, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT};
+use crate::icons::{
+    ICON_ARROW_DROP_DOWN, ICON_ARROW_DROP_UP, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT,
+};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, ClickCallback, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, Text, clone,
-    create_memo,
+    create_memo, focus_ring,
 };
 use crate::styled::button::{ButtonFace, ButtonVariant};
 use crate::styled::icon_button::{IconButton, IconButtonSize};
@@ -301,7 +303,7 @@ fn CellFace(
             outline_width=FOCUS_RING_WIDTH
             radius={RADIUS + 2}
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
         >
             <Frame
                 height

@@ -6,12 +6,12 @@ use crate::base::{Align, Direction, TextAlign};
 use crate::color::Color32;
 use crate::datetime::{Date, DateTime, HourCycle, Time, Weekday};
 use crate::icons::{ICON_CALENDAR_MONTH, ICON_SCHEDULE};
-use crate::node::NodeId;
 use crate::input::{CursorIcon, PointerPress};
+use crate::node::NodeId;
 use crate::reactive::{
     Callback, Children, ClickCallback, ClickCatcher, Frame, ItemSize, List, ListChild, Memo,
     NodeRef, Prop, ReadSignal, Show, Spacer, Text, WriteSignal, clone, component_rect,
-    create_effect, create_memo, create_signal, create_timer,
+    create_effect, create_memo, create_signal, create_timer, focus_ring,
 };
 use crate::styled::button::{Button, ButtonVariant};
 use crate::styled::calendar::{CALENDAR_WIDTH, Calendar};
@@ -104,14 +104,16 @@ pub fn DateTimeField(
         true => DateSegment::Year,
         false => DateSegment::Hour,
     };
-    let open_at = Callback::new(clone!(disabled set_open set_from_field set_inner_focus -> move |segment: DateSegment| {
-        if disabled.get_untracked() {
-            return;
-        }
-        set_from_field.set(true);
-        set_inner_focus.set(Some(segment));
-        set_open.set(true);
-    }));
+    let open_at = Callback::new(
+        clone!(disabled set_open set_from_field set_inner_focus -> move |segment: DateSegment| {
+            if disabled.get_untracked() {
+                return;
+            }
+            set_from_field.set(true);
+            set_inner_focus.set(Some(segment));
+            set_open.set(true);
+        }),
+    );
     let pressed = create_timer(clone!(outer_segment open_at -> move || {
         open_at.call(outer_segment.get_untracked().unwrap_or(first));
         None
@@ -150,7 +152,7 @@ pub fn DateTimeField(
             outline_width=FOCUS_RING_WIDTH
             radius={RADIUS + 3}
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={within.clone()}
+            outline_visible={focus_ring(within.clone())}
         >
             <FieldBox
                 field
@@ -351,7 +353,7 @@ fn PickerTrigger(
                 outline_width=FOCUS_RING_WIDTH
                 radius=RADIUS
                 outline_offset=1.0
-                outline_visible={focused}
+                outline_visible={focus_ring(focused)}
             >
                 <Frame
                     color={fill}
@@ -557,7 +559,7 @@ fn TimeOptionFace(handle: TimeOptionHandle) -> NodeId {
             outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH
             outline_offset=-1.0
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
             padding_horizontal=10.0
         >
             <Text string={label} font_size=FONT_BODY color={ink} vertical_align=TextAlign::Center />

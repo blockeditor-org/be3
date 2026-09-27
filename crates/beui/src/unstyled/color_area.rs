@@ -11,7 +11,8 @@ use crate::input::{CursorIcon, Key, KeyPress, PointerPress};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, ClickCatcher, Focusable, Memo, Prop, ReadSignal, Render, clone,
-    component_accessibility, component_rect, create_effect, create_memo, create_signal, set_component_state,
+    component_accessibility, component_rect, create_effect, create_memo, create_signal,
+    set_component_state,
 };
 
 const STEP: f32 = 0.01;
