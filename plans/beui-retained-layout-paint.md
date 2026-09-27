@@ -39,8 +39,13 @@ What follows is the rest, roughly in order of value.
 - **Scroll by copying.** With local coordinates, an opaque scroll viewport can
   copy the retained frame by the scroll delta and repaint only the exposed
   strip.
-- **Damage across the plugin boundary.** `block-editor-beui` prepares its
-  renderer with `Repaint::Everything` every time, so a plugin pane repaints all
-  of itself for a caret blink. The plugin protocol could carry damaged rects
-  (plain rectangles keep it framework-independent) and the host could scissor
-  its blit to them.
+- **Damage across the plugin boundary, host half.** A plugin pane repaints only
+  what changed since the surface texture it draws into was last presented
+  (`surface_age`), but the host still treats every plugin frame as new: each
+  pending frame makes `surfaces::commit` build a new `PluginDrawing`, which
+  damages the whole surface area. `FrameReady` could carry the rects the frame
+  changed (plain surface-pixel rectangles keep the protocol framework-independent)
+  and the host could keep its drawing and damage only those rects, mapped
+  through the blit's quad. The damage has to reach the host with the frame it
+  describes (on the web the frame and the message arrive separately), and fall
+  back to the whole surface when they do not match.

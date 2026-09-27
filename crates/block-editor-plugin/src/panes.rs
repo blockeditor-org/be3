@@ -1,4 +1,5 @@
 use block_plugin_api::{ScreenLayout, ScreenPlacement};
+use std::collections::VecDeque;
 use std::time::Duration;
 
 use crate::plugin::PaintTarget;
@@ -7,7 +8,10 @@ use crate::screens::Screens;
 pub(crate) struct Panes {
     generation: Option<u64>,
     format: wgpu::TextureFormat,
+    presented: VecDeque<u64>,
 }
+
+const REMEMBERED_PRESENTS: usize = 4;
 
 pub(crate) struct Ran {
     pub(crate) changed: bool,
@@ -20,6 +24,7 @@ impl Panes {
         Self {
             format,
             generation: None,
+            presented: VecDeque::new(),
         }
     }
 
@@ -45,15 +50,22 @@ impl Panes {
     }
 
     pub(crate) fn paint(
-        &self,
+        &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         view: &wgpu::TextureView,
         layout: &ScreenLayout,
         screens: &mut Screens,
         ran: Ran,
+        age: u32,
     ) {
-        clear(device, queue, view);
+        let kept = age > 0 && self.presented.get(age as usize - 1) == Some(&layout.generation);
+        let age = if kept { age } else { 0 };
+        if age == 0 {
+            clear(device, queue, view);
+        }
+        self.presented.push_front(layout.generation);
+        self.presented.truncate(REMEMBERED_PRESENTS);
         for placement in ran.placed {
             let Some(session) = screens.session(placement.instance) else {
                 continue;
@@ -66,6 +78,7 @@ impl Panes {
                 width: layout.width,
                 height: layout.height,
                 placement,
+                age,
             });
         }
     }

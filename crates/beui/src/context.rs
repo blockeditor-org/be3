@@ -100,6 +100,10 @@ impl FrameOutput {
         self.pixels_per_point
     }
 
+    pub fn damaged(&self) -> Option<Region> {
+        (!self.damage.is_empty()).then_some(self.damage)
+    }
+
     #[cfg(test)]
     pub(crate) fn damage(&self) -> Option<Rect> {
         let bounds = self.damage.bounds();

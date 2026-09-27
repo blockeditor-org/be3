@@ -537,7 +537,22 @@ impl Renderer {
                         .collect(),
                     None => regions,
                 };
+                let [.., alpha] = background.to_array();
                 for region in &regions {
+                    if alpha < u8::MAX {
+                        Run::push(&mut runs, true, instances.len() as u32);
+                        instances.push(Instance {
+                            rect: *region,
+                            clip: *region,
+                            uv: [0.0; 4],
+                            color: [0.0, 0.0, 0.0, 1.0],
+                            params: [0.0, 0.0, 0.0, 0.0],
+                            turn: turn(Turn::NONE),
+                        });
+                    }
+                    if alpha == 0 {
+                        continue;
+                    }
                     Run::push(&mut runs, false, instances.len() as u32);
                     instances.push(Instance {
                         rect: *region,

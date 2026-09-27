@@ -49,6 +49,7 @@ pub use app::{run, run_with};
 pub use base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition, TextAlign, focus_within};
 pub use color::{Color32, Hsva, format_hex, parse_hex};
 pub use context::{Context, FrameOutput};
+pub use damage::Region;
 pub use document::{Document, verify_paint};
 pub use draw::{Quad, Quads, Turn, quads, quads_within};
 pub use drawing::Drawing;

@@ -63,7 +63,7 @@ impl Region {
         self.rects[chosen] = self.rects[chosen].union(rect);
     }
 
-    fn clipped(&self, viewport: Rect) -> Self {
+    pub fn clipped(&self, viewport: Rect) -> Self {
         let mut clipped = Self::NOTHING;
         for rect in self.rects() {
             clipped.add(rect.intersect(viewport));

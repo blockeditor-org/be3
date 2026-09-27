@@ -97,6 +97,7 @@ pub struct PaintTarget<'a> {
     pub width: u32,
     pub height: u32,
     pub placement: ScreenPlacement,
+    pub age: u32,
 }
 
 #[cfg(target_arch = "wasm32")]
