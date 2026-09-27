@@ -165,7 +165,6 @@ pub(crate) fn interact(
             zoom_pos: None,
             wheel_target: None,
             zoom_target: None,
-            touch_scroll_target: None,
             ..input
         },
     };
@@ -233,7 +232,6 @@ pub(crate) fn interact(
                 zoom_pos: None,
                 wheel_target: None,
                 zoom_target: None,
-                touch_scroll_target: None,
                 ..input
             },
         };
@@ -668,5 +666,5 @@ fn presses(element: &dyn crate::node::Element) -> bool {
     element
         .as_any()
         .downcast_ref::<crate::base::click_catcher::ClickCatcherNode>()
-        .is_some_and(|catcher| catcher.takes_presses())
+        .is_some_and(|catcher| catcher.claims_touches())
 }

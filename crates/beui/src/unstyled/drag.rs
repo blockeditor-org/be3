@@ -5,10 +5,11 @@ use std::rc::Rc;
 use beui_macros::{component, view};
 
 use crate::CursorIcon;
+use crate::base::Direction;
 use crate::base::overlay::{Overlay, OverlayAnchor, OverlayMode, Placement};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{Modifiers, PointerPress};
+use crate::input::{Modifiers, PointerPress, TOUCH_DRAG_THRESHOLD};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, ClickCallback, ClickCatcher, Dynamic, Frame, Func, IntoProp, List, Memo, Prop,
@@ -18,6 +19,7 @@ use crate::reactive::{
 
 pub const DRAG_THRESHOLD: f32 = 4.0;
 pub const DRAG_PREVIEW_OFFSET: Vec2 = Vec2::new(12.0, 14.0);
+const TOUCH_PREVIEW_OFFSET: Vec2 = Vec2::new(16.0, -64.0);
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct DragPoint {
@@ -268,6 +270,8 @@ pub fn Draggable<P>(
     #[prop(default = DRAG_THRESHOLD)] threshold: f32,
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
     #[prop(default = false)] capture_presses: Prop<bool>,
+    #[prop(default = false)] touch_drags: Prop<bool>,
+    #[prop(default = None)] touch_drag_axis: Prop<Option<Direction>>,
     on_click: ClickCallback,
     on_drag_change: Callback<bool>,
     preview: Option<RenderFn<P>>,
@@ -280,11 +284,16 @@ where
     let pressed_at = Rc::new(Cell::new(None::<Pos2>));
     let (carried, set_carried) = create_signal(None::<P>);
     let (pointer, set_pointer) = create_signal(Pos2::ZERO);
+    let (touched, set_touched) = create_signal(false);
     let dragging = create_memo(clone!(carried -> move || carried.with(Option::is_some)));
 
-    let moved = clone!(board pressed_at carried set_carried set_pointer on_drag_change payload -> move |point: DragPoint| {
+    let moved = clone!(board pressed_at carried set_carried set_pointer on_drag_change payload touched -> move |point: DragPoint| {
         let Some(origin) = pressed_at.get() else {
             return;
+        };
+        let threshold = match touched.get_untracked() {
+            true => threshold.max(TOUCH_DRAG_THRESHOLD),
+            false => threshold,
         };
         if carried.with_untracked(Option::is_some)
             || (point.pos - origin).length() < threshold
@@ -307,7 +316,10 @@ where
     let moved: Pending = Rc::new(moved);
     let pressed = clone!(board pressed_at moved -> move |press: PointerPress| {
         pressed_at.set(Some(press.pos));
-        board.press(Rc::clone(&moved));
+        set_touched.set(press.touch);
+        if !press.touch {
+            board.press(Rc::clone(&moved));
+        }
     });
     let dragged = move |press: PointerPress| moved(DragPoint::of(press));
     let clicked = clone!(carried -> move |_: PointerPress| {
@@ -334,9 +346,15 @@ where
         }
     }));
 
-    let anchor = create_memo(clone!(pointer -> move || pointer.get() + DRAG_PREVIEW_OFFSET))
-        .into_prop()
-        .map(OverlayAnchor::Point);
+    let anchor = create_memo(clone!(pointer -> move || {
+        let offset = match touched.get() {
+            true => TOUCH_PREVIEW_OFFSET,
+            false => DRAG_PREVIEW_OFFSET,
+        };
+        pointer.get() + offset
+    }))
+    .into_prop()
+    .map(OverlayAnchor::Point);
     let face = content.call(DragHandle {
         dragging: dragging.clone(),
     });
@@ -351,6 +369,8 @@ where
         <ClickCatcher
             cursor
             capture_presses
+            touch_drags
+            touch_drag_axis
             on_press={pressed}
             on_drag={dragged}
             on_click_at={clicked}
