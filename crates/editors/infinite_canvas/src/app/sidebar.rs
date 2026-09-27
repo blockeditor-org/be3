@@ -8,13 +8,12 @@ use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_CIRCLE, ICON_FORMAT_COLOR_RESET};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
-    create_memo, create_signal, view,
+    Align, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, clone, component, create_memo,
+    create_signal, view,
 };
-use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::{
     Accordion, Button, ButtonVariant, Caption, Checkbox, ColorInput, Heading, NumberDrag,
-    NumberInput, Scroll, Separator, Shortcut, Slider, TextInput, ToggleButton, use_theme,
+    NumberInput, Separator, Shortcut, Slider, TextInput, ToggleButton, use_theme,
 };
 use block_editor_beui::{ResizeMode, Sidebar};
 
@@ -25,7 +24,6 @@ use super::paint::resolve_color;
 use super::state::{Alignment, CanvasCommand, CanvasState, CommonValue, common_value};
 
 const SPACING: f32 = 10.0;
-const SHEET_PADDING: f32 = 14.0;
 
 const PRESETS: [(&str, CanvasColor); 5] = [
     ("Default", CanvasColor::Auto),
@@ -92,23 +90,6 @@ pub(crate) fn CanvasSidebar(
         <Sidebar shown={shown}>
             <Inspector state={state} />
         </Sidebar>
-    }
-}
-
-#[component]
-pub(crate) fn InspectorSheet(state: Rc<CanvasState>) -> NodeId {
-    let theme = use_theme();
-    view! {
-        <Frame color={theme.surface.clone()}>
-            <List spacing=0.0>
-                <Frame height=BORDER_WIDTH color={theme.border.clone()} />
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
-                        <Inspector state={state} />
-                    </Frame>
-                </Scroll>
-            </List>
-        </Frame>
     }
 }
 

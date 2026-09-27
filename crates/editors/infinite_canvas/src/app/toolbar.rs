@@ -1,19 +1,19 @@
 use std::rc::Rc;
 
-use block_editor_beui::Toolbar;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_DATA_OBJECT, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_KEYBOARD_ARROW_DOWN, ICON_MORE_HORIZ,
-    ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_TUNE, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, ItemSize, List, Memo, Prop, ReadSignal, Show, Spacer,
-    clone, component, create_memo, view,
+    Align, Direction, ForEach, ItemSize, List, Memo, Prop, Show, Spacer, clone, component,
+    create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, IconButton, MenuButton, ToggleButton, use_theme,
 };
 use block_editor_beui::beui::unstyled::MenuItem;
+use block_editor_beui::{Toolbar, narrow_chrome};
 
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
 
@@ -36,13 +36,8 @@ const ACTIONS: [(&str, CanvasCommand); 5] = [
 const ZOOM_PRESETS: [f32; 4] = [0.25, 0.5, 1.0, 2.0];
 
 #[component]
-pub(crate) fn CanvasToolbar(
-    state: Rc<CanvasState>,
-    shown: Prop<bool>,
-    narrow: Memo<bool>,
-    inspecting: ReadSignal<bool>,
-    on_inspect: Callback<bool>,
-) -> NodeId {
+pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId {
+    let narrow = narrow_chrome();
     let tools = Rc::clone(&state);
     let blocks = Rc::clone(&state);
     let actions = Rc::clone(&state);
@@ -50,7 +45,7 @@ pub(crate) fn CanvasToolbar(
     let errors = Rc::clone(&state);
     let compact = narrow.clone();
     let menu_compact = narrow.clone();
-    let zoom_compact = narrow.clone();
+    let zoom_compact = narrow;
     view! {
         <Toolbar shown={shown}>
             <List @sizing=ItemSize::Percent(100.0) spacing=6.0>
@@ -72,16 +67,6 @@ pub(crate) fn CanvasToolbar(
                     />
                     <ActionsMenu state={actions} compact={menu_compact} />
                     <ZoomControls state={zoom} compact={zoom_compact} />
-                    <Show condition={narrow}>
-                        <ToggleButton
-                            label="Inspector"
-                            glyph={ICON_TUNE.to_owned()}
-                            icon_only=true
-                            pressed={inspecting}
-                            @test_id={"infinite-canvas.inspector"}
-                            on_change={move |open: bool| on_inspect.call(open)}
-                        />
-                    </Show>
                 </List>
                 <ImportError state={errors} />
             </List>

@@ -4,10 +4,8 @@ use std::rc::Rc;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::{
-    Direction, ItemSize, List, NodeRef, Show, clone, component, create_effect, create_memo,
-    create_signal, view,
+    Direction, ItemSize, List, NodeRef, component, create_effect, view,
 };
-use block_editor_beui::beui::unstyled::{Container, narrower_than};
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
@@ -22,14 +20,11 @@ pub(crate) mod state;
 pub(crate) mod toolbar;
 
 use canvas::CanvasStage;
-use sidebar::{CanvasSidebar, InspectorSheet};
+use sidebar::CanvasSidebar;
 use state::CanvasState;
 use toolbar::CanvasToolbar;
 
 use crate::geometry::{MIN_SIZE, preview_region_for_entities};
-
-const NARROW_WIDTH: f32 = 640.0;
-const SHEET_SHARE: f32 = 80.0;
 
 pub struct CanvasApp;
 
@@ -63,49 +58,16 @@ fn CanvasEditor(editor: Editor) -> NodeId {
 
     let content = NodeRef::new();
     editor.content(&content);
-    view! {
-        <Container>
-            {move |_| {
-                let state = Rc::clone(&state);
-                let content = content.clone();
-                view! {
-                    <CanvasBody state={state} content={content} />
-                }
-            }}
-        </Container>
-    }
-}
-
-#[component]
-fn CanvasBody(state: Rc<CanvasState>, content: NodeRef) -> NodeId {
-    let chrome = state.editor().chrome_shown();
-    let narrow = narrower_than(NARROW_WIDTH);
-    let wide = create_memo(clone!(narrow -> move || !narrow.get()));
-    let (inspecting, set_inspecting) = create_signal(false);
-    let sheet = create_memo(clone!(chrome narrow inspecting -> move || {
-        chrome.get() && narrow.get() && inspecting.get()
-    }));
+    let chrome = editor.chrome_shown();
     let bar = Rc::clone(&state);
     let stage = Rc::clone(&state);
-    let side = Rc::clone(&state);
     view! {
         <List spacing=0.0>
-            <CanvasToolbar
-                state={bar}
-                shown={chrome.clone()}
-                narrow={narrow}
-                inspecting={inspecting}
-                on_inspect={move |open: bool| set_inspecting.set(open)}
-            />
+            <CanvasToolbar state={bar} shown={chrome.clone()} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={stage} />
-                <Show condition={wide}>
-                    <CanvasSidebar state={side} shown={chrome} />
-                </Show>
+                <CanvasSidebar state={state} shown={chrome} />
             </List>
-            <Show condition={sheet}>
-                <InspectorSheet @sizing=ItemSize::Percent(SHEET_SHARE) state={state} />
-            </Show>
         </List>
     }
 }

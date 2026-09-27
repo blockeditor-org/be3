@@ -12,14 +12,14 @@ fn a_narrow_canvas_opens_its_inspector_under_the_stage() {
     editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
     editor.record();
-    editor.click("infinite-canvas.inspector");
+    editor.click("chrome.sidebar");
     editor.run();
     editor.record();
 
     assert!(editor.shown("infinite-canvas.preview-region"));
     editor.snapshot("a_narrow_canvas_opens_its_inspector_under_the_stage");
 
-    editor.click("infinite-canvas.inspector");
+    editor.click("chrome.sidebar");
     editor.run();
     assert!(!editor.shown("infinite-canvas.preview-region"));
 }

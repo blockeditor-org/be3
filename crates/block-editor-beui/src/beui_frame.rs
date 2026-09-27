@@ -13,6 +13,7 @@ use beui::{Context, Document, Key, KeyPress};
 use block_ui::{BlockLabel, BlockTypes};
 use uuid::Uuid;
 
+use crate::chrome::ChromeRoot;
 use crate::{BlockInfo, BlockList, BlockQuery, Editor, Toolbar};
 
 const BAR_SPACING: f32 = 6.0;
@@ -32,7 +33,7 @@ pub struct BeuiFrame {
 }
 
 impl BeuiFrame {
-    pub fn build(editor: &Editor, view: impl FnOnce() -> NodeId) -> Self {
+    pub fn build(editor: &Editor, view: impl FnOnce() -> NodeId + 'static) -> Self {
         let (bar, set_bar) = create_signal(FrameBar::default());
         let exit = Rc::new(Cell::new(false));
         let exit_writer = exit.clone();
@@ -40,12 +41,16 @@ impl BeuiFrame {
         let content_slot_writer = content_slot.clone();
         let editor = editor.clone();
         let document = beui::reactive::build(move || {
-            let content = view();
-            content_slot_writer.set(Some(content));
             view! {
                 <List spacing=0.0>
                     <TopBar editor bar on_exit={move || exit_writer.set(true)} />
-                    {content} @sizing=ItemSize::Percent(100.0)
+                    <ChromeRoot @sizing=ItemSize::Percent(100.0)>
+                        {move || {
+                            let content = view();
+                            content_slot_writer.set(Some(content));
+                            content
+                        }}
+                    </ChromeRoot>
                 </List>
             }
         });
