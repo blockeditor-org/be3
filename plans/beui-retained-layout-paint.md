@@ -12,7 +12,10 @@ included. beui's own tests and `block-ui-test` repaint every frame from scratch
 and check the retained painting and its damage against it (`beui::verify_paint`).
 Layout writes the one rect map in place, stops invalidating at relayout
 boundaries and lays those out directly, and removed nodes' slots are reused
-under generational ids.
+under generational ids. A scroll keeps its items' lengths and prefix sums, told
+which items went stale by the arena, so a scroll lays out only the visible
+rows. A plugin frame reports the surface rectangles it drew into, and the host
+damages only those through `Drawing::redrawn`.
 
 What follows is the rest, roughly in order of value.
 
