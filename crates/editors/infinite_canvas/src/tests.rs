@@ -17,6 +17,7 @@ use crate::app::state::{attach_component, remove_component, set_component_value}
 use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
 
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
+mod a_finger_drags_a_transform_field_in_the_sheet;
 mod a_finger_just_outside_a_corner_resizes_the_selection;
 mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_narrow_canvas_opens_its_inspector_under_the_stage;
@@ -41,6 +42,7 @@ mod the_actions_menu_deletes_the_selection;
 mod the_canvas_paints_the_entities_it_holds;
 mod the_intrinsic_size_follows_the_preview_region;
 mod the_preview_centres_the_region_it_was_given;
+mod the_select_tool_box_selects_under_a_finger;
 mod the_transform_fields_edit_the_selected_entity;
 mod typing_a_transform_value_and_pressing_escape_edits_nothing;
 

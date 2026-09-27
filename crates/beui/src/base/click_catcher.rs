@@ -84,6 +84,14 @@ impl ClickCatcherNode {
         }
     }
 
+    pub(crate) fn takes_presses(&self) -> bool {
+        self.capture_presses
+            || !self.on_click.is_empty()
+            || !self.on_click_at.is_empty()
+            || !self.on_press.is_empty()
+            || !self.on_secondary_press.is_empty()
+    }
+
     pub(crate) fn wants_gestures(&self) -> bool {
         !self.on_zoom.is_empty() || !self.on_pan_drag.is_empty()
     }

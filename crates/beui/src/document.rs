@@ -27,6 +27,7 @@ use crate::screen_simulation::Placement;
 use crate::styled::{Theme, ThemeStore};
 
 pub(crate) type Shortcut = dyn Fn(KeyPress) -> bool;
+pub(crate) type FingerTap = dyn Fn(usize) -> bool;
 
 pub struct Document {
     pub(crate) arena: Arena,
@@ -51,13 +52,15 @@ pub struct Document {
     focus_visible: (::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>),
     reattached: Cell<bool>,
     shortcuts: RefCell<Vec<Weak<Shortcut>>>,
+    finger_taps: RefCell<Vec<Weak<FingerTap>>>,
     pub(crate) touch_scroll_vertical: Option<NodeId>,
+    pub(crate) touch_shift: crate::geometry::Vec2,
     pub(crate) touch_scroll_horizontal: Option<NodeId>,
     pub(crate) wheel_latch: Option<(NodeId, Instant)>,
     pub(crate) pointer_capture: Option<NodeId>,
     pub(crate) drags: Rc<crate::unstyled::DragBoard>,
     paste_requested: bool,
-    test_ids: HashMap<String, NodeId>,
+    test_ids: HashMap<String, Vec<NodeId>>,
     node_test_ids: HashMap<NodeId, Vec<String>>,
     layout_revision: u64,
     paint_revision: u64,
@@ -200,7 +203,9 @@ impl Document {
             focus_visible: ::reactive::create_signal(false),
             reattached: Cell::new(false),
             shortcuts: RefCell::new(Vec::new()),
+            finger_taps: RefCell::new(Vec::new()),
             touch_scroll_vertical: None,
+            touch_shift: crate::geometry::Vec2::ZERO,
             touch_scroll_horizontal: None,
             wheel_latch: None,
             pointer_capture: None,
@@ -320,6 +325,18 @@ impl Document {
         self.shortcuts.borrow_mut().push(shortcut);
     }
 
+    pub(crate) fn register_finger_tap(&self, tap: Weak<FingerTap>) {
+        self.finger_taps.borrow_mut().push(tap);
+    }
+
+    pub(crate) fn finger_tap(&self, fingers: usize) -> bool {
+        let mut taps = self.finger_taps.borrow_mut();
+        taps.retain(|tap| tap.strong_count() > 0);
+        let live: Vec<Rc<FingerTap>> = taps.iter().filter_map(Weak::upgrade).collect();
+        drop(taps);
+        live.into_iter().any(|tap| tap(fingers))
+    }
+
     pub(crate) fn key_shortcut(&self, press: KeyPress) -> bool {
         let mut shortcuts = self.shortcuts.borrow_mut();
         shortcuts.retain(|shortcut| shortcut.strong_count() > 0);
@@ -403,10 +420,9 @@ impl Document {
         if test_id.is_empty() {
             return;
         }
-        if let Some(previous) = self.test_ids.insert(test_id.clone(), id)
-            && previous != id
-        {
-            self.forget_test_id(previous, &test_id);
+        let named = self.test_ids.entry(test_id.clone()).or_default();
+        if !named.contains(&id) {
+            named.push(id);
         }
         let owned = self.node_test_ids.entry(id).or_default();
         if !owned.iter().any(|existing| existing == &test_id) {
@@ -416,9 +432,37 @@ impl Document {
 
     pub fn clear_test_id(&mut self, id: NodeId, test_id: &str) {
         self.forget_test_id(id, test_id);
-        if self.test_ids.get(test_id) == Some(&id) {
-            self.test_ids.remove(test_id);
+        self.drop_test_id(id, test_id);
+    }
+
+    fn drop_test_id(&mut self, id: NodeId, test_id: &str) {
+        if let Some(named) = self.test_ids.get_mut(test_id) {
+            named.retain(|node| *node != id);
+            if named.is_empty() {
+                self.test_ids.remove(test_id);
+            }
         }
+    }
+
+    fn live_nodes(&self) -> HashSet<NodeId> {
+        let mut live = HashSet::new();
+        let mut pending: Vec<NodeId> = self.root.into_iter().collect();
+        while let Some(id) = pending.pop() {
+            if self.arena.contains(id) && live.insert(id) {
+                pending.extend(self.arena.get(id).live_children());
+            }
+        }
+        live
+    }
+
+    fn named_live(&self, test_id: &str, live: &HashSet<NodeId>) -> Vec<NodeId> {
+        self.test_ids
+            .get(test_id)
+            .into_iter()
+            .flatten()
+            .copied()
+            .filter(|node| live.contains(node))
+            .collect()
     }
 
     fn forget_test_id(&mut self, id: NodeId, test_id: &str) {
@@ -431,7 +475,14 @@ impl Document {
     }
 
     pub fn find_test_id(&self, test_id: &str) -> Option<NodeId> {
-        self.test_ids.get(test_id).copied()
+        let named = self.named_live(test_id, &self.live_nodes());
+        if named.len() > 1 {
+            panic!(
+                "test id {test_id:?} names {} nodes in the tree; give each its own id",
+                named.len()
+            );
+        }
+        named.first().copied()
     }
 
     pub fn contains(&self, id: NodeId) -> bool {
@@ -530,9 +581,7 @@ impl Document {
         self.accessibility.remove(&id);
         self.accessibility_tree.get_mut().forget(id, &self.arena);
         for test_id in self.node_test_ids.remove(&id).unwrap_or_default() {
-            if self.test_ids.get(&test_id) == Some(&id) {
-                self.test_ids.remove(&test_id);
-            }
+            self.drop_test_id(id, &test_id);
         }
         scopes.extend(self.node_scopes.remove(&id).unwrap_or_default());
         if self.root == Some(id) {
@@ -719,8 +768,23 @@ impl Document {
                 usize::from(self.update_layout(ctx, rect))
             });
         if ctx.test_ids_published() {
-            for (test_id, id) in &self.test_ids {
-                if let Some(node_rect) = self.rects.get(id) {
+            let mut live = None;
+            for (test_id, nodes) in &self.test_ids {
+                let shown = match nodes.as_slice() {
+                    [node] => Some(*node),
+                    _ => {
+                        let live = live.get_or_insert_with(|| self.live_nodes());
+                        match self.named_live(test_id, live).as_slice() {
+                            [] => None,
+                            [node] => Some(*node),
+                            _ => {
+                                ctx.publish_ambiguous_test_id(test_id);
+                                None
+                            }
+                        }
+                    }
+                };
+                if let Some(node_rect) = shown.and_then(|id| self.rects.get(&id)) {
                     ctx.publish_test_id(test_id, *node_rect);
                 }
             }

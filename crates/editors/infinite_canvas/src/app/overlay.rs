@@ -7,7 +7,7 @@ use crate::geometry::*;
 use super::paint::{Camera, PREVIEW_REGION, Palette, SELECTION, arrowhead, handle, outline};
 use super::state::{Gesture, Presence, Tool};
 
-const HINT: &str = "Drag to draw  ·  Scroll, space-drag or pinch to move\nDrop or paste images, or use Block to add content";
+const HINT: &str = "Drag or pinch to move around  ·  Pick a tool to draw\nDrop or paste images, or use Block to add content";
 const HINT_MARGIN: f32 = 16.0;
 const SELECT_BOX_FILL: Color32 = Color32::from_rgba_unmultiplied(66, 153, 225, 28);
 const BADGE_SIDE: f32 = 22.0;
@@ -87,7 +87,7 @@ impl Overlay {
                     };
                     painter.rect_stroke(self.camera.rect(bounds), 0.0, 2.0, color);
                 }
-                Tool::Select | Tool::Pen => {}
+                Tool::Hand | Tool::Select | Tool::Pen => {}
             },
             Some(Gesture::Pen { points }) => {
                 for window in points.windows(2) {
@@ -166,7 +166,7 @@ impl Overlay {
 
     fn draw_badge(&self, painter: &Painter) {
         let glyph = match self.tool {
-            Tool::Select => return,
+            Tool::Hand | Tool::Select => return,
             Tool::Line => block_editor_beui::beui::icons::ICON_DIAGONAL_LINE,
             Tool::Rectangle => block_editor_beui::beui::icons::ICON_RECTANGLE,
             Tool::Text => block_editor_beui::beui::icons::ICON_TEXT_FIELDS,

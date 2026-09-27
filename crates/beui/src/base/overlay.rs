@@ -186,7 +186,7 @@ impl Element for OverlayNode {
         let anchor_rect = match &self.anchor {
             OverlayAnchor::Node(node) => node
                 .try_get()
-                .and_then(|id| out.get(&id).copied())
+                .and_then(|id| out.get(&id).copied().or_else(|| doc.node_rect(id)))
                 .unwrap_or(viewport),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
         };
@@ -229,6 +229,13 @@ impl Element for OverlayNode {
         let mut children = vec![self.scrim];
         children.extend(self.content);
         children
+    }
+
+    fn live_children(&self) -> Vec<NodeId> {
+        match self.open {
+            true => self.children(),
+            false => Vec::new(),
+        }
     }
 
     fn kind(&self) -> &'static str {

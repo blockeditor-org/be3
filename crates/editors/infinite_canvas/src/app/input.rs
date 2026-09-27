@@ -15,6 +15,10 @@ impl CanvasState {
             Tool::Line | Tool::Rectangle | Tool::Pen => CursorIcon::Crosshair,
             Tool::Text => CursorIcon::Text,
             Tool::Select => self.select_cursor(),
+            Tool::Hand => match self.select_cursor() {
+                CursorIcon::Default if self.pointer_over_nothing() => CursorIcon::Grab,
+                cursor => cursor,
+            },
         }
     }
 
@@ -44,6 +48,13 @@ impl CanvasState {
             },
             None => CursorIcon::Default,
         }
+    }
+
+    fn pointer_over_nothing(&self) -> bool {
+        self.pointer.get().is_some_and(|world| {
+            self.entity_at(world).is_none()
+                && selection_frame_of(self).is_none_or(|frame| !frame.contains(world))
+        })
     }
 
     pub(crate) fn hover(&self, at: Option<CanvasPoint>) {
@@ -90,7 +101,7 @@ impl CanvasState {
             }
         }
         if press.clicks >= 2
-            && self.tool.get_untracked() == Tool::Select
+            && matches!(self.tool.get_untracked(), Tool::Hand | Tool::Select)
             && let Some(id) = self.entity_at(world)
         {
             let entities = self.entities.get_untracked();
@@ -106,7 +117,7 @@ impl CanvasState {
             }
         }
         match self.tool.get_untracked() {
-            Tool::Select => self.press_select(press, world),
+            Tool::Hand | Tool::Select => self.press_select(press, world),
             Tool::Line | Tool::Rectangle | Tool::Text => {
                 self.begin_gesture(Some(Gesture::Create {
                     tool: self.tool.get_untracked(),
@@ -202,7 +213,7 @@ impl CanvasState {
             self.begin_move(world, press.modifiers.alt);
             return;
         }
-        if press.touch {
+        if self.tool.get_untracked() == Tool::Hand && !press.modifiers.shift {
             self.begin_pan(press.pos);
             return;
         }
@@ -349,7 +360,7 @@ impl CanvasState {
                 self.focus_editor(None);
             } else {
                 self.begin_gesture(None);
-                self.set_tool(Tool::Select);
+                self.set_tool(Tool::Hand);
             }
             return true;
         }
@@ -359,6 +370,7 @@ impl CanvasState {
         let modifiers = press.modifiers;
         if !modifiers.ctrl && !modifiers.alt {
             let tool = match press.key {
+                Key::H => Some(Tool::Hand),
                 Key::V => Some(Tool::Select),
                 Key::R => Some(Tool::Rectangle),
                 Key::L => Some(Tool::Line),
@@ -418,7 +430,7 @@ impl CanvasState {
             return true;
         }
         if matches!(press.key, Key::Delete | Key::Backspace)
-            && self.tool.get_untracked() == Tool::Select
+            && matches!(self.tool.get_untracked(), Tool::Hand | Tool::Select)
             && !self.selection.get_untracked().is_empty()
         {
             self.run(CanvasCommand::Delete);
@@ -440,7 +452,7 @@ impl CanvasState {
                     placeholder: "Text".into(),
                 },
             )),
-            Tool::Select | Tool::Pen => None,
+            Tool::Hand | Tool::Select | Tool::Pen => None,
         };
         let Some((size, kind)) = entity else {
             self.set_tool(tool);
@@ -455,7 +467,7 @@ impl CanvasState {
             locked: false,
             components: Vec::new(),
         });
-        self.set_tool(Tool::Select);
+        self.put_down_tool();
     }
 }
 

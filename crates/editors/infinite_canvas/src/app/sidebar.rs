@@ -6,7 +6,7 @@ use block_editor_beui::be_block::canvas::{
 };
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_CIRCLE, ICON_FORMAT_COLOR_RESET};
+use block_editor_beui::beui::icons::ICON_FORMAT_COLOR_RESET;
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, clone, component, create_memo,
     create_signal, view,
@@ -21,11 +21,12 @@ use crate::geometry::*;
 
 use super::components::CanvasComponents;
 use super::paint::resolve_color;
+use super::selection_bar::Swatch;
 use super::state::{Alignment, CanvasCommand, CanvasState, CommonValue, common_value};
 
 const SPACING: f32 = 10.0;
 
-const PRESETS: [(&str, CanvasColor); 5] = [
+pub(crate) const PRESETS: [(&str, CanvasColor); 5] = [
     ("Default", CanvasColor::Auto),
     (
         "Red",
@@ -106,23 +107,21 @@ fn Inspector(state: Rc<CanvasState>) -> NodeId {
     let chosen = create_memo(clone!(empty -> move || !empty.get()));
     view! {
         <List spacing=SPACING>
-            <Heading content="Inspector" />
-            <PreviewRegionSection state={region} />
-            <Separator />
+            <SelectionSummary state={summary} />
             <Show condition={empty}>
                 <Caption content="Select an object to edit its appearance." wrap=true />
             </Show>
             <Show condition={chosen.clone()}>
                 <List spacing=SPACING>
-                    <SelectionSummary state={summary} />
+                    <AppearanceSection state={appearance} />
                     <TransformSection state={transform} />
+                    <ArrangeSection state={arrange} />
                     <BlockSection state={block} />
                     <CanvasComponents state={components} />
-                    <AppearanceSection state={appearance} />
-                    <ArrangeSection state={arrange} />
                 </List>
             </Show>
             <Separator />
+            <PreviewRegionSection state={region} />
             <ShortcutsSection />
         </List>
     }
@@ -130,7 +129,7 @@ fn Inspector(state: Rc<CanvasState>) -> NodeId {
 
 #[component]
 fn PreviewRegionSection(state: Rc<CanvasState>) -> NodeId {
-    let (open, set_open) = create_signal(true);
+    let (open, set_open) = create_signal(false);
     let enabled = create_memo(clone!(state -> move || state.preview_region.get().is_some()));
     let absent = create_memo(clone!(enabled -> move || !enabled.get()));
     let toggled = clone!(state -> move |wanted: bool| {
@@ -274,11 +273,12 @@ fn SelectionSummary(state: Rc<CanvasState>) -> NodeId {
             {
                 format!("Group · {} objects", selected.len())
             }
+            [] => "Canvas".to_owned(),
             _ => format!("{} objects selected", selected.len()),
         }
     }));
     view! {
-        <Caption content={label} @test_id={"infinite-canvas.selection"} />
+        <Heading content={label} @test_id={"infinite-canvas.selection"} />
     }
 }
 
@@ -538,7 +538,6 @@ fn ArrangeSection(state: Rc<CanvasState>) -> NodeId {
     let cannot_lock = create_memo(clone!(state -> move || {
         !state.selected_entities().iter().any(|entity| !entity.locked)
     }));
-    let cannot_delete = cannot_lock.clone();
     let cannot_unlock = create_memo(clone!(state -> move || {
         !state.selected_entities().iter().any(|entity| entity.locked)
     }));
@@ -550,7 +549,6 @@ fn ArrangeSection(state: Rc<CanvasState>) -> NodeId {
     let ungroup = clone!(state -> move || state.run(CanvasCommand::Ungroup));
     let lock = clone!(state -> move || state.run(CanvasCommand::Lock));
     let unlock = clone!(state -> move || state.run(CanvasCommand::Unlock));
-    let delete = clone!(state -> move || state.run(CanvasCommand::Delete));
     view! {
         <Accordion title="Arrange" open={open} on_toggle={move |open| set_open.set(open)}>
             <List spacing=6.0>
@@ -637,13 +635,6 @@ fn ArrangeSection(state: Rc<CanvasState>) -> NodeId {
                         on_click={unlock}
                     />
                 </List>
-                <Button
-                    label="Delete"
-                    variant=ButtonVariant::Secondary
-                    disabled={cannot_delete}
-                    @test_id={"infinite-canvas.delete"}
-                    on_click={delete}
-                />
             </List>
         </Accordion>
     }
@@ -672,7 +663,7 @@ fn AppearanceSection(state: Rc<CanvasState>) -> NodeId {
     }
 }
 
-fn styled_entities(state: &Rc<CanvasState>) -> Vec<CanvasEntity> {
+pub(crate) fn styled_entities(state: &Rc<CanvasState>) -> Vec<CanvasEntity> {
     state
         .selected_entities()
         .into_iter()
@@ -695,7 +686,6 @@ fn ForegroundRow(state: Rc<CanvasState>) -> NodeId {
         )
     }));
     let shown = create_memo(clone!(value -> move || !value.get().absent()));
-    let chosen = Rc::clone(&state);
     let theme = use_theme();
     let custom = create_memo(clone!(value theme -> move || {
         resolve_color(value.get().or(CanvasColor::Auto), theme.text.get())
@@ -715,23 +705,6 @@ fn ForegroundRow(state: Rc<CanvasState>) -> NodeId {
             <Show condition={shown}>
                 <List spacing=6.0>
                     <Caption content="Color" />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
-                        <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
-                            {move |index: usize| {
-                                let (name, color) = PRESETS[index];
-                                let state = Rc::clone(&chosen);
-                                let value = value.clone();
-                                view! {
-                                    <ColorPreset
-                                        name
-                                        color
-                                        value
-                                        on_pick={move |color| set_foreground(&state, color)}
-                                    />
-                                }
-                            }}
-                        </ForEach>
-                    </List>
                     <ColorInput
                         label="Custom color"
                         value={custom}
@@ -744,7 +717,7 @@ fn ForegroundRow(state: Rc<CanvasState>) -> NodeId {
     }
 }
 
-fn set_foreground(state: &Rc<CanvasState>, color: CanvasColor) {
+pub(crate) fn set_foreground(state: &Rc<CanvasState>, color: CanvasColor) {
     state.remember_foreground(color);
     state.update_selected(
         |kind| {
@@ -755,25 +728,6 @@ fn set_foreground(state: &Rc<CanvasState>, color: CanvasColor) {
         },
         |style| style.foreground = color,
     );
-}
-
-#[component]
-fn ColorPreset(
-    name: &'static str,
-    color: CanvasColor,
-    value: Memo<CommonValue<CanvasColor>>,
-    on_pick: block_editor_beui::beui::reactive::Callback<CanvasColor>,
-) -> NodeId {
-    let pressed = create_memo(clone!(value -> move || value.get() == CommonValue::Uniform(color)));
-    view! {
-        <ToggleButton
-            label={name}
-            glyph={ICON_CIRCLE.to_owned()}
-            pressed={pressed}
-            @test_id={format!("infinite-canvas.color.{name}")}
-            on_change={move |_: bool| on_pick.call(color)}
-        />
-    }
 }
 
 #[component]
@@ -991,7 +945,8 @@ fn RectangleOptions(state: Rc<CanvasState>) -> NodeId {
                                     CommonValue::Mixed => CommonValue::Mixed,
                                 }));
                                 view! {
-                                    <ColorPreset
+                                    <Swatch
+                                        kind="fill"
                                         name
                                         color
                                         value
@@ -1285,10 +1240,11 @@ fn TextContent(state: Rc<CanvasState>) -> NodeId {
     }
 }
 
-const SHORTCUTS: [(&str, &str); 9] = [
-    ("Select / Rectangle / Line", "V / R / L"),
+const SHORTCUTS: [(&str, &str); 10] = [
+    ("Pan / Select", "H / V"),
+    ("Rectangle / Line", "R / L"),
     ("Text / Pen", "T / P"),
-    ("Pan", "Space-drag, middle-drag, or touch-drag empty space"),
+    ("Pan", "Drag empty space, space-drag, or two fingers"),
     ("Zoom", "Ctrl-scroll or pinch"),
     ("Select all", "Ctrl+A"),
     ("Nudge", "Arrow keys; Shift for 10×"),
