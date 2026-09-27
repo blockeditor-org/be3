@@ -23,7 +23,7 @@ use crate::paint::{self, PaintCache};
 use crate::painter::Shape;
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
-use crate::screen_simulation::Placement;
+use crate::screen_simulation::{self, Placement};
 use crate::styled::{Theme, ThemeStore};
 
 pub(crate) type Shortcut = dyn Fn(KeyPress) -> bool;
@@ -611,6 +611,11 @@ impl Document {
                     .get_or_insert_with(|| Box::new(Inspector::new(ctx, theme)))
                     .toggle_picking();
             }
+            if chord_pressed(ctx, Key::M) {
+                self.inspector
+                    .get_or_insert_with(|| Box::new(Inspector::new(ctx, theme)))
+                    .toggle_responsive();
+            }
             if chord_pressed(ctx, Key::F)
                 && let Some(inspector) = self.inspector.as_mut()
             {
@@ -641,7 +646,7 @@ impl Document {
         let inspector_has_focus = self
             .inspector
             .as_ref()
-            .is_some_and(|inspector| inspector.document.focused_node().is_some());
+            .is_some_and(|inspector| inspector.has_focus());
         let keys = match &self.inspector {
             _ if inspector_has_focus => Keys::Ignored,
             Some(inspector) => inspector.keys(),
@@ -673,26 +678,43 @@ impl Document {
         {
             self.screen_pointer = Some(pos);
         }
-        let placement = ctx.screen_simulation().place(rect, self.screen_pointer);
-        if self.placement != Some((rect, placement)) {
-            self.placement = Some((rect, placement));
+        let placement = ctx.screen_simulation().and_then(|simulation| {
+            simulation.place(rect, self.screen_pointer, ctx.pixels_per_point())
+        });
+        let previous = self.placement.replace((rect, placement));
+        if previous != Some((rect, placement)) {
             ctx.report_damage(rect);
         }
+        if previous.and_then(|(_, previous)| previous) != placement {
+            ctx.request_repaint();
+        }
+        ctx.set_screen_scale(placement.map_or(1.0, |placement| placement.scale));
         match placement {
-            Some(placement) => ctx.clipped(rect, || {
-                ctx.scaled(placement.scale, || {
-                    self.show_content(ctx, placement.screen, pointer, keys);
+            Some(placement) => {
+                let shown = placement.shown();
+                let painter = ctx.painter();
+                for backdrop in screen_simulation::around(rect, shown)
+                    .into_iter()
+                    .filter(Rect::is_positive)
+                {
+                    painter.rect_filled(backdrop, 0.0, screen_simulation::BACKDROP);
+                }
+                ctx.clipped(shown.intersect(rect), || {
+                    ctx.scaled(placement.scale, || {
+                        self.show_content(ctx, placement.screen, pointer, keys);
+                    });
                 });
-            }),
+            }
             None => self.show_content(ctx, rect, pointer, keys),
         }
     }
 
     pub(crate) fn screen_scale(&self) -> f32 {
-        match self.placement {
-            Some((_, Some(placement))) => placement.scale,
-            _ => 1.0,
-        }
+        self.shown_screen().map_or(1.0, |placement| placement.scale)
+    }
+
+    pub(crate) fn shown_screen(&self) -> Option<Placement> {
+        self.placement.and_then(|(_, placement)| placement)
     }
 
     pub(crate) fn show_content(&mut self, ctx: &Context, rect: Rect, pointer: bool, keys: Keys) {
