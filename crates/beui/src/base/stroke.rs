@@ -30,14 +30,7 @@ impl Element for StrokeNode {
         self.extent()
     }
 
-    fn layout(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _rect: Rect,
-        _out: &Rects,
-    ) {
-    }
+    fn layout(&mut self, _doc: &mut Document, _painter: &Painter, _rect: Rect, _out: &Rects) {}
 
     fn paint(&self, _doc: &Document, painter: &Painter, _rects: &Rects, rect: Rect) {
         let origin = rect.min.to_vec2();

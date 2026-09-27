@@ -29,13 +29,7 @@ pub(crate) fn measure(doc: &mut Document, painter: &Painter, id: NodeId, availab
     size
 }
 
-pub(crate) fn layout(
-    doc: &mut Document,
-    painter: &Painter,
-    id: NodeId,
-    rect: Rect,
-    out: &Rects,
-) {
+pub(crate) fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out: &Rects) {
     if !doc.arena.contains(id) {
         return;
     }

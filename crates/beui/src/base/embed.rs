@@ -60,13 +60,7 @@ impl Element for EmbedNode {
         )
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &Rects,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let grid = doc.pixel_grid();
         let placed = grid.snap_rect(rect);
         self.state.placement.set(Some(EmbedPlacement {

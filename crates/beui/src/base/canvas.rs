@@ -77,13 +77,7 @@ impl Element for CanvasNode {
         true
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &Rects,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let view = self.placement(rect);
         let clipped = painter.with_clip_rect(rect);
         for item in self.items.iter() {
@@ -162,13 +156,7 @@ impl Element for CanvasItemNode {
         true
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &Rects,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
         }

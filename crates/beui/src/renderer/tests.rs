@@ -29,8 +29,8 @@ mod turning_a_filter_off_repaints_the_frame_it_had_blurred;
 use std::cell::RefCell;
 
 use crate::context::Context;
-use crate::drawing::{Draw, DrawAt};
 use crate::document::Document;
+use crate::drawing::{Draw, DrawAt};
 use crate::filter::{ColorVision, Filter};
 use crate::font::FontId;
 use crate::geometry::{Pos2, Rect, pos2, vec2};
@@ -333,4 +333,3 @@ impl Patch {
         }
     }
 }
-

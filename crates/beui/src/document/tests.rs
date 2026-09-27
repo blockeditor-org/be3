@@ -1235,13 +1235,7 @@ impl Element for Counted {
         self.inner.measure(doc, painter, available)
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &Rects,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         self.layouts.set(self.layouts.get() + 1);
         self.inner.layout(doc, painter, rect, out);
     }

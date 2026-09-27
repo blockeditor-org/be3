@@ -43,13 +43,7 @@ impl Element for BackNode {
         }
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &Rects,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         if let Some(child) = self.child {
             let rect = rect.translate(self.progress.shift(rect.width()));
             crate::layout::layout(doc, painter, child, rect, out);

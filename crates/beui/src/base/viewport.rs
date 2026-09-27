@@ -25,14 +25,7 @@ impl Element for ViewportNode {
         vec2(bounded(available.x), bounded(available.y))
     }
 
-    fn layout(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _rect: Rect,
-        _out: &Rects,
-    ) {
-    }
+    fn layout(&mut self, _doc: &mut Document, _painter: &Painter, _rect: Rect, _out: &Rects) {}
 
     fn paint(&self, _doc: &Document, painter: &Painter, _rects: &Rects, rect: Rect) {
         if let Some(drawing) = self.drawing.as_ref() {

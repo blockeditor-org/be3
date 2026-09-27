@@ -58,13 +58,7 @@ pub type ClickHandler = Box<dyn FnMut()>;
 pub(crate) trait Element: Any {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2;
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &Rects,
-    );
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects);
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect);
 

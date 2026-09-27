@@ -171,13 +171,7 @@ impl Element for OverlayNode {
         Vec2::ZERO
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        _rect: Rect,
-        out: &Rects,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, _rect: Rect, out: &Rects) {
         if !self.open {
             return;
         }

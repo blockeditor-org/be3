@@ -59,14 +59,7 @@ impl Element for PictureNode {
         }
     }
 
-    fn layout(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _rect: Rect,
-        _out: &Rects,
-    ) {
-    }
+    fn layout(&mut self, _doc: &mut Document, _painter: &Painter, _rect: Rect, _out: &Rects) {}
 
     fn paint(&self, _doc: &Document, painter: &Painter, _rects: &Rects, rect: Rect) {
         let Some((image, size, smooth)) = self.shown() else {

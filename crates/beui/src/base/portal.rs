@@ -20,13 +20,7 @@ impl Element for PortalNode {
         }
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &Rects,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
         }

@@ -210,13 +210,7 @@ impl Element for ListNode {
         self.axes(main, cross)
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &Rects,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let (available_main, available_cross) = self.main_and_cross(rect.size());
 
         let grid = doc.pixel_grid();

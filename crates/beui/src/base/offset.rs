@@ -226,13 +226,7 @@ impl Element for OffsetNode {
         self.direction.axes(0.0, content)
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &Rects,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let host = doc.laying_out();
         let (main, cross) = self.direction.main_and_cross(rect.size());
         let carried = host.map_or(0.0, |host| doc.take_scroll_shift(host));

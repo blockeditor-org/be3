@@ -144,13 +144,7 @@ impl Element for TextNode {
         self.galley(painter, &self.content, available.x).size()
     }
 
-    fn layout(
-        &mut self,
-        _doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        _out: &Rects,
-    ) {
+    fn layout(&mut self, _doc: &mut Document, painter: &Painter, rect: Rect, _out: &Rects) {
         self.place(painter, rect);
     }
 

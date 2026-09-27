@@ -147,13 +147,7 @@ impl Element for FrameNode {
         }
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &Rects,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         if let Some(child) = self.shown() {
             let grid = doc.pixel_grid();
             let padding = self.padding(grid);

@@ -12,7 +12,12 @@ fn a_change_inside_a_fixed_size_frame_lays_out_only_that_frame() {
                 <List @node_ref=&list spacing=0.0>
                     <Frame @node_ref=&beside height=100.0 color=Color32::WHITE radius=0 />
                     <Frame @node_ref=&fixed width=200.0 height=100.0 radius=0>
-                        <Frame @node_ref=&inner height=40.0 color={Color32::from_gray(40)} radius=0 />
+                        <Frame
+                            @node_ref=&inner
+                            height=40.0
+                            color={Color32::from_gray(40)}
+                            radius=0
+                        />
                     </Frame>
                 </List>
             }

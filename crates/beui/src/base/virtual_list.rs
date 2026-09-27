@@ -361,13 +361,7 @@ impl<K: Clone + Hash + Eq + 'static> Element for VirtualListNode<K> {
         self.direction.axes(self.metrics.total(), content)
     }
 
-    fn layout(
-        &mut self,
-        doc: &mut Document,
-        painter: &Painter,
-        rect: Rect,
-        out: &Rects,
-    ) {
+    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let node = doc.laying_out();
         let (main, cross) = self.direction.main_and_cross(rect.size());
         let start = self.direction.main(rect.min.to_vec2());

@@ -7,9 +7,12 @@ or painter, or asked for a repaint that fell due paint again. Setters say what
 they invalidate (`Arena::get_mut_as` for layout, `paint_mut_as` for paint only,
 `touch_mut_as` for neither), damage is where a node's shapes changed, and the
 frame carries up to four damaged rects to the renderer, which scissors each one
-(`Repaint::Region` holds a `Region`, and `FrameOutput::repaint` builds it). beui's
-own tests repaint every frame from scratch and check the retained painting and
-its damage against it (`Document::verify_paint`).
+(`Repaint::Region` holds a `Region`, and `FrameOutput::repaint` builds it), drawings
+included. beui's own tests and `block-ui-test` repaint every frame from scratch
+and check the retained painting and its damage against it (`beui::verify_paint`).
+Layout writes the one rect map in place, stops invalidating at relayout
+boundaries and lays those out directly, and removed nodes' slots are reused
+under generational ids.
 
 What follows is the rest, roughly in order of value.
 

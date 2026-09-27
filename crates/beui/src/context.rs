@@ -536,11 +536,9 @@ impl Context {
     pub(crate) fn take_accessibility_actions(&self, document_id: u32) -> Vec<ActionRequest> {
         let mut actions = self.inner.accessibility_actions.borrow_mut();
         let all = std::mem::take(&mut *actions);
-        let (matched, remaining) = all
-            .into_iter()
-            .partition(|request| {
-                crate::accessibility::document_of(request.target_node) == document_id as u64
-            });
+        let (matched, remaining) = all.into_iter().partition(|request| {
+            crate::accessibility::document_of(request.target_node) == document_id as u64
+        });
         *actions = remaining;
         matched
     }

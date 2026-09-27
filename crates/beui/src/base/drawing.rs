@@ -20,14 +20,7 @@ impl Element for DrawingNode {
         Vec2::ZERO
     }
 
-    fn layout(
-        &mut self,
-        _doc: &mut Document,
-        _painter: &Painter,
-        _rect: Rect,
-        _out: &Rects,
-    ) {
-    }
+    fn layout(&mut self, _doc: &mut Document, _painter: &Painter, _rect: Rect, _out: &Rects) {}
 
     fn paint(&self, _doc: &Document, painter: &Painter, _rects: &Rects, rect: Rect) {
         let Some(draw) = self.draw.as_ref() else {
