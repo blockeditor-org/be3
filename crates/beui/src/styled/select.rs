@@ -5,7 +5,9 @@ use crate::base::TextAlign;
 use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
-use crate::reactive::{Callback, Child, Children, Frame, Prop, Run, Text, clone, create_memo};
+use crate::reactive::{
+    Callback, Child, Children, Frame, Prop, Run, Text, clone, create_memo, focus_ring,
+};
 use crate::styled::context_menu::text_input_menu;
 use crate::styled::scroll::scrollbar_style;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
@@ -101,7 +103,7 @@ fn SelectTrigger(options: Run<ChoiceOption>, handle: SelectTriggerHandle) -> Nod
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
         >
             <Frame
                 height=HEIGHT

@@ -7,6 +7,7 @@ use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
     Align, Callback, Child, Direction, Frame, ItemSize, List, Memo, Prop, Text, clone, create_memo,
+    focus_ring,
 };
 use crate::styled::theme::{FONT_HEADING, FONT_SMALL, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
@@ -59,7 +60,7 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
             outline_width=2.0
             radius=RADIUS
             outline_offset=2.0
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
             padding_horizontal=PADDING_HORIZONTAL
             padding_vertical=PADDING_VERTICAL
         >
