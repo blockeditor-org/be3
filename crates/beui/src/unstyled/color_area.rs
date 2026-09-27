@@ -1,13 +1,17 @@
+use std::cell::Cell;
+use std::rc::Rc;
+
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::color::Hsva;
 use crate::document::Document;
+use crate::geometry::{Vec2, pos2};
 use crate::input::{CursorIcon, Key, KeyPress, PointerPress};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, ClickCatcher, Focusable, Memo, Prop, ReadSignal, Render, clone,
-    component_accessibility, create_effect, create_memo, create_signal, set_component_state,
+    component_accessibility, component_rect, create_effect, create_memo, create_signal, set_component_state,
 };
 
 const STEP: f32 = 0.01;
@@ -29,6 +33,7 @@ pub fn ColorArea(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = 0.0)] thumb: f32,
     #[prop(children)] content: Render<ColorAreaHandle>,
     on_change: Callback<Hsva>,
     on_drag_change: Callback<bool>,
@@ -79,6 +84,31 @@ pub fn ColorArea(
         }
     };
     let (drag_set, key_set, step_set) = (set.clone(), set.clone(), set);
+    let placed = component_rect();
+    let grab = Rc::new(Cell::new(Vec2::ZERO));
+    let (press_grab, press_rect, press_color) = (grab.clone(), placed.clone(), color.clone());
+    let grabbed = move |press: PointerPress| {
+        let rect = press_rect.get_untracked();
+        let color = press_color.get_untracked();
+        let centre = pos2(
+            rect.left() + color.saturation * rect.width(),
+            rect.top() + (1.0 - color.value) * rect.height(),
+        );
+        let offset = centre - press.pos;
+        let on_thumb = thumb > 0.0 && offset.length() <= thumb / 2.0;
+        press_grab.set(if on_thumb { offset } else { Vec2::ZERO });
+    };
+    let dragged_to = move |press: PointerPress| {
+        let rect = placed.get_untracked();
+        let target = press.pos + grab.get();
+        match rect.width() > 0.0 && rect.height() > 0.0 {
+            true => (
+                ((target.x - rect.left()) / rect.width()).clamp(0.0, 1.0),
+                ((target.y - rect.top()) / rect.height()).clamp(0.0, 1.0),
+            ),
+            false => (press.fraction.x, press.fraction.y),
+        }
+    };
     let (key_color, step_color) = (color.clone(), color.clone());
     let content_node = content.call(ColorAreaHandle {
         color,
@@ -127,8 +157,10 @@ pub fn ColorArea(
                 cursor=CursorIcon::Crosshair
                 touch_drags=true
                 on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
+                on_press={grabbed}
                 on_drag={move |press: PointerPress| {
-                    drag_set(press.fraction.x, 1.0 - press.fraction.y)
+                    let (x, y) = dragged_to(press);
+                    drag_set(x, 1.0 - y)
                 }}
                 on_active_change={move |active: bool| {
                     set_dragging.set(active);

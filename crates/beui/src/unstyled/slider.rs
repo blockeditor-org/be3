@@ -1,3 +1,6 @@
+use std::cell::Cell;
+use std::rc::Rc;
+
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
@@ -7,7 +10,7 @@ use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, ClickCatcher, Focusable, Memo, Prop, ReadSignal, Render, clone,
-    component_accessibility, create_effect, create_memo, create_signal, set_component_state,
+    component_accessibility, component_rect, create_effect, create_memo, create_signal, set_component_state,
     untrack,
 };
 
@@ -67,6 +70,7 @@ pub fn Slider(
     #[prop(default = 0.0)] min: f32,
     #[prop(default = 1.0)] max: f32,
     #[prop(default = SliderScale::Linear)] scale: SliderScale,
+    #[prop(default = 0.0)] thumb: f32,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(children)] content: Option<Render<SliderHandle>>,
     on_change: Callback<f32>,
@@ -124,6 +128,26 @@ pub fn Slider(
             on_change.call(next);
         }
     };
+    let placed = component_rect();
+    let grab = Rc::new(Cell::new(0.0f32));
+    let press_grab = grab.clone();
+    let press_rect = placed.clone();
+    let press_fraction = fraction.clone();
+    let grabbed = move |press: PointerPress| {
+        let rect = press_rect.get_untracked();
+        let travel = (rect.width() - thumb).max(0.0);
+        let centre = rect.left() + thumb / 2.0 + press_fraction.get_untracked() * travel;
+        let on_thumb = thumb > 0.0 && (press.pos.x - centre).abs() <= thumb / 2.0;
+        press_grab.set(if on_thumb { centre - press.pos.x } else { 0.0 });
+    };
+    let dragged_to = move |press: PointerPress| {
+        let rect = placed.get_untracked();
+        let travel = rect.width() - thumb;
+        match travel > 0.0 {
+            true => (press.pos.x + grab.get() - rect.left() - thumb / 2.0) / travel,
+            false => press.fraction.x,
+        }
+    };
     let step_value = set_value.clone();
     let key_value = set_value.clone();
     let value_for_keys = value_read.clone();
@@ -162,8 +186,9 @@ pub fn Slider(
         >
             <ClickCatcher
                 cursor=CursorIcon::PointingHand
+                on_press={grabbed}
                 on_drag={move |press: PointerPress| {
-                    set_value(scale.value_at(press.fraction.x, min, max))
+                    set_value(scale.value_at(dragged_to(press), min, max))
                 }}
                 on_active_change={move |dragging: bool| {
                     set_dragging.set(dragging);

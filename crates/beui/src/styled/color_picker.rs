@@ -33,6 +33,7 @@ const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 2.0;
 const THUMB_RADIUS: f32 = 7.0;
 const KNOB_RADIUS: f32 = 8.0;
+const GRAB_SLOP: f32 = 10.0;
 const CHECKER: f32 = 5.0;
 const CHECKER_LIGHT: Color32 = Color32::from_gray(236);
 const CHECKER_DARK: Color32 = Color32::from_gray(190);
@@ -171,6 +172,7 @@ pub fn ColorPicker(
                 <unstyled::ColorArea
                     @sizing=ItemSize::Fixed(AREA_HEIGHT)
                     value={color.clone()}
+                    thumb={THUMB_RADIUS * 2.0 + GRAB_SLOP}
                     focused
                     disabled={disabled.clone()}
                     on_change={move |next: Hsva| area.apply(next)}
@@ -186,6 +188,7 @@ pub fn ColorPicker(
                             value={hue.clone()}
                             min=0.0
                             max=360.0
+                            thumb=SLIDER_HEIGHT
                             disabled={disabled.clone()}
                             accessibility={hue_accessibility}
                             on_change={move |hue: f32| {
@@ -201,6 +204,7 @@ pub fn ColorPicker(
                         <Show condition=alpha>
                             <unstyled::Slider
                                 value={opacity.clone()}
+                                thumb=SLIDER_HEIGHT
                                 disabled={disabled.clone()}
                                 accessibility={alpha_accessibility}
                                 on_change={move |alpha: f32| {
@@ -286,6 +290,24 @@ fn ColorFields(picker: Picker, alpha: bool) -> NodeId {
     let opacity = create_memo(clone!(shown -> move || {
         (f64::from(shown.get().alpha()) * 100.0 / 255.0).round()
     }));
+    let hsl = |index: usize, scale: f32| {
+        let color = picker.color.clone();
+        create_memo(move || f64::from((color.get().hsl()[index] * scale).round()))
+    };
+    let (hue, saturation, lightness) = (hsl(0, 1.0), hsl(1, 100.0), hsl(2, 100.0));
+    let set_hsl = |index: usize, scale: f32| {
+        let picker = picker.clone();
+        move |typed: f64| {
+            let held = picker.color.get_untracked();
+            let mut parts = held.hsl();
+            parts[index] = typed as f32 / scale;
+            let [hue, saturation, lightness] = parts;
+            picker.apply(Hsva::from_hsl(hue.clamp(0.0, 359.999), saturation, lightness, held.alpha));
+        }
+    };
+    let set_hue = set_hsl(0, 1.0);
+    let set_saturation = set_hsl(1, 100.0);
+    let set_lightness = set_hsl(2, 100.0);
     let set_channel = move |index: usize| {
         let picker = picker.clone();
         move |typed: f64| {
@@ -354,6 +376,35 @@ fn ColorFields(picker: Picker, alpha: bool) -> NodeId {
                     max=255.0
                     label="Blue"
                     on_change={set_blue}
+                />
+            </List>
+            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                <Caption content="H" />
+                <NumberInput
+                    @sizing=ItemSize::Percent(100.0)
+                    value={hue}
+                    min=0.0
+                    max=360.0
+                    label="Hue degrees"
+                    on_change={set_hue}
+                />
+                <Caption content="S" />
+                <NumberInput
+                    @sizing=ItemSize::Percent(100.0)
+                    value={saturation}
+                    min=0.0
+                    max=100.0
+                    label="Saturation percent"
+                    on_change={set_saturation}
+                />
+                <Caption content="L" />
+                <NumberInput
+                    @sizing=ItemSize::Percent(100.0)
+                    value={lightness}
+                    min=0.0
+                    max=100.0
+                    label="Lightness percent"
+                    on_change={set_lightness}
                 />
             </List>
         </List>

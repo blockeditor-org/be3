@@ -25,11 +25,11 @@ fn a_finger_dragged_across_a_color_area_picks_rather_than_scrolls() {
     let mut harness = Harness::sized(document, TALL_VIEWPORT);
     harness.frame(Vec::new());
     let area = harness.rect(picker.get());
-    let start = pos2(area.left() + PICKER_WIDTH - 4.0, area.top() + 4.0);
+    let start = pos2(area.left() + 10.0, area.top() + 10.0);
     let end = pos2(area.left() + PICKER_WIDTH / 4.0, area.top() + 117.0);
 
     harness.touch(TouchPhase::Start, start);
-    harness.touch(TouchPhase::Move, pos2(start.x - 20.0, start.y + 40.0));
+    harness.touch(TouchPhase::Move, pos2(start.x + 20.0, start.y + 40.0));
     harness.touch(TouchPhase::Move, end);
     harness.touch(TouchPhase::End, end);
     harness.frame(Vec::new());
