@@ -220,17 +220,19 @@ reaches the test as a trap rather than a message.
 
 ## 4. Getting the module into the app
 
-Each rules crate has a `module` target, which is its wasm module:
+Each rules crate has a `module` target, which is its wasm module; give a new
+game's `BUCK` file the same three targets `tic_tac_toe`'s has. Every crate
+under `crates/tabletop_games/rules` is staged beside the app as the Games
+plugin's data (`games/<game>.wasm`, see crates/editors/deterministic_game/BUCK),
+so nothing else needs editing. Creating a Game block opens a dialog listing
+those games by the name each module gives itself; choosing one copies that
+exact module into the workspace as a Game Module block under the new game, so
+the game keeps playing the bytes it started with whatever the app is later
+rebuilt with. The same dialog can instead play a Game Module block the
+workspace already holds, or one imported there and then from a `.wasm` file,
+which is how a game the app was not built with gets played:
 `./scripts/buck build //crates/tabletop_games/rules/<game>:module --out <game>.wasm`
-writes it. Give a new game's `BUCK` file the same three targets
-`tic_tac_toe`'s has. Nothing stages them beside the app: a module reaches a
-workspace as a block. Add a Game Module block, choose the `.wasm` file with the
-system file picker, and the editor loads it
-to check it really is a game module and names it. A Game block then references
-one of those: creating one opens the block picker filtered to game modules, so
-it plays a module the workspace already holds - or one imported from the picker
-there and then - and the module travels with the workspace rather than with the
-app.
+writes one.
 
 To try a game without a second client, the Game block's "Playing as" menu
 switches which player this client is: you, a guest you have already played as,

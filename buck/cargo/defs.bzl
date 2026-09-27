@@ -177,3 +177,8 @@ def cargo_wasm_facts():
 # what the app stages as its plugins.
 def editor_packages():
     return sorted([package for package in crates if package.startswith("crates/editors/")])
+
+# Every game's package, which is every workspace crate under
+# crates/tabletop_games/rules: what the games plugin stages as its data.
+def game_packages():
+    return sorted([package for package in crates if package.startswith("crates/tabletop_games/rules/")])

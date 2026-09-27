@@ -1,3 +1,48 @@
+# A plugin's read-only data, which the app stages beside it under
+# data/<plugin id>/ and a plugin reads through the host (ReadData): each file at
+# files/<path>, and index.json listing every path.
+_plugin_data = """
+set -eu
+out="$1"
+shift
+mkdir -p "$out/files"
+paths=''
+while [ "$#" -gt 0 ]; do
+    mkdir -p "$(dirname "$out/files/$1")"
+    cp "$2" "$out/files/$1"
+    paths="$paths $1"
+    shift 2
+done
+{
+    printf '['
+    separator=''
+    for path in $paths; do
+        printf '%s\\n  "%s"' "$separator" "$path"
+        separator=','
+    done
+    [ -n "$paths" ] && printf '\\n'
+    printf ']\\n'
+} > "$out/index.json"
+"""
+
+def _plugin_data_impl(ctx: AnalysisContext) -> list[Provider]:
+    out = ctx.actions.declare_output(ctx.label.name, dir = True)
+    command = cmd_args("sh", "-c", _plugin_data, "sh", out.as_output())
+    for path in sorted(ctx.attrs.files):
+        for segment in path.split("/"):
+            if not segment or segment in [".", ".."] or not all([character.isalnum() or character in "._-" for character in segment.elems()]):
+                fail("{} is not a plain relative path".format(path))
+        command.add(path, ctx.attrs.files[path])
+    ctx.actions.run(command, category = "plugin_data")
+    return [DefaultInfo(default_output = out)]
+
+plugin_data = rule(
+    attrs = {
+        "files": attrs.dict(attrs.string(), attrs.source(), default = {}),
+    },
+    impl = _plugin_data_impl,
+)
+
 # The app as it runs (buck/app/stage.sh): the executable under cargo's name, and
 # beside it every plugin, each module precompiled for precompile_target in an
 # action of its own by plugin-test-runner, block-wasm-host's own engine, which
@@ -20,9 +65,12 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
         command.add(cmd_args("--executable=", extra, "=", extra_name + extra.extension, delimiter = ""))
     for file in ctx.attrs.files:
         command.add(cmd_args("--file=", file, delimiter = ""))
-    for manifest, module in zip(ctx.attrs.manifests, ctx.attrs.modules):
+    data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
+    for manifest, module, files in zip(ctx.attrs.manifests, ctx.attrs.modules, data):
         wasm = module[DefaultInfo].default_outputs[0]
         command.add(cmd_args(manifest, wasm, delimiter = "="))
+        if files:
+            command.add(cmd_args("--data=", files, delimiter = ""))
         if ctx.attrs.precompile:
             # One action a module, so that the thirty-odd compiles run side by
             # side on as many workers rather than one after another.
@@ -72,6 +120,8 @@ app = rule(
         # Each precompiled plugin without its module, for an app that only
         # falls back to the module.
         "compiled_only": attrs.bool(default = False),
+        # Each plugin's read-only data (plugin_data), in the order of manifests.
+        "data": attrs.list(attrs.source(), default = []),
         "executable_name": attrs.string(default = ""),
         # More executables to put beside the app, by the name cargo gives each.
         "extra_binaries": attrs.dict(attrs.string(), attrs.dep(), default = {}),
