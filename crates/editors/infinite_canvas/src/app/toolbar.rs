@@ -1,19 +1,19 @@
 use std::rc::Rc;
 
-use block_editor_beui::Toolbar;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_DATA_OBJECT, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_KEYBOARD_ARROW_DOWN, ICON_RECTANGLE,
-    ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_DATA_OBJECT, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_KEYBOARD_ARROW_DOWN, ICON_MORE_HORIZ,
+    ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Prop, Show, Spacer, clone, component, create_memo,
-    view,
+    Align, Direction, ForEach, ItemSize, List, Memo, Prop, Show, Spacer, clone, component,
+    create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, IconButton, MenuButton, ToggleButton, use_theme,
 };
 use block_editor_beui::beui::unstyled::MenuItem;
+use block_editor_beui::{Toolbar, narrow_chrome};
 
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
 
@@ -37,11 +37,15 @@ const ZOOM_PRESETS: [f32; 4] = [0.25, 0.5, 1.0, 2.0];
 
 #[component]
 pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId {
+    let narrow = narrow_chrome();
     let tools = Rc::clone(&state);
     let blocks = Rc::clone(&state);
     let actions = Rc::clone(&state);
     let zoom = Rc::clone(&state);
     let errors = Rc::clone(&state);
+    let compact = narrow.clone();
+    let menu_compact = narrow.clone();
+    let zoom_compact = narrow;
     view! {
         <Toolbar shown={shown}>
             <List @sizing=ItemSize::Percent(100.0) spacing=6.0>
@@ -49,8 +53,9 @@ pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId
                     <ForEach keys={(0..TOOLS.len()).collect::<Vec<usize>>()}>
                         {move |index: usize| {
                             let state = Rc::clone(&tools);
+                            let compact = compact.clone();
                             view! {
-                                <ToolChoice state index />
+                                <ToolChoice state index compact />
                             }
                         }}
                     </ForEach>
@@ -60,8 +65,8 @@ pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId
                         @test_id={"infinite-canvas.add-block"}
                         on_click={move || blocks.open_block_picker(None)}
                     />
-                    <ActionsMenu state={actions} />
-                    <ZoomControls state={zoom} />
+                    <ActionsMenu state={actions} compact={menu_compact} />
+                    <ZoomControls state={zoom} compact={zoom_compact} />
                 </List>
                 <ImportError state={errors} />
             </List>
@@ -70,7 +75,7 @@ pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId
 }
 
 #[component]
-fn ToolChoice(state: Rc<CanvasState>, index: usize) -> NodeId {
+fn ToolChoice(state: Rc<CanvasState>, index: usize, compact: Memo<bool>) -> NodeId {
     let (tool, glyph, label) = TOOLS[index];
     let pressed = create_memo(clone!(state -> move || state.tool.get() == tool));
     let choose = clone!(state -> move |_: bool| state.set_tool(tool));
@@ -78,6 +83,7 @@ fn ToolChoice(state: Rc<CanvasState>, index: usize) -> NodeId {
         <ToggleButton
             label={label}
             glyph={glyph.to_owned()}
+            icon_only={compact}
             pressed={pressed}
             @test_id={format!("infinite-canvas.tool.{label}")}
             on_change={choose}
@@ -86,7 +92,7 @@ fn ToolChoice(state: Rc<CanvasState>, index: usize) -> NodeId {
 }
 
 #[component]
-fn ActionsMenu(state: Rc<CanvasState>) -> NodeId {
+fn ActionsMenu(state: Rc<CanvasState>, compact: Memo<bool>) -> NodeId {
     let selected = create_memo(clone!(state -> move || state.selection.get().is_empty()));
     let grouped = create_memo(clone!(state -> move || !state.selection_can_group()));
     let ungrouped = create_memo(clone!(state -> move || {
@@ -134,6 +140,12 @@ fn ActionsMenu(state: Rc<CanvasState>) -> NodeId {
     view! {
         <MenuButton
             label="Actions"
+            glyph={create_memo(clone!(compact -> move || match compact.get() {
+                true => ICON_MORE_HORIZ.to_owned(),
+                false => String::new(),
+            }))}
+            icon_only={compact.clone()}
+            arrow={create_memo(move || !compact.get())}
             items={items}
             @test_id={"infinite-canvas.actions"}
             on_select={chosen}
@@ -142,7 +154,9 @@ fn ActionsMenu(state: Rc<CanvasState>) -> NodeId {
 }
 
 #[component]
-fn ZoomControls(state: Rc<CanvasState>) -> NodeId {
+fn ZoomControls(state: Rc<CanvasState>, compact: Memo<bool>) -> NodeId {
+    let roomy = create_memo(clone!(compact -> move || !compact.get()));
+    let inward_roomy = roomy.clone();
     let scale = state.editor().scale();
     let readout = create_memo(clone!(scale -> move || format!("{:.0}%", scale.get() * 100.0)));
     let out = clone!(state -> move || state.editor().zoom(1.0 / ZOOM_STEP));
@@ -179,12 +193,14 @@ fn ZoomControls(state: Rc<CanvasState>) -> NodeId {
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-            <IconButton
-                glyph={ICON_ZOOM_OUT.to_owned()}
-                label="Zoom out"
-                @test_id={"infinite-canvas.zoom-out"}
-                on_click={out}
-            />
+            <Show condition={roomy}>
+                <IconButton
+                    glyph={ICON_ZOOM_OUT.to_owned()}
+                    label="Zoom out"
+                    @test_id={"infinite-canvas.zoom-out"}
+                    on_click={out}
+                />
+            </Show>
             <Button
                 label={readout}
                 variant=ButtonVariant::Secondary
@@ -199,12 +215,14 @@ fn ZoomControls(state: Rc<CanvasState>) -> NodeId {
                 @test_id={"infinite-canvas.zoom-presets"}
                 on_select={chosen}
             />
-            <IconButton
-                glyph={ICON_ZOOM_IN.to_owned()}
-                label="Zoom in"
-                @test_id={"infinite-canvas.zoom-in"}
-                on_click={inward}
-            />
+            <Show condition={inward_roomy}>
+                <IconButton
+                    glyph={ICON_ZOOM_IN.to_owned()}
+                    label="Zoom in"
+                    @test_id={"infinite-canvas.zoom-in"}
+                    on_click={inward}
+                />
+            </Show>
         </List>
     }
 }

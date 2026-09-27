@@ -318,7 +318,15 @@ plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
 fix to how text is edited lands in both. `MenuButton` is the button that opens a menu under itself, which is
 what a toolbar reaches for where `Select` would imply the choice sticks;
 `ContextMenu` is the same menu on a secondary press, and it also takes an
-`open_at` point so a touch gesture can raise it where the finger was.
+`open_at` point so a touch gesture can raise it where the finger was. A finger
+held still for the long-press delay (`Context::set_long_press_delay`, which a
+test sets to zero rather than waiting) is a secondary press where it rests, so
+every context menu opens on tap-and-hold; the press the finger began is
+cancelled and lifting it is not a click. A `ClickCatcher` hears that
+cancellation, and a second finger landing, as `on_cancel`, which is where a
+gesture in progress is dropped rather than committed. A finger dragged across a
+`ClickCatcher` is read as a scroll of whatever holds it unless the catcher sets
+`touch_drags`, which a canvas that draws or moves things under the finger does.
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, a multiline text

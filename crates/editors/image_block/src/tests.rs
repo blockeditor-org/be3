@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::app::ImageApp;
 
 mod a_decoded_image_is_painted_at_its_shape;
+mod a_narrow_image_folds_its_sidebar_under_the_picture;
 mod an_image_still_loading_shows_its_thumbhash;
 mod an_image_that_will_not_decode_says_so;
 
