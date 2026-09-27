@@ -100,13 +100,18 @@ impl<A: BeuiApp> Views<A> {
         editor.end_frame(document);
     }
 
-    fn creation(&mut self, context: &beui::Context, rect: beui::Rect) {
+    fn creation(&mut self, context: &beui::Context, rect: beui::Rect) -> Option<beui::Rect> {
         let (Some(creation), Some(dialog)) = (self.creation.as_ref(), self.dialog.as_mut()) else {
-            return;
+            return None;
         };
         let creation = creation.clone();
         beui::reactive::with_reactive_scope(dialog, move || creation.begin_frame());
         dialog.show(context, rect);
+        let measured = dialog.measure_root(context, beui::vec2(rect.width(), f32::INFINITY))?;
+        measured
+            .y
+            .is_finite()
+            .then(|| beui::Rect::from_min_size(rect.min, beui::vec2(rect.width(), measured.y)))
     }
 
     fn artifact_settings(
@@ -337,7 +342,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         let mut painted = Vec::new();
         let mut floating = Vec::new();
         let output = context.run(beui::RawInput { events }, |context| match region.region {
-            EditorRegion::Frame if views.creating => views.creation(context, frame),
+            EditorRegion::Frame if views.creating => content = views.creation(context, frame),
             EditorRegion::Frame => {
                 let chrome = state
                     .chrome

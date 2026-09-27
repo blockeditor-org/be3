@@ -645,12 +645,29 @@ fn ChoiceButtons(play: Play) -> NodeId {
 }
 
 pub(crate) trait GameCreationModel {
+    fn choose_staged(&self, index: usize);
     fn choose_module(&self);
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub(crate) enum StagedState {
+    Loading,
+    Ready { chosen: bool },
+    Failed(String),
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub(crate) struct StagedChoice {
+    pub(crate) index: usize,
+    pub(crate) name: String,
+    pub(crate) state: StagedState,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) struct CreationSnapshot {
-    pub(crate) chosen: Option<String>,
+    pub(crate) games: Vec<StagedChoice>,
+    pub(crate) listing: bool,
+    pub(crate) module: Option<String>,
     pub(crate) picking: bool,
     pub(crate) error: Option<String>,
 }
@@ -661,14 +678,24 @@ pub(crate) fn GameCreation(
     snapshot: ReadSignal<CreationSnapshot>,
 ) -> NodeId {
     let picking = create_memo(clone!(snapshot -> move || snapshot.get().picking));
+    let games = create_memo(clone!(snapshot -> move || snapshot.get().games));
     let status = create_memo(clone!(snapshot -> move || {
         let snapshot = snapshot.get();
-        snapshot.error.unwrap_or_else(|| {
-            snapshot
-                .chosen
-                .unwrap_or_else(|| "No game module chosen".to_owned())
-        })
+        if let Some(error) = snapshot.error {
+            return error;
+        }
+        if let Some(module) = snapshot.module {
+            return module;
+        }
+        if snapshot.listing {
+            return "Looking for the games this app has".to_owned();
+        }
+        if snapshot.games.is_empty() {
+            return "This app has no games of its own".to_owned();
+        }
+        String::new()
     }));
+    let has_status = create_memo(clone!(status -> move || !status.get().is_empty()));
     let theme = use_theme();
     let status_color = create_memo(clone!(theme snapshot -> move || {
         let theme = theme.get();
@@ -678,17 +705,56 @@ pub(crate) fn GameCreation(
             theme.text_muted
         }
     }));
+    let staged = creation.clone();
     view! {
         <Frame padding_horizontal=14.0 padding_vertical=14.0>
             <List spacing=10.0 align=Align::Start>
+                <ForEach keys={games}>
+                    {move |game: StagedChoice| {
+                        let creation = staged.clone();
+                        let index = game.index;
+                        let (variant, disabled, caption) = match &game.state {
+                            StagedState::Loading => (ButtonVariant::Secondary, true, String::new()),
+                            StagedState::Ready { chosen: true } => {
+                                (ButtonVariant::Primary, false, String::new())
+                            }
+                            StagedState::Ready { chosen: false } => {
+                                (ButtonVariant::Secondary, false, String::new())
+                            }
+                            StagedState::Failed(error) => (ButtonVariant::Secondary, true, error.clone()),
+                        };
+                        let failed = !caption.is_empty();
+                        let theme = use_theme();
+                        view! {
+                            <List spacing=2.0 align=Align::Start>
+                                <Button
+                                    label={game.name.clone()}
+                                    variant
+                                    disabled
+                                    @test_id={format!("game.staged.{index}")}
+                                    on_click={move || creation.choose_staged(index)}
+                                />
+                                <Show condition={failed}>
+                                    <Caption
+                                        content={caption.clone()}
+                                        color={theme.danger.clone()}
+                                        wrap=true
+                                    />
+                                </Show>
+                            </List>
+                        }
+                    }}
+                </ForEach>
                 <Button
                     label="Choose game module…"
-                    variant=ButtonVariant::Primary
+                    variant=ButtonVariant::Secondary
                     disabled={picking}
                     @test_id={"game.choose"}
                     on_click={move || creation.choose_module()}
                 />
-                <Caption content={status} color={status_color} @test_id={"game.selection"} />
+                <Show condition={has_status}>
+                    <Caption content={status} color={status_color} @test_id={"game.selection"} />
+                </Show>
             </List>
         </Frame>
     }

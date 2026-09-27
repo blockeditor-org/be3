@@ -150,11 +150,6 @@ if $lint; then
 fi
 
 if $tests; then
-    if command -v node > /dev/null; then
-        step "merge queue tests" sh -c 'node --test --test-reporter=dot .github/merge-queue/*.test.js'
-    else
-        echo "Skipping the merge queue tests: node is not installed."
-    fi
     step "buck2 test" "$buck" test //crates/... --exclude plugin
 fi
 

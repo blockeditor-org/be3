@@ -17,9 +17,9 @@ impl Fetch {
         Self { receiver }
     }
 
-    pub(crate) fn refused(reason: String) -> Self {
+    pub(crate) fn answered(result: Result<Vec<u8>, String>) -> Self {
         let (sender, receiver) = waking_channel();
-        let _ = sender.send(Err(reason));
+        let _ = sender.send(result);
         Self { receiver }
     }
 

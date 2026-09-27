@@ -127,6 +127,7 @@ impl Runtime {
         backend.start(plugin);
         let mut instances = Instances::default();
         instances.allow_network(plugin.network.clone());
+        instances.set_plugin_id(plugin.identity.id.clone());
         let mut session = session();
         session.start(host::milliseconds());
         Self {

@@ -191,7 +191,7 @@ A native target depends on a wasm one through a transition in
 ## Shipping
 
 - `:app` stages the executable as `block-app`, PDFium, and every editor's
-  manifest (`<id>.plugin.json`), module and `.cwasm`, precompiled in an action
+  manifest (`<id>.plugin.json`), data (`data/<id>/`), module and `.cwasm`, precompiled in an action
   per module for the platform the app is built for, by
   `//crates/plugin-test-runner:precompiler`, which is always the Linux x86_64
   build the workers can run.

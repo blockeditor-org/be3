@@ -84,6 +84,7 @@ mod clipboard_messages_round_trip;
 mod copied_text_round_trips;
 mod creation_messages_round_trip;
 mod cursor_round_trips;
+mod data_messages_round_trip;
 mod drag_messages_round_trip;
 mod every_block_id_a_message_carries_is_visited;
 mod every_editor_manifest_parses;

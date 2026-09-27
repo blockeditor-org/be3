@@ -106,14 +106,20 @@ impl EditorMessage {
             }
             Self::Request { request, .. } => match request {
                 HostRequest::PickBlock(filter) => filter.excluded.iter_mut().for_each(existing),
-                HostRequest::PickFile(_) | HostRequest::PasteImage | HostRequest::Fetch(_) => {}
+                HostRequest::PickFile(_)
+                | HostRequest::PasteImage
+                | HostRequest::Fetch(_)
+                | HostRequest::ListData
+                | HostRequest::ReadData(_) => {}
             },
             Self::Replied { reply, .. } => match reply {
                 HostReply::BlockPicked(BlockPick::Chosen { block_id, .. }) => existing(block_id),
                 HostReply::BlockPicked(BlockPick::Cancelled | BlockPick::Failed(_))
                 | HostReply::FilePicked(_)
                 | HostReply::ImagePasted(_)
-                | HostReply::Fetched(_) => {}
+                | HostReply::Fetched(_)
+                | HostReply::DataListed(_)
+                | HostReply::DataRead(_) => {}
             },
             Self::CreationBlock { outcome, .. } => match outcome {
                 CreationOutcome::Created(block_id) => existing(block_id),

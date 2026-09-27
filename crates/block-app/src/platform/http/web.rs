@@ -21,10 +21,10 @@ impl Fetch {
         Self { state }
     }
 
-    pub(crate) fn refused(reason: String) -> Self {
+    pub(crate) fn answered(result: Result<Vec<u8>, String>) -> Self {
         crate::host::wake();
         Self {
-            state: Rc::new(RefCell::new(Some(Err(reason)))),
+            state: Rc::new(RefCell::new(Some(result))),
         }
     }
 
