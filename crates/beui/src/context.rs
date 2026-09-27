@@ -26,7 +26,7 @@ pub struct Context {
 struct Inner {
     fonts: RefCell<Fonts>,
     input: RefCell<InputState>,
-    shapes: RefCell<Vec<Shape>>,
+    shapes: RefCell<Rc<Vec<Shape>>>,
     top_shapes: RefCell<Vec<Shape>>,
     filter: Cell<Option<(Filter, usize)>>,
     paint_stack: RefCell<Vec<PaintFrame>>,
@@ -137,7 +137,7 @@ impl Context {
             inner: Rc::new(Inner {
                 fonts: RefCell::new(Fonts::new(sources)),
                 input: RefCell::new(InputState::default()),
-                shapes: RefCell::new(Vec::new()),
+                shapes: RefCell::default(),
                 top_shapes: RefCell::new(Vec::new()),
                 filter: Cell::new(None),
                 paint_stack: RefCell::new(Vec::new()),
@@ -225,7 +225,7 @@ impl Context {
         if let Some(delay) = held {
             self.request_repaint_after(delay);
         }
-        self.inner.shapes.borrow_mut().clear();
+        self.inner.shapes.take();
         self.inner.top_shapes.borrow_mut().clear();
         self.inner.filter.set(None);
         self.inner.paint_stack.borrow_mut().clear();
@@ -249,7 +249,7 @@ impl Context {
             self.paint_mouse_simulation(viewport);
         }
         self.flush_top();
-        let shapes = Rc::new(std::mem::take(&mut *self.inner.shapes.borrow_mut()));
+        let shapes = self.inner.shapes.take();
         let scale = self.pixels_per_point();
         let filter = self.inner.filter.take();
         let reported = std::mem::take(&mut *self.inner.damage.borrow_mut());
@@ -263,21 +263,19 @@ impl Context {
             Some(old) => match reported.is_empty() {
                 true => {
                     debug_assert!(
-                        *old.shapes == *shapes,
+                        Rc::ptr_eq(&old.shapes, &shapes) || *old.shapes == *shapes,
                         "a frame that reported no damage changed the shapes it painted"
                     );
                     false
                 }
-                false => *old.shapes != *shapes,
+                false => !Rc::ptr_eq(&old.shapes, &shapes) && *old.shapes != *shapes,
             },
         };
-        if changed {
-            *previous = Some(Previous {
-                shapes: Rc::clone(&shapes),
-                pixels_per_point: scale,
-                filter,
-            });
-        }
+        *previous = Some(Previous {
+            shapes: Rc::clone(&shapes),
+            pixels_per_point: scale,
+            filter,
+        });
         FrameOutput {
             shapes,
             filter,
@@ -503,8 +501,16 @@ impl Context {
         }
     }
 
-    pub(crate) fn extend(&self, shapes: &[Shape]) {
-        self.inner.shapes.borrow_mut().extend_from_slice(shapes);
+    pub(crate) fn extend(&self, shapes: &Rc<Vec<Shape>>) {
+        if shapes.is_empty() {
+            return;
+        }
+        let mut held = self.inner.shapes.borrow_mut();
+        if held.is_empty() {
+            *held = Rc::clone(shapes);
+        } else {
+            Rc::make_mut(&mut held).extend_from_slice(shapes);
+        }
     }
 
     pub(crate) fn publish_test_id(&self, test_id: &str, rect: Rect) {
@@ -602,7 +608,10 @@ impl Context {
         let shapes = self.inner.shapes.borrow().len();
         let damage = self.inner.damage.borrow().len();
         let result = content();
-        for shape in self.inner.shapes.borrow_mut().iter_mut().skip(shapes) {
+        for shape in Rc::make_mut(&mut self.inner.shapes.borrow_mut())
+            .iter_mut()
+            .skip(shapes)
+        {
             let bounds = shape_clip(shape);
             *bounds = bounds.intersect(clip);
         }
@@ -655,7 +664,10 @@ impl Context {
         }
         self.inner.input.replace(input);
         self.inner.pixels_per_point.set(pixels_per_point);
-        for shape in self.inner.shapes.borrow_mut().iter_mut().skip(shapes) {
+        for shape in Rc::make_mut(&mut self.inner.shapes.borrow_mut())
+            .iter_mut()
+            .skip(shapes)
+        {
             scale_shape(shape, scale);
         }
         for rect in self.inner.damage.borrow_mut().iter_mut().skip(damage) {
@@ -688,7 +700,7 @@ impl Context {
 
     pub(crate) fn push(&self, shape: Shape) {
         if let Some(shape) = self.record(shape, Item::Main) {
-            self.inner.shapes.borrow_mut().push(shape);
+            Rc::make_mut(&mut self.inner.shapes.borrow_mut()).push(shape);
         }
     }
 
@@ -725,7 +737,9 @@ impl Context {
 
     fn flush_top(&self) {
         let top = std::mem::take(&mut *self.inner.top_shapes.borrow_mut());
-        self.inner.shapes.borrow_mut().extend(top);
+        if !top.is_empty() {
+            Rc::make_mut(&mut self.inner.shapes.borrow_mut()).extend(top);
+        }
     }
 }
 
@@ -823,3 +837,6 @@ impl Default for Context {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests;

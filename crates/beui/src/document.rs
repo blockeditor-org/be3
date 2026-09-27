@@ -83,7 +83,7 @@ pub struct Document {
     scroll_hosts: Vec<NodeId>,
     scroll_shifts: NodeMap<f32>,
     viewport: Option<(Context, Rect, f32)>,
-    shapes: Vec<Shape>,
+    shapes: Rc<Vec<Shape>>,
     pub(crate) paint_cache: RefCell<PaintCache>,
     pub(crate) verifies_paint: bool,
     pub(crate) copied_text: Option<String>,
@@ -238,7 +238,7 @@ impl Document {
             scroll_hosts: Vec::new(),
             scroll_shifts: NodeMap::default(),
             viewport: None,
-            shapes: Vec::new(),
+            shapes: Rc::default(),
             paint_cache: RefCell::new(PaintCache::default()),
             verifies_paint: true,
             copied_text: None,
@@ -896,7 +896,7 @@ impl Document {
         let cache = self.paint_cache.get_mut();
         cache.settle_roots(roots);
         if cache.take_recorded() {
-            self.shapes = cache.flatten();
+            self.shapes = Rc::new(cache.flatten());
         }
         self.damage.add_region(cache.take_damage());
     }
@@ -923,7 +923,7 @@ impl Document {
         self.work.replayed_nodes.set(counted.1);
         let differs = fresh
             .iter()
-            .zip(&self.shapes)
+            .zip(self.shapes.iter())
             .position(|(fresh, retained)| !paint::same_shape(fresh, retained));
         assert!(
             fresh.len() == self.shapes.len() && differs.is_none(),
@@ -937,7 +937,7 @@ impl Document {
             |old: &Shape, new: &Shape| old == new || paint::redrawn_in_place(old, new).is_some();
         let prefix = previous
             .iter()
-            .zip(&self.shapes)
+            .zip(self.shapes.iter())
             .take_while(|(old, new)| kept(old, new))
             .count();
         let suffix = previous[prefix..]

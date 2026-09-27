@@ -31,8 +31,9 @@ What follows is the rest, roughly in order of value.
 ## Paint and rendering
 
 - **Stop flattening.** After a paint pass the display tree is flattened into a
-  `Vec<Shape>` (`PaintCache::flatten`), copied into the `Context` every frame
-  (`ctx.extend(&self.shapes)`) and compared shape by shape in `end_frame`. Give
+  `Vec<Shape>` (`PaintCache::flatten`). Composing multiple documents, appending
+  immediate painting, or transforming the frame still copies that buffer;
+  these composed frames are compared shape by shape in `end_frame`. Give
   the renderer the display tree instead, keep an instance range per display
   list in the GPU buffer, and re-encode only the lists that changed. That also
   lets `FrameOutput` stop exposing shapes: `FrameOutput::shapes` is still
