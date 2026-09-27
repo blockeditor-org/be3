@@ -461,6 +461,7 @@ impl Document {
             return true;
         }
         let focusable = self.first_focusable_within(target);
+        self.set_focus_visible(true);
         match request.action {
             Action::Focus => {
                 if let Some(focusable) = focusable {

@@ -7,6 +7,7 @@ use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
     Align, Callback, Direction, Frame, ItemSize, List, Prop, Spacer, Text, clone, create_memo,
+    focus_ring,
 };
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
@@ -64,7 +65,7 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Frame

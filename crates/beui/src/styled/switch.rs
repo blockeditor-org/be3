@@ -6,7 +6,7 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    Align, Callback, Direction, Frame, ItemSize, List, Prop, Spacer, clone, create_memo,
+    Align, Callback, Direction, Frame, ItemSize, List, Prop, Spacer, clone, create_memo, focus_ring,
 };
 use crate::styled::theme::{
     BORDER_WIDTH, RADIUS, ThemeStore, control_outline, control_outline_visible, use_theme,
@@ -67,7 +67,7 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
         >
             <Frame
                 width=WIDTH
