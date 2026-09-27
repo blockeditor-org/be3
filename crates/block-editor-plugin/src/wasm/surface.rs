@@ -1,6 +1,8 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
-use block_plugin_api::{FrameReady, Message, ScreenLayout, SurfaceFormat, SurfaceSpec};
+use block_plugin_api::{
+    FrameReady, Message, PresentedFrame, ScreenLayout, SurfaceFormat, SurfaceSpec,
+};
 
 use crate::{panes::Panes, screens::Screens};
 
@@ -8,6 +10,7 @@ const SCREENS_SURFACE: u32 = 0;
 
 thread_local! {
     static GPU: RefCell<Option<Gpu>> = const { RefCell::new(None) };
+    static PRESENTS: Cell<u64> = const { Cell::new(0) };
 }
 
 #[derive(Clone)]
@@ -69,11 +72,12 @@ impl Surface {
         }
         let ran = self.panes.run(&self.layout, screens);
         let repaint = ran.repaint;
+        let mut presented = None;
         if ran.changed {
             let texture = block_gpu_guest::acquire_surface_texture(SCREENS_SURFACE)?;
             let age = block_gpu_guest::surface_age(SCREENS_SURFACE);
             let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-            self.panes.paint(
+            let damage = self.panes.paint(
                 &self.gpu.device,
                 &self.gpu.queue,
                 &view,
@@ -83,10 +87,16 @@ impl Surface {
                 age,
             );
             block_gpu_guest::present_surface(SCREENS_SURFACE);
+            let sequence = PRESENTS.with(|presents| {
+                presents.set(presents.get() + 1);
+                presents.get()
+            });
+            presented = Some(PresentedFrame { sequence, damage });
         }
         Ok(vec![Message::FrameReady(FrameReady {
             generation: self.generation,
             repaint_after_micros: repaint.map(|delay| delay.as_micros() as u64),
+            presented,
         })])
     }
 }

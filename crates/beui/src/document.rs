@@ -933,23 +933,28 @@ impl Document {
             differs.map(|at| crate::damage::bounds(&fresh[at])),
             differs.map(|at| crate::damage::bounds(&self.shapes[at])),
         );
+        let kept =
+            |old: &Shape, new: &Shape| old == new || paint::redrawn_in_place(old, new).is_some();
         let prefix = previous
             .iter()
             .zip(&self.shapes)
-            .take_while(|(old, new)| old == new)
+            .take_while(|(old, new)| kept(old, new))
             .count();
         let suffix = previous[prefix..]
             .iter()
             .rev()
             .zip(self.shapes[prefix..].iter().rev())
-            .take_while(|(old, new)| old == new)
+            .take_while(|(old, new)| kept(old, new))
             .count();
         let old = &previous[prefix..previous.len() - suffix];
         let new = &self.shapes[prefix..self.shapes.len() - suffix];
         let moved = old
             .iter()
-            .filter(|shape| !new.contains(shape))
-            .chain(new.iter().filter(|shape| !old.contains(shape)));
+            .filter(|shape| !new.iter().any(|new| kept(shape, new)))
+            .chain(
+                new.iter()
+                    .filter(|shape| !old.iter().any(|old| kept(old, shape))),
+            );
         for shape in moved {
             let bounds = crate::damage::bounds(shape).intersect(viewport);
             assert!(

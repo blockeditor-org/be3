@@ -1,5 +1,7 @@
 use std::{cell::RefCell, collections::HashMap};
 
+use block_plugin_api::SurfaceRect;
+
 use crate::plugin_host::presenter::{BlitPipeline, SurfacePresenter};
 
 thread_local! {
@@ -13,6 +15,8 @@ pub(super) fn gpu() -> Option<(wgpu::Device, wgpu::Queue)> {
 pub(crate) struct SurfaceFrame {
     pub(crate) texture: wgpu::Texture,
     pub(crate) generation: u64,
+    pub(crate) presents: u64,
+    pub(crate) damage: Option<Vec<SurfaceRect>>,
 }
 
 struct Target {

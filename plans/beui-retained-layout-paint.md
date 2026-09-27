@@ -12,7 +12,10 @@ included. beui's own tests and `block-ui-test` repaint every frame from scratch
 and check the retained painting and its damage against it (`beui::verify_paint`).
 Layout writes the one rect map in place, stops invalidating at relayout
 boundaries and lays those out directly, and removed nodes' slots are reused
-under generational ids.
+under generational ids. A scroll keeps its items' lengths and prefix sums, told
+which items went stale by the arena, so a scroll lays out only the visible
+rows. A plugin frame reports the surface rectangles it drew into, and the host
+damages only those through `Drawing::redrawn`.
 
 What follows is the rest, roughly in order of value.
 
@@ -23,8 +26,7 @@ What follows is the rest, roughly in order of value.
   and paints each again. Store an offset per node and let containers (scroll,
   canvas, offset) carry a translation; derive absolute rects lazily for input,
   accessibility and test ids. The display lists then hold local coordinates and
-  a scroll re-records one node. `OffsetNode::lengths` also sums every item on
-  every pass; keep prefix sums so a scroll costs the visible rows.
+  a scroll re-records one node.
 
 ## Paint and rendering
 
@@ -39,13 +41,3 @@ What follows is the rest, roughly in order of value.
 - **Scroll by copying.** With local coordinates, an opaque scroll viewport can
   copy the retained frame by the scroll delta and repaint only the exposed
   strip.
-- **Damage across the plugin boundary, host half.** A plugin pane repaints only
-  what changed since the surface texture it draws into was last presented
-  (`surface_age`), but the host still treats every plugin frame as new: each
-  pending frame makes `surfaces::commit` build a new `PluginDrawing`, which
-  damages the whole surface area. `FrameReady` could carry the rects the frame
-  changed (plain surface-pixel rectangles keep the protocol framework-independent)
-  and the host could keep its drawing and damage only those rects, mapped
-  through the blit's quad. The damage has to reach the host with the frame it
-  describes (on the web the frame and the message arrive separately), and fall
-  back to the whole surface when they do not match.

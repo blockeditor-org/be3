@@ -1593,7 +1593,10 @@ under them has to paint. `paint` must therefore be a function of the node, its
 rectangle, the painter and the rectangles its own layout gave its children -
 anything else it reads goes unnoticed when it changes. What a node damages is
 where its shapes changed, so a repaint that paints the same thing costs no
-pixels. beui's own tests, and every test that drives a plugin through
+pixels. A `Drawing` whose content changed in part hands its `Viewport`
+`drawing.redrawn(region)` rather than a new `Drawing`: only that region, in the
+drawing's own coordinates, is damaged (the plugin host does this with the
+rectangles each plugin frame reports it changed). beui's own tests, and every test that drives a plugin through
 `block-ui-test` (which turns on `beui::verify_paint`), paint every frame again
 from scratch and fail when the retained painting differs from it or changed
 outside the damage.

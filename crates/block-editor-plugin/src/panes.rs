@@ -1,4 +1,4 @@
-use block_plugin_api::{ScreenLayout, ScreenPlacement};
+use block_plugin_api::{ScreenLayout, ScreenPlacement, SurfaceRect};
 use std::collections::VecDeque;
 use std::time::Duration;
 
@@ -58,7 +58,7 @@ impl Panes {
         screens: &mut Screens,
         ran: Ran,
         age: u32,
-    ) {
+    ) -> Vec<SurfaceRect> {
         let kept = age > 0 && self.presented.get(age as usize - 1) == Some(&layout.generation);
         let age = if kept { age } else { 0 };
         if age == 0 {
@@ -66,11 +66,12 @@ impl Panes {
         }
         self.presented.push_front(layout.generation);
         self.presented.truncate(REMEMBERED_PRESENTS);
+        let mut damage = Vec::new();
         for placement in ran.placed {
             let Some(session) = screens.session(placement.instance) else {
                 continue;
             };
-            session.paint(&PaintTarget {
+            damage.extend(session.paint(&PaintTarget {
                 device,
                 queue,
                 view,
@@ -79,7 +80,16 @@ impl Panes {
                 height: layout.height,
                 placement,
                 age,
-            });
+            }));
+        }
+        match age {
+            0 => vec![SurfaceRect {
+                x: 0,
+                y: 0,
+                width: layout.width,
+                height: layout.height,
+            }],
+            _ => damage,
         }
     }
 }

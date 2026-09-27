@@ -853,8 +853,8 @@ impl EditorSession {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn paint(&mut self, target: &PaintTarget<'_>) {
-        self.app.paint(target);
+    pub fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<block_plugin_api::SurfaceRect> {
+        self.app.paint(target)
     }
 
     pub(crate) fn input(&mut self, region: EditorRegion, event: &InputEvent) {

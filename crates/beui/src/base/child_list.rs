@@ -50,6 +50,7 @@ struct Slot<T> {
 pub(crate) struct ChildList<T> {
     next: u32,
     slots: Vec<Slot<T>>,
+    revision: u64,
 }
 
 impl<T> Default for ChildList<T> {
@@ -57,6 +58,7 @@ impl<T> Default for ChildList<T> {
         Self {
             next: 0,
             slots: Vec::new(),
+            revision: 0,
         }
     }
 }
@@ -65,7 +67,12 @@ impl<T> ChildList<T> {
     fn take_id(&mut self) -> SlotId {
         let id = SlotId(self.next);
         self.next += 1;
+        self.revision += 1;
         id
+    }
+
+    pub(crate) fn revision(&self) -> u64 {
+        self.revision
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -111,6 +118,7 @@ impl<T> ChildList<T> {
             return;
         };
         found.items = SlotItems::Many(items);
+        self.revision += 1;
     }
 }
 
@@ -128,6 +136,7 @@ impl<T: ChildItem> ChildList<T> {
     }
 
     pub(crate) fn remove(&mut self, child: NodeId) {
+        self.revision += 1;
         for slot in &mut self.slots {
             if let SlotItems::Many(items) = &mut slot.items {
                 items.retain(|item| item.node() != child);
@@ -162,5 +171,6 @@ impl<T: ChildItem> ChildList<T> {
             )
             .collect();
         self.slots[index].items = SlotItems::Many(items);
+        self.revision += 1;
     }
 }
