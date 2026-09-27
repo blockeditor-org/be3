@@ -75,7 +75,12 @@ pub fn Popover(
         }
     }));
 
-    let close = Callback::new(clone!(set_open -> move |()| set_open.set(false)));
+    let close = Callback::new(clone!(open set_open set_refocus -> move |()| {
+        if open.get_untracked() {
+            set_refocus.set(true);
+            set_open.set(false);
+        }
+    }));
     let handle = PopoverHandle {
         open: open.clone(),
         close,

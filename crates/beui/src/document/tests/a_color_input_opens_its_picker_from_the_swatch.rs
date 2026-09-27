@@ -49,4 +49,10 @@ fn a_color_input_opens_its_picker_from_the_swatch() {
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(Vec::new());
     assert!(!open(&harness), "escape closes the picker");
+    let trigger = harness
+        .document()
+        .focused_node()
+        .map(|focused| harness.rect(focused))
+        .expect("the focus went back to the swatch");
+    assert!(trigger.contains(pos2(swatch.left() + 8.0, swatch.center().y)));
 }
