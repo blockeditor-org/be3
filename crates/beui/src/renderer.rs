@@ -5,7 +5,9 @@ use bytemuck::{Pod, Zeroable};
 use crate::color::Color32;
 use crate::context::FrameOutput;
 use crate::damage::Region;
-use crate::draw::{Quad, Turn, quads_within};
+use crate::display::{Display, Layer, Part};
+use crate::draw::{Quad, Turn, push_quads};
+use crate::painter::{Entry, placed_shape};
 use crate::drawing::{DrawAt, Drawing};
 use crate::filter::Filter;
 use crate::font::{GlyphId, GlyphImage};
@@ -233,6 +235,19 @@ struct Picture {
     used: bool,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct Space {
+    translation: [f32; 2],
+    padding: [f32; 2],
+    clip: [f32; 4],
+}
+
+const OPEN: [f32; 4] = [-1.0e9, -1.0e9, 1.0e9, 1.0e9];
+const SPACES: usize = 64;
+const LISTED: usize = 4096;
+const REACH: f32 = 2.0;
+
 pub struct Renderer {
     srgb: bool,
     format: wgpu::TextureFormat,
@@ -243,6 +258,20 @@ pub struct Renderer {
     uniform_buffer: wgpu::Buffer,
     instance_buffer: wgpu::Buffer,
     instance_capacity: usize,
+    space_layout: wgpu::BindGroupLayout,
+    space_buffer: wgpu::Buffer,
+    space_group: wgpu::BindGroup,
+    space_capacity: usize,
+    space_stride: u64,
+    list_buffer: wgpu::Buffer,
+    list_capacity: usize,
+    list_top: usize,
+    generation: u64,
+    lists: HashMap<ListKey, Encoded>,
+    live: usize,
+    atlas_epoch: u64,
+    #[cfg(test)]
+    pub(crate) encoded: usize,
     runs: Vec<Run>,
     overlay: Vec<Run>,
     scissors: Option<Vec<[u32; 4]>>,
@@ -260,39 +289,211 @@ struct Run {
     punch: bool,
     picture: Option<(ImageId, bool)>,
     drawing: Option<(Drawing, DrawAt)>,
+    listed: bool,
+    space: u32,
     start: u32,
     count: u32,
 }
 
 impl Run {
-    fn push(runs: &mut Vec<Self>, punch: bool, at: u32) {
-        Self::push_picture(runs, punch, None, at);
+    fn push(runs: &mut Vec<Self>, run: Self) {
+        if let Some(last) = runs.last_mut()
+            && last.drawing.is_none()
+            && run.drawing.is_none()
+            && last.punch == run.punch
+            && last.picture == run.picture
+            && last.listed == run.listed
+            && last.space == run.space
+            && last.start + last.count == run.start
+        {
+            last.count += run.count;
+            return;
+        }
+        runs.push(run);
     }
+}
 
-    fn push_picture(runs: &mut Vec<Self>, punch: bool, picture: Option<(ImageId, bool)>, at: u32) {
-        match runs.last_mut() {
-            Some(run) if run.punch == punch && run.picture == picture && run.drawing.is_none() => {
-                run.count += 1
-            }
-            _ => runs.push(Self {
-                punch,
-                picture,
-                drawing: None,
-                start: at,
-                count: 1,
-            }),
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct ListKey {
+    display: u64,
+    factor: u32,
+    offset: [u32; 2],
+    clip: [u32; 4],
+}
+
+struct Encoded {
+    instances: Vec<Instance>,
+    runs: Vec<ListRun>,
+    parts: Vec<(usize, usize)>,
+    placed: Option<(u64, u32)>,
+    atlas: u64,
+}
+
+enum ListRun {
+    Quads {
+        punch: bool,
+        picture: Option<(Image, bool)>,
+        start: u32,
+        count: u32,
+    },
+    Drawing {
+        drawing: Drawing,
+        rect: [f32; 4],
+        clip: [f32; 4],
+    },
+}
+
+enum Encoding {
+    Instance {
+        punch: bool,
+        picture: Option<(Image, bool)>,
+        instance: Instance,
+    },
+    Drawing {
+        drawing: Drawing,
+        rect: [f32; 4],
+        clip: [f32; 4],
+    },
+}
+
+#[derive(Clone, Copy)]
+struct Walk {
+    factor: f32,
+    space: u32,
+    origin: [f32; 2],
+    bound: [f32; 4],
+    offset: Vec2,
+    clip: Rect,
+}
+
+impl Walk {
+    fn key(&self, display: &Display) -> ListKey {
+        ListKey {
+            display: display.key,
+            factor: self.factor.to_bits(),
+            offset: [self.offset.x.to_bits(), self.offset.y.to_bits()],
+            clip: [
+                self.clip.min.x.to_bits(),
+                self.clip.min.y.to_bits(),
+                self.clip.max.x.to_bits(),
+                self.clip.max.y.to_bits(),
+            ],
         }
     }
 
-    fn push_drawing(runs: &mut Vec<Self>, drawing: Drawing, at: DrawAt, start: u32) {
-        runs.push(Self {
-            punch: false,
-            picture: None,
-            drawing: Some((drawing, at)),
-            start,
-            count: 0,
-        });
+    fn reach(&self, display: &Display) -> [f32; 4] {
+        let visible = display.bounds.translate(self.offset).intersect(self.clip);
+        let [left, top, right, bottom] = pixels(visible, self.factor, self.origin);
+        overlap(
+            [left - REACH, top - REACH, right + REACH, bottom + REACH],
+            self.bound,
+        )
     }
+
+    fn enter(&self, entry: Entry, frame: &mut Frame) -> Self {
+        let clip = self.clip.intersect(entry.clip.translate(self.offset));
+        let Some(shift) = entry.shift else {
+            return Self {
+                offset: self.offset + entry.translation,
+                clip,
+                ..*self
+            };
+        };
+        let at = self.offset + shift;
+        let origin = [
+            self.origin[0] + (at.x * self.factor).round(),
+            self.origin[1] + (at.y * self.factor).round(),
+        ];
+        let bound = overlap(pixels(clip, self.factor, self.origin), self.bound);
+        Self {
+            factor: self.factor,
+            space: frame.space(origin, bound),
+            origin,
+            bound,
+            offset: entry.translation - shift,
+            clip: Rect::EVERYTHING,
+        }
+    }
+}
+
+struct Frame<'a> {
+    device: &'a wgpu::Device,
+    queue: &'a wgpu::Queue,
+    damaged: Option<&'a [[f32; 4]]>,
+    screen: Vec2,
+    pixels_per_point: f32,
+    spaces: Vec<Space>,
+    slots: HashMap<[u32; 6], u32>,
+    staging: Vec<Instance>,
+    drawings: Vec<(Drawing, DrawAt)>,
+    overflow: bool,
+}
+
+impl Frame<'_> {
+    fn space(&mut self, origin: [f32; 2], bound: [f32; 4]) -> u32 {
+        let bound = bound.map(|value| value.clamp(OPEN[0], OPEN[2]));
+        let key = [
+            origin[0].to_bits(),
+            origin[1].to_bits(),
+            bound[0].to_bits(),
+            bound[1].to_bits(),
+            bound[2].to_bits(),
+            bound[3].to_bits(),
+        ];
+        if let Some(slot) = self.slots.get(&key) {
+            return *slot;
+        }
+        let slot = self.spaces.len() as u32;
+        self.spaces.push(Space {
+            translation: origin,
+            padding: [0.0; 2],
+            clip: bound,
+        });
+        self.slots.insert(key, slot);
+        slot
+    }
+
+    fn damages(&self, reach: [f32; 4]) -> bool {
+        reach[0] < reach[2]
+            && reach[1] < reach[3]
+            && self.damaged.is_none_or(|damaged| {
+                damaged
+                    .iter()
+                    .any(|damaged| overlaps(*damaged, reach))
+            })
+    }
+}
+
+fn pixels(rect: Rect, factor: f32, origin: [f32; 2]) -> [f32; 4] {
+    [
+        (rect.min.x * factor).round() + origin[0],
+        (rect.min.y * factor).round() + origin[1],
+        (rect.max.x * factor).round() + origin[0],
+        (rect.max.y * factor).round() + origin[1],
+    ]
+}
+
+fn overlap(left: [f32; 4], right: [f32; 4]) -> [f32; 4] {
+    [
+        left[0].max(right[0]),
+        left[1].max(right[1]),
+        left[2].min(right[2]),
+        left[3].min(right[3]),
+    ]
+}
+
+fn overlaps(left: [f32; 4], right: [f32; 4]) -> bool {
+    let [x0, y0, x1, y1] = overlap(left, right);
+    x0 < x1 && y0 < y1
+}
+
+fn moved(rect: [f32; 4], origin: [f32; 2]) -> [f32; 4] {
+    [
+        rect[0] + origin[0],
+        rect[1] + origin[1],
+        rect[2] + origin[0],
+        rect[3] + origin[1],
+    ]
 }
 
 impl Renderer {
@@ -329,9 +530,22 @@ impl Renderer {
                 },
             ],
         });
+        let space_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("beui space layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: true,
+                    min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<Space>() as u64),
+                },
+                count: None,
+            }],
+        });
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("beui pipeline layout"),
-            bind_group_layouts: &[Some(&bind_group_layout)],
+            bind_group_layouts: &[Some(&bind_group_layout), Some(&space_layout)],
             immediate_size: 0,
         });
         let erase = wgpu::BlendComponent {
@@ -366,12 +580,12 @@ impl Renderer {
             mapped_at_creation: false,
         });
         let instance_capacity = 1024;
-        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("beui instances"),
-            size: (instance_capacity * std::mem::size_of::<Instance>()) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let instance_buffer = vertex_buffer(device, "beui instances", instance_capacity);
+        let alignment = u64::from(device.limits().min_uniform_buffer_offset_alignment);
+        let space_stride = (std::mem::size_of::<Space>() as u64).div_ceil(alignment) * alignment;
+        let (space_buffer, space_group) =
+            space_buffer(device, &space_layout, space_stride, SPACES);
+        let list_buffer = vertex_buffer(device, "beui listed instances", LISTED);
         let atlas = Atlas::new(device);
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("beui smooth sampler"),
@@ -403,6 +617,20 @@ impl Renderer {
             uniform_buffer,
             instance_buffer,
             instance_capacity,
+            space_layout,
+            space_buffer,
+            space_group,
+            space_capacity: SPACES,
+            space_stride,
+            list_buffer,
+            list_capacity: LISTED,
+            list_top: 0,
+            generation: 0,
+            lists: HashMap::new(),
+            live: 0,
+            atlas_epoch: 0,
+            #[cfg(test)]
+            encoded: 0,
             runs: Vec::new(),
             overlay: Vec::new(),
             scissors: None,
@@ -501,6 +729,7 @@ impl Renderer {
     ) -> Repaint {
         if self.atlas.full {
             self.atlas.reset();
+            self.atlas_epoch += 1;
         }
         queue.write_buffer(
             &self.uniform_buffer,
@@ -518,13 +747,9 @@ impl Renderer {
             true => repaint,
             false => Repaint::Everything,
         };
-        let mut instances = Vec::new();
-        let mut runs = Vec::new();
-        let mut overlay = Vec::new();
-        let mut drawings = Vec::new();
         let damaged = match repaint {
             Repaint::Everything => None,
-            Repaint::Region { region, background } => {
+            Repaint::Region { region, .. } => {
                 let regions: Vec<[f32; 4]> = match prepared.is_some() {
                     true => vec![physical(
                         region.bounds(),
@@ -538,176 +763,67 @@ impl Renderer {
                         .map(|rect| physical(*rect, self.origin, screen, pixels_per_point))
                         .collect(),
                 };
-                let regions: Vec<[f32; 4]> = match &prepared {
+                Some(match &prepared {
                     Some(prepared) => regions
                         .into_iter()
                         .map(|region| prepared.widen(region))
                         .collect(),
                     None => regions,
-                };
-                let [.., alpha] = background.to_array();
-                for region in &regions {
-                    if alpha < u8::MAX {
-                        Run::push(&mut runs, true, instances.len() as u32);
-                        instances.push(Instance {
-                            rect: *region,
-                            clip: *region,
-                            uv: [0.0; 4],
-                            color: [0.0, 0.0, 0.0, 1.0],
-                            params: [0.0, 0.0, 0.0, 0.0],
-                            turn: turn(Turn::NONE),
-                        });
-                    }
-                    if alpha == 0 {
-                        continue;
-                    }
-                    Run::push(&mut runs, false, instances.len() as u32);
-                    instances.push(Instance {
-                        rect: *region,
-                        clip: *region,
-                        uv: [0.0; 4],
-                        color: self.encode(background),
-                        params: [0.0, 0.0, 0.0, 0.0],
-                        turn: turn(Turn::NONE),
-                    });
-                }
-                Some(regions)
+                })
             }
         };
-        let drawn = quads_within(output, pixels_per_point, damaged.as_deref());
-        let split = match prepared {
-            Some(_) => drawn.filtered,
-            None => drawn.list.len(),
-        };
-        for (index, quad) in drawn.list.into_iter().enumerate() {
-            let layer = match index < split {
-                true => &mut runs,
-                false => &mut overlay,
+        let (instances, runs, overlay, frame) = loop {
+            let mut frame = Frame {
+                device,
+                queue,
+                damaged: damaged.as_deref(),
+                screen,
+                pixels_per_point,
+                spaces: Vec::new(),
+                slots: HashMap::new(),
+                staging: Vec::new(),
+                drawings: Vec::new(),
+                overflow: false,
             };
-            match quad {
-                Quad::Rect {
-                    rect,
-                    clip,
-                    color,
-                    corner_radius,
-                    stroke_width,
-                    turn: rotation,
-                } => {
-                    Run::push(layer, false, instances.len() as u32);
-                    instances.push(Instance {
-                        rect,
-                        clip,
-                        uv: [0.0; 4],
-                        color: self.encode(color),
-                        params: [corner_radius, stroke_width, 0.0, 0.0],
-                        turn: turn(rotation),
-                    });
-                }
-                Quad::Glyph {
-                    rect,
-                    clip,
-                    color,
-                    glyph,
-                    turn: rotation,
-                } => {
-                    let Some(uv) = self.atlas.insert(queue, glyph.id, &glyph.image) else {
-                        continue;
-                    };
-                    Run::push(layer, false, instances.len() as u32);
-                    instances.push(Instance {
-                        rect,
-                        clip,
-                        uv,
-                        color: self.encode(color),
-                        params: [0.0, 0.0, 1.0, 0.0],
-                        turn: turn(rotation),
-                    });
-                }
-                Quad::Image {
-                    rect,
-                    clip,
-                    source,
-                    image,
-                    tint,
-                    corner_radius,
-                    smooth,
-                    turn: rotation,
-                } => {
-                    self.upload(device, queue, &image);
-                    Run::push_picture(
-                        layer,
-                        false,
-                        Some((image.id(), smooth)),
-                        instances.len() as u32,
+            frame.space([0.0; 2], OPEN);
+            let top = self.list_top;
+            let drawn = self.emit(&mut frame, output, repaint, prepared.is_some());
+            if !frame.overflow {
+                if !frame.staging.is_empty() {
+                    queue.write_buffer(
+                        &self.list_buffer,
+                        (top * std::mem::size_of::<Instance>()) as u64,
+                        bytemuck::cast_slice(&frame.staging),
                     );
-                    instances.push(Instance {
-                        rect,
-                        clip,
-                        uv: source,
-                        color: self.encode(tint),
-                        params: [corner_radius, 0.0, 2.0, 0.0],
-                        turn: turn(rotation),
-                    });
                 }
-                Quad::Line {
-                    rect,
-                    clip,
-                    segment,
-                    width,
-                    color,
-                } => {
-                    Run::push(layer, false, instances.len() as u32);
-                    instances.push(Instance {
-                        rect,
-                        clip,
-                        uv: segment,
-                        color: self.encode(color),
-                        params: [width / 2.0, 0.0, 3.0, 0.0],
-                        turn: turn(Turn::NONE),
-                    });
-                }
-                Quad::Punch {
-                    rect,
-                    clip,
-                    corner_radius,
-                    turn: rotation,
-                } => {
-                    Run::push(layer, true, instances.len() as u32);
-                    instances.push(Instance {
-                        rect,
-                        clip,
-                        uv: [0.0; 4],
-                        color: [0.0, 0.0, 0.0, 1.0],
-                        params: [corner_radius, 0.0, 0.0, 0.0],
-                        turn: turn(rotation),
-                    });
-                }
-                Quad::Drawing {
-                    rect,
-                    clip,
-                    drawing,
-                } => {
-                    let shift = |[left, top, right, bottom]: [f32; 4]| {
-                        [
-                            left - self.origin.x,
-                            top - self.origin.y,
-                            right - self.origin.x,
-                            bottom - self.origin.y,
-                        ]
-                    };
-                    let at = DrawAt {
-                        rect: shift(rect),
-                        clip: shift(clip),
-                        screen,
-                        pixels_per_point,
-                        format: self.format,
-                    };
-                    drawings.push((drawing.clone(), at));
-                    Run::push_drawing(layer, drawing, at, instances.len() as u32);
-                }
+                break (drawn.0, drawn.1, drawn.2, frame);
             }
+            self.generation += 1;
+            self.list_top = 0;
+            let needed = frame.staging.len().max(self.list_capacity);
+            self.list_capacity = (needed * 2).next_power_of_two();
+            self.list_buffer = vertex_buffer(device, "beui listed instances", self.list_capacity);
+        };
+        if frame.spaces.len() > self.space_capacity {
+            self.space_capacity = frame.spaces.len().next_power_of_two();
+            (self.space_buffer, self.space_group) = space_buffer(
+                device,
+                &self.space_layout,
+                self.space_stride,
+                self.space_capacity,
+            );
         }
-        self.record_drawings(device, queue, &drawings);
+        let stride = self.space_stride as usize;
+        let mut spaces = vec![0u8; stride * frame.spaces.len()];
+        for (index, space) in frame.spaces.iter().enumerate() {
+            let bytes = bytemuck::bytes_of(space);
+            spaces[index * stride..index * stride + bytes.len()].copy_from_slice(bytes);
+        }
+        queue.write_buffer(&self.space_buffer, 0, &spaces);
+        self.record_drawings(device, queue, &frame.drawings);
+        if self.lists.len() > 2 * self.live + LISTED {
+            self.sweep(output, pixels_per_point);
+        }
 
         self.pictures.retain(|_, picture| {
             let used = picture.used;
@@ -740,15 +856,441 @@ impl Renderer {
         }
         if instances.len() > self.instance_capacity {
             self.instance_capacity = instances.len().next_power_of_two();
-            self.instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("beui instances"),
-                size: (self.instance_capacity * std::mem::size_of::<Instance>()) as u64,
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
+            self.instance_buffer = vertex_buffer(device, "beui instances", self.instance_capacity);
         }
         queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(&instances));
         repaint
+    }
+
+    fn emit(
+        &mut self,
+        frame: &mut Frame,
+        output: &FrameOutput,
+        repaint: Repaint,
+        filtered: bool,
+    ) -> (Vec<Instance>, Vec<Run>, Vec<Run>) {
+        let mut instances = Vec::new();
+        let mut runs = Vec::new();
+        let mut overlay = Vec::new();
+        if let (Repaint::Region { background, .. }, Some(damaged)) = (repaint, frame.damaged) {
+            let [.., alpha] = background.to_array();
+            for region in damaged {
+                if alpha < u8::MAX {
+                    Run::push(&mut runs, frame_run(true, None, instances.len()));
+                    instances.push(Instance {
+                        rect: *region,
+                        clip: *region,
+                        uv: [0.0; 4],
+                        color: [0.0, 0.0, 0.0, 1.0],
+                        params: [0.0, 0.0, 0.0, 0.0],
+                        turn: turn(Turn::NONE),
+                    });
+                }
+                if alpha == 0 {
+                    continue;
+                }
+                Run::push(&mut runs, frame_run(false, None, instances.len()));
+                instances.push(Instance {
+                    rect: *region,
+                    clip: *region,
+                    uv: [0.0; 4],
+                    color: self.encode(background),
+                    params: [0.0, 0.0, 0.0, 0.0],
+                    turn: turn(Turn::NONE),
+                });
+            }
+        }
+        let boundary = match filtered {
+            true => output.filter.map(|(_, boundary)| boundary),
+            false => None,
+        };
+        let pixels_per_point = frame.pixels_per_point;
+        let mut quads = Vec::new();
+        for (index, layer) in output.layers.iter().enumerate() {
+            let target = match boundary.is_none_or(|boundary| index < boundary) {
+                true => &mut runs,
+                false => &mut overlay,
+            };
+            match layer {
+                Layer::Shape(shape) => {
+                    quads.clear();
+                    push_quads(shape, pixels_per_point, frame.damaged, &mut quads);
+                    for quad in quads.drain(..) {
+                        match self.encoding(frame.queue, quad) {
+                            Some(Encoding::Instance {
+                                punch,
+                                picture,
+                                instance,
+                            }) => {
+                                if let Some((image, _)) = &picture {
+                                    self.upload(frame.device, frame.queue, image);
+                                }
+                                let picture =
+                                    picture.map(|(image, smooth)| (image.id(), smooth));
+                                Run::push(target, frame_run(punch, picture, instances.len()));
+                                instances.push(instance);
+                            }
+                            Some(Encoding::Drawing {
+                                drawing,
+                                rect,
+                                clip,
+                            }) => self.push_drawing(frame, target, drawing, rect, clip, OPEN),
+                            None => {}
+                        }
+                    }
+                }
+                Layer::Display {
+                    display,
+                    entry,
+                    scale,
+                    clip,
+                } => {
+                    let bound = overlap(pixels(*clip, pixels_per_point, [0.0; 2]), OPEN);
+                    let at = Walk {
+                        factor: pixels_per_point * scale,
+                        space: frame.space([0.0; 2], bound),
+                        origin: [0.0; 2],
+                        bound,
+                        offset: entry.translation,
+                        clip: entry.clip,
+                    };
+                    let mut top = Vec::new();
+                    self.walk(frame, display, at, target, &mut top);
+                    for run in top {
+                        Run::push(target, run);
+                    }
+                }
+            }
+        }
+        (instances, runs, overlay)
+    }
+
+    fn walk(
+        &mut self,
+        frame: &mut Frame,
+        display: &Display,
+        at: Walk,
+        main: &mut Vec<Run>,
+        top: &mut Vec<Run>,
+    ) {
+        if !frame.damages(at.reach(display)) {
+            return;
+        }
+        let key = at.key(display);
+        let mut encoded = match self.lists.remove(&key) {
+            Some(encoded) if encoded.atlas == self.atlas_epoch => encoded,
+            _ => self.encode_list(frame.queue, display, &at),
+        };
+        let base = match encoded.placed {
+            Some((generation, start)) if generation == self.generation => start,
+            _ => {
+                let start = self.list_top;
+                if start + encoded.instances.len() > self.list_capacity {
+                    frame.overflow = true;
+                }
+                self.list_top += encoded.instances.len();
+                frame.staging.extend_from_slice(&encoded.instances);
+                encoded.placed = Some((self.generation, start as u32));
+                start as u32
+            }
+        };
+        for (part, (from, to)) in display.parts.iter().zip(&encoded.parts) {
+            match part {
+                Part::Shapes { top: on_top, .. } => {
+                    let target = match on_top {
+                        true => &mut *top,
+                        false => &mut *main,
+                    };
+                    for run in &encoded.runs[*from..*to] {
+                        match run {
+                            ListRun::Quads {
+                                punch,
+                                picture,
+                                start,
+                                count,
+                            } => {
+                                if let Some((image, _)) = picture {
+                                    self.upload(frame.device, frame.queue, image);
+                                }
+                                Run::push(
+                                    target,
+                                    Run {
+                                        punch: *punch,
+                                        picture: picture
+                                            .as_ref()
+                                            .map(|(image, smooth)| (image.id(), *smooth)),
+                                        drawing: None,
+                                        listed: true,
+                                        space: at.space,
+                                        start: base + start,
+                                        count: *count,
+                                    },
+                                );
+                            }
+                            ListRun::Drawing {
+                                drawing,
+                                rect,
+                                clip,
+                            } => self.push_drawing(
+                                frame,
+                                target,
+                                drawing.clone(),
+                                moved(*rect, at.origin),
+                                moved(*clip, at.origin),
+                                at.bound,
+                            ),
+                        }
+                    }
+                }
+                Part::Child(_, entry, child) => {
+                    let inner = at.enter(*entry, frame);
+                    self.walk(frame, child, inner, main, top);
+                }
+            }
+        }
+        self.lists.insert(key, encoded);
+    }
+
+    fn push_drawing(
+        &self,
+        frame: &mut Frame,
+        target: &mut Vec<Run>,
+        drawing: Drawing,
+        rect: [f32; 4],
+        clip: [f32; 4],
+        bound: [f32; 4],
+    ) {
+        let clip = overlap(clip, bound);
+        if !frame.damages(overlap(rect, clip)) {
+            return;
+        }
+        let shift = |[left, top, right, bottom]: [f32; 4]| {
+            [
+                left - self.origin.x,
+                top - self.origin.y,
+                right - self.origin.x,
+                bottom - self.origin.y,
+            ]
+        };
+        let at = DrawAt {
+            rect: shift(rect),
+            clip: shift(clip),
+            screen: frame.screen,
+            pixels_per_point: frame.pixels_per_point,
+            format: self.format,
+        };
+        frame.drawings.push((drawing.clone(), at));
+        target.push(Run {
+            punch: false,
+            picture: None,
+            drawing: Some((drawing, at)),
+            listed: false,
+            space: 0,
+            start: 0,
+            count: 0,
+        });
+    }
+
+    fn encode_list(&mut self, queue: &wgpu::Queue, display: &Display, at: &Walk) -> Encoded {
+        let mut instances = Vec::new();
+        let mut runs: Vec<ListRun> = Vec::new();
+        let mut parts = Vec::with_capacity(display.parts.len());
+        let mut quads = Vec::new();
+        for part in display.parts.iter() {
+            let Part::Shapes { start, end, .. } = part else {
+                parts.push((runs.len(), runs.len()));
+                continue;
+            };
+            let from = runs.len();
+            for shape in &display.shapes[*start as usize..*end as usize] {
+                let shape = placed_shape(shape, at.offset, at.clip);
+                quads.clear();
+                push_quads(&shape, at.factor, None, &mut quads);
+                for quad in quads.drain(..) {
+                    match self.encoding(queue, quad) {
+                        Some(Encoding::Instance {
+                            punch,
+                            picture,
+                            instance,
+                        }) => {
+                            let at = instances.len() as u32;
+                            instances.push(instance);
+                            if let Some(ListRun::Quads {
+                                punch: held,
+                                picture: pictured,
+                                count,
+                                ..
+                            }) = runs[from..].last_mut()
+                                && *held == punch
+                                && pictured.as_ref().map(|(image, smooth)| (image.id(), *smooth))
+                                    == picture.as_ref().map(|(image, smooth)| (image.id(), *smooth))
+                            {
+                                *count += 1;
+                                continue;
+                            }
+                            runs.push(ListRun::Quads {
+                                punch,
+                                picture,
+                                start: at,
+                                count: 1,
+                            });
+                        }
+                        Some(Encoding::Drawing {
+                            drawing,
+                            rect,
+                            clip,
+                        }) => runs.push(ListRun::Drawing {
+                            drawing,
+                            rect,
+                            clip,
+                        }),
+                        None => {}
+                    }
+                }
+            }
+            parts.push((from, runs.len()));
+        }
+        #[cfg(test)]
+        {
+            self.encoded += instances.len();
+        }
+        Encoded {
+            instances,
+            runs,
+            parts,
+            placed: None,
+            atlas: self.atlas_epoch,
+        }
+    }
+
+    fn sweep(&mut self, output: &FrameOutput, pixels_per_point: f32) {
+        let mut live = std::collections::HashSet::new();
+        for layer in output.layers.iter() {
+            let Layer::Display {
+                display,
+                entry,
+                scale,
+                clip,
+            } = layer
+            else {
+                continue;
+            };
+            let bound = overlap(pixels(*clip, pixels_per_point, [0.0; 2]), OPEN);
+            let at = Walk {
+                factor: pixels_per_point * scale,
+                space: 0,
+                origin: [0.0; 2],
+                bound,
+                offset: entry.translation,
+                clip: entry.clip,
+            };
+            mark(display, at, &mut live);
+        }
+        self.lists.retain(|key, _| live.contains(key));
+        self.live = live.len();
+    }
+
+    fn encoding(&mut self, queue: &wgpu::Queue, quad: Quad) -> Option<Encoding> {
+        let plain = |instance| Encoding::Instance {
+            punch: false,
+            picture: None,
+            instance,
+        };
+        Some(match quad {
+            Quad::Rect {
+                rect,
+                clip,
+                color,
+                corner_radius,
+                stroke_width,
+                turn: rotation,
+            } => plain(Instance {
+                rect,
+                clip,
+                uv: [0.0; 4],
+                color: self.encode(color),
+                params: [corner_radius, stroke_width, 0.0, 0.0],
+                turn: turn(rotation),
+            }),
+            Quad::Glyph {
+                rect,
+                clip,
+                color,
+                glyph,
+                turn: rotation,
+            } => {
+                let uv = self.atlas.insert(queue, glyph.id, &glyph.image)?;
+                plain(Instance {
+                    rect,
+                    clip,
+                    uv,
+                    color: self.encode(color),
+                    params: [0.0, 0.0, 1.0, 0.0],
+                    turn: turn(rotation),
+                })
+            }
+            Quad::Image {
+                rect,
+                clip,
+                source,
+                image,
+                tint,
+                corner_radius,
+                smooth,
+                turn: rotation,
+            } => Encoding::Instance {
+                punch: false,
+                instance: Instance {
+                    rect,
+                    clip,
+                    uv: source,
+                    color: self.encode(tint),
+                    params: [corner_radius, 0.0, 2.0, 0.0],
+                    turn: turn(rotation),
+                },
+                picture: Some((image, smooth)),
+            },
+            Quad::Line {
+                rect,
+                clip,
+                segment,
+                width,
+                color,
+            } => plain(Instance {
+                rect,
+                clip,
+                uv: segment,
+                color: self.encode(color),
+                params: [width / 2.0, 0.0, 3.0, 0.0],
+                turn: turn(Turn::NONE),
+            }),
+            Quad::Punch {
+                rect,
+                clip,
+                corner_radius,
+                turn: rotation,
+            } => Encoding::Instance {
+                punch: true,
+                picture: None,
+                instance: Instance {
+                    rect,
+                    clip,
+                    uv: [0.0; 4],
+                    color: [0.0, 0.0, 0.0, 1.0],
+                    params: [corner_radius, 0.0, 0.0, 0.0],
+                    turn: turn(rotation),
+                },
+            },
+            Quad::Drawing {
+                rect,
+                clip,
+                drawing,
+            } => Encoding::Drawing {
+                drawing,
+                rect,
+                clip,
+            },
+        })
     }
 
     fn record_drawings(
@@ -888,7 +1430,8 @@ impl Renderer {
             return;
         }
         let mut bound = None;
-        let mut vertices = false;
+        let mut buffer = None;
+        let mut space = None;
         for run in runs {
             if let Some((drawing, at)) = run.drawing.as_ref() {
                 if let (Some(draw), Some(at)) = (drawing.draw(), within(*at, scissor)) {
@@ -898,7 +1441,8 @@ impl Renderer {
                     }
                     clip(pass, bounds);
                     bound = None;
-                    vertices = false;
+                    buffer = None;
+                    space = None;
                 }
                 continue;
             }
@@ -910,13 +1454,22 @@ impl Renderer {
             if run.picture.is_some() && group.is_none() {
                 continue;
             }
-            if !vertices {
-                pass.set_vertex_buffer(0, self.instance_buffer.slice(..));
-                vertices = true;
+            if buffer != Some(run.listed) {
+                let instances = match run.listed {
+                    true => &self.list_buffer,
+                    false => &self.instance_buffer,
+                };
+                pass.set_vertex_buffer(0, instances.slice(..));
+                buffer = Some(run.listed);
             }
             if bound != Some(run.picture) {
                 pass.set_bind_group(0, group.unwrap_or(&self.bind_group), &[]);
                 bound = Some(run.picture);
+            }
+            if space != Some(run.space) {
+                let offset = (u64::from(run.space) * self.space_stride) as u32;
+                pass.set_bind_group(1, &self.space_group, &[offset]);
+                space = Some(run.space);
             }
             pass.set_pipeline(match run.punch {
                 true => &self.punch_pipeline,
@@ -924,6 +1477,51 @@ impl Renderer {
             });
             pass.draw(0..6, run.start..run.start + run.count);
         }
+    }
+}
+
+fn frame_run(punch: bool, picture: Option<(ImageId, bool)>, at: usize) -> Run {
+    Run {
+        punch,
+        picture,
+        drawing: None,
+        listed: false,
+        space: 0,
+        start: at as u32,
+        count: 1,
+    }
+}
+
+fn mark(display: &Display, at: Walk, live: &mut std::collections::HashSet<ListKey>) {
+    let reach = at.reach(display);
+    if reach[0] >= reach[2] || reach[1] >= reach[3] {
+        return;
+    }
+    live.insert(at.key(display));
+    for (_, entry, child) in display.children() {
+        let inner = match entry.shift {
+            None => Walk {
+                offset: at.offset + entry.translation,
+                clip: at.clip.intersect(entry.clip.translate(at.offset)),
+                ..at
+            },
+            Some(shift) => {
+                let clip = at.clip.intersect(entry.clip.translate(at.offset));
+                let origin = [
+                    at.origin[0] + ((at.offset.x + shift.x) * at.factor).round(),
+                    at.origin[1] + ((at.offset.y + shift.y) * at.factor).round(),
+                ];
+                Walk {
+                    factor: at.factor,
+                    space: 0,
+                    origin,
+                    bound: overlap(pixels(clip, at.factor, at.origin), at.bound),
+                    offset: entry.translation - shift,
+                    clip: Rect::EVERYTHING,
+                }
+            }
+        };
+        mark(child, inner, live);
     }
 }
 
@@ -1017,6 +1615,42 @@ pub fn clear_color(color: Color32) -> wgpu::Color {
         b: blue as f64,
         a: alpha as f64,
     }
+}
+
+fn vertex_buffer(device: &wgpu::Device, label: &str, capacity: usize) -> wgpu::Buffer {
+    device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some(label),
+        size: (capacity * std::mem::size_of::<Instance>()) as u64,
+        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    })
+}
+
+fn space_buffer(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    stride: u64,
+    capacity: usize,
+) -> (wgpu::Buffer, wgpu::BindGroup) {
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("beui spaces"),
+        size: stride * capacity as u64,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("beui space group"),
+        layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                buffer: &buffer,
+                offset: 0,
+                size: wgpu::BufferSize::new(std::mem::size_of::<Space>() as u64),
+            }),
+        }],
+    });
+    (buffer, group)
 }
 
 fn pipeline(

@@ -20,6 +20,7 @@ fn the_screen_reader_readout_sits_at_the_bottom_above_the_filters() {
 
     let boundary = output
         .filtered_shapes()
+        .1
         .expect("the filter covered no shapes");
     let highlight = output
         .shapes()

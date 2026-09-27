@@ -17,6 +17,7 @@ mod a_punch_clears_what_it_covers;
 mod a_renderer_at_an_origin_paints_the_part_of_the_document_there;
 mod a_repaint_of_two_regions_leaves_what_lies_between_them;
 mod a_rotated_rectangle_covers_the_corners_it_turned_onto;
+mod a_scrolled_document_moves_the_rows_it_already_encoded;
 mod an_icon_glyph_paints_over_the_background;
 mod reducing_contrast_pulls_the_filtered_region_toward_grey;
 mod repainting_a_damaged_region_keeps_the_rest_of_the_retained_frame;
@@ -140,8 +141,18 @@ impl Target {
         repaint: Repaint,
         paint: impl FnOnce(&Painter),
     ) {
-        let context = Context::new();
+        self.draw_in(&Context::new(), background, |_| repaint, paint);
+    }
+
+    pub(crate) fn draw_in(
+        &mut self,
+        context: &Context,
+        background: Color32,
+        repaint: impl FnOnce(&crate::FrameOutput) -> Repaint,
+        paint: impl FnOnce(&Painter),
+    ) {
         let output = context.run(RawInput::default(), |context| paint(&context.painter()));
+        let repaint = repaint(&output);
         let effective = self.renderer.prepare(
             &self.device,
             &self.queue,

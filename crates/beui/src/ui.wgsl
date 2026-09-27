@@ -3,9 +3,16 @@ struct Uniforms {
     origin: vec2<f32>,
 };
 
+struct Space {
+    translation: vec2<f32>,
+    padding: vec2<f32>,
+    clip: vec4<f32>,
+};
+
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 @group(0) @binding(1) var atlas: texture_2d<f32>;
 @group(0) @binding(2) var atlas_sampler: sampler;
+@group(1) @binding(0) var<uniform> space: Space;
 
 struct Instance {
     @location(0) rect: vec4<f32>,
@@ -62,12 +69,17 @@ fn rounded_distance(point: vec2<f32>, extent: vec2<f32>, radius: f32) -> f32 {
 
 @vertex
 fn vertex(@builtin(vertex_index) index: u32, instance: Instance) -> Fragment {
+    let shift = vec4<f32>(space.translation, space.translation);
+    let rect = instance.rect + shift;
+    let clip = instance.clip + shift;
+    let turn = vec4<f32>(instance.turn.xy + space.translation, instance.turn.zw);
+    let line = instance.params.z > 2.5;
     let samples = instance.params.z > 0.5;
     let bleed = select(1.0, 0.0, samples);
-    let low = instance.rect.xy - vec2<f32>(bleed);
-    let high = instance.rect.zw + vec2<f32>(bleed);
+    let low = rect.xy - vec2<f32>(bleed);
+    let high = rect.zw + vec2<f32>(bleed);
     let weight = corner(index);
-    let point = turned(mix(low, high, weight), instance.turn, 1.0);
+    let point = turned(mix(low, high, weight), turn, 1.0);
 
     var fragment: Fragment;
     fragment.position = vec4<f32>(
@@ -78,11 +90,11 @@ fn vertex(@builtin(vertex_index) index: u32, instance: Instance) -> Fragment {
     fragment.point = point;
     fragment.uv = mix(instance.uv.xy, instance.uv.zw, weight);
     fragment.color = instance.color;
-    fragment.rect = instance.rect;
-    fragment.clip = instance.clip;
+    fragment.rect = rect;
+    fragment.clip = vec4<f32>(max(clip.xy, space.clip.xy), min(clip.zw, space.clip.zw));
     fragment.params = instance.params;
-    fragment.segment = instance.uv;
-    fragment.turn = instance.turn;
+    fragment.segment = select(instance.uv, instance.uv + shift, line);
+    fragment.turn = turn;
     return fragment;
 }
 

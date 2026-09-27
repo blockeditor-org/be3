@@ -7,6 +7,7 @@ mod base;
 mod color;
 mod context;
 mod damage;
+mod display;
 pub mod datetime;
 mod document;
 mod draw;
@@ -51,7 +52,7 @@ pub use color::{Color32, Hsva, format_hex, parse_hex};
 pub use context::{Context, FrameOutput};
 pub use damage::Region;
 pub use document::{Document, verify_paint};
-pub use draw::{Quad, Quads, Turn, quads, quads_within};
+pub use draw::{Quad, Quads, Turn, quads};
 pub use drawing::Drawing;
 #[cfg(feature = "render")]
 pub use drawing::{Draw, DrawAt};

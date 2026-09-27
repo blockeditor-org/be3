@@ -7,6 +7,7 @@ use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
 use crate::damage::{self, Region};
+use crate::display::{Display, Layer};
 use crate::filter::Filter;
 use crate::font::{FontId, FontSources, Fonts, Galley, TextLayout};
 use crate::geometry::{Rect, pos2};
@@ -26,7 +27,7 @@ pub struct Context {
 struct Inner {
     fonts: RefCell<Fonts>,
     input: RefCell<InputState>,
-    shapes: RefCell<Vec<Shape>>,
+    layers: RefCell<Vec<Layer>>,
     top_shapes: RefCell<Vec<Shape>>,
     filter: Cell<Option<(Filter, usize)>>,
     paint_stack: RefCell<Vec<PaintFrame>>,
@@ -64,7 +65,7 @@ struct Inner {
 }
 
 pub struct FrameOutput {
-    pub(crate) shapes: Rc<Vec<Shape>>,
+    pub(crate) layers: Rc<Vec<Layer>>,
     pub(crate) filter: Option<(Filter, usize)>,
     test_ids: HashMap<String, Rect>,
     ambiguous_test_ids: HashSet<String>,
@@ -85,16 +86,28 @@ pub struct FrameOutput {
 }
 
 impl FrameOutput {
-    pub fn shapes(&self) -> &[Shape] {
-        &self.shapes
+    pub fn shapes(&self) -> Vec<Shape> {
+        crate::display::flatten(&self.layers)
+    }
+
+    pub(crate) fn filtered_shapes(&self) -> (Vec<Shape>, Option<usize>) {
+        let boundary = self.filter.map(|(_, boundary)| boundary);
+        let mut shapes = Vec::new();
+        let mut filtered = None;
+        for (index, layer) in self.layers.iter().enumerate() {
+            if boundary == Some(index) {
+                filtered = Some(shapes.len());
+            }
+            layer.flatten(&mut shapes);
+        }
+        if boundary.is_some_and(|boundary| boundary >= self.layers.len()) {
+            filtered = Some(shapes.len());
+        }
+        (shapes, filtered)
     }
 
     pub fn filter(&self) -> Option<Filter> {
         self.filter.map(|(filter, _)| filter)
-    }
-
-    pub fn filtered_shapes(&self) -> Option<usize> {
-        self.filter.map(|(_, boundary)| boundary)
     }
 
     pub fn pixels_per_point(&self) -> f32 {
@@ -138,7 +151,7 @@ impl Context {
             inner: Rc::new(Inner {
                 fonts: RefCell::new(Fonts::new(sources)),
                 input: RefCell::new(InputState::default()),
-                shapes: RefCell::new(Vec::new()),
+                layers: RefCell::new(Vec::new()),
                 top_shapes: RefCell::new(Vec::new()),
                 filter: Cell::new(None),
                 paint_stack: RefCell::new(Vec::new()),
@@ -227,7 +240,7 @@ impl Context {
         if let Some(delay) = held {
             self.request_repaint_after(delay);
         }
-        self.inner.shapes.borrow_mut().clear();
+        self.inner.layers.borrow_mut().clear();
         self.inner.top_shapes.borrow_mut().clear();
         self.inner.filter.set(None);
         self.inner.paint_stack.borrow_mut().clear();
@@ -251,7 +264,7 @@ impl Context {
             self.paint_mouse_simulation(viewport);
         }
         self.flush_top();
-        let shapes = Rc::new(std::mem::take(&mut *self.inner.shapes.borrow_mut()));
+        let layers = Rc::new(std::mem::take(&mut *self.inner.layers.borrow_mut()));
         let scale = self.pixels_per_point();
         let filter = self.inner.filter.take();
         let reported = std::mem::take(&mut *self.inner.damage.borrow_mut());
@@ -262,26 +275,25 @@ impl Context {
         let changed = match previous.as_ref() {
             None => true,
             Some(old) if old.pixels_per_point != scale || old.filter != filter => true,
-            Some(old) => match reported.is_empty() {
-                true => {
+            Some(old) => {
+                let same = old.layers.len() == layers.len()
+                    && old.layers.iter().zip(layers.iter()).all(|(old, new)| old.same(new));
+                if reported.is_empty() && !same {
                     debug_assert!(
-                        *old.shapes == *shapes,
+                        crate::display::flatten(&old.layers) == crate::display::flatten(&layers),
                         "a frame that reported no damage changed the shapes it painted"
                     );
-                    false
                 }
-                false => *old.shapes != *shapes,
-            },
+                !reported.is_empty() && !same
+            }
         };
-        if changed {
-            *previous = Some(Previous {
-                shapes: Rc::clone(&shapes),
-                pixels_per_point: scale,
-                filter,
-            });
-        }
+        *previous = Some(Previous {
+            layers: Rc::clone(&layers),
+            pixels_per_point: scale,
+            filter,
+        });
         FrameOutput {
-            shapes,
+            layers,
             filter,
             damage,
             test_ids: std::mem::take(&mut *self.inner.test_ids.borrow_mut()),
@@ -514,8 +526,16 @@ impl Context {
         }
     }
 
-    pub(crate) fn extend(&self, shapes: &[Shape]) {
-        self.inner.shapes.borrow_mut().extend_from_slice(shapes);
+    pub(crate) fn show_painting(&self, painting: &[(Rc<Display>, Entry)]) {
+        self.inner
+            .layers
+            .borrow_mut()
+            .extend(painting.iter().map(|(display, entry)| Layer::Display {
+                display: Rc::clone(display),
+                entry: *entry,
+                scale: 1.0,
+                clip: Rect::EVERYTHING,
+            }));
     }
 
     pub(crate) fn publish_test_id(&self, test_id: &str, rect: Rect) {
@@ -610,12 +630,17 @@ impl Context {
     }
 
     pub(crate) fn clipped<R>(&self, clip: Rect, content: impl FnOnce() -> R) -> R {
-        let shapes = self.inner.shapes.borrow().len();
+        let layers = self.inner.layers.borrow().len();
         let damage = self.inner.damage.borrow().len();
         let result = content();
-        for shape in self.inner.shapes.borrow_mut().iter_mut().skip(shapes) {
-            let bounds = shape_clip(shape);
-            *bounds = bounds.intersect(clip);
+        for layer in self.inner.layers.borrow_mut().iter_mut().skip(layers) {
+            match layer {
+                Layer::Shape(shape) => {
+                    let bounds = shape_clip(shape);
+                    *bounds = bounds.intersect(clip);
+                }
+                Layer::Display { clip: held, .. } => *held = held.intersect(clip),
+            }
         }
         for rect in self.inner.damage.borrow_mut().iter_mut().skip(damage) {
             *rect = rect.intersect(clip);
@@ -651,7 +676,7 @@ impl Context {
             .inner
             .input
             .replace_with(|input| input.scaled(scale.recip()));
-        let shapes = self.inner.shapes.borrow().len();
+        let layers = self.inner.layers.borrow().len();
         let damage = self.inner.damage.borrow().len();
         let fragments = self.inner.accessibility.borrow().len();
         let test_ids = self.inner.test_ids.take();
@@ -666,8 +691,16 @@ impl Context {
         }
         self.inner.input.replace(input);
         self.inner.pixels_per_point.set(pixels_per_point);
-        for shape in self.inner.shapes.borrow_mut().iter_mut().skip(shapes) {
-            scale_shape(shape, scale);
+        for layer in self.inner.layers.borrow_mut().iter_mut().skip(layers) {
+            match layer {
+                Layer::Shape(shape) => scale_shape(shape, scale),
+                Layer::Display {
+                    scale: held, clip, ..
+                } => {
+                    *held *= scale;
+                    *clip = clip.scaled(scale);
+                }
+            }
         }
         for rect in self.inner.damage.borrow_mut().iter_mut().skip(damage) {
             *rect = rect.scaled(scale);
@@ -699,7 +732,7 @@ impl Context {
 
     pub(crate) fn push(&self, shape: Shape) {
         if let Some(shape) = self.record(shape, Item::Main) {
-            self.inner.shapes.borrow_mut().push(shape);
+            self.inner.layers.borrow_mut().push(Layer::Shape(shape));
         }
     }
 
@@ -730,18 +763,21 @@ impl Context {
         if filter.changes_nothing() || !filter.region.is_positive() {
             return;
         }
-        let boundary = self.inner.shapes.borrow().len();
+        let boundary = self.inner.layers.borrow().len();
         self.inner.filter.set(Some((filter, boundary)));
     }
 
     fn flush_top(&self) {
         let top = std::mem::take(&mut *self.inner.top_shapes.borrow_mut());
-        self.inner.shapes.borrow_mut().extend(top);
+        self.inner
+            .layers
+            .borrow_mut()
+            .extend(top.into_iter().map(Layer::Shape));
     }
 }
 
 struct Previous {
-    shapes: Rc<Vec<Shape>>,
+    layers: Rc<Vec<Layer>>,
     pixels_per_point: f32,
     filter: Option<(Filter, usize)>,
 }
@@ -755,7 +791,7 @@ struct PaintFrame {
     outer_delay: Duration,
 }
 
-fn shape_clip(shape: &mut Shape) -> &mut Rect {
+pub(crate) fn shape_clip(shape: &mut Shape) -> &mut Rect {
     match shape {
         Shape::Rect { clip, .. }
         | Shape::Text { clip, .. }
@@ -766,7 +802,7 @@ fn shape_clip(shape: &mut Shape) -> &mut Rect {
     }
 }
 
-fn scale_shape(shape: &mut Shape, scale: f32) {
+pub(crate) fn scale_shape(shape: &mut Shape, scale: f32) {
     match shape {
         Shape::Rect {
             rect,

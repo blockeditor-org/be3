@@ -58,18 +58,29 @@ pub enum Shape {
 pub(crate) struct Entry {
     pub(crate) translation: Vec2,
     pub(crate) clip: Rect,
-    pub(crate) shift: Vec2,
+    pub(crate) shift: Option<Vec2>,
 }
 
 impl Entry {
     pub(crate) const NONE: Self = Self {
         translation: Vec2::ZERO,
         clip: Rect::EVERYTHING,
-        shift: Vec2::ZERO,
+        shift: None,
     };
 
     pub(crate) fn place(self, rect: Rect) -> Rect {
         rect.translate(self.translation).intersect(self.clip)
+    }
+
+    pub(crate) fn compose(self, inner: Self) -> Self {
+        Self {
+            translation: self.translation + inner.translation,
+            clip: self.clip.intersect(inner.clip.translate(self.translation)),
+            shift: match inner.shift {
+                Some(shift) => Some(self.translation + shift),
+                None => self.shift,
+            },
+        }
     }
 }
 
@@ -215,7 +226,7 @@ impl Painter {
                     .list
                     .clip
                     .intersect(kept.translate(self.list.translation)),
-                shift: self.list.shift + by,
+                shift: Some(self.list.shift.unwrap_or(Vec2::ZERO) + by),
             },
         }
     }
