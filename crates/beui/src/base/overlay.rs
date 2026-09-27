@@ -38,6 +38,7 @@ impl IntoProp<OverlayAnchor> for &NodeRef {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Placement {
     At,
+    Around,
     BelowStart,
     RightStart,
     Center,
@@ -103,6 +104,9 @@ fn resolve_rect(
     if placement == Placement::At {
         return Rect::from_min_size(anchor_rect.min, content_size);
     }
+    if placement == Placement::Around {
+        return Rect::from_center_size(anchor_rect.center(), content_size);
+    }
     if placement == Placement::Fill {
         return viewport;
     }
@@ -137,6 +141,7 @@ fn resolve_rect(
         Placement::BelowStart => pos2(anchor_rect.left(), anchor_rect.bottom()),
         Placement::RightStart => pos2(anchor_rect.right(), anchor_rect.top()),
         Placement::At
+        | Placement::Around
         | Placement::Center
         | Placement::Fill
         | Placement::InsideTop
