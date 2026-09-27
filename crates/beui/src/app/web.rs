@@ -360,6 +360,7 @@ pub async fn run_web(
         .dyn_into::<web_sys::HtmlCanvasElement>()
         .map_err(|_| format!("the element {canvas_id} is not a canvas"))?;
     document.set_title(&options.title);
+    let _ = canvas.style().set_property("touch-action", "none");
     let agent = text_agent(&document)?;
 
     let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
@@ -518,13 +519,21 @@ fn on<E: wasm_bindgen::convert::FromWasmAbi + 'static>(
     Ok(())
 }
 
-fn position(canvas: &web_sys::HtmlCanvasElement, x: i32, y: i32) -> Pos2 {
+fn position(canvas: &web_sys::HtmlCanvasElement, event: &web_sys::MouseEvent) -> Pos2 {
     let bounds = canvas.get_bounding_client_rect();
     let scale = INPUT.with(|input| input.scale.get());
+    let (x, y) = (
+        client(event, "clientX").unwrap_or(f64::from(event.client_x())),
+        client(event, "clientY").unwrap_or(f64::from(event.client_y())),
+    );
     pos2(
-        (x as f32 - bounds.left() as f32) * scale,
-        (y as f32 - bounds.top() as f32) * scale,
+        (x - bounds.left()) as f32 * scale,
+        (y - bounds.top()) as f32 * scale,
     )
+}
+
+fn client(event: &web_sys::MouseEvent, axis: &str) -> Option<f64> {
+    js_sys::Reflect::get(event, &axis.into()).ok()?.as_f64()
 }
 
 fn modifiers_of(alt: bool, ctrl: bool, meta: bool, shift: bool) -> Modifiers {
@@ -562,7 +571,7 @@ fn listen(
                 event.meta_key(),
                 event.shift_key(),
             );
-            let pos = position(&canvas, event.client_x(), event.client_y());
+            let pos = position(&canvas, &event);
             if event.pointer_type() == "touch" {
                 push(touch(&event, TouchPhase::Start, pos));
                 return;
@@ -590,7 +599,7 @@ fn listen(
                 )));
                 return;
             }
-            let pos = position(&canvas, event.client_x(), event.client_y());
+            let pos = position(&canvas, &event);
             if event.pointer_type() == "touch" {
                 push(touch(&event, TouchPhase::Move, pos));
                 return;
@@ -609,7 +618,7 @@ fn listen(
                     event.meta_key(),
                     event.shift_key(),
                 );
-                let pos = position(&canvas, event.client_x(), event.client_y());
+                let pos = position(&canvas, &event);
                 if event.pointer_type() == "touch" {
                     let phase = match cancelled {
                         true => TouchPhase::Cancel,

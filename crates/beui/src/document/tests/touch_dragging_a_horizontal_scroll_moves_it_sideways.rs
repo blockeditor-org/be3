@@ -1,5 +1,6 @@
 use super::*;
 use crate::base::Direction;
+use crate::input::TOUCH_DRAG_THRESHOLD;
 use crate::reactive::{ForEach, ItemSize, List, build, view};
 use crate::unstyled::Scroll;
 
@@ -42,6 +43,8 @@ fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
     harness.touch(TouchPhase::Move, end);
     harness.touch(TouchPhase::End, end);
 
-    assert!((harness.document().scroll_offset(strip) - 100.0).abs() < 0.01);
+    assert!(
+        (harness.document().scroll_offset(strip) - (100.0 - TOUCH_DRAG_THRESHOLD)).abs() < 0.01
+    );
     assert_eq!(clicks.get(), 0);
 }
