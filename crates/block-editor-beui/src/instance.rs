@@ -35,7 +35,7 @@ pub(crate) struct BeuiInstance<A: BeuiApp> {
     regions: HashMap<EditorRegion, BeuiRegion>,
     views: Views<A>,
     #[cfg(target_arch = "wasm32")]
-    renderer: Option<beui::Renderer>,
+    renderers: HashMap<EditorRegion, beui::Renderer>,
 }
 
 struct BeuiRegion {
@@ -47,6 +47,7 @@ struct BeuiRegion {
     chrome: Option<BeuiFrame>,
     output: Option<beui::FrameOutput>,
     frame: beui::Rect,
+    look: Option<(Option<beui::Filter>, f32)>,
     pending: Option<Damage>,
     #[cfg(target_arch = "wasm32")]
     history: VecDeque<Option<Damage>>,
@@ -73,8 +74,10 @@ impl Damage {
 
 impl BeuiRegion {
     fn note_output(&mut self, output: &beui::FrameOutput, frame: beui::Rect) {
-        let moved = self.frame != frame;
+        let look = (output.filter(), output.pixels_per_point());
+        let moved = self.frame != frame || self.look != Some(look);
         self.frame = frame;
+        self.look = Some(look);
         let damage = match output.damaged() {
             _ if moved => Damage::Everything,
             Some(region) => Damage::Region(region),
@@ -119,6 +122,7 @@ impl BeuiRegion {
             chrome: None,
             output: None,
             frame: beui::Rect::NOTHING,
+            look: None,
             pending: None,
             #[cfg(target_arch = "wasm32")]
             history: VecDeque::new(),
@@ -264,7 +268,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
                 app: PhantomData,
             },
             #[cfg(target_arch = "wasm32")]
-            renderer: None,
+            renderers: HashMap::new(),
         }
     }
 }
@@ -503,8 +507,11 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             return;
         }
         let renderer = self
-            .renderer
-            .get_or_insert_with(|| beui::Renderer::new(target.device, target.format));
+            .renderers
+            .entry(target.placement.region)
+            .or_insert_with(|| beui::Renderer::new(target.device, target.format));
+        let (x, y, width, height) = target.scissor();
+        renderer.set_bounds(Some([x, y, width, height]));
         let screen = beui::vec2(target.width as f32, target.height as f32);
         let prepared = renderer.prepare(
             target.device,
@@ -523,33 +530,23 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 output,
                 screen,
                 output.pixels_per_point(),
-                repaint,
+                beui::Repaint::Region {
+                    region: beui::Region::from(state.frame),
+                    background: beui::Color32::TRANSPARENT,
+                },
             );
         }
         let mut encoder = target
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("plugin beui pane"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: target.view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            let (x, y, width, height) = target.scissor();
-            pass.set_scissor_rect(x, y, width, height);
-            renderer.paint(&mut pass);
-        }
+        renderer.render(
+            target.device,
+            target.queue,
+            &mut encoder,
+            target.view,
+            (target.width, target.height),
+            wgpu::LoadOp::Load,
+        );
         target.queue.submit([encoder.finish()]);
     }
 

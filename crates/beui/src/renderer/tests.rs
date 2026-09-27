@@ -3,6 +3,7 @@ use super::*;
 mod a_blur_repaints_the_light_it_spreads_outside_the_damaged_region;
 mod a_blur_thinner_than_a_pixel_spreads_less_light_than_a_whole_one;
 mod a_blurred_region_spreads_light_past_the_shape_that_made_it;
+mod a_bounded_renderer_filters_and_paints_only_within_its_bounds;
 mod a_clip_rectangle_hides_what_falls_outside_it;
 mod a_colour_vision_filter_recolours_the_region_it_covers;
 mod a_drawing_paints_between_the_shapes_around_it;
@@ -80,6 +81,7 @@ pub(crate) struct Target {
     texture: wgpu::Texture,
     view: wgpu::TextureView,
     cleared: bool,
+    bounded: bool,
 }
 
 impl Target {
@@ -123,7 +125,13 @@ impl Target {
             texture,
             view,
             cleared: false,
+            bounded: false,
         }
+    }
+
+    pub(crate) fn bound(&mut self, bounds: [u32; 4]) {
+        self.renderer.set_bounds(Some(bounds));
+        self.bounded = true;
     }
 
     pub(crate) fn draw(
@@ -144,6 +152,7 @@ impl Target {
         );
         let load = match (self.cleared, effective) {
             (true, Repaint::Region { .. }) => wgpu::LoadOp::Load,
+            (true, _) if self.bounded => wgpu::LoadOp::Load,
             _ => wgpu::LoadOp::Clear(clear_color(background)),
         };
         self.cleared = true;

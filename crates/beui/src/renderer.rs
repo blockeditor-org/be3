@@ -252,6 +252,8 @@ pub struct Renderer {
     samplers: [wgpu::Sampler; 2],
     filter: Option<filter::Prepared>,
     effects: Option<filter::Effects>,
+    bounds: Option<[u32; 4]>,
+    whole: bool,
 }
 
 struct Run {
@@ -410,6 +412,8 @@ impl Renderer {
             samplers: [nearest, sampler],
             filter: None,
             effects: None,
+            bounds: None,
+            whole: true,
         }
     }
 
@@ -480,6 +484,10 @@ impl Renderer {
 
     pub fn set_origin(&mut self, origin: Vec2) {
         self.origin = origin;
+    }
+
+    pub fn set_bounds(&mut self, bounds: Option<[u32; 4]>) {
+        self.bounds = bounds;
     }
 
     pub fn prepare(
@@ -707,12 +715,23 @@ impl Renderer {
             used
         });
         let origin = self.origin;
-        self.scissors = damaged.map(|damaged| {
+        self.whole = damaged.is_none();
+        let scissors = damaged.map(|damaged| {
             damaged
                 .into_iter()
                 .map(|damaged| scissor(damaged, origin))
-                .collect()
+                .collect::<Vec<_>>()
         });
+        self.scissors = match (scissors, self.bounds) {
+            (scissors, None) => scissors,
+            (None, Some(bounds)) => Some(vec![bounds]),
+            (Some(scissors), Some(bounds)) => Some(
+                scissors
+                    .into_iter()
+                    .map(|scissor| intersected(scissor, bounds))
+                    .collect(),
+            ),
+        };
         self.runs = runs;
         self.overlay = overlay;
         self.filter = prepared;
@@ -805,7 +824,11 @@ impl Renderer {
             let Some(scene) = self.effects.as_ref().and_then(filter::Effects::scene) else {
                 return;
             };
-            let mut pass = self.begin(encoder, scene, load);
+            let scene_load = match load {
+                wgpu::LoadOp::Load if self.whole => wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                load => load,
+            };
+            let mut pass = self.begin(encoder, scene, scene_load);
             if let Some(scissor) = scissor {
                 clip(&mut pass, scissor);
             }
@@ -960,6 +983,15 @@ fn clipped(clip: [f32; 4], [left, top, width, height]: [u32; 4]) -> [u32; 4] {
         (x1 - x0).max(0.0) as u32,
         (y1 - y0).max(0.0) as u32,
     ]
+}
+
+fn intersected([left, top, width, height]: [u32; 4], bounds: [u32; 4]) -> [u32; 4] {
+    let [bound_left, bound_top, bound_width, bound_height] = bounds;
+    let x0 = left.max(bound_left);
+    let y0 = top.max(bound_top);
+    let x1 = (left + width).min(bound_left + bound_width);
+    let y1 = (top + height).min(bound_top + bound_height);
+    [x0, y0, x1.saturating_sub(x0), y1.saturating_sub(y0)]
 }
 
 fn scissor(damaged: [f32; 4], origin: Vec2) -> [u32; 4] {
