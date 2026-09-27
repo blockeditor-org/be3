@@ -6,7 +6,7 @@ use crate::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_TAB_GROUP};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, ClickCallback, Frame, Func, List, Memo, Prop, ReadSignal, RenderFn, Show, Text,
-    clone, create_memo,
+    clone, create_memo, focus_ring,
 };
 use crate::styled::button::ButtonVariant;
 use crate::styled::context_menu::ContextMenu;
@@ -209,7 +209,7 @@ fn DockTabChrome(
             outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH
             outline_offset=1.0
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
@@ -504,7 +504,7 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
             color={fill}
             outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
         />
     }
 }

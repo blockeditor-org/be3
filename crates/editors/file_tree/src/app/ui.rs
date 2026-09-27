@@ -6,7 +6,8 @@ use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_AUTO_AWESOME, ICON_CLOSE};
 use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Show, Spacer,
-    WriteSignal, clone, component, create_effect, create_memo, create_signal, view, with_document,
+    WriteSignal, clone, component, create_effect, create_memo, create_signal, focus_ring, view,
+    with_document,
 };
 use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{
@@ -457,7 +458,7 @@ fn AddChildFace(handle: ButtonHandle) -> NodeId {
                 color={fill}
                 outline={theme.accent.clone()}
                 outline_width=1.0
-                outline_visible={focused}
+                outline_visible={focus_ring(focused)}
                 radius=3
             >
                 <IconSized glyph={ICON_ADD.to_owned()} font_size=FONT_SMALL color={color} />

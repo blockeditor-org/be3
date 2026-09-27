@@ -5,7 +5,7 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::node::NodeId;
 use crate::reactive::{
-    Align, Callback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
+    Align, Callback, Direction, Frame, List, Prop, Show, Text, clone, create_memo, focus_ring,
 };
 use crate::styled::text::Icon;
 use crate::styled::theme::{FONT_BODY, RADIUS, ThemeStore, use_theme};
@@ -98,7 +98,7 @@ fn ToggleButtonFace(
             outline_width=2.0
             radius=RADIUS
             outline_offset=3.0
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
         >
             <Frame
                 color={fill_color}

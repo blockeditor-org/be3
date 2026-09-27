@@ -6,7 +6,7 @@ use beui_macros::{component, view};
 
 use crate::reactive::Memo;
 use crate::reactive::{
-    Align, Direction, Frame, ItemSize, List, Prop, Spacer, Text, clone, create_memo,
+    Align, Direction, Frame, ItemSize, List, Prop, Spacer, Text, clone, create_memo, focus_ring,
 };
 use crate::styled::theme::{FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
@@ -47,7 +47,7 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
             outline_width=2.0
             radius=RADIUS
             outline_offset=1.0
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
             padding_horizontal=14.0
             padding_vertical=6.0
         >

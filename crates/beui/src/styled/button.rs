@@ -5,7 +5,7 @@ use crate::color::Color32;
 use crate::base::TextAlign;
 use crate::node::NodeId;
 use crate::reactive::{
-    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
+    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo, focus_ring,
 };
 use crate::styled::text::Icon;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
@@ -116,7 +116,7 @@ pub(crate) fn ButtonFace(
             outline_width=FOCUS_RING_WIDTH
             radius={RADIUS + 4}
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
         >
             <Frame
                 color={fill_color}
