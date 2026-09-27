@@ -9,9 +9,8 @@ use crate::document::Document;
 use crate::input::{Key, KeyPress};
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, ForEach, ItemSize, List, Memo, Prop, ReadSignal, Render, RenderFn, Show,
-    WriteSignal, clone, component_accessibility, create_effect, create_memo, create_signal,
-    set_component_state,
+    Callback, ForEach, ItemSize, List, Memo, Prop, ReadSignal, Render, RenderFn, Show, WriteSignal,
+    clone, component_accessibility, create_effect, create_memo, create_signal, set_component_state,
 };
 use crate::unstyled;
 use crate::unstyled::ButtonHandle;
@@ -227,7 +226,11 @@ pub fn Calendar(
 }
 
 #[component]
-fn CalendarGrid(label: Memo<String>, spacing: f32, children: crate::reactive::Children<crate::reactive::ListChild>) -> NodeId {
+fn CalendarGrid(
+    label: Memo<String>,
+    spacing: f32,
+    children: crate::reactive::Children<crate::reactive::ListChild>,
+) -> NodeId {
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::Grid);
         node.set_label(label.get());
@@ -244,9 +247,7 @@ fn CalendarWeekday(weekday: Weekday, face: RenderFn<Weekday>) -> NodeId {
     node.set_label(weekday.name());
     component_accessibility(node);
     view! {
-        <List spacing=0.0>
-            {face.call(weekday)}
-        </List>
+        <List spacing=0.0>{face.call(weekday)}</List>
     }
 }
 
@@ -284,14 +285,16 @@ fn CalendarDay(
     face: RenderFn<CalendarDayHandle>,
 ) -> NodeId {
     let date = create_memo(move || grid_start.get().add_days(offset));
-    let selected = create_memo(clone!(state date -> move || state.selected.get() == Some(date.get())));
+    let selected =
+        create_memo(clone!(state date -> move || state.selected.get() == Some(date.get())));
     let today = create_memo(clone!(state date -> move || date.get() == state.today));
     let outside = create_memo(clone!(state date -> move || {
         !date.get().same_month(state.active.get())
     }));
     let disabled = create_memo(clone!(state date -> move || !in_range(&state, date.get())));
     let tab_stop = create_memo(clone!(state date -> move || state.active.get() == date.get()));
-    let focused = create_memo(clone!(state date -> move || state.day_focus.get() == Some(date.get())));
+    let focused =
+        create_memo(clone!(state date -> move || state.day_focus.get() == Some(date.get())));
     let accessibility = create_memo(clone!(date selected today -> move || {
         let date = date.get();
         let mut node = Node::new(Role::GridCell);
@@ -532,7 +535,10 @@ fn month_key(state: &State, number: u8, press: KeyPress) -> bool {
     };
     if press.pressed {
         let active = state.active.get_untracked();
-        let next = clamp(state, Date::new(active.year, number, active.day).add_months(offset));
+        let next = clamp(
+            state,
+            Date::new(active.year, number, active.day).add_months(offset),
+        );
         state.set_active.set(next);
         state.set_month_focus.set(Some(next.first_of_month()));
     }

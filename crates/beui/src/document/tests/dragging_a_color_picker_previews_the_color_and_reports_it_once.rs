@@ -39,5 +39,9 @@ fn dragging_a_color_picker_previews_the_color_and_reports_it_once() {
     assert!((reported.value - 0.5).abs() < 0.02);
     let previews = previews.borrow();
     assert!(previews.len() >= 2);
-    assert_eq!(previews.last(), Some(&None), "the preview ends with the drag");
+    assert_eq!(
+        previews.last(),
+        Some(&None),
+        "the preview ends with the drag"
+    );
 }

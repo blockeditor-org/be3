@@ -31,7 +31,10 @@ fn a_calendar_keeps_its_focus_between_its_limits() {
     harness.key(Key::PageDown, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
 
-    assert_eq!(*picked.borrow(), [Date::new(2026, 5, 8), Date::new(2026, 5, 12)]);
+    assert_eq!(
+        *picked.borrow(),
+        [Date::new(2026, 5, 8), Date::new(2026, 5, 12)]
+    );
     let outside = harness
         .accessible()
         .into_iter()

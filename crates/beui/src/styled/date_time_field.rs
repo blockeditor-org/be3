@@ -6,8 +6,8 @@ use crate::datetime::{Date, DateTime, HourCycle, Time, Weekday};
 use crate::icons::{ICON_CALENDAR_MONTH, ICON_SCHEDULE};
 use crate::node::NodeId;
 use crate::reactive::{
-    Callback, ClickCatcher, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, Spacer, Text, clone,
-    create_effect, create_memo, create_signal,
+    Callback, ClickCatcher, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, Spacer, Text,
+    clone, create_effect, create_memo, create_signal,
 };
 use crate::styled::button::{Button, ButtonVariant};
 use crate::styled::calendar::{CALENDAR_WIDTH, Calendar};
@@ -97,58 +97,58 @@ pub fn DateTimeField(
             outline_visible={within.clone()}
         >
             <ClickCatcher on_hover_change={move |inside: bool| set_hovered.set(inside)}>
-            <Frame
-                height=HEIGHT
-                color={fill}
-                outline={border}
-                outline_width=BORDER_WIDTH
-                outline_visible=true
-                radius=RADIUS
-                padding_horizontal=PADDING_HORIZONTAL
-            >
-                <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                    <unstyled::DateTimeField
-                        @sizing=ItemSize::Percent(100.0)
-                        value={current.clone()}
-                        parts
-                        hour_cycle
-                        label={label.clone()}
-                        disabled={disabled.clone()}
-                        on_change={move |next| field_report.call(next)}
-                        on_focus_change={move |inside: bool| set_within.set(inside)}
-                        segment={|handle: DateSegmentHandle| view! {
-                            <SegmentFace handle />
-                        }}
-                        literal={|text: String| view! {
-                            <LiteralFace text />
-                        }}
-                    />
-                    <unstyled::Popover
-                        label={picker_label.clone()}
-                        disabled={disabled.clone()}
-                        trigger={move |handle: PopoverTriggerHandle| view! {
-                            <PickerTrigger handle parts label={picker_label} />
-                        }}
-                    >
-                        {move |popover: PopoverHandle| view! {
-                            <PopoverPanel>
-                                <PickerPanel
-                                    popover
-                                    current
-                                    parts
-                                    hour_cycle
-                                    clearable
-                                    min
-                                    max
-                                    first_weekday
-                                    step_minutes
-                                    report={move |next| report.call(next)}
-                                />
-                            </PopoverPanel>
-                        }}
-                    </unstyled::Popover>
-                </List>
-            </Frame>
+                <Frame
+                    height=HEIGHT
+                    color={fill}
+                    outline={border}
+                    outline_width=BORDER_WIDTH
+                    outline_visible=true
+                    radius=RADIUS
+                    padding_horizontal=PADDING_HORIZONTAL
+                >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                        <unstyled::DateTimeField
+                            @sizing=ItemSize::Percent(100.0)
+                            value={current.clone()}
+                            parts
+                            hour_cycle
+                            label={label.clone()}
+                            disabled={disabled.clone()}
+                            on_change={move |next| field_report.call(next)}
+                            on_focus_change={move |inside: bool| set_within.set(inside)}
+                            segment={|handle: DateSegmentHandle| view! {
+                                <SegmentFace handle />
+                            }}
+                            literal={|text: String| view! {
+                                <LiteralFace text />
+                            }}
+                        />
+                        <unstyled::Popover
+                            label={picker_label.clone()}
+                            disabled={disabled.clone()}
+                            trigger={move |handle: PopoverTriggerHandle| view! {
+                                <PickerTrigger handle parts label={picker_label} />
+                            }}
+                        >
+                            {move |popover: PopoverHandle| view! {
+                                <PopoverPanel>
+                                    <PickerPanel
+                                        popover
+                                        current
+                                        parts
+                                        hour_cycle
+                                        clearable
+                                        min
+                                        max
+                                        first_weekday
+                                        step_minutes
+                                        report={move |next| report.call(next)}
+                                    />
+                                </PopoverPanel>
+                            }}
+                        </unstyled::Popover>
+                    </List>
+                </Frame>
             </ClickCatcher>
         </Frame>
     }
@@ -190,7 +190,11 @@ fn LiteralFace(text: String) -> NodeId {
 }
 
 #[component]
-fn PickerTrigger(handle: PopoverTriggerHandle, parts: DateTimeParts, label: Memo<String>) -> NodeId {
+fn PickerTrigger(
+    handle: PopoverTriggerHandle,
+    parts: DateTimeParts,
+    label: Memo<String>,
+) -> NodeId {
     let PopoverTriggerHandle {
         open,
         hovered,
@@ -256,14 +260,18 @@ fn PickerPanel(
     let time = create_memo(clone!(current -> move || current.get().map(|value| value.time)));
     let calendar_focused = create_memo(clone!(open -> move || open.get() && parts.has_date()));
     let list_focused = create_memo(clone!(open -> move || open.get() && !parts.has_date()));
-    let list_height = create_memo(clone!(narrow -> move || match narrow.get() && parts.has_date() {
-        true => STACKED_TIME_LIST_HEIGHT,
-        false => TIME_LIST_HEIGHT,
-    }));
-    let list_width = create_memo(clone!(narrow -> move || match narrow.get() && parts.has_date() {
-        true => CALENDAR_WIDTH,
-        false => TIME_LIST_WIDTH,
-    }));
+    let list_height = create_memo(
+        clone!(narrow -> move || match narrow.get() && parts.has_date() {
+            true => STACKED_TIME_LIST_HEIGHT,
+            false => TIME_LIST_HEIGHT,
+        }),
+    );
+    let list_width = create_memo(
+        clone!(narrow -> move || match narrow.get() && parts.has_date() {
+            true => CALENDAR_WIDTH,
+            false => TIME_LIST_WIDTH,
+        }),
+    );
     let panel_width = create_memo(clone!(narrow -> move || match parts {
         DateTimeParts::Date => CALENDAR_WIDTH,
         DateTimeParts::Time => TIME_LIST_WIDTH,
@@ -305,44 +313,44 @@ fn PickerPanel(
     let has_time = parts.has_time();
     view! {
         <Frame width={panel_width}>
-        <List spacing=PANEL_SPACING>
-            <unstyled::Stack spacing=PANEL_SPACING narrow>
-                <Show condition=has_date>
-                    <Calendar
-                        selected={date}
-                        min
-                        max
-                        first_weekday
-                        focused={calendar_focused}
-                        on_change={pick_date}
-                    />
-                </Show>
-                <Show condition=has_time>
-                    <Frame width={list_width} height={list_height}>
-                        <unstyled::TimeList
-                            value={time}
-                            step_minutes
-                            hour_cycle
-                            focused={list_focused}
-                            row_height={TIME_ROW_HEIGHT}
-                            label="Time"
-                            scrollbar={scrollbar_style()}
-                            option={|handle: TimeOptionHandle| view! {
-                                <TimeOptionFace handle />
-                            }}
-                            on_change={pick_time}
+            <List spacing=PANEL_SPACING>
+                <unstyled::Stack spacing=PANEL_SPACING narrow>
+                    <Show condition=has_date>
+                        <Calendar
+                            selected={date}
+                            min
+                            max
+                            first_weekday
+                            focused={calendar_focused}
+                            on_change={pick_date}
                         />
-                    </Frame>
-                </Show>
-            </unstyled::Stack>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Button label=now_label variant=ButtonVariant::Secondary on_click={now} />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-                <Show condition=clearable>
-                    <Button label="Clear" variant=ButtonVariant::Ghost on_click={clear} />
-                </Show>
+                    </Show>
+                    <Show condition=has_time>
+                        <Frame width={list_width} height={list_height}>
+                            <unstyled::TimeList
+                                value={time}
+                                step_minutes
+                                hour_cycle
+                                focused={list_focused}
+                                row_height={TIME_ROW_HEIGHT}
+                                label="Time"
+                                scrollbar={scrollbar_style()}
+                                option={|handle: TimeOptionHandle| view! {
+                                    <TimeOptionFace handle />
+                                }}
+                                on_change={pick_time}
+                            />
+                        </Frame>
+                    </Show>
+                </unstyled::Stack>
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <Button label=now_label variant=ButtonVariant::Secondary on_click={now} />
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Show condition=clearable>
+                        <Button label="Clear" variant=ButtonVariant::Ghost on_click={clear} />
+                    </Show>
+                </List>
             </List>
-        </List>
         </Frame>
     }
 }

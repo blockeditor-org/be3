@@ -32,9 +32,15 @@ fn a_color_input_opens_its_picker_from_the_swatch() {
     harness.frame(Vec::new());
 
     assert!(open(&harness), "clicking the swatch opens the picker");
-    let focused = harness.document().focused_node().expect("the picker took the focus");
+    let focused = harness
+        .document()
+        .focused_node()
+        .expect("the picker took the focus");
     let area = harness.rect(focused);
-    assert!(area.width() > 100.0, "the saturation and brightness area has the focus");
+    assert!(
+        area.width() > 100.0,
+        "the saturation and brightness area has the focus"
+    );
 
     harness.key(Key::ArrowUp, Modifiers::NONE);
     harness.frame(Vec::new());

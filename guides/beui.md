@@ -296,9 +296,9 @@ A plain wheel is left to whatever is around it, the way a browser leaves a
 horizontal strip alone, and a wheel only ever reaches the innermost scroll
 under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `TextArea`,
-`Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Container`,
+`Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Popover`, `Container`,
 `PanZoom`, `PointerLock`, `Dock`, `Draggable`, `DropTarget`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
-and `Stack`. `TextArea` is the multiline one: it owns a
+`Stack`, `Calendar`, `DateTimeField`, `TimeList` and `ColorArea`. `TextArea` is the multiline one: it owns a
 `text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
 document out with a gutter, wrapping, collapsible sections and markdown
 checkboxes, and reserves room for the inline and block `TextWidget`s the caller
@@ -330,7 +330,8 @@ gesture in progress is dropped rather than committed. A finger dragged across a
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, a multiline text
-editor with its find and replace bar, menus, tabs, trees,
+editor with its find and replace bar, menus, popovers, tabs, trees, a calendar,
+date and time fields, a color picker and a color input,
 progress, scrolls and scrollbars, tooltips, a docking workspace, and responsive layout.
 `Separator` is the rule between them: it runs `Direction::Horizontal` unless the
 tag says otherwise, takes a line's thickness across its `direction` and the
@@ -493,6 +494,38 @@ it, and keyboard steps move by a share of the track rather than a share of the
 range, so an arrow key near the fine end moves a little and the same key near
 the coarse end moves a lot. What a screen reader is told the step is follows
 the value the next step would actually reach.
+
+### Dates, times and colors
+
+`beui::datetime` holds the plain values the pickers trade in: a `Date`, a
+`Time` to the minute, a `DateTime` of the two, a `Weekday` and an `HourCycle`.
+They carry no time zone; `DateTime::from_unix` and `to_unix` read and write
+seconds as UTC, which is what block content stores.
+
+`styled::DateTimeField` is the field for any of them, chosen by `parts`
+(`DateTimeParts::Date`, `Time` or `DateTime`). It is a row of spin-button
+segments, one per year, month, day, hour, minute and (on a 12-hour
+`hour_cycle`) AM/PM, beside a button that opens a popover holding a
+`Calendar`, a `TimeList`, or both. Its `value` is an `Option<DateTime>`: an
+empty field shows placeholders, a field is reported through `on_change` only
+once every segment is filled, and a field left half filled goes back to its
+value when the focus leaves it. A `Date` field keeps the time of the value it
+was given, and a `Time` field the date. `styled::Calendar` is the month grid on
+its own, with `min` and `max` limits and a months view behind its title.
+
+`styled::ColorPicker` is a saturation and brightness area, hue and opacity
+sliders, hex and RGB fields and a row of swatches; `styled::ColorInput` is a
+hex field whose swatch opens one. Both keep the hue while the color passes
+through grey or black, and a drag is reported through `on_preview` while it
+moves and through `on_change` once, when it ends, the way `NumberInput`
+reports a scrub - so an edit lands in the undo history once per gesture.
+
+`unstyled::Popover` is what both open: a trigger and a modal overlay, built the
+first time it opens, that traps Tab, closes on Escape, a press outside or its
+handle's `close`, and gives the focus back to the trigger when it closes. What
+it holds decides where the focus lands when it opens, by binding a `focused`
+prop to the handle's `open`, as the calendar, the time list and the color area
+all take.
 
 ### Tooltips
 

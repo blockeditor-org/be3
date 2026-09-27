@@ -154,7 +154,11 @@ pub fn parse_hex(text: &str) -> Option<Color32> {
         return None;
     }
     let channel = |start: usize| u8::from_str_radix(&text[start..start + 2], 16).ok();
-    let short = |index: usize| u8::from_str_radix(&text[index..=index], 16).ok().map(|v| v * 17);
+    let short = |index: usize| {
+        u8::from_str_radix(&text[index..=index], 16)
+            .ok()
+            .map(|v| v * 17)
+    };
     match text.len() {
         3 => Some(Color32::from_rgb(short(0)?, short(1)?, short(2)?)),
         4 => Some(Color32::from_rgba_unmultiplied(

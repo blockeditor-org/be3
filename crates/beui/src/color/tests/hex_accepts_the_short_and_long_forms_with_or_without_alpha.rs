@@ -7,7 +7,10 @@ fn hex_accepts_the_short_and_long_forms_with_or_without_alpha() {
         parse_hex("f808"),
         Some(Color32::from_rgba_unmultiplied(0xFF, 0x88, 0x00, 0x88))
     );
-    assert_eq!(parse_hex(" #102030 "), Some(Color32::from_rgb(0x10, 0x20, 0x30)));
+    assert_eq!(
+        parse_hex(" #102030 "),
+        Some(Color32::from_rgb(0x10, 0x20, 0x30))
+    );
     assert_eq!(
         parse_hex("#10203040"),
         Some(Color32::from_rgba_unmultiplied(0x10, 0x20, 0x30, 0x40))

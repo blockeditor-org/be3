@@ -1,3 +1,4 @@
+use beui::datetime::{Date, DateTime, HourCycle, Time};
 use beui::icons::{ICON_BUG_REPORT, ICON_GRID_VIEW};
 use beui::reactive::{
     Align, Callback, Canvas, CanvasItem, CanvasView, ForEach, Frame, Keyed, List, Memo, ReadSignal,
@@ -5,17 +6,16 @@ use beui::reactive::{
     create_selector, create_signal, view, with_document,
 };
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
-use beui::datetime::{Date, DateTime, HourCycle, Time};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Calendar, Caption, Card, Checkbox, ColorInput,
-    ColorPicker, ContextMenu, DateTimeField, Display, Heading,
-    IconButton, Link, Listbox, NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs,
-    Scroll, Select, Separator, Shortcut, Slider, Stack, Switch, TextArea, TextInput, Title,
-    ToggleButton, Tree, TreeRowFace, use_theme,
+    ColorPicker, ContextMenu, DateTimeField, Display, Heading, IconButton, Link, Listbox,
+    NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scroll, Select, Separator,
+    Shortcut, Slider, Stack, Switch, TextArea, TextInput, Title, ToggleButton, Tree, TreeRowFace,
+    use_theme,
 };
 use beui::unstyled::{
-    ChoiceOption, Container, DateTimeParts, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
-    SliderScale, TextAreaState, TreeItem, narrower_than, shorter_than,
+    ChoiceOption, Container, DateTimeParts, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle,
+    PanZoomView, SliderScale, TextAreaState, TreeItem, narrower_than, shorter_than,
 };
 use beui::{Color32, Context, Direction, Document, ItemSize, NodeId, Rect, TextAlign, unstyled};
 use beui_macros::component;
@@ -905,7 +905,8 @@ fn PickerControls() -> NodeId {
     let (booked, set_booked) = create_signal(None::<Date>);
     let (paint, set_paint) = create_signal(Color32::from_rgb(0x3E, 0x63, 0xDD));
     let (preview, set_preview) = create_signal(None::<Color32>);
-    let (accent, set_accent) = create_signal(Color32::from_rgba_unmultiplied(0xF7, 0x6B, 0x15, 0xC0));
+    let (accent, set_accent) =
+        create_signal(Color32::from_rgba_unmultiplied(0xF7, 0x6B, 0x15, 0xC0));
     let day_text = create_memo(clone!(day -> move || match day.get() {
         Some(day) => format!("{} was chosen", day.date.label()),
         None => "No day chosen".to_owned(),
@@ -926,7 +927,8 @@ fn PickerControls() -> NodeId {
         Some(booked) => format!("Booked for {}", booked.label()),
         None => "Bookings open for the next 60 days".to_owned(),
     }));
-    let shown_paint = create_memo(clone!(paint preview -> move || preview.get().unwrap_or(paint.get())));
+    let shown_paint =
+        create_memo(clone!(paint preview -> move || preview.get().unwrap_or(paint.get())));
     let paint_text = create_memo(clone!(shown_paint -> move || {
         format!("Painting in {}", beui::format_hex(shown_paint.get(), false))
     }));

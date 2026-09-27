@@ -13,9 +13,7 @@ use crate::styled::button::{ButtonFace, ButtonVariant};
 use crate::styled::icon_button::{IconButton, IconButtonSize};
 use crate::styled::theme::{FONT_BODY, FONT_SMALL, RADIUS, ThemeStore, use_theme};
 use crate::unstyled;
-use crate::unstyled::{
-    CalendarDayHandle, CalendarHeaderHandle, CalendarMode, CalendarMonthHandle,
-};
+use crate::unstyled::{CalendarDayHandle, CalendarHeaderHandle, CalendarMode, CalendarMonthHandle};
 
 pub(crate) const CALENDAR_WIDTH: f32 = 7.0 * DAY_SIZE + 6.0 * SPACING;
 const DAY_SIZE: f32 = 38.0;

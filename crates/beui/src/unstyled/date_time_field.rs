@@ -12,8 +12,8 @@ use crate::input::{CursorIcon, Key, KeyPress};
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, ClickCatcher, Focusable, ForEach, List, Memo, Prop, ReadSignal, RenderFn, Show,
-    Timer, WriteSignal, clone, component_accessibility, create_effect, create_memo,
-    create_signal, create_timer, set_component_state,
+    Timer, WriteSignal, clone, component_accessibility, create_effect, create_memo, create_signal,
+    create_timer, set_component_state,
 };
 
 const LEAP_YEAR: i32 = 2000;
@@ -218,9 +218,7 @@ pub fn DateTimeField(
                     let face = segment.clone();
                     view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Show condition=shown>
-                                {move || literal.call(text)}
-                            </Show>
+                            <Show condition=shown>{move || literal.call(text)}</Show>
                             <SegmentView state segment=segment_kind face />
                         </List>
                     }
@@ -428,7 +426,14 @@ fn compose(state: &State, values: &Values, base: Option<DateTime>) -> Option<Dat
             let hour = get(DateSegment::Hour)? as u8;
             let hour = match state.cycle {
                 HourCycle::H24 => hour,
-                HourCycle::H12 => hour % 12 + if get(DateSegment::Period)? == 1 { 12 } else { 0 },
+                HourCycle::H12 => {
+                    hour % 12
+                        + if get(DateSegment::Period)? == 1 {
+                            12
+                        } else {
+                            0
+                        }
+                }
             };
             Time::new(hour, get(DateSegment::Minute)? as u8)
         }
@@ -576,7 +581,11 @@ fn segment_key(state: &State, segment: DateSegment, press: KeyPress) -> bool {
             if press.pressed {
                 finish_typing(state);
                 let (min, max) = range(state, segment, &state.values.get_untracked());
-                set_to(state, segment, Some(if press.key == Key::Home { min } else { max }));
+                set_to(
+                    state,
+                    segment,
+                    Some(if press.key == Key::Home { min } else { max }),
+                );
             }
             true
         }
@@ -600,7 +609,9 @@ fn segment_key(state: &State, segment: DateSegment, press: KeyPress) -> bool {
                     .filter(|(typing, _)| *typing == segment);
                 let value = state.values.get_untracked()[segment.index()];
                 match (typing, value) {
-                    (Some((_, mut buffer)), _) if press.key == Key::Backspace && buffer.len() > 1 => {
+                    (Some((_, mut buffer)), _)
+                        if press.key == Key::Backspace && buffer.len() > 1 =>
+                    {
                         buffer.pop();
                         state.set_typing.set(Some((segment, buffer)));
                     }

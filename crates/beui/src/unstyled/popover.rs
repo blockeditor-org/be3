@@ -124,9 +124,7 @@ pub fn Popover(
             >
                 <PopoverSurface label>
                     <List spacing=0.0>
-                        <Show condition={built}>
-                            {move || content.call(handle)}
-                        </Show>
+                        <Show condition={built}>{move || content.call(handle)}</Show>
                     </List>
                 </PopoverSurface>
             </Overlay>
@@ -145,17 +143,17 @@ fn PopoverSurface(label: Memo<String>, children: Child) -> NodeId {
         node
     }));
     view! {
-        <List spacing=0.0>
-            {children}
-        </List>
+        <List spacing=0.0>{children}</List>
     }
 }
 
 pub fn popover_open(document: &Document, popover: NodeId) -> bool {
-    document.component_state::<State>(popover).open.get_untracked()
+    document
+        .component_state::<State>(popover)
+        .open
+        .get_untracked()
 }
 
 pub fn popover_trigger(document: &Document, popover: NodeId) -> NodeId {
     document.component_state::<State>(popover).trigger.get()
 }
-

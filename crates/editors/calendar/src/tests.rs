@@ -7,6 +7,7 @@ use crate::app::CalendarApp;
 
 mod adding_an_event_writes_it_to_the_block;
 mod clicking_a_day_opens_the_new_event_form;
+mod moving_the_start_of_an_event_keeps_its_length;
 
 struct Harness {
     editor: BeuiTest<CalendarApp>,

@@ -11,15 +11,17 @@ use crate::image::Image;
 use crate::node::NodeId;
 use crate::painter::Painter;
 use crate::reactive::{
-    Callback, Draw, Drawing, ForEach, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, WriteSignal,
-    clone, create_effect, create_memo, create_signal,
+    Callback, Draw, Drawing, ForEach, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show,
+    WriteSignal, clone, create_effect, create_memo, create_signal,
 };
 use crate::styled::number_input::NumberInput;
 use crate::styled::text::Caption;
 use crate::styled::text_input::TextInput;
 use crate::styled::theme::{BORDER_WIDTH, CHIP_RADIUS, RADIUS, use_theme};
 use crate::unstyled;
-use crate::unstyled::{ChoiceKind, ChoiceOption, ChoiceOptionHandle, ColorAreaHandle, SliderHandle};
+use crate::unstyled::{
+    ChoiceKind, ChoiceOption, ChoiceOptionHandle, ColorAreaHandle, SliderHandle,
+};
 
 pub const PICKER_WIDTH: f32 = 244.0;
 const AREA_HEIGHT: f32 = 156.0;
@@ -157,7 +159,10 @@ pub fn ColorPicker(
     }));
     let face_swatches = Rc::new(swatches.clone());
     let has_swatches = !swatches.is_empty();
-    let labels: Vec<String> = swatches.iter().map(|swatch| format_hex(*swatch, false)).collect();
+    let labels: Vec<String> = swatches
+        .iter()
+        .map(|swatch| format_hex(*swatch, false))
+        .collect();
     let indices: Vec<usize> = (0..swatches.len()).collect();
     let alpha_color = color.clone();
     view! {
@@ -288,7 +293,10 @@ fn ColorFields(picker: Picker, alpha: bool) -> NodeId {
             let mut channels = held.to_color().to_array();
             channels[index] = typed.round().clamp(0.0, 255.0) as u8;
             let [r, g, b, a] = channels;
-            picker.apply(Hsva::from_color_keeping(Color32::from_rgba_unmultiplied(r, g, b, a), held));
+            picker.apply(Hsva::from_color_keeping(
+                Color32::from_rgba_unmultiplied(r, g, b, a),
+                held,
+            ));
         }
     };
     let set_opacity = set_channel(3);
@@ -354,21 +362,33 @@ fn ColorFields(picker: Picker, alpha: bool) -> NodeId {
 
 #[component]
 fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
-    let ColorAreaHandle {
-        color, focused, ..
-    } = handle;
+    let ColorAreaHandle { color, focused, .. } = handle;
     let hue = create_memo(clone!(color -> move || color.get().hue));
     let plane = create_memo(move || plane_image(hue.get()));
     let place = create_memo(move || {
         let color = color.get();
-        (color.saturation, 1.0 - color.value, color.opaque().to_color())
+        (
+            color.saturation,
+            1.0 - color.value,
+            color.opaque().to_color(),
+        )
     });
     let draw = Prop::Dynamic(Rc::new(move || {
         let image = plane.get();
         let (x, y, fill) = place.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
-            painter.image(rect, texel_centres(PLANE_TEXELS, PLANE_TEXELS), &image, Color32::WHITE, RADIUS as f32, true);
-            let centre = pos2(rect.left() + x * rect.width(), rect.top() + y * rect.height());
+            painter.image(
+                rect,
+                texel_centres(PLANE_TEXELS, PLANE_TEXELS),
+                &image,
+                Color32::WHITE,
+                RADIUS as f32,
+                true,
+            );
+            let centre = pos2(
+                rect.left() + x * rect.width(),
+                rect.top() + y * rect.height(),
+            );
             thumb(painter, centre, THUMB_RADIUS, fill);
         }) as Draw
     }));
@@ -417,7 +437,14 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
             if checkered {
                 checkerboard(painter, rect);
             }
-            painter.image(rect, texel_centres(image.width(), 1), &image, Color32::WHITE, radius, true);
+            painter.image(
+                rect,
+                texel_centres(image.width(), 1),
+                &image,
+                Color32::WHITE,
+                radius,
+                true,
+            );
             painter.rect_stroke(rect, radius, BORDER_WIDTH, OUTLINE_DARK);
             let travel = (rect.width() - 2.0 * radius).max(0.0);
             let centre = pos2(rect.left() + radius + fraction * travel, rect.center().y);
@@ -470,10 +497,12 @@ fn SwatchFace(handle: ChoiceOptionHandle, color: Color32) -> NodeId {
     } = handle;
     let theme = use_theme();
     let ring = create_memo(clone!(selected focused -> move || selected.get() || focused.get()));
-    let ring_color = create_memo(clone!(theme -> move || match (focused.get(), hovered.get()) {
-        (true, _) => theme.accent.get(),
-        (false, _) => theme.text.get(),
-    }));
+    let ring_color = create_memo(
+        clone!(theme -> move || match (focused.get(), hovered.get()) {
+            (true, _) => theme.accent.get(),
+            (false, _) => theme.text.get(),
+        }),
+    );
     view! {
         <Frame
             outline={ring_color}
@@ -539,7 +568,9 @@ fn hue_image() -> Image {
         let pixels = (0..HUE_TEXELS)
             .flat_map(|texel| {
                 let hue = 360.0 * texel as f32 / (HUE_TEXELS - 1) as f32;
-                Hsva::new(hue.min(359.999), 1.0, 1.0, 1.0).to_color().to_array()
+                Hsva::new(hue.min(359.999), 1.0, 1.0, 1.0)
+                    .to_color()
+                    .to_array()
             })
             .collect();
         Image::from_rgba(HUE_TEXELS, 1, pixels)

@@ -16,7 +16,9 @@ fn a_time_list_moves_through_its_times_and_picks_one() {
                         value={Some(Time::new(10, 7))}
                         step_minutes=30
                         focused=true
-                        option={|handle: TimeOptionHandle| view! { <Text string={handle.label} /> }}
+                        option={|handle: TimeOptionHandle| view! {
+                            <Text string={handle.label} />
+                        }}
                         on_change={move |time| sink.borrow_mut().push(time)}
                     />
                 </List>
