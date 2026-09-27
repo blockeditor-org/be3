@@ -1,3 +1,5 @@
+pub(crate) mod autoscroll;
+
 use std::time::{Duration, Instant};
 
 use crate::base::list::Direction;
@@ -78,6 +80,10 @@ pub(crate) fn interact(
         true => input,
         false => without_pointer(input),
     };
+    let autoscroll::Tracked {
+        input,
+        swallows_escape,
+    } = autoscroll::track(doc, ctx, rects, root, input);
 
     if input.touch_started {
         doc.touch_scroll_vertical = target(doc, rects, root, input.pointer_pos, &|element| {
@@ -221,6 +227,7 @@ pub(crate) fn interact(
         );
     }
     doc.put_back_interact_pool(pool);
+    autoscroll::show_cursor(doc, ctx);
 
     if pointer
         && let Some(fingers) = ctx.input(|input| input.touch.finger_tap())
@@ -250,6 +257,9 @@ pub(crate) fn interact(
     for event in ctx.input(|input| input.events.clone()) {
         doc.validate_focus();
         let (key, pressed, repeat, modifiers) = match event {
+            Event::Key {
+                key: Key::Escape, ..
+            } if swallows_escape => continue,
             Event::Focus(false) => {
                 doc.cancel_focus_activation();
                 if ctx.pointer_locked() {

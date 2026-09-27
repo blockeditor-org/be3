@@ -45,6 +45,7 @@ mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
 mod a_lone_child_fills_a_children_prop_as_a_run_of_one;
 mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
+mod a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling;
 mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_nested_container_reports_its_own_width_not_the_windows;
 mod a_number_input_reports_what_was_typed_within_its_range;
@@ -222,6 +223,7 @@ mod inserting_above_a_virtual_list_view_keeps_the_rows_in_place;
 mod inserting_into_a_virtual_list_view_builds_only_the_new_row;
 mod jumping_up_a_virtual_scroll_only_builds_the_items_in_view;
 mod keys_without_alt_reach_the_control_the_screen_reader_focused;
+mod middle_clicking_a_scroll_scrolls_it_towards_the_pointer;
 mod moving_a_dock_tab_to_another_pane_keeps_its_panel;
 mod opening_a_menu_button_damages_only_the_button_and_its_menu;
 mod opening_a_menu_damages_only_where_it_appears;
@@ -238,9 +240,11 @@ mod picking_a_node_leaves_the_document_alone;
 mod pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it;
 mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale;
+mod pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still;
 mod pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view;
 mod quadruple_clicking_selects_everything_so_typing_replaces_the_value;
 mod recolouring_a_nested_frame_repaints_it_alone;
+mod releasing_a_middle_drag_ends_autoscroll;
 mod removing_a_keyed_node_drops_the_test_ids_it_registered;
 mod removing_a_node_forgets_which_layout_pass_placed_it;
 mod removing_a_node_runs_the_cleanups_its_components_registered;
@@ -291,6 +295,7 @@ mod tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste;
 mod tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_landed;
 mod the_caret_of_a_focused_text_area_blinks_on_a_deadline;
 mod the_caret_of_a_text_input_paints_two_points_wide;
+mod the_click_that_ends_autoscroll_presses_nothing;
 mod the_components_tab_lists_components_instead_of_base_nodes;
 mod the_demo_body_scrolls_rather_than_spilling_off_a_small_window;
 mod the_demo_catalog_survives_switching_tabs;
@@ -477,6 +482,15 @@ impl Harness {
 
     pub(crate) fn pinch(&mut self, pos: Pos2, factor: f32) {
         self.frame(vec![Event::PointerMoved(pos), Event::Zoom(factor)]);
+    }
+
+    pub(crate) fn middle_button(&mut self, pos: Pos2, pressed: bool) {
+        self.frame(vec![Event::PointerButton {
+            pos,
+            button: PointerButton::Middle,
+            pressed,
+            modifiers: Modifiers::NONE,
+        }]);
     }
 
     pub(crate) fn middle_drag(&mut self, from: Pos2, to: Pos2) {

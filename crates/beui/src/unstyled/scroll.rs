@@ -8,14 +8,17 @@ use beui_macros::{component, view};
 use super::rubber_band::{
     MAX_ANIMATION_STEP, MINIMUM_VELOCITY, SCROLL_SPRING, rubber_band, spring_back, unband,
 };
+use crate::base::overlay::{Overlay, OverlayAnchor, OverlayMode, Placement};
 use crate::base::{Direction, ItemSize, ScrollPosition};
 use crate::color::Color32;
 use crate::document::Document;
-use crate::input::{DragGesture, Key, KeyPress, ScrollGesture};
+use crate::geometry::Pos2;
+use crate::input::{AutoscrollGesture, DragGesture, Key, KeyPress, ScrollGesture};
+use crate::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
 use crate::node::NodeId;
 use crate::reactive::{
     Callback, Children, ClickCatcher, Focusable, Frame, List, ListChild, Memo, Offset, Prop,
-    ReadSignal, Render, RenderFn, Timer, clone, component_accessibility, create_memo,
+    ReadSignal, Render, RenderFn, Show, Timer, clone, component_accessibility, create_memo,
     create_signal, create_timer, focus_ring, on_cleanup, set_component_state, untrack,
     with_document,
 };
@@ -24,6 +27,8 @@ const INERTIA_FRICTION: f32 = 4.5;
 const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_INSET: f32 = -1.0;
 const STEP: f32 = 40.0;
+const AUTOSCROLL_GAIN: f32 = 6.0;
+const AUTOSCROLL_ACCELERATION: f32 = 0.02;
 
 pub struct ScrollHandle {
     pub position: Memo<ScrollPosition>,
@@ -65,6 +70,7 @@ struct Momentum {
     drag: Option<f32>,
     dragging: bool,
     velocity: f32,
+    autoscroll: f32,
     stepped: Instant,
 }
 
@@ -75,18 +81,20 @@ impl Momentum {
             drag: None,
             dragging: false,
             velocity: 0.0,
+            autoscroll: 0.0,
             stepped: Instant::now(),
         }
     }
 
     fn moving(&self) -> bool {
-        self.overscroll != 0.0 || self.velocity != 0.0
+        self.overscroll != 0.0 || self.velocity != 0.0 || self.autoscroll != 0.0
     }
 
     fn rest(&mut self) {
         self.overscroll = 0.0;
         self.drag = None;
         self.velocity = 0.0;
+        self.autoscroll = 0.0;
     }
 
     fn grab(&mut self, position: &ScrollPosition) {
@@ -122,6 +130,14 @@ impl Momentum {
         if elapsed <= 0.0 {
             return;
         }
+        if self.autoscroll != 0.0 {
+            let raw = position.offset + self.autoscroll * elapsed;
+            position.offset = raw.clamp(0.0, position.max_offset());
+            if raw != position.offset {
+                self.autoscroll = 0.0;
+            }
+            return;
+        }
         if self.overscroll != 0.0 {
             spring_back(
                 &mut self.overscroll,
@@ -145,6 +161,11 @@ impl Momentum {
             self.velocity = 0.0;
         }
     }
+}
+
+fn autoscroll_speed(distance: f32) -> f32 {
+    let beyond = (distance.abs() - AUTOSCROLL_DEAD_ZONE).max(0.0);
+    distance.signum() * (beyond * AUTOSCROLL_GAIN + beyond * beyond * AUTOSCROLL_ACCELERATION)
 }
 
 fn rubber_banding() -> bool {
@@ -209,6 +230,24 @@ impl Motion {
             momentum.release(0.0);
         }
         self.publish(&momentum, position.offset);
+        self.animate(&mut momentum);
+    }
+
+    fn autoscroll(&self, gesture: AutoscrollGesture) {
+        let mut momentum = self.momentum.borrow_mut();
+        if gesture.ended {
+            momentum.autoscroll = 0.0;
+            return;
+        }
+        if momentum.overscroll != 0.0
+            && let Some(position) = self.placed()
+        {
+            momentum.rest();
+            self.publish(&momentum, position.offset);
+        }
+        momentum.drag = None;
+        momentum.velocity = 0.0;
+        momentum.autoscroll = autoscroll_speed(self.axis().main(gesture.pos - gesture.origin));
         self.animate(&mut momentum);
     }
 
@@ -293,6 +332,7 @@ fn Scrolling(
     direction: Prop<Direction>,
     focus_color: Prop<Color32>,
     scrollbar: ScrollbarStyle,
+    marker: Render<Memo<Direction>>,
     on_change: Callback<ScrollPosition>,
     #[prop(children)] content: Render<Callback<ScrollPosition>>,
 ) -> NodeId {
@@ -323,6 +363,14 @@ fn Scrolling(
     let axis = create_memo(clone!(direction -> move || Some(direction.get())));
     let (keyed, ancestor_keyed) = (motion.clone(), motion.clone());
     let (wheeled, dragged) = (motion.clone(), motion.clone());
+    let autoscrolled = motion.clone();
+    let (origin, set_origin) = create_signal(None::<Pos2>);
+    let marked = create_memo(clone!(origin -> move || origin.get().is_some()));
+    let anchor = create_memo(clone!(origin -> move || {
+        OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO))
+    }));
+    let marker_axis = create_memo(clone!(direction -> move || direction.get()));
+    let content_axis = marker_axis.clone();
     let scroll_to = Callback::new(move |offset: f32| motion.scroll_to(offset));
     view! {
         <List direction={across} spacing={scrollbar.spacing()}>
@@ -336,6 +384,13 @@ fn Scrolling(
                     scroll_axis={axis}
                     on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
                     on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
+                    on_autoscroll={move |gesture: AutoscrollGesture| {
+                        let marking = (!gesture.ended).then_some(gesture.origin);
+                        if untrack(|| origin.get()) != marking {
+                            set_origin.set(marking);
+                        }
+                        autoscrolled.autoscroll(gesture);
+                    }}
                 >
                     <Frame
                         outline={focus_color}
@@ -343,7 +398,20 @@ fn Scrolling(
                         outline_offset=FOCUS_RING_INSET
                         outline_visible={focus_ring(focused)}
                     >
-                        {node}
+                        <List direction={content_axis} spacing=0.0>
+                            {node} @sizing=ItemSize::Percent(100.0)
+                            <Show condition={marked.clone()}>
+                                <Overlay
+                                    anchor
+                                    placement=Placement::Around
+                                    mode=OverlayMode::Passive
+                                    traps_focus=false
+                                    open={marked}
+                                >
+                                    {marker.call(marker_axis)}
+                                </Overlay>
+                            </Show>
+                        </List>
                     </Frame>
                 </ClickCatcher>
             </Focusable>
@@ -359,15 +427,24 @@ pub fn Scroll(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
+    marker: Option<Render<Memo<Direction>>>,
     on_change: Callback<ScrollPosition>,
     children: Children<NodeId>,
 ) -> NodeId {
     let content_direction = direction.clone();
+    let marker = marker.unwrap_or_else(|| {
+        Render::new(|_| {
+            view! {
+                <List spacing=0.0 />
+            }
+        })
+    });
     view! {
         <Scrolling
             direction
             focus_color
             scrollbar
+            marker
             on_change={move |position: ScrollPosition| on_change.call(position)}
         >
             {move |report: Callback<ScrollPosition>| {

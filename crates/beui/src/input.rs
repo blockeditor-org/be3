@@ -167,6 +167,13 @@ pub struct DragGesture {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
+pub struct AutoscrollGesture {
+    pub origin: Pos2,
+    pub pos: Pos2,
+    pub ended: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct SecondaryDrag {
     pub from: Pos2,
     pub pos: Pos2,
