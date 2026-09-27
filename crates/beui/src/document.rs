@@ -18,7 +18,7 @@ use crate::input::{BackEdge, Event, Key, KeyPress};
 use crate::inspector::{Inspector, Layout};
 use crate::interact::{self, Keys};
 use crate::layout;
-use crate::node::{Arena, NodeId, NodeMap, Rects};
+use crate::node::{Arena, NodeId, NodeMap, Placed, Rects};
 use crate::paint::{self, PaintCache};
 use crate::painter::{Painter, PainterState, Shape};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
@@ -104,8 +104,16 @@ pub struct Document {
     changes: FlashLog<NodeId>,
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
-    painters: NodeMap<PainterState>,
+    painters: NodeMap<Placing>,
+    spaces_moved: bool,
     rubber_banding: bool,
+}
+
+#[derive(Clone, Copy)]
+struct Placing {
+    state: PainterState,
+    reads: bool,
+    below: bool,
 }
 
 struct SizeWatcher {
@@ -174,6 +182,12 @@ impl WorkCounters {
 pub(crate) struct LayoutFrame {
     parent: Option<NodeId>,
     base: usize,
+}
+
+impl LayoutFrame {
+    pub(crate) fn base(&self) -> usize {
+        self.base
+    }
 }
 
 struct PlacementWatcher {
@@ -260,6 +274,7 @@ impl Document {
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
             painters: NodeMap::default(),
+            spaces_moved: false,
             rubber_banding: true,
         }
     }
@@ -1240,9 +1255,10 @@ impl Document {
             return;
         }
         self.painters.remove(&id);
+        let bounds = self.paint_cache.borrow().absolute_bounds(id);
         if out.remove(&id).is_some() {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
-            self.damage.add(self.paint_cache.borrow().bounds(id));
+            self.damage.add(bounds);
         }
         dropped.push(id);
         if self.delivering {
@@ -1335,18 +1351,29 @@ impl Document {
         ::reactive::settle(|| write.set(placed));
     }
 
-    pub(crate) fn reusable_placement(
-        &self,
+    pub(crate) fn reuse_placement(
+        &mut self,
         id: NodeId,
         rect: Rect,
         painter: PainterState,
         out: &Rects,
     ) -> bool {
-        self.delivering
+        let reusable = self.delivering
             && !self.arena.unplaced(id)
-            && out.get(&id) == Some(rect)
-            && self.painters.get(&id).copied().map(PainterState::clip) == Some(painter.clip())
-            && self.placed_children.contains_key(&id)
+            && out.placed(&id)
+                == Some(Placed {
+                    rect,
+                    space: painter.space,
+                })
+            && self.painters.get(&id).is_some_and(|held| {
+                held.state.settles(painter)
+                    && (!(held.reads || held.below) || held.state.sees(painter))
+            })
+            && self.placed_children.contains_key(&id);
+        if reusable && let Some(held) = self.painters.get_mut(&id) {
+            held.state = painter;
+        }
+        reusable
     }
 
     pub(crate) fn record_placement(
@@ -1356,17 +1383,85 @@ impl Document {
         painter: PainterState,
         out: &Rects,
     ) {
-        let previous = out.insert(id, rect);
+        let placed = Placed {
+            rect,
+            space: painter.space,
+        };
+        let previous = out.insert(id, placed);
         if !self.delivering {
             return;
         }
         self.arena.clear_unplaced(id);
         self.arena.note_relaid(id);
         self.placed_pass.insert(id, self.layout_pass);
-        let previous_clip = self.painters.insert(id, painter).map(PainterState::clip);
-        if previous != Some(rect) || previous_clip != Some(painter.clip()) {
+        let held = Placing {
+            state: painter,
+            reads: false,
+            below: false,
+        };
+        let previous_clip = self.painters.insert(id, held).map(|held| held.state.clip);
+        if previous != Some(placed) || previous_clip != Some(painter.clip) {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
         }
+    }
+
+    pub(crate) fn note_space_reads(&mut self, id: NodeId, reads: bool, base: usize) {
+        if !self.delivering {
+            return;
+        }
+        let below = self
+            .placing
+            .get(base..)
+            .unwrap_or_default()
+            .iter()
+            .any(|child| {
+                self.painters
+                    .get(child)
+                    .is_some_and(|held| held.reads || held.below)
+            });
+        if let Some(held) = self.painters.get_mut(&id) {
+            held.reads = reads;
+            held.below = below;
+        }
+    }
+
+    pub(crate) fn enter_space(
+        &mut self,
+        host: NodeId,
+        painter: &Painter,
+        translation: Vec2,
+        clip: Rect,
+        out: &Rects,
+    ) -> Painter {
+        let entered = painter.entered(host, translation, clip);
+        let kept = painter.state().clip.intersect(clip);
+        if out.set_space(host, painter.state().space, translation, kept) && self.delivering {
+            self.spaces_moved = true;
+            self.accessibility_tree.get_mut().mark(host, &self.arena);
+        }
+        entered
+    }
+
+    fn redeliver_placements(&mut self) {
+        let moved: Vec<(::reactive::WriteSignal<Rect>, Rect)> = self
+            .placements
+            .iter()
+            .filter_map(|(id, watchers)| Some((self.rects.get(&id)?, watchers)))
+            .flat_map(|(rect, watchers)| {
+                watchers
+                    .iter()
+                    .filter(move |watcher| watcher.read.get_untracked() != rect)
+                    .map(move |watcher| (watcher.write.clone(), rect))
+            })
+            .collect();
+        if moved.is_empty() {
+            return;
+        }
+        ::reactive::settle(|| {
+            for (write, rect) in moved {
+                write.set(rect);
+            }
+        });
     }
 
     pub(crate) fn viewport_rect(&self) -> Rect {
@@ -1408,6 +1503,31 @@ impl Document {
         if self.layout_revision == self.arena.layout_revision {
             return false;
         }
+        for _ in 0..LAYOUT_PASSES {
+            self.lay_out_pass(ctx, rect);
+            if !std::mem::take(&mut self.spaces_moved) {
+                break;
+            }
+            let context = self.reactive_scope().context();
+            {
+                let _guard = crate::reactive::install(self);
+                context.run(|| {
+                    crate::reactive::with_document(Document::redeliver_placements);
+                });
+            }
+            if self.layout_revision == self.arena.layout_revision {
+                break;
+            }
+        }
+        for node in std::mem::take(&mut self.deferred_reveals) {
+            if self.arena.contains(node) {
+                self.reveal_node(node);
+            }
+        }
+        true
+    }
+
+    fn lay_out_pass(&mut self, ctx: &Context, rect: Rect) {
         self.layout_pass = self.layout_pass.wrapping_add(1);
         let rects = Rc::clone(&self.rects);
         self.placing.clear();
@@ -1431,14 +1551,10 @@ impl Document {
         self.placing.clear();
         self.lay_out_boundaries(ctx, &rects);
         self.layout_revision = self.arena.layout_revision;
-        for node in std::mem::take(&mut self.deferred_reveals) {
-            if self.arena.contains(node) {
-                self.reveal_node(node);
-            }
-        }
-        true
     }
 }
+
+const LAYOUT_PASSES: usize = 3;
 
 static VERIFY_PAINT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -1459,11 +1575,19 @@ impl Document {
             {
                 continue;
             }
-            let (Some(rect), Some(&state)) = (rects.get(&boundary), self.painters.get(&boundary))
+            let (Some(placed), Some(held)) =
+                (rects.placed(&boundary), self.painters.get(&boundary))
             else {
                 continue;
             };
+            let state = PainterState {
+                origin: rects.offset(held.state.space),
+                space_clip: rects.space_clip(held.state.space),
+                entry: None,
+                ..held.state
+            };
             let painter = Painter::resumed(ctx.clone(), state);
+            let rect = placed.rect;
             let context = self.reactive_scope().context();
             self.layout_parent = self.arena.parent(boundary);
             self.delivering = true;

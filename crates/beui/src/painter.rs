@@ -2,8 +2,9 @@ use crate::color::Color32;
 use crate::context::Context;
 use crate::drawing::Drawing;
 use crate::font::{FontId, Galley, TextLayout};
-use crate::geometry::{Pos2, Rect, Rotation};
+use crate::geometry::{Pos2, Rect, Rotation, Vec2};
 use crate::image::Image;
+use crate::node::NodeId;
 use crate::pixel_grid::PixelGrid;
 
 #[derive(Clone, PartialEq)]
@@ -53,24 +54,39 @@ pub enum Shape {
     },
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) struct PainterState {
-    clip: Rect,
-    top: bool,
-    rotation: Rotation,
+    pub(crate) clip: Rect,
+    pub(crate) space_clip: Rect,
+    pub(crate) origin: Vec2,
+    pub(crate) space: Option<NodeId>,
+    pub(crate) top: bool,
+    pub(crate) rotation: Rotation,
+    pub(crate) entry: Option<(Vec2, Rect)>,
 }
 
 impl PainterState {
-    pub(crate) fn clip(self) -> Rect {
-        self.clip
+    pub(crate) fn settles(self, other: Self) -> bool {
+        self.clip == other.clip
+            && self.space == other.space
+            && self.top == other.top
+            && self.rotation == other.rotation
+    }
+
+    pub(crate) fn sees(self, other: Self) -> bool {
+        self.space_clip == other.space_clip && self.origin == other.origin
     }
 }
 
 pub struct Painter {
     context: Context,
     clip: Rect,
+    space_clip: Rect,
+    origin: Vec2,
+    space: Option<NodeId>,
     top: bool,
     rotation: Rotation,
+    entry: Option<(Vec2, Rect)>,
 }
 
 impl Painter {
@@ -78,8 +94,12 @@ impl Painter {
         Self {
             context,
             clip,
+            space_clip: Rect::EVERYTHING,
+            origin: Vec2::ZERO,
+            space: None,
             top: false,
             rotation: Rotation::NONE,
+            entry: None,
         }
     }
 
@@ -87,16 +107,58 @@ impl Painter {
         Self {
             context,
             clip: state.clip,
+            space_clip: state.space_clip,
+            origin: state.origin,
+            space: state.space,
             top: state.top,
             rotation: state.rotation,
+            entry: state.entry,
         }
     }
 
     pub(crate) fn state(&self) -> PainterState {
         PainterState {
             clip: self.clip,
+            space_clip: self.space_clip,
+            origin: self.origin,
+            space: self.space,
             top: self.top,
             rotation: self.rotation,
+            entry: self.entry,
+        }
+    }
+
+    fn with(&self, clip: Rect, top: bool, rotation: Rotation) -> Self {
+        Self {
+            context: self.context.clone(),
+            clip,
+            space_clip: self.space_clip,
+            origin: self.origin,
+            space: self.space,
+            top,
+            rotation,
+            entry: self.entry,
+        }
+    }
+
+    pub(crate) fn inner(&self) -> Self {
+        Self {
+            entry: None,
+            ..self.with(self.clip, self.top, self.rotation)
+        }
+    }
+
+    pub(crate) fn entered(&self, space: NodeId, translation: Vec2, clip: Rect) -> Self {
+        let kept = self.clip.intersect(clip);
+        Self {
+            context: self.context.clone(),
+            clip: Rect::EVERYTHING,
+            space_clip: self.space_clip.intersect(kept).translate(-translation),
+            origin: self.origin + translation,
+            space: Some(space),
+            top: self.top,
+            rotation: self.rotation.translate(-translation),
+            entry: Some((translation, kept)),
         }
     }
 
@@ -105,7 +167,13 @@ impl Painter {
     }
 
     pub fn clip_rect(&self) -> Rect {
-        self.clip
+        self.context.note_space_read();
+        self.clip.intersect(self.space_clip)
+    }
+
+    pub fn origin(&self) -> Vec2 {
+        self.context.note_space_read();
+        self.origin
     }
 
     pub(crate) fn pixel_grid(&self) -> PixelGrid {
@@ -113,21 +181,11 @@ impl Painter {
     }
 
     pub fn with_clip_rect(&self, clip: Rect) -> Self {
-        Self {
-            context: self.context.clone(),
-            clip: self.clip.intersect(clip),
-            top: self.top,
-            rotation: self.rotation,
-        }
+        self.with(self.clip.intersect(clip), self.top, self.rotation)
     }
 
     pub fn on_top(&self) -> Self {
-        Self {
-            context: self.context.clone(),
-            clip: self.clip,
-            top: true,
-            rotation: self.rotation,
-        }
+        self.with(self.clip, true, self.rotation)
     }
 
     pub fn rotated(&self, pivot: Pos2, angle: f32) -> Self {
@@ -135,12 +193,7 @@ impl Painter {
             true => Rotation::NONE,
             false => Rotation::new(pivot, angle),
         };
-        Self {
-            context: self.context.clone(),
-            clip: self.clip,
-            top: self.top,
-            rotation,
-        }
+        self.with(self.clip, self.top, rotation)
     }
 
     pub fn rotation(&self) -> Rotation {

@@ -215,14 +215,33 @@ impl<T> std::ops::Index<&NodeId> for NodeMap<T> {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) struct Placed {
+    pub(crate) rect: Rect,
+    pub(crate) space: Option<NodeId>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct Space {
+    parent: Option<NodeId>,
+    translation: Vec2,
+    clip: Rect,
+}
+
 #[derive(Default)]
 pub(crate) struct Rects {
-    map: RefCell<NodeMap<Rect>>,
+    map: RefCell<NodeMap<Placed>>,
+    spaces: RefCell<NodeMap<Space>>,
     version: Cell<u64>,
 }
 
 impl Rects {
     pub(crate) fn get(&self, id: &NodeId) -> Option<Rect> {
+        let placed = self.placed(id)?;
+        Some(placed.rect.translate(self.offset(placed.space)))
+    }
+
+    pub(crate) fn placed(&self, id: &NodeId) -> Option<Placed> {
         self.map.borrow().get(id).copied()
     }
 
@@ -230,20 +249,75 @@ impl Rects {
         self.map.borrow().contains_key(id)
     }
 
-    pub(crate) fn insert(&self, id: NodeId, rect: Rect) -> Option<Rect> {
-        let previous = self.map.borrow_mut().insert(id, rect);
-        if previous != Some(rect) {
-            self.version.set(self.version.get().wrapping_add(1));
+    pub(crate) fn insert(&self, id: NodeId, placed: Placed) -> Option<Placed> {
+        let previous = self.map.borrow_mut().insert(id, placed);
+        if previous != Some(placed) {
+            self.bump();
         }
         previous
     }
 
-    pub(crate) fn remove(&self, id: &NodeId) -> Option<Rect> {
+    pub(crate) fn remove(&self, id: &NodeId) -> Option<Placed> {
+        self.spaces.borrow_mut().remove(id);
         let removed = self.map.borrow_mut().remove(id);
         if removed.is_some() {
-            self.version.set(self.version.get().wrapping_add(1));
+            self.bump();
         }
         removed
+    }
+
+    pub(crate) fn set_space(
+        &self,
+        id: NodeId,
+        parent: Option<NodeId>,
+        translation: Vec2,
+        clip: Rect,
+    ) -> bool {
+        let space = Space {
+            parent,
+            translation,
+            clip,
+        };
+        let previous = self.spaces.borrow_mut().insert(id, space);
+        let moved = previous != Some(space);
+        if moved {
+            self.bump();
+        }
+        moved
+    }
+
+    pub(crate) fn offset(&self, space: Option<NodeId>) -> Vec2 {
+        let spaces = self.spaces.borrow();
+        let mut offset = Vec2::ZERO;
+        let mut current = space;
+        for _ in 0..ANCESTOR_LIMIT {
+            let Some(held) = current.and_then(|id| spaces.get(&id)) else {
+                break;
+            };
+            offset += held.translation;
+            current = held.parent;
+        }
+        offset
+    }
+
+    pub(crate) fn space_clip(&self, space: Option<NodeId>) -> Rect {
+        let spaces = self.spaces.borrow();
+        let mut chain = Vec::new();
+        let mut current = space;
+        while let Some(held) = current.and_then(|id| spaces.get(&id)) {
+            if chain.len() >= ANCESTOR_LIMIT {
+                break;
+            }
+            chain.push(*held);
+            current = held.parent;
+        }
+        chain.iter().rev().fold(Rect::EVERYTHING, |clip, held| {
+            clip.intersect(held.clip).translate(-held.translation)
+        })
+    }
+
+    fn bump(&self) {
+        self.version.set(self.version.get().wrapping_add(1));
     }
 
     pub(crate) fn version(&self) -> u64 {

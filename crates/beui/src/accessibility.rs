@@ -105,6 +105,7 @@ struct Entry {
     node: Node,
     focus: Option<AccessNodeId>,
     origin: Pos2,
+    at: Pos2,
 }
 
 #[derive(Default)]
@@ -268,6 +269,7 @@ impl Pass<'_> {
         if !self.tree.stale(id)
             && let Some(entry) = self.tree.entries.get(&id)
             && entry.origin == origin
+            && entry.at == rect.min
         {
             if entry.focus.is_some() {
                 out.focus = entry.focus;
@@ -305,6 +307,7 @@ impl Pass<'_> {
                 node,
                 focus,
                 origin,
+                at: rect.min,
             },
         );
     }
