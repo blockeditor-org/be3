@@ -18,7 +18,7 @@ use crate::input::{BackEdge, Event, Key, KeyPress};
 use crate::inspector::{Inspector, Layout};
 use crate::interact::{self, Keys};
 use crate::layout;
-use crate::node::{Arena, NodeId, NodeMap};
+use crate::node::{Arena, NodeId, NodeMap, Rects};
 use crate::paint::{self, PaintCache};
 use crate::painter::Shape;
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
@@ -35,7 +35,7 @@ pub struct Document {
     pub(crate) focused: Option<NodeId>,
     pub(crate) activated: Option<NodeId>,
     pub(crate) activation_key: Option<Key>,
-    pub(crate) rects: Rc<NodeMap<Rect>>,
+    pub(crate) rects: Rc<Rects>,
     pub(crate) inspector: Option<Box<Inspector>>,
     pub(crate) inspectable: bool,
     inspector_requested: bool,
@@ -187,7 +187,7 @@ impl Document {
             focused: None,
             activated: None,
             activation_key: None,
-            rects: Rc::new(NodeMap::default()),
+            rects: Rc::new(Rects::default()),
             inspector: None,
             inspectable: true,
             inspector_requested: false,
@@ -414,7 +414,7 @@ impl Document {
     }
 
     pub fn node_rect(&self, id: NodeId) -> Option<Rect> {
-        self.rects.get(&id).copied()
+        self.rects.get(&id)
     }
 
     pub fn set_test_id(&mut self, id: NodeId, test_id: impl Into<String>) {
@@ -787,7 +787,7 @@ impl Document {
                     }
                 };
                 if let Some(node_rect) = shown.and_then(|id| self.rects.get(&id)) {
-                    ctx.publish_test_id(test_id, *node_rect);
+                    ctx.publish_test_id(test_id, node_rect);
                 }
             }
         }
@@ -805,9 +805,7 @@ impl Document {
         let mut repaints = self.arena.take_repaints();
         let cache = self.paint_cache.get_mut();
         repaints.extend(cache.take_due(now));
-        for id in &repaints {
-            cache.mark(*id, &self.arena);
-        }
+        cache.mark(&repaints, &self.arena);
         if !repaints.is_empty() || self.paint_revision != self.arena.revision {
             measurement.painted = true;
             #[cfg(test)]
@@ -939,7 +937,7 @@ impl Document {
         if let Some(watcher) = self.sizes.get(&id).and_then(|watchers| watchers.first()) {
             return watcher.read.clone();
         }
-        let size = self.rects.get(&id).map_or(Vec2::ZERO, Rect::size);
+        let size = self.rects.get(&id).map_or(Vec2::ZERO, |rect| rect.size());
         let (read, write) = ::reactive::create_signal(size);
         self.sizes.get_or_default(id).push(SizeWatcher {
             read: read.clone(),
@@ -956,7 +954,7 @@ impl Document {
         {
             return watcher.read.clone();
         }
-        let rect = self.rects.get(&id).copied().unwrap_or(Rect::ZERO);
+        let rect = self.rects.get(&id).unwrap_or(Rect::ZERO);
         let (read, write) = ::reactive::create_signal(rect);
         self.placements.get_or_default(id).push(PlacementWatcher {
             read: read.clone(),
@@ -1163,7 +1161,7 @@ impl Document {
         frame
     }
 
-    pub(crate) fn leave_layout(&mut self, id: NodeId, frame: LayoutFrame, out: &mut NodeMap<Rect>) {
+    pub(crate) fn leave_layout(&mut self, id: NodeId, frame: LayoutFrame, out: &Rects) {
         self.layout_parent = frame.parent;
         if self.delivering {
             let mut dropped = Vec::new();
@@ -1204,7 +1202,7 @@ impl Document {
         dropped
     }
 
-    fn drop_placement(&mut self, id: NodeId, out: &mut NodeMap<Rect>, dropped: &mut Vec<NodeId>) {
+    fn drop_placement(&mut self, id: NodeId, out: &Rects, dropped: &mut Vec<NodeId>) {
         if self.delivering && self.reached_pass.get(&id) == Some(&self.layout_pass) {
             return;
         }
@@ -1223,9 +1221,8 @@ impl Document {
     }
 
     fn forget_placement(&mut self, id: NodeId) {
-        let mut rects = std::mem::take(&mut self.rects);
-        self.drop_placement(id, Rc::make_mut(&mut rects), &mut Vec::new());
-        self.rects = rects;
+        let rects = Rc::clone(&self.rects);
+        self.drop_placement(id, &rects, &mut Vec::new());
     }
 
     pub(crate) fn take_interact_pool(&mut self) -> Vec<Vec<NodeId>> {
@@ -1310,11 +1307,11 @@ impl Document {
         id: NodeId,
         rect: Rect,
         clip: Rect,
-        out: &NodeMap<Rect>,
+        out: &Rects,
     ) -> bool {
         self.delivering
             && !self.arena.unplaced(id)
-            && out.get(&id) == Some(&rect)
+            && out.get(&id) == Some(rect)
             && self.clips.get(&id) == Some(&clip)
             && self.placed_children.contains_key(&id)
     }
@@ -1324,7 +1321,7 @@ impl Document {
         id: NodeId,
         rect: Rect,
         clip: Rect,
-        out: &mut NodeMap<Rect>,
+        out: &Rects,
     ) {
         let previous = out.insert(id, rect);
         if !self.delivering {
@@ -1379,12 +1376,12 @@ impl Document {
             return false;
         }
         self.layout_pass = self.layout_pass.wrapping_add(1);
-        let mut rects = (*self.rects).clone();
+        let rects = Rc::clone(&self.rects);
         self.placing.clear();
         if let Some(root) = self.root {
             let painter = ctx.painter();
             let context = self.reactive_scope().context();
-            let placed = &mut rects;
+            let placed = &*rects;
             self.constrained.clear();
             self.layout_parent = None;
             self.delivering = true;
@@ -1398,7 +1395,6 @@ impl Document {
             }
             self.delivering = false;
         }
-        self.rects = Rc::new(rects);
         self.placing.clear();
         self.layout_revision = self.arena.layout_revision;
         for node in std::mem::take(&mut self.deferred_reveals) {

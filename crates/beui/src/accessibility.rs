@@ -229,7 +229,7 @@ impl Pass<'_> {
         if let Some(parent) = parent {
             self.tree.parents.insert(id, parent);
         }
-        let Some(rect) = document.rects.get(&id).copied() else {
+        let Some(rect) = document.rects.get(&id) else {
             return;
         };
         let element = document.arena.get(id);

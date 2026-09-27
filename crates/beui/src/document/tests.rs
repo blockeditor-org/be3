@@ -1216,7 +1216,7 @@ pub(crate) fn toolbar_of<const N: usize>(
     (document, nodes)
 }
 
-use crate::node::{Element, InteractInput, NodeMap};
+use crate::node::{Element, InteractInput, Rects};
 use crate::painter::Painter;
 use std::any::Any;
 use std::time::{Duration, Instant};
@@ -1239,13 +1239,13 @@ impl Element for Counted {
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
-        out: &mut NodeMap<Rect>,
+        out: &Rects,
     ) {
         self.layouts.set(self.layouts.get() + 1);
         self.inner.layout(doc, painter, rect, out);
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
         self.paints.set(self.paints.get() + 1);
         self.inner.paint(doc, painter, rects, rect);
     }

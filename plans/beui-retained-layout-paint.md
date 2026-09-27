@@ -23,12 +23,6 @@ What follows is the rest, roughly in order of value.
   them, and lay each dirty boundary out directly from the rect and clip it was
   last placed with. `layout_parent`, `placing` and `placed_children` need
   seeding for a walk that does not start at the root.
-- **Mutate the rect map in place.** `update_layout` clones the whole
-  `NodeMap<Rect>` every pass so that readers during layout (`node_rect`,
-  `watch_size`, `watch_placement`, `watch_placed`, `forget_placement`) keep
-  seeing last frame's rects. Either give those readers a way to see the map
-  being written, or make the map interior-mutable and pass it by shared
-  reference.
 - **Rects relative to the parent.** Rects are absolute, so scrolling or moving a
   subtree changes the rect of every visible node under it, which lays each out
   and paints each again. Store an offset per node and let containers (scroll,
@@ -63,9 +57,6 @@ What follows is the rest, roughly in order of value.
 - **Verification outside beui.** `verify_paint` only runs under `cfg(test)` in
   beui's own tests. A debug-only switch (an environment variable or a
   `Document` setting) would let app and plugin tests check it too.
-- **Marking cost.** `PaintCache::mark` walks every ancestor for every marked
-  node. Stopping at an ancestor already marked in the same frame would bound a
-  frame that marks thousands of nodes.
 
 ## Other per-frame work found along the way
 

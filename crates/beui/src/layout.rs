@@ -2,7 +2,7 @@ use crate::geometry::{Rect, Vec2};
 use crate::painter::Painter;
 
 use crate::document::Document;
-use crate::node::{NodeId, NodeMap};
+use crate::node::{NodeId, Rects};
 
 pub(crate) fn measure(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec2) -> Vec2 {
     if !doc.arena.contains(id) {
@@ -34,7 +34,7 @@ pub(crate) fn layout(
     painter: &Painter,
     id: NodeId,
     rect: Rect,
-    out: &mut NodeMap<Rect>,
+    out: &Rects,
 ) {
     if !doc.arena.contains(id) {
         return;

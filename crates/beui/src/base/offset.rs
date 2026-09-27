@@ -7,7 +7,7 @@ use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, InteractInput, NodeId, Rects};
 use crate::reactive::{Callback, Children, Prop, create_effect, settle, with_document};
 use beui_macros::component;
 
@@ -134,9 +134,9 @@ impl OffsetNode {
         let start = self.direction.main(rect.min.to_vec2()) + lengths[..index].iter().sum::<f32>()
             - self.offset;
         let placed = item_rect(self.direction, rect, start, lengths[index]);
-        let mut rects = NodeMap::default();
-        crate::layout::layout(doc, painter, item, placed, &mut rects);
-        let target = rects.get(&focused).copied().unwrap_or(placed);
+        let rects = Rects::default();
+        crate::layout::layout(doc, painter, item, placed, &rects);
+        let target = rects.get(&focused).unwrap_or(placed);
         revealed_offset(self.direction, rect, target, self.offset)
     }
 
@@ -156,7 +156,7 @@ impl OffsetNode {
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
-        out: &mut NodeMap<Rect>,
+        out: &Rects,
         lengths: &[f32],
         position: ScrollPosition,
         host: Option<NodeId>,
@@ -231,7 +231,7 @@ impl Element for OffsetNode {
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
-        out: &mut NodeMap<Rect>,
+        out: &Rects,
     ) {
         let host = doc.laying_out();
         let (main, cross) = self.direction.main_and_cross(rect.size());
@@ -267,7 +267,7 @@ impl Element for OffsetNode {
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
         let clipped = painter.with_clip_rect(rect);
         for item in self.items.iter() {
             if rects.contains_key(item) {

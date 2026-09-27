@@ -3,9 +3,9 @@ use crate::base::embed::EmbedNode;
 use crate::base::list::Direction;
 use crate::context::Context;
 use crate::document::Document;
-use crate::geometry::{Pos2, Rect, Vec2};
+use crate::geometry::{Pos2, Vec2};
 use crate::input::{AutoscrollGesture, CursorIcon, Event, Key};
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, InteractInput, NodeId, Rects};
 
 pub(crate) const AUTOSCROLL_DEAD_ZONE: f32 = 10.0;
 
@@ -26,7 +26,7 @@ pub(crate) struct Tracked {
 pub(crate) fn track(
     doc: &mut Document,
     ctx: &Context,
-    rects: &NodeMap<Rect>,
+    rects: &Rects,
     root: NodeId,
     input: InteractInput,
 ) -> Tracked {
@@ -108,7 +108,7 @@ pub(crate) fn show_cursor(doc: &Document, ctx: &Context) {
     });
 }
 
-fn start(doc: &mut Document, rects: &NodeMap<Rect>, root: NodeId, input: InteractInput) -> Tracked {
+fn start(doc: &mut Document, rects: &Rects, root: NodeId, input: InteractInput) -> Tracked {
     let untouched = Tracked {
         input,
         swallows_escape: false,

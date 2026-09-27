@@ -9,7 +9,7 @@ use crate::input::{BackGesture, Event, ImeEvent, Key, KeyPress};
 use crate::painter::Painter;
 
 use crate::document::Document;
-use crate::node::{InteractInput, NodeId, NodeMap};
+use crate::node::{InteractInput, NodeId, Rects};
 
 pub(crate) const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
 pub(crate) const TOUCH_REACH: f32 = 12.0;
@@ -25,7 +25,7 @@ pub(crate) fn interact(
     doc: &mut Document,
     ctx: &Context,
     painter: &Painter,
-    rects: &NodeMap<Rect>,
+    rects: &Rects,
     root: NodeId,
     pointer: bool,
     keys: Keys,
@@ -389,8 +389,8 @@ fn without_pointer(input: InteractInput) -> InteractInput {
     }
 }
 
-fn captor(doc: &mut Document, rects: &NodeMap<Rect>, id: NodeId, pos: Pos2) -> Option<NodeId> {
-    let rect = *rects.get(&id)?;
+fn captor(doc: &mut Document, rects: &Rects, id: NodeId, pos: Pos2) -> Option<NodeId> {
+    let rect = rects.get(&id)?;
     for child in doc.arena.get(id).children().into_iter().rev() {
         if let Some(found) = captor(doc, rects, child, pos) {
             return Some(found);
@@ -418,7 +418,7 @@ fn wants_wheel(element: &dyn crate::node::Element, wheel: Vec2) -> bool {
 
 fn latched_wheel_target(
     doc: &Document,
-    rects: &NodeMap<Rect>,
+    rects: &Rects,
     pointer: Option<Pos2>,
     wheel: Vec2,
     now: Instant,
@@ -440,7 +440,7 @@ fn wants_gestures(element: &dyn crate::node::Element) -> bool {
 
 fn target(
     doc: &Document,
-    rects: &NodeMap<Rect>,
+    rects: &Rects,
     root: NodeId,
     pos: Option<Pos2>,
     wants: &dyn Fn(&dyn crate::node::Element) -> bool,
@@ -462,7 +462,7 @@ fn target(
 
 fn deepest(
     doc: &Document,
-    rects: &NodeMap<Rect>,
+    rects: &Rects,
     id: NodeId,
     pos: Pos2,
     wants: &dyn Fn(&dyn crate::node::Element) -> bool,
@@ -483,12 +483,12 @@ fn interact_node(
     doc: &mut Document,
     painter: &Painter,
     input: &InteractInput,
-    rects: &NodeMap<Rect>,
+    rects: &Rects,
     id: NodeId,
     focus_target: &mut Option<NodeId>,
     pool: &mut Vec<Vec<NodeId>>,
 ) {
-    let Some(&rect) = rects.get(&id) else {
+    let Some(rect) = rects.get(&id) else {
         return;
     };
     let mut children = pool.pop().unwrap_or_default();
@@ -505,7 +505,7 @@ fn interact_node(
     pool.push(children);
 }
 
-fn touch_shift(doc: &Document, rects: &NodeMap<Rect>, root: NodeId, pos: Pos2) -> Vec2 {
+fn touch_shift(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Vec2 {
     let modal = !doc.overlay_stack.is_empty();
     for layer in doc.pointer_layers(root) {
         let tops: Vec<NodeId> = match (layer == root, modal) {
@@ -538,7 +538,7 @@ fn touch_shift(doc: &Document, rects: &NodeMap<Rect>, root: NodeId, pos: Pos2) -
 
 fn nearest_press(
     doc: &Document,
-    rects: &NodeMap<Rect>,
+    rects: &Rects,
     id: NodeId,
     pos: Pos2,
     clip: Rect,

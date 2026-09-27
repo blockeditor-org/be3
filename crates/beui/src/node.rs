@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::cell::RefCell;
 
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Modifiers, SecondaryDrag};
@@ -59,10 +60,10 @@ pub(crate) trait Element: Any {
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
-        out: &mut NodeMap<Rect>,
+        out: &Rects,
     );
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, rect: Rect);
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect);
 
     fn unplaced(&mut self, _doc: &mut Document) {}
 
@@ -170,6 +171,27 @@ impl<T> std::ops::Index<&NodeId> for NodeMap<T> {
 
     fn index(&self, id: &NodeId) -> &T {
         self.get(id).expect("node was not placed")
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct Rects(RefCell<NodeMap<Rect>>);
+
+impl Rects {
+    pub(crate) fn get(&self, id: &NodeId) -> Option<Rect> {
+        self.0.borrow().get(id).copied()
+    }
+
+    pub(crate) fn contains_key(&self, id: &NodeId) -> bool {
+        self.0.borrow().contains_key(id)
+    }
+
+    pub(crate) fn insert(&self, id: NodeId, rect: Rect) -> Option<Rect> {
+        self.0.borrow_mut().insert(id, rect)
+    }
+
+    pub(crate) fn remove(&self, id: &NodeId) -> Option<Rect> {
+        self.0.borrow_mut().remove(id)
     }
 }
 

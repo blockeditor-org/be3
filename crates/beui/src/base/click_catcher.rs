@@ -9,7 +9,7 @@ use crate::input::{
 use crate::painter::Painter;
 
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, NodeMap};
+use crate::node::{Element, InteractInput, NodeId, Rects};
 use crate::reactive::{Callback, Child, ClickCallback, Prop, create_effect, with_document};
 
 use beui_macros::component;
@@ -233,14 +233,14 @@ impl Element for ClickCatcherNode {
         doc: &mut Document,
         painter: &Painter,
         rect: Rect,
-        out: &mut NodeMap<Rect>,
+        out: &Rects,
     ) {
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
         }
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &NodeMap<Rect>, _rect: Rect) {
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
         if let Some(child) = self.child {
             crate::paint::paint(doc, painter, rects, child);
         }
