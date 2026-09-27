@@ -23,8 +23,7 @@ What follows is the rest, roughly in order of value.
   and paints each again. Store an offset per node and let containers (scroll,
   canvas, offset) carry a translation; derive absolute rects lazily for input,
   accessibility and test ids. The display lists then hold local coordinates and
-  a scroll re-records one node. `OffsetNode::lengths` also sums every item on
-  every pass; keep prefix sums so a scroll costs the visible rows.
+  a scroll re-records one node.
 
 ## Paint and rendering
 

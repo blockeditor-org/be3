@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::cell::Cell;
+use std::collections::HashMap;
 
 use crate::base::child_list::{ChildHost, ChildList};
 use crate::base::list::Direction;
@@ -41,6 +42,43 @@ struct OffsetAnchor {
     start: f32,
 }
 
+#[derive(Default)]
+struct Extents {
+    items: Vec<NodeId>,
+    indices: HashMap<NodeId, usize>,
+    lengths: Vec<f32>,
+    ends: Vec<f32>,
+    cross: Option<f32>,
+    revision: u64,
+    epoch: u64,
+}
+
+impl Extents {
+    fn start(&self, index: usize) -> f32 {
+        match index {
+            0 => 0.0,
+            _ => self.ends[index - 1],
+        }
+    }
+
+    fn total(&self) -> f32 {
+        self.ends.last().copied().unwrap_or(0.0)
+    }
+
+    fn first_ending_after(&self, at: f32) -> usize {
+        self.ends.partition_point(|end| *end <= at)
+    }
+
+    fn sum_from(&mut self, from: usize) {
+        self.ends.truncate(from);
+        let mut end = self.start(from);
+        for length in &self.lengths[from..] {
+            end += length;
+            self.ends.push(end);
+        }
+    }
+}
+
 impl ChildHost for OffsetNode {
     type Stored = NodeId;
 
@@ -61,6 +99,7 @@ pub(crate) struct OffsetNode {
     pub(crate) position: Option<ScrollPosition>,
     steered: Cell<bool>,
     anchor: Option<OffsetAnchor>,
+    extents: Extents,
     pub(crate) on_change: Callback<ScrollPosition>,
     pub(crate) reported: Option<ScrollPosition>,
 }
@@ -75,73 +114,114 @@ impl OffsetNode {
             position: None,
             steered: Cell::new(false),
             anchor: None,
+            extents: Extents::default(),
             on_change: Callback::empty(),
             reported: None,
         }
     }
 
-    fn lengths(&self, doc: &mut Document, painter: &Painter, cross: f32) -> Vec<f32> {
+    fn item_length(&self, doc: &mut Document, painter: &Painter, item: NodeId, cross: f32) -> f32 {
         let offer = self.direction.axes(f32::INFINITY, cross);
-        self.items
-            .nodes()
-            .into_iter()
-            .map(|item| match doc.measured(item, offer) {
-                Some(size) => self.direction.main(size),
-                None => length(doc, painter, item, self.direction, cross),
-            })
-            .collect()
+        match doc.measured(item, offer) {
+            Some(size) => self.direction.main(size),
+            None => length(doc, painter, item, self.direction, cross),
+        }
+    }
+
+    fn refresh(&mut self, doc: &mut Document, painter: &Painter, id: NodeId, cross: f32) -> bool {
+        let stale = doc.arena.take_stale_children(id);
+        let extents = &self.extents;
+        if stale.overflowed
+            || extents.cross != Some(cross)
+            || extents.revision != self.items.revision()
+            || extents.epoch != doc.arena.epoch
+        {
+            let items = self.items.nodes();
+            let lengths: Vec<f32> = items
+                .iter()
+                .map(|item| self.item_length(doc, painter, *item, cross))
+                .collect();
+            let changed = lengths != self.extents.lengths;
+            self.extents = Extents {
+                indices: items
+                    .iter()
+                    .enumerate()
+                    .map(|(index, item)| (*item, index))
+                    .collect(),
+                items,
+                lengths,
+                ends: Vec::new(),
+                cross: Some(cross),
+                revision: self.items.revision(),
+                epoch: doc.arena.epoch,
+            };
+            self.extents.sum_from(0);
+            return changed;
+        }
+        let mut from = None;
+        for item in stale.nodes {
+            let Some(&index) = self.extents.indices.get(&item) else {
+                continue;
+            };
+            let length = self.item_length(doc, painter, item, cross);
+            if self.extents.lengths[index] != length {
+                self.extents.lengths[index] = length;
+                from = Some(from.map_or(index, |from: usize| from.min(index)));
+            }
+        }
+        if let Some(from) = from {
+            self.extents.sum_from(from);
+        }
+        from.is_some()
     }
 
     fn nodes(&self) -> Vec<NodeId> {
         self.items.nodes()
     }
 
-    fn anchored_offset(&self, lengths: &[f32]) -> f32 {
+    fn anchored_offset(&self) -> f32 {
         let Some(anchor) = &self.anchor else {
             return self.offset;
         };
-        self.items
-            .iter()
-            .position(|item| *item == anchor.id)
+        self.extents
+            .indices
+            .get(&anchor.id)
             .map_or(self.offset, |index| {
-                lengths[..index].iter().sum::<f32>() - anchor.start
+                self.extents.start(*index) - anchor.start
             })
     }
 
-    fn remember_anchor(&mut self, doc: &mut Document, painter: &Painter, cross: f32) {
-        let mut start = -self.offset;
-        self.anchor = None;
-        for (&id, length) in self.items.iter().zip(self.lengths(doc, painter, cross)) {
-            if start + length > 0.0 {
-                self.anchor = Some(OffsetAnchor { id, start });
-                break;
-            }
-            start += length;
-        }
+    fn remember_anchor(&mut self) {
+        let index = self.extents.first_ending_after(self.offset);
+        self.anchor = self.extents.items.get(index).map(|id| OffsetAnchor {
+            id: *id,
+            start: self.extents.start(index) - self.offset,
+        });
     }
 
     fn revealing(
-        &self,
+        &mut self,
         doc: &mut Document,
         painter: &Painter,
+        id: NodeId,
         rect: Rect,
         item: NodeId,
         focused: NodeId,
     ) -> Option<f32> {
         let (_, cross) = self.direction.main_and_cross(rect.size());
-        let lengths = self.lengths(doc, painter, cross);
-        let index = self.items.iter().position(|id| *id == item)?;
-        let start = self.direction.main(rect.min.to_vec2()) + lengths[..index].iter().sum::<f32>()
-            - self.offset;
-        let placed = item_rect(self.direction, rect, start, lengths[index]);
+        self.refresh(doc, painter, id, cross);
+        let index = *self.extents.indices.get(&item)?;
+        let start =
+            self.direction.main(rect.min.to_vec2()) + self.extents.start(index) - self.offset;
+        let placed = item_rect(self.direction, rect, start, self.extents.lengths[index]);
         let rects = Rects::default();
         crate::layout::layout(doc, painter, item, placed, &rects);
         let target = rects.get(&focused).unwrap_or(placed);
         revealed_offset(self.direction, rect, target, self.offset)
     }
 
-    fn settled(&mut self, lengths: &[f32], main: f32) -> ScrollPosition {
-        let content: f32 = lengths.iter().sum();
+    fn settled(&mut self, main: f32) -> ScrollPosition {
+        let content = self.extents.total();
         let position = ScrollPosition {
             offset: self.offset.clamp(0.0, (content - main).max(0.0)),
             content,
@@ -157,36 +237,32 @@ impl OffsetNode {
         painter: &Painter,
         rect: Rect,
         out: &Rects,
-        lengths: &[f32],
         position: ScrollPosition,
-        host: Option<NodeId>,
+        host: NodeId,
     ) {
         let main = self.direction.main(rect.size());
         let start = self.direction.main(rect.min.to_vec2());
         let offset = doc.pixel_grid().snap(position.offset + self.overscroll);
-        let mut cursor = start - offset;
         let clipped = painter.with_clip_rect(rect);
-        if let Some(host) = host {
-            doc.enter_scroll_host(host);
-        }
-        for (&item, length) in self.items.iter().zip(lengths) {
+        doc.enter_scroll_host(host);
+        let extents = &self.extents;
+        for index in extents.first_ending_after(offset)..extents.items.len() {
+            let cursor = start - offset + extents.start(index);
             if cursor >= start + main {
                 break;
             }
+            let length = extents.lengths[index];
             if cursor + length > start {
                 crate::layout::layout(
                     doc,
                     &clipped,
-                    item,
-                    item_rect(self.direction, rect, cursor, *length),
+                    extents.items[index],
+                    item_rect(self.direction, rect, cursor, length),
                     out,
                 );
             }
-            cursor += length;
         }
-        if host.is_some() {
-            doc.leave_scroll_host();
-        }
+        doc.leave_scroll_host();
     }
 }
 
@@ -227,31 +303,28 @@ impl Element for OffsetNode {
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        let host = doc.laying_out();
+        let host = doc.laying_out().expect("an offset is laid out as itself");
         let (main, cross) = self.direction.main_and_cross(rect.size());
-        let carried = host.map_or(0.0, |host| doc.take_scroll_shift(host));
-        let mut lengths = self.lengths(doc, painter, cross);
-        self.offset = (self.anchored_offset(&lengths) + carried).max(0.0);
-        let mut position = self.settled(&lengths, main);
+        let carried = doc.take_scroll_shift(host);
+        self.refresh(doc, painter, host, cross);
+        self.offset = (self.anchored_offset() + carried).max(0.0);
+        let mut position = self.settled(main);
         let base = doc.placing_len();
-        self.place(doc, painter, rect, out, &lengths, position, host);
-        if let Some(host) = host {
-            let shift = doc.take_scroll_shift(host);
-            let measured = self.lengths(doc, painter, cross);
-            if shift != 0.0 || measured != lengths {
-                lengths = measured;
-                self.offset = (self.offset + shift).max(0.0);
-                position = self.settled(&lengths, main);
-                doc.rewind_placing(base);
-                self.place(doc, painter, rect, out, &lengths, position, Some(host));
-                doc.take_scroll_shift(host);
-            }
-            if shift != 0.0 || carried != 0.0 {
-                self.anchor = None;
-            }
+        self.place(doc, painter, rect, out, position, host);
+        let shift = doc.take_scroll_shift(host);
+        let changed = self.refresh(doc, painter, host, cross);
+        if shift != 0.0 || changed {
+            self.offset = (self.offset + shift).max(0.0);
+            position = self.settled(main);
+            doc.rewind_placing(base);
+            self.place(doc, painter, rect, out, position, host);
+            doc.take_scroll_shift(host);
+        }
+        if shift != 0.0 || carried != 0.0 {
+            self.anchor = None;
         }
         if self.anchor.is_none() {
-            self.remember_anchor(doc, painter, cross);
+            self.remember_anchor();
         }
         self.position = Some(position);
         if !self.on_change.is_empty() && self.reported != Some(position) {
@@ -285,6 +358,10 @@ impl Element for OffsetNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.nodes()
+    }
+
+    fn tracks_stale_children(&self) -> bool {
+        true
     }
 
     fn kind(&self) -> &'static str {
@@ -342,6 +419,7 @@ impl Document {
         let node = self.arena.get_mut_as::<OffsetNode>(offset);
         node.direction = direction;
         node.anchor = None;
+        node.extents = Extents::default();
     }
 
     pub(crate) fn offset_value(&self, offset: NodeId) -> f32 {
@@ -487,11 +565,11 @@ impl Document {
             let Some(rect) = self.node_rect(offset) else {
                 continue;
             };
-            let element = self.arena.take(offset);
+            let mut element = self.arena.take(offset);
             let revealed = element
-                .as_any()
-                .downcast_ref::<OffsetNode>()
-                .and_then(|node| node.revealing(self, painter, rect, item, focused));
+                .as_any_mut()
+                .downcast_mut::<OffsetNode>()
+                .and_then(|node| node.revealing(self, painter, offset, rect, item, focused));
             self.arena.put_back(offset, element);
             if let Some(revealed) = revealed {
                 self.set_offset_value(offset, revealed);
