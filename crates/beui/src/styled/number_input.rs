@@ -12,7 +12,7 @@ use crate::node::NodeId;
 use crate::reactive::{
     Callback, ClickCatcher, Focusable, Frame, IntoProp, List, Memo, NodeRef, Prop, ReadSignal,
     Show, Text, clone, component_accessibility, create_effect, create_memo, create_signal,
-    set_component_state,
+    focus_ring, set_component_state,
 };
 use crate::styled::button::ButtonVariant;
 use crate::styled::text_input::TextInput;
@@ -281,7 +281,7 @@ fn NumberFace(
             outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
         >
             <Frame
                 height=HEIGHT

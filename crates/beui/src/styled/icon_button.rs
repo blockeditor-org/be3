@@ -2,7 +2,7 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::node::NodeId;
-use crate::reactive::{ClickCallback, Frame, Prop, clone, create_memo};
+use crate::reactive::{ClickCallback, Frame, Prop, clone, create_memo, focus_ring};
 use crate::styled::button::ButtonVariant;
 use crate::styled::text::IconSized;
 use crate::styled::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, use_theme};
@@ -109,7 +109,7 @@ fn IconButtonFace(
             outline_width=FOCUS_RING_WIDTH
             radius={RADIUS + 4}
             outline_offset={size.focus_ring_offset()}
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
         >
             <Frame
                 color={fill_color}

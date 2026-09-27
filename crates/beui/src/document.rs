@@ -48,6 +48,7 @@ pub struct Document {
     timers: RefCell<crate::timer::Timers>,
     scale: (::reactive::ReadSignal<f32>, ::reactive::WriteSignal<f32>),
     attached: (::reactive::ReadSignal<u64>, ::reactive::WriteSignal<u64>),
+    focus_visible: (::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>),
     reattached: Cell<bool>,
     shortcuts: RefCell<Vec<Weak<Shortcut>>>,
     pub(crate) touch_scroll_vertical: Option<NodeId>,
@@ -196,6 +197,7 @@ impl Document {
             timers: RefCell::new(Vec::new()),
             scale: ::reactive::create_signal(1.0),
             attached: ::reactive::create_signal(0),
+            focus_visible: ::reactive::create_signal(false),
             reattached: Cell::new(false),
             shortcuts: RefCell::new(Vec::new()),
             touch_scroll_vertical: None,
@@ -304,6 +306,14 @@ impl Document {
 
     pub(crate) fn watch_pixels_per_point(&self) -> ::reactive::ReadSignal<f32> {
         self.scale.0.clone()
+    }
+
+    pub(crate) fn watch_focus_visible(&self) -> ::reactive::ReadSignal<bool> {
+        self.focus_visible.0.clone()
+    }
+
+    pub(crate) fn set_focus_visible(&self, visible: bool) {
+        self.focus_visible.1.set(visible);
     }
 
     pub(crate) fn register_shortcut(&self, shortcut: Weak<Shortcut>) {
