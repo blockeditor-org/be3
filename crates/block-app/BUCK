@@ -50,6 +50,7 @@ cargo_binary(env = commit, srcs = app_srcs)
 app(
     name = "app",
     binary = ":block-app-bin",
+    data = ["//{}:data".format(package) for package in editor_packages()],
     executable_name = "block-app",
     files = pdfium_library(),
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
@@ -64,6 +65,7 @@ app(
 # the machine it was compiled for.
 app(
     name = "plugins",
+    data = ["//{}:data".format(package) for package in editor_packages()],
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile = False,
@@ -100,6 +102,7 @@ web_files = glob(["web/*.html", "web/*.js"])
 app(
     name = "web",
     bindgen = [":web-module", "//crates/block-gpu-shim:module"],
+    data = ["//{}:data".format(package) for package in editor_packages()],
     files = web_files,
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
@@ -174,6 +177,7 @@ export_file(
 app(
     name = "android-assets",
     compiled_only = True,
+    data = ["//{}:data".format(package) for package in editor_packages()],
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],

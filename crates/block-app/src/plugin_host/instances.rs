@@ -4,8 +4,8 @@ use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
-    CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FetchResult,
-    FilePick, FrameReport, FrameSpec, HostReply, HostRequest, Message, Occluder,
+    CreationOutcome, CursorIcon, DataListing, EditorInstanceId, EditorMessage, EditorRegion,
+    FetchResult, FilePick, FrameReport, FrameSpec, HostReply, HostRequest, Message, Occluder,
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenSet, Size, ViewChange, WatchedContent,
 };
@@ -22,6 +22,7 @@ use super::{
     pieces,
 };
 use crate::{
+    editors::plugin::discovery,
     host::{self, Target},
     performance,
     platform::{FileFilter, FilePicker, http::Fetch},
@@ -41,6 +42,7 @@ pub(super) struct Instances {
     block_types: Option<Arc<Vec<BlockTypeDescriptor>>>,
     sent_block_types: bool,
     network: Vec<String>,
+    plugin_id: String,
 }
 
 struct Connection {
@@ -381,6 +383,8 @@ enum Work {
     Pick(FilePicker),
     Fetch(Fetch),
     Paste(ClipboardImage),
+    ListData(Fetch),
+    ReadData(Fetch),
 }
 
 impl Work {
@@ -404,6 +408,17 @@ impl Work {
                 image,
                 ClipboardImage::Empty,
             ))),
+            Self::ListData(fetch) => Some(HostReply::DataListed(match fetch.poll()? {
+                Ok(index) => match serde_json::from_slice(&index) {
+                    Ok(files) => DataListing::Files(files),
+                    Err(error) => DataListing::Failed(format!("the data index is {error}")),
+                },
+                Err(error) => DataListing::Failed(error),
+            })),
+            Self::ReadData(fetch) => Some(HostReply::DataRead(match fetch.poll()? {
+                Ok(body) => FetchResult::Body(body),
+                Err(error) => FetchResult::Failed(error),
+            })),
         }
     }
 }
@@ -863,6 +878,10 @@ impl Instances {
 
     pub(super) fn allow_network(&mut self, hosts: Vec<String>) {
         self.network = hosts;
+    }
+
+    pub(super) fn set_plugin_id(&mut self, plugin_id: String) {
+        self.plugin_id = plugin_id;
     }
 
     pub(super) fn reopen(&mut self) {
@@ -1819,10 +1838,11 @@ impl Instances {
         let fetch = match &request {
             HostRequest::Fetch(url) => Some(match allowed(url, &self.network) {
                 true => Fetch::get(url.clone(), Vec::new()),
-                false => Fetch::refused(format!("{REFUSED} {url}")),
+                false => Fetch::answered(Err(format!("{REFUSED} {url}"))),
             }),
             _ => None,
         };
+        let plugin_id = &self.plugin_id;
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
         };
@@ -1837,6 +1857,8 @@ impl Instances {
                 Some(fetch) => Work::Fetch(fetch),
                 None => return false,
             },
+            HostRequest::ListData => Work::ListData(discovery::data_listing(plugin_id)),
+            HostRequest::ReadData(path) => Work::ReadData(discovery::data(plugin_id, &path)),
             HostRequest::PickBlock(filter) => {
                 entry.block_picks.push(BlockPickRequest {
                     request_id,
