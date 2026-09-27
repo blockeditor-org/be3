@@ -4,12 +4,14 @@ use bytemuck::{Pod, Zeroable};
 
 use crate::color::Color32;
 use crate::context::FrameOutput;
+use crate::damage::Region;
 use crate::draw::{Quad, Turn, quads_within};
 use crate::drawing::{DrawAt, Drawing};
 use crate::filter::Filter;
 use crate::font::{GlyphId, GlyphImage};
 use crate::geometry::{Rect, Vec2};
 use crate::image::{Image, ImageId};
+use crate::painter::Shape;
 
 mod filter;
 
@@ -194,7 +196,7 @@ impl Atlas {
 #[derive(Clone, Copy)]
 pub enum Repaint {
     Everything,
-    Region { region: Rect, background: Color32 },
+    Region { region: Region, background: Color32 },
 }
 
 impl Repaint {
@@ -211,6 +213,18 @@ impl Repaint {
                 background,
             },
             _ => Self::Everything,
+        }
+    }
+}
+
+impl FrameOutput {
+    pub fn repaint(&self, background: Color32) -> Repaint {
+        match self.damage.is_empty() {
+            true => Repaint::Everything,
+            false => Repaint::Region {
+                region: self.damage,
+                background,
+            },
         }
     }
 }
@@ -232,7 +246,7 @@ pub struct Renderer {
     instance_capacity: usize,
     runs: Vec<Run>,
     overlay: Vec<Run>,
-    scissor: Option<[u32; 4]>,
+    scissors: Option<Vec<[u32; 4]>>,
     origin: Vec2,
     atlas: Atlas,
     pictures: HashMap<ImageId, Picture>,
@@ -390,7 +404,7 @@ impl Renderer {
             instance_capacity,
             runs: Vec::new(),
             overlay: Vec::new(),
-            scissor: None,
+            scissors: None,
             origin: Vec2::ZERO,
             atlas,
             pictures: HashMap::new(),
@@ -504,24 +518,46 @@ impl Renderer {
         let damaged = match repaint {
             Repaint::Everything => None,
             Repaint::Region { region, background } => {
-                let region = physical(region, self.origin, screen, pixels_per_point);
-                let region = match &prepared {
-                    Some(prepared) => prepared.widen(region),
-                    None => region,
+                let joined = prepared.is_some()
+                    || output
+                        .shapes()
+                        .iter()
+                        .any(|shape| matches!(shape, Shape::Drawing { .. }));
+                let regions: Vec<[f32; 4]> = match joined {
+                    true => vec![physical(
+                        region.bounds(),
+                        self.origin,
+                        screen,
+                        pixels_per_point,
+                    )],
+                    false => region
+                        .rects()
+                        .iter()
+                        .map(|rect| physical(*rect, self.origin, screen, pixels_per_point))
+                        .collect(),
                 };
-                Run::push(&mut runs, false, instances.len() as u32);
-                instances.push(Instance {
-                    rect: region,
-                    clip: region,
-                    uv: [0.0; 4],
-                    color: self.encode(background),
-                    params: [0.0, 0.0, 0.0, 0.0],
-                    turn: turn(Turn::NONE),
-                });
-                Some(region)
+                let regions: Vec<[f32; 4]> = match &prepared {
+                    Some(prepared) => regions
+                        .into_iter()
+                        .map(|region| prepared.widen(region))
+                        .collect(),
+                    None => regions,
+                };
+                for region in &regions {
+                    Run::push(&mut runs, false, instances.len() as u32);
+                    instances.push(Instance {
+                        rect: *region,
+                        clip: *region,
+                        uv: [0.0; 4],
+                        color: self.encode(background),
+                        params: [0.0, 0.0, 0.0, 0.0],
+                        turn: turn(Turn::NONE),
+                    });
+                }
+                Some(regions)
             }
         };
-        let drawn = quads_within(output, pixels_per_point, damaged);
+        let drawn = quads_within(output, pixels_per_point, damaged.as_deref());
         let split = match prepared {
             Some(_) => drawn.filtered,
             None => drawn.list.len(),
@@ -662,7 +698,12 @@ impl Renderer {
             used
         });
         let origin = self.origin;
-        self.scissor = damaged.map(|damaged| scissor(damaged, origin));
+        self.scissors = damaged.map(|damaged| {
+            damaged
+                .into_iter()
+                .map(|damaged| scissor(damaged, origin))
+                .collect()
+        });
         self.runs = runs;
         self.overlay = overlay;
         self.filter = prepared;
@@ -710,11 +751,17 @@ impl Renderer {
     }
 
     pub fn paint(&self, pass: &mut wgpu::RenderPass<'_>) {
-        if !self.clip(pass) {
+        let Some(scissors) = &self.scissors else {
+            self.draw(pass, &self.runs);
+            self.draw(pass, &self.overlay);
             return;
+        };
+        for scissor in scissors {
+            if clip(pass, *scissor) {
+                self.draw(pass, &self.runs);
+                self.draw(pass, &self.overlay);
+            }
         }
-        self.draw(pass, &self.runs);
-        self.draw(pass, &self.overlay);
     }
 
     pub fn render(
@@ -737,7 +784,11 @@ impl Renderer {
         if self.empty() {
             return;
         }
-        let (format, srgb, scissor) = (self.format, self.srgb, self.scissor);
+        let scissor = self
+            .scissors
+            .as_ref()
+            .and_then(|scissors| scissors.first().copied());
+        let (format, srgb) = (self.format, self.srgb);
         self.effects
             .get_or_insert_with(|| filter::Effects::new(device, format))
             .ensure(device, size);
@@ -746,14 +797,18 @@ impl Renderer {
                 return;
             };
             let mut pass = self.begin(encoder, scene, load);
-            self.clip(&mut pass);
+            if let Some(scissor) = scissor {
+                clip(&mut pass, scissor);
+            }
             self.draw(&mut pass, &self.runs);
         }
         if let Some(effects) = self.effects.as_mut() {
             effects.record(device, queue, encoder, &prepared, srgb, scissor);
         }
         let mut pass = self.begin(encoder, target, load);
-        self.clip(&mut pass);
+        if let Some(scissor) = scissor {
+            clip(&mut pass, scissor);
+        }
         if let Some(effects) = self.effects.as_ref() {
             effects.compose(&mut pass);
         }
@@ -761,19 +816,11 @@ impl Renderer {
     }
 
     fn empty(&self) -> bool {
-        self.scissor
-            .is_some_and(|[_, _, width, height]| width == 0 || height == 0)
-    }
-
-    fn clip(&self, pass: &mut wgpu::RenderPass<'_>) -> bool {
-        let Some([left, top, width, height]) = self.scissor else {
-            return true;
-        };
-        if width == 0 || height == 0 {
-            return false;
-        }
-        pass.set_scissor_rect(left, top, width, height);
-        true
+        self.scissors.as_ref().is_some_and(|scissors| {
+            scissors
+                .iter()
+                .all(|[_, _, width, height]| *width == 0 || *height == 0)
+        })
     }
 
     fn begin<'pass>(
@@ -859,6 +906,14 @@ fn physical(region: Rect, origin: Vec2, screen: Vec2, pixels_per_point: f32) -> 
             .ceil()
             .clamp(origin.y, origin.y + screen.y),
     ]
+}
+
+fn clip(pass: &mut wgpu::RenderPass<'_>, [left, top, width, height]: [u32; 4]) -> bool {
+    if width == 0 || height == 0 {
+        return false;
+    }
+    pass.set_scissor_rect(left, top, width, height);
+    true
 }
 
 fn scissor(damaged: [f32; 4], origin: Vec2) -> [u32; 4] {

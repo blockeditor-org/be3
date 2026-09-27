@@ -13,7 +13,7 @@ fn repainting_a_damaged_region_keeps_the_rest_of_the_retained_frame() {
     target.draw(
         Color32::BLACK,
         Repaint::Region {
-            region: right,
+            region: right.into(),
             background: Color32::BLACK,
         },
         |painter| {

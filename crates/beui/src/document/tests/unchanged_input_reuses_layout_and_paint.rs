@@ -34,5 +34,5 @@ fn unchanged_input_reuses_layout_and_paint() {
     assert_eq!((layouts.get(), paints.get()), (1, 1));
     harness.document.set_frame_color(fill, Color32::BLACK);
     assert!(harness.frame(vec![]).changed);
-    assert_eq!((layouts.get(), paints.get()), (2, 2));
+    assert_eq!((layouts.get(), paints.get()), (1, 2));
 }

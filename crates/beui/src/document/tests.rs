@@ -234,6 +234,7 @@ mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale;
 mod pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view;
 mod quadruple_clicking_selects_everything_so_typing_replaces_the_value;
+mod recolouring_a_nested_frame_repaints_it_alone;
 mod removing_a_keyed_node_drops_the_test_ids_it_registered;
 mod removing_a_node_forgets_which_layout_pass_placed_it;
 mod removing_a_node_runs_the_cleanups_its_components_registered;
@@ -1292,6 +1293,7 @@ fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
         paints: Rc::new(Cell::new(0)),
         measures: Rc::new(Cell::new(0)),
     };
+    document.verifies_paint = false;
     let inner = document.arena.take(node);
     document.arena.put_back(
         node,

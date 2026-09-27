@@ -20,7 +20,7 @@ fn turning_a_filter_off_repaints_the_frame_it_had_blurred() {
     target.draw(
         Color32::BLACK,
         Repaint::Region {
-            region: corner,
+            region: corner.into(),
             background: Color32::BLACK,
         },
         |painter| painter.rect_filled(square, 0.0, Color32::WHITE),
