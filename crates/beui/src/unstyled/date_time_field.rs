@@ -5,7 +5,7 @@ use std::time::Duration;
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use crate::base::{Align, Direction};
+use crate::base::Direction;
 use crate::datetime::{Date, DateTime, HourCycle, MONTH_NAMES, Time, days_in_month, twelve_hour};
 use crate::document::Document;
 use crate::input::{CursorIcon, Key, KeyPress};
@@ -244,21 +244,19 @@ pub fn DateTimeField(
 
     let items: Vec<usize> = (0..order.len()).collect();
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+        <List direction=Direction::Horizontal spacing=0.0>
             <ForEach keys={items}>
                 {move |index: usize| {
                     let segment_kind = order[index];
-                    let separator = (index > 0).then(|| separator(order[index - 1], segment_kind));
-                    let shown = separator.is_some();
-                    let text = separator.unwrap_or_default();
+                    let prefix = match index {
+                        0 => String::new(),
+                        _ => separator(order[index - 1], segment_kind),
+                    };
                     let literal = literal.clone();
                     let state = state.clone();
                     let face = segment.clone();
                     view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Show condition=shown>{move || literal.call(text)}</Show>
-                            <SegmentView state segment=segment_kind face />
-                        </List>
+                        <SegmentView state segment=segment_kind prefix literal face />
                     }
                 }}
             </ForEach>
@@ -267,7 +265,13 @@ pub fn DateTimeField(
 }
 
 #[component]
-fn SegmentView(state: Handle, segment: DateSegment, face: RenderFn<DateSegmentHandle>) -> NodeId {
+fn SegmentView(
+    state: Handle,
+    segment: DateSegment,
+    prefix: String,
+    literal: RenderFn<String>,
+    face: RenderFn<DateSegmentHandle>,
+) -> NodeId {
     let (hovered, set_hovered) = create_signal(false);
     let (focused_read, set_focused) = create_signal(false);
     let focused = create_memo(clone!(state -> move || state.focus.get() == Some(segment)));
@@ -318,6 +322,8 @@ fn SegmentView(state: Handle, segment: DateSegment, face: RenderFn<DateSegmentHa
     });
     let (focus_state, step_state, key_state, text_state) =
         (state.clone(), state.clone(), state.clone(), state.clone());
+    let shown = !prefix.is_empty();
+    let text = prefix;
     view! {
         <Focusable
             tab_stop
@@ -334,8 +340,12 @@ fn SegmentView(state: Handle, segment: DateSegment, face: RenderFn<DateSegmentHa
             <ClickCatcher
                 cursor=CursorIcon::Text
                 on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-                children={content}
-            />
+            >
+                <List direction=Direction::Horizontal spacing=0.0>
+                    <Show condition=shown>{move || literal.call(text)}</Show>
+                    {content}
+                </List>
+            </ClickCatcher>
         </Focusable>
     }
 }

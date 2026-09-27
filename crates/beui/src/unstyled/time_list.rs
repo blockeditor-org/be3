@@ -3,6 +3,7 @@ use std::rc::Rc;
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
+use crate::base::Direction;
 use crate::datetime::{HourCycle, MINUTES_PER_DAY, Time};
 use crate::document::Document;
 use crate::input::{Key, KeyPress};
@@ -19,6 +20,7 @@ use crate::unstyled::scroll::ScrollbarStyle;
 const PAGE_MINUTES: u32 = 60;
 const MORNING: u32 = 9 * 60;
 const LEAD_ROWS: usize = 2;
+const PAGE_ROWS: usize = 4;
 
 pub struct TimeOptionHandle {
     pub time: Time,
@@ -36,6 +38,7 @@ struct State {
     focus: ReadSignal<Option<u32>>,
     set_focus: WriteSignal<Option<u32>>,
     anchor: Memo<u32>,
+    columns: usize,
     on_change: Callback<Time>,
 }
 
@@ -48,17 +51,21 @@ pub fn TimeList(
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = 32.0)] row_height: f32,
+    #[prop(default = 1)] columns: usize,
+    #[prop(default = 0.0)] spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     option: RenderFn<TimeOptionHandle>,
     on_change: Callback<Time>,
 ) -> NodeId {
     let step_minutes = step_minutes.clamp(1, MINUTES_PER_DAY);
+    let columns = columns.max(1);
     let (selected, set_selected) = create_signal(value.peek());
     create_effect(clone!(set_selected -> move || set_selected.set(value.get())));
     let times = create_memo(clone!(selected -> move || {
         let mut times: Vec<u32> = (0..MINUTES_PER_DAY).step_by(step_minutes as usize).collect();
-        if let Some(time) = selected.get()
+        if columns == 1
+            && let Some(time) = selected.get()
             && let Err(index) = times.binary_search(&time.minutes())
         {
             times.insert(index, time.minutes());
@@ -84,7 +91,7 @@ pub fn TimeList(
     let shown = create_memo(clone!(times selected -> move || {
         let wanted = selected.get().map_or(MORNING, Time::minutes);
         let index = times.with(|times| times.iter().filter(|minutes| **minutes < wanted).count());
-        index.saturating_sub(LEAD_ROWS) as f32 * row_height
+        (index / columns).saturating_sub(LEAD_ROWS) as f32 * (row_height + spacing)
     }));
     let state: Handle = Rc::new(State {
         times: times.clone(),
@@ -93,6 +100,7 @@ pub fn TimeList(
         focus,
         set_focus,
         anchor: anchor.clone(),
+        columns,
         on_change,
     });
     set_component_state(state.clone());
@@ -101,21 +109,64 @@ pub fn TimeList(
             state.set_focus.set(Some(state.anchor.get_untracked()));
         }
     }));
+    let rows = create_memo(clone!(times -> move || {
+        (0..times.with(Vec::len).div_ceil(columns)).collect::<Vec<usize>>()
+    }));
     view! {
         <TimeListBox label>
             <unstyled::Scroll @sizing=ItemSize::Percent(100.0) offset={shown} scrollbar>
-                <ForEach keys={times}>
-                    {move |minutes: u32| view! {
-                        <TimeOption
-                            state={state.clone()}
-                            minutes
-                            hour_cycle
-                            face={option.clone()}
-                        />
-                    }}
-                </ForEach>
+                <List spacing>
+                    <ForEach keys={rows}>
+                        {move |row: usize| view! {
+                            <TimeRow
+                                state={state.clone()}
+                                row
+                                spacing
+                                hour_cycle
+                                face={option.clone()}
+                            />
+                        }}
+                    </ForEach>
+                </List>
             </unstyled::Scroll>
         </TimeListBox>
+    }
+}
+
+#[component]
+fn TimeRow(
+    state: Handle,
+    row: usize,
+    spacing: f32,
+    hour_cycle: HourCycle,
+    face: RenderFn<TimeOptionHandle>,
+) -> NodeId {
+    let columns = state.columns;
+    let times = state.times.clone();
+    let cells = create_memo(move || {
+        times.with(|times| {
+            times
+                .iter()
+                .skip(row * columns)
+                .take(columns)
+                .copied()
+                .collect::<Vec<u32>>()
+        })
+    });
+    view! {
+        <List direction=Direction::Horizontal spacing>
+            <ForEach keys={cells}>
+                {move |minutes: u32| view! {
+                    <TimeOption
+                        @sizing=ItemSize::Percent(100.0)
+                        state={state.clone()}
+                        minutes
+                        hour_cycle
+                        face={face.clone()}
+                    />
+                }}
+            </ForEach>
+        </List>
     }
 }
 
@@ -207,9 +258,16 @@ fn option_key(state: &State, minutes: u32, press: KeyPress) -> bool {
         .position(|each| *each >= minutes + PAGE_MINUTES)
         .map_or(last, |later| later - index)
         .max(1);
+    let columns = state.columns;
+    let page = match columns {
+        1 => page,
+        _ => columns * PAGE_ROWS,
+    };
     let next = match press.key {
-        Key::ArrowUp => index.saturating_sub(1),
-        Key::ArrowDown => (index + 1).min(last),
+        Key::ArrowLeft if columns > 1 => index.saturating_sub(1),
+        Key::ArrowRight if columns > 1 => (index + 1).min(last),
+        Key::ArrowUp => index.saturating_sub(columns),
+        Key::ArrowDown => (index + columns).min(last),
         Key::PageUp => index.saturating_sub(page),
         Key::PageDown => (index + page).min(last),
         Key::Home => 0,

@@ -6,7 +6,7 @@ use beui_macros::{component, view};
 
 use crate::color::Hsva;
 use crate::document::Document;
-use crate::geometry::{Vec2, pos2};
+use crate::geometry::{Pos2, Vec2, pos2};
 use crate::input::{CursorIcon, Key, KeyPress, PointerPress};
 use crate::node::NodeId;
 use crate::reactive::{
@@ -99,8 +99,9 @@ pub fn ColorArea(
         let on_thumb = thumb > 0.0 && offset.length() <= thumb / 2.0;
         press_grab.set(if on_thumb { offset } else { Vec2::ZERO });
     };
+    let drag_rect = placed.clone();
     let dragged_to = move |press: PointerPress| {
-        let rect = placed.get_untracked();
+        let rect = drag_rect.get_untracked();
         let target = press.pos + grab.get();
         match rect.width() > 0.0 && rect.height() > 0.0 {
             true => (
@@ -110,6 +111,26 @@ pub fn ColorArea(
             false => (press.fraction.x, press.fraction.y),
         }
     };
+    let (pointer, set_pointer) = create_signal(None::<Pos2>);
+    let cursor = create_memo(clone!(color placed dragging hovered -> move || {
+        if dragging.get() {
+            return CursorIcon::Grabbing;
+        }
+        let over = hovered.get()
+            && pointer.get().is_some_and(|pos| {
+                let rect = placed.get();
+                let color = color.get();
+                let centre = pos2(
+                    rect.left() + color.saturation * rect.width(),
+                    rect.top() + (1.0 - color.value) * rect.height(),
+                );
+                thumb > 0.0 && (centre - pos).length() <= thumb / 2.0
+            });
+        match over {
+            true => CursorIcon::Grab,
+            false => CursorIcon::Crosshair,
+        }
+    }));
     let (key_color, step_color) = (color.clone(), color.clone());
     let content_node = content.call(ColorAreaHandle {
         color,
@@ -155,9 +176,10 @@ pub fn ColorArea(
             }}
         >
             <ClickCatcher
-                cursor=CursorIcon::Crosshair
+                cursor
                 touch_drags=true
                 on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
+                on_hover_move={move |press: PointerPress| set_pointer.set(Some(press.pos))}
                 on_press={grabbed}
                 on_drag={move |press: PointerPress| {
                     let (x, y) = dragged_to(press);

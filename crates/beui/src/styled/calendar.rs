@@ -39,10 +39,11 @@ pub fn Calendar(
     #[prop(default = Weekday::Monday)] first_weekday: Weekday,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = None)] show: Prop<Option<Date>>,
+    #[prop(default = CALENDAR_WIDTH)] width: Prop<f32>,
     on_change: Callback<Date>,
 ) -> NodeId {
     view! {
-        <Frame width=CALENDAR_WIDTH>
+        <Frame width>
             <unstyled::Calendar
                 selected
                 min

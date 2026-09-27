@@ -145,6 +145,7 @@ pub fn Popover(
             <Overlay
                 anchor=&anchor
                 placement
+                light=true
                 open={open.clone()}
                 on_dismiss={clone!(open set_open -> move || {
                     let was_open = open.get_untracked();

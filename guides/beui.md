@@ -515,7 +515,10 @@ segments, one per year, month, day, hour, minute and (on a 12-hour
 in a segment, opens the same popover over the field with an editable copy of
 the segments on top, focused on the segment that was clicked, so typing goes
 on while the calendar shows the month being typed; closing it puts the focus
-back on the field's own segment. Its `value` is an `Option<DateTime>`: an
+back on the field's own segment. The popover is laid out for what it holds: a
+calendar that grows with the field, a `TimeList` laid out as a grid with an hour
+to a row, the two side by side, or, on a narrow screen, Date and Time tabs where
+picking a day moves on to the time. Its `value` is an `Option<DateTime>`: an
 empty field shows placeholders, a field is reported through `on_change` only
 once every segment is filled, and a field left half filled goes back to its
 value when the focus leaves it. A `Date` field keeps the time of the value it
@@ -533,7 +536,10 @@ reports a scrub - so an edit lands in the undo history once per gesture.
 
 `unstyled::Popover` is what both open: a trigger and a modal overlay, built the
 first time it opens, that traps Tab, closes on Escape, a press outside or its
-handle's `close`, and gives the focus back to the trigger when it closes. What
+handle's `close`, and gives the focus back to the trigger when it closes. It
+dims nothing, so it is a `light` overlay: the pointer goes on hovering the
+document around it, and a press outside closes it and then lands on whatever
+was pressed. What
 it holds decides where the focus lands when it opens, by binding a `focused`
 prop to the handle's `open`, as the calendar, the time list and the color area
 all take.
@@ -590,7 +596,8 @@ An overlay is laid out and painted above the rest of the document rather than
 among it, and it comes in three modes.
 
 A **modal** one - a menu, a select popup, a dialog - takes the document over
-while it is open: it goes on the overlay stack, so input reaches it and
+while it is open (a `light` modal one lets the pointer through outside itself,
+and a press there closes it and still lands): it goes on the overlay stack, so input reaches it and
 nothing else, it can trap focus, Escape closes the topmost one, and a press
 outside it dismisses it.
 
