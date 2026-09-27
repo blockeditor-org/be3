@@ -54,9 +54,6 @@ What follows is the rest, roughly in order of value.
   of itself for a caret blink. The plugin protocol could carry damaged rects
   (plain rectangles keep it framework-independent) and the host could scissor
   its blit to them.
-- **Verification outside beui.** `verify_paint` only runs under `cfg(test)` in
-  beui's own tests. A debug-only switch (an environment variable or a
-  `Document` setting) would let app and plugin tests check it too.
 
 ## Other per-frame work found along the way
 

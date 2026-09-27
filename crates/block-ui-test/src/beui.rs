@@ -126,6 +126,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn open(kind: Kind, adopted: Adopted, data: Vec<u8>) -> Self {
+        beui::verify_paint(true);
         let host = match &adopted {
             Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host().clone(),
             Adopted::Creation(creation) => creation.host().clone(),

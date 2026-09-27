@@ -304,7 +304,6 @@ pub(crate) fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId
     ctx.paint_child(id, bounds);
 }
 
-#[cfg(test)]
 pub(crate) fn same_shape(left: &Shape, right: &Shape) -> bool {
     match (left, right) {
         (

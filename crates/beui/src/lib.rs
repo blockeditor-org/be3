@@ -48,7 +48,7 @@ pub use app::{run, run_with};
 pub use base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition, TextAlign, focus_within};
 pub use color::Color32;
 pub use context::{Context, FrameOutput};
-pub use document::Document;
+pub use document::{Document, verify_paint};
 pub use draw::{Quad, Quads, Turn, quads, quads_within};
 pub use drawing::Drawing;
 #[cfg(feature = "render")]

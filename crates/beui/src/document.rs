@@ -81,7 +81,6 @@ pub struct Document {
     viewport: Option<(Context, Rect, f32)>,
     shapes: Vec<Shape>,
     pub(crate) paint_cache: RefCell<PaintCache>,
-    #[cfg(test)]
     pub(crate) verifies_paint: bool,
     pub(crate) copied_text: Option<String>,
     next_paint: Option<Instant>,
@@ -233,7 +232,6 @@ impl Document {
             viewport: None,
             shapes: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
-            #[cfg(test)]
             verifies_paint: true,
             copied_text: None,
             next_paint: None,
@@ -808,13 +806,12 @@ impl Document {
         cache.mark(&repaints, &self.arena);
         if !repaints.is_empty() || self.paint_revision != self.arena.revision {
             measurement.painted = true;
-            #[cfg(test)]
-            let previous = self.shapes.clone();
+            let verifying = self.verifies_paint && verifying_paint();
+            let previous = verifying.then(|| self.shapes.clone());
             FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
             let region = self.damage.take(rect);
-            #[cfg(test)]
-            if self.verifies_paint {
+            if let Some(previous) = previous {
                 self.verify_paint(ctx, rect, &previous, &region);
             }
             for damaged in region.rects() {
@@ -872,7 +869,6 @@ impl Document {
         self.damage.add_region(cache.take_damage());
     }
 
-    #[cfg(test)]
     fn verify_paint(
         &mut self,
         ctx: &Context,
@@ -1404,6 +1400,16 @@ impl Document {
         }
         true
     }
+}
+
+static VERIFY_PAINT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn verify_paint(enabled: bool) {
+    VERIFY_PAINT.store(enabled, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn verifying_paint() -> bool {
+    cfg!(test) || VERIFY_PAINT.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 fn trim_bottom(rect: Rect, height: f32) -> (Rect, Rect) {
