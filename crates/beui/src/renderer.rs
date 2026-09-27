@@ -752,14 +752,14 @@ impl Renderer {
 
     pub fn paint(&self, pass: &mut wgpu::RenderPass<'_>) {
         let Some(scissors) = &self.scissors else {
-            self.draw(pass, &self.runs);
-            self.draw(pass, &self.overlay);
+            self.draw(pass, &self.runs, None);
+            self.draw(pass, &self.overlay, None);
             return;
         };
         for scissor in scissors {
             if clip(pass, *scissor) {
-                self.draw(pass, &self.runs);
-                self.draw(pass, &self.overlay);
+                self.draw(pass, &self.runs, Some(*scissor));
+                self.draw(pass, &self.overlay, Some(*scissor));
             }
         }
     }
@@ -800,7 +800,7 @@ impl Renderer {
             if let Some(scissor) = scissor {
                 clip(&mut pass, scissor);
             }
-            self.draw(&mut pass, &self.runs);
+            self.draw(&mut pass, &self.runs, scissor);
         }
         if let Some(effects) = self.effects.as_mut() {
             effects.record(device, queue, encoder, &prepared, srgb, scissor);
@@ -812,7 +812,7 @@ impl Renderer {
         if let Some(effects) = self.effects.as_ref() {
             effects.compose(&mut pass);
         }
-        self.draw(&mut pass, &self.overlay);
+        self.draw(&mut pass, &self.overlay, scissor);
     }
 
     fn empty(&self) -> bool {
@@ -847,7 +847,7 @@ impl Renderer {
         })
     }
 
-    fn draw(&self, pass: &mut wgpu::RenderPass<'_>, runs: &[Run]) {
+    fn draw(&self, pass: &mut wgpu::RenderPass<'_>, runs: &[Run], scissor: Option<[u32; 4]>) {
         if runs.is_empty() {
             return;
         }
@@ -856,7 +856,11 @@ impl Renderer {
         for run in runs {
             if let Some((drawing, at)) = run.drawing.as_ref() {
                 if let Some(draw) = drawing.draw() {
-                    draw.paint(pass, *at);
+                    let within = scissor.unwrap_or([0, 0, at.screen.x as u32, at.screen.y as u32]);
+                    if clip(pass, clipped(at.clip, within)) {
+                        draw.paint(pass, *at);
+                    }
+                    clip(pass, within);
                     bound = None;
                     vertices = false;
                 }
@@ -914,6 +918,25 @@ fn clip(pass: &mut wgpu::RenderPass<'_>, [left, top, width, height]: [u32; 4]) -
     }
     pass.set_scissor_rect(left, top, width, height);
     true
+}
+
+fn clipped(clip: [f32; 4], [left, top, width, height]: [u32; 4]) -> [u32; 4] {
+    let (right, bottom) = (left + width, top + height);
+    let from = |value: f32, low: u32, high: u32| value.clamp(low as f32, high as f32);
+    let (x0, y0) = (
+        from(clip[0].floor(), left, right),
+        from(clip[1].floor(), top, bottom),
+    );
+    let (x1, y1) = (
+        from(clip[2].ceil(), left, right),
+        from(clip[3].ceil(), top, bottom),
+    );
+    [
+        x0 as u32,
+        y0 as u32,
+        (x1 - x0).max(0.0) as u32,
+        (y1 - y0).max(0.0) as u32,
+    ]
 }
 
 fn scissor(damaged: [f32; 4], origin: Vec2) -> [u32; 4] {

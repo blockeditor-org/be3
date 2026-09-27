@@ -75,8 +75,8 @@ mod a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus;
 mod a_show_adds_and_removes_a_menu_item_among_the_items_beside_it;
 mod a_show_adds_and_removes_a_tab_among_the_tabs_beside_it;
 mod a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame;
-mod a_simulated_larger_screen_is_laid_out_bigger_and_shrunk_to_fit;
 mod a_simulated_mouse_click_lands_where_the_trackpad_moved_its_cursor;
+mod a_simulated_screen_larger_than_the_window_is_shrunk_to_fit;
 mod a_skipped_element_keeps_the_repaint_deadline_it_asked_for;
 mod a_slider_reports_and_steps_within_the_range_it_was_given;
 mod a_spinner_hidden_by_a_show_stops_asking_for_frames;
@@ -159,6 +159,7 @@ mod ctrl_f_opens_the_find_bar_over_a_text_area;
 mod ctrl_scrolling_a_pan_zoom_zooms_around_the_pointer;
 mod ctrl_shift_f_moves_focus_between_the_inspector_and_the_document;
 mod ctrl_shift_i_opens_and_closes_the_inspector;
+mod ctrl_shift_m_toggles_responsive_design_mode;
 mod ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in;
 mod ctrl_z_undoes_what_was_typed_into_a_text_input;
 mod dock_tabs_are_the_same_height_whether_or_not_they_close;
@@ -181,6 +182,7 @@ mod dragging_again_during_overscroll_continues_from_the_band;
 mod dragging_onto_a_drop_target_hands_it_the_payload;
 mod dragging_the_bar_between_two_panes_moves_the_boundary;
 mod dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window;
+mod dragging_the_edge_of_the_responsive_screen_resizes_it;
 mod dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection;
 mod dragging_the_inspector_edge_resizes_the_panel;
 mod dragging_the_scrollbar_thumb_scrolls_the_content_beside_it;
@@ -247,6 +249,7 @@ mod resizing_a_virtual_scroll_reuses_visible_items;
 mod resizing_a_window_from_its_top_edge_does_not_drag_it;
 mod resizing_an_element_damages_where_it_was_and_where_it_moved_to;
 mod resizing_rows_preserves_the_scroll_anchor;
+mod responsive_design_mode_lays_the_app_out_at_the_chosen_device_size;
 mod right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent_item;
 mod right_click_opens_a_context_menu_at_the_cursor_position;
 mod right_clicking_a_dock_tab_pops_it_out_into_a_window;
@@ -342,7 +345,7 @@ use std::rc::Rc;
 
 use crate::color::Color32;
 use crate::context::Context;
-use crate::geometry::{Pos2, Vec2, pos2};
+use crate::geometry::{Pos2, Vec2, pos2, vec2};
 use crate::input::{Event, Key, Modifiers, PointerButton, RawInput};
 use crate::input::{TouchId, TouchPhase};
 
@@ -522,6 +525,39 @@ impl Harness {
 
     pub(crate) fn toggle_picking(&mut self) {
         self.chord(Key::C);
+    }
+
+    pub(crate) fn toggle_responsive(&mut self) {
+        self.chord(Key::M);
+    }
+
+    pub(crate) fn shown_screen(&self) -> Rect {
+        self.document
+            .shown_screen()
+            .expect("a screen is simulated")
+            .shown()
+    }
+
+    pub(crate) fn assert_screen_size(&self, size: Vec2) {
+        let simulation = self
+            .context
+            .screen_simulation()
+            .expect("a screen is simulated");
+        assert_eq!(simulation.size, size);
+        let root = self.document.root().expect("the document has a root");
+        let pixel = (self.document.screen_scale() * self.context.pixels_per_point()).recip();
+        let laid_out = self.rect(root).size();
+        assert!(
+            (laid_out.x - size.x).abs() <= pixel && (laid_out.y - size.y).abs() <= pixel,
+            "the app was laid out at {laid_out:?} rather than {size:?}"
+        );
+    }
+
+    pub(crate) fn responsive_control_rect(&self, test_id: &str) -> Rect {
+        self.inspector()
+            .toolbar_rect(test_id)
+            .expect("the control was not laid out")
+            .scaled(crate::inspector::scale(&self.context))
     }
 
     pub(crate) fn toggle_inspector_focus(&mut self) {
@@ -817,7 +853,7 @@ impl Harness {
         self.inspector().option_node("inspector.tabs", index)
     }
 
-    fn inspector_center(&self, test_id: &str) -> Pos2 {
+    pub(crate) fn inspector_center(&self, test_id: &str) -> Pos2 {
         self.node_center(self.inspector().find(test_id))
     }
 

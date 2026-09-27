@@ -46,7 +46,8 @@ struct Inner {
     pixels_per_point: Cell<f32>,
     native_pixels_per_point: Cell<f32>,
     simulated_pixels_per_point: Cell<Option<f32>>,
-    screen_simulation: Cell<ScreenSimulation>,
+    screen_simulation: Cell<Option<ScreenSimulation>>,
+    screen_scale: Cell<f32>,
     zoom: Cell<f32>,
     repaint: Cell<bool>,
     repaint_after: Cell<Duration>,
@@ -147,7 +148,8 @@ impl Context {
                 pixels_per_point: Cell::new(1.0),
                 native_pixels_per_point: Cell::new(1.0),
                 simulated_pixels_per_point: Cell::new(None),
-                screen_simulation: Cell::new(ScreenSimulation::default()),
+                screen_simulation: Cell::new(None),
+                screen_scale: Cell::new(1.0),
                 zoom: Cell::new(1.0),
                 repaint: Cell::new(false),
                 repaint_after: Cell::new(Duration::MAX),
@@ -551,12 +553,16 @@ impl Context {
         self.inner.simulated_pixels_per_point.set(pixels_per_point);
     }
 
-    pub(crate) fn screen_simulation(&self) -> ScreenSimulation {
+    pub(crate) fn screen_simulation(&self) -> Option<ScreenSimulation> {
         self.inner.screen_simulation.get()
     }
 
     pub fn screen_scale(&self) -> f32 {
-        self.screen_simulation().scale().unwrap_or(1.0)
+        self.inner.screen_scale.get()
+    }
+
+    pub(crate) fn set_screen_scale(&self, scale: f32) {
+        self.inner.screen_scale.set(scale);
     }
 
     pub fn screen_input<R>(&self, reader: impl FnOnce(&InputState) -> R) -> R {
@@ -567,7 +573,7 @@ impl Context {
         reader(&self.inner.input.borrow().scaled(scale.recip()))
     }
 
-    pub(crate) fn set_screen_simulation(&self, simulation: ScreenSimulation) {
+    pub(crate) fn set_screen_simulation(&self, simulation: Option<ScreenSimulation>) {
         self.inner.screen_simulation.set(simulation);
     }
 
