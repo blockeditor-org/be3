@@ -115,7 +115,17 @@ impl PaintCache {
             roots.into_iter().map(|id| (id, self.bounds(id))).collect();
         let held: Vec<NodeId> = self.roots.iter().map(|(id, _)| *id).collect();
         if roots.iter().map(|(id, _)| *id).ne(held) {
-            for (_, bounds) in self.roots.iter().chain(&roots) {
+            let before = kept(&self.roots, &roots);
+            let after = kept(&roots, &self.roots);
+            let reordered = before
+                .iter()
+                .zip(&after)
+                .position(|(before, after)| before.0 != after.0)
+                .unwrap_or(before.len());
+            let added = roots.iter().filter(|root| !contains(&self.roots, root.0));
+            let removed = self.roots.iter().filter(|root| !contains(&roots, root.0));
+            let restacked = before[reordered..].iter().chain(&after[reordered..]);
+            for (_, bounds) in added.chain(removed).chain(restacked) {
                 self.damage.add(*bounds);
             }
             self.recorded = true;
@@ -222,6 +232,18 @@ impl PaintCache {
         self.entries.insert(id, painted);
         self.recorded = true;
     }
+}
+
+fn contains(roots: &[(NodeId, Rect)], id: NodeId) -> bool {
+    roots.iter().any(|(root, _)| *root == id)
+}
+
+fn kept(roots: &[(NodeId, Rect)], others: &[(NodeId, Rect)]) -> Vec<(NodeId, Rect)> {
+    roots
+        .iter()
+        .filter(|(id, _)| contains(others, *id))
+        .copied()
+        .collect()
 }
 
 fn children(items: &[Item]) -> impl Iterator<Item = NodeId> + '_ {
