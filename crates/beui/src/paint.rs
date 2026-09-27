@@ -84,6 +84,9 @@ impl PaintCache {
     }
 
     fn mark_one(&mut self, id: NodeId, arena: &Arena) {
+        if !arena.current(id) {
+            return;
+        }
         self.dirt.get_or_default(id).own = true;
         let mut current = arena.parent(id);
         for _ in 0..ANCESTOR_LIMIT {

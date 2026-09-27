@@ -796,6 +796,7 @@ impl Document {
             self.damage.everything();
             self.paint_cache.get_mut().clear();
         }
+        let released = self.arena.take_released();
         for id in self.arena.take_changed() {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
             self.changes.record(id, now);
@@ -804,6 +805,7 @@ impl Document {
         let cache = self.paint_cache.get_mut();
         repaints.extend(cache.take_due(now));
         cache.mark(&repaints, &self.arena);
+        self.arena.recycle(released);
         if !repaints.is_empty() || self.paint_revision != self.arena.revision {
             measurement.painted = true;
             let verifying = self.verifies_paint && verifying_paint();

@@ -16,7 +16,8 @@ use crate::input::{Key, KeyPress, Modifiers};
 use crate::node::{Arena, NodeId, NodeMap};
 
 pub(crate) const WINDOW_NODE: AccessNodeId = AccessNodeId(0);
-const DOCUMENT_SHIFT: u32 = 32;
+const DOCUMENT_SHIFT: u32 = 40;
+const GENERATION_SHIFT: u32 = 32;
 const FALLBACK_NUMERIC_STEP: f64 = 0.05;
 static NEXT_DOCUMENT_ID: AtomicU32 = AtomicU32::new(1);
 
@@ -41,6 +42,10 @@ impl Fragment {
 
 pub(crate) fn next_document_id() -> u32 {
     NEXT_DOCUMENT_ID.fetch_add(1, Ordering::Relaxed)
+}
+
+pub(crate) fn document_of(id: AccessNodeId) -> u64 {
+    id.0 >> DOCUMENT_SHIFT
 }
 
 pub(crate) fn tree_update(
@@ -355,7 +360,7 @@ impl Document {
                 .map(|(id, entry)| (self.access_node_id(id), entry.node.clone()))
                 .collect()
         } else {
-            changed.sort_unstable_by_key(|id| id.index());
+            changed.sort_unstable_by_key(|id| (id.index(), id.generation()));
             changed.dedup();
             changed
                 .into_iter()
@@ -539,12 +544,20 @@ impl Document {
     }
 
     fn access_node_id(&self, id: NodeId) -> AccessNodeId {
-        AccessNodeId(((self.accessibility_id as u64) << DOCUMENT_SHIFT) | id.index() as u64)
+        AccessNodeId(
+            ((self.accessibility_id as u64) << DOCUMENT_SHIFT)
+                | (u64::from(id.generation() as u8) << GENERATION_SHIFT)
+                | u64::from(id.index()),
+        )
     }
 
     pub(crate) fn local_node_id(&self, id: AccessNodeId) -> Option<NodeId> {
-        ((id.0 >> DOCUMENT_SHIFT) == self.accessibility_id as u64)
-            .then(|| NodeId::from_index(id.0 as u32))
+        if document_of(id) != self.accessibility_id as u64 {
+            return None;
+        }
+        self.arena
+            .id_at(id.0 as u32)
+            .filter(|local| (id.0 >> GENERATION_SHIFT) as u8 == local.generation() as u8)
     }
 
     fn first_focusable_within(&self, id: NodeId) -> Option<NodeId> {

@@ -538,7 +538,9 @@ impl Context {
         let all = std::mem::take(&mut *actions);
         let (matched, remaining) = all
             .into_iter()
-            .partition(|request| request.target_node.0 >> 32 == document_id as u64);
+            .partition(|request| {
+                crate::accessibility::document_of(request.target_node) == document_id as u64
+            });
         *actions = remaining;
         matched
     }

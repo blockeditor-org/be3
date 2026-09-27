@@ -8,15 +8,18 @@ use crate::painter::Painter;
 use crate::document::Document;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct NodeId(u32);
+pub struct NodeId {
+    index: u32,
+    generation: u32,
+}
 
 impl NodeId {
     pub(crate) fn index(self) -> u32 {
-        self.0
+        self.index
     }
 
-    pub(crate) fn from_index(index: u32) -> Self {
-        Self(index)
+    pub(crate) fn generation(self) -> u32 {
+        self.generation
     }
 }
 
@@ -108,7 +111,7 @@ pub(crate) trait Element: Any {
 
 #[derive(Clone)]
 pub struct NodeMap<T> {
-    entries: Vec<Option<T>>,
+    entries: Vec<Option<(u32, T)>>,
 }
 
 impl<T> Default for NodeMap<T> {
@@ -121,11 +124,17 @@ impl<T> Default for NodeMap<T> {
 
 impl<T> NodeMap<T> {
     pub fn get(&self, id: &NodeId) -> Option<&T> {
-        self.entries.get(id.index() as usize)?.as_ref()
+        match self.entries.get(id.index as usize)? {
+            Some((generation, value)) if *generation == id.generation => Some(value),
+            _ => None,
+        }
     }
 
     pub fn get_mut(&mut self, id: &NodeId) -> Option<&mut T> {
-        self.entries.get_mut(id.index() as usize)?.as_mut()
+        match self.entries.get_mut(id.index as usize)? {
+            Some((generation, value)) if *generation == id.generation => Some(value),
+            _ => None,
+        }
     }
 
     pub fn contains_key(&self, id: &NodeId) -> bool {
@@ -133,15 +142,24 @@ impl<T> NodeMap<T> {
     }
 
     pub fn insert(&mut self, id: NodeId, value: T) -> Option<T> {
-        let index = id.index() as usize;
-        if index >= self.entries.len() {
-            self.entries.resize_with(index + 1, || None);
+        let slot = self.slot(id);
+        match slot {
+            Some((generation, _)) if *generation > id.generation => None,
+            _ => slot
+                .replace((id.generation, value))
+                .filter(|(generation, _)| *generation == id.generation)
+                .map(|(_, value)| value),
         }
-        self.entries[index].replace(value)
     }
 
     pub fn remove(&mut self, id: &NodeId) -> Option<T> {
-        self.entries.get_mut(id.index() as usize)?.take()
+        let slot = self.entries.get_mut(id.index as usize)?;
+        match slot {
+            Some((generation, _)) if *generation == id.generation => {
+                slot.take().map(|(_, value)| value)
+            }
+            _ => None,
+        }
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (NodeId, &T)> {
@@ -149,20 +167,37 @@ impl<T> NodeMap<T> {
             .iter()
             .enumerate()
             .filter_map(|(index, entry)| {
-                entry
-                    .as_ref()
-                    .map(|value| (NodeId::from_index(index as u32), value))
+                entry.as_ref().map(|(generation, value)| {
+                    (
+                        NodeId {
+                            index: index as u32,
+                            generation: *generation,
+                        },
+                        value,
+                    )
+                })
             })
+    }
+
+    fn slot(&mut self, id: NodeId) -> &mut Option<(u32, T)> {
+        let index = id.index as usize;
+        if index >= self.entries.len() {
+            self.entries.resize_with(index + 1, || None);
+        }
+        &mut self.entries[index]
     }
 }
 
 impl<T: Default> NodeMap<T> {
     pub fn get_or_default(&mut self, id: NodeId) -> &mut T {
-        let index = id.index() as usize;
-        if index >= self.entries.len() {
-            self.entries.resize_with(index + 1, || None);
+        let slot = self.slot(id);
+        if slot
+            .as_ref()
+            .is_none_or(|(generation, _)| *generation != id.generation)
+        {
+            *slot = Some((id.generation, T::default()));
         }
-        self.entries[index].get_or_insert_with(T::default)
+        &mut slot.as_mut().expect("the entry was just filled").1
     }
 }
 
@@ -200,9 +235,12 @@ pub(crate) const ANCESTOR_LIMIT: usize = 4096;
 #[derive(Default)]
 pub(crate) struct Arena {
     nodes: Vec<Option<Box<dyn Element>>>,
+    generations: Vec<u32>,
     parents: Vec<Option<NodeId>>,
     stale: Vec<bool>,
     unplaced: Vec<bool>,
+    free: Vec<u32>,
+    released: Vec<u32>,
     marked: Option<NodeId>,
     live: usize,
     pub(crate) revision: u64,
@@ -219,33 +257,70 @@ impl Arena {
     }
 
     pub(crate) fn insert<T: Element>(&mut self, element: T) -> NodeId {
-        let id = NodeId(self.nodes.len() as u32);
-        self.nodes.push(Some(Box::new(element)));
-        self.parents.push(None);
-        self.stale.push(true);
-        self.unplaced.push(true);
+        let id = match self.free.pop() {
+            Some(index) => {
+                let slot = index as usize;
+                self.nodes[slot] = Some(Box::new(element));
+                self.parents[slot] = None;
+                self.stale[slot] = true;
+                self.unplaced[slot] = true;
+                NodeId {
+                    index,
+                    generation: self.generations[slot],
+                }
+            }
+            None => {
+                let index = self.nodes.len() as u32;
+                self.nodes.push(Some(Box::new(element)));
+                self.generations.push(0);
+                self.parents.push(None);
+                self.stale.push(true);
+                self.unplaced.push(true);
+                NodeId {
+                    index,
+                    generation: 0,
+                }
+            }
+        };
         self.live += 1;
         self.invalidate_node(id);
         id
     }
 
+    fn slot(&self, id: NodeId) -> Option<usize> {
+        let index = id.index as usize;
+        (self.generations.get(index) == Some(&id.generation)).then_some(index)
+    }
+
+    pub(crate) fn current(&self, id: NodeId) -> bool {
+        self.slot(id).is_some()
+    }
+
+    pub(crate) fn id_at(&self, index: u32) -> Option<NodeId> {
+        let generation = *self.generations.get(index as usize)?;
+        Some(NodeId { index, generation })
+    }
+
     pub(crate) fn contains(&self, id: NodeId) -> bool {
-        self.nodes
-            .get(id.0 as usize)
-            .is_some_and(std::option::Option::is_some)
+        self.slot(id).is_some_and(|slot| self.nodes[slot].is_some())
+    }
+
+    fn element(&self, id: NodeId) -> Option<&dyn Element> {
+        self.nodes[self.slot(id)?].as_deref()
+    }
+
+    fn element_mut(&mut self, id: NodeId) -> &mut dyn Element {
+        let slot = self.slot(id).expect("node was removed");
+        self.nodes[slot].as_deref_mut().expect("node was removed")
     }
 
     pub(crate) fn get(&self, id: NodeId) -> &dyn Element {
-        self.nodes[id.0 as usize]
-            .as_deref()
-            .expect("node was removed")
+        self.element(id).expect("node was removed")
     }
 
     pub(crate) fn get_mut(&mut self, id: NodeId) -> &mut dyn Element {
         self.invalidate_node(id);
-        self.nodes[id.0 as usize]
-            .as_deref_mut()
-            .expect("node was removed")
+        self.element_mut(id)
     }
 
     pub(crate) fn paint_mut_as<T: Element>(&mut self, id: NodeId) -> &mut T {
@@ -260,15 +335,11 @@ impl Arena {
 
     pub(crate) fn touch_mut(&mut self, id: NodeId) -> &mut dyn Element {
         self.changed.push(id);
-        self.nodes[id.0 as usize]
-            .as_deref_mut()
-            .expect("node was removed")
+        self.element_mut(id)
     }
 
     fn downcast_mut<T: Element>(&mut self, id: NodeId) -> &mut T {
-        self.nodes[id.0 as usize]
-            .as_deref_mut()
-            .expect("node was removed")
+        self.element_mut(id)
             .as_any_mut()
             .downcast_mut::<T>()
             .unwrap_or_else(|| panic!("node is not a {}", std::any::type_name::<T>()))
@@ -289,11 +360,13 @@ impl Arena {
     }
 
     pub(crate) fn take(&mut self, id: NodeId) -> Box<dyn Element> {
-        self.nodes[id.0 as usize].take().expect("node was removed")
+        let slot = self.slot(id).expect("node was removed");
+        self.nodes[slot].take().expect("node was removed")
     }
 
     pub(crate) fn put_back(&mut self, id: NodeId, element: Box<dyn Element>) {
-        self.nodes[id.0 as usize] = Some(element);
+        let slot = self.slot(id).expect("node was removed");
+        self.nodes[slot] = Some(element);
     }
 
     pub(crate) fn invalidate(&mut self) {
@@ -333,59 +406,50 @@ impl Arena {
         self.marked = Some(id);
         let mut current = Some(id);
         for _ in 0..ANCESTOR_LIMIT {
-            let Some(node) = current else {
+            let Some(slot) = current.and_then(|node| self.slot(node)) else {
                 return;
             };
-            let index = node.index() as usize;
-            let Some(stale) = self.stale.get_mut(index) else {
-                return;
-            };
-            *stale = true;
-            if let Some(unplaced) = self.unplaced.get_mut(index) {
-                *unplaced = true;
-            }
-            current = self.parents.get(index).copied().flatten();
+            self.stale[slot] = true;
+            self.unplaced[slot] = true;
+            current = self.parents[slot];
         }
     }
 
     pub(crate) fn stale(&self, id: NodeId) -> bool {
-        self.stale.get(id.index() as usize).copied().unwrap_or(true)
+        self.slot(id).is_none_or(|slot| self.stale[slot])
     }
 
     pub(crate) fn clear_stale(&mut self, id: NodeId) {
-        if let Some(stale) = self.stale.get_mut(id.index() as usize) {
-            *stale = false;
+        if let Some(slot) = self.slot(id) {
+            self.stale[slot] = false;
         }
         self.marked = None;
     }
 
     pub(crate) fn unplaced(&self, id: NodeId) -> bool {
-        self.unplaced
-            .get(id.index() as usize)
-            .copied()
-            .unwrap_or(true)
+        self.slot(id).is_none_or(|slot| self.unplaced[slot])
     }
 
     pub(crate) fn clear_unplaced(&mut self, id: NodeId) {
-        if let Some(unplaced) = self.unplaced.get_mut(id.index() as usize) {
-            *unplaced = false;
+        if let Some(slot) = self.slot(id) {
+            self.unplaced[slot] = false;
         }
         self.marked = None;
     }
 
     pub(crate) fn set_parent(&mut self, id: NodeId, parent: Option<NodeId>) {
-        let index = id.index() as usize;
-        if self.parents.get(index).copied().flatten() == parent {
+        let Some(slot) = self.slot(id) else {
+            return;
+        };
+        if self.parents[slot] == parent {
             return;
         }
-        if let Some(held) = self.parents.get_mut(index) {
-            *held = parent;
-        }
+        self.parents[slot] = parent;
         self.marked = None;
     }
 
     pub(crate) fn parent(&self, id: NodeId) -> Option<NodeId> {
-        self.parents.get(id.index() as usize).copied().flatten()
+        self.parents[self.slot(id)?].filter(|parent| self.current(*parent))
     }
 
     pub(crate) fn relaid_len(&self) -> usize {
@@ -403,7 +467,7 @@ impl Arena {
     pub(crate) fn take_changed(&mut self) -> Vec<NodeId> {
         self.relaid.clear();
         let mut changed = std::mem::take(&mut self.changed);
-        changed.sort_unstable_by_key(|id| id.0);
+        changed.sort_unstable_by_key(|id| (id.index, id.generation));
         changed.dedup();
         changed
     }
@@ -414,8 +478,27 @@ impl Arena {
 
     pub(crate) fn remove(&mut self, id: NodeId) {
         self.invalidate_node(id);
-        if self.nodes[id.0 as usize].take().is_some() {
+        let Some(slot) = self.slot(id) else {
+            return;
+        };
+        if self.nodes[slot].take().is_some() {
             self.live -= 1;
+            self.released.push(id.index);
+        }
+    }
+
+    pub(crate) fn take_released(&mut self) -> Vec<u32> {
+        std::mem::take(&mut self.released)
+    }
+
+    pub(crate) fn recycle(&mut self, released: Vec<u32>) {
+        for index in released {
+            let slot = index as usize;
+            if self.nodes[slot].is_some() {
+                continue;
+            }
+            self.generations[slot] = self.generations[slot].wrapping_add(1);
+            self.free.push(index);
         }
     }
 }

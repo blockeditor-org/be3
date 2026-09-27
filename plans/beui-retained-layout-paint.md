@@ -55,6 +55,3 @@ What follows is the rest, roughly in order of value.
 - `interact_node` visits every placed node on every input event, pointer motion
   included. Hit-test through retained bounds, and deliver keyboard input along
   the focus path.
-- The arena never reuses node ids, so every `NodeMap` grows with the number of
-  nodes ever created rather than the number alive. A free list, or generational
-  ids, would bound it.
