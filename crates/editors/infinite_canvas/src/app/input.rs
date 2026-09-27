@@ -29,12 +29,14 @@ impl CanvasState {
             return CursorIcon::Default;
         }
         let scale = self.scale();
-        if self.selection_allows_rotation() && rotate_handle_at(frame, world, scale) {
+        if self.selection_allows_rotation()
+            && rotate_handle_at(frame, world, scale, HANDLE_REACH).is_some()
+        {
             return CursorIcon::Grab;
         }
         let (resize, _) = self.selection_handles();
-        match resize_handle_at(frame, world, scale, resize) {
-            Some(handle) => match (handle.x, handle.y) {
+        match resize_handle_at(frame, world, scale, resize, HANDLE_REACH) {
+            Some((handle, _)) => match (handle.x, handle.y) {
                 (0, _) => CursorIcon::ResizeVertical,
                 (_, 0) => CursorIcon::ResizeHorizontal,
                 (x, y) if x == y => CursorIcon::ResizeNwSe,
@@ -66,6 +68,7 @@ impl CanvasState {
         if self.previewing() {
             return;
         }
+        self.note_touch(press.touch);
         let world = self.world_at(press.pos);
         self.hover(Some(world));
         if let Some(child) = self.live_child_at(world) {
@@ -124,9 +127,18 @@ impl CanvasState {
         let has_unlocked = self.selection_has_unlocked();
         let (resize, scale_editors) = self.selection_handles();
         let scale = self.scale();
+        let reach = frame.map_or(HANDLE_REACH, |frame| {
+            handle_reach(frame, scale, press.touch)
+        });
+        let handle = has_unlocked
+            .then_some(frame)
+            .flatten()
+            .and_then(|frame| resize_handle_at(frame, world, scale, resize, reach));
         let rotate = has_unlocked
             && self.selection_allows_rotation()
-            && frame.is_some_and(|frame| rotate_handle_at(frame, world, scale));
+            && frame
+                .and_then(|frame| rotate_handle_at(frame, world, scale, reach))
+                .is_some_and(|away| handle.is_none_or(|(_, nearest)| away < nearest));
         if let (true, Some(frame)) = (rotate, frame) {
             let center = frame.center;
             self.begin_gesture(Some(Gesture::Rotate {
@@ -138,11 +150,7 @@ impl CanvasState {
             }));
             return;
         }
-        let handle = has_unlocked
-            .then_some(frame)
-            .flatten()
-            .and_then(|frame| resize_handle_at(frame, world, scale, resize));
-        if let (Some(frame), Some(handle)) = (frame, handle) {
+        if let (Some(frame), Some((handle, _))) = (frame, handle) {
             let default_preserve_aspect_ratio = self.selection_defaults_to_proportional();
             let scale_text = press.modifiers.alt;
             let force_preserve_aspect_ratio = self.selection_forces_proportional() || scale_editors;
@@ -194,6 +202,10 @@ impl CanvasState {
             self.begin_move(world, press.modifiers.alt);
             return;
         }
+        if press.touch {
+            self.begin_pan(press.pos);
+            return;
+        }
         self.begin_gesture(Some(Gesture::SelectBox {
             start: world,
             current: world,
@@ -222,6 +234,9 @@ impl CanvasState {
 
     pub(crate) fn drag(&self, press: PointerPress) {
         if self.previewing() || !self.pointer_held() {
+            return;
+        }
+        if self.pan_to(press.pos) {
             return;
         }
         let world = self.world_at(press.pos);
@@ -307,6 +322,10 @@ impl CanvasState {
     }
 
     pub(crate) fn release(&self) {
+        self.end_pan();
+        if self.touching() {
+            self.hover(None);
+        }
         self.hold_pointer(false);
         self.finish_grouped_edit();
         let gesture = self.gesture.get_untracked();
@@ -314,6 +333,11 @@ impl CanvasState {
         if let Some(gesture) = gesture {
             self.finish_gesture(gesture);
         }
+    }
+
+    pub(crate) fn cancel(&self) {
+        self.end_pan();
+        self.begin_gesture(None);
     }
 
     pub(crate) fn key(&self, press: KeyPress) -> bool {

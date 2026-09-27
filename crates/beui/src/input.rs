@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::geometry::{Pos2, Vec2};
 
@@ -7,6 +7,7 @@ const MULTI_CLICK_DELAY: f32 = 0.3;
 const MULTI_CLICK_DISTANCE: f32 = 6.0;
 const MULTI_CLICK_LIMIT: u32 = 4;
 const TOUCH_DRAG_THRESHOLD: f32 = 8.0;
+const LONG_PRESS_DELAY: Duration = Duration::from_millis(500);
 const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
 const MAX_TOUCH_VELOCITY: f32 = 4_000.0;
 
@@ -340,6 +341,7 @@ pub struct InputState {
     pub scroll_delta: Vec2,
     pub zoom_factor: f32,
     pub modifiers: Modifiers,
+    pub(crate) long_press_delay: Duration,
 }
 
 impl Default for InputState {
@@ -351,6 +353,7 @@ impl Default for InputState {
             scroll_delta: Vec2::ZERO,
             zoom_factor: 1.0,
             modifiers: Modifiers::default(),
+            long_press_delay: LONG_PRESS_DELAY,
         }
     }
 }
@@ -390,9 +393,19 @@ impl InputState {
         input
     }
 
+    pub(crate) fn long_press_due(&self, now: Instant) -> Option<Duration> {
+        self.touch
+            .held_since
+            .map(|since| (since + self.long_press_delay).saturating_duration_since(now))
+    }
+
     pub(crate) fn begin_frame(&mut self, raw: RawInput) {
         self.pointer.begin_frame();
         self.touch.begin_frame(&mut self.pointer);
+        if let Some(pos) = self.touch.long_press(self.long_press_delay, Instant::now()) {
+            self.pointer.pos = Some(pos);
+            self.pointer.secondary_pressed = true;
+        }
         self.scroll_delta = Vec2::ZERO;
         self.zoom_factor = 1.0;
         let suppress_mouse = self.pointer.from_touch
@@ -538,6 +551,8 @@ pub struct TouchState {
     pinch_center: Option<Pos2>,
     pinch_span: Option<f32>,
     hold: Option<(TouchId, Pos2)>,
+    held_since: Option<Instant>,
+    long_pressed: bool,
 }
 
 impl Default for TouchState {
@@ -561,6 +576,8 @@ impl Default for TouchState {
             pinch_center: None,
             pinch_span: None,
             hold: None,
+            held_since: None,
+            long_pressed: false,
         }
     }
 }
@@ -583,6 +600,8 @@ impl TouchState {
             self.velocity = Vec2::ZERO;
             self.pinch_center = None;
             self.pinch_span = None;
+            self.held_since = None;
+            self.long_pressed = false;
             if pointer.from_touch {
                 pointer.pos = None;
                 pointer.from_touch = false;
@@ -617,6 +636,7 @@ impl TouchState {
             self.cancelled = true;
             self.dragged = true;
             self.multi = true;
+            self.held_since = None;
             self.direction = TouchDirection::Undecided;
             return;
         }
@@ -629,6 +649,8 @@ impl TouchState {
         self.samples.clear();
         self.samples.push_back((Instant::now(), pos));
         self.velocity = Vec2::ZERO;
+        self.held_since = Some(Instant::now());
+        self.long_pressed = false;
         pointer.pos = Some(pos);
         pointer.primary_down = true;
         pointer.primary_pressed = true;
@@ -667,6 +689,7 @@ impl TouchState {
             && movement.x.hypot(movement.y) >= TOUCH_DRAG_THRESHOLD
         {
             self.dragged = true;
+            self.held_since = None;
             self.direction = if movement.y.abs() >= movement.x.abs() {
                 TouchDirection::Vertical
             } else {
@@ -705,8 +728,9 @@ impl TouchState {
             return;
         }
         self.primary = None;
-        self.ended = !cancelled;
-        self.cancelled |= cancelled || !self.points.is_empty();
+        self.held_since = None;
+        self.ended = !cancelled && !self.long_pressed;
+        self.cancelled |= cancelled || self.long_pressed || !self.points.is_empty();
         pointer.primary_down = false;
         pointer.primary_released = true;
         pointer.from_touch = true;
@@ -764,7 +788,20 @@ impl TouchState {
         self.velocity = Vec2::ZERO;
         self.pinch_span = None;
         self.pinch_center = None;
+        self.held_since = None;
+        self.long_pressed = false;
         pointer.from_touch = false;
+    }
+
+    fn long_press(&mut self, delay: Duration, now: Instant) -> Option<Pos2> {
+        let since = self.held_since?;
+        if now.duration_since(since) < delay {
+            return None;
+        }
+        self.held_since = None;
+        self.long_pressed = true;
+        self.cancelled = true;
+        self.primary_pos()
     }
 
     fn sample(&mut self, pos: Pos2) {

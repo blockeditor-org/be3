@@ -211,6 +211,10 @@ impl Context {
             self.request_repaint_after(delay);
         }
         self.inner.input.borrow_mut().begin_frame(raw);
+        let held = self.inner.input.borrow().long_press_due(Instant::now());
+        if let Some(delay) = held {
+            self.request_repaint_after(delay);
+        }
         self.inner.shapes.borrow_mut().clear();
         self.inner.top_shapes.borrow_mut().clear();
         self.inner.filter.set(None);
@@ -570,6 +574,10 @@ impl Context {
 
     pub fn pixels_per_point(&self) -> f32 {
         self.inner.pixels_per_point.get()
+    }
+
+    pub fn set_long_press_delay(&self, delay: Duration) {
+        self.inner.input.borrow_mut().long_press_delay = delay;
     }
 
     pub fn set_pixels_per_point(&self, pixels_per_point: f32) {

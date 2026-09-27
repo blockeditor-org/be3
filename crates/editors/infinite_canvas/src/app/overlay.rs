@@ -7,7 +7,8 @@ use crate::geometry::*;
 use super::paint::{Camera, PREVIEW_REGION, Palette, SELECTION, arrowhead, handle, outline};
 use super::state::{Gesture, Presence, Tool};
 
-const HINT: &str = "Drag to draw  ·  Space-drag to pan  ·  Scroll to move\nDrop or paste images, or use Block to add content";
+const HINT: &str = "Drag to draw  ·  Scroll, space-drag or pinch to move\nDrop or paste images, or use Block to add content";
+const HINT_MARGIN: f32 = 16.0;
 const SELECT_BOX_FILL: Color32 = Color32::from_rgba_unmultiplied(66, 153, 225, 28);
 const BADGE_SIDE: f32 = 22.0;
 
@@ -35,7 +36,7 @@ impl Overlay {
                 FontId::proportional(16.0),
                 TextLayout {
                     align: TextAlign::Center,
-                    ..TextLayout::DEFAULT
+                    ..TextLayout::wrapped((self.stage.width() - HINT_MARGIN * 2.0).max(1.0))
                 },
             );
             let size = galley.size();

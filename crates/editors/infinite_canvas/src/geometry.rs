@@ -12,6 +12,8 @@ use uuid::Uuid;
 pub(crate) const MIN_SIZE: f32 = 4.0;
 pub(crate) const HIT_RADIUS: f32 = 7.0;
 pub(crate) const HANDLE_RADIUS: f32 = 5.0;
+pub(crate) const HANDLE_REACH: f32 = HANDLE_RADIUS + 3.0;
+pub(crate) const TOUCH_HANDLE_REACH: f32 = 22.0;
 pub(crate) const ROTATE_OFFSET: f32 = 28.0;
 pub(crate) const IMPORT_CASCADE_OFFSET: f32 = 24.0;
 
@@ -393,17 +395,33 @@ pub(crate) fn resize_handle_at(
     world: CanvasPoint,
     scale: f32,
     resize: ResizeMode,
-) -> Option<ResizeHandle> {
-    let reach = (HANDLE_RADIUS + 3.0) / scale.max(f32::EPSILON);
+    reach: f32,
+) -> Option<(ResizeHandle, f32)> {
+    let reach = reach / scale.max(f32::EPSILON);
     resize_handles(frame)
         .into_iter()
         .filter(|(handle, _)| resize_handle_allowed(*handle, resize))
-        .find_map(|(handle, at)| (distance(at, world) <= reach).then_some(handle))
+        .map(|(handle, at)| (handle, distance(at, world)))
+        .filter(|(_, away)| *away <= reach)
+        .min_by(|a, b| a.1.total_cmp(&b.1))
 }
 
-pub(crate) fn rotate_handle_at(frame: SelectionFrame, world: CanvasPoint, scale: f32) -> bool {
-    let reach = (HANDLE_RADIUS + 3.0) / scale.max(f32::EPSILON);
-    distance(frame.rotate_handle(), world) <= reach
+pub(crate) fn rotate_handle_at(
+    frame: SelectionFrame,
+    world: CanvasPoint,
+    scale: f32,
+    reach: f32,
+) -> Option<f32> {
+    let away = distance(frame.rotate_handle(), world);
+    (away <= reach / scale.max(f32::EPSILON)).then_some(away)
+}
+
+pub(crate) fn handle_reach(frame: SelectionFrame, scale: f32, touch: bool) -> f32 {
+    match touch {
+        true => (frame.size.x.abs().min(frame.size.y.abs()) * scale / 3.0)
+            .clamp(HANDLE_REACH, TOUCH_HANDLE_REACH),
+        false => HANDLE_REACH,
+    }
 }
 
 pub(crate) fn resize_handle_allowed(handle: ResizeHandle, resize: ResizeMode) -> bool {
