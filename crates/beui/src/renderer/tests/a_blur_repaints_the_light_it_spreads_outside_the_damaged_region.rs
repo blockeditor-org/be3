@@ -19,7 +19,7 @@ fn a_blur_repaints_the_light_it_spreads_outside_the_damaged_region() {
     target.draw(
         Color32::BLACK,
         Repaint::Region {
-            region: bar,
+            region: bar.into(),
             background: Color32::BLACK,
         },
         |painter| {

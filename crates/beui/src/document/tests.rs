@@ -96,6 +96,7 @@ mod a_timer_asks_for_frames_until_its_work_settles;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
 mod a_touch_beside_a_control_reaches_the_nearest_one;
 mod a_touch_fling_that_ends_without_moving_keeps_its_momentum;
+mod a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
 mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_value_written_between_tags_takes_the_sizing_after_it;
@@ -238,6 +239,7 @@ mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale;
 mod pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view;
 mod quadruple_clicking_selects_everything_so_typing_replaces_the_value;
+mod recolouring_a_nested_frame_repaints_it_alone;
 mod removing_a_keyed_node_drops_the_test_ids_it_registered;
 mod removing_a_node_forgets_which_layout_pass_placed_it;
 mod removing_a_node_runs_the_cleanups_its_components_registered;
@@ -1297,6 +1299,7 @@ fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
         paints: Rc::new(Cell::new(0)),
         measures: Rc::new(Cell::new(0)),
     };
+    document.verifies_paint = false;
     let inner = document.arena.take(node);
     document.arena.put_back(
         node,
@@ -1317,6 +1320,7 @@ mod a_panel_taken_out_of_its_list_gives_up_its_rectangle_and_damages_it;
 mod a_scroll_only_re_measures_the_row_that_changed;
 mod accordion_headers_are_keyboard_operable_and_skip_collapsed_content;
 mod activation_requires_a_matching_release_and_escape_cancels_it;
+mod clicking_a_button_focuses_it_without_a_ring_until_a_key_is_pressed;
 mod clicking_a_choice_keeps_keyboard_focus_on_the_selected_option;
 mod copy_and_cut_export_only_selected_text_and_cut_can_be_undone;
 mod empty_choices_and_invalid_selection_do_not_break_tab_navigation;

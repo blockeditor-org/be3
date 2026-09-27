@@ -6,7 +6,7 @@ use crate::geometry::{Pos2, Vec2};
 const MULTI_CLICK_DELAY: f32 = 0.3;
 const MULTI_CLICK_DISTANCE: f32 = 6.0;
 const MULTI_CLICK_LIMIT: u32 = 4;
-const TOUCH_DRAG_THRESHOLD: f32 = 8.0;
+pub(crate) const TOUCH_DRAG_THRESHOLD: f32 = 8.0;
 const LONG_PRESS_DELAY: Duration = Duration::from_millis(500);
 const FINGER_TAP_TIME: Duration = Duration::from_millis(350);
 const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
@@ -714,9 +714,8 @@ impl TouchState {
             return;
         }
         let movement = pos - self.start.unwrap_or(pos);
-        if self.direction == TouchDirection::Undecided
-            && movement.x.hypot(movement.y) >= TOUCH_DRAG_THRESHOLD
-        {
+        let distance = movement.x.hypot(movement.y);
+        if self.direction == TouchDirection::Undecided && distance >= TOUCH_DRAG_THRESHOLD {
             self.dragged = true;
             self.held_since = None;
             self.direction = if movement.y.abs() >= movement.x.abs() {
@@ -724,7 +723,7 @@ impl TouchState {
             } else {
                 TouchDirection::Horizontal
             };
-            self.scroll_delta += self.along(movement);
+            self.scroll_delta += self.along(movement * (1.0 - TOUCH_DRAG_THRESHOLD / distance));
         } else if self.direction != TouchDirection::Undecided {
             self.scroll_delta += self.along(pos - previous);
         }

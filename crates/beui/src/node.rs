@@ -123,6 +123,10 @@ impl<T> NodeMap<T> {
         self.entries.get(id.index() as usize)?.as_ref()
     }
 
+    pub fn get_mut(&mut self, id: &NodeId) -> Option<&mut T> {
+        self.entries.get_mut(id.index() as usize)?.as_mut()
+    }
+
     pub fn contains_key(&self, id: &NodeId) -> bool {
         self.get(id).is_some()
     }
@@ -169,7 +173,7 @@ impl<T> std::ops::Index<&NodeId> for NodeMap<T> {
     }
 }
 
-const ANCESTOR_LIMIT: usize = 4096;
+pub(crate) const ANCESTOR_LIMIT: usize = 4096;
 
 #[derive(Default)]
 pub(crate) struct Arena {
@@ -180,7 +184,10 @@ pub(crate) struct Arena {
     marked: Option<NodeId>,
     live: usize,
     pub(crate) revision: u64,
+    pub(crate) layout_revision: u64,
     changed: Vec<NodeId>,
+    relaid: Vec<NodeId>,
+    repaints: Vec<NodeId>,
     everything: bool,
 }
 
@@ -219,6 +226,32 @@ impl Arena {
             .expect("node was removed")
     }
 
+    pub(crate) fn paint_mut_as<T: Element>(&mut self, id: NodeId) -> &mut T {
+        self.repaint_node(id);
+        self.downcast_mut(id)
+    }
+
+    pub(crate) fn touch_mut_as<T: Element>(&mut self, id: NodeId) -> &mut T {
+        self.changed.push(id);
+        self.downcast_mut(id)
+    }
+
+    pub(crate) fn touch_mut(&mut self, id: NodeId) -> &mut dyn Element {
+        self.changed.push(id);
+        self.nodes[id.0 as usize]
+            .as_deref_mut()
+            .expect("node was removed")
+    }
+
+    fn downcast_mut<T: Element>(&mut self, id: NodeId) -> &mut T {
+        self.nodes[id.0 as usize]
+            .as_deref_mut()
+            .expect("node was removed")
+            .as_any_mut()
+            .downcast_mut::<T>()
+            .unwrap_or_else(|| panic!("node is not a {}", std::any::type_name::<T>()))
+    }
+
     pub(crate) fn get_as<T: Element>(&self, id: NodeId) -> &T {
         self.get(id)
             .as_any()
@@ -243,6 +276,7 @@ impl Arena {
 
     pub(crate) fn invalidate(&mut self) {
         self.revision = self.revision.wrapping_add(1);
+        self.layout_revision = self.layout_revision.wrapping_add(1);
         self.everything = true;
         self.stale.fill(true);
         self.unplaced.fill(true);
@@ -250,9 +284,24 @@ impl Arena {
     }
 
     pub(crate) fn invalidate_node(&mut self, id: NodeId) {
+        self.layout_revision = self.layout_revision.wrapping_add(1);
+        self.relaid.push(id);
+        self.repaint_node(id);
+        self.mark_stale(id);
+    }
+
+    pub(crate) fn repaint_node(&mut self, id: NodeId) {
         self.revision = self.revision.wrapping_add(1);
         self.changed.push(id);
-        self.mark_stale(id);
+        self.repaints.push(id);
+    }
+
+    pub(crate) fn note_relaid(&mut self, id: NodeId) {
+        self.repaints.push(id);
+    }
+
+    pub(crate) fn take_repaints(&mut self) -> Vec<NodeId> {
+        std::mem::take(&mut self.repaints)
     }
 
     fn mark_stale(&mut self, id: NodeId) {
@@ -317,15 +366,20 @@ impl Arena {
         self.parents.get(id.index() as usize).copied().flatten()
     }
 
-    pub(crate) fn changed_len(&self) -> usize {
-        self.changed.len()
+    pub(crate) fn relaid_len(&self) -> usize {
+        self.relaid.len()
     }
 
-    pub(crate) fn changed_since(&self, watermark: usize) -> &[NodeId] {
-        self.changed.get(watermark..).unwrap_or_default()
+    pub(crate) fn relaid_since(&self, watermark: usize) -> &[NodeId] {
+        self.relaid.get(watermark..).unwrap_or_default()
+    }
+
+    pub(crate) fn changed(&self) -> &[NodeId] {
+        &self.changed
     }
 
     pub(crate) fn take_changed(&mut self) -> Vec<NodeId> {
+        self.relaid.clear();
         let mut changed = std::mem::take(&mut self.changed);
         changed.sort_unstable_by_key(|id| id.0);
         changed.dedup();

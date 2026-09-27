@@ -17,11 +17,12 @@ fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
         }
     };
     let (draw, set_draw) = create_signal(drawn(Color32::WHITE));
-    let document = build(move || {
+    let mut document = build(move || {
         view! {
             <Drawing draw={draw} />
         }
     });
+    document.verifies_paint = false;
     let mut harness = Harness::new(document);
 
     let output = harness.frame(Vec::new());

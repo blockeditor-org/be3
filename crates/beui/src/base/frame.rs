@@ -272,14 +272,14 @@ impl Document {
 
     pub(crate) fn set_frame_style(&mut self, frame: NodeId, style: FrameStyle) {
         if self.arena.get_as::<FrameNode>(frame).style != style {
-            self.arena.get_mut_as::<FrameNode>(frame).style = style;
+            self.arena.paint_mut_as::<FrameNode>(frame).style = style;
         }
     }
 
     #[cfg(test)]
     pub(crate) fn set_frame_color(&mut self, frame: NodeId, color: Color32) {
         if self.arena.get_as::<FrameNode>(frame).style.fill != color {
-            self.arena.get_mut_as::<FrameNode>(frame).style.fill = color;
+            self.arena.paint_mut_as::<FrameNode>(frame).style.fill = color;
         }
     }
 

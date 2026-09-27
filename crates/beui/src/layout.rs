@@ -18,7 +18,7 @@ pub(crate) fn measure(doc: &mut Document, painter: &Painter, id: NodeId, availab
         return size;
     }
     doc.note_measured(false);
-    let watermark = doc.arena.revision;
+    let watermark = doc.arena.layout_revision;
     let element = doc.arena.take(id);
     let outer = doc.enter_measure(id);
     let measured = element.measure(doc, painter, available);
@@ -49,7 +49,7 @@ pub(crate) fn layout(
     }
     doc.note_placed_work(false);
     doc.record_placement(id, rect, clip, out);
-    let watermark = doc.arena.changed_len();
+    let watermark = doc.arena.relaid_len();
     doc.deliver_unmeasured_constraint(id, rect.size());
     doc.deliver_placement(id, rect);
     doc.assert_confined(id, watermark);
@@ -61,7 +61,7 @@ pub(crate) fn layout(
     element.layout(doc, painter, rect, out);
     doc.leave_layout(id, frame, out);
     doc.arena.put_back(id, element);
-    let settled = doc.arena.changed_len();
+    let settled = doc.arena.relaid_len();
     doc.settle_effects();
     doc.assert_confined(id, settled);
 }

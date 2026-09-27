@@ -6,14 +6,14 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
-use crate::damage;
+use crate::damage::{self, Region};
 use crate::filter::Filter;
 use crate::font::{FontId, FontSources, Fonts, Galley, TextLayout};
 use crate::geometry::{Rect, pos2};
 use crate::input::{CursorIcon, Event, ImeArea, InputState, RawInput};
 use crate::mouse_simulation::MouseSimulation;
 use crate::node::NodeId;
-use crate::paint::Painted;
+use crate::paint::{Item, Recorded};
 use crate::painter::{Painter, Shape};
 use crate::renderer::RendererInfo;
 use crate::screen_simulation::ScreenSimulation;
@@ -29,9 +29,7 @@ struct Inner {
     shapes: RefCell<Vec<Shape>>,
     top_shapes: RefCell<Vec<Shape>>,
     filter: Cell<Option<(Filter, usize)>>,
-    capture_base: Cell<usize>,
     paint_stack: RefCell<Vec<PaintFrame>>,
-    deadlines: RefCell<Vec<NodeId>>,
     damage: RefCell<Vec<Rect>>,
     test_ids: RefCell<HashMap<String, Rect>>,
     ambiguous_test_ids: RefCell<HashSet<String>>,
@@ -79,7 +77,7 @@ pub struct FrameOutput {
     pub repaint: bool,
     pub repaint_after: Duration,
     pub changed: bool,
-    damage: Rect,
+    pub(crate) damage: Region,
     accessibility: Vec<Fragment>,
     pixels_per_point: f32,
 }
@@ -101,8 +99,10 @@ impl FrameOutput {
         self.pixels_per_point
     }
 
-    pub fn damage(&self) -> Option<Rect> {
-        self.damage.is_positive().then_some(self.damage)
+    #[cfg(test)]
+    pub(crate) fn damage(&self) -> Option<Rect> {
+        let bounds = self.damage.bounds();
+        bounds.is_positive().then_some(bounds)
     }
 
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {
@@ -135,9 +135,7 @@ impl Context {
                 shapes: RefCell::new(Vec::new()),
                 top_shapes: RefCell::new(Vec::new()),
                 filter: Cell::new(None),
-                capture_base: Cell::new(0),
                 paint_stack: RefCell::new(Vec::new()),
-                deadlines: RefCell::new(Vec::new()),
                 damage: RefCell::new(Vec::new()),
                 test_ids: RefCell::new(HashMap::new()),
                 ambiguous_test_ids: RefCell::new(HashSet::new()),
@@ -225,7 +223,6 @@ impl Context {
         self.inner.top_shapes.borrow_mut().clear();
         self.inner.filter.set(None);
         self.inner.paint_stack.borrow_mut().clear();
-        self.inner.deadlines.borrow_mut().clear();
         self.inner.damage.borrow_mut().clear();
         self.inner.test_ids.borrow_mut().clear();
         self.inner.ambiguous_test_ids.borrow_mut().clear();
@@ -245,13 +242,14 @@ impl Context {
         if let Some(viewport) = self.inner.mouse_viewport.take() {
             self.paint_mouse_simulation(viewport);
         }
+        self.flush_top();
         let shapes = Rc::new(std::mem::take(&mut *self.inner.shapes.borrow_mut()));
         let scale = self.pixels_per_point();
         let filter = self.inner.filter.take();
         let reported = std::mem::take(&mut *self.inner.damage.borrow_mut());
         let damage = reported
             .iter()
-            .fold(Rect::NOTHING, |region, rect| region.union(*rect));
+            .fold(Region::NOTHING, |region, rect| region.union((*rect).into()));
         let mut previous = self.inner.previous.borrow_mut();
         let changed = match previous.as_ref() {
             None => true,
@@ -431,14 +429,8 @@ impl Context {
         self.inner
             .repaint_after
             .set(self.inner.repaint_after.get().min(delay));
-        let deadline = self
-            .inner
-            .paint_stack
-            .borrow()
-            .last()
-            .and_then(|frame| frame.id);
-        if let Some(id) = deadline {
-            self.inner.deadlines.borrow_mut().push(id);
+        if let Some(frame) = self.inner.paint_stack.borrow_mut().last_mut() {
+            frame.delay = frame.delay.min(delay);
         }
     }
 
@@ -446,22 +438,10 @@ impl Context {
         Rc::ptr_eq(&self.inner, &other.inner)
     }
 
-    pub(crate) fn capture(&self, paint: impl FnOnce()) -> (Vec<Shape>, Duration) {
-        let previous_delay = self.inner.repaint_after.replace(Duration::MAX);
-        let start = self.inner.shapes.borrow().len();
-        let base = self.inner.capture_base.replace(start);
-        self.inner.deadlines.borrow_mut().clear();
-        paint();
-        self.inner.capture_base.set(base);
-        let delay = self.inner.repaint_after.get();
-        self.request_repaint_after(previous_delay);
-        (self.inner.shapes.borrow_mut().split_off(start), delay)
-    }
-
     pub(crate) fn measure_paint(&self, paint: impl FnOnce()) -> Rect {
         self.push_paint_frame(None);
         paint();
-        self.exit_paint().bounds
+        self.pop_paint_frame().bounds
     }
 
     pub(crate) fn enter_paint(&self, id: NodeId) {
@@ -471,66 +451,44 @@ impl Context {
     fn push_paint_frame(&self, id: Option<NodeId>) {
         let frame = PaintFrame {
             id,
-            main_start: self.captured(),
-            top_start: self.inner.top_shapes.borrow().len(),
+            items: Vec::new(),
+            own: Rect::NOTHING,
             bounds: Rect::NOTHING,
+            delay: Duration::MAX,
             outer_delay: self.inner.repaint_after.replace(Duration::MAX),
         };
         self.inner.paint_stack.borrow_mut().push(frame);
     }
 
-    pub(crate) fn exit_paint(&self) -> Painted {
+    fn pop_paint_frame(&self) -> PaintFrame {
         let frame = self
             .inner
             .paint_stack
             .borrow_mut()
             .pop()
             .expect("a painted node was entered");
-        let top = self.inner.top_shapes.borrow()[frame.top_start..].to_vec();
         let delay = self.inner.repaint_after.get();
         self.inner.repaint_after.set(frame.outer_delay.min(delay));
-        let painted = Painted {
-            parent: self.parent_node(),
-            main: frame.main_start..self.captured(),
-            top,
+        frame
+    }
+
+    pub(crate) fn exit_paint(&self) -> Recorded {
+        let frame = self.pop_paint_frame();
+        Recorded {
+            items: frame.items,
+            own: frame.own,
             bounds: frame.bounds,
-            deadline: (delay < Duration::MAX).then(|| Instant::now() + delay),
-        };
-        self.note_bounds(frame.bounds);
-        painted
-    }
-
-    pub(crate) fn parent_start(&self) -> usize {
-        self.inner
-            .paint_stack
-            .borrow()
-            .last()
-            .map_or(0, |frame| frame.main_start)
-    }
-
-    pub(crate) fn parent_node(&self) -> Option<NodeId> {
-        self.inner
-            .paint_stack
-            .borrow()
-            .last()
-            .and_then(|frame| frame.id)
-    }
-
-    pub(crate) fn note_bounds(&self, bounds: Rect) {
-        if let Some(frame) = self.inner.paint_stack.borrow_mut().last_mut() {
-            frame.bounds = frame.bounds.union(bounds);
+            deadline: (frame.delay < Duration::MAX).then(|| Instant::now() + frame.delay),
         }
     }
 
-    pub(crate) fn take_deadlines(&self) -> Vec<NodeId> {
-        let mut deadlines = std::mem::take(&mut *self.inner.deadlines.borrow_mut());
-        deadlines.sort_unstable_by_key(|id| id.index());
-        deadlines.dedup();
-        deadlines
-    }
-
-    fn captured(&self) -> usize {
-        self.inner.shapes.borrow().len() - self.inner.capture_base.get()
+    pub(crate) fn paint_child(&self, id: NodeId, bounds: Rect) {
+        if let Some(frame) = self.inner.paint_stack.borrow_mut().last_mut() {
+            frame.bounds = frame.bounds.union(bounds);
+            if frame.id.is_some() {
+                frame.items.push(Item::Child(id));
+            }
+        }
     }
 
     pub(crate) fn report_damage(&self, rect: Rect) {
@@ -541,10 +499,6 @@ impl Context {
 
     pub(crate) fn extend(&self, shapes: &[Shape]) {
         self.inner.shapes.borrow_mut().extend_from_slice(shapes);
-    }
-
-    pub(crate) fn extend_top(&self, shapes: &[Shape]) {
-        self.inner.top_shapes.borrow_mut().extend_from_slice(shapes);
     }
 
     pub(crate) fn publish_test_id(&self, test_id: &str, rect: Rect) {
@@ -723,20 +677,32 @@ impl Context {
     }
 
     pub(crate) fn push(&self, shape: Shape) {
-        self.note_shape(&shape);
-        self.inner.shapes.borrow_mut().push(shape);
+        if let Some(shape) = self.record(shape, Item::Main) {
+            self.inner.shapes.borrow_mut().push(shape);
+        }
     }
 
     pub(crate) fn push_top(&self, shape: Shape) {
-        self.note_shape(&shape);
-        self.inner.top_shapes.borrow_mut().push(shape);
+        if let Some(shape) = self.record(shape, Item::Top) {
+            self.inner.top_shapes.borrow_mut().push(shape);
+        }
     }
 
-    fn note_shape(&self, shape: &Shape) {
+    fn record(&self, shape: Shape, item: fn(Shape) -> Item) -> Option<Shape> {
         let mut stack = self.inner.paint_stack.borrow_mut();
-        if let Some(frame) = stack.last_mut() {
-            frame.bounds = frame.bounds.union(damage::bounds(shape));
+        let Some(frame) = stack.last_mut() else {
+            return Some(shape);
+        };
+        let bounds = damage::bounds(&shape);
+        frame.own = frame.own.union(bounds);
+        frame.bounds = frame.bounds.union(bounds);
+        if frame.id.is_none() {
+            return Some(shape);
         }
+        if bounds.is_positive() || matches!(shape, Shape::Drawing { .. }) {
+            frame.items.push(item(shape));
+        }
+        None
     }
 
     pub(crate) fn apply_filter(&self, filter: Filter) {
@@ -747,7 +713,7 @@ impl Context {
         self.inner.filter.set(Some((filter, boundary)));
     }
 
-    pub(crate) fn flush_top(&self) {
+    fn flush_top(&self) {
         let top = std::mem::take(&mut *self.inner.top_shapes.borrow_mut());
         self.inner.shapes.borrow_mut().extend(top);
     }
@@ -761,9 +727,10 @@ struct Previous {
 
 struct PaintFrame {
     id: Option<NodeId>,
-    main_start: usize,
-    top_start: usize,
+    items: Vec<Item>,
+    own: Rect,
     bounds: Rect,
+    delay: Duration,
     outer_delay: Duration,
 }
 

@@ -23,7 +23,9 @@ fn a_panel_between_two_damaged_ones_is_left_alone() {
         settled,
         "damage above and below an element must not be joined into one region across it"
     );
-    let damage = output.damage().expect("both panels were repainted");
-    assert!(damage.intersects(harness.rect(top)));
-    assert!(damage.intersects(harness.rect(bottom)));
+    assert_eq!(
+        output.damage.rects(),
+        [harness.rect(top), harness.rect(bottom)],
+        "the frame reports the two panels as separate regions, leaving the one between them out"
+    );
 }

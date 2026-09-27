@@ -23,7 +23,7 @@ fn a_renderer_at_an_origin_paints_the_part_of_the_document_there() {
     target.draw(
         Color32::BLACK,
         Repaint::Region {
-            region: far,
+            region: far.into(),
             background: Color32::BLACK,
         },
         |painter| painter.rect_filled(near, 0.0, Color32::WHITE),

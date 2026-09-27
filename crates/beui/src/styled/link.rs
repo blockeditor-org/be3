@@ -5,7 +5,7 @@ use crate::base::TextAlign;
 use crate::color::Color32;
 use crate::node::NodeId;
 use crate::reactive::{
-    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo,
+    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo, focus_ring,
 };
 use crate::styled::text::Icon;
 use crate::styled::theme::{FONT_BODY, ThemeStore, use_theme};
@@ -73,7 +73,7 @@ fn LinkFace(
             outline_width=FOCUS_RING_WIDTH
             radius=FOCUS_RING_RADIUS
             outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
                 <Show condition={has_glyph}>

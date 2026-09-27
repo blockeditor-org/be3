@@ -1506,13 +1506,31 @@ gone, and it may remove the node's own children, which is how a `VirtualList`
 scrolled out of view releases its rows. A node that is laid out again gets
 `layout` as usual and rebuilds whatever it released.
 
-Measurements are memoised per available size and dropped whenever the arena
-changes, so measuring a child repeatedly within a pass is cheap, but a `measure`
-that is not a pure function of the node and its constraint will return a stale
-answer.
+Measurements are memoised per available size and dropped whenever the node or
+something under it changes its layout, so measuring a child repeatedly within a
+pass is cheap, but a `measure` that is not a pure function of the node and its
+constraint will return a stale answer.
 
-Only invalidate retained state when a setter actually changes a value. A
-spurious mutation invalidates layout or paint caching for the entire document.
+A setter reaches its node through one of three arena accessors, chosen by what
+reads the field. `get_mut_as` is for anything `measure` or `layout` reads: the
+node and its ancestors are measured and laid out again. `paint_mut_as` is for
+what only `paint` reads - a colour, a tint, a drawing: that node alone paints
+again and nothing is laid out. `touch_mut_as` is for what neither reads -
+handlers, a cursor, a tab stop: only the accessibility tree hears of it. A field
+`paint` reads through something `layout` computed, like the origin a `Text`
+places from its alignment, counts as layout. Only call them when the value
+actually changes.
+
+Painting is retained per node. A node's `paint` runs again when the node
+changed, when it was laid out again, when its rectangle or the painter it is
+handed changed, or when a repaint it asked for falls due; otherwise the shapes
+it recorded last time stand, and its children are only visited when something
+under them has to paint. `paint` must therefore be a function of the node, its
+rectangle, the painter and the rectangles its own layout gave its children -
+anything else it reads goes unnoticed when it changes. What a node damages is
+where its shapes changed, so a repaint that paints the same thing costs no
+pixels. beui's own tests paint every frame again from scratch and fail when the
+retained painting differs from it or changed outside the damage.
 Return children from both interaction traversal and `children`, give the node a
 stable `kind` for the inspector, and add a concise `detail` when it makes the
 tree easier to understand.

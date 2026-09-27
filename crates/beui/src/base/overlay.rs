@@ -343,7 +343,7 @@ impl Document {
 
     pub(crate) fn set_overlay_scrim(&mut self, overlay: NodeId, color: Color32) {
         if self.arena.get_as::<OverlayNode>(overlay).dim != color {
-            self.arena.get_mut_as::<OverlayNode>(overlay).dim = color;
+            self.arena.paint_mut_as::<OverlayNode>(overlay).dim = color;
         }
     }
 
@@ -355,7 +355,7 @@ impl Document {
 
     pub(crate) fn set_overlay_traps_focus(&mut self, overlay: NodeId, traps_focus: bool) {
         if self.arena.get_as::<OverlayNode>(overlay).traps_focus != traps_focus {
-            self.arena.get_mut_as::<OverlayNode>(overlay).traps_focus = traps_focus;
+            self.arena.touch_mut_as::<OverlayNode>(overlay).traps_focus = traps_focus;
         }
     }
 
@@ -443,7 +443,7 @@ impl Document {
         overlay: NodeId,
         handler: impl FnMut() + 'static,
     ) {
-        self.arena.get_mut_as::<OverlayNode>(overlay).on_dismiss = Some(Box::new(handler));
+        self.arena.touch_mut_as::<OverlayNode>(overlay).on_dismiss = Some(Box::new(handler));
     }
 
     pub(crate) fn is_overlay(&self, node: NodeId) -> bool {

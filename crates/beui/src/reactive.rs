@@ -159,6 +159,12 @@ pub fn pixels_per_point() -> ReadSignal<f32> {
     with_document(|document| document.watch_pixels_per_point())
 }
 
+pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
+    let focused = focused.into_prop();
+    let visible = with_document(|document| document.watch_focus_visible());
+    create_memo(move || focused.get() && visible.get())
+}
+
 pub fn on_shortcut(shortcut: impl Fn(crate::input::KeyPress) -> bool + 'static) {
     let shortcut: Rc<crate::document::Shortcut> = Rc::new(shortcut);
     with_document(|document| document.register_shortcut(Rc::downgrade(&shortcut)));

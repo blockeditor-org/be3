@@ -130,7 +130,7 @@ impl Document {
 
     pub(crate) fn set_stroke_color(&mut self, stroke: NodeId, color: Color32) {
         if self.arena.get_as::<StrokeNode>(stroke).color != color {
-            self.arena.get_mut_as::<StrokeNode>(stroke).color = color;
+            self.arena.paint_mut_as::<StrokeNode>(stroke).color = color;
         }
     }
 }
