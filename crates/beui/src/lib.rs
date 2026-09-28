@@ -12,7 +12,9 @@ pub use beui_core::base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition,
 pub use beui_core::color::{Color32, Hsva, format_hex, parse_hex};
 pub use beui_core::context::{Context, FrameOutput, InputSimulation, Moved, RendererInfo};
 pub use beui_core::damage::Region;
-pub use beui_core::document::{Document, Tools, verify_paint};
+pub use beui_core::document::{
+    Document, OverRepaint, Tools, detect_over_repaint, take_over_repaints, verify_paint,
+};
 pub use beui_core::draw::{Quad, Quads, Turn, quads};
 pub use beui_core::drawing::Drawing;
 pub use beui_core::filter::{ColorVision, Filter, MAX_BLUR};

@@ -376,7 +376,7 @@ impl Document {
         self.floating_overlays().into_iter().any(|overlay| {
             self.overlay_content(overlay)
                 .and_then(|content| self.node_rect(content))
-                .is_some_and(|rect| rect.contains(pos))
+                .is_some_and(|rect| rect.contains_half_open(pos))
         })
     }
 
@@ -550,7 +550,7 @@ impl Document {
     fn overlay_holds(&self, overlay: NodeId, pos: Pos2) -> bool {
         self.overlay_content(overlay)
             .and_then(|content| self.node_rect(content))
-            .is_some_and(|rect| rect.contains(pos))
+            .is_some_and(|rect| rect.contains_half_open(pos))
     }
 
     fn light_overlay_misses(&self, overlay: NodeId, pos: Pos2) -> bool {
@@ -581,7 +581,7 @@ impl Document {
         let inside_any = self.overlay_stack[level..].iter().any(|&id| {
             self.overlay_content(id)
                 .and_then(|content| self.node_rect(content))
-                .is_some_and(|rect| rect.contains(pos))
+                .is_some_and(|rect| rect.contains_half_open(pos))
         });
         if !inside_any {
             let scrim = self.arena.get_as::<OverlayNode>(overlay).scrim;

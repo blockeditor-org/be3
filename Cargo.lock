@@ -1078,6 +1078,7 @@ name = "block-app"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "ashpd",
  "be-block",
  "be-client",
  "be-commit",
@@ -1101,6 +1102,7 @@ dependencies = [
  "js-sys",
  "libc",
  "ndk-context",
+ "pollster",
  "reactive",
  "rfd",
  "rodio",

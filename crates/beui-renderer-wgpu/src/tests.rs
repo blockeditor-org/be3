@@ -18,6 +18,7 @@ mod a_renderer_at_an_origin_paints_the_part_of_the_document_there;
 mod a_repaint_of_two_regions_leaves_what_lies_between_them;
 mod a_rotated_rectangle_covers_the_corners_it_turned_onto;
 mod a_scrolled_document_moves_the_rows_it_already_encoded;
+mod a_window_blends_a_thin_rounded_outline_as_dark_as_its_straight_edges;
 mod an_icon_glyph_paints_over_the_background;
 mod copying_a_scrolled_region_paints_what_a_full_repaint_would;
 mod reducing_contrast_pulls_the_filtered_region_toward_grey;
@@ -72,7 +73,15 @@ pub fn everything() -> Rect {
 }
 
 pub fn capture(background: Color32, paint: impl FnOnce(&Painter)) -> Capture {
-    let mut target = Target::new();
+    capture_in(FORMAT, background, paint)
+}
+
+pub fn capture_in(
+    format: wgpu::TextureFormat,
+    background: Color32,
+    paint: impl FnOnce(&Painter),
+) -> Capture {
+    let mut target = Target::in_format(format);
     target.draw(background, Repaint::Everything, paint);
     target.read()
 }
@@ -83,12 +92,17 @@ pub struct Target {
     renderer: Renderer,
     texture: wgpu::Texture,
     view: wgpu::TextureView,
+    format: wgpu::TextureFormat,
     cleared: bool,
     bounded: bool,
 }
 
 impl Target {
     pub fn new() -> Self {
+        Self::in_format(FORMAT)
+    }
+
+    pub fn in_format(format: wgpu::TextureFormat) -> Self {
         let instance = wgpu::Instance::default();
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::LowPower,
@@ -105,7 +119,7 @@ impl Target {
             trace: wgpu::Trace::Off,
         }))
         .expect("the adapter did not provide a device");
-        let renderer = Renderer::new(&device, FORMAT);
+        let renderer = Renderer::new(&device, format);
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("beui test target"),
             size: wgpu::Extent3d {
@@ -116,7 +130,7 @@ impl Target {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: FORMAT,
+            format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::COPY_DST,
@@ -129,6 +143,7 @@ impl Target {
             renderer,
             texture,
             view,
+            format,
             cleared: false,
             bounded: false,
         }
@@ -177,7 +192,7 @@ impl Target {
                 }
                 wgpu::LoadOp::Load
             }
-            Repaint::Everything => wgpu::LoadOp::Clear(clear_color(background)),
+            Repaint::Everything => wgpu::LoadOp::Clear(clear_color_in(self.format, background)),
         };
         self.renderer.render(
             &self.device,
@@ -211,7 +226,7 @@ impl Target {
         let load = match (self.cleared, effective) {
             (true, Repaint::Region { .. }) => wgpu::LoadOp::Load,
             (true, _) if self.bounded => wgpu::LoadOp::Load,
-            _ => wgpu::LoadOp::Clear(clear_color(background)),
+            _ => wgpu::LoadOp::Clear(clear_color_in(self.format, background)),
         };
         self.cleared = true;
         let mut encoder = self

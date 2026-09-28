@@ -22,7 +22,6 @@ use crate::view::PADDING;
 
 const SPACING: f32 = 8.0;
 const TARGET_ROW: f32 = 44.0;
-const HEAD_CHARACTERS: usize = 48;
 const MAIN: &str = "main";
 
 #[component]
@@ -36,11 +35,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
         if summary.is_empty() {
             "Reading the checkout".to_owned()
         } else {
-            let mut shown: String = summary.chars().take(HEAD_CHARACTERS).collect();
-            if shown.len() < summary.len() {
-                shown.push_str("...");
-            }
-            format!("Checked out {shown}")
+            format!("Checked out {summary}")
         }
     }));
     let running = model.running.clone();
@@ -71,7 +66,12 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                         selected={tab}
                         on_change={show}
                     />
-                    <Caption @sizing=ItemSize::Percent(100.0) content={head} align=TextAlign::End />
+                    <Caption
+                        @sizing=ItemSize::Percent(100.0)
+                        content={head}
+                        align=TextAlign::End
+                        ellipsis=true
+                    />
                     <Show condition={running.clone()}>
                         <Spinner width=18.0 label="A command is running" />
                     </Show>

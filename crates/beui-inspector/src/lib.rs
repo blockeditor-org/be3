@@ -601,6 +601,8 @@ impl Inspector {
                 };
                 document.show_content(ctx, panel.scaled(scale.recip()), true, keys);
             });
+        } else {
+            document.hide();
         }
         self.show_bar(ctx, bar);
         if self.state.reset_performance.take() {
@@ -728,6 +730,7 @@ impl Inspector {
             ctx.report_damage(toolbar);
         }
         if !toolbar.is_positive() {
+            self.toolbar.document.hide();
             return;
         }
         let scale = scale(ctx);
@@ -750,6 +753,7 @@ impl Inspector {
 
     fn show_bar(&mut self, ctx: &Context, bar: Rect) {
         if !bar.is_positive() {
+            self.bar.document.hide();
             return;
         }
         let scale = scale(ctx);

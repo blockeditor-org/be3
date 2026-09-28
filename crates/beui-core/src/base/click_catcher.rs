@@ -292,7 +292,7 @@ impl Element for ClickCatcherNode {
     }
 
     fn captures(&mut self, _doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
-        (self.capture_presses && rect.contains(pos)) || self.capture_at.call(pos)
+        (self.capture_presses && rect.contains_half_open(pos)) || self.capture_at.call(pos)
     }
 
     fn intercepts(&mut self, _doc: &mut Document, pos: Pos2, _rect: Rect) -> bool {

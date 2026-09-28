@@ -32,7 +32,7 @@ fn a_typed_transform_value_is_one_edit() {
     assert_eq!(editor.applied(None), before + 1);
 
     let resting = editor.rect_of(&drawn);
-    let field = editor.rect_of("infinite-canvas.transform.y").center();
+    let field = editor.point_of("infinite-canvas.transform.y");
     editor.drag(field, field + Vec2::new(20.0, 0.0));
     editor.run();
 

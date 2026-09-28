@@ -71,6 +71,7 @@ pub struct PaintCache {
     dirt: NodeMap<Dirt>,
     deadlines: HashMap<NodeId, Instant>,
     roots: Vec<(NodeId, Rect)>,
+    places: HashMap<NodeId, (Vec2, Rect)>,
     damage: Region,
     recorded: bool,
     batch: u64,
@@ -148,15 +149,25 @@ impl PaintCache {
             .into_iter()
             .map(|id| (id, self.absolute_bounds(id)))
             .collect();
+        let places: HashMap<NodeId, (Vec2, Rect)> = roots
+            .iter()
+            .filter_map(|(id, _)| {
+                let own = self.entries.get(id)?.placement.own;
+                Some((*id, (own.origin, own.space_clip)))
+            })
+            .collect();
         for (id, bounds) in &roots {
             if let Some((_, held)) = self.roots.iter().find(|(root, _)| root == id)
                 && held != bounds
             {
-                self.damage.add(*held);
-                self.damage.add(*bounds);
+                if self.places.get(id) != places.get(id) {
+                    self.damage.add(*held);
+                    self.damage.add(*bounds);
+                }
                 self.recorded = true;
             }
         }
+        self.places = places;
         let held: Vec<NodeId> = self.roots.iter().map(|(id, _)| *id).collect();
         if roots.iter().map(|(id, _)| *id).ne(held) {
             let before = kept(&self.roots, &roots);
@@ -306,7 +317,7 @@ impl PaintCache {
             None => vec![painted.display.bounds],
             Some(_) if redrawn.is_some() => redrawn.unwrap_or_default().rects().to_vec(),
             Some(old) if children(&old.display).eq(children(&painted.display)) => {
-                vec![old.own, painted.own]
+                changed_items(&old.display, &painted.display)
             }
             Some(old) => match scrolled(&old, &painted).or_else(|| reflowed(&old, &painted)) {
                 Some(Moving {
@@ -333,7 +344,7 @@ impl PaintCache {
                     });
                     Vec::new()
                 }
-                None => vec![old.display.bounds, painted.display.bounds],
+                None => changed_items(&old.display, &painted.display),
             },
         };
         for rect in damaged {
@@ -346,6 +357,61 @@ impl PaintCache {
         self.entries.insert(id, painted);
         self.recorded = true;
     }
+}
+
+const SHAPE_REACH: usize = 8;
+
+fn placed_items(display: &Display) -> Vec<(DisplayItem<'_>, Rect)> {
+    let mut placed = Vec::new();
+    for part in display.parts.iter() {
+        match part {
+            Part::Shapes { top, start, end } => {
+                for shape in &display.shapes[*start as usize..*end as usize] {
+                    let item = match top {
+                        true => DisplayItem::Top(shape),
+                        false => DisplayItem::Main(shape),
+                    };
+                    placed.push((item, crate::damage::bounds(shape)));
+                }
+            }
+            Part::Child(id, entry, child) => {
+                placed.push((DisplayItem::Child(*id, *entry), entry.place(child.bounds)));
+            }
+        }
+    }
+    placed
+}
+
+fn changed_items(old: &Display, new: &Display) -> Vec<Rect> {
+    let (before, after) = (placed_items(old), placed_items(new));
+    let children: HashMap<NodeId, usize> = before
+        .iter()
+        .enumerate()
+        .filter_map(|(index, (item, _))| match item {
+            DisplayItem::Child(id, _) => Some((*id, index)),
+            _ => None,
+        })
+        .collect();
+    let mut damaged = Vec::new();
+    let mut next = 0;
+    for (item, bounds) in &after {
+        let found = match item {
+            DisplayItem::Child(id, _) => children
+                .get(id)
+                .copied()
+                .filter(|at| *at >= next && before[*at].0 == *item),
+            _ => (next..before.len().min(next + SHAPE_REACH)).find(|at| before[*at].0 == *item),
+        };
+        match found {
+            Some(at) => {
+                damaged.extend(before[next..at].iter().map(|(_, bounds)| *bounds));
+                next = at + 1;
+            }
+            None => damaged.push(*bounds),
+        }
+    }
+    damaged.extend(before[next..].iter().map(|(_, bounds)| *bounds));
+    damaged
 }
 
 struct Moving {

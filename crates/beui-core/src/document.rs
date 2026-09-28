@@ -850,10 +850,11 @@ impl Document {
             FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
             let moves = self.paint_cache.get_mut().take_moves();
+            let everything = self.damage.is_everything();
             let region = self.damage.take(rect);
             let (region, moved) = self.settle_moves(moves, region, rect);
             if let Some(previous) = previous {
-                self.verify_paint(ctx, rect, &previous, &region, moved);
+                self.verify_paint(ctx, rect, &previous, &region, moved, everything);
             }
             for damaged in region.rects() {
                 self.damage_flashes.record(*damaged, now);
@@ -983,6 +984,7 @@ impl Document {
         previous: &[Shape],
         region: &crate::damage::Region,
         moved: Option<Moved>,
+        everything: bool,
     ) {
         let counted = (
             self.work.painted_nodes.get(),
@@ -1026,13 +1028,36 @@ impl Document {
         let old = &previous[prefix..previous.len() - suffix];
         let new = &shapes[prefix..shapes.len() - suffix];
         let landed = moved.map_or(Rect::NOTHING, |moved| moved.from.translate(moved.by));
-        let changed = old
+        let changed: Vec<&Shape> = old
             .iter()
             .filter(|shape| !new.iter().any(|new| kept(shape, new)))
             .chain(
                 new.iter()
                     .filter(|shape| !old.iter().any(|old| kept(old, shape))),
-            );
+            )
+            .collect();
+        let mut needed = crate::damage::Region::NOTHING;
+        for shape in &changed {
+            needed.add(crate::damage::bounds(shape).intersect(viewport));
+        }
+        if !everything && moved.is_none() && detecting_over_repaint() {
+            let area = |region: &crate::damage::Region| {
+                region
+                    .rects()
+                    .iter()
+                    .map(|rect| rect.width() * rect.height())
+                    .sum::<f32>()
+            };
+            let (damaged, changed_area) = (area(region), area(&needed));
+            if damaged > changed_area * OVER_REPAINT_FACTOR + OVER_REPAINT_SLACK {
+                let report = OverRepaint {
+                    damaged: region.rects().to_vec(),
+                    changed: needed.rects().to_vec(),
+                };
+                eprintln!("beui over-repaint: {report:?}");
+                OVER_REPAINTS.with_borrow_mut(|reports| reports.push(report));
+            }
+        }
         for shape in changed {
             let bounds = crate::damage::bounds(shape).intersect(viewport);
             assert!(
@@ -1728,6 +1753,33 @@ fn flatten(painting: &[(Rc<Display>, Entry)]) -> Vec<Shape> {
         main.append(&mut top);
     }
     main
+}
+
+const OVER_REPAINT_FACTOR: f32 = 4.0;
+const OVER_REPAINT_SLACK: f32 = 64.0 * 64.0;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct OverRepaint {
+    pub damaged: Vec<Rect>,
+    pub changed: Vec<Rect>,
+}
+
+thread_local! {
+    static OVER_REPAINTS: RefCell<Vec<OverRepaint>> = const { RefCell::new(Vec::new()) };
+    static DETECT_OVER_REPAINT: Cell<bool> =
+        Cell::new(std::env::var_os("BEUI_OVER_REPAINT").is_some());
+}
+
+pub fn detect_over_repaint(enabled: bool) {
+    DETECT_OVER_REPAINT.set(enabled);
+}
+
+fn detecting_over_repaint() -> bool {
+    DETECT_OVER_REPAINT.get()
+}
+
+pub fn take_over_repaints() -> Vec<OverRepaint> {
+    OVER_REPAINTS.with_borrow_mut(std::mem::take)
 }
 
 static VERIFY_PAINT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);

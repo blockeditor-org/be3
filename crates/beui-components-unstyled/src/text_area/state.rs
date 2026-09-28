@@ -159,6 +159,7 @@ struct Inner {
     grab: Cell<Option<Grab>>,
     grab_offset: Cell<Vec2>,
     reveal_cursor: Cell<bool>,
+    tab_released: Cell<bool>,
     reveal: Cell<Option<Rect>>,
     reveals: ReadSignal<u64>,
     set_reveals: WriteSignal<u64>,
@@ -206,6 +207,7 @@ impl TextAreaState {
             grab: Cell::new(None),
             grab_offset: Cell::new(Vec2::ZERO),
             reveal_cursor: Cell::new(false),
+            tab_released: Cell::new(false),
             reveal: Cell::new(None),
             reveals,
             set_reveals,
@@ -394,6 +396,10 @@ impl TextAreaState {
 
     pub fn caret_handle(&self) -> ReadSignal<bool> {
         self.0.caret_handle.clone()
+    }
+
+    pub fn release_tab(&self, released: bool) -> bool {
+        self.0.tab_released.replace(released)
     }
 
     pub fn set_caret_handle(&self, shown: bool) {

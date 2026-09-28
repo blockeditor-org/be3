@@ -117,6 +117,10 @@ impl Damage {
         self.everything = true;
     }
 
+    pub fn is_everything(&self) -> bool {
+        self.everything
+    }
+
     pub fn take(&mut self, viewport: Rect) -> Region {
         let mut region = Region::NOTHING;
         match self.everything {

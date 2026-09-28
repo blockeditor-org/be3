@@ -162,7 +162,12 @@ fn file_creation_with<T: 'static>(
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
                 <Show condition={failed}>
-                    <Caption content={reason} color={theme.danger.clone()} @test_id={error_id} />
+                    <Caption
+                        content={reason}
+                        color={theme.danger.clone()}
+                        wrap=true
+                        @test_id={error_id}
+                    />
                 </Show>
             </List>
         </Frame>

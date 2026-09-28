@@ -271,6 +271,13 @@ impl Rect {
             && point.y <= self.max.y
     }
 
+    pub fn contains_half_open(&self, point: Pos2) -> bool {
+        point.x >= self.min.x
+            && point.x < self.max.x
+            && point.y >= self.min.y
+            && point.y < self.max.y
+    }
+
     pub fn contains_rect(&self, other: Self) -> bool {
         self.min.x <= other.min.x
             && self.min.y <= other.min.y

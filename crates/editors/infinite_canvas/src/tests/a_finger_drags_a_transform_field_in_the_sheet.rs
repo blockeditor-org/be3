@@ -18,7 +18,7 @@ fn a_finger_drags_a_transform_field_in_the_sheet() {
     editor.run();
 
     let held = entities(&editor)[0].transform;
-    let from = editor.rect_of("infinite-canvas.transform.x").center();
+    let from = editor.point_of("infinite-canvas.transform.x");
     editor.finger(1, TouchPhase::Start, from);
     editor.run();
     editor.finger(1, TouchPhase::Move, from + Vec2::new(20.0, 1.0));

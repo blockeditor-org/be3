@@ -4,8 +4,8 @@ use beui_core::color::Color32;
 use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::Vec2;
 
-use crate::present::GpuSetup;
-use crate::{Renderer, Repaint, clear_color, renderer_info};
+use crate::present::{GpuSetup, surface_format};
+use crate::{Renderer, Repaint, clear_color_in, renderer_info};
 
 #[derive(Clone, Debug)]
 struct Display;
@@ -57,13 +57,8 @@ impl CanvasSurface {
             .await
             .map_err(|error| error.to_string())?;
         let capabilities = surface.get_capabilities(&adapter);
-        let format = capabilities
-            .formats
-            .iter()
-            .copied()
-            .find(|format| !format.is_srgb())
-            .or_else(|| capabilities.formats.first().copied())
-            .ok_or("the adapter cannot show a canvas")?;
+        let format =
+            surface_format(&capabilities.formats).ok_or("the adapter cannot show a canvas")?;
         let alpha_mode = capabilities
             .alpha_modes
             .first()
@@ -149,18 +144,7 @@ impl CanvasSurface {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("beui encoder"),
             });
-        let clear = match self.config.format.is_srgb() {
-            true => clear_color(background),
-            false => {
-                let [red, green, blue, alpha] = background.to_array();
-                wgpu::Color {
-                    r: f64::from(red) / 255.0,
-                    g: f64::from(green) / 255.0,
-                    b: f64::from(blue) / 255.0,
-                    a: f64::from(alpha) / 255.0,
-                }
-            }
-        };
+        let clear = clear_color_in(self.config.format, background);
         self.renderer.render(
             &self.device,
             &self.queue,

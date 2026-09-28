@@ -57,7 +57,7 @@ pub struct InteractInput {
 
 impl InteractInput {
     pub fn over(&self, rect: Rect, pos: Pos2) -> bool {
-        rect.contains(pos) && self.visible.contains(pos)
+        rect.contains_half_open(pos) && self.visible.contains_half_open(pos)
     }
 
     pub fn pointer_over(&self, rect: Rect) -> bool {

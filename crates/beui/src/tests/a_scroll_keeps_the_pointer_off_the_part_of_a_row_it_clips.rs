@@ -41,7 +41,7 @@ fn a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips() {
     harness.frame(Vec::new());
     let x = harness.rect(scroll).center().x;
 
-    harness.scroll(pos2(x, 300.0), vec2(0.0, -60.0), Modifiers::NONE);
+    harness.scroll(pos2(x, 299.0), vec2(0.0, -60.0), Modifiers::NONE);
     harness.frame(Vec::new());
     assert_eq!(harness.document().scroll_offset(scroll), 60.0);
 
