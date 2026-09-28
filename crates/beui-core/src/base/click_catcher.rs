@@ -377,11 +377,12 @@ impl Element for ClickCatcherNode {
         self.pan_drag(input, id, contains_pointer);
         self.secondary_drag(input, rect);
         if input.wheel_target == Some(id)
-            && input.scroll != Vec2::ZERO
+            && (input.scroll != Vec2::ZERO || input.scroll_fling != Vec2::ZERO)
             && let Some(pos) = input.pointer_pos
         {
             self.on_scroll.call(ScrollGesture {
                 delta: input.scroll,
+                fling: input.scroll_fling,
                 pos,
                 modifiers: input.modifiers,
             });

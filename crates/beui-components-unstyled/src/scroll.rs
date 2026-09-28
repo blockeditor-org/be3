@@ -238,13 +238,19 @@ impl Motion {
 
     fn wheel(&self, gesture: ScrollGesture) {
         let wheel = self.axis().main(gesture.delta);
-        let Some(position) = self.placed().filter(|_| wheel != 0.0) else {
+        let fling = self.axis().main(gesture.fling);
+        let Some(position) = self.placed().filter(|_| wheel != 0.0 || fling != 0.0) else {
             return;
         };
         let mut momentum = self.momentum.borrow_mut();
         momentum.rest();
         let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
         self.publish(&momentum, offset);
+        if fling != 0.0 {
+            with_document(|document| document.take_offset_steered(self.node));
+            momentum.release(-fling);
+            self.animate(&mut momentum);
+        }
     }
 
     fn drag(&self, gesture: DragGesture) {

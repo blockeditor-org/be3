@@ -47,10 +47,11 @@ pub fn interact(
 ) {
     let modifiers = ctx.input(|input| input.modifiers);
     let wheel = ctx.input(|input| input.scroll_delta);
-    let wheel = if modifiers.shift && wheel.x == 0.0 {
-        vec2(wheel.y, 0.0)
+    let fling = ctx.input(|input| input.scroll_fling);
+    let (wheel, fling) = if modifiers.shift && wheel.x == 0.0 && fling.x == 0.0 {
+        (vec2(wheel.y, 0.0), vec2(fling.y, 0.0))
     } else {
-        wheel
+        (wheel, fling)
     };
     let touching =
         ctx.input(|input| input.touch.active() || input.touch.ended() || input.touch.cancelled());
@@ -74,6 +75,7 @@ pub fn interact(
         middle_down: ctx.input(|input| input.pointer.middle_down),
         middle_pressed_this_frame: ctx.input(|input| input.pointer.middle_pressed()),
         scroll: wheel,
+        scroll_fling: fling,
         zoom: ctx.input(|input| input.zoom_factor * input.touch.pinch()),
         touch_pan: ctx.input(|input| input.touch.pinch_pan()),
         zoom_pos: ctx.input(|input| input.touch.pinch_center().or(input.pointer.interact_pos())),
@@ -123,13 +125,17 @@ pub fn interact(
     {
         doc.capture_pointer(captor);
     }
-    let wheel_target = (input.scroll != Vec2::ZERO)
+    let wheel = match input.scroll {
+        Vec2::ZERO => input.scroll_fling,
+        scroll => scroll,
+    };
+    let wheel_target = (wheel != Vec2::ZERO)
         .then(|| {
             let now = doc.now();
-            let target = latched_wheel_target(doc, rects, input.pointer_pos, input.scroll, now)
+            let target = latched_wheel_target(doc, rects, input.pointer_pos, wheel, now)
                 .or_else(|| {
                     target(doc, rects, root, input.pointer_pos, &|element| {
-                        wants_wheel(element, input.scroll)
+                        wants_wheel(element, wheel)
                     })
                 });
             doc.wheel_latch = target.map(|target| (target, now, input.pointer_pos));
@@ -406,6 +412,7 @@ fn without_pointer(input: InteractInput) -> InteractInput {
         middle_down: false,
         middle_pressed_this_frame: false,
         scroll: Vec2::ZERO,
+        scroll_fling: Vec2::ZERO,
         zoom: 1.0,
         touch_pan: Vec2::ZERO,
         zoom_pos: None,

@@ -11,6 +11,7 @@ const LONG_PRESS_DELAY: Duration = Duration::from_millis(500);
 const FINGER_TAP_TIME: Duration = Duration::from_millis(350);
 const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
 const MAX_TOUCH_VELOCITY: f32 = 4_000.0;
+const WHEEL_VELOCITY_WINDOW: Duration = Duration::from_millis(100);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Key {
@@ -153,6 +154,7 @@ pub struct PointerPress {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ScrollGesture {
     pub delta: Vec2,
+    pub fling: Vec2,
     pub pos: Pos2,
     pub modifiers: Modifiers,
 }
@@ -258,6 +260,7 @@ pub enum Event {
     PointerMotion(Vec2),
     PointerMoved(Pos2),
     Scroll(Vec2),
+    ScrollEnded,
     PhysicalKey {
         code: u32,
         pressed: bool,
@@ -347,9 +350,11 @@ pub struct InputState {
     pub pointer: Pointer,
     pub touch: TouchState,
     pub scroll_delta: Vec2,
+    pub scroll_fling: Vec2,
     pub zoom_factor: f32,
     pub modifiers: Modifiers,
     pub long_press_delay: Duration,
+    scroll_samples: VecDeque<(Instant, Vec2)>,
 }
 
 impl Default for InputState {
@@ -359,9 +364,11 @@ impl Default for InputState {
             pointer: Pointer::default(),
             touch: TouchState::default(),
             scroll_delta: Vec2::ZERO,
+            scroll_fling: Vec2::ZERO,
             zoom_factor: 1.0,
             modifiers: Modifiers::default(),
             long_press_delay: LONG_PRESS_DELAY,
+            scroll_samples: VecDeque::new(),
         }
     }
 }
@@ -419,7 +426,9 @@ impl InputState {
             self.pointer.secondary_pressed = true;
         }
         self.scroll_delta = Vec2::ZERO;
+        self.scroll_fling = Vec2::ZERO;
         self.zoom_factor = 1.0;
+        let mut scroll_ended = false;
         let suppress_mouse = self.pointer.from_touch
             || raw
                 .events
@@ -497,6 +506,7 @@ impl InputState {
                     }
                 }
                 Event::Scroll(delta) => self.scroll_delta += *delta,
+                Event::ScrollEnded => scroll_ended = true,
                 Event::Zoom(factor) => self.zoom_factor *= *factor,
                 Event::Key { modifiers, .. } | Event::Modifiers(modifiers) => {
                     self.modifiers = *modifiers;
@@ -513,6 +523,36 @@ impl InputState {
             }
         }
         self.events = raw.events;
+        self.sample_scroll(now, scroll_ended);
+    }
+
+    fn sample_scroll(&mut self, now: Instant, ended: bool) {
+        if self.scroll_delta != Vec2::ZERO {
+            self.scroll_samples.push_back((now, self.scroll_delta));
+        }
+        while self
+            .scroll_samples
+            .front()
+            .is_some_and(|(when, _)| now.duration_since(*when) > WHEEL_VELOCITY_WINDOW)
+        {
+            self.scroll_samples.pop_front();
+        }
+        if !ended {
+            return;
+        }
+        let samples = std::mem::take(&mut self.scroll_samples);
+        let (Some((first, _)), Some((last, _))) = (samples.front(), samples.back()) else {
+            return;
+        };
+        let elapsed = last.duration_since(*first).as_secs_f32();
+        if elapsed <= f32::EPSILON {
+            return;
+        }
+        let travelled = samples
+            .iter()
+            .skip(1)
+            .fold(Vec2::ZERO, |sum, (_, delta)| sum + *delta);
+        self.scroll_fling = travelled * elapsed.recip();
     }
 }
 
