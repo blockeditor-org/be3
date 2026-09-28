@@ -56,43 +56,15 @@ a machine with KVM or a device.
 - **File dialog fails silently.** Without xdg-desktop-portal or zenity,
   "Choose file…" does nothing; show an error saying what to install.
 
-## 5. beui fonts, window manager, inspector
+## 5. beui fonts
 
 - **Fonts.** Plugins shouldn't each embed fonts: the app provides fonts to
   plugins, falling back to system fonts natively. Tests use a fixed font list
   with no system fonts so snapshots are stable. On web the DOM renderer
   (blockeditor-org/be3#209) uses the browser's fonts; wgpu plugins on web
   still need an answer.
-- **Dock tab drop indicator** sits centered in the gap between two tabs, not
-  on the left edge of a tab.
-- **Middle click** closes a dock tab.
-- **Empty dock.** The dock supports having no tabs and shows a
-  caller-provided view; workspace_ui drops its unclosable "workspace" tab.
-- **Inspector close button** goes to the right of the tabs in narrow
-  (tabbed) mode.
 
-## 6. Editors
-
-### 8.1 Infinite canvas
-- **Select by default, two-finger pan.** Revert the separate default pan
-  tool: the select tool is chosen by default, and panning takes two fingers
-  on touch (and the usual wheel/middle-drag on desktop).
-- **Artboards** replace the current viewport:
-  - A canvas has none by default. A new artboard tool adds one.
-  - With at least one artboard, the artboard gets the normal background and
-    everything outside it is darker.
-  - Embedding a canvas shows its first artboard. Picking another waits for a
-    future embed-options system.
-- **Layers panel.**
-- **Narrow layout.** Passable since the last round, but still poor; improve
-  it.
-
-### 8.2 File tree
-- Right click → Inspect: the modal runs off the screen at a normal file tree
-  width.
-- Right click → Export: save a block to a regular file.
-
-## 7. Tooling and repo hygiene
+## 6. Tooling and repo hygiene
 
 - **Crate folder names use `-`.** Rename every crate folder under `crates/`
   that uses `_` (`beui_macros`, `reactive_macros`, `tabletop_games` and its
