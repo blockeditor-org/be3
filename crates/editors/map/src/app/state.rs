@@ -73,6 +73,8 @@ pub(crate) struct MapState {
     set_labels: WriteSignal<HashMap<Uuid, BlockLabel>>,
     pub(crate) revision: ReadSignal<u64>,
     set_revision: WriteSignal<u64>,
+    pub(crate) reloads: ReadSignal<u64>,
+    set_reloads: WriteSignal<u64>,
 }
 
 impl MapState {
@@ -87,6 +89,7 @@ impl MapState {
         let (import_error, set_import_error) = create_signal(None);
         let (labels, set_labels) = create_signal(HashMap::new());
         let (revision, set_revision) = create_signal(0);
+        let (reloads, set_reloads) = create_signal(0);
         let (fit_requested, set_fit_requested) = create_signal(true);
         Rc::new(Self {
             dependencies: editor
@@ -119,6 +122,8 @@ impl MapState {
             set_labels,
             revision,
             set_revision,
+            reloads,
+            set_reloads,
         })
     }
 
@@ -151,10 +156,13 @@ impl MapState {
     }
 
     pub(crate) fn reload_tiles(&self) {
-        self.worker.borrow_mut().take();
+        if let Some(worker) = self.worker.borrow_mut().take() {
+            worker.forget(self.editor.host());
+        }
         self.tiles.borrow_mut().clear();
         self.set_last_error.set(None);
         self.bump();
+        self.set_reloads.update(|reloads| *reloads += 1);
     }
 
     fn bump(&self) {
@@ -215,6 +223,11 @@ impl MapState {
             .unwrap_or_else(|| self.editor.content_rect().size())
             .max(Vec2::new(1.0, 1.0));
         Rect::from_min_size(Pos2::ZERO, size)
+    }
+
+    pub(crate) fn sized(&self) -> bool {
+        self.editor.world().get_untracked().is_some()
+            || self.editor.placed().get_untracked().is_positive()
     }
 
     pub(crate) fn world_rect(&self) -> Rect {
@@ -338,9 +351,7 @@ impl MapState {
         let view = self.view();
         self.set_visible_region.set(view.region(region));
         self.view_center.set(view.coordinate(region.center()));
-        let sized = self.editor.world().get_untracked().is_some()
-            || self.editor.placed().get_untracked().is_positive();
-        if sized
+        if self.sized()
             && self.fit_requested.get_untracked()
             && let Some(preview) = self.preview_region.get_untracked()
         {

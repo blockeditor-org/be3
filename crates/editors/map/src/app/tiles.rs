@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
-    CanvasItem, Frame, Picture, clone, component, create_memo, view,
+    CanvasItem, Frame, Picture, clone, component, create_effect, create_memo, untrack, view,
 };
 use block_editor_beui::beui::{Color32, ImageFit, Pos2, Rect, Vec2};
 
@@ -86,7 +86,10 @@ pub(crate) fn Tile(
     world: block_editor_beui::beui::reactive::Memo<Rect>,
 ) -> CanvasItem {
     let wanted = Rc::clone(&state);
-    wanted.want_tile(tile.id);
+    create_effect(move || {
+        wanted.reloads.with(|_| ());
+        untrack(|| wanted.want_tile(tile.id));
+    });
     let revision = state.revision.clone();
     let drawn = create_memo(clone!(revision -> move || {
         let _ = revision.get();
@@ -110,10 +113,11 @@ pub(crate) fn Tile(
     let y = create_memo(clone!(rect -> move || rect.get().top()));
     let width = create_memo(clone!(rect -> move || rect.get().width()));
     let height = create_memo(clone!(rect -> move || rect.get().height()));
+    let test_id = format!("map.tile.{}.{}.{}", tile.id.zoom, tile.id.x, tile.id.y);
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame color=BACKGROUND>
-                <Picture image={image} source={source} fit=ImageFit::Fill />
+                <Picture image={image} source={source} fit=ImageFit::Fill @test_id={test_id} />
             </Frame>
         </CanvasItem>
     }
