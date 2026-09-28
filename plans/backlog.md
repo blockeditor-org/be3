@@ -39,42 +39,8 @@ The app is expected to crash on startup on Android. The emulator can't run in
 the cloud containers (no KVM, see guides/running_on_android.md), so this needs
 a machine with KVM or a device.
 
-## 2. Data layer and server correctness
-
-### 2.1 Access checks are quadratic
-`be-server/src/blocks.rs`: `effective_access` builds a `Visibility` — the
-whole `graph.access_map(account)` — per call, so any loop over blocks is
-O(n²). Build it once per request and pass it down.
-
-### 2.2 `BlockSource` duplicates `BlockParent`
-`block-editor-plugin/src/host.rs` has `BlockSource { Root, Orphaned, Block }`
-next to `graph.rs`'s `BlockParent { Detached, Root, Block }`. Delete
-`BlockSource`.
-
-### 2.3 Clearing a name keeps the old one
-Clearing a block's name leaves the old name showing until an editor next
-derives one. The clear should take effect immediately.
-
-### 2.4 One-frame lag on writes through a block projection
-An editor's write through a projection lands after that frame's pump, so
-the change paints a frame late; tests need an extra `run()` and
-`RelatedBlock` needs ~3 frames to settle a reference chain from cold.
-Confirm it is still true; if so, make a write and its consequences paint in
-the same frame, and delete the extra `run()`/`settle` calls in tests.
-
-### 2.5 `SeedContent` from a plugin
-`block-app/src/plugin_host/instances.rs` checks only that the content type is
-known, not that the instance holds the block (the `Show` handler beside it
-checks `entry.holds`). The server enforces edit rights, but the host should
-check too.
-
 ## 3. Push, don't poll
 
-- `watch_blocks` checks for graph changes at the start of each frame; make
-  graph changes push to their watchers.
-- The block top bar polls undo/redo availability and the name.
-- The file tree polls the focused block, the "reveal the shown block"
-  arrow, and drag-and-drop landing.
 - A frame clock tests can advance: springs (window bounce), scroll momentum,
   long press and timers read `Instant::now()`. Route them through a clock on
   the context that `BeuiTest` can advance, with tests for the window bounce
