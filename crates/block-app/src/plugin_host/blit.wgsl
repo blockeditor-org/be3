@@ -60,8 +60,8 @@ fn to_linear(gamma: vec3<f32>) -> vec3<f32> {
 fn blit_fragment(input: BlitOutput) -> @location(0) vec4<f32> {
     let color = textureSampleLevel(counter_texture, counter_sampler, input.uv, 0.0);
     var rgb = color.rgb;
-    if decode_srgb {
-        rgb = to_linear(rgb);
+    if decode_srgb && color.a > 0.0 {
+        rgb = to_linear(rgb / color.a) * color.a;
     }
-    return vec4<f32>(rgb, color.a * input.opacity);
+    return vec4<f32>(rgb, color.a) * input.opacity;
 }
