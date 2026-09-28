@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::canvas::Canvas;
 use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasPreviewRegion,
+    CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
     CanvasTextAlign, CanvasTextStyle, CanvasTextWeight, CanvasTransform,
 };
 use block_editor_beui::beui::{Vec2, vec2};
@@ -111,12 +111,26 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
     }
 }
 
-pub fn build_template_canvas(template: SlideTemplate) -> CanvasContent {
-    CanvasContent::new(&Canvas::with_entities(
-        template_entities(template),
-        Some(CanvasPreviewRegion::new(
+fn slide_artboard() -> CanvasEntity {
+    CanvasEntity {
+        id: Uuid::new_v4(),
+        transform: CanvasTransform::new(
             CanvasPoint::default(),
             CanvasPoint::new(DEFAULT_SLIDE_SIZE.x, DEFAULT_SLIDE_SIZE.y),
-        )),
+            0.0,
+        ),
+        kind: CanvasEntityKind::Artboard {
+            name: "Slide".into(),
+        },
+        style: CanvasEntityStyle::default(),
+        group_id: None,
+        locked: false,
+        components: Vec::new(),
+    }
+}
+
+pub fn build_template_canvas(template: SlideTemplate) -> CanvasContent {
+    CanvasContent::new(&Canvas::with_entities(
+        std::iter::once(slide_artboard()).chain(template_entities(template)),
     ))
 }

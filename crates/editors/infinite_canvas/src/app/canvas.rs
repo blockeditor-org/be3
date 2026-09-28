@@ -16,7 +16,7 @@ use uuid::Uuid;
 use crate::geometry::*;
 
 use super::menu::CanvasMenu;
-use super::overlay::Overlay;
+use super::overlay::{Artboard, Backdrop, Overlay};
 use super::paint::{Camera, EntityPaint, Palette};
 use super::state::CanvasState;
 
@@ -49,6 +49,9 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
     let shape_camera = camera.clone();
     let overlay_camera = camera.clone();
     let overlay_stage = placed.clone();
+    let backdrop = Rc::clone(&state);
+    let backdrop_camera = camera.clone();
+    let backdrop_stage = placed.clone();
     let placement = camera.clone();
     let menu = Rc::clone(&state);
     let previewing = state.previewing();
@@ -59,6 +62,13 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
                     view={create_memo(clone!(placement -> move || Some(placement.get())))}
                     @test_id={"infinite-canvas.canvas"}
                 >
+                    <Show condition={!previewing}>
+                        <CanvasBackdrop
+                            state={backdrop}
+                            camera={backdrop_camera}
+                            stage={backdrop_stage}
+                        />
+                    </Show>
                     <ForEach keys={ids}>
                         {move |id: Uuid| {
                             let state = Rc::clone(&shapes);
@@ -151,7 +161,6 @@ fn CanvasOverlay(
             palette: palette(&theme),
             stage: stage.get(),
             empty: drawn.entities.get().is_empty(),
-            region: drawn.preview_region.get(),
             gesture: drawn.gesture.get(),
             frame: super::state::selection_frame(&drawn.displayed(), &drawn.selection.get()),
             resize: drawn.selection_handles().0,
@@ -174,6 +183,61 @@ fn CanvasOverlay(
     let height = create_memo(clone!(visible -> move || visible.get().height().max(1.0)));
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
+            <Drawing draw={draw} />
+        </CanvasItem>
+    }
+}
+
+#[component]
+fn CanvasBackdrop(
+    state: Rc<CanvasState>,
+    camera: Memo<CanvasView>,
+    stage: ReadSignal<Rect>,
+) -> CanvasItem {
+    let visible =
+        create_memo(clone!(camera stage -> move || camera.get().rect_to_canvas(stage.get())));
+    let theme = use_theme();
+    let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
+    let shown = RefCell::new(None::<Backdrop>);
+    create_effect(clone!(state theme camera stage -> move || {
+        let artboards = state
+            .displayed()
+            .into_iter()
+            .filter_map(|entity| match &entity.kind {
+                CanvasEntityKind::Artboard { name } => Some(Artboard {
+                    bounds: entity_bounds(&entity),
+                    name: name.clone(),
+                }),
+                _ => None,
+            })
+            .collect();
+        let backdrop = Backdrop {
+            camera: Camera::of(Some(camera.get()), stage.get().min),
+            stage: stage.get(),
+            background: theme.background.get(),
+            label: theme.text_muted.get(),
+            artboards,
+        };
+        if shown.borrow().as_ref() == Some(&backdrop) {
+            return;
+        }
+        *shown.borrow_mut() = Some(backdrop.clone());
+        set_draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
+            backdrop.draw(&painter.in_document())
+        }));
+    }));
+    let x = create_memo(clone!(visible -> move || visible.get().left()));
+    let y = create_memo(clone!(visible -> move || visible.get().top()));
+    let width = create_memo(clone!(visible -> move || visible.get().width().max(1.0)));
+    let height = create_memo(clone!(visible -> move || visible.get().height().max(1.0)));
+    view! {
+        <CanvasItem
+            x={x}
+            y={y}
+            width={width}
+            height={height}
+            @test_id={"infinite-canvas.backdrop"}
+        >
             <Drawing draw={draw} />
         </CanvasItem>
     }

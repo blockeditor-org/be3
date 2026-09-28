@@ -12,7 +12,7 @@ fn a_direct_editor_entity_draws_the_frame_it_reserves() {
     placed.transform =
         CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(240.0, 180.0), 0.0);
     let mut editor = open(
-        &Canvas::with_entities([placed.clone()], None),
+        &Canvas::with_entities([placed.clone()]),
         false,
         &[BlockInfo::new(
             counter,

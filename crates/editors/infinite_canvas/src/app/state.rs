@@ -7,15 +7,14 @@ use crate::presence::CanvasCursor;
 use block_editor_beui::BlockList;
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::ImageContent;
-use block_editor_beui::be_block::canvas::Canvas;
 use block_editor_beui::be_block::canvas::{
     CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
-    CanvasLayerMove, CanvasPoint, CanvasPreviewRegion, CanvasTextStyle, CanvasTransform,
-    InfiniteCanvasOperation,
+    CanvasLayerMove, CanvasPoint, CanvasTextStyle, CanvasTransform, InfiniteCanvasOperation,
+    first_artboard,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
-use block_editor_beui::be_block::{CanvasContent, ObjectId};
+use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::beui::reactive::{
     CanvasView, ReadSignal, WriteSignal, create_effect, create_signal, untrack,
 };
@@ -80,6 +79,7 @@ pub(crate) fn common_value<T: Copy + PartialEq>(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Tool {
     Select,
+    Artboard,
     Line,
     Rectangle,
     Text,
@@ -242,7 +242,6 @@ pub(crate) struct CanvasState {
     last_fill: Cell<Option<CanvasColor>>,
     children: RefCell<HashMap<Uuid, ChildState>>,
     pub(crate) entities: ReadSignal<Vec<CanvasEntity>>,
-    pub(crate) preview_region: ReadSignal<Option<CanvasPreviewRegion>>,
     pub(crate) tool: ReadSignal<Tool>,
     set_tool: WriteSignal<Tool>,
     pub(crate) selection: ReadSignal<HashSet<Uuid>>,
@@ -278,8 +277,6 @@ impl CanvasState {
     pub(crate) fn new(editor: &Editor, preview: bool) -> Rc<Self> {
         let content = editor.block_content::<CanvasContent>();
         let entities = content.project(|canvas| canvas.root().entities());
-        let preview_region =
-            content.project(|canvas| canvas.field(ObjectId::ROOT, Canvas::PREVIEW_REGION));
         let (tool, set_tool) = create_signal(Tool::Select);
         let (selection, set_selection) = create_signal(HashSet::new());
         let (gesture, set_gesture) = create_signal(None);
@@ -314,7 +311,6 @@ impl CanvasState {
             last_fill: Cell::new(CanvasEntityStyle::default().fill),
             children: RefCell::new(HashMap::new()),
             entities,
-            preview_region,
             tool,
             set_tool,
             selection,
@@ -374,12 +370,7 @@ impl CanvasState {
 
     pub(crate) fn centre(&self) -> CanvasPoint {
         match self.preview {
-            true => {
-                self.preview_region
-                    .get()
-                    .unwrap_or_else(|| preview_region_for_entities(&self.entities.get()))
-                    .center
-            }
+            true => embedded_region(&self.entities.get()).center(),
             false => CanvasPoint::default(),
         }
     }
@@ -676,9 +667,13 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn request_fit_preview_region(&self) {
-        if let Some(region) = self.preview_region.get_untracked() {
-            self.fit_into_view(preview_region_bounds(region));
+    pub(crate) fn first_artboard(&self) -> Option<CanvasEntity> {
+        first_artboard(&self.entities.get()).cloned()
+    }
+
+    pub(crate) fn request_fit_artboard(&self) {
+        if let Some(artboard) = first_artboard(&self.entities.get_untracked()) {
+            self.fit_into_view(entity_bounds(artboard));
         }
     }
 
@@ -750,12 +745,20 @@ impl CanvasState {
     }
 
     pub(crate) fn entity_at(&self, point: CanvasPoint) -> Option<Uuid> {
-        let radius = HIT_RADIUS / self.scale();
-        self.entities
-            .get_untracked()
-            .iter()
+        let scale = self.scale();
+        let radius = HIT_RADIUS / scale;
+        let entities = self.entities.get_untracked();
+        let (artboards, drawn): (Vec<_>, Vec<_>) =
+            entities.iter().partition(|entity| entity.is_artboard());
+        drawn
+            .into_iter()
             .rev()
             .find(|entity| hit_entity(entity, point, radius))
+            .or_else(|| {
+                artboards.into_iter().rev().find(|entity| {
+                    artboard_label_hit(entity, point, scale) || hit_entity(entity, point, radius)
+                })
+            })
             .map(|entity| entity.id)
     }
 
@@ -1246,17 +1249,6 @@ impl CanvasState {
         self.record_update(before, after, true);
     }
 
-    pub(crate) fn set_preview_region(&self, region: Option<CanvasPreviewRegion>) {
-        self.record(InfiniteCanvasOperation::SetPreviewRegion { region });
-    }
-
-    pub(crate) fn set_preview_region_grouped(&self, region: CanvasPreviewRegion) {
-        self.grouped_edit.set(true);
-        self.operate(&InfiniteCanvasOperation::SetPreviewRegion {
-            region: Some(region),
-        });
-    }
-
     pub(crate) fn replace_referenced_block(&self, old: Uuid, new: Uuid) -> bool {
         let replaced = self
             .entities
@@ -1410,6 +1402,7 @@ impl CanvasState {
                     let state = self.peek_child(entity.id);
                     !state.placed || state.capabilities.rotation
                 }
+                CanvasEntityKind::Artboard { .. } => false,
                 _ => true,
             })
     }
@@ -1537,9 +1530,12 @@ impl CanvasState {
                 ..
             } => {
                 if let Some(entity) = self.created_entity(tool, start, current, from_center) {
-                    let text = matches!(entity.kind, CanvasEntityKind::Text { .. });
+                    let done = matches!(
+                        entity.kind,
+                        CanvasEntityKind::Text { .. } | CanvasEntityKind::Artboard { .. }
+                    );
                     self.add_entity(entity);
-                    if text {
+                    if done {
                         self.put_down_tool();
                     }
                 }
@@ -1669,6 +1665,29 @@ impl CanvasState {
                     components: Vec::new(),
                 })
             }
+            Tool::Artboard => {
+                let bounds = gesture_rect(start, current, from_center);
+                if bounds.size().x < MIN_SIZE || bounds.size().y < MIN_SIZE {
+                    return None;
+                }
+                let count = self
+                    .entities
+                    .get_untracked()
+                    .iter()
+                    .filter(|entity| entity.is_artboard())
+                    .count();
+                Some(CanvasEntity {
+                    id: Uuid::new_v4(),
+                    transform: CanvasTransform::new(bounds.center(), bounds.size(), 0.0),
+                    kind: CanvasEntityKind::Artboard {
+                        name: format!("Artboard {}", count + 1),
+                    },
+                    style: CanvasEntityStyle::default(),
+                    group_id: None,
+                    locked: false,
+                    components: Vec::new(),
+                })
+            }
             Tool::Line | Tool::Select | Tool::Pen => None,
         }
     }
@@ -1724,7 +1743,7 @@ impl CanvasState {
             let Some(size) = resized.get() else {
                 return;
             };
-            untrack(|| state.resize_preview_region(size));
+            untrack(|| state.resize_first_artboard(size));
         });
         let state = Rc::clone(self);
         let revealed = self.editor.revealed();
@@ -1909,20 +1928,18 @@ impl CanvasState {
         }
     }
 
-    fn resize_preview_region(&self, size: Vec2) {
-        let Some(region) = self.preview_region.get_untracked() else {
+    fn resize_first_artboard(&self, size: Vec2) {
+        let Some(artboard) = first_artboard(&self.entities.get_untracked()).cloned() else {
             return;
         };
-        let updated = CanvasPreviewRegion::new(
-            region.center,
-            CanvasPoint::new(size.x.max(MIN_SIZE), size.y.max(MIN_SIZE)),
-        );
-        if (updated.size.x - region.size.x).abs() < 0.01
-            && (updated.size.y - region.size.y).abs() < 0.01
-        {
+        let wanted = CanvasPoint::new(size.x.max(MIN_SIZE), size.y.max(MIN_SIZE));
+        let held = artboard.transform.size;
+        if (wanted.x - held.x).abs() < 0.01 && (wanted.y - held.y).abs() < 0.01 {
             return;
         }
-        self.set_preview_region(Some(updated));
+        let mut resized = artboard.clone();
+        resized.transform.size = wanted;
+        self.record_update(vec![artboard], vec![resized], false);
     }
 
     fn reveal_peer(&self, client_id: u64) {

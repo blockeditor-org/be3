@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasPreviewRegion,
-    CanvasTextStyle, CanvasTransform,
+    CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasTextStyle,
+    CanvasTransform, first_artboard,
 };
 use block_editor_beui::beui::{Pos2, Rect, Vec2, pos2};
 use block_editor_beui::block_ui::{
@@ -16,6 +16,7 @@ pub(crate) const HANDLE_REACH: f32 = HANDLE_RADIUS + 3.0;
 pub(crate) const TOUCH_HANDLE_REACH: f32 = 22.0;
 pub(crate) const ROTATE_OFFSET: f32 = 28.0;
 pub(crate) const IMPORT_CASCADE_OFFSET: f32 = 24.0;
+pub(crate) const ARTBOARD_LABEL_HEIGHT: f32 = 20.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct WorldRect {
@@ -189,28 +190,40 @@ pub(crate) fn entity_kind_label(kind: &CanvasEntityKind) -> &'static str {
         CanvasEntityKind::Pen { .. } => "Freehand",
         CanvasEntityKind::Block { .. } => "Block preview",
         CanvasEntityKind::DirectEditor { .. } => "Direct editor",
+        CanvasEntityKind::Artboard { .. } => "Artboard",
     }
 }
 
-pub(crate) fn preview_region_for_entities(entities: &[CanvasEntity]) -> CanvasPreviewRegion {
+pub(crate) fn embedded_region(entities: &[CanvasEntity]) -> WorldRect {
+    if let Some(artboard) = first_artboard(entities) {
+        return entity_bounds(artboard);
+    }
     let bounds = entities.iter().map(entity_bounds).reduce(WorldRect::union);
-    bounds.map_or_else(
-        || CanvasPreviewRegion::new(CanvasPoint::default(), CanvasPoint::new(100.0, 100.0)),
+    let (center, size) = bounds.map_or_else(
+        || (CanvasPoint::default(), CanvasPoint::new(100.0, 100.0)),
         |bounds| {
-            CanvasPreviewRegion::new(
+            (
                 bounds.center(),
                 CanvasPoint::new(bounds.size().x.max(100.0), bounds.size().y.max(100.0)),
             )
         },
-    )
+    );
+    WorldRect {
+        min: CanvasPoint::new(center.x - size.x * 0.5, center.y - size.y * 0.5),
+        max: CanvasPoint::new(center.x + size.x * 0.5, center.y + size.y * 0.5),
+    }
 }
 
-pub(crate) fn preview_region_bounds(region: CanvasPreviewRegion) -> WorldRect {
-    let half = CanvasPoint::new(region.size.x * 0.5, region.size.y * 0.5);
-    WorldRect {
-        min: CanvasPoint::new(region.center.x - half.x, region.center.y - half.y),
-        max: CanvasPoint::new(region.center.x + half.x, region.center.y + half.y),
+pub(crate) fn artboard_label_hit(entity: &CanvasEntity, point: CanvasPoint, scale: f32) -> bool {
+    if !entity.is_artboard() {
+        return false;
     }
+    let bounds = entity_bounds(entity);
+    let height = ARTBOARD_LABEL_HEIGHT / scale.max(f32::EPSILON);
+    point.x >= bounds.min.x
+        && point.x <= bounds.max.x
+        && point.y >= bounds.min.y - height
+        && point.y <= bounds.min.y
 }
 
 pub(crate) fn midpoint(a: CanvasPoint, b: CanvasPoint) -> CanvasPoint {
@@ -357,7 +370,9 @@ pub(crate) fn hit_entity(entity: &CanvasEntity, point: CanvasPoint, radius: f32)
                 local_to_world(entity.transform, segment[1]),
             ) <= radius
         }),
-        CanvasEntityKind::Rectangle if entity.style.fill.is_none() => {
+        CanvasEntityKind::Rectangle | CanvasEntityKind::Artboard { .. }
+            if entity.style.fill.is_none() || entity.is_artboard() =>
+        {
             let local = world_to_local(entity.transform, point);
             let hit_radius = radius + entity.style.line_width * 0.5;
             let x_radius = hit_radius / entity.transform.size.x.max(MIN_SIZE);

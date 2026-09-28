@@ -36,18 +36,6 @@ impl CanvasTransform {
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
-pub struct CanvasPreviewRegion {
-    pub center: CanvasPoint,
-    pub size: CanvasPoint,
-}
-
-impl CanvasPreviewRegion {
-    pub const fn new(center: CanvasPoint, size: CanvasPoint) -> Self {
-        Self { center, size }
-    }
-}
-
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CanvasEntityKind {
@@ -67,6 +55,9 @@ pub enum CanvasEntityKind {
     DirectEditor {
         block_id: Uuid,
         scale: f32,
+    },
+    Artboard {
+        name: String,
     },
 }
 
@@ -192,15 +183,11 @@ pub enum InfiniteCanvasOperation {
     ExactOrder {
         ids: Vec<Uuid>,
     },
-    SetPreviewRegion {
-        region: Option<CanvasPreviewRegion>,
-    },
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct Canvas {
     pub entities: List<Entity>,
-    pub preview_region: Option<CanvasPreviewRegion>,
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
@@ -279,16 +266,12 @@ impl Component {
 }
 
 impl Canvas {
-    pub fn with_entities(
-        entities: impl IntoIterator<Item = CanvasEntity>,
-        preview_region: Option<CanvasPreviewRegion>,
-    ) -> Self {
+    pub fn with_entities(entities: impl IntoIterator<Item = CanvasEntity>) -> Self {
         Self {
             entities: entities
                 .into_iter()
                 .map(|entity| Entity::of(&normalized_entity(entity)))
                 .collect(),
-            preview_region: preview_region.map(normalized_preview_region),
         }
     }
 
@@ -343,9 +326,6 @@ impl Canvas {
                 let order: Vec<Uuid> = self.entities.iter().map(|held| held.entity).collect();
                 self.reorder_to(&exactly_ordered(&order, ids), ids)
             }
-            InfiniteCanvasOperation::SetPreviewRegion { region } => Self::PREVIEW_REGION
-                .set(ObjectId::ROOT, &region.map(normalized_preview_region))
-                .into(),
         }
     }
 
@@ -624,31 +604,38 @@ impl Root for Canvas {
 }
 
 pub fn normalized_entity(mut entity: CanvasEntity) -> CanvasEntity {
-    if let CanvasEntityKind::DirectEditor { scale, .. } = &mut entity.kind {
-        entity.transform.rotation = 0.0;
-        if !scale.is_finite() || *scale <= 0.0 {
-            *scale = 1.0;
+    match &mut entity.kind {
+        CanvasEntityKind::DirectEditor { scale, .. } => {
+            entity.transform.rotation = 0.0;
+            if !scale.is_finite() || *scale <= 0.0 {
+                *scale = 1.0;
+            }
         }
+        CanvasEntityKind::Artboard { .. } => {
+            entity.transform.rotation = 0.0;
+            let size = &mut entity.transform.size;
+            size.x = match size.x.is_finite() {
+                true => size.x.abs().max(1.0),
+                false => 100.0,
+            };
+            size.y = match size.y.is_finite() {
+                true => size.y.abs().max(1.0),
+                false => 100.0,
+            };
+        }
+        _ => {}
     }
     entity
 }
 
-pub fn normalized_preview_region(mut region: CanvasPreviewRegion) -> CanvasPreviewRegion {
-    if !region.center.x.is_finite() {
-        region.center.x = 0.0;
+impl CanvasEntity {
+    pub fn is_artboard(&self) -> bool {
+        matches!(self.kind, CanvasEntityKind::Artboard { .. })
     }
-    if !region.center.y.is_finite() {
-        region.center.y = 0.0;
-    }
-    if !region.size.x.is_finite() {
-        region.size.x = 100.0;
-    }
-    if !region.size.y.is_finite() {
-        region.size.y = 100.0;
-    }
-    region.size.x = region.size.x.abs().max(1.0);
-    region.size.y = region.size.y.abs().max(1.0);
-    region
+}
+
+pub fn first_artboard(entities: &[CanvasEntity]) -> Option<&CanvasEntity> {
+    entities.iter().find(|entity| entity.is_artboard())
 }
 
 pub type CanvasContent = Document<Canvas>;

@@ -1,8 +1,7 @@
 use std::rc::Rc;
 
 use block_editor_beui::be_block::canvas::{
-    CanvasColor, CanvasEntity, CanvasEntityKind, CanvasLayerMove, CanvasPoint, CanvasPreviewRegion,
-    CanvasTextAlign, CanvasTextWeight,
+    CanvasColor, CanvasEntity, CanvasEntityKind, CanvasLayerMove, CanvasTextAlign, CanvasTextWeight,
 };
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
@@ -96,7 +95,7 @@ pub(crate) fn CanvasSidebar(
 
 #[component]
 fn Inspector(state: Rc<CanvasState>) -> NodeId {
-    let region = Rc::clone(&state);
+    let artboard = Rc::clone(&state);
     let summary = Rc::clone(&state);
     let transform = Rc::clone(&state);
     let block = Rc::clone(&state);
@@ -105,6 +104,9 @@ fn Inspector(state: Rc<CanvasState>) -> NodeId {
     let arrange = Rc::clone(&state);
     let empty = create_memo(clone!(state -> move || state.selection.get().is_empty()));
     let chosen = create_memo(clone!(empty -> move || !empty.get()));
+    let styled = create_memo(clone!(state -> move || {
+        state.selected_entities().iter().any(|entity| !entity.is_artboard())
+    }));
     view! {
         <List spacing=SPACING>
             <SelectionSummary state={summary} />
@@ -113,140 +115,72 @@ fn Inspector(state: Rc<CanvasState>) -> NodeId {
             </Show>
             <Show condition={chosen.clone()}>
                 <List spacing=SPACING>
-                    <AppearanceSection state={appearance} />
+                    <Show condition={styled}>
+                        <AppearanceSection state={appearance} />
+                    </Show>
                     <TransformSection state={transform} />
                     <ArrangeSection state={arrange} />
+                    <ArtboardSection state={artboard} />
                     <BlockSection state={block} />
                     <CanvasComponents state={components} />
                 </List>
             </Show>
             <Separator />
-            <PreviewRegionSection state={region} />
             <ShortcutsSection />
         </List>
     }
 }
 
 #[component]
-fn PreviewRegionSection(state: Rc<CanvasState>) -> NodeId {
-    let (open, set_open) = create_signal(false);
-    let enabled = create_memo(clone!(state -> move || state.preview_region.get().is_some()));
-    let absent = create_memo(clone!(enabled -> move || !enabled.get()));
-    let toggled = clone!(state -> move |wanted: bool| {
-        let region = wanted.then(|| preview_region_for_entities(&state.entities.get_untracked()));
-        state.set_preview_region(region);
-    });
-    let fields = Rc::clone(&state);
-    let fit = clone!(state -> move || {
-        state.set_preview_region(Some(preview_region_for_entities(
-            &state.entities.get_untracked(),
-        )));
+fn ArtboardSection(state: Rc<CanvasState>) -> NodeId {
+    let (open, set_open) = create_signal(true);
+    let artboard = create_memo(clone!(state -> move || {
+        let selected = state.selected_entities();
+        let [entity] = selected.as_slice() else {
+            return None;
+        };
+        entity.is_artboard().then(|| entity.clone())
+    }));
+    let shown = create_memo(clone!(artboard -> move || artboard.get().is_some()));
+    let name = create_memo(clone!(artboard -> move || match artboard.get().map(|entity| entity.kind) {
+        Some(CanvasEntityKind::Artboard { name }) => name,
+        _ => String::new(),
+    }));
+    let locked = create_memo(clone!(artboard -> move || {
+        artboard.get().is_none_or(|entity| entity.locked)
+    }));
+    let first = create_memo(clone!(state artboard -> move || {
+        artboard.get().is_some_and(|entity| {
+            state.first_artboard().is_some_and(|first| first.id == entity.id)
+        })
+    }));
+    let renamed = clone!(state artboard -> move |name: String| {
+        let Some(held) = artboard.get_untracked() else { return };
+        let mut updated = held.clone();
+        updated.kind = CanvasEntityKind::Artboard { name };
+        state.record_update(vec![held], vec![updated], true);
     });
     view! {
-        <Accordion title="Canvas preview" open={open} on_toggle={move |open| set_open.set(open)}>
-            <List spacing=SPACING>
-                <Checkbox
-                    label="Use preview region"
-                    checked={enabled.clone()}
-                    @test_id={"infinite-canvas.preview-region"}
-                    on_change={toggled}
-                />
-                <Show condition={absent}>
-                    <Caption
-                        content="Without a region, previews use the canvas content extents."
-                        wrap=true
-                    />
-                </Show>
-                <Show condition={enabled}>
+        <List spacing=0.0>
+            <Show condition={shown}>
+                <Accordion title="Artboard" open={open} on_toggle={move |open| set_open.set(open)}>
                     <List spacing=6.0>
-                        <PreviewRegionFields state={fields} />
-                        <Button
-                            label="Fit region to content"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"infinite-canvas.fit-region"}
-                            on_click={fit}
+                        <TextInput
+                            label="Name"
+                            value={name}
+                            disabled={locked}
+                            @test_id={"infinite-canvas.artboard.name"}
+                            on_change={renamed}
                         />
+                        <Show condition={first}>
+                            <Caption
+                                content="The first artboard is what other editors show when they embed this canvas."
+                                wrap=true
+                            />
+                        </Show>
                     </List>
-                </Show>
-            </List>
-        </Accordion>
-    }
-}
-
-#[component]
-fn PreviewRegionFields(state: Rc<CanvasState>) -> NodeId {
-    let region = create_memo(
-        clone!(state -> move || state.preview_region.get().unwrap_or(
-            CanvasPreviewRegion::new(CanvasPoint::default(), CanvasPoint::new(100.0, 100.0))
-        )),
-    );
-    let edit = move |state: &Rc<CanvasState>, region: CanvasPreviewRegion| {
-        state.set_preview_region_grouped(region);
-    };
-    let x = clone!(state region -> move |value: f64| {
-        let mut next = region.get_untracked();
-        next.center.x = value as f32;
-        edit(&state, next);
-    });
-    let y = clone!(state region -> move |value: f64| {
-        let mut next = region.get_untracked();
-        next.center.y = value as f32;
-        edit(&state, next);
-    });
-    let width = clone!(state region -> move |value: f64| {
-        let mut next = region.get_untracked();
-        next.size.x = (value as f32).max(MIN_SIZE);
-        edit(&state, next);
-    });
-    let height = clone!(state region -> move |value: f64| {
-        let mut next = region.get_untracked();
-        next.size.y = (value as f32).max(MIN_SIZE);
-        edit(&state, next);
-    });
-    let center_x = create_memo(clone!(region -> move || region.get().center.x as f64));
-    let center_y = create_memo(clone!(region -> move || region.get().center.y as f64));
-    let size_x = create_memo(clone!(region -> move || region.get().size.x as f64));
-    let size_y = create_memo(clone!(region -> move || region.get().size.y as f64));
-    view! {
-        <List spacing=6.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Caption content="X" />
-                <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
-                    label="X"
-                    value={center_x}
-                    @test_id={"infinite-canvas.region.x"}
-                    on_change={x}
-                />
-                <Caption content="Y" />
-                <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
-                    label="Y"
-                    value={center_y}
-                    @test_id={"infinite-canvas.region.y"}
-                    on_change={y}
-                />
-            </List>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Caption content="W" />
-                <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
-                    label="W"
-                    min={MIN_SIZE as f64}
-                    value={size_x}
-                    @test_id={"infinite-canvas.region.width"}
-                    on_change={width}
-                />
-                <Caption content="H" />
-                <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
-                    label="H"
-                    min={MIN_SIZE as f64}
-                    value={size_y}
-                    @test_id={"infinite-canvas.region.height"}
-                    on_change={height}
-                />
-            </List>
+                </Accordion>
+            </Show>
         </List>
     }
 }
@@ -670,7 +604,9 @@ pub(crate) fn styled_entities(state: &Rc<CanvasState>) -> Vec<CanvasEntity> {
         .filter(|entity| {
             !matches!(
                 entity.kind,
-                CanvasEntityKind::Block { .. } | CanvasEntityKind::DirectEditor { .. }
+                CanvasEntityKind::Block { .. }
+                    | CanvasEntityKind::DirectEditor { .. }
+                    | CanvasEntityKind::Artboard { .. }
             )
         })
         .collect()
@@ -723,7 +659,9 @@ pub(crate) fn set_foreground(state: &Rc<CanvasState>, color: CanvasColor) {
         |kind| {
             !matches!(
                 kind,
-                CanvasEntityKind::Block { .. } | CanvasEntityKind::DirectEditor { .. }
+                CanvasEntityKind::Block { .. }
+                    | CanvasEntityKind::DirectEditor { .. }
+                    | CanvasEntityKind::Artboard { .. }
             )
         },
         |style| style.foreground = color,

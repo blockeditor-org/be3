@@ -12,7 +12,7 @@ use super::state::{CanvasCommand, CanvasState, Gesture, Tool};
 impl CanvasState {
     pub(crate) fn cursor(&self) -> CursorIcon {
         match self.tool.get() {
-            Tool::Line | Tool::Rectangle | Tool::Pen => CursorIcon::Crosshair,
+            Tool::Line | Tool::Rectangle | Tool::Pen | Tool::Artboard => CursorIcon::Crosshair,
             Tool::Text => CursorIcon::Text,
             Tool::Select => self.select_cursor(),
         }
@@ -107,7 +107,7 @@ impl CanvasState {
         }
         match self.tool.get_untracked() {
             Tool::Select => self.press_select(press, world),
-            Tool::Line | Tool::Rectangle | Tool::Text => {
+            Tool::Line | Tool::Rectangle | Tool::Text | Tool::Artboard => {
                 self.begin_gesture(Some(Gesture::Create {
                     tool: self.tool.get_untracked(),
                     start: world,
@@ -244,7 +244,7 @@ impl CanvasState {
                 pointer,
                 from_center,
             } => {
-                if *tool == Tool::Rectangle {
+                if matches!(*tool, Tool::Rectangle | Tool::Artboard) {
                     let delta = CanvasPoint::new(world.x - pointer.x, world.y - pointer.y);
                     if modifiers.ctrl {
                         start.x += delta.x;
@@ -355,6 +355,7 @@ impl CanvasState {
                 Key::L => Some(Tool::Line),
                 Key::T => Some(Tool::Text),
                 Key::P => Some(Tool::Pen),
+                Key::F => Some(Tool::Artboard),
                 _ => None,
             };
             if let Some(tool) = tool {
@@ -431,7 +432,7 @@ impl CanvasState {
                     placeholder: "Text".into(),
                 },
             )),
-            Tool::Select | Tool::Pen => None,
+            Tool::Select | Tool::Pen | Tool::Artboard => None,
         };
         let Some((size, kind)) = entity else {
             self.set_tool(tool);
