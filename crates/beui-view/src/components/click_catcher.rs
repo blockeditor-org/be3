@@ -26,6 +26,7 @@ pub fn ClickCatcher(
     on_hover_move: Callback<PointerPress>,
     on_active_change: Callback<bool>,
     on_cancel: ClickCallback,
+    on_middle_click: ClickCallback,
     on_press: Callback<PointerPress>,
     on_secondary_press: Callback<PointerPress>,
     on_secondary_drag: Callback<SecondaryDrag>,
@@ -50,6 +51,7 @@ pub fn ClickCatcher(
         node.on_hover_move = on_hover_move;
         node.on_active_change = on_active_change;
         node.on_cancel = on_cancel;
+        node.on_middle_click = on_middle_click;
         node.on_press = on_press;
         node.on_secondary_press = on_secondary_press;
         node.on_secondary_drag = on_secondary_drag;

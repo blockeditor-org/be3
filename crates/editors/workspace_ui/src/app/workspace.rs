@@ -23,9 +23,7 @@ use super::panel::BlockPanel;
 use super::tab::TabItem;
 
 pub(crate) const FILES: TabId = TabId::new(1);
-pub(crate) const EMPTY: TabId = TabId::new(2);
-
-const FIRST_BLOCK_TAB: u64 = 3;
+const FIRST_BLOCK_TAB: u64 = 2;
 const FILES_SHARE: f32 = 0.22;
 const COMPACT_FILES_WIDTH: f32 = 700.0;
 const MAX_OPENED_VIA_HOPS: usize = 64;
@@ -58,6 +56,7 @@ pub(crate) struct Workspace {
     set_routes: WriteSignal<u64>,
     next_tab: Cell<u64>,
     active: Cell<Option<Uuid>>,
+    compact: Cell<bool>,
 }
 
 impl Workspace {
@@ -94,6 +93,7 @@ impl Workspace {
             set_routes,
             next_tab: Cell::new(FIRST_BLOCK_TAB),
             active: Cell::new(None),
+            compact: Cell::new(false),
         });
         let shows = workspace.editor.pushed(Pushed::Shows);
         let showing = Rc::downgrade(&workspace);
@@ -336,7 +336,7 @@ impl Workspace {
         self.set_tabs.set(tabs);
         let mut layout = self.layout.get_untracked();
         place_tab(&mut layout, tab);
-        self.set_layout.set(settled(layout));
+        self.set_layout.set(settled(layout, self.compact.get()));
         self.active.set(Some(item.id));
     }
 
@@ -377,13 +377,14 @@ impl Workspace {
     }
 
     fn changed(&self, next: DockState) {
-        self.set_layout.set(settled(next));
+        self.set_layout.set(settled(next, self.compact.get()));
     }
 
     fn set_compact(&self, compact: bool) {
+        self.compact.set(compact);
         let mut layout = self.layout.get_untracked();
         set_files_compact(&mut layout, compact);
-        self.set_layout.set(layout);
+        self.set_layout.set(settled(layout, compact));
     }
 
     pub(crate) fn can_edit(&self, id: Uuid) -> bool {
@@ -468,23 +469,22 @@ impl Workspace {
 pub(crate) fn starting_layout() -> DockState {
     let mut state = DockState::new([FILES]);
     let files = state.leaves(state.main())[0];
-    state.split(files, Side::Right, 1.0 - FILES_SHARE, vec![EMPTY]);
+    state.split(files, Side::Right, 1.0 - FILES_SHARE, Vec::new());
     state
 }
 
-pub(crate) fn settled(mut state: DockState) -> DockState {
-    let open = state
-        .all_tabs()
-        .into_iter()
-        .any(|tab| tab != FILES && tab != EMPTY);
-    if open {
-        state.remove(EMPTY);
+pub(crate) fn settled(mut state: DockState, compact: bool) -> DockState {
+    let open = state.all_tabs().into_iter().any(|tab| tab != FILES);
+    if open || compact {
+        state.remove_empty_panes();
         return state;
     }
-    if state.contains(EMPTY) {
+    if !state.empty_panes().is_empty() {
         return state;
     }
-    place_tab(&mut state, EMPTY);
+    if let Some(files) = files_only_leaf(&state) {
+        state.split(files, Side::Right, 1.0 - FILES_SHARE, Vec::new());
+    }
     state
 }
 
@@ -510,10 +510,6 @@ fn editor_leaf(state: &DockState) -> Option<LeafId> {
 }
 
 pub(crate) fn place_tab(state: &mut DockState, tab: TabId) {
-    if state.replace(EMPTY, tab) {
-        state.show(tab);
-        return;
-    }
     let files = state.find(FILES).map(|position| position.leaf);
     match (editor_leaf(state), files) {
         (Some(leaf), _) => state.push(leaf, tab),
@@ -595,7 +591,6 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let title = Func::new(move |tab: TabId| match tab {
         FILES => "Files".to_owned(),
-        EMPTY => "Workspace".to_owned(),
         tab => titles.with(|titles| {
             titles
                 .get(&tab)
@@ -617,18 +612,18 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                     @sizing=ItemSize::Percent(100.0)
                     state={layout}
                     title={title}
-                    closable={Func::new(|tab: TabId| tab != FILES && tab != EMPTY)}
+                    closable={Func::new(|tab: TabId| tab != FILES)}
                     on_change={move |next: DockState| changing.changed(next)}
                     on_close={move |tab: TabId| closing.close(tab)}
+                    empty={move || view! {
+                        <EmptyPanel />
+                    }}
                 >
                     {move |tab: TabId| {
                         let workspace = Rc::clone(&content);
                         match tab {
                             FILES => view! {
                                 <FilesPanel workspace={workspace} />
-                            },
-                            EMPTY => view! {
-                                <EmptyPanel />
                             },
                             tab => view! {
                                 <BlockPanel workspace={workspace} tab={tab} />
