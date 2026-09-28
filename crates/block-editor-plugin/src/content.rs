@@ -65,6 +65,7 @@ pub struct ContentProjection<C: LiveEdit> {
     announced: ReadSignal<u64>,
     announce: WriteSignal<u64>,
     loaded_signals: RefCell<Vec<WriteSignal<bool>>>,
+    due: RefCell<Option<Rc<dyn Fn()>>>,
 }
 
 impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
@@ -86,7 +87,12 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
             announced,
             announce,
             loaded_signals: RefCell::new(Vec::new()),
+            due: RefCell::new(None),
         }
+    }
+
+    pub fn on_due(&self, due: impl Fn() + 'static) {
+        *self.due.borrow_mut() = Some(Rc::new(due));
     }
 
     pub fn content_type(&self) -> uuid::Uuid {
@@ -105,13 +111,13 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
 
     pub fn revision(&self) -> Option<u64> {
         self.announced.get();
-        self.adopt();
+        self.adopt_lazily();
         self.loaded.get().then(|| self.revision.get())
     }
 
     pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
         self.announced.get();
-        self.adopt();
+        self.adopt_lazily();
         self.loaded.get().then(|| read(&self.visible.borrow()))
     }
 
@@ -211,6 +217,17 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
                 run(&self.visible.borrow());
             }
         });
+    }
+
+    fn adopt_lazily(&self) {
+        self.adopt();
+        if self.touched.borrow().is_empty() {
+            return;
+        }
+        let due = self.due.borrow().clone();
+        if let Some(due) = due {
+            due();
+        }
     }
 
     fn adopt(&self) {

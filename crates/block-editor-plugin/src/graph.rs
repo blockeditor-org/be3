@@ -202,6 +202,7 @@ pub(crate) struct GraphState {
     revision: ReadSignal<u64>,
     set_revision: WriteSignal<u64>,
     dirty: Cell<bool>,
+    deferred: Cell<u64>,
     ready: RefCell<Option<Rc<dyn Fn() -> bool>>>,
     commands: RefCell<Vec<GraphCommand>>,
 }
@@ -217,6 +218,7 @@ impl Default for GraphState {
             revision,
             set_revision,
             dirty: Cell::default(),
+            deferred: Cell::default(),
             ready: RefCell::default(),
             commands: RefCell::default(),
         }
@@ -232,8 +234,15 @@ impl GraphState {
         let ready = self.ready.borrow().clone();
         match ready.is_none_or(|ready| ready()) {
             true => self.set_revision.update(|revision| *revision += 1),
-            false => self.dirty.set(true),
+            false => {
+                self.dirty.set(true);
+                self.deferred.set(self.deferred.get() + 1);
+            }
         }
+    }
+
+    pub(crate) fn deferred(&self) -> u64 {
+        self.deferred.get()
     }
 
     pub(crate) fn flush(&self) {
