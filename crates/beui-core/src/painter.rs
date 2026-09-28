@@ -383,7 +383,7 @@ impl Painter {
     }
 
     pub fn galley(&self, origin: Pos2, galley: Galley, color: Color32) {
-        if color.alpha() == 0 || galley.glyphs().is_empty() {
+        if color.alpha() == 0 || galley.is_blank() {
             return;
         }
         self.push(Shape::Text {

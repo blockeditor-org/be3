@@ -133,6 +133,8 @@ pub struct Galley {
 }
 
 struct GalleyData {
+    text: Rc<str>,
+    font: FontId,
     size: Vec2,
     line_height: f32,
     baseline: f32,
@@ -162,6 +164,8 @@ impl GalleyLine {
 
 impl Galley {
     pub fn new(
+        text: &str,
+        font: FontId,
         size: Vec2,
         line_height: f32,
         baseline: f32,
@@ -170,6 +174,8 @@ impl Galley {
     ) -> Self {
         Self {
             inner: Rc::new(GalleyData {
+                text: text.into(),
+                font,
                 size,
                 line_height,
                 baseline,
@@ -188,6 +194,22 @@ impl PartialEq for Galley {
 }
 
 impl Galley {
+    pub fn text(&self) -> &str {
+        &self.inner.text
+    }
+
+    pub fn font(&self) -> FontId {
+        self.inner.font
+    }
+
+    pub fn is_blank(&self) -> bool {
+        self.inner.text.chars().all(char::is_whitespace)
+    }
+
+    pub fn lines(&self) -> &[GalleyLine] {
+        &self.inner.lines
+    }
+
     pub fn size(&self) -> Vec2 {
         self.inner.size
     }
@@ -376,6 +398,52 @@ fn pixel_bounds(glyphs: &[Glyph]) -> [f32; 4] {
     bounds
 }
 
+pub fn break_lines<T>(
+    steps: &[T],
+    text: &str,
+    wrap: f32,
+    step: impl Fn(&T) -> (usize, f32),
+) -> Vec<Range<usize>> {
+    let mut lines = Vec::new();
+    if steps.is_empty() {
+        lines.push(0..0);
+        return lines;
+    }
+    if !wrap.is_finite() {
+        lines.push(0..steps.len());
+        return lines;
+    }
+
+    let advance = |item: &T| step(item).1;
+    let mut start = 0;
+    let mut width = 0.0;
+    let mut candidate = None;
+
+    for (index, item) in steps.iter().enumerate() {
+        let (cluster, x_advance) = step(item);
+        if index > start && width + x_advance > wrap {
+            let end = candidate.filter(|end| *end > start).unwrap_or(index);
+            lines.push(start..end);
+            start = end;
+            width = steps[start..index].iter().map(advance).sum();
+            candidate = None;
+        }
+        if index > start && follows_whitespace(text, cluster) {
+            candidate = Some(index);
+        }
+        width += x_advance;
+    }
+
+    lines.push(start..steps.len());
+    lines
+}
+
+fn follows_whitespace(text: &str, cluster: usize) -> bool {
+    text.get(..cluster)
+        .and_then(|before| before.chars().next_back())
+        .is_some_and(char::is_whitespace)
+}
+
 pub trait FontBackend {
     fn build(
         &mut self,
@@ -385,6 +453,10 @@ pub trait FontBackend {
         shape: Shaping,
         pixels_per_point: f32,
     ) -> Galley;
+
+    fn generation(&self) -> u64 {
+        0
+    }
 }
 
 pub struct Fonts {
@@ -392,6 +464,7 @@ pub struct Fonts {
     galleys: HashMap<u64, Vec<(GalleyKey, Galley)>>,
     cooling: HashMap<u64, Vec<(GalleyKey, Galley)>>,
     cached_galleys: usize,
+    generation: u64,
 }
 
 impl Fonts {
@@ -401,7 +474,19 @@ impl Fonts {
             galleys: HashMap::new(),
             cooling: HashMap::new(),
             cached_galleys: 0,
+            generation: 0,
         }
+    }
+
+    pub fn generation(&mut self) -> u64 {
+        let generation = self.backend.generation();
+        if generation != self.generation {
+            self.generation = generation;
+            self.galleys.clear();
+            self.cooling.clear();
+            self.cached_galleys = 0;
+        }
+        generation
     }
 
     pub fn layout(
@@ -414,6 +499,7 @@ impl Fonts {
         let pixel_size = ((font.size * pixels_per_point).round() as u32).max(1);
         let shape = Shaping::of(font, layout, pixels_per_point);
         let scale = pixels_per_point.to_bits();
+        self.generation();
         let hash = galley_hash(text, pixel_size, font.family, shape, scale);
         if let Some(galley) = self.remembered(hash, text, pixel_size, font.family, shape, scale) {
             return galley;

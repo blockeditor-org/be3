@@ -5,3 +5,11 @@ freetype_srcs = glob(["src/**/*.rs", "assets/**/*"])
 cargo_library(srcs = freetype_srcs)
 
 cargo_test(srcs = freetype_srcs)
+
+# The icons for crates/beui-web-demo, which hands them to the browser rather
+# than carrying them in the module.
+export_file(
+    name = "icons.ttf",
+    src = "assets/icons/MaterialSymbolsRounded-Filled.ttf",
+    visibility = ["//crates/beui-web-demo:"],
+)

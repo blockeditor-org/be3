@@ -44,13 +44,17 @@ pub use beui_view::{child_type, value_child_type};
 
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use beui_adapter_android::{AndroidApp, RunOptions};
-#[cfg(all(feature = "web", target_arch = "wasm32"))]
-pub use beui_adapter_web::RunOptions;
+#[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
+pub use beui_adapter_web::{RunOptions, accessibility_tree};
 #[cfg(all(feature = "window", not(target_os = "android")))]
 pub use beui_adapter_winit::{RunOptions, winit};
+#[cfg(all(feature = "dom", target_arch = "wasm32"))]
+pub use dom::run_dom;
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
-pub use web::{accessibility_tree, run_web};
+pub use web::run_web;
 
+#[cfg(all(feature = "dom", target_arch = "wasm32"))]
+mod dom;
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
 mod web;
 

@@ -7,7 +7,8 @@ use harfbuzz_rs::{Face as HbFace, Font as HbFont, Owned, Tag, UnicodeBuffer, sha
 use unicode_script::{Script, UnicodeScript};
 
 use beui_core::font::{
-    FontBackend, FontFamily, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping, TextLayout,
+    FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,
+    TextLayout, break_lines,
 };
 use beui_core::geometry::vec2;
 
@@ -109,7 +110,9 @@ impl FreetypeFonts {
 
         for line in text.split('\n') {
             let shaped = self.shape_line(line, family, pixel_size);
-            let runs = break_lines(&shaped, line, shape.wrap());
+            let runs = break_lines(&shaped, line, shape.wrap(), |glyph| {
+                (glyph.cluster, glyph.x_advance)
+            });
             let last = runs.len() - 1;
             for (index, run) in runs.into_iter().enumerate() {
                 let end = start
@@ -160,7 +163,15 @@ impl FreetypeFonts {
             cursor += line_height;
         }
 
+        let font = FontId {
+            size: pixel_size as f32 / scale,
+            family,
+            bold: shape.bold,
+            italic: shape.italic,
+        };
         Galley::new(
+            text,
+            font,
             vec2(width.ceil() / scale, cursor.ceil() / scale),
             line_height / scale,
             baseline / scale,
@@ -488,45 +499,6 @@ fn script_runs(text: &str) -> Vec<ScriptRun> {
         });
     }
     runs
-}
-
-fn break_lines(glyphs: &[ShapedGlyph], text: &str, wrap: f32) -> Vec<std::ops::Range<usize>> {
-    let mut lines = Vec::new();
-    if glyphs.is_empty() {
-        lines.push(0..0);
-        return lines;
-    }
-    if !wrap.is_finite() {
-        lines.push(0..glyphs.len());
-        return lines;
-    }
-
-    let mut start = 0;
-    let mut width = 0.0;
-    let mut candidate = None;
-
-    for (index, glyph) in glyphs.iter().enumerate() {
-        if index > start && width + glyph.x_advance > wrap {
-            let end = candidate.filter(|end| *end > start).unwrap_or(index);
-            lines.push(start..end);
-            start = end;
-            width = glyphs[start..index].iter().map(|it| it.x_advance).sum();
-            candidate = None;
-        }
-        if index > start && follows_whitespace(text, glyph.cluster) {
-            candidate = Some(index);
-        }
-        width += glyph.x_advance;
-    }
-
-    lines.push(start..glyphs.len());
-    lines
-}
-
-fn follows_whitespace(text: &str, cluster: usize) -> bool {
-    text.get(..cluster)
-        .and_then(|before| before.chars().next_back())
-        .is_some_and(char::is_whitespace)
 }
 
 fn pixels(bitmap: &ft::FT_Bitmap) -> Vec<u8> {

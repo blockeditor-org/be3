@@ -1,0 +1,15 @@
+# The demo's bundle, BEUI_DEMO_ROOT, at BEUI_DEMO_ADDRESS. The module's memory is
+# shared, which a browser only hands to a cross-origin isolated page.
+{
+	admin off
+}
+
+{$BEUI_DEMO_ADDRESS} {
+	header {
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Embedder-Policy require-corp
+	}
+	file_server {
+		root {$BEUI_DEMO_ROOT}
+	}
+}

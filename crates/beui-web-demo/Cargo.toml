@@ -1,0 +1,19 @@
+[package]
+name = "beui-web-demo"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+beui = { path = "../beui", default-features = false, features = ["dom"] }
+beui_macros = { path = "../beui_macros" }
+text-editor-core = { path = "../text-editor-core" }
+wasi-threads = { path = "../wasi-threads" }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+
+[lints]
+workspace = true
