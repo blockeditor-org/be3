@@ -1,18 +1,57 @@
-load(":defs.bzl", "PDFIUM")
+# PDFium, which the PDF plugin renders pages with: paulocoutinhox/pdfium-lib's
+# Emscripten build, whose static library is wasm object files that link into a
+# wasm32-wasip1-threads module. bblanchon/pdfium-binaries' wasm build ships only
+# a linked pdfium.wasm and its JavaScript, which a plugin cannot link. PDFium is
+# distributed under its BSD licence and those of the libraries it bundles.
+#
+# Emscripten built it without atomics, so the objects that had thread-locals
+# say they cannot share memory; the plugin calls PDFium from one thread only,
+# so the genrule drops that marker.
+http_archive(
+    name = "pdfium-wasm",
+    sha256 = "062d10055de90a01120acf307ce16e0022021a32203f4aeae4877750f9a08427",
+    size_bytes = 13414692,
+    sub_targets = ["release/lib/libpdfium.a"],
+    type = "zip",
+    urls = ["https://github.com/paulocoutinhox/pdfium-lib/releases/download/8046d/wasm.zip"],
+)
 
-# PDFium, which the PDF plugin renders pages with: a prebuilt library from
-# bblanchon/pdfium-binaries, pinned by release, hash and size, for each
-# platform the app is built for. The app loads it at run time from beside its
-# executable, which is where //crates/block-app:app puts it. PDFium is
-# distributed under the licences in each archive's LICENSE.
-[
-    http_archive(
-        name = asset,
-        sha256 = sha256,
-        size_bytes = size_bytes,
-        sub_targets = [library],
-        urls = ["https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F8044/{}.tgz".format(asset)],
-        visibility = ["PUBLIC"],
-    )
-    for asset, library, sha256, size_bytes in PDFIUM.values()
-]
+genrule(
+    name = "libpdfium-wasm.a",
+    cmd = """
+        set -eu
+        python3 $(location :shared_memory.py) $(location :pdfium-wasm[release/lib/libpdfium.a]) "$TMP/objects"
+        $(exe root//buck/tools:ar) rcs "$OUT" "$TMP"/objects/*
+    """,
+    out = "libpdfium.a",
+)
+
+export_file(
+    name = "shared_memory.py",
+    src = "shared_memory.py",
+)
+
+# What Emscripten's JavaScript would have given the library: its setjmp
+# trampolines, over wasi-libc's setjmp, and a few libc and runtime functions
+# that WASI's libc does not have.
+cxx_library(
+    name = "emscripten",
+    srcs = ["emscripten.c"],
+    target_compatible_with = ["prelude//os/constraints:os[wasi]"],
+)
+
+prebuilt_cxx_library(
+    name = "pdfium",
+    exported_deps = [
+        ":emscripten",
+        "root//third-party/system:stdc++",
+    ],
+    exported_linker_flags = ["-lc++"] + [
+        "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libwasi-emulated-{}.a".format(library)
+        for library in ["getpid", "mman", "process-clocks", "signal"]
+    ],
+    preferred_linkage = "static",
+    static_lib = ":libpdfium-wasm.a",
+    target_compatible_with = ["prelude//os/constraints:os[wasi]"],
+    visibility = ["PUBLIC"],
+)

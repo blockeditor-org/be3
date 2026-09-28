@@ -2,5 +2,6 @@ load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
     name = "pdf",
+    extra_deps = ["root//third-party/pdfium:pdfium"],
     module = "pdf",
 )

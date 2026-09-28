@@ -185,16 +185,17 @@ fn PageCanvas(
                         let image = create_memo(clone!(tile -> move || {
                             tile.get().map(|(_, image)| image)
                         }));
+                        let test_id = format!("pdf.tile.{index}");
                         view! {
                             <CanvasItem x={x} y={y} width={width} height={height}>
-                                <Picture image={image} fit=ImageFit::Fill />
+                                <Picture image={image} fit=ImageFit::Fill @test_id={test_id} />
                             </CanvasItem>
                         }
                     }}
                 </ForEach>
             </Canvas>
             <Show condition={failed}>
-                <Caption content={reason} color={theme.danger.clone()} />
+                <Caption content={reason} color={theme.danger.clone()} @test_id={"pdf.error"} />
             </Show>
         </List>
     }

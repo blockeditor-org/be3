@@ -89,13 +89,14 @@ wasi_app_flags = plugin_exports + [
 # cfg(target_arch = "wasm32")), :module named after its manifest's entry point,
 # :manifest, and its wasm :test. test_env is extra environment for compiling the
 # tests, which is how a test names a module it loads with include_bytes!.
-def editor(name, module, visibility = ["PUBLIC"], test_env = {}, data = {}):
+# extra_deps are what cargo cannot name, such as a C library the plugin links.
+def editor(name, module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = []):
     facts = cargo_wasm_facts()
     native.rust_library(
         name = name + "_wasm",
         crate = facts.crate,
         crate_root = facts.crate_root,
-        deps = facts.deps,
+        deps = facts.deps + extra_deps,
         edition = facts.edition,
         env = facts.env,
         features = facts.features,
@@ -125,18 +126,19 @@ def editor(name, module, visibility = ["PUBLIC"], test_env = {}, data = {}):
         env = test_env,
         exports = plugin_exports,
         srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
+        extra_deps = extra_deps,
     )
 
 # A crate's tests compiled to wasm and run by plugin-test-runner, which gives
 # the module a plugin's imports; an editor's, block-editor-plugin's and
 # block-editor-beui's.
-def plugin_tests(srcs, exports = [], env = {}):
+def plugin_tests(srcs, exports = [], env = {}, extra_deps = []):
     facts = cargo_wasm_facts()
     native.rust_binary(
         name = "test_module",
         crate = facts.crate,
         crate_root = facts.crate_root,
-        deps = facts.test_deps,
+        deps = facts.test_deps + extra_deps,
         edition = facts.edition,
         env = facts.env | env,
         features = facts.test_features,

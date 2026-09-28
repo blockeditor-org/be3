@@ -17,7 +17,7 @@ NATIVE = {
     "windows-x86_64": "windows_x86_64",
 }
 
-# What ships: each platform's release app, server and PDFium.
+# What ships: each platform's release app and server.
 [
     configured_alias(
         name = "dist-" + name,

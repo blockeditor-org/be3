@@ -15,7 +15,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; add `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings |
 | `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |
 | `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display |
-| `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app, `be-server`, PDFium |
+| `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app and `be-server` |
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
@@ -191,7 +191,7 @@ A native target depends on a wasm one through a transition in
 
 ## Shipping
 
-- `:app` stages the executable as `block-app`, PDFium, and every editor's
+- `:app` stages the executable as `block-app` and every editor's
   manifest (`<id>.plugin.json`), data (`data/<id>/`), module and `.cwasm`, precompiled in an action
   per module for the platform the app is built for, by
   `//crates/plugin-test-runner:precompiler`, which is always the Linux x86_64

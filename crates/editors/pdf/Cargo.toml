@@ -11,8 +11,9 @@ crate-type = ["cdylib", "rlib"]
 beui = { path = "../../beui", default-features = false, features = ["render"] }
 block-editor-beui = { path = "../../block-editor-beui" }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-pdfium-render = { version = "0.9", default-features = false, features = ["pdfium_latest", "thread_safe"] }
+[dev-dependencies]
+block-ui-test = { path = "../../block-ui-test" }
+uuid = { version = "1", features = ["v4"] }
 
 [lints]
 workspace = true
