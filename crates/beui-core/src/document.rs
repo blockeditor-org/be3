@@ -919,7 +919,8 @@ impl Document {
         };
         let visible = only.viewport.intersect(viewport);
         let rooted = self.paint_cache.borrow().rooted();
-        let (fixed, inner) = paint::fixed_damage(&rooted, only.node, &only.moving, visible, only.by);
+        let (fixed, inner) =
+            paint::fixed_damage(&rooted, only.node, &only.moving, visible, only.by);
         let shown = visible.intersect(inner);
         let landed = shown.intersect(shown.translate(only.by));
         let damaged = region

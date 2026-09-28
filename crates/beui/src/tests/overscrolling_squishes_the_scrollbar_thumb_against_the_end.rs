@@ -22,7 +22,10 @@ fn overscrolling_squishes_the_scrollbar_thumb_against_the_end() {
         let bar = harness.document().children(scroll)[1];
         let track = harness.document().children(bar)[0];
         let list = harness.document().children(track)[0];
-        (harness.rect(bar), harness.rect(harness.document().children(list)[1]))
+        (
+            harness.rect(bar),
+            harness.rect(harness.document().children(list)[1]),
+        )
     };
     let (bar, resting) = thumb(&harness);
     assert_eq!(resting.top(), bar.top());

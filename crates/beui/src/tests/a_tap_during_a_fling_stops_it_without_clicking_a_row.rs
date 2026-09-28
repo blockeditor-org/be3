@@ -31,7 +31,12 @@ fn a_tap_during_a_fling_stops_it_without_clicking_a_row() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let x = harness.rect(scroll).center().x;
-    harness.finger_drag(&[pos2(x, 280.0), pos2(x, 240.0), pos2(x, 200.0), pos2(x, 160.0)]);
+    harness.finger_drag(&[
+        pos2(x, 280.0),
+        pos2(x, 240.0),
+        pos2(x, 200.0),
+        pos2(x, 160.0),
+    ]);
     harness.frame(Vec::new());
     assert!(unstyled::scroll_animating(harness.document(), scroll));
 
@@ -49,5 +54,9 @@ fn a_tap_during_a_fling_stops_it_without_clicking_a_row() {
     harness.advance(Duration::from_secs(1));
     harness.touch(TouchPhase::Start, row);
     harness.touch(TouchPhase::End, row);
-    assert_eq!(clicks.get(), 1, "once the list is still, a tap clicks the row");
+    assert_eq!(
+        clicks.get(),
+        1,
+        "once the list is still, a tap clicks the row"
+    );
 }

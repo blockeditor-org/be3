@@ -1219,7 +1219,11 @@ fn blinking(page: Page) -> Draw {
         if page.is_empty() {
             return;
         }
-        let elapsed = painter.ctx().now().saturating_duration_since(since).as_nanos();
+        let elapsed = painter
+            .ctx()
+            .now()
+            .saturating_duration_since(since)
+            .as_nanos();
         let interval = BLINK_INTERVAL.as_nanos();
         if (elapsed / interval).is_multiple_of(2) {
             draw(painter, rect);

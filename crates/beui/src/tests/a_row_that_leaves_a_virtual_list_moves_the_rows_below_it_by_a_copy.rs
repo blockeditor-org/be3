@@ -41,7 +41,11 @@ fn a_row_that_leaves_a_virtual_list_moves_the_rows_below_it_by_a_copy() {
         .moved()
         .expect("the rows below the one that left move up by a copy");
     assert_eq!(moved.by, vec2(0.0, -ROW));
-    assert_eq!(moved.to().top(), ROW, "the copy starts where the row that left was");
+    assert_eq!(
+        moved.to().top(),
+        ROW,
+        "the copy starts where the row that left was"
+    );
     assert!(moved.to().bottom() > viewport.bottom() - 2.0 * ROW);
     assert!(moved.to().bottom() <= viewport.bottom() - ROW);
     let damaged: f32 = output.damage.rects().iter().map(|rect| area(*rect)).sum();

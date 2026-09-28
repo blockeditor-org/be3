@@ -107,9 +107,9 @@ mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
 mod a_stroke_paints_a_line_between_the_ends_it_was_given;
 mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
-mod a_tap_during_a_fling_stops_it_without_clicking_a_row;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
+mod a_tap_during_a_fling_stops_it_without_clicking_a_row;
 mod a_test_id_names_the_copy_that_is_shown;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
 mod a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field;
@@ -120,7 +120,6 @@ mod a_timer_asks_for_frames_until_its_work_settles;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
 mod a_touch_beside_a_control_reaches_the_nearest_one;
 mod a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames;
-mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
 mod a_touch_fling_that_ends_without_moving_keeps_its_momentum;
 mod a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
@@ -135,6 +134,7 @@ mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
 mod a_window_larger_than_the_dock_is_drawn_no_larger_than_it;
+mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
 mod a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows;
 mod a_window_with_tabs_in_a_sidebar_has_no_title_bar;
 mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
@@ -1517,3 +1517,37 @@ mod scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes;
 mod the_app_tab_shows_the_document_below_the_tab_bar;
 mod the_inspector_shows_the_renderer_the_host_reports;
 mod unused_navigation_keys_scroll_the_nearest_ancestor;
+
+use crate::interact::WHEEL_LATCH_TIMEOUT;
+use crate::reactive::DynamicSegment;
+use crate::unstyled::Scroll;
+
+fn nested() -> Document {
+    build(move || {
+        view! {
+            <List spacing=0.0>
+                <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer">
+                    <Frame height=200.0 />
+                    <Frame height=150.0>
+                        <Scroll @test_id="inner">
+                            <Rows count=20 />
+                        </Scroll>
+                    </Frame>
+                    <Rows count=20 />
+                </Scroll>
+            </List>
+        }
+    })
+}
+
+#[component]
+fn Rows(count: usize) -> DynamicSegment<NodeId> {
+    view! {
+        <ForEach keys={indices(count)}>
+            {|index: usize| view! {
+                <Text string={format!("Row {index}")} font_size=20.0 color=Color32::WHITE />
+            }}
+        </ForEach>
+    }
+}
+mod moving_the_pointer_ends_the_wheel_latch;

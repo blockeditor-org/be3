@@ -285,7 +285,12 @@ impl Context {
     }
 
     pub fn advance_clock(&self, by: Duration) {
-        let now = self.inner.clock.get().unwrap_or_else(|| self.inner.now.get()) + by;
+        let now = self
+            .inner
+            .clock
+            .get()
+            .unwrap_or_else(|| self.inner.now.get())
+            + by;
         self.inner.clock.set(Some(now));
         self.inner.now.set(now);
     }

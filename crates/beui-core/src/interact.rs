@@ -132,8 +132,8 @@ pub fn interact(
     let wheel_target = (wheel != Vec2::ZERO)
         .then(|| {
             let now = doc.now();
-            let target = latched_wheel_target(doc, rects, input.pointer_pos, wheel, now)
-                .or_else(|| {
+            let target =
+                latched_wheel_target(doc, rects, input.pointer_pos, wheel, now).or_else(|| {
                     target(doc, rects, root, input.pointer_pos, &|element| {
                         wants_wheel(element, wheel)
                     })

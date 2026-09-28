@@ -26,7 +26,10 @@ fn a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest() 
     harness.advance(Duration::from_millis(200));
     harness.release_at(pulled);
     let released = drawn_left(&harness) - inset;
-    assert!(released < 0.0, "the window starts out stretched: {released}");
+    assert!(
+        released < 0.0,
+        "the window starts out stretched: {released}"
+    );
 
     harness.frame(Vec::new());
     let returning = drawn_left(&harness) - inset;
