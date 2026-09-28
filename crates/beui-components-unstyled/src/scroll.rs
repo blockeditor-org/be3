@@ -13,7 +13,9 @@ use beui_core::base::{Direction, ItemSize, ScrollPosition};
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::Pos2;
-use beui_core::input::{AutoscrollGesture, DragGesture, Key, KeyPress, ScrollGesture};
+use beui_core::input::{
+    AutoscrollGesture, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
+};
 use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
@@ -89,6 +91,10 @@ impl Momentum {
 
     fn moving(&self) -> bool {
         self.overscroll != 0.0 || self.velocity != 0.0 || self.autoscroll != 0.0
+    }
+
+    fn flinging(&self) -> bool {
+        self.velocity != 0.0 && self.overscroll == 0.0 && self.drag.is_none()
     }
 
     fn rest(&mut self) {
@@ -198,6 +204,17 @@ impl Motion {
             document.drive_offset(self.node, offset);
             document.set_offset_overscroll(self.node, momentum.overscroll);
         });
+    }
+
+    fn flinging(&self) -> bool {
+        self.momentum.borrow().flinging()
+    }
+
+    fn stop_fling(&self) {
+        let mut momentum = self.momentum.borrow_mut();
+        if momentum.flinging() {
+            momentum.velocity = 0.0;
+        }
     }
 
     fn wheel(&self, gesture: ScrollGesture) {
@@ -365,6 +382,7 @@ fn Scrolling(
     let (keyed, ancestor_keyed) = (motion.clone(), motion.clone());
     let (wheeled, dragged) = (motion.clone(), motion.clone());
     let autoscrolled = motion.clone();
+    let (tapped, stopped) = (motion.clone(), motion.clone());
     let (origin, set_origin) = create_signal(None::<Pos2>);
     let marked = create_memo(clone!(origin -> move || origin.get().is_some()));
     let anchor = create_memo(clone!(origin -> move || {
@@ -383,6 +401,8 @@ fn Scrolling(
             >
                 <ClickCatcher
                     scroll_axis={axis}
+                    intercept_at={move |_: Pos2| tapped.flinging()}
+                    on_press={move |_: PointerPress| stopped.stop_fling()}
                     on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
                     on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
                     on_autoscroll={move |gesture: AutoscrollGesture| {

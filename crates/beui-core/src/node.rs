@@ -95,6 +95,10 @@ pub trait Element: Any {
         false
     }
 
+    fn intercepts(&mut self, _doc: &mut Document, _pos: Pos2, _rect: Rect) -> bool {
+        false
+    }
+
     fn interact(
         &mut self,
         doc: &mut Document,

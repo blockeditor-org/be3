@@ -37,6 +37,7 @@ pub fn ClickCatcher(
     on_autoscroll: Callback<AutoscrollGesture>,
     on_zoom: Callback<ZoomGesture>,
     capture_at: Callback<Pos2, bool>,
+    intercept_at: Callback<Pos2, bool>,
     children: Option<Child>,
 ) -> NodeId {
     let click_catcher = with_document(|document| {
@@ -61,6 +62,7 @@ pub fn ClickCatcher(
         node.on_autoscroll = on_autoscroll;
         node.on_zoom = on_zoom;
         node.capture_at = capture_at;
+        node.intercept_at = intercept_at;
         if let Some(child) = children {
             document.set_click_catcher_child(click_catcher, child);
         }

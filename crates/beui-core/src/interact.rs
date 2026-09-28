@@ -423,6 +423,12 @@ fn without_pointer(input: InteractInput) -> InteractInput {
 
 fn captor(doc: &mut Document, rects: &Rects, id: NodeId, pos: Pos2) -> Option<NodeId> {
     let rect = rects.visible(&id)?;
+    let mut element = doc.arena.take(id);
+    let intercepts = rect.contains(pos) && element.intercepts(doc, pos, rect);
+    doc.arena.put_back(id, element);
+    if intercepts {
+        return Some(id);
+    }
     for child in doc.arena.get(id).children().into_iter().rev() {
         if let Some(found) = captor(doc, rects, child, pos) {
             return Some(found);

@@ -47,6 +47,7 @@ pub struct ClickCatcherNode {
     pub on_autoscroll: Callback<AutoscrollGesture>,
     pub on_zoom: Callback<ZoomGesture>,
     pub capture_at: Callback<Pos2, bool>,
+    pub intercept_at: Callback<Pos2, bool>,
 }
 
 impl Default for ClickCatcherNode {
@@ -92,6 +93,7 @@ impl ClickCatcherNode {
             on_autoscroll: Callback::empty(),
             on_zoom: Callback::empty(),
             capture_at: Callback::empty(),
+            intercept_at: Callback::empty(),
         }
     }
 
@@ -271,6 +273,10 @@ impl Element for ClickCatcherNode {
 
     fn captures(&mut self, _doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
         (self.capture_presses && rect.contains(pos)) || self.capture_at.call(pos)
+    }
+
+    fn intercepts(&mut self, _doc: &mut Document, pos: Pos2, _rect: Rect) -> bool {
+        self.intercept_at.call(pos)
     }
 
     fn interact(

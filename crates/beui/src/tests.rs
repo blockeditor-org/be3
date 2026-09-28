@@ -106,6 +106,7 @@ mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
 mod a_stroke_paints_a_line_between_the_ends_it_was_given;
 mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
+mod a_tap_during_a_fling_stops_it_without_clicking_a_row;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
 mod a_test_id_names_the_copy_that_is_shown;
@@ -1374,6 +1375,10 @@ impl Element for Counted {
 
     fn captures(&mut self, doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
         self.inner.captures(doc, pos, rect)
+    }
+
+    fn intercepts(&mut self, doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
+        self.inner.intercepts(doc, pos, rect)
     }
 
     fn interact(
