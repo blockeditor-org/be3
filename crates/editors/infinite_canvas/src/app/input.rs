@@ -57,6 +57,7 @@ impl CanvasState {
             .rev()
             .find_map(|entity| {
                 (matches!(entity.kind, CanvasEntityKind::DirectEditor { .. })
+                    && !entity.style.hidden
                     && !self.shows_preview(entity.id)
                     && direct_editor_layout(entity)
                         .is_some_and(|layout| layout.content.contains(world)))

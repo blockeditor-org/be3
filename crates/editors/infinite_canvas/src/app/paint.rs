@@ -97,6 +97,9 @@ impl PartialEq for EntityPaint {
 
 impl EntityPaint {
     pub(crate) fn draw(&self, painter: &Painter) {
+        if self.entity.style.hidden {
+            return;
+        }
         let opacity = self.entity.style.opacity.clamp(0.0, 1.0);
         let color = with_opacity(
             resolve_color(self.entity.style.foreground, self.palette.auto),

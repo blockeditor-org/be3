@@ -122,6 +122,7 @@ pub struct CanvasEntityStyle {
     pub arrow_end: bool,
     pub corner_radius: f32,
     pub opacity: f32,
+    pub hidden: bool,
 }
 
 impl Default for CanvasEntityStyle {
@@ -135,6 +136,7 @@ impl Default for CanvasEntityStyle {
             arrow_end: false,
             corner_radius: 0.0,
             opacity: 1.0,
+            hidden: false,
         }
     }
 }

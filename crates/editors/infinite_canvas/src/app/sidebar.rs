@@ -19,6 +19,7 @@ use block_editor_beui::{ResizeMode, Sidebar};
 use crate::geometry::*;
 
 use super::components::CanvasComponents;
+use super::layers::LayersSection;
 use super::paint::resolve_color;
 use super::selection_bar::Swatch;
 use super::state::{Alignment, CanvasCommand, CanvasState, CommonValue, common_value};
@@ -96,6 +97,7 @@ pub(crate) fn CanvasSidebar(
 #[component]
 fn Inspector(state: Rc<CanvasState>) -> NodeId {
     let artboard = Rc::clone(&state);
+    let layers = Rc::clone(&state);
     let summary = Rc::clone(&state);
     let transform = Rc::clone(&state);
     let block = Rc::clone(&state);
@@ -125,6 +127,7 @@ fn Inspector(state: Rc<CanvasState>) -> NodeId {
                     <CanvasComponents state={components} />
                 </List>
             </Show>
+            <LayersSection state={layers} />
             <Separator />
             <ShortcutsSection />
         </List>

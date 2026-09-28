@@ -748,8 +748,10 @@ impl CanvasState {
         let scale = self.scale();
         let radius = HIT_RADIUS / scale;
         let entities = self.entities.get_untracked();
-        let (artboards, drawn): (Vec<_>, Vec<_>) =
-            entities.iter().partition(|entity| entity.is_artboard());
+        let (artboards, drawn): (Vec<_>, Vec<_>) = entities
+            .iter()
+            .filter(|entity| !entity.style.hidden)
+            .partition(|entity| entity.is_artboard());
         drawn
             .into_iter()
             .rev()
@@ -809,6 +811,38 @@ impl CanvasState {
             originals,
             duplicate,
         }));
+    }
+
+    pub(crate) fn set_hidden(&self, id: Uuid, hidden: bool) {
+        let Some(held) = self
+            .entities
+            .get_untracked()
+            .into_iter()
+            .find(|entity| entity.id == id)
+        else {
+            return;
+        };
+        let mut updated = held.clone();
+        updated.style.hidden = hidden;
+        self.record_update(vec![held], vec![updated], false);
+    }
+
+    pub(crate) fn move_layer(&self, moved: Uuid, onto: Uuid, in_front: bool) {
+        if moved == onto {
+            return;
+        }
+        let mut order: Vec<Uuid> = self
+            .entities
+            .get_untracked()
+            .iter()
+            .map(|entity| entity.id)
+            .collect();
+        order.retain(|id| *id != moved);
+        let Some(at) = order.iter().position(|id| *id == onto) else {
+            return;
+        };
+        order.insert(at + usize::from(in_front), moved);
+        self.record(InfiniteCanvasOperation::ExactOrder { ids: order });
     }
 
     pub(crate) fn selection_can_group(&self) -> bool {
@@ -1561,7 +1595,9 @@ impl CanvasState {
                     let box_rect = gesture_rect(start, current, from_center);
                     let hits = entities
                         .iter()
-                        .filter(|entity| box_rect.contains_rect(entity_bounds(entity)))
+                        .filter(|entity| {
+                            !entity.style.hidden && box_rect.contains_rect(entity_bounds(entity))
+                        })
                         .map(|entity| entity.id)
                         .collect::<Vec<_>>();
                     for id in hits {

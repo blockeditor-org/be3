@@ -203,6 +203,7 @@ fn CanvasBackdrop(
         let artboards = state
             .displayed()
             .into_iter()
+            .filter(|entity| !entity.style.hidden)
             .filter_map(|entity| match &entity.kind {
                 CanvasEntityKind::Artboard { name } => Some(Artboard {
                     bounds: entity_bounds(&entity),
@@ -316,7 +317,7 @@ fn EntityEmbed(state: Rc<CanvasState>, id: Uuid) -> CanvasItem {
     }));
     let resolving = Rc::clone(&state);
     let target = create_memo(clone!(entity resolving -> move || {
-        let entity = entity.get()?;
+        let entity = entity.get().filter(|entity| !entity.style.hidden)?;
         let id = reference_of(&entity)?;
         let block_type = resolving.block_type_of(id)?;
         Some(ChildTarget::new(id, block_type))
