@@ -25,7 +25,7 @@ fn a_touch_fling_that_ends_without_moving_keeps_its_momentum() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let x = harness.rect(scroll).center().x;
-    let start = pos2(x, 300.0);
+    let start = pos2(x, 299.0);
     let end = pos2(x, 200.0);
 
     harness.touch(TouchPhase::Start, start);

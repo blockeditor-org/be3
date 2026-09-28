@@ -150,7 +150,7 @@ impl Board {
         self.targets
             .borrow()
             .iter()
-            .filter(|target| target.rect.get_untracked().contains(pos))
+            .filter(|target| target.rect.get_untracked().contains_half_open(pos))
             .filter(|target| (target.accepts)(payload))
             .max_by_key(|target| (target.depth, target.id))
             .map(|target| (target.id, Rc::clone(&target.over)))

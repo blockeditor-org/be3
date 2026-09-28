@@ -232,7 +232,7 @@ pub fn interact(
         .map(|(level, _)| {
             floating[level + 1..].iter().any(|above| {
                 doc.node_rect(*above)
-                    .is_some_and(|rect| input.pointer_pos.is_some_and(|pos| rect.contains(pos)))
+                    .is_some_and(|rect| input.pointer_pos.is_some_and(|pos| rect.contains_half_open(pos)))
             })
         })
         .collect();
@@ -459,7 +459,7 @@ fn latched_wheel_target(
     let under = pointer.is_some_and(|pos| {
         rects
             .visible(&latched)
-            .is_some_and(|rect| rect.contains(pos))
+            .is_some_and(|rect| rect.contains_half_open(pos))
     });
     let still_wants = doc.arena.contains(latched) && wants_wheel(doc.arena.get(latched), wheel);
     (recent && under && still_wants).then_some(latched)
@@ -501,7 +501,7 @@ fn deepest(
     pos: Pos2,
     wants: &dyn Fn(&dyn crate::node::Element) -> bool,
 ) -> Option<NodeId> {
-    if !rects.visible(&id).is_some_and(|rect| rect.contains(pos)) {
+    if !rects.visible(&id).is_some_and(|rect| rect.contains_half_open(pos)) {
         return None;
     }
     let node = doc.arena.get(id);
@@ -556,7 +556,7 @@ impl<'a> Reach<'a> {
             return false;
         }
         let bounds = subtree_bounds(doc, self.rects, id);
-        probes.into_iter().flatten().any(|pos| bounds.contains(pos))
+        probes.into_iter().flatten().any(|pos| bounds.contains_half_open(pos))
     }
 }
 
@@ -648,7 +648,7 @@ fn touch_shift(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Vec2 {
         }
         let covered = tops
             .iter()
-            .any(|top| rects.get(top).is_some_and(|rect| rect.contains(pos)));
+            .any(|top| rects.get(top).is_some_and(|rect| rect.contains_half_open(pos)));
         if layer != root && covered {
             return Vec2::ZERO;
         }
@@ -673,8 +673,8 @@ fn nearest_press(
     let node = doc.arena.get(id);
     if presses(node) {
         let at = Pos2::new(
-            pos.x.clamp(rect.left(), rect.right()),
-            pos.y.clamp(rect.top(), rect.bottom()),
+            pos.x.clamp(rect.left(), rect.right().next_down()),
+            pos.y.clamp(rect.top(), rect.bottom().next_down()),
         );
         let away = at.distance(pos);
         if away <= TOUCH_REACH && nearest.is_none_or(|(held, _)| away < held) {
