@@ -11,6 +11,7 @@ fn a_calendar_jumps_to_a_month_from_its_months_view() {
         view! {
             <Calendar
                 selected={Some(Date::new(2026, 1, 15))}
+                today={Some(Date::new(2026, 1, 1))}
                 focused=true
                 on_change={move |date| sink.borrow_mut().push(date)}
             />
