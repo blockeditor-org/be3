@@ -29,17 +29,30 @@ const LABEL_MARGIN: f32 = 40.0;
 pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
     let placed = Rc::clone(&state);
     let revision = state.revision.clone();
-    let world = create_memo(clone!(placed revision -> move || {
+    let sized = state.editor().world();
+    let laid_out = state.editor().placed();
+    let world = create_memo(clone!(placed revision sized laid_out -> move || {
         let _ = revision.get();
+        placed.displayed_region.with(|_| ());
+        sized.with(|_| ());
+        laid_out.with(|_| ());
         placed.world_rect()
     }));
     let clipped = Rc::clone(&state);
-    let clip = create_memo(clone!(clipped revision -> move || {
+    let clip = create_memo(clone!(clipped revision sized laid_out -> move || {
         let _ = revision.get();
+        sized.with(|_| ());
+        laid_out.with(|_| ());
         clipped.content_rect()
     }));
-    let covering =
-        create_memo(clone!(world clip -> move || tiles::covering(world.get(), clip.get())));
+    let covered = Rc::clone(&state);
+    let covering = create_memo(clone!(world clip -> move || {
+        let (world, clip) = (world.get(), clip.get());
+        match covered.sized() {
+            true => tiles::covering(world, clip),
+            false => Vec::new(),
+        }
+    }));
 
     let labelled = Rc::clone(&state);
     let labels = create_memo(clone!(covering world clip revision labelled -> move || {

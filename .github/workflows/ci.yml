@@ -70,7 +70,7 @@ jobs:
           COMMIT: ${{ github.sha }}
         run: ./scripts/buck build -c "be3.commit=$COMMIT" //buck/ci:artifacts --out dist
 
-      # Each platform's app, server and PDFium. The plugins are uploaded once
+      # Each platform's app and server. The plugins are uploaded once
       # beside them, since every platform loads the same bytes and a manifest
       # resolves its entry point against its own directory.
       - uses: actions/upload-artifact@v7

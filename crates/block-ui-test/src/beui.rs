@@ -734,6 +734,12 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
+    pub fn has_requests(&self) -> bool {
+        self.sent
+            .iter()
+            .any(|message| matches!(message, EditorMessage::Request { .. }))
+    }
+
     pub fn take_requests(&mut self) -> Vec<(u64, HostRequest)> {
         self.take_where(|message| match message {
             EditorMessage::Request {

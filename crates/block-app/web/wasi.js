@@ -155,6 +155,26 @@ export function path_open() {
     return ENOENT;
 }
 
+// The rest of the filesystem calls, which C linked into a plugin (PDFium's
+// search for system fonts, which the plugin turns off) imports whether or not
+// it reaches them. With no directories there is nothing to list, stat or remove.
+
+export function fd_readdir() {
+    return EBADF;
+}
+
+export function path_filestat_get() {
+    return ENOENT;
+}
+
+export function path_remove_directory() {
+    return ENOENT;
+}
+
+export function path_unlink_file() {
+    return ENOENT;
+}
+
 export function environ_sizes_get(countPointer, sizePointer) {
     const data = view();
     data.setUint32(countPointer, 0, true);

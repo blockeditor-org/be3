@@ -77,6 +77,12 @@ impl TileWorker {
         }
     }
 
+    pub(crate) fn forget(self, host: &EditorHost) {
+        for request in self.downloads.into_keys() {
+            host.forget_request(request);
+        }
+    }
+
     pub(crate) fn poll(&mut self, host: &EditorHost) -> Vec<TileResult> {
         self.dispatch(host);
         let mut failures = Vec::new();
