@@ -70,3 +70,6 @@ pub(crate) fn take_missing() -> Option<Message> {
     let missing = STATE.with(|state| std::mem::take(&mut state.borrow_mut().missing));
     (!missing.is_empty()).then_some(Message::MissingCharacters(missing))
 }
+
+#[cfg(test)]
+mod tests;
