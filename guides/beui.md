@@ -1694,7 +1694,10 @@ drawing's own coordinates, is damaged (the plugin host does this with the
 rectangles each plugin frame reports it changed). beui's own tests, and every test that drives a plugin through
 `block-ui-test` (which turns on `beui::verify_paint`), paint every frame again
 from scratch and fail when the retained painting differs from it or changed
-outside the damage.
+outside the damage. With `BEUI_OVER_REPAINT=1` in the environment (or
+`beui::detect_over_repaint(true)` on the thread that paints) they also report
+every frame whose damage is more than four times the area of the shapes that
+changed, to stderr and to `beui::take_over_repaints`.
 
 What a node recorded is an immutable display list (`display.rs`) holding its own
 shapes and its children's lists, and a frame hands the renderer the lists of its
