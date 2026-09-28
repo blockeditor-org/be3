@@ -662,9 +662,11 @@ pub(crate) fn set_name(block: Uuid, name: Option<String>) {
         return;
     };
     metadata.named_by_hand = name.is_some();
-    if name.is_some() {
-        metadata.name = name;
-    }
+    metadata.name = name.or_else(|| {
+        content(block)
+            .and_then(|content| describe_of(&content))
+            .and_then(|described| described.name)
+    });
     set_metadata(block, metadata);
 }
 
