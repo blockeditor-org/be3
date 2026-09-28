@@ -39,16 +39,6 @@ Find out whether an Android emulator runs in this VM (`scripts/android-emulator`
 If it does, install the APK and fix the startup crash. If it doesn't, say
 why in guides/running_on_android.md.
 
-### 1.6 CI flake in "verify lint"
-Example: https://github.com/blockeditor-org/be3/actions/runs/36368573865/job/108759840096.
-`buck/dev/verify.sh` builds the lint tools in one `buck build
---show-full-output`. BuildBuddy reset a `BatchReadBlobs` download while
-materializing `rustfmt-sysroot`, `scripts/buck` retried on exit 2, the retry
-reported success, but `fix_rust_source` and `buck_tools` were never written
-to `buck-out`, so both steps failed with "not found". Make the retry
-reliable (e.g. `--materializations=all`, or check the outputs exist after a
-retry and rebuild).
-
 ## 2. Data layer and server correctness
 
 ### 2.1 Access checks are quadratic
@@ -200,14 +190,8 @@ off screen.
 
 ## 10. Tooling and repo hygiene
 
-- **Quiet local verify.** Make `//:verify` print only failures locally and
-  stay loud in CI.
-- **Test filters.** Find out whether `./scripts/buck test <target> -- <filter>`
-  can filter tests and document the answer in guides/buck2.md.
 - **wasm-opt** on every plugin and game wasm build, if the size win is worth
   the build time.
 - **Crate folder names use `-`.** Rename every crate folder under `crates/`
   that uses `_` (`beui_macros`, `reactive_macros`, `tabletop_games` and its
   rules, the `crates/editors/*` folders).
-- **guides/adding_a_game.md** still describes the Cargo build (`build.rs`,
-  root `Cargo.toml` members); rewrite it for buck2.
