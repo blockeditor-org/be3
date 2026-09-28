@@ -35,16 +35,43 @@ wasi_app_transition = transition(
 )
 
 # A cdylib's "shared" output is the .wasm; this names it as the module it is,
-# which for a plugin is the entry point its manifest names.
+# which for a plugin is the entry point its manifest names. A release build runs
+# wasm-opt over it: after rustc, -O2 takes a further tenth off a plugin's code
+# and a third off a game, where -Oz takes a little more at twice the time. -g
+# keeps the name section, which is what a guest's backtrace is read with.
 def _wasm_module_impl(ctx: AnalysisContext) -> list[Provider]:
     shared = ctx.attrs.library[DefaultInfo].sub_targets["shared"][DefaultInfo].default_outputs[0]
-    module = ctx.actions.copy_file((ctx.attrs.module or ctx.attrs.name) + ".wasm", shared)
+    name = (ctx.attrs.module or ctx.attrs.name) + ".wasm"
+    if not ctx.attrs.optimize:
+        return [DefaultInfo(default_output = ctx.actions.copy_file(name, shared))]
+    module = ctx.actions.declare_output(name)
+    ctx.actions.run(
+        cmd_args(
+            ctx.attrs._wasm_opt[RunInfo],
+            "-O2",
+            "-g",
+            "--detect-features",
+            shared,
+            "-o",
+            module.as_output(),
+        ),
+        category = "wasm_opt",
+    )
     return [DefaultInfo(default_output = module)]
 
 wasm32_module = rule(
     attrs = {
         "library": attrs.transition_dep(cfg = wasm32_transition),
         "module": attrs.option(attrs.string(), default = None),
+        "optimize": attrs.default_only(
+            attrs.bool(
+                default = select({
+                    "DEFAULT": False,
+                    "root//buck/constraints:release": True,
+                })
+            )
+        ),
+        "_wasm_opt": attrs.exec_dep(default = "root//buck/tools:wasm-opt"),
     },
     impl = _wasm_module_impl,
 )
@@ -53,6 +80,15 @@ wasi_module = rule(
     attrs = {
         "library": attrs.transition_dep(cfg = wasi_transition),
         "module": attrs.option(attrs.string(), default = None),
+        "optimize": attrs.default_only(
+            attrs.bool(
+                default = select({
+                    "DEFAULT": False,
+                    "root//buck/constraints:release": True,
+                })
+            )
+        ),
+        "_wasm_opt": attrs.exec_dep(default = "root//buck/tools:wasm-opt"),
     },
     impl = _wasm_module_impl,
 )
@@ -61,6 +97,15 @@ wasi_app_module = rule(
     attrs = {
         "library": attrs.transition_dep(cfg = wasi_app_transition),
         "module": attrs.option(attrs.string(), default = None),
+        "optimize": attrs.default_only(
+            attrs.bool(
+                default = select({
+                    "DEFAULT": False,
+                    "root//buck/constraints:release": True,
+                })
+            )
+        ),
+        "_wasm_opt": attrs.exec_dep(default = "root//buck/tools:wasm-opt"),
     },
     impl = _wasm_module_impl,
 )

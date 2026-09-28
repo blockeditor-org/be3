@@ -102,6 +102,24 @@ genrule(
     visibility = ["PUBLIC"],
 )
 
+# wasm-opt, which a release build runs over every plugin and game module
+# (buck/wasm/defs.bzl).
+binaryen_version = "133"
+
+http_archive(
+    name = "binaryen",
+    sha256 = "2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489",
+    size_bytes = 111200018,
+    strip_prefix = "binaryen-version_{}".format(binaryen_version),
+    urls = ["https://github.com/WebAssembly/binaryen/releases/download/version_{0}/binaryen-version_{0}-x86_64-linux.tar.gz".format(binaryen_version)],
+)
+
+tool(
+    name = "wasm-opt",
+    command = ["$(location :binaryen)/bin/wasm-opt"],
+    visibility = ["PUBLIC"],
+)
+
 # The targets that are cross-compiled, each with a sysroot of its own: the same
 # rustc with only that target's standard library beside it. Adding one to the
 # sysroot above would change the compiler every existing action names, and so

@@ -190,8 +190,6 @@ off screen.
 
 ## 10. Tooling and repo hygiene
 
-- **wasm-opt** on every plugin and game wasm build, if the size win is worth
-  the build time.
 - **Crate folder names use `-`.** Rename every crate folder under `crates/`
   that uses `_` (`beui_macros`, `reactive_macros`, `tabletop_games` and its
   rules, the `crates/editors/*` folders).
