@@ -81,6 +81,8 @@ pub trait InputSimulation: Any {
     fn paint(&mut self, painter: &Painter, icon: CursorIcon) -> Rect;
 
     fn as_any(&self) -> &dyn Any;
+
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -464,6 +466,18 @@ impl Context {
         let simulation = self.inner.input_simulation.borrow();
         let simulation = simulation.as_deref()?.as_any().downcast_ref::<T>()?;
         Some(read(simulation))
+    }
+
+    pub fn input_simulation_as_mut<T: 'static, R>(
+        &self,
+        change: impl FnOnce(&mut T) -> R,
+    ) -> Option<R> {
+        let mut simulation = self.inner.input_simulation.borrow_mut();
+        let simulation = simulation
+            .as_deref_mut()?
+            .as_any_mut()
+            .downcast_mut::<T>()?;
+        Some(change(simulation))
     }
 
     pub fn measure_mouse_simulation(&self, viewport: Rect) -> f32 {

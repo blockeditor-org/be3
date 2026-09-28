@@ -5,9 +5,8 @@ use be_block::metadata::MAX_NAME_BYTES;
 use beui::NodeId;
 use beui::icons::{ICON_REDO, ICON_SHARE, ICON_UNDO};
 use beui::reactive::{
-    ClickCallback, Frame, ItemSize, List, Memo, ReadSignal, Show, Spacer, WriteSignal, clone,
-    component, create_effect, create_memo, create_signal, focus_takes_text, on_finger_tap,
-    on_shortcut, view,
+    ClickCallback, Frame, ItemSize, List, Memo, ReadSignal, Show, WriteSignal, clone, component,
+    create_effect, create_memo, create_signal, focus_takes_text, on_finger_tap, on_shortcut, view,
 };
 use beui::styled::{Button, ButtonVariant, IconButton, TextInput};
 use beui::{Context, Document, Key, KeyPress};
@@ -270,7 +269,7 @@ pub(crate) fn TopBar(editor: Editor, bar: ReadSignal<FrameBar>, on_exit: ClickCa
     let blurred = Rc::clone(&typed);
     let shared = editor.clone();
     view! {
-        <Toolbar shown={shown} spacing=BAR_SPACING>
+        <Toolbar shown={shown} spacing=BAR_SPACING fit=true>
             <IconButton
                 @test_id={"editor.undo"}
                 glyph={ICON_UNDO.to_owned()}
@@ -285,7 +284,7 @@ pub(crate) fn TopBar(editor: Editor, bar: ReadSignal<FrameBar>, on_exit: ClickCa
                 disabled={redo_off}
                 on_click={move || redo.step(true)}
             />
-            <Frame width=NAME_WIDTH>
+            <Frame @sizing=ItemSize::Percent(100.0) max_width=NAME_WIDTH>
                 <TextInput
                     @test_id={"editor.name"}
                     value={name}
@@ -310,7 +309,6 @@ pub(crate) fn TopBar(editor: Editor, bar: ReadSignal<FrameBar>, on_exit: ClickCa
                     }}
                 />
             </Frame>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
             <Button
                 @test_id={"editor.share"}
                 label="Share"

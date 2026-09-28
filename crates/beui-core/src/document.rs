@@ -715,6 +715,12 @@ impl Document {
         self.work.reset();
         let scale = ctx.pixels_per_point();
         let fonts_generation = ctx.fonts_generation();
+        let resized = self
+            .viewport
+            .as_ref()
+            .is_some_and(|(old_ctx, old_rect, _)| {
+                ctx.same(old_ctx) && old_rect.size() != rect.size()
+            });
         if std::mem::replace(&mut self.fonts_generation, fonts_generation) != fonts_generation
             || self
                 .viewport
@@ -784,7 +790,12 @@ impl Document {
         }
         measurement.layout_passes =
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
-                usize::from(self.update_layout(ctx, rect))
+                let mut passes = usize::from(self.update_layout(ctx, rect));
+                if resized && self.focus_takes_text() {
+                    self.reveal_focus(&ctx.painter());
+                    passes += usize::from(self.update_layout(ctx, rect));
+                }
+                passes
             });
         if ctx.test_ids_published() {
             let mut live = None;

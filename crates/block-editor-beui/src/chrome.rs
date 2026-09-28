@@ -192,11 +192,14 @@ fn fold_into_sheet(layout: ChromeLayout, body: NodeId, folded: Memo<bool>) {
 pub fn Toolbar(
     #[prop(default = true)] shown: Prop<bool>,
     #[prop(default = BAND_SPACING)] spacing: Prop<f32>,
+    #[prop(default = false)] fit: Prop<bool>,
     #[prop(children)] children: Children<ListChild>,
 ) -> NodeId {
     let shown = create_memo(move || shown.get());
     let theme = use_theme();
-    let narrow = narrow_chrome();
+    let fit = create_memo(move || fit.get());
+    let squeezed = narrow_chrome();
+    let narrow = create_memo(clone!(squeezed fit -> move || squeezed.get() && !fit.get()));
     let roomy = create_memo(clone!(narrow -> move || !narrow.get()));
     let offers = match use_context::<ChromeLayout>() {
         Some(layout) => {
@@ -205,6 +208,9 @@ pub fn Toolbar(
         }
         None => create_memo(|| false),
     };
+    let fitted_toggle = create_memo(clone!(offers squeezed fit -> move || {
+        offers.get() && squeezed.get() && fit.get()
+    }));
     let row = view! {
         <List
             direction=Direction::Horizontal
@@ -225,6 +231,11 @@ pub fn Toolbar(
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                             <Portal @sizing=ItemSize::Percent(100.0) node={spread} />
+                            <Show condition={fitted_toggle}>
+                                <Frame padding_horizontal=BAND_PADDING_HORIZONTAL>
+                                    <SheetToggle />
+                                </Frame>
+                            </Show>
                         </List>
                     </Frame>
                 </Show>

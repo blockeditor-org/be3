@@ -1,7 +1,7 @@
 use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_OPEN_IN_NEW};
 use beui::reactive::{
-    Align, ClickCatcher, Direction, Focusable, Frame, ItemSize, List, Memo, Picture, Show, Spacer,
-    clone, component, component_size, create_memo, create_signal, view,
+    Align, ClickCallback, ClickCatcher, Direction, Focusable, Frame, ItemSize, List, Memo, Picture,
+    Prop, Show, clone, component, component_size, create_memo, create_signal, view,
 };
 use beui::styled::{Caption, Fullscreen, IconButton, Scroll, use_theme};
 use beui::{CursorIcon, Image, ImageFit, Key, KeyPress, NodeId, TextAlign, Vec2};
@@ -76,34 +76,61 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
                 padding_vertical=PADDING
             >
                 <List spacing=PADDING>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Caption content={position} />
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                        <IconButton
-                            glyph=ICON_CHEVRON_LEFT
-                            label="Previous image"
-                            disabled={first}
-                            on_click={previous}
-                        />
-                        <IconButton
-                            glyph=ICON_CHEVRON_RIGHT
-                            label="Next image"
-                            disabled={last}
-                            on_click={next}
-                        />
-                        <IconButton
-                            glyph=ICON_OPEN_IN_NEW
-                            label="Open in the browser"
-                            on_click={browse}
-                        />
-                        <IconButton glyph=ICON_CLOSE label="Close" on_click={close} />
-                    </List>
+                    <ViewerBar
+                        position
+                        first
+                        last
+                        on_previous={previous}
+                        on_next={next}
+                        on_browse={browse}
+                        on_close={close}
+                    />
                     <Focusable @sizing=ItemSize::Percent(100.0) focused={open} on_key={keys}>
                         <ImageStage picture />
                     </Focusable>
                 </List>
             </Frame>
         </Fullscreen>
+    }
+}
+
+#[component]
+pub(crate) fn ViewerBar(
+    position: Prop<String>,
+    first: Prop<bool>,
+    last: Prop<bool>,
+    on_previous: ClickCallback,
+    on_next: ClickCallback,
+    on_browse: ClickCallback,
+    on_close: ClickCallback,
+) -> NodeId {
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <Caption @sizing=ItemSize::Percent(100.0) content={position} wrap=true />
+            <IconButton
+                glyph=ICON_CHEVRON_LEFT
+                label="Previous image"
+                disabled={first}
+                on_click={move || on_previous.call()}
+            />
+            <IconButton
+                glyph=ICON_CHEVRON_RIGHT
+                label="Next image"
+                disabled={last}
+                on_click={move || on_next.call()}
+            />
+            <IconButton
+                glyph=ICON_OPEN_IN_NEW
+                label="Open in the browser"
+                on_click={move || on_browse.call()}
+            />
+            <IconButton
+                @test_id={"viewer.close"}
+                glyph=ICON_CLOSE
+                label="Close"
+                on_click={move || on_close.call()}
+            />
+        </List>
     }
 }
 
