@@ -67,6 +67,7 @@ pub fn DateTimeField(
     #[prop(default = false)] clearable: bool,
     #[prop(default = None)] min: Prop<Option<Date>>,
     #[prop(default = None)] max: Prop<Option<Date>>,
+    #[prop(default = None)] today: Prop<Option<Date>>,
     #[prop(default = Weekday::Monday)] first_weekday: Weekday,
     #[prop(default = 15)] step_minutes: u32,
     on_change: Callback<Option<DateTime>>,
@@ -75,6 +76,7 @@ pub fn DateTimeField(
     create_effect(clone!(set_current -> move || set_current.set(value.get())));
     let min = create_memo(move || min.get());
     let max = create_memo(move || max.get());
+    let today = create_memo(move || today.get());
     let label = create_memo(move || label.get());
     let disabled = create_memo(move || disabled.get());
     let report = Callback::new(clone!(current min max -> move |next: Option<DateTime>| {
@@ -196,6 +198,7 @@ pub fn DateTimeField(
                                 clearable
                                 min
                                 max
+                                today
                                 first_weekday
                                 step_minutes
                             />
@@ -393,6 +396,7 @@ fn PickerPanel(
     clearable: bool,
     min: Memo<Option<Date>>,
     max: Memo<Option<Date>>,
+    today: Memo<Option<Date>>,
     first_weekday: Weekday,
     step_minutes: u32,
 ) -> NodeId {
@@ -406,9 +410,13 @@ fn PickerPanel(
         ..
     } = field.clone();
     let (draft, set_draft) = create_signal(DateDraft::default());
-    let shown = create_memo(clone!(current draft -> move || {
+    let shown = create_memo(clone!(current draft today -> move || {
         let draft = draft.get();
-        let held = current.get().map_or_else(Date::today, |value| value.date);
+        let held = current
+            .get()
+            .map(|value| value.date)
+            .or_else(|| today.get())
+            .unwrap_or_else(Date::today);
         match (draft.year, draft.month) {
             (None, None) => None,
             (year, month) => Some(Date::new(
@@ -461,8 +469,12 @@ fn PickerPanel(
             }
         }),
     );
-    let pick_time = Callback::new(clone!(current report close -> move |time: Time| {
-        let date = current.get_untracked().map_or_else(Date::today, |value| value.date);
+    let pick_time = Callback::new(clone!(current report close today -> move |time: Time| {
+        let date = current
+            .get_untracked()
+            .map(|value| value.date)
+            .or_else(|| today.get_untracked())
+            .unwrap_or_else(Date::today);
         report.call(Some(DateTime::new(date, time)));
         close.call(());
     }));
@@ -491,6 +503,7 @@ fn PickerPanel(
         shown,
         min,
         max,
+        today,
         first_weekday,
         hour_cycle,
         step_minutes,
@@ -555,6 +568,7 @@ struct Pieces {
     shown: Memo<Option<Date>>,
     min: Memo<Option<Date>>,
     max: Memo<Option<Date>>,
+    today: Memo<Option<Date>>,
     first_weekday: Weekday,
     hour_cycle: HourCycle,
     step_minutes: u32,
@@ -651,6 +665,7 @@ fn CalendarPane(pieces: Pieces, width: Memo<f32>) -> NodeId {
         shown,
         min,
         max,
+        today,
         first_weekday,
         calendar_focused,
         pick_date,
@@ -661,6 +676,7 @@ fn CalendarPane(pieces: Pieces, width: Memo<f32>) -> NodeId {
             selected={date}
             min
             max
+            today
             first_weekday
             focused={calendar_focused}
             show={shown}
