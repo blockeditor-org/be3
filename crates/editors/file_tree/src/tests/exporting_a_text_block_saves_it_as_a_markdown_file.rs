@@ -13,7 +13,9 @@ fn exporting_a_text_block_saves_it_as_a_markdown_file() {
     text.named_by_hand = true;
     let mut image = BlockInfo::new(photo, ImageContent::CONTENT_TYPE, BlockParent::Root);
     image.name = Some("Beach".to_owned());
-    fixture.host.set_blocks(BlockQuery::Roots, vec![text, image]);
+    fixture
+        .host
+        .set_blocks(BlockQuery::Roots, vec![text, image]);
     fixture
         .test
         .hold(Some(notes), TextContent::new("# Day one\nSand."));
@@ -62,6 +64,9 @@ fn exporting_a_text_block_saves_it_as_a_markdown_file() {
             _ => None,
         })
         .expect("exporting an image asks the host to save it");
-    assert_eq!(file.name, "beach.jpg", "an image keeps the file it came from");
+    assert_eq!(
+        file.name, "beach.jpg",
+        "an image keeps the file it came from"
+    );
     assert_eq!(file.data, vec![0xff, 0xd8, 0xff]);
 }

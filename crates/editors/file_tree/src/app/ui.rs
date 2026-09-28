@@ -12,8 +12,7 @@ use block_editor_beui::beui::reactive::{
 use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, IconSized, Paragraph,
-    Tooltip,
-    Tree, TreeRowFace, tree_row_node, use_theme,
+    Tooltip, Tree, TreeRowFace, tree_row_node, use_theme,
 };
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};

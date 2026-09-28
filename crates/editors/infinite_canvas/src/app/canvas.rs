@@ -232,13 +232,7 @@ fn CanvasBackdrop(
     let width = create_memo(clone!(visible -> move || visible.get().width().max(1.0)));
     let height = create_memo(clone!(visible -> move || visible.get().height().max(1.0)));
     view! {
-        <CanvasItem
-            x={x}
-            y={y}
-            width={width}
-            height={height}
-            @test_id={"infinite-canvas.backdrop"}
-        >
+        <CanvasItem x={x} y={y} width={width} height={height} @test_id={"infinite-canvas.backdrop"}>
             <Drawing draw={draw} />
         </CanvasItem>
     }

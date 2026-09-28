@@ -42,8 +42,8 @@ mod the_actions_menu_deletes_the_selection;
 mod the_canvas_opens_with_the_select_tool_so_a_finger_box_selects;
 mod the_canvas_paints_the_entities_it_holds;
 mod the_intrinsic_size_follows_the_first_artboard;
-mod the_preview_shows_the_first_artboard;
 mod the_layers_panel_selects_reorders_and_hides;
+mod the_preview_shows_the_first_artboard;
 mod the_transform_fields_edit_the_selected_entity;
 mod typing_a_transform_value_and_pressing_escape_edits_nothing;
 

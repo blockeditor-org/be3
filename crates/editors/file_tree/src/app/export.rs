@@ -107,13 +107,13 @@ fn file_of(editor: &Editor, export: &Export) -> Option<SavedFile> {
                 }
             })
         }
-        kind if kind == PdfContent::CONTENT_TYPE => read::<PdfContent>(editor, export.id, |pdf| {
-            SavedFile {
+        kind if kind == PdfContent::CONTENT_TYPE => {
+            read::<PdfContent>(editor, export.id, |pdf| SavedFile {
                 name: source_or(&pdf.header().source_name, || named("pdf")),
                 mime_type: "application/pdf".to_owned(),
                 data: pdf.data().to_vec(),
-            }
-        }),
+            })
+        }
         kind if kind == AudioContent::CONTENT_TYPE => {
             read::<AudioContent>(editor, export.id, |audio| {
                 let header = audio.header();

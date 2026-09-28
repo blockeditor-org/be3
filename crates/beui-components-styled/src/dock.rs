@@ -15,8 +15,8 @@ use beui_core::color::Color32;
 use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_TAB_GROUP};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCallback, ClickCatcher, Frame, Func, List, Memo, Prop, ReadSignal, RenderFn, Show, Text,
-    clone, create_memo, focus_ring,
+    Callback, ClickCallback, ClickCatcher, Frame, Func, List, Memo, Prop, ReadSignal, RenderFn,
+    Show, Text, clone, create_memo, focus_ring,
 };
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
@@ -162,11 +162,13 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
                 _ => {}
             }}
         >
-            <ClickCatcher on_middle_click={move || {
-                if closes.get_untracked() {
-                    middle.call();
-                }
-            }}>
+            <ClickCatcher
+                on_middle_click={move || {
+                    if closes.get_untracked() {
+                        middle.call();
+                    }
+                }}
+            >
                 <DockTabChrome
                     title
                     grouped

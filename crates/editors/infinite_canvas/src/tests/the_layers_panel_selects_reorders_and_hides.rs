@@ -29,7 +29,10 @@ fn the_layers_panel_selects_reorders_and_hides() {
 
     editor.click(&format!("infinite-canvas.layer.{back}"));
     editor.run();
-    assert_eq!(editor.label("infinite-canvas.selection"), "Rectangle selected");
+    assert_eq!(
+        editor.label("infinite-canvas.selection"),
+        "Rectangle selected"
+    );
     editor.click("infinite-canvas.delete");
     editor.run();
     assert_eq!(
@@ -60,5 +63,8 @@ fn the_layers_panel_selects_reorders_and_hides() {
 }
 
 fn order(editor: &BeuiTest<CanvasApp>) -> Vec<Uuid> {
-    entities(editor).into_iter().map(|entity| entity.id).collect()
+    entities(editor)
+        .into_iter()
+        .map(|entity| entity.id)
+        .collect()
 }

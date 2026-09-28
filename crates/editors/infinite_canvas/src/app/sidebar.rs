@@ -151,10 +151,12 @@ fn ArtboardSection(state: Rc<CanvasState>) -> NodeId {
         entity.is_artboard().then(|| entity.clone())
     }));
     let shown = create_memo(clone!(artboard -> move || artboard.get().is_some()));
-    let name = create_memo(clone!(artboard -> move || match artboard.get().map(|entity| entity.kind) {
-        Some(CanvasEntityKind::Artboard { name }) => name,
-        _ => String::new(),
-    }));
+    let name = create_memo(
+        clone!(artboard -> move || match artboard.get().map(|entity| entity.kind) {
+            Some(CanvasEntityKind::Artboard { name }) => name,
+            _ => String::new(),
+        }),
+    );
     let locked = create_memo(clone!(artboard -> move || {
         artboard.get().is_none_or(|entity| entity.locked)
     }));

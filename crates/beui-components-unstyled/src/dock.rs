@@ -513,7 +513,10 @@ impl State {
                     Some(before) => (along(before.max) + along(rect.min)) / 2.0,
                     None => along(rect.min),
                 };
-                return (DockDrop::Tab { leaf, index }, marker_rect(direction, at, bar));
+                return (
+                    DockDrop::Tab { leaf, index },
+                    marker_rect(direction, at, bar),
+                );
             }
         }
         let end = rects.last().map_or(along(bar.min), |rect| along(rect.max));

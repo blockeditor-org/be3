@@ -9,10 +9,7 @@ pub(super) fn save(file: SavedFile) -> Receiver<SaveResult> {
 }
 
 fn write(file: SavedFile) -> SaveResult {
-    let Some(path) = rfd::FileDialog::new()
-        .set_file_name(&file.name)
-        .save_file()
-    else {
+    let Some(path) = rfd::FileDialog::new().set_file_name(&file.name).save_file() else {
         return Ok(false);
     };
     fs::write(&path, &file.data)

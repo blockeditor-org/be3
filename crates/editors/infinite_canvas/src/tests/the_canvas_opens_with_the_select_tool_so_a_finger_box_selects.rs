@@ -8,7 +8,8 @@ fn the_canvas_opens_with_the_select_tool_so_a_finger_box_selects() {
     let shape = editor.rect_of(&format!("infinite-canvas.entity.{}", rectangle.id));
 
     assert!(
-        editor.shown("infinite-canvas.dock.tool.Select") && !editor.shown("infinite-canvas.dock.tool.Pan"),
+        editor.shown("infinite-canvas.dock.tool.Select")
+            && !editor.shown("infinite-canvas.dock.tool.Pan"),
         "the canvas has no pan tool of its own"
     );
     let from = shape.left_top() - Vec2::new(30.0, 30.0);

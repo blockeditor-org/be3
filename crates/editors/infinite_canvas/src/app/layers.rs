@@ -3,8 +3,8 @@ use std::rc::Rc;
 use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use block_editor_beui::beui::icons::{ICON_VISIBILITY, ICON_VISIBILITY_OFF};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, clone, component, component_rect,
-    create_memo, create_signal, Show, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, clone, component, component_rect,
+    create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Accordion, Body, ButtonVariant, Caption, IconButton, IconButtonSize, use_theme,

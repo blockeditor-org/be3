@@ -5,9 +5,9 @@ use block_plugin_api::{
     ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
     CreationOutcome, CursorIcon, DataListing, EditorInstanceId, EditorMessage, EditorRegion,
-    FetchResult, FilePick, FileSave, FrameReport, FrameSpec, HostReply, HostRequest, Message, Occluder,
-    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, ViewChange, WatchedContent,
+    FetchResult, FilePick, FileSave, FrameReport, FrameSpec, HostReply, HostRequest, Message,
+    Occluder, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout,
+    ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
 };
 use std::{
     collections::{HashMap, HashSet},

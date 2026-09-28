@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_CROP_FREE, ICON_DATA_OBJECT, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_KEYBOARD_ARROW_DOWN, ICON_MORE_HORIZ,
-    ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_CROP_FREE, ICON_DATA_OBJECT, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_KEYBOARD_ARROW_DOWN,
+    ICON_MORE_HORIZ, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, Show, Spacer, clone,

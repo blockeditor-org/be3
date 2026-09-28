@@ -1,6 +1,4 @@
-use block_editor_beui::beui::{
-    Document, Event, Modifiers, NodeId, PointerButton, Pos2, Vec2,
-};
+use block_editor_beui::beui::{Document, Event, Modifiers, NodeId, PointerButton, Pos2, Vec2};
 use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -8,8 +6,8 @@ use uuid::Uuid;
 use crate::app::FileTreeApp;
 
 mod clicking_the_chevron_opens_and_closes_its_own_row;
-mod exporting_a_text_block_saves_it_as_a_markdown_file;
 mod expanding_a_folder_shows_its_children_without_more_input;
+mod exporting_a_text_block_saves_it_as_a_markdown_file;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
 mod the_inspect_dialog_stays_on_a_narrow_screen;
 
@@ -26,7 +24,10 @@ impl Fixture {
     }
 
     fn choose(&mut self, block: Uuid, label: &str) {
-        let pos = self.test.rect_of(&format!("file-tree.{block}.row")).center();
+        let pos = self
+            .test
+            .rect_of(&format!("file-tree.{block}.row"))
+            .center();
         self.test.step(vec![Event::PointerMoved(pos)]);
         self.test.step(vec![Event::PointerButton {
             pos,

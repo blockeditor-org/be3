@@ -1,8 +1,8 @@
 use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::canvas::Canvas;
 use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
-    CanvasTextAlign, CanvasTextStyle, CanvasTextWeight, CanvasTransform,
+    CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasTextAlign,
+    CanvasTextStyle, CanvasTextWeight, CanvasTransform,
 };
 use block_editor_beui::beui::{Vec2, vec2};
 use uuid::Uuid;

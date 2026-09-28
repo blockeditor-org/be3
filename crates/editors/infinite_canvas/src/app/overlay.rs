@@ -47,7 +47,10 @@ impl Backdrop {
             );
             let height = galley.size().y;
             painter.galley(
-                pos2(rect.left(), rect.top() - height - (ARTBOARD_LABEL_HEIGHT - height) / 2.0),
+                pos2(
+                    rect.left(),
+                    rect.top() - height - (ARTBOARD_LABEL_HEIGHT - height) / 2.0,
+                ),
                 galley,
                 self.label,
             );

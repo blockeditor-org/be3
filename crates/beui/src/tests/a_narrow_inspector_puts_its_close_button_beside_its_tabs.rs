@@ -19,7 +19,11 @@ fn a_narrow_inspector_puts_its_close_button_beside_its_tabs() {
         "the close button sits on the row of tabs"
     );
     assert!(
-        harness.inspector().document.find_test_id("inspector.close").is_none(),
+        harness
+            .inspector()
+            .document
+            .find_test_id("inspector.close")
+            .is_none(),
         "the panel below the tabs does not repeat the close button"
     );
 

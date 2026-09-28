@@ -25,11 +25,7 @@ fn an_image_still_loading_is_drawn_as_its_thumbhash() {
         width: thumbhash.width,
         height: thumbhash.height,
     });
-    let mut editor = open(
-        &Canvas::with_entities([placed.clone()]),
-        false,
-        &[info],
-    );
+    let mut editor = open(&Canvas::with_entities([placed.clone()]), false, &[info]);
     editor.run();
 
     assert!(

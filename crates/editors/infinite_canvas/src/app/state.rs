@@ -6,6 +6,7 @@ use std::rc::Rc;
 use crate::presence::CanvasCursor;
 use block_editor_beui::BlockList;
 use block_editor_beui::ContentProjection;
+use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::canvas::{
     CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
@@ -14,7 +15,6 @@ use block_editor_beui::be_block::canvas::{
 };
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
-use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::beui::reactive::{
     CanvasView, ReadSignal, WriteSignal, create_effect, create_signal, untrack,
 };
