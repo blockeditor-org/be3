@@ -182,6 +182,7 @@ mod clicking_a_window_title_bar_takes_the_focus_out_of_a_group;
 mod clicking_an_accordion_header_hides_its_content;
 mod clicking_outside_an_open_select_popup_closes_it_without_clicking_through;
 mod clicking_the_inspector_close_button_closes_the_panel;
+mod a_narrow_inspector_puts_its_close_button_beside_its_tabs;
 mod clicking_the_middle_of_a_placeholder_puts_the_caret_at_the_start;
 mod clicking_the_outer_tab_bar_takes_the_focus_out_of_a_group;
 mod clicking_the_padding_around_a_button_label_activates_it;
@@ -732,6 +733,13 @@ impl Harness {
 
     pub(crate) fn close_button_center(&self) -> Pos2 {
         self.inspector_center("inspector.close")
+    }
+
+    pub(crate) fn bar_close_rect(&self) -> Rect {
+        self.inspector()
+            .bar_rect("inspector.bar.close")
+            .expect("the inspector's tab bar has no close button")
+            .scaled(crate::inspector::scale(&self.context))
     }
 
     pub(crate) fn bar_option_center(&self, index: usize) -> Pos2 {

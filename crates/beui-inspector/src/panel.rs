@@ -174,6 +174,7 @@ pub struct Panel {
     pub set_performance: WriteSignal<PerformanceSummary>,
     pub set_renderer: WriteSignal<RendererRows>,
     pub set_selection: WriteSignal<Vec<Key>>,
+    pub set_compact: WriteSignal<bool>,
     pub tree: NodeRef,
 }
 
@@ -185,6 +186,7 @@ pub fn build(state: &Rc<State>) -> Panel {
     let (renderer, set_renderer) = create_signal(RendererRows::new());
     let (tab, set_tab) = create_signal(InspectorTab::default());
     let (selection, set_selection) = create_signal(Vec::<Key>::new());
+    let (compact, set_compact) = create_signal(false);
     let tree = NodeRef::new();
     let tree_ref = tree.clone();
     let simulation_state = state.clone();
@@ -274,7 +276,12 @@ pub fn build(state: &Rc<State>) -> Panel {
                                     <Show condition={header_tree_visible}>
                                         <PickToggle state={pick_state} picking />
                                     </Show>
-                                    <CloseButton @test_id={"inspector.close"} state={close_state} />
+                                    <Show condition={create_memo(move || !compact.get())}>
+                                        <CloseButton
+                                            @test_id={"inspector.close"}
+                                            state={close_state}
+                                        />
+                                    </Show>
                                 </List>
                                 <Tabs
                                     @test_id={"inspector.tabs"}
@@ -383,6 +390,7 @@ pub fn build(state: &Rc<State>) -> Panel {
         set_performance,
         set_renderer,
         set_selection,
+        set_compact,
         tree,
     }
 }
@@ -395,6 +403,7 @@ pub struct Bar {
 pub fn build_bar(state: &Rc<State>) -> Bar {
     let (selected, set_selected) = create_signal(1);
     let state = state.clone();
+    let close_state = state.clone();
     let document = beui_view::reactive::build(|| {
         view! {
             <Frame color={THEME.surface} radius=0>
@@ -404,15 +413,23 @@ pub fn build_bar(state: &Rc<State>) -> Bar {
                         padding_horizontal=BAR_PADDING_HORIZONTAL
                         padding_vertical=BAR_PADDING_VERTICAL
                     >
-                        <Tabs
-                            @test_id={"inspector.bar"}
-                            options={view! {
-                                <ChoiceOption label="App" />
-                                <ChoiceOption label="Inspector" />
-                            }}
-                            selected
-                            on_change={move |index| state.show_app(index == 0)}
-                        />
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=HEADER_SPACING
+                        >
+                            <Tabs
+                                @test_id={"inspector.bar"}
+                                @sizing=ItemSize::Percent(100.0)
+                                options={view! {
+                                    <ChoiceOption label="App" />
+                                    <ChoiceOption label="Inspector" />
+                                }}
+                                selected
+                                on_change={move |index| state.show_app(index == 0)}
+                            />
+                            <CloseButton @test_id={"inspector.bar.close"} state={close_state} />
+                        </List>
                     </Frame>
                     <Separator />
                 </List>
