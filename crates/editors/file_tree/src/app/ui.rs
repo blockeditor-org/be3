@@ -11,7 +11,8 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, IconSized, Tooltip,
+    Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, IconSized, Paragraph,
+    Tooltip,
     Tree, TreeRowFace, tree_row_node, use_theme,
 };
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuItem, TreeItem};
@@ -245,10 +246,15 @@ fn Inspector(
 
 #[component]
 fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
+    let theme = use_theme();
     view! {
         <List spacing=FIELD_SPACING>
             <Caption content={label} />
-            <Body content={value} @test_id={format!("file-tree.inspect.{named}")} />
+            <Paragraph
+                content={value}
+                color={theme.text.clone()}
+                @test_id={format!("file-tree.inspect.{named}")}
+            />
         </List>
     }
 }

@@ -15,6 +15,7 @@ use beui_view::reactive::{
 const PADDING_HORIZONTAL: f32 = 20.0;
 const PADDING_VERTICAL: f32 = 18.0;
 const SPACING: f32 = 12.0;
+const MARGIN: f32 = 12.0;
 const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 150);
 
 #[component]
@@ -52,22 +53,24 @@ fn DialogSurface(width: Prop<f32>, title: Prop<String>, children: Child) -> Node
     })));
     let theme = use_theme();
     view! {
-        <Frame
-            width={width}
-            color={theme.surface_raised.clone()}
-            outline={theme.border.clone()}
-            outline_width=BORDER_WIDTH
-            outline_visible=true
-            radius=CARD_RADIUS
-            padding_horizontal=PADDING_HORIZONTAL
-            padding_vertical=PADDING_VERTICAL
-        >
-            <List spacing=SPACING>
-                <Show condition={titled}>
-                    <Title content={label} />
-                </Show>
-                {children}
-            </List>
+        <Frame padding_horizontal=MARGIN padding_vertical=MARGIN>
+            <Frame
+                max_width={width.map(Some)}
+                color={theme.surface_raised.clone()}
+                outline={theme.border.clone()}
+                outline_width=BORDER_WIDTH
+                outline_visible=true
+                radius=CARD_RADIUS
+                padding_horizontal=PADDING_HORIZONTAL
+                padding_vertical=PADDING_VERTICAL
+            >
+                <List spacing=SPACING>
+                    <Show condition={titled}>
+                        <Title content={label} />
+                    </Show>
+                    {children}
+                </List>
+            </Frame>
         </Frame>
     }
 }
