@@ -68,11 +68,6 @@ known, not that the instance holds the block (the `Show` handler beside it
 checks `entry.holds`). The server enforces edit rights, but the host should
 check too.
 
-### 2.6 Ignored merge tests from blockeditor-org/be3#132
-31 `#[ignore]`d tests in `be-block` and `be-model`, all about concurrent
-edits. Make them pass. **(ask)** before enabling any whose behaviour is a
-policy choice.
-
 ## 3. Push, don't poll
 
 - `watch_blocks` checks for graph changes at the start of each frame; make
