@@ -14,6 +14,7 @@ use crate::node::{Element, InteractInput, NodeId, Rects};
 const UNDERLINE_OFFSET: f32 = 0.1;
 const UNDERLINE_THICKNESS: f32 = 0.07;
 const UNDERLINE_MINIMUM_THICKNESS: f32 = 1.0;
+const ELLIPSIS: &str = "\u{2026}";
 pub const DEFAULT_FONT_SIZE: f32 = 14.0;
 
 #[derive(Clone)]
@@ -37,6 +38,7 @@ pub struct TextNode {
     icon: bool,
     clip: bool,
     underline: bool,
+    ellipsis: bool,
     placed: RefCell<Option<Placed>>,
 }
 
@@ -76,6 +78,29 @@ impl TextNode {
         )
     }
 
+    fn truncates(&self) -> bool {
+        self.ellipsis && !self.wrap && !self.icon
+    }
+
+    fn fitted(&self, painter: &Painter, width: f32) -> Galley {
+        let galley = self.galley(painter, &self.content, width);
+        if !self.truncates() || galley.size().x <= width {
+            return galley;
+        }
+        let ellipsis = self.galley(painter, ELLIPSIS, width).size().x;
+        let budget = width - ellipsis;
+        let kept = galley.lines().first().map_or(0, |line| {
+            line.cursors
+                .iter()
+                .filter(|(at, x)| *x <= budget && *at <= line.range.end)
+                .map(|(at, _)| *at)
+                .max()
+                .unwrap_or(0)
+        });
+        let kept = self.content.get(..kept).unwrap_or_default().trim_end();
+        self.galley(painter, &format!("{kept}{ELLIPSIS}"), width)
+    }
+
     fn origin(&self, grid: PixelGrid, size: Vec2, rect: Rect) -> Pos2 {
         let x = match self.horizontal {
             TextAlign::Start => rect.left(),
@@ -103,7 +128,7 @@ impl TextNode {
     }
 
     fn place(&self, painter: &Painter, rect: Rect) -> Placed {
-        let galley = self.galley(painter, &self.content, rect.width());
+        let galley = self.fitted(painter, rect.width());
         let origin = self.origin(painter.pixel_grid(), galley.size(), rect);
         let placed = Placed {
             rect,
@@ -132,7 +157,11 @@ impl TextNode {
 
 impl Element for TextNode {
     fn measure(&self, _doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
-        self.galley(painter, &self.content, available.x).size()
+        let size = self.galley(painter, &self.content, available.x).size();
+        match self.truncates() {
+            true => Vec2::new(size.x.min(available.x.max(0.0)), size.y),
+            false => size,
+        }
     }
 
     fn layout(&mut self, _doc: &mut Document, painter: &Painter, rect: Rect, _out: &Rects) {
@@ -204,6 +233,7 @@ impl Document {
             icon: false,
             clip: false,
             underline: false,
+            ellipsis: false,
             placed: RefCell::new(None),
         })
     }
@@ -282,6 +312,12 @@ impl Document {
     pub fn set_text_clip(&mut self, text: NodeId, clip: bool) {
         if self.arena.get_as::<TextNode>(text).clip != clip {
             self.arena.paint_mut_as::<TextNode>(text).clip = clip;
+        }
+    }
+
+    pub fn set_text_ellipsis(&mut self, text: NodeId, ellipsis: bool) {
+        if self.arena.get_as::<TextNode>(text).ellipsis != ellipsis {
+            self.arena.get_mut_as::<TextNode>(text).ellipsis = ellipsis;
         }
     }
 

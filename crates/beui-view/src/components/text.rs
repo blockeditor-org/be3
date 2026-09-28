@@ -21,6 +21,7 @@ pub fn Text(
     #[prop(default = false)] icon: Prop<bool>,
     #[prop(default = false)] clip: Prop<bool>,
     #[prop(default = false)] underline: Prop<bool>,
+    #[prop(default = false)] ellipsis: Prop<bool>,
 ) -> NodeId {
     let vertical_default = match align {
         Some(_) => TextAlign::Center,
@@ -47,6 +48,9 @@ pub fn Text(
     create_effect(move || with_document(|document| document.set_text_clip(node, clip.get())));
     create_effect(move || {
         with_document(|document| document.set_text_underline(node, underline.get()))
+    });
+    create_effect(move || {
+        with_document(|document| document.set_text_ellipsis(node, ellipsis.get()))
     });
     create_effect(move || with_document(|document| document.set_text(node, string.get())));
     create_effect(move || {
