@@ -14,7 +14,7 @@ use block_editor_beui::beui::styled::{
     Accordion, Button, ButtonVariant, Caption, Checkbox, ColorInput, Heading, NumberDrag,
     NumberInput, Separator, Shortcut, Slider, TextInput, ToggleButton, use_theme,
 };
-use block_editor_beui::{ResizeMode, Sidebar};
+use block_editor_beui::{ResizeMode, Sidebar, narrow_chrome};
 
 use crate::geometry::*;
 
@@ -106,6 +106,8 @@ fn Inspector(state: Rc<CanvasState>) -> NodeId {
     let arrange = Rc::clone(&state);
     let empty = create_memo(clone!(state -> move || state.selection.get().is_empty()));
     let chosen = create_memo(clone!(empty -> move || !empty.get()));
+    let narrow = narrow_chrome();
+    let roomy = create_memo(move || !narrow.get());
     let styled = create_memo(clone!(state -> move || {
         state.selected_entities().iter().any(|entity| !entity.is_artboard())
     }));
@@ -128,8 +130,12 @@ fn Inspector(state: Rc<CanvasState>) -> NodeId {
                 </List>
             </Show>
             <LayersSection state={layers} />
-            <Separator />
-            <ShortcutsSection />
+            <Show condition={roomy}>
+                <List spacing=SPACING>
+                    <Separator />
+                    <ShortcutsSection />
+                </List>
+            </Show>
         </List>
     }
 }

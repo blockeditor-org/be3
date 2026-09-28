@@ -15,7 +15,7 @@ use block_editor_beui::beui::styled::{
 };
 use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::beui::unstyled::{Edge, Floating};
-use block_editor_beui::{Toolbar, narrow_chrome};
+use block_editor_beui::{Toolbar, narrow_chrome, sheet_open};
 
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
 
@@ -91,7 +91,8 @@ pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId
 pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
     let narrow = narrow_chrome();
     let previewing = state.previewing();
-    let open = create_memo(move || shown.get() && narrow.get() && !previewing);
+    let sheet = sheet_open();
+    let open = create_memo(move || shown.get() && narrow.get() && !sheet.get() && !previewing);
     let theme = use_theme();
     let tools = Rc::clone(&state);
     view! {
