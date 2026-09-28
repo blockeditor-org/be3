@@ -18,6 +18,7 @@ fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
                 <DateTimeField
                     @node_ref=&named
                     value={Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT))}
+                    today={Some(Date::new(2026, 1, 1))}
                     parts=DateTimeParts::Date
                     label="Due"
                     on_change={move |value: Option<DateTime>| {

@@ -20,6 +20,7 @@ fn on_a_narrow_screen_picking_a_date_moves_on_to_the_time() {
                         <DateTimeField
                             @node_ref=&named
                             value={Some(DateTime::new(Date::new(2026, 9, 27), Time::new(9, 0)))}
+                            today={Some(Date::new(2026, 1, 1))}
                             on_change={move |value| sink.borrow_mut().push(value)}
                         />
                     </List>
