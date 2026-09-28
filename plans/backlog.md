@@ -34,10 +34,10 @@ Clicking an embedded game should let it take over: the game keeps rendering
 inside the canvas at its position, and the sidebars become the game's
 sidebars. This no longer happens, probably since the canvas changes.
 
-### 1.5 Android: emulator and startup crash
-Find out whether an Android emulator runs in this VM (`scripts/android-emulator`).
-If it does, install the APK and fix the startup crash. If it doesn't, say
-why in guides/running_on_android.md.
+### 1.5 Android startup crash
+The app is expected to crash on startup on Android. The emulator can't run in
+the cloud containers (no KVM, see guides/running_on_android.md), so this needs
+a machine with KVM or a device.
 
 ## 2. Data layer and server correctness
 
@@ -129,8 +129,6 @@ check too.
 - **Emoji picker in the multiline editor.** `:` opens a menu, typing after it
   filters, Enter inserts.
 - **Tab escapes the multiline editor** when the editor consumes Tab.
-- **Keyboard covers fields.** When the on-screen keyboard opens, scroll the
-  focused field into the remaining visible area.
 - **File dialog fails silently.** Without xdg-desktop-portal or zenity,
   "Choose file…" does nothing; show an error saying what to install.
 
@@ -170,20 +168,7 @@ check too.
   width.
 - Right click → Export: save a block to a regular file.
 
-### 8.3 Editors on narrow screens
-The name field is so wide on mobile that it pushes the controls beside it
-off screen.
-
-## 9. Android, touch and small screens
-
-- **Simulate mouse with touch.** Double-tap-drag: shorter timer; the drag
-  starts from the first tap's position; hold the first press until the timer
-  decides. Plus KDE Connect's lock: double tap locks the button down, single
-  tap releases.
-- **be-launcher image viewer**: the close button is off screen at narrow
-  widths.
-
-## 10. Tooling and repo hygiene
+## 9. Tooling and repo hygiene
 
 - **Crate folder names use `-`.** Rename every crate folder under `crates/`
   that uses `_` (`beui_macros`, `reactive_macros`, `tabletop_games` and its
