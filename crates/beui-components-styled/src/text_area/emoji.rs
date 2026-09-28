@@ -4,6 +4,7 @@ use crate::theme::{RADIUS, use_theme};
 use beui_components_unstyled::{Completer, Completion, CompletionMenu};
 use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
+use beui_core::font::TextAlign;
 use beui_core::input::CursorIcon;
 use beui_core::node::NodeId;
 use beui_view::reactive::{ClickCatcher, ForEach, Frame, List, Text, clone, create_memo};
@@ -12,6 +13,7 @@ const RESULTS: usize = 8;
 const MENU_WIDTH: f32 = 240.0;
 const EMOJI_SIZE: f32 = 16.0;
 const LABEL_SIZE: f32 = 12.0;
+const EMOJI_COLUMN: f32 = 22.0;
 const POPULAR: [&str; RESULTS] = [
     "smile", "joy", "heart", "+1", "tada", "fire", "eyes", "rocket",
 ];
@@ -29,7 +31,7 @@ pub fn search_emoji(query: &str) -> Vec<Completion> {
             .collect();
     }
     let mut ranked: Vec<(u8, usize, usize, Completion)> = Vec::new();
-    for (order, emoji) in emojis::iter().enumerate() {
+    for (order, emoji) in emojis::iter().filter(|emoji| drawable(emoji)).enumerate() {
         let best = emoji
             .shortcodes()
             .filter_map(|code| rank(code, &query).map(|rank| (rank, code)))
@@ -44,6 +46,13 @@ pub fn search_emoji(query: &str) -> Vec<Completion> {
         .take(RESULTS)
         .map(|(_, _, _, completion)| completion)
         .collect()
+}
+
+fn drawable(emoji: &emojis::Emoji) -> bool {
+    !emoji
+        .as_str()
+        .chars()
+        .any(|character| matches!(character, '\u{1f1e6}'..='\u{1f1ff}' | '\u{e0020}'..='\u{e007f}'))
 }
 
 fn rank(code: &str, query: &str) -> Option<u8> {
@@ -128,7 +137,14 @@ fn EmojiRow(menu: CompletionMenu, index: usize) -> NodeId {
         >
             <Frame color={fill} radius=RADIUS padding_horizontal=8.0 padding_vertical=3.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Text string={emoji} font_size=EMOJI_SIZE color={theme.text.clone()} />
+                    <Frame width=EMOJI_COLUMN>
+                        <Text
+                            string={emoji}
+                            font_size=EMOJI_SIZE
+                            color={theme.text.clone()}
+                            align=TextAlign::Center
+                        />
+                    </Frame>
                     <Text string={label} font_size=LABEL_SIZE color={theme.text_muted.clone()} />
                 </List>
             </Frame>
