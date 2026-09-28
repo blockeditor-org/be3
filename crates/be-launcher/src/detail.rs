@@ -6,8 +6,8 @@ use beui::reactive::{
 };
 use beui::styled::theme::{CARD_RADIUS, FONT_BODY, FONT_HEADING, FONT_SMALL, FONT_TITLE};
 use beui::styled::{
-    Body, Button, ButtonVariant, Caption, Code, Icon, IconButton, Link, Scroll, Separator, Spinner,
-    use_theme,
+    Body, Button, ButtonVariant, Caption, Code, Icon, IconButton, Link, Scroll, SelectableText,
+    Separator, Spinner, use_theme,
 };
 use beui::unstyled;
 
@@ -152,6 +152,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let refresh =
         clone!(model pull_request -> move || model.refresh_timeline(&pull_request.get_untracked()));
     view! {
+        <SelectableText child_size=ItemSize::Percent(100.0)>
         <List spacing=0.0>
             <Frame padding_horizontal=PADDING padding_vertical=4.0>
                 <List spacing=SPACING>
@@ -226,6 +227,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                 </Frame>
             </Scroll>
         </List>
+        </SelectableText>
     }
 }
 

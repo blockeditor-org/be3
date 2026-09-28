@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::cell::RefCell;
+use std::ops::Range;
 
 use crate::color::Color32;
 use crate::font::TextAlign;
@@ -39,6 +40,7 @@ pub struct TextNode {
     clip: bool,
     underline: bool,
     ellipsis: bool,
+    selection: Option<(Range<usize>, Color32)>,
     placed: RefCell<Option<Placed>>,
 }
 
@@ -171,6 +173,15 @@ impl Element for TextNode {
     fn paint(&self, _doc: &Document, painter: &Painter, _rects: &Rects, rect: Rect) {
         let clipped = painter.with_clip_rect(if self.clip { rect } else { Rect::EVERYTHING });
         let placed = self.placed(&clipped, rect);
+        if let Some((range, color)) = &self.selection {
+            let end = range.end.min(placed.galley.text().len());
+            for selected in placed
+                .galley
+                .selection_rects(placed.origin, range.start.min(end)..end)
+            {
+                clipped.rect_filled(selected, 0.0, *color);
+            }
+        }
         clipped.galley(placed.origin, placed.galley.clone(), self.color);
         if self.underline {
             for line in self.underline_rects(&placed.galley, placed.origin) {
@@ -234,6 +245,7 @@ impl Document {
             clip: false,
             underline: false,
             ellipsis: false,
+            selection: None,
             placed: RefCell::new(None),
         })
     }
@@ -313,6 +325,41 @@ impl Document {
         if self.arena.get_as::<TextNode>(text).clip != clip {
             self.arena.paint_mut_as::<TextNode>(text).clip = clip;
         }
+    }
+
+    pub fn set_text_selection(&mut self, text: NodeId, selection: Option<(Range<usize>, Color32)>) {
+        if self.arena.get_as::<TextNode>(text).selection != selection {
+            self.arena.paint_mut_as::<TextNode>(text).selection = selection;
+        }
+    }
+
+    pub fn text_index_at(&self, text: NodeId, pos: Pos2) -> Option<usize> {
+        let rect = self.node_rect(text)?;
+        let node = self.arena.get_as::<TextNode>(text);
+        let placed = node.placed.borrow();
+        let placed = placed.as_ref()?;
+        let local = pos - rect.min.to_vec2();
+        let index = placed.galley.cursor_at(placed.origin, local);
+        Some(index.min(node.content.len()))
+    }
+
+    pub fn texts_within(&self, root: NodeId) -> Vec<NodeId> {
+        let mut found = Vec::new();
+        let mut pending = vec![root];
+        while let Some(id) = pending.pop() {
+            if !self.arena.contains(id) || self.node_rect(id).is_none() {
+                continue;
+            }
+            let node = self.arena.get(id);
+            if let Some(text) = node.as_any().downcast_ref::<TextNode>() {
+                if !text.icon && !text.content.is_empty() {
+                    found.push(id);
+                }
+                continue;
+            }
+            pending.extend(node.children().into_iter().rev());
+        }
+        found
     }
 
     pub fn set_text_ellipsis(&mut self, text: NodeId, ellipsis: bool) {
