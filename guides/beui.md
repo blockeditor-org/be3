@@ -1094,6 +1094,12 @@ Beui's features:
   NativeActivity's input queue never delivers. The library defines
   `#[unsafe(no_mangle)] fn android_main(app: beui::AndroidApp)`, which beui
   calls on a thread of its own, and which calls `beui::run_with`.
+
+The soft keyboard takes its room out of the window rather than covering it: on
+Android its inset joins the safe area, and on the web the pages' viewport meta
+asks for `interactive-widget=resizes-content`. When the rectangle a document is
+shown in changes size while the focus takes text, the document scrolls the
+focused field into what is left, through every scroll it sits in.
 - `web` adds the browser runner, `beui::run_web(canvas_id, options, app)`,
   and enables `render`.
 - `dom` is the other browser runner,
