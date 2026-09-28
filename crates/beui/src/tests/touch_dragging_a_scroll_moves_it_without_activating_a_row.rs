@@ -44,7 +44,6 @@ fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
     let released_offset = harness.document().scroll_offset(scroll);
     assert!((released_offset - (100.0 - TOUCH_DRAG_THRESHOLD)).abs() < 0.01);
 
-    std::thread::sleep(std::time::Duration::from_millis(20));
     harness.frame(Vec::new());
 
     assert!(harness.document().scroll_offset(scroll) > released_offset);

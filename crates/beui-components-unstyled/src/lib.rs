@@ -11,6 +11,7 @@ pub mod datetime;
 pub mod disclosure;
 pub mod dock;
 pub mod drag;
+pub mod fling;
 pub mod floating;
 pub mod menu;
 pub mod menu_button;

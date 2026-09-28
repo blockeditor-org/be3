@@ -62,7 +62,7 @@ pub struct Document {
     pub touch_scroll_vertical: Option<NodeId>,
     pub touch_shift: crate::geometry::Vec2,
     pub touch_scroll_horizontal: Option<NodeId>,
-    pub wheel_latch: Option<(NodeId, Instant)>,
+    pub wheel_latch: Option<(NodeId, Instant, Option<crate::geometry::Pos2>)>,
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub pointer_capture: Option<NodeId>,
     pub drags: Rc<crate::drag_board::Board>,
@@ -95,6 +95,7 @@ pub struct Document {
     pub verifies_paint: bool,
     pub copied_text: Option<String>,
     next_paint: Option<Instant>,
+    now: Instant,
     reactive_scope: ::reactive::Scope,
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
@@ -264,6 +265,7 @@ impl Document {
             verifies_paint: true,
             copied_text: None,
             next_paint: None,
+            now: Instant::now(),
             reactive_scope: ::reactive::Scope::new(),
             extensions: HashMap::new(),
             node_scopes: HashMap::new(),
@@ -391,7 +393,7 @@ impl Document {
         if self.reattached.replace(false) {
             self.attached.1.update(|attached| *attached += 1);
         }
-        let now = Instant::now();
+        let now = self.now;
         let mut timers = self.timers.borrow_mut();
         timers.retain(|timer| timer.strong_count() > 0);
         let due: Vec<_> = timers
@@ -710,7 +712,12 @@ impl Document {
         self.placement.and_then(|(_, placement)| placement)
     }
 
+    pub fn now(&self) -> Instant {
+        self.now
+    }
+
     pub fn show_content(&mut self, ctx: &Context, rect: Rect, pointer: bool, keys: Keys) {
+        self.now = ctx.now();
         let mut measurement = FrameMeasurement::new();
         self.work.reset();
         let scale = ctx.pixels_per_point();
@@ -819,7 +826,7 @@ impl Document {
                 }
             }
         }
-        let now = Instant::now();
+        let now = self.now;
         self.changes.prune(now);
         self.damage_flashes.prune(now);
         if self.arena.take_everything() {
@@ -859,10 +866,10 @@ impl Document {
             self.next_paint = self.paint_cache.get_mut().next_deadline();
         }
         if let Some(deadline) = self.next_paint {
-            ctx.request_repaint_after(deadline.saturating_duration_since(Instant::now()));
+            ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
         }
         if let Some(deadline) = self.next_timer() {
-            ctx.request_repaint_after(deadline.saturating_duration_since(Instant::now()));
+            ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
         }
         ctx.show_painting(&self.painting);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
@@ -923,12 +930,19 @@ impl Document {
         };
         let visible = only.viewport.intersect(viewport);
         let rooted = self.paint_cache.borrow().rooted();
-        let (fixed, inner) = paint::fixed_damage(&rooted, only.node, visible, only.by);
+        let (fixed, inner) =
+            paint::fixed_damage(&rooted, only.node, &only.moving, visible, only.by);
         let shown = visible.intersect(inner);
         let landed = shown.intersect(shown.translate(only.by));
         let damaged = region
             .rects()
             .iter()
+            .filter(|rect| {
+                !only
+                    .absorbed
+                    .iter()
+                    .any(|absorbed| absorbed.contains_rect(**rect))
+            })
             .flat_map(|rect| [*rect, rect.translate(only.by).intersect(landed)])
             .chain(only.damaged.clipped(viewport).rects().iter().copied())
             .chain(fixed.rects().iter().copied())

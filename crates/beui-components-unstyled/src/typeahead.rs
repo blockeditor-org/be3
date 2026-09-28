@@ -24,7 +24,7 @@ impl Typeahead {
             return None;
         }
         let typed = typed.to_lowercase();
-        let now = Instant::now();
+        let now = beui_core::timer::now();
         if self
             .typed_at
             .is_none_or(|last| now.duration_since(last) > TIMEOUT)

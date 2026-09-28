@@ -47,6 +47,7 @@ pub struct ClickCatcherNode {
     pub on_autoscroll: Callback<AutoscrollGesture>,
     pub on_zoom: Callback<ZoomGesture>,
     pub capture_at: Callback<Pos2, bool>,
+    pub intercept_at: Callback<Pos2, bool>,
 }
 
 impl Default for ClickCatcherNode {
@@ -92,6 +93,7 @@ impl ClickCatcherNode {
             on_autoscroll: Callback::empty(),
             on_zoom: Callback::empty(),
             capture_at: Callback::empty(),
+            intercept_at: Callback::empty(),
         }
     }
 
@@ -273,6 +275,10 @@ impl Element for ClickCatcherNode {
         (self.capture_presses && rect.contains(pos)) || self.capture_at.call(pos)
     }
 
+    fn intercepts(&mut self, _doc: &mut Document, pos: Pos2, _rect: Rect) -> bool {
+        self.intercept_at.call(pos)
+    }
+
     fn interact(
         &mut self,
         doc: &mut Document,
@@ -371,11 +377,12 @@ impl Element for ClickCatcherNode {
         self.pan_drag(input, id, contains_pointer);
         self.secondary_drag(input, rect);
         if input.wheel_target == Some(id)
-            && input.scroll != Vec2::ZERO
+            && (input.scroll != Vec2::ZERO || input.scroll_fling != Vec2::ZERO)
             && let Some(pos) = input.pointer_pos
         {
             self.on_scroll.call(ScrollGesture {
                 delta: input.scroll,
+                fling: input.scroll_fling,
                 pos,
                 modifiers: input.modifiers,
             });

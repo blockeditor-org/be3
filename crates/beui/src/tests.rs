@@ -82,6 +82,7 @@ mod a_rect_watched_inside_a_scroll_follows_it_as_it_scrolls;
 mod a_redrawn_drawing_damages_only_the_part_it_names;
 mod a_removed_nodes_slot_is_reused_under_a_new_id;
 mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
+mod a_row_that_leaves_a_virtual_list_moves_the_rows_below_it_by_a_copy;
 mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
 mod a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips;
@@ -109,6 +110,7 @@ mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
+mod a_tap_during_a_fling_stops_it_without_clicking_a_row;
 mod a_tap_on_the_simulated_trackpad_holds_its_press_until_the_double_tap_timer_runs_out;
 mod a_test_id_names_the_copy_that_is_shown;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
@@ -119,6 +121,7 @@ mod a_time_list_moves_through_its_times_and_picks_one;
 mod a_timer_asks_for_frames_until_its_work_settles;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
 mod a_touch_beside_a_control_reaches_the_nearest_one;
+mod a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames;
 mod a_touch_fling_that_ends_without_moving_keeps_its_momentum;
 mod a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
@@ -133,6 +136,7 @@ mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
 mod a_window_larger_than_the_dock_is_drawn_no_larger_than_it;
+mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
 mod a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows;
 mod a_window_with_tabs_in_a_sidebar_has_no_title_bar;
 mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
@@ -256,12 +260,14 @@ mod inserting_above_a_virtual_list_view_keeps_the_rows_in_place;
 mod inserting_into_a_virtual_list_view_builds_only_the_new_row;
 mod jumping_up_a_virtual_scroll_only_builds_the_items_in_view;
 mod keys_without_alt_reach_the_control_the_screen_reader_focused;
+mod lifting_the_fingers_off_a_trackpad_scroll_carries_it_on;
 mod middle_clicking_a_scroll_scrolls_it_towards_the_pointer;
 mod moving_a_dock_tab_to_another_pane_keeps_its_panel;
 mod on_a_narrow_screen_picking_a_date_moves_on_to_the_time;
 mod opening_a_menu_button_damages_only_the_button_and_its_menu;
 mod opening_a_menu_damages_only_where_it_appears;
 mod opening_a_select_focuses_its_search_box_and_highlights_the_selected_option;
+mod overscrolling_squishes_the_scrollbar_thumb_against_the_end;
 mod painting_never_has_to_move_a_rect_onto_the_pixel_grid;
 mod painting_skips_the_elements_outside_the_damaged_region;
 mod percent_children_land_on_whole_device_pixels;
@@ -417,6 +423,7 @@ const WIDE_VIEWPORT: Vec2 = Vec2::new(1000.0, 600.0);
 const TALL_VIEWPORT: Vec2 = Vec2::new(1000.0, 1400.0);
 const VIRTUAL_ITEM_COUNT: usize = 10_000;
 const VIRTUAL_ITEM_HEIGHT: f32 = 20.0;
+const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
     Event::Touch {
@@ -437,11 +444,28 @@ impl Harness {
     pub(crate) fn new(mut document: Document) -> Self {
         crate::verify_paint(true);
         crate::inspector::install(&mut document);
+        let context = Context::new(crate::FreetypeFonts::default());
+        context.stop_clock();
         Self {
-            context: Context::new(crate::FreetypeFonts::default()),
+            context,
             document,
             viewport: VIEWPORT,
         }
+    }
+
+    pub(crate) fn advance(&mut self, by: Duration) {
+        self.context.advance_clock(by);
+    }
+
+    pub(crate) fn settle(&mut self) -> usize {
+        const LIMIT: usize = 1200;
+        for frames in 0..LIMIT {
+            let output = self.frame(Vec::new());
+            if !output.repaint && output.repaint_after > Duration::ZERO {
+                return frames;
+            }
+        }
+        panic!("still animating after {LIMIT} frames");
     }
 
     pub(crate) fn sized(document: Document, viewport: Vec2) -> Self {
@@ -462,6 +486,7 @@ impl Harness {
             viewport,
         } = self;
         let input = RawInput { events };
+        context.advance_clock(FRAME_INTERVAL);
         context.run(input, |context| {
             document.show(context, Rect::from_min_size(Pos2::ZERO, *viewport));
         })
@@ -813,11 +838,7 @@ impl Harness {
     }
 
     pub(crate) fn wait_out_double_tap(&mut self) {
-        self.context
-            .input_simulation_as_mut(|simulation: &mut MouseSimulation| {
-                simulation.advance_clock(crate::mouse_simulation::DOUBLE_TAP_TIME)
-            })
-            .expect("the mouse is simulated");
+        self.advance(crate::mouse_simulation::DOUBLE_TAP_TIME);
         self.frame(Vec::new());
     }
 
@@ -1346,7 +1367,7 @@ pub(crate) fn toolbar_of<const N: usize>(
 use crate::node::{Element, InteractInput, Rects};
 use crate::painter::Painter;
 use std::any::Any;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 struct Counted {
     inner: Box<dyn Element>,
@@ -1374,6 +1395,10 @@ impl Element for Counted {
 
     fn captures(&mut self, doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
         self.inner.captures(doc, pos, rect)
+    }
+
+    fn intercepts(&mut self, doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
+        self.inner.intercepts(doc, pos, rect)
     }
 
     fn interact(
@@ -1509,3 +1534,37 @@ mod scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes;
 mod the_app_tab_shows_the_document_below_the_tab_bar;
 mod the_inspector_shows_the_renderer_the_host_reports;
 mod unused_navigation_keys_scroll_the_nearest_ancestor;
+
+use crate::interact::WHEEL_LATCH_TIMEOUT;
+use crate::reactive::DynamicSegment;
+use crate::unstyled::Scroll;
+
+fn nested() -> Document {
+    build(move || {
+        view! {
+            <List spacing=0.0>
+                <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer">
+                    <Frame height=200.0 />
+                    <Frame height=150.0>
+                        <Scroll @test_id="inner">
+                            <Rows count=20 />
+                        </Scroll>
+                    </Frame>
+                    <Rows count=20 />
+                </Scroll>
+            </List>
+        }
+    })
+}
+
+#[component]
+fn Rows(count: usize) -> DynamicSegment<NodeId> {
+    view! {
+        <ForEach keys={indices(count)}>
+            {|index: usize| view! {
+                <Text string={format!("Row {index}")} font_size=20.0 color=Color32::WHITE />
+            }}
+        </ForEach>
+    }
+}
+mod moving_the_pointer_ends_the_wheel_latch;

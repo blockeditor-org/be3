@@ -31,7 +31,7 @@ pub struct Timer(Rc<TimerState>);
 
 impl Timer {
     pub fn start(&self, delay: Duration) {
-        let due = Instant::now() + delay;
+        let due = now() + delay;
         if self.0.due.get().is_some_and(|held| held <= due) {
             return;
         }
@@ -51,6 +51,10 @@ impl Timer {
     pub fn running(&self) -> bool {
         self.0.due.get().is_some()
     }
+}
+
+pub fn now() -> Instant {
+    try_with_document(|document| document.now()).unwrap_or_else(Instant::now)
 }
 
 pub fn create_timer(work: impl Fn() -> Option<Duration> + 'static) -> Timer {

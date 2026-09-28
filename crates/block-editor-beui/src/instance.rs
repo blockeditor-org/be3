@@ -676,6 +676,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 };
                 state.events.push(beui::Event::Modifiers(state.modifiers));
             }
+            InputEvent::WheelEnded => state.events.push(beui::Event::ScrollEnded),
             InputEvent::Zoom { factor } => {
                 state.events.push(beui::Event::Zoom(*factor));
             }

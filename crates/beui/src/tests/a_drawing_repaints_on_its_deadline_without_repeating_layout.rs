@@ -30,11 +30,7 @@ fn a_drawing_repaints_on_its_deadline_without_repeating_layout() {
     assert!(output.repaint_after <= BLINK);
     assert!(!harness.frame(vec![]).changed);
     assert_eq!((layouts.get(), paints.get()), (1, 1));
-    harness
-        .document
-        .paint_cache
-        .get_mut()
-        .expire_deadlines(Instant::now());
+    harness.advance(BLINK);
     harness.frame(vec![]);
     assert_eq!((layouts.get(), paints.get()), (1, 2));
     let set_on = asking.borrow().clone().expect("the drawing was built");

@@ -34,6 +34,7 @@ pub struct InteractInput {
     pub middle_down: bool,
     pub middle_pressed_this_frame: bool,
     pub scroll: Vec2,
+    pub scroll_fling: Vec2,
     pub zoom: f32,
     pub touch_pan: Vec2,
     pub zoom_pos: Option<Pos2>,
@@ -92,6 +93,10 @@ pub trait Element: Any {
     }
 
     fn captures(&mut self, _doc: &mut Document, _pos: Pos2, _rect: Rect) -> bool {
+        false
+    }
+
+    fn intercepts(&mut self, _doc: &mut Document, _pos: Pos2, _rect: Rect) -> bool {
         false
     }
 

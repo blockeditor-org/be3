@@ -106,7 +106,7 @@ pub struct MouseSimulation {
     scroll: Vec2,
     left: Left,
     scrolling: bool,
-    skew: Duration,
+    now: Instant,
     keyboard_open: bool,
     keyboard: Keyboard,
     painted: Rect,
@@ -130,7 +130,7 @@ impl Default for MouseSimulation {
             scroll: Vec2::ZERO,
             left: Left::Up,
             scrolling: false,
-            skew: Duration::ZERO,
+            now: Instant::now(),
             keyboard_open: false,
             keyboard: Keyboard::default(),
             painted: Rect::NOTHING,
@@ -140,11 +140,7 @@ impl Default for MouseSimulation {
 
 impl MouseSimulation {
     fn now(&self) -> Instant {
-        Instant::now() + self.skew
-    }
-
-    pub fn advance_clock(&mut self, by: Duration) {
-        self.skew += by;
+        self.now
     }
 
     fn is_enabled(&self) -> bool {
@@ -733,7 +729,8 @@ impl InputSimulation for MouseSimulation {
         self.enable(enabled);
     }
 
-    fn translate(&mut self, raw: RawInput) -> (RawInput, Option<Duration>) {
+    fn translate(&mut self, raw: RawInput, now: Instant) -> (RawInput, Option<Duration>) {
+        self.now = now;
         self.translated(raw)
     }
 

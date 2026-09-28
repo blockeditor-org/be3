@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use accesskit::{Action, Node, Role};
 use beui_macros::{component, view};
 
+use super::fling::Fling;
 use super::rubber_band::{
     MAX_ANIMATION_STEP, MINIMUM_VELOCITY, SCROLL_SPRING, rubber_band, spring_back, unband,
 };
@@ -13,7 +14,9 @@ use beui_core::base::{Direction, ItemSize, ScrollPosition};
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::Pos2;
-use beui_core::input::{AutoscrollGesture, DragGesture, Key, KeyPress, ScrollGesture};
+use beui_core::input::{
+    AutoscrollGesture, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
+};
 use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
@@ -24,7 +27,6 @@ use beui_view::reactive::{
     with_document,
 };
 
-const INERTIA_FRICTION: f32 = 4.5;
 const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_INSET: f32 = -1.0;
 const STEP: f32 = 40.0;
@@ -71,6 +73,7 @@ struct Momentum {
     drag: Option<f32>,
     dragging: bool,
     velocity: f32,
+    fling: Option<Fling>,
     autoscroll: f32,
     stepped: Instant,
 }
@@ -82,25 +85,42 @@ impl Momentum {
             drag: None,
             dragging: false,
             velocity: 0.0,
+            fling: None,
             autoscroll: 0.0,
-            stepped: Instant::now(),
+            stepped: beui_core::timer::now(),
         }
     }
 
     fn moving(&self) -> bool {
-        self.overscroll != 0.0 || self.velocity != 0.0 || self.autoscroll != 0.0
+        self.overscroll != 0.0
+            || self.velocity != 0.0
+            || self.fling.is_some()
+            || self.autoscroll != 0.0
+    }
+
+    fn flinging(&self) -> bool {
+        self.fling.is_some() && self.overscroll == 0.0 && self.drag.is_none()
+    }
+
+    fn stop_fling(&mut self) {
+        if self.flinging() {
+            self.fling = None;
+            self.velocity = 0.0;
+        }
     }
 
     fn rest(&mut self) {
         self.overscroll = 0.0;
         self.drag = None;
         self.velocity = 0.0;
+        self.fling = None;
         self.autoscroll = 0.0;
     }
 
     fn grab(&mut self, position: &ScrollPosition) {
         self.drag = Some(position.offset + unband(self.overscroll, position.viewport));
         self.velocity = 0.0;
+        self.fling = None;
     }
 
     fn drag(&mut self, position: &mut ScrollPosition, delta: f32, banding: bool) {
@@ -121,9 +141,13 @@ impl Momentum {
         } else {
             velocity * 0.35
         };
-        if self.velocity.abs() < MINIMUM_VELOCITY && self.overscroll == 0.0 {
-            self.velocity = 0.0;
+        if self.overscroll != 0.0 {
+            return;
         }
+        self.fling = (self.velocity.abs() >= MINIMUM_VELOCITY)
+            .then(|| Fling::new(self.velocity))
+            .flatten();
+        self.velocity = self.fling.map_or(0.0, |fling| fling.velocity());
     }
 
     fn animate(&mut self, position: &mut ScrollPosition, elapsed: f32, banding: bool) {
@@ -148,18 +172,22 @@ impl Momentum {
             );
             return;
         }
-        if self.velocity == 0.0 {
+        let Some(fling) = &mut self.fling else {
+            self.velocity = 0.0;
             return;
+        };
+        let raw = position.offset + fling.advance(elapsed);
+        self.velocity = fling.velocity();
+        if fling.done() {
+            self.fling = None;
         }
-        let raw = position.offset + self.velocity * elapsed;
         position.offset = raw.clamp(0.0, position.max_offset());
-        self.velocity *= (-INERTIA_FRICTION * elapsed).exp();
-        if raw != position.offset && !banding {
-            self.velocity = 0.0;
-        } else if raw != position.offset {
-            self.overscroll = raw - position.offset;
-        } else if self.velocity.abs() < MINIMUM_VELOCITY {
-            self.velocity = 0.0;
+        if raw != position.offset {
+            self.fling = None;
+            match banding {
+                true => self.overscroll = raw - position.offset,
+                false => self.velocity = 0.0,
+            }
         }
     }
 }
@@ -200,15 +228,29 @@ impl Motion {
         });
     }
 
+    fn flinging(&self) -> bool {
+        self.momentum.borrow().flinging()
+    }
+
+    fn stop_fling(&self) {
+        self.momentum.borrow_mut().stop_fling();
+    }
+
     fn wheel(&self, gesture: ScrollGesture) {
         let wheel = self.axis().main(gesture.delta);
-        let Some(position) = self.placed().filter(|_| wheel != 0.0) else {
+        let fling = self.axis().main(gesture.fling);
+        let Some(position) = self.placed().filter(|_| wheel != 0.0 || fling != 0.0) else {
             return;
         };
         let mut momentum = self.momentum.borrow_mut();
         momentum.rest();
         let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
         self.publish(&momentum, offset);
+        if fling != 0.0 {
+            with_document(|document| document.take_offset_steered(self.node));
+            momentum.release(-fling);
+            self.animate(&mut momentum);
+        }
     }
 
     fn drag(&self, gesture: DragGesture) {
@@ -248,6 +290,7 @@ impl Motion {
         }
         momentum.drag = None;
         momentum.velocity = 0.0;
+        momentum.fling = None;
         momentum.autoscroll = autoscroll_speed(self.axis().main(gesture.pos - gesture.origin));
         self.animate(&mut momentum);
     }
@@ -257,7 +300,7 @@ impl Motion {
             return;
         };
         if !animation.running() {
-            momentum.stepped = Instant::now();
+            momentum.stepped = beui_core::timer::now();
         }
         animation.start(Duration::ZERO);
     }
@@ -307,7 +350,7 @@ impl Motion {
         }
         let steered = with_document(|document| document.take_offset_steered(self.node));
         let mut momentum = self.momentum.borrow_mut();
-        let now = Instant::now();
+        let now = beui_core::timer::now();
         let elapsed = now.duration_since(momentum.stepped).as_secs_f32();
         momentum.stepped = now;
         if steered {
@@ -365,6 +408,7 @@ fn Scrolling(
     let (keyed, ancestor_keyed) = (motion.clone(), motion.clone());
     let (wheeled, dragged) = (motion.clone(), motion.clone());
     let autoscrolled = motion.clone();
+    let (tapped, stopped) = (motion.clone(), motion.clone());
     let (origin, set_origin) = create_signal(None::<Pos2>);
     let marked = create_memo(clone!(origin -> move || origin.get().is_some()));
     let anchor = create_memo(clone!(origin -> move || {
@@ -383,6 +427,8 @@ fn Scrolling(
             >
                 <ClickCatcher
                     scroll_axis={axis}
+                    intercept_at={move |_: Pos2| tapped.flinging()}
+                    on_press={move |_: PointerPress| stopped.stop_fling()}
                     on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
                     on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
                     on_autoscroll={move |gesture: AutoscrollGesture| {
