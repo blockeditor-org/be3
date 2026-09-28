@@ -5,9 +5,8 @@ use be_block::metadata::MAX_NAME_BYTES;
 use beui::NodeId;
 use beui::icons::{ICON_REDO, ICON_SHARE, ICON_UNDO};
 use beui::reactive::{
-    ClickCallback, Frame, ItemSize, List, Memo, ReadSignal, Show, WriteSignal, clone,
-    component, create_effect, create_memo, create_signal, focus_takes_text, on_finger_tap,
-    on_shortcut, view,
+    ClickCallback, Frame, ItemSize, List, Memo, ReadSignal, Show, WriteSignal, clone, component,
+    create_effect, create_memo, create_signal, focus_takes_text, on_finger_tap, on_shortcut, view,
 };
 use beui::styled::{Button, ButtonVariant, IconButton, TextInput};
 use beui::{Context, Document, Key, KeyPress};

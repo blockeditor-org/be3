@@ -18,7 +18,10 @@ fn a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_t
     harness.quick_tap_trackpad();
     harness.quick_tap_trackpad();
     harness.wait_out_double_tap();
-    assert!(harness.simulated_left_held(), "the double tap locks the button");
+    assert!(
+        harness.simulated_left_held(),
+        "the double tap locks the button"
+    );
 
     let at = harness.simulated_trackpad();
     let half = (track.center() - harness.simulated_cursor()) * 0.5;
@@ -28,7 +31,10 @@ fn a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_t
         harness.finger(finger, TouchPhase::End, at + half);
         harness.frame(Vec::new());
     }
-    assert!(harness.simulated_left_held(), "lifting a moving finger keeps it");
+    assert!(
+        harness.simulated_left_held(),
+        "lifting a moving finger keeps it"
+    );
     let value = styled::slider_value(harness.document(), slider);
     assert!(
         (value - 0.5).abs() < 0.02,

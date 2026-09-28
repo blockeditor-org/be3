@@ -480,7 +480,7 @@ impl Context {
         Some(change(simulation))
     }
 
-        pub fn measure_mouse_simulation(&self, viewport: Rect) -> f32 {
+    pub fn measure_mouse_simulation(&self, viewport: Rect) -> f32 {
         let scale = self.native_pixels_per_point() / self.pixels_per_point();
         self.inner.simulation_area.set((viewport, scale));
         let mut simulation = self.inner.input_simulation.borrow_mut();

@@ -23,8 +23,8 @@ mod images_in_comments_and_tables_are_gathered_in_order;
 mod keys_reach_the_running_program_as_terminal_input;
 mod markdown_becomes_paragraphs_lists_code_images_and_tables;
 mod pull_requests_are_read_from_the_github_api;
-mod the_repository_is_read_from_the_origin_remote;
 mod the_image_viewer_keeps_its_close_button_on_a_narrow_screen;
+mod the_repository_is_read_from_the_origin_remote;
 mod timestamps_read_as_relative_times;
 
 fn repository() -> Repository {

@@ -19,7 +19,10 @@ fn a_tap_on_the_simulated_trackpad_holds_its_press_until_the_double_tap_timer_ru
     harness.finger(1, TouchPhase::Start, at);
     harness.finger(1, TouchPhase::End, at);
     let output = harness.frame(Vec::new());
-    assert!(harness.simulated_left_held(), "the tap holds the button down");
+    assert!(
+        harness.simulated_left_held(),
+        "the tap holds the button down"
+    );
     assert!(
         output.repaint_after <= DOUBLE_TAP_TIME,
         "the simulation asks to be woken when the timer runs out"

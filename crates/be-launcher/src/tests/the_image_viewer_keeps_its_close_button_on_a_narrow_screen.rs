@@ -7,9 +7,8 @@ use crate::viewer::ViewerBar;
 fn the_image_viewer_keeps_its_close_button_on_a_narrow_screen() {
     let viewport = Vec2::new(320.0, 200.0);
     let mut document = build(|| {
-        let position = create_memo(|| {
-            "Image 3 of 12 · the arrow keys move between them".to_owned()
-        });
+        let position =
+            create_memo(|| "Image 3 of 12 · the arrow keys move between them".to_owned());
         let first = create_memo(|| false);
         let last = create_memo(|| false);
         view! {
@@ -29,8 +28,12 @@ fn the_image_viewer_keeps_its_close_button_on_a_narrow_screen() {
         document.show(context, Rect::from_min_size(Pos2::ZERO, viewport));
     });
 
-    let close = document.find_test_id("viewer.close").expect("a close button");
-    let rect = document.node_rect(close).expect("the close button is laid out");
+    let close = document
+        .find_test_id("viewer.close")
+        .expect("a close button");
+    let rect = document
+        .node_rect(close)
+        .expect("the close button is laid out");
     assert!(
         rect.right() <= viewport.x,
         "the close button ends at {} in a screen {} wide",

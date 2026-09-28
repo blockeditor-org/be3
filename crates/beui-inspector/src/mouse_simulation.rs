@@ -531,7 +531,7 @@ impl MouseSimulation {
         self.emitted[0]
     }
 
-        pub fn cursor(&self) -> Pos2 {
+    pub fn cursor(&self) -> Pos2 {
         self.cursor
     }
 
