@@ -517,6 +517,13 @@ impl Surface {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Layer {
+    All,
+    Text,
+    Handles,
+}
+
 #[derive(Clone, Copy)]
 enum Beyond {
     Before,
@@ -1253,10 +1260,14 @@ fn SingleLine(cx: Context) -> NodeId {
     }));
     let text_width = create_memo(clone!(text -> move || text.get().x + CARET_WIDTH));
     let text_height = create_memo(clone!(text -> move || text.get().y));
+    let (text_cx, text_model) = (cx.clone(), model.clone());
     view! {
         <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height}>
-            <CanvasItem x={x} y={y} width={text_width} height={text_height}>
-                <AreaText cx model />
+            <CanvasItem x={x.clone()} y={y.clone()} width={text_width.clone()} height={text_height.clone()}>
+                <AreaText cx={text_cx} model={text_model} />
+            </CanvasItem>
+            <CanvasItem x y width={text_width} height={text_height} clip=false>
+                <RowText cx model text={GeometryCell::default()} wrap=false layer=Layer::Handles />
             </CanvasItem>
         </Canvas>
     }
@@ -1327,7 +1338,7 @@ fn AreaText(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     register_row(&cx, 0, &row, &text, &NodeRef::new(), &model);
     view! {
         <Frame @node_ref=&row>
-            <RowText cx model text wrap=false />
+            <RowText cx model text wrap=false layer=Layer::Text />
         </Frame>
     }
 }
@@ -1415,25 +1426,48 @@ fn row_model(cx: &Context, line: usize) -> Memo<Rc<Row>> {
 }
 
 #[component]
-fn RowText(cx: Context, model: Memo<Rc<Row>>, text: GeometryCell, wrap: bool) -> NodeId {
+fn RowText(
+    cx: Context,
+    model: Memo<Rc<Row>>,
+    text: GeometryCell,
+    wrap: bool,
+    #[prop(default = Layer::All)] layer: Layer,
+) -> NodeId {
     let node = NodeRef::new();
     let placed = component_rect();
     create_effect(clone!(node text -> move || {
         placed.get();
-        if text.borrow().is_none()
+        if layer != Layer::Handles
+            && text.borrow().is_none()
             && let Some(id) = node.try_get()
         {
             *text.borrow_mut() = Some(with_document(|document| document.text_geometry(id)));
         }
     }));
     let display = create_memo(clone!(model -> move || model.get().display.clone()));
-    let spans = create_memo(clone!(model -> move || model.get().spans.clone()));
-    let inline = create_memo(clone!(model -> move || (0..model.get().inline.len()).collect::<Vec<usize>>()));
+    let spans = create_memo(clone!(model -> move || {
+        let mut spans = model.get().spans.clone();
+        if layer == Layer::Handles {
+            for span in &mut spans {
+                span.style.color = Color32::TRANSPARENT;
+                span.style.underline = false;
+                span.style.strikethrough = false;
+            }
+        }
+        spans
+    }));
+    let inline = create_memo(clone!(model -> move || match layer {
+        Layer::Handles => Vec::new(),
+        _ => (0..model.get().inline.len()).collect::<Vec<usize>>(),
+    }));
     let padding = match cx.single_line {
         true => (0.0, 0.0),
         false => LINE_PADDING,
     };
     let marks = create_memo(clone!(cx model -> move || {
+        if layer == Layer::Handles {
+            return Vec::new();
+        }
         let row = model.get();
         let colors = cx.colors.get();
         let mut marks: Vec<TextMark> = row
@@ -1467,6 +1501,22 @@ fn RowText(cx: Context, model: Memo<Rc<Row>>, text: GeometryCell, wrap: bool) ->
         let focused = cx.focused.get();
         let contains = |byte: usize| byte >= row.start && byte <= row.end;
         let mut carets = Vec::new();
+        let touch = cx.state.touch_mode().get();
+        cx.state.caret_handle().get();
+        if touch && layer != Layer::Text {
+            cx.shift.get();
+            for (handle, byte) in untrack(|| cx.handles()) {
+                if contains(byte) {
+                    carets.push(TextCaret {
+                        handle: Some(handle),
+                        ..TextCaret::new(row.to_display(byte), colors.caret, CARET_WIDTH)
+                    });
+                }
+            }
+        }
+        if layer == Layer::Handles {
+            return carets;
+        }
         for remote in cx.remote_cursors.get() {
             if contains(remote.caret) {
                 carets.push(TextCaret {
@@ -1488,19 +1538,6 @@ fn RowText(cx: Context, model: Memo<Rc<Row>>, text: GeometryCell, wrap: bool) ->
                 }
             }
         }
-        let touch = cx.state.touch_mode().get();
-        cx.state.caret_handle().get();
-        if touch {
-            cx.shift.get();
-            for (handle, byte) in untrack(|| cx.handles()) {
-                if contains(byte) {
-                    carets.push(TextCaret {
-                        handle: Some(handle),
-                        ..TextCaret::new(row.to_display(byte), colors.caret, CARET_WIDTH)
-                    });
-                }
-            }
-        }
         carets
     }));
     let anchor_at = create_memo(clone!(cx model -> move || {
@@ -1510,7 +1547,9 @@ fn RowText(cx: Context, model: Memo<Rc<Row>>, text: GeometryCell, wrap: bool) ->
         let byte = cx.state.caret_indices().first().copied()?;
         (byte >= row.start && byte <= row.end).then(|| row.to_display(byte))
     }));
-    let anchored = create_memo(clone!(anchor_at -> move || anchor_at.get().is_some()));
+    let anchored = create_memo(clone!(anchor_at -> move || {
+        layer != Layer::Handles && anchor_at.get().is_some()
+    }));
     let color = create_memo(clone!(cx -> move || cx.colors.get().syntax.markdown_plain_text));
     let font_size = create_memo(clone!(cx -> move || cx.font_size.get()));
     let item_cx = cx.clone();
