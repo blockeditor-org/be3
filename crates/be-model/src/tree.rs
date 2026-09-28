@@ -177,6 +177,9 @@ impl Tree {
                 objects,
             } => self.insert(*place, *anchor, objects),
             Change::Remove { object } => self.remove(*object),
+            Change::RemoveIf { object, expected } => {
+                self.holds(*object, expected) && self.remove(*object)
+            }
             Change::Move {
                 object,
                 place,
@@ -328,7 +331,12 @@ impl Tree {
                 (!self.contains(*top) && self.list(*place).is_some())
                     .then(|| (Change::Remove { object: *top }, change.clone()))
             }
-            Change::Remove { object } => {
+            Change::Remove { object } | Change::RemoveIf { object, .. } => {
+                if let Change::RemoveIf { expected, .. } = change
+                    && !self.holds(*object, expected)
+                {
+                    return None;
+                }
                 let place = self.objects.get(object)?.parent?;
                 Some((
                     Change::Insert {
@@ -404,7 +412,7 @@ impl Tree {
                 self.touch_place(*place, out);
                 out.extend(objects.iter().map(|(id, _)| Touched::Subtree(*id)));
             }
-            Change::Remove { object } => {
+            Change::Remove { object } | Change::RemoveIf { object, .. } => {
                 if let Some(place) = self.objects.get(object).and_then(|held| held.parent) {
                     self.touch_place(place, out);
                 }
@@ -455,6 +463,12 @@ impl Tree {
             out.push((id, object.clone()));
         }
         out
+    }
+
+    fn holds(&self, object: ObjectId, expected: &[Value]) -> bool {
+        self.objects
+            .get(&object)
+            .is_some_and(|held| held.fields == expected)
     }
 
     fn value(&self, object: ObjectId, field: u16) -> Option<&Value> {

@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore = "wires are stored as normalized segments, so an extension computed before a cut re-adds the whole wire over it"]
 fn a_wire_cut_stays_cut_when_someone_extends_it_at_once() {
     let base = logic_run(
         &LogicGridContent::default(),

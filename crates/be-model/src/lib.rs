@@ -144,6 +144,10 @@ pub enum Change {
     Remove {
         object: ObjectId,
     },
+    RemoveIf {
+        object: ObjectId,
+        expected: Vec<Value>,
+    },
     Move {
         object: ObjectId,
         place: Place,
@@ -160,6 +164,13 @@ pub enum Change {
 impl Change {
     pub fn remove(object: ObjectId) -> Self {
         Self::Remove { object }
+    }
+
+    pub fn remove_if_blank<M: Model>(object: ObjectId) -> Self {
+        Self::RemoveIf {
+            object,
+            expected: M::blank(),
+        }
     }
 }
 

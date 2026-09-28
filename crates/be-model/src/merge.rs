@@ -116,6 +116,9 @@ fn merge_object(
     }
     match (base, ours, theirs) {
         (Some(base), Some(ours), Some(theirs)) => Some(merge_fields(base, ours, theirs, conflicts)),
+        (None, Some(ours), Some(theirs)) => {
+            Some(merge_fields(&blank_like(ours), ours, theirs, conflicts))
+        }
         (_, Some(ours), _) => {
             *conflicts += 1;
             Some(ours.clone())
@@ -158,6 +161,23 @@ fn merge_fields(base: &Object, ours: &Object, theirs: &Object, conflicts: &mut u
         })
         .collect();
     Object { parent, fields }
+}
+
+fn blank_like(object: &Object) -> Object {
+    Object {
+        parent: None,
+        fields: object
+            .fields
+            .iter()
+            .map(|value| match value {
+                Value::Register(_) => Value::Register(Vec::new()),
+                Value::Count(_) => Value::Count(0),
+                Value::List(_) => Value::List(Vec::new()),
+                Value::Map(_) => Value::Map(BTreeMap::new()),
+                Value::Grid(cells) => Value::Grid(cells.emptied()),
+            })
+            .collect(),
+    }
 }
 
 fn merge_entries(

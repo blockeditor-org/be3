@@ -69,6 +69,10 @@ impl Cells {
         self.bounds
     }
 
+    pub(crate) fn emptied(&self) -> Self {
+        Self::blank(self.size, Bounds::default())
+    }
+
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }

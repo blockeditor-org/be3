@@ -72,7 +72,7 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
             }
 
             fn upgrade(tree: &mut ::be_model::Tree, id: ::be_model::ObjectId) {
-                tree.upgrade(id, Self::blank());
+                tree.upgrade(id, <Self as ::be_model::Model>::blank());
                 #(<#types as ::be_model::Field>::upgrade(tree, id, #indices);)*
             }
         }

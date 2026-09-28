@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore = "a merge keeps an object or map entry one side deleted when the other side edited it, instead of taking the delete and counting a conflict"]
 fn clearing_done_items_while_the_other_side_renames_one_removes_it() {
     let (milk, add_milk) = Checklist::add("milk");
     let (eggs, add_eggs) = Checklist::add("eggs");
