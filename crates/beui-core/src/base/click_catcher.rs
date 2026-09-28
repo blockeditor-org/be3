@@ -454,8 +454,18 @@ impl Document {
 
     pub fn capture_pointer(&mut self, captor: NodeId) {
         self.pointer_capture = Some(captor);
-        self.touch_scroll_vertical = None;
-        self.touch_scroll_horizontal = None;
+        let scrolls = |direction| {
+            self.arena.contains(captor)
+                && self
+                    .arena
+                    .get(captor)
+                    .as_any()
+                    .downcast_ref::<ClickCatcherNode>()
+                    .is_some_and(|catcher| catcher.catches_drag(direction))
+        };
+        let (vertical, horizontal) = (scrolls(Direction::Vertical), scrolls(Direction::Horizontal));
+        self.touch_scroll_vertical = vertical.then_some(captor);
+        self.touch_scroll_horizontal = horizontal.then_some(captor);
     }
 
     pub fn set_click_catcher_child(&mut self, click_catcher: NodeId, child: NodeId) {
