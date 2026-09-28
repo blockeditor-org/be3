@@ -44,7 +44,7 @@ fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
         "a cancelled edit must not reach the block, or it lands in its undo history"
     );
 
-    let field = editor.rect_of("infinite-canvas.transform.y").center();
+    let field = editor.point_of("infinite-canvas.transform.y");
     editor.drag(field, field + Vec2::new(20.0, 0.0));
     editor.run();
 

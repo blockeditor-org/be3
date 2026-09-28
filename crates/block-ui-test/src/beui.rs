@@ -885,15 +885,24 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn hover(&mut self, test_id: &str) {
-        self.hover_at(self.rect_of(test_id).center());
+        self.hover_at(self.point_of(test_id));
+    }
+
+    pub fn point_of(&self, test_id: &str) -> Pos2 {
+        let rect = self.rect_of(test_id);
+        let shown = rect.intersect(self.rect());
+        match shown.is_positive() {
+            true => shown.center(),
+            false => rect.center(),
+        }
     }
 
     pub fn click(&mut self, test_id: &str) {
-        self.click_at(self.rect_of(test_id).center());
+        self.click_at(self.point_of(test_id));
     }
 
     pub fn double_click(&mut self, test_id: &str) {
-        self.double_click_at(self.rect_of(test_id).center());
+        self.double_click_at(self.point_of(test_id));
     }
 
     pub fn double_click_at(&mut self, pos: Pos2) {
