@@ -18,7 +18,7 @@ use text_editor_core::{
 
 use beui_macros::{component, view};
 
-use crate::{Edge, Floating, Scroll};
+use crate::Scroll;
 use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 use beui_core::base::text::TextGeometry;
 use beui_core::base::{ImeCursor, ItemSize, ScrollPosition};
@@ -41,7 +41,8 @@ use beui_view::reactive::{
 
 use rows::{
     BODY_SIZE, Composition, DOCUMENT_PADDING, INLINE_WIDGET_HEIGHT, INLINE_WIDGET_ICON_INSET,
-    Inline, InlineItem, LINE_PADDING, Row, RowInputs, RowOptions, build_row, galley, line_of,
+    Inline, InlineItem, LINE_PADDING, Row, RowInputs, RowOptions, TableSpacers, build_row, galley,
+    line_of,
     line_range, line_starts, rich_layout, table_spacers,
 };
 use state::{AreaGeometry, Grab};
@@ -76,10 +77,12 @@ pub struct Completion {
     pub insert: String,
 }
 
+type Search = Rc<dyn Fn(&str) -> Vec<Completion>>;
+
 #[derive(Clone, Default)]
 pub struct Completer {
     trigger: Option<u8>,
-    search: Option<Rc<dyn Fn(&str) -> Vec<Completion>>>,
+    search: Option<Search>,
 }
 
 impl Completer {
@@ -151,7 +154,7 @@ struct Surface {
     rects: Rc<Rects>,
     starts: Memo<Rc<Vec<usize>>>,
     visible: Memo<Vec<usize>>,
-    tables: Memo<Rc<HashMap<usize, Vec<(usize, f32)>>>>,
+    tables: Memo<Rc<TableSpacers>>,
     widgets: Memo<Vec<TextWidget>>,
     colors: Memo<TextAreaColors>,
     composition: Memo<Option<Composition>>,
@@ -1998,7 +2001,15 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 fn WidgetPopup(anchor: NodeRef, render: RenderFn<usize>, index: usize) -> NodeId {
     let content = render.call(index);
     view! {
-        <Floating anchor edge=Edge::Bottom>{content}</Floating>
+        <Overlay
+            anchor={OverlayAnchor::Node(anchor)}
+            placement=Placement::BelowStart
+            mode=OverlayMode::Floating
+            traps_focus=false
+            open=true
+        >
+            {content}
+        </Overlay>
     }
 }
 

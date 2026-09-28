@@ -645,6 +645,10 @@ fn empty_galley(font: FontId) -> Galley {
     Galley::new("", font, Vec2::ZERO, 0.0, 0.0, Vec::new(), Vec::new())
 }
 
+pub type TableSpacers = HashMap<usize, Vec<(usize, f32)>>;
+
+type Cell = (Range<usize>, f32, f32);
+
 pub struct TableInputs<'a> {
     pub wrap_width: f32,
     pub snapshot: &'a Snapshot,
@@ -654,11 +658,11 @@ pub struct TableInputs<'a> {
     pub starts: &'a [usize],
 }
 
-pub fn table_spacers(inputs: &TableInputs) -> HashMap<usize, Vec<(usize, f32)>> {
+pub fn table_spacers(inputs: &TableInputs) -> TableSpacers {
     let mut spacers = HashMap::new();
     let snapshot = inputs.snapshot;
     for table in snapshot.highlight().markdown_tables() {
-        let rows: Vec<(usize, Vec<(Range<usize>, f32, f32)>, f32)> = table
+        let rows: Vec<(usize, Vec<Cell>, f32)> = table
             .rows
             .iter()
             .filter_map(|table_row| {
@@ -687,7 +691,7 @@ pub fn table_spacers(inputs: &TableInputs) -> HashMap<usize, Vec<(usize, f32)>> 
                     inputs.wrap_width,
                 )?;
                 let first = layout.lines.first()?;
-                let cells: Vec<(Range<usize>, f32, f32)> = table_row
+                let cells: Vec<Cell> = table_row
                     .cells
                     .iter()
                     .map(|cell| (row.to_display(cell.start), row.to_display(cell.end), cell))
