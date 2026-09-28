@@ -47,7 +47,10 @@ fn a_press_on_a_passive_child_reaches_the_editor_holding_it() {
 
     press_on_child(pos2(60.0, 60.0), false);
     let messages = instances.frame_input(PASS, &FrameOverlay::default());
-    assert!(!pressed(&messages), "a child that takes input keeps the press");
+    assert!(
+        !pressed(&messages),
+        "a child that takes input keeps the press"
+    );
 
     press_on_child(pos2(60.0, 60.0), true);
     let messages = instances.frame_input(PASS, &FrameOverlay::default());

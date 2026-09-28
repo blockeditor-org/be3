@@ -8,8 +8,8 @@ use crate::app::MapApp;
 
 mod a_new_map_shows_the_whole_world;
 mod reloading_fetches_the_tiles_again;
-mod tiles_from_the_tile_source_are_drawn;
 mod the_sidebar_captures_the_preview_region;
+mod tiles_from_the_tile_source_are_drawn;
 
 fn editor() -> BeuiTest<MapApp> {
     let block = Uuid::new_v4();

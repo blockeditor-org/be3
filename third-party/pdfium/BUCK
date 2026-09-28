@@ -46,7 +46,8 @@ prebuilt_cxx_library(
         ":emscripten",
         "root//third-party/system:stdc++",
     ],
-    exported_linker_flags = ["-lc++"] + [
+    exported_linker_flags = ["-lc++"]
+    + [
         "$(location root//third-party/wasi:sysroot)/lib/wasm32-wasip1-threads/libwasi-emulated-{}.a".format(library)
         for library in ["getpid", "mman", "process-clocks", "signal"]
     ],

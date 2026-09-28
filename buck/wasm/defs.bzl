@@ -125,8 +125,8 @@ def editor(name, module, visibility = ["PUBLIC"], test_env = {}, data = {}, extr
     plugin_tests(
         env = test_env,
         exports = plugin_exports,
-        srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
         extra_deps = extra_deps,
+        srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
     )
 
 # A crate's tests compiled to wasm and run by plugin-test-runner, which gives
