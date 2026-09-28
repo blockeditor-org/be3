@@ -17,6 +17,7 @@ pub struct ScrollPosition {
     pub offset: f32,
     pub content: f32,
     pub viewport: f32,
+    pub overscroll: f32,
 }
 
 impl ScrollPosition {
@@ -24,6 +25,7 @@ impl ScrollPosition {
         offset: 0.0,
         content: 0.0,
         viewport: 0.0,
+        overscroll: 0.0,
     };
 
     pub fn max_offset(&self) -> f32 {
@@ -236,6 +238,7 @@ impl OffsetNode {
             offset: self.offset.clamp(0.0, (content - main).max(0.0)),
             content,
             viewport: main,
+            overscroll: self.overscroll,
         };
         self.offset = position.offset;
         position
