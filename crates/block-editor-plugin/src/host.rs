@@ -7,7 +7,7 @@ use std::{
 };
 
 use block_plugin_api::{
-    AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockLocation, BlockPick,
+    AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockPick,
     ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
     DataListing, EditorRegion, FetchResult, FilePick, HostReply, HostRequest, Occluder,
     PerformanceMeasurement, Size, ViewChange, WebViewCommand, WebViewEvent,
@@ -16,6 +16,7 @@ pub use block_plugin_api::{BlockFilter, FileFilter};
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};
 use uuid::Uuid;
+use crate::graph::BlockParent;
 
 pub type WebViewPlacement = (EditorRegion, Option<ChildRect>);
 
@@ -88,23 +89,6 @@ pub struct ArtifactState {
     pub summary: String,
     pub error: Option<String>,
     pub regenerating: bool,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum BlockSource {
-    Root,
-    Orphaned,
-    Block(Uuid),
-}
-
-impl BlockSource {
-    fn encode(self) -> BlockLocation {
-        match self {
-            Self::Root => BlockLocation::Root,
-            Self::Orphaned => BlockLocation::Detached,
-            Self::Block(id) => BlockLocation::Block(id.into_bytes()),
-        }
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -623,7 +607,7 @@ impl EditorHost {
         &self,
         block_id: Uuid,
         block_type: Uuid,
-        source: BlockSource,
+        source: BlockParent,
         is_reference: bool,
     ) {
         self.block_commands.borrow_mut().push((
@@ -640,7 +624,7 @@ impl EditorHost {
         &self,
         block_id: Uuid,
         block_type: Uuid,
-        source: BlockSource,
+        source: BlockParent,
         destination: Uuid,
         is_reference: bool,
     ) {

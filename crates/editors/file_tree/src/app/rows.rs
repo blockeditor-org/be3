@@ -7,7 +7,7 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
-use block_editor_beui::{BlockSource, Editor};
+use block_editor_beui::Editor;
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -29,7 +29,7 @@ pub(crate) struct Row {
     pub(crate) expandable: bool,
     pub(crate) expanded: bool,
     pub(crate) container: Option<Uuid>,
-    pub(crate) source: BlockSource,
+    pub(crate) source: BlockParent,
     pub(crate) is_reference: bool,
     pub(crate) access: AccessLevel,
     pub(crate) dynamic_artifact: bool,
@@ -67,7 +67,7 @@ impl Row {
             expandable: false,
             expanded: false,
             container: None,
-            source: BlockSource::Root,
+            source: BlockParent::Root,
             is_reference: false,
             access: AccessLevel::None,
             dynamic_artifact: false,
@@ -268,15 +268,15 @@ impl Builder<'_> {
         let is_reference = container.is_some_and(|id| reference.parent != BlockParent::Block(id));
         let source = container.map_or_else(
             || match reference.parent {
-                BlockParent::Detached => BlockSource::Orphaned,
-                BlockParent::Root | BlockParent::Block(_) => BlockSource::Root,
+                BlockParent::Detached => BlockParent::Detached,
+                BlockParent::Root | BlockParent::Block(_) => BlockParent::Root,
             },
-            BlockSource::Block,
+            BlockParent::Block,
         );
         let access = self.client.access(reference.id);
         let can_edit = access.can_edit();
         let can_add = self.types.child_edits(reference.block_type).add && can_edit;
-        let can_delete = source != BlockSource::Orphaned
+        let can_delete = source != BlockParent::Detached
             && self.can_move_out_of(source, reference.id, is_reference);
         let unlink = self.unlink_permission(container);
         let expandable = !is_reference && !reference.references.is_empty();
@@ -379,7 +379,7 @@ impl Builder<'_> {
             .map_or_else(|| id.to_string(), |row| format!("{} ({id})", row.label))
     }
 
-    fn can_move_out_of(&self, source: BlockSource, child: Uuid, is_reference: bool) -> bool {
+    fn can_move_out_of(&self, source: BlockParent, child: Uuid, is_reference: bool) -> bool {
         can_move_out_of(
             self.client,
             self.types,
@@ -404,13 +404,13 @@ pub(crate) fn can_move_out_of(
     client: &Blocks,
     types: &dyn BlockTypes,
     block_types: &HashMap<Uuid, Uuid>,
-    source: BlockSource,
+    source: BlockParent,
     child: Uuid,
     is_reference: bool,
 ) -> bool {
     let can_delete = match source {
-        BlockSource::Root | BlockSource::Orphaned => true,
-        BlockSource::Block(id) => {
+        BlockParent::Root | BlockParent::Detached => true,
+        BlockParent::Block(id) => {
             block_types
                 .get(&id)
                 .is_some_and(|block_type| types.child_edits(*block_type).delete)
