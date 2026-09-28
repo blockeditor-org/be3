@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::Renderer;
 use crate::Repaint;
 use crate::Repainting;
-use crate::clear_color;
+use crate::clear_color_in;
 use crate::renderer_info;
 use beui_core::color::Color32;
 use beui_core::context::{Context, FrameOutput, Moved};
@@ -59,13 +59,8 @@ pub async fn create_gpu(
         None => adapter.request_device(&descriptor).await?,
     };
     let capabilities = probe.get_capabilities(&adapter);
-    let format = capabilities
-        .formats
-        .iter()
-        .copied()
-        .find(|format| format.is_srgb())
-        .or_else(|| capabilities.formats.first().copied())
-        .ok_or("the adapter does not support this surface")?;
+    let format =
+        surface_format(&capabilities.formats).ok_or("the adapter does not support this surface")?;
     let renderer = Renderer::new(&device, format);
     context.set_renderer_info(renderer_info(&adapter.get_info(), format));
     Ok(Gpu {
@@ -76,6 +71,14 @@ pub async fn create_gpu(
         format,
         renderer,
     })
+}
+
+pub fn surface_format(formats: &[wgpu::TextureFormat]) -> Option<wgpu::TextureFormat> {
+    formats
+        .iter()
+        .copied()
+        .find(|format| !format.is_srgb())
+        .or_else(|| formats.first().copied())
 }
 
 pub enum Presented {
@@ -285,7 +288,7 @@ impl Target {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("beui encoder"),
             });
-        let clear = clear_color(background);
+        let clear = clear_color_in(self.config.format, background);
         self.retain(&gpu.device);
         let pending = self.pending.take();
         let moved = self.moved.take();
