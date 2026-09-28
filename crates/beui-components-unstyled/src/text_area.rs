@@ -906,11 +906,15 @@ pub fn TextArea(
             false => gutter_width(starts.get().len()),
         }
     }));
+    let wrap_width = create_memo(clone!(size gutter padding -> move || {
+        (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
+    }));
     let tables = create_memo(
-        clone!(state content starts widgets colors masked font_size scale attached -> move || {
+        clone!(state content starts widgets colors masked font_size scale attached wrap_width -> move || {
             content.get();
             scale.get();
             attached.get();
+            let wrap_width = wrap_width.get();
             let starts = starts.get();
             let widgets = widgets.get();
             let colors = colors.get();
@@ -921,6 +925,7 @@ pub fn TextArea(
             };
             Rc::new(state.with_snapshot(|snapshot| match snapshot.loaded && !single_line {
                 true => table_spacers(&rows::TableInputs {
+                    wrap_width,
                     snapshot,
                     widgets: &widgets,
                     colors: &colors,

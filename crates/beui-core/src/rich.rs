@@ -37,6 +37,7 @@ pub struct TextSpan {
     pub range: Range<usize>,
     pub style: SpanStyle,
     pub kind: SpanKind,
+    pub break_after: bool,
 }
 
 impl TextSpan {
@@ -45,6 +46,7 @@ impl TextSpan {
             range,
             style,
             kind: SpanKind::Text,
+            break_after: false,
         }
     }
 }
@@ -303,9 +305,12 @@ impl Builder<'_> {
             .iter()
             .rev()
             .find(|(byte, _)| {
-                bytes.get(byte - 1).is_some_and(|before| {
-                    before.is_ascii_whitespace() || matches!(*before, b'-' | b'/' | b'\\')
-                })
+                self.spans
+                    .iter()
+                    .any(|span| span.break_after && span.range.end == *byte)
+                    || bytes.get(byte - 1).is_some_and(|before| {
+                        before.is_ascii_whitespace() || matches!(*before, b'-' | b'/' | b'\\')
+                    })
             })
             .copied();
         let fallback = candidates

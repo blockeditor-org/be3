@@ -284,6 +284,18 @@ impl Builder<'_> {
     }
 
     fn push(&mut self, text: &str, source: Range<usize>, mapped: bool, style: SpanStyle, kind: SpanKind) {
+        self.push_breaking(text, source, mapped, style, kind, false);
+    }
+
+    fn push_breaking(
+        &mut self,
+        text: &str,
+        source: Range<usize>,
+        mapped: bool,
+        style: SpanStyle,
+        kind: SpanKind,
+        break_after: bool,
+    ) {
         let start = self.row.display.len();
         self.row.display.push_str(text);
         let display = start..self.row.display.len();
@@ -295,6 +307,7 @@ impl Builder<'_> {
                 if kind == SpanKind::Text
                     && last.kind == SpanKind::Text
                     && last.style == style
+                    && last.break_after == break_after
                     && last.range.end == start =>
             {
                 last.range.end = display.end;
@@ -303,6 +316,7 @@ impl Builder<'_> {
                 range: display.clone(),
                 style,
                 kind,
+                break_after,
             }),
         }
         match self.row.segments.last_mut() {
@@ -467,7 +481,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                 false => Color32::TRANSPARENT,
             };
             let style = SpanStyle { color, ..base };
-            builder.push(marker, index..index + 1, false, style, SpanKind::Text);
+            builder.push_breaking(marker, index..index + 1, false, style, SpanKind::Text, true);
             index += 1;
             continue;
         }
@@ -604,6 +618,7 @@ fn empty_galley(font: FontId) -> Galley {
 }
 
 pub struct TableInputs<'a> {
+    pub wrap_width: f32,
     pub snapshot: &'a Snapshot,
     pub widgets: &'a [TextWidget],
     pub colors: &'a TextAreaColors,
@@ -637,18 +652,15 @@ pub fn table_spacers(inputs: &TableInputs) -> HashMap<usize, Vec<(usize, f32)>> 
                     end,
                     newline,
                 );
-                let layout = rich_layout(&row, inputs.options.body_size, (0.0, 0.0), f32::INFINITY)?;
+                let layout =
+                    rich_layout(&row, inputs.options.body_size, (0.0, 0.0), inputs.wrap_width)?;
                 let first = layout.lines.first()?;
                 let cells: Vec<(Range<usize>, f32, f32)> = table_row
                     .cells
                     .iter()
-                    .map(|cell| {
-                        (
-                            cell.clone(),
-                            first.x_of(row.to_display(cell.start)),
-                            first.x_of(row.to_display(cell.end)),
-                        )
-                    })
+                    .map(|cell| (row.to_display(cell.start), row.to_display(cell.end), cell))
+                    .take_while(|(_, end, _)| *end <= first.range.end)
+                    .map(|(start, end, cell)| (cell.clone(), first.x_of(start), first.x_of(end)))
                     .collect();
                 (!cells.is_empty()).then_some((start, cells, first.width))
             })
