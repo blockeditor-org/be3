@@ -16,6 +16,7 @@ mod ctrl_z_undoes_the_block_through_the_top_bar;
 mod tapping_with_two_fingers_undoes_and_three_redoes;
 mod the_top_bar_offers_close_only_to_a_framed_child;
 mod the_top_bar_renames_its_block;
+mod the_top_bar_shrinks_its_name_to_keep_its_buttons_on_a_narrow_screen;
 mod undo_in_the_top_bar_asks_the_host_for_a_block_it_cannot_open;
 
 const SLIDE: Uuid = Uuid::from_u128(0x0001);
