@@ -4,6 +4,7 @@ pub use reactive;
 
 mod content;
 pub mod editor_session;
+pub mod fonts;
 mod graph;
 pub mod headless;
 mod host;

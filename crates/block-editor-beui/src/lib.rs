@@ -9,6 +9,7 @@ mod chrome;
 pub mod database;
 mod editor;
 mod file_chooser;
+pub mod fonts;
 pub mod headless;
 mod instance;
 mod related_content;

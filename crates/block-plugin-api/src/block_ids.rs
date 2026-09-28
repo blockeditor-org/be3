@@ -28,6 +28,8 @@ impl Message {
             | Self::HelloAccepted(_)
             | Self::HelloRejected(_)
             | Self::Theme(_)
+            | Self::Fonts(_)
+            | Self::MissingCharacters(_)
             | Self::Screens(_)
             | Self::Layout(_)
             | Self::RegionSizes(_)

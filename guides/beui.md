@@ -221,7 +221,11 @@ hooks the higher crates fill in:
 - The simulated mouse is an `InputSimulation` the inspector installs on the
   `Context`.
 - Text is shaped by the `FontBackend` a `Context` is made with.
-  `beui::context()` makes one over `FreetypeFonts`.
+  `beui::context()` makes one over `FreetypeFonts` and only the fonts beui
+  bundles, which is what tests use; `beui::system_context()`, which the
+  runners use, adds the system's own fonts for whatever the bundled ones do
+  not cover. The fonts live in a `FontLibrary` that contexts can share and
+  that can be given more fonts later, which lays their text out again.
 - The document's theme lives in a typed slot on the document
   (`Document::extension`); `beui::styled::DocumentTheme` reads and writes it.
 - A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for

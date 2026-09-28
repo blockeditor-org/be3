@@ -107,7 +107,7 @@ pub fn run(launches: Vec<String>) -> Result<(), Box<dyn Error>> {
     compositor.start(device, queue, FORMAT, Waker::new(move || ping.ping()));
     let gpu = compositor.gpu().ok_or("the compositor has no GPU")?;
     let arrow = Rc::new(gpu.rgba(arrow::WIDTH, arrow::HEIGHT, &arrow::pixels()));
-    let context = beui::context();
+    let context = beui::system_context();
     let mut session = Session {
         seat,
         active: true,
