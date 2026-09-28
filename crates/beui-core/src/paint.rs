@@ -511,9 +511,10 @@ fn reflowed(old: &Painted, new: &Painted) -> Option<Moving> {
                 absorbed.push(placed);
                 moving.push(*id);
             }
-            Some((_, held)) if !Rc::ptr_eq(&held, child) => {
+            Some((was, held)) if !Rc::ptr_eq(&held, child) => {
                 damaged.push(within(placed));
                 damaged.push(within(placed.translate(-by)));
+                damaged.push(within(was.place(held.bounds).translate(by)));
             }
             Some(_) if !moving.contains(id) => damaged.push(within(placed)),
             Some(_) => {}
@@ -521,7 +522,9 @@ fn reflowed(old: &Painted, new: &Painted) -> Option<Moving> {
     }
     for (id, entry, child) in &before {
         if !kept.contains(id) {
-            absorbed.push(entry.place(child.bounds));
+            let placed = entry.place(child.bounds);
+            damaged.push(within(placed.translate(by)));
+            absorbed.push(placed);
         }
     }
     Some(Moving {
