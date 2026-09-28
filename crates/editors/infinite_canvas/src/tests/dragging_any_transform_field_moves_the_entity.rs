@@ -14,7 +14,12 @@ fn dragging_any_transform_field_moves_the_entity() {
         alpha: 255,
     });
     let drawn = format!("infinite-canvas.entity.{}", rectangle.id);
-    let mut editor = editor(std::slice::from_ref(&rectangle));
+    let mut editor = open_sized(
+        &Canvas::with_entities(vec![rectangle.clone()], None),
+        false,
+        &[],
+        Some(Vec2::new(800.0, 900.0)),
+    );
     editor.click(&drawn);
     editor.run();
 

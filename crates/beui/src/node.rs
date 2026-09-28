@@ -50,6 +50,17 @@ pub(crate) struct InteractInput {
     pub(crate) touch_scroll_target: Option<NodeId>,
     pub(crate) clicks: u32,
     pub(crate) modifiers: Modifiers,
+    pub(crate) visible: Rect,
+}
+
+impl InteractInput {
+    pub(crate) fn over(&self, rect: Rect, pos: Pos2) -> bool {
+        rect.contains(pos) && self.visible.contains(pos)
+    }
+
+    pub(crate) fn pointer_over(&self, rect: Rect) -> bool {
+        self.pointer_pos.is_some_and(|pos| self.over(rect, pos))
+    }
 }
 
 pub type Handler<V, R = ()> = Box<dyn FnMut(V) -> R>;
@@ -253,11 +264,14 @@ struct Space {
 
 type Resolved = (u64, Vec2);
 
+type ResolvedClip = (u64, Rect);
+
 #[derive(Default)]
 pub(crate) struct Rects {
     map: RefCell<NodeMap<Placed>>,
     spaces: RefCell<NodeMap<[Option<Space>; SPACE_SLOTS]>>,
     offsets: RefCell<NodeMap<[Option<Resolved>; SPACE_SLOTS]>>,
+    clips: RefCell<NodeMap<[Option<ResolvedClip>; SPACE_SLOTS]>>,
     version: Cell<u64>,
     moves: Cell<u64>,
 }
@@ -289,6 +303,7 @@ impl Rects {
             self.moves.set(self.moves.get().wrapping_add(1));
         }
         self.offsets.borrow_mut().remove(id);
+        self.clips.borrow_mut().remove(id);
         let removed = self.map.borrow_mut().remove(id);
         if removed.is_some() {
             self.bump();
@@ -361,18 +376,44 @@ impl Rects {
     }
 
     pub(crate) fn space_clip(&self, space: Option<SpaceId>) -> Rect {
+        let stamp = self.moves.get();
         let mut chain = Vec::new();
         let mut current = space;
-        while let Some(held) = current.and_then(|id| self.space(id)) {
+        let mut clip = Rect::EVERYTHING;
+        while let Some(id) = current {
+            let held = self
+                .clips
+                .borrow()
+                .get(&id.node)
+                .and_then(|slots| slots[id.slot as usize]);
+            if let Some((held_stamp, resolved)) = held
+                && held_stamp == stamp
+            {
+                clip = resolved;
+                break;
+            }
+            let Some(space) = self.space(id) else {
+                break;
+            };
             if chain.len() >= ANCESTOR_LIMIT {
                 break;
             }
-            chain.push(held);
-            current = held.parent;
+            chain.push((id, space));
+            current = space.parent;
         }
-        chain.iter().rev().fold(Rect::EVERYTHING, |clip, held| {
-            clip.intersect(held.clip).translate(-held.translation)
-        })
+        let mut clips = self.clips.borrow_mut();
+        for (id, held) in chain.into_iter().rev() {
+            clip = clip.intersect(held.clip).translate(-held.translation);
+            clips.get_or_default(id.node)[id.slot as usize] = Some((stamp, clip));
+        }
+        clip
+    }
+
+    pub(crate) fn visible(&self, id: &NodeId) -> Option<Rect> {
+        let rect = self.get(id)?;
+        let own = Some(SpaceId::of(*id));
+        let clip = self.space_clip(own).translate(self.offset(own));
+        Some(rect.intersect(clip))
     }
 
     fn bump(&self) {

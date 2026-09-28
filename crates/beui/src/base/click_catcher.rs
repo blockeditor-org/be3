@@ -187,7 +187,7 @@ impl ClickCatcherNode {
             }
             return;
         };
-        if drag.started && rect.contains(drag.from) {
+        if drag.started && input.over(rect, drag.from) {
             self.secondary_dragged = Some(drag.from);
             self.on_secondary_drag.call(drag);
         } else if self.secondary_dragged.is_some()
@@ -289,7 +289,7 @@ impl Element for ClickCatcherNode {
             self.armed = false;
             self.dragged = None;
         }
-        let contains_pointer = input.pointer_pos.is_some_and(|pos| rect.contains(pos));
+        let contains_pointer = input.pointer_over(rect);
         if input.pressed_this_frame
             && !yielded
             && (contains_pointer || captured)

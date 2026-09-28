@@ -1,5 +1,6 @@
 use block_editor_beui::be_block::LogicGameContent;
 use block_editor_beui::be_block::logic_game::LogicGame;
+use block_editor_beui::beui::Vec2;
 use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use logicgame::challenges::ChallengeId;
@@ -11,11 +12,18 @@ mod expanding_a_level_shows_its_goal;
 mod the_quiz_records_a_bit_on_the_game_block;
 
 fn editor() -> BeuiTest<LogicGameApp> {
+    editor_sized(None)
+}
+
+fn editor_sized(size: Option<Vec2>) -> BeuiTest<LogicGameApp> {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
     let editor = Editor::new(host.clone(), block);
-    let mut editor = BeuiTest::new(editor);
+    let mut editor = match size {
+        Some(size) => BeuiTest::new(editor).with_size(size),
+        None => BeuiTest::new(editor),
+    };
     editor.hold(None, LogicGameContent::default());
     editor.run();
     editor.run();
