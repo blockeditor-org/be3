@@ -919,12 +919,18 @@ impl Document {
         };
         let visible = only.viewport.intersect(viewport);
         let rooted = self.paint_cache.borrow().rooted();
-        let (fixed, inner) = paint::fixed_damage(&rooted, only.node, visible, only.by);
+        let (fixed, inner) = paint::fixed_damage(&rooted, only.node, &only.moving, visible, only.by);
         let shown = visible.intersect(inner);
         let landed = shown.intersect(shown.translate(only.by));
         let damaged = region
             .rects()
             .iter()
+            .filter(|rect| {
+                !only
+                    .absorbed
+                    .iter()
+                    .any(|absorbed| absorbed.contains_rect(**rect))
+            })
             .flat_map(|rect| [*rect, rect.translate(only.by).intersect(landed)])
             .chain(only.damaged.clipped(viewport).rects().iter().copied())
             .chain(fixed.rects().iter().copied())
