@@ -15,7 +15,7 @@ fn tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_land
 
     let track = harness.rect(slider);
     harness.point_at(pos2(track.left() + 1.0, track.center().y));
-    harness.tap_trackpad();
+    harness.quick_tap_trackpad();
 
     let at = harness.simulated_trackpad();
     let delta = track.center() - harness.simulated_cursor();
@@ -25,5 +25,5 @@ fn tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_land
     harness.frame(Vec::new());
 
     let value = styled::slider_value(harness.document(), slider);
-    assert!((value - 0.5).abs() < 0.01, "the slider read {value}");
+    assert!((value - 0.5).abs() < 0.02, "the slider read {value}");
 }

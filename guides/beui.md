@@ -1165,10 +1165,12 @@ and in a beui block editor plugin.
 
 "Simulate mouse with touch" turns the whole shown rectangle into a trackpad and
 paints a cursor the document reacts to, in the shape of the frame's
-`CursorIcon`. One finger moves the cursor, a tap clicks it, a tap followed by a
-press and drag drags with the primary button, and two fingers scroll smoothly. A
-stroke that moved the cursor is never a tap, and the press after a tap only
-becomes a drag once it moves: lifted in place it is a second click. The strip along the bottom holds the left, middle,
+`CursorIcon`. One finger moves the cursor, and two fingers scroll smoothly. A
+tap presses the primary button where it lands and holds it until the double-tap
+timer runs out, which makes it a click. A press within that time keeps the
+button down: moving it drags from where the tap landed, and lifting it in place
+locks the button, so that the drag carries on across touches until a single tap
+releases it. A stroke that moved the cursor is never a tap. The strip along the bottom holds the left, middle,
 and right mouse buttons plus a keyboard toggle: a button stays held for as long
 as its finger is down, another finger can work the trackpad at the same time,
 and swiping up or down on the middle button scrolls a wheel tick at a time. The

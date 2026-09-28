@@ -33,6 +33,7 @@ mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
 mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
 mod a_docked_pane_lays_its_content_inside_its_border;
+mod a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_tap;
 mod a_drag_preview_follows_the_pointer_until_the_drop;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
@@ -107,6 +108,7 @@ mod a_stroke_paints_a_line_between_the_ends_it_was_given;
 mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
+mod a_tap_on_the_simulated_trackpad_holds_its_press_until_the_double_tap_timer_runs_out;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
 mod a_test_id_names_the_copy_that_is_shown;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
@@ -798,10 +800,28 @@ impl Harness {
     }
 
     pub(crate) fn tap_trackpad(&mut self) {
+        self.quick_tap_trackpad();
+        self.wait_out_double_tap();
+    }
+
+    pub(crate) fn quick_tap_trackpad(&mut self) {
         let at = self.simulated_trackpad();
         self.finger(1, TouchPhase::Start, at);
         self.finger(1, TouchPhase::End, at);
         self.frame(Vec::new());
+    }
+
+    pub(crate) fn wait_out_double_tap(&mut self) {
+        self.context
+            .input_simulation_as_mut(|simulation: &mut MouseSimulation| {
+                simulation.advance_clock(crate::mouse_simulation::DOUBLE_TAP_TIME)
+            })
+            .expect("the mouse is simulated");
+        self.frame(Vec::new());
+    }
+
+    pub(crate) fn simulated_left_held(&self) -> bool {
+        self.simulation(MouseSimulation::left_held)
     }
 
     pub(crate) fn enable_screen_reader(&mut self) {
