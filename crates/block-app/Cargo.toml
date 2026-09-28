@@ -100,6 +100,7 @@ wry = { version = "0.55.1", optional = true }
 # a plugin's session messages it accepts. Nothing in the app links it.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 block-editor-plugin = { path = "../block-editor-plugin" }
+pollster = "0.4"
 
 # The native file dialog. Android and the browser reach their own pickers
 # instead, from platform/file_picker.rs, and Linux asks xdg-desktop-portal and
