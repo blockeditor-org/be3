@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::app::FileTreeApp;
 
 mod clicking_the_chevron_opens_and_closes_its_own_row;
+mod exporting_a_text_block_saves_it_as_a_markdown_file;
 mod expanding_a_folder_shows_its_children_without_more_input;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
 mod the_inspect_dialog_stays_on_a_narrow_screen;
@@ -47,6 +48,13 @@ impl Fixture {
             .unwrap_or_else(|| panic!("right clicking a row opens a menu that offers {label}"));
         self.test.click_at(item);
         self.settle();
+    }
+
+    fn says(&self, words: &str) -> bool {
+        let document = self.test.document();
+        document
+            .root()
+            .is_some_and(|root| says_within(document, root, words))
     }
 
     fn opened(&mut self) -> Vec<Uuid> {
@@ -90,4 +98,12 @@ fn open_item(document: &Document, node: NodeId, label: &str, open: bool) -> Opti
         .children(node)
         .into_iter()
         .find_map(|child| open_item(document, child, label, open))
+}
+
+fn says_within(document: &Document, node: NodeId, words: &str) -> bool {
+    (document.node_kind(node) == "text" && document.text(node).contains(words))
+        || document
+            .children(node)
+            .into_iter()
+            .any(|child| says_within(document, child, words))
 }

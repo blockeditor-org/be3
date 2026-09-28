@@ -2,6 +2,7 @@ use block_editor_beui::Editor;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::view;
 
+mod export;
 mod rows;
 mod ui;
 
