@@ -25,7 +25,9 @@ use beui_core::document::Document;
 use beui_core::font::{FontId, TextAlign};
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::icons::{ICON_CHECK, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT};
-use beui_core::input::{CursorIcon, KeyPress, PointerPress};
+use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
+use beui_view::components::overlay::Overlay;
 use beui_core::base::text::TextGeometry;
 use beui_core::node::{NodeId, Rects};
 use beui_core::rich::{CaretHandle, TextCaret, TextMark, handle_center};
@@ -68,6 +70,47 @@ const SELECT_ALL_CLICKS: u32 = 4;
 const WORD_CLICKS: u32 = 2;
 const LINE_CLICKS: u32 = 3;
 const HANDLE_SLACK: f32 = 0.5;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Completion {
+    pub label: String,
+    pub insert: String,
+}
+
+#[derive(Clone, Default)]
+pub struct Completer {
+    trigger: Option<u8>,
+    search: Option<Rc<dyn Fn(&str) -> Vec<Completion>>>,
+}
+
+impl Completer {
+    pub fn new(trigger: char, search: impl Fn(&str) -> Vec<Completion> + 'static) -> Self {
+        Self {
+            trigger: u8::try_from(trigger).ok(),
+            search: Some(Rc::new(search)),
+        }
+    }
+
+    pub fn none() -> Self {
+        Self::default()
+    }
+}
+
+#[derive(Clone)]
+pub struct CompletionMenu {
+    pub items: Memo<Vec<Completion>>,
+    pub highlighted: Memo<usize>,
+    pub pick: Callback<usize>,
+    pub highlight: Callback<usize>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Query {
+    range: Range<usize>,
+    text: String,
+}
+
+const QUERY_LIMIT: usize = 32;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RemoteTextCursor {
@@ -139,6 +182,12 @@ struct Surface {
     reveal_attempts: Cell<u8>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
+    completion: Memo<Option<Query>>,
+    completions: Memo<Vec<Completion>>,
+    completing: Memo<bool>,
+    highlighted: ReadSignal<usize>,
+    set_highlighted: WriteSignal<usize>,
+    set_dismissed: WriteSignal<Option<usize>>,
     on_widget_press: Callback<usize, bool>,
     on_menu: Callback<Pos2>,
     on_submit: ClickCallback,
@@ -340,6 +389,55 @@ impl Surface {
         let middle = rect.center().y - position.viewport / 2.0;
         self.set_offset
             .set_unconditionally(middle.clamp(0.0, position.max_offset()));
+    }
+
+    fn completion_key(&self, press: KeyPress) -> bool {
+        if !self.completing.get_untracked() {
+            return false;
+        }
+        let count = self.completions.get_untracked().len();
+        let consumed = matches!(
+            press.key,
+            Key::ArrowDown | Key::ArrowUp | Key::Enter | Key::Tab | Key::Escape
+        );
+        if !consumed || !press.pressed || count == 0 {
+            return consumed;
+        }
+        let highlighted = self.highlighted.get_untracked().min(count - 1);
+        match press.key {
+            Key::ArrowDown => self.set_highlighted.set((highlighted + 1) % count),
+            Key::ArrowUp => self.set_highlighted.set((highlighted + count - 1) % count),
+            Key::Enter | Key::Tab => self.complete(highlighted),
+            _ => self.dismiss(),
+        }
+        true
+    }
+
+    fn dismiss(&self) {
+        let start = self
+            .completion
+            .get_untracked()
+            .map(|query| query.range.start);
+        self.set_dismissed.set(start);
+    }
+
+    fn complete(&self, index: usize) {
+        let Some(query) = self.completion.get_untracked() else {
+            return;
+        };
+        let Some(item) = self.completions.get_untracked().get(index).cloned() else {
+            return;
+        };
+        let (anchor, focus) = {
+            let core = self.state.core();
+            (core.position(query.range.start), core.position(query.range.end))
+        };
+        self.state
+            .execute(EditorCommand::SetSelection { anchor, focus });
+        self.state
+            .execute(EditorCommand::InsertText(item.insert.as_bytes()));
+        self.state.reveal_cursor();
+        self.state.focus();
     }
 
     fn caret_x(&self, byte: usize) -> Option<f32> {
@@ -816,6 +914,8 @@ pub fn TextArea(
     frame: Option<Render<Child>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
+    #[prop(default = Completer::none())] completer: Completer,
+    completion_menu: Option<RenderFn<CompletionMenu>>,
     on_widget_press: Callback<usize, bool>,
     on_menu: Callback<Pos2>,
     on_key_override: Callback<KeyPress, bool>,
@@ -824,6 +924,8 @@ pub fn TextArea(
     on_hover_change: Callback<bool>,
 ) -> NodeId {
     let focus_request = focused;
+    let search = completer.search.clone();
+    let trigger = completer.trigger;
     let size = component_size();
     let (field_rect, set_field_rect) = create_signal(Rect::ZERO);
     let placed = match single_line {
@@ -947,6 +1049,35 @@ pub fn TextArea(
             text,
         })
     }));
+    let completion = create_memo(clone!(state focused preedit -> move || {
+        let trigger = trigger?;
+        state.cursors().get();
+        state.content().get();
+        if !focused.get() || !preedit.get().is_empty() {
+            return None;
+        }
+        query(&state, trigger)
+    }));
+    let completions = create_memo(clone!(completion -> move || {
+        match (&completion.get(), &search) {
+            (Some(query), Some(search)) => search(&query.text),
+            _ => Vec::new(),
+        }
+    }));
+    let (dismissed, set_dismissed) = create_signal(None::<usize>);
+    let completing = create_memo(clone!(completion completions -> move || {
+        let Some(query) = completion.get() else {
+            return false;
+        };
+        dismissed.get() != Some(query.range.start) && !completions.get().is_empty()
+    }));
+    let (highlighted, set_highlighted) = create_signal(0_usize);
+    create_effect(clone!(completion set_highlighted set_dismissed -> move || {
+        match completion.get() {
+            Some(_) => set_highlighted.set(0),
+            None => set_dismissed.set(None),
+        }
+    }));
     let anchor = in_new_scope(|| view! { <Frame width=CARET_WIDTH /> });
     on_cleanup(move || {
         beui_core::current::try_with_document(|document| document.remove_node(anchor));
@@ -990,6 +1121,12 @@ pub fn TextArea(
         reveal_attempts: Cell::new(0),
         block,
         selected_widget,
+        completion,
+        completions: completions.clone(),
+        completing: completing.clone(),
+        highlighted: highlighted.clone(),
+        set_highlighted: set_highlighted.clone(),
+        set_dismissed,
         on_widget_press,
         on_menu,
         on_submit,
@@ -1090,6 +1227,10 @@ pub fn TextArea(
     let border_x = create_memo(clone!(gutter -> move || gutter.get() - 1.0));
     let (strip_height, border_height, area_width, area_height) =
         (height.clone(), height.clone(), width.clone(), height.clone());
+    let has_menu = completion_menu.is_some();
+    let menu = create_memo(clone!(completing -> move || has_menu && completing.get()));
+    let menu_cx = cx.clone();
+    let menu_render = completion_menu;
 
     view! {
         <Frame @node_ref=&outer color={outer_color}>
@@ -1120,9 +1261,76 @@ pub fn TextArea(
                         </Canvas>
                     }}
                 </Show>
+                <Show condition={menu}>
+                    {move || {
+                        let render = menu_render
+                            .clone()
+                            .expect("a completion menu is only shown when the area was given one");
+                        let cx = menu_cx.clone();
+                        view! { <Completions cx render /> }
+                    }}
+                </Show>
             </List>
         </Frame>
     }
+}
+
+#[component]
+fn Completions(cx: Context, render: RenderFn<CompletionMenu>) -> NodeId {
+    let anchor = NodeRef::new();
+    anchor.fill(cx.anchor);
+    let (pick_cx, highlight_cx) = (cx.clone(), cx.clone());
+    let highlighted = cx.highlighted.clone();
+    let content = render.call(CompletionMenu {
+        items: cx.completions.clone(),
+        highlighted: create_memo(move || highlighted.get()),
+        pick: Callback::new(move |index: usize| pick_cx.complete(index)),
+        highlight: Callback::new(move |index: usize| highlight_cx.set_highlighted.set(index)),
+    });
+    view! {
+        <Overlay
+            anchor={OverlayAnchor::Node(anchor)}
+            placement=Placement::BelowStart
+            mode=OverlayMode::Floating
+            traps_focus=false
+            open=true
+        >
+            {content}
+        </Overlay>
+    }
+}
+
+fn query(state: &TextAreaState, trigger: u8) -> Option<Query> {
+    let ranges = state.selection_ranges();
+    let [range] = ranges.as_slice() else {
+        return None;
+    };
+    if !range.is_empty() {
+        return None;
+    }
+    let caret = range.start;
+    let bytes = state.bytes();
+    let mut start = caret;
+    while start > 0
+        && caret - start <= QUERY_LIMIT
+        && bytes
+            .get(start - 1)
+            .is_some_and(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, b'_' | b'+' | b'-'))
+    {
+        start -= 1;
+    }
+    if caret - start > QUERY_LIMIT || start == 0 || bytes.get(start - 1) != Some(&trigger) {
+        return None;
+    }
+    let at = start - 1;
+    let opens = at
+        .checked_sub(1)
+        .and_then(|before| bytes.get(before))
+        .is_none_or(|before| before.is_ascii_whitespace() || b"([{\"'".contains(before));
+    opens.then(|| Query {
+        range: at..caret,
+        text: String::from_utf8_lossy(&bytes[start..caret]).into_owned(),
+    })
 }
 
 #[component]
@@ -1171,7 +1379,9 @@ fn Editing(field: Field) -> NodeId {
             on_key={move |press: KeyPress| {
                 !key_cx.preedit.get_untracked().is_empty()
                     || (!key_cx.disabled.get_untracked()
-                        && (on_key_override.call(press) || keys::key(&key_cx, press)))
+                        && (key_cx.completion_key(press)
+                            || on_key_override.call(press)
+                            || keys::key(&key_cx, press)))
             }}
         >
             <ClickCatcher

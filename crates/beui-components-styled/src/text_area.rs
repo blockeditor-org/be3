@@ -1,3 +1,4 @@
+pub mod emoji;
 pub mod find;
 
 use beui_macros::{component, view};
@@ -8,8 +9,9 @@ use crate::ContextMenu;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    MenuItem, RemoteTextCursor, TextAreaColors, TextAreaState, TextWidget,
+    Completer, CompletionMenu, MenuItem, RemoteTextCursor, TextAreaColors, TextAreaState, TextWidget,
 };
+use emoji::EmojiMenu;
 use beui_core::base::ItemSize;
 use beui_core::document::Document;
 use beui_core::geometry::Pos2;
@@ -80,6 +82,7 @@ pub fn TextArea(
     #[prop(default = false)] password: Prop<bool>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
+    #[prop(default = true)] emoji: bool,
     on_widget_press: Callback<usize, bool>,
     on_key_override: Callback<KeyPress, bool>,
 ) -> NodeId {
@@ -143,6 +146,11 @@ pub fn TextArea(
                     on_menu={move |at: Pos2| set_menu_at.set(Some(at))}
                     block={move |index: usize| forward(block.as_ref(), index)}
                     selected_widget={move |index: usize| forward(selected_widget.as_ref(), index)}
+                    completer={match emoji {
+                        true => emoji::emoji_completer(),
+                        false => Completer::none(),
+                    }}
+                    completion_menu={move |menu: CompletionMenu| view! { <EmojiMenu menu /> }}
                 />
             </ContextMenu>
         </List>
