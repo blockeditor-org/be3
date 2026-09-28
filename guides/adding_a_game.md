@@ -26,11 +26,12 @@ side of the WebAssembly boundary it runs on:
 - `crates/tabletop_games/rules/foo/Cargo.toml` — copy `tic_tac_toe`'s. The
   package name is the module's file name and the game's id, so it is written
   with underscores. It needs `crate-type = ["cdylib", "rlib"]`, `game-api`
-  as a dependency and a build dependency, and `game-host` as a dev
-  dependency so the tests can run the module.
-- `crates/tabletop_games/rules/foo/build.rs` —
-  `fn main() { game_api::build::wasm(); }`. This compiles the crate to
-  wasm32-unknown-unknown and points `GAME_WASM` at the module for the tests.
+  as a dependency, and `game-host` as a dev dependency so the tests can run
+  the module.
+- `crates/tabletop_games/rules/foo/BUCK` — copy `tic_tac_toe`'s, renaming
+  its `tic_tac_toe_wasm` library. It builds the crate natively for the tests,
+  a second time for wasm32 as the `module` target, and points the tests'
+  `GAME_WASM` at that module.
 - `crates/tabletop_games/rules/foo/src/lib.rs` — the game, ending in
   `game_api::game!("Foo", foo);`. The first argument is the name the module
   gives itself, which is what the game module block's editor shows; the second
@@ -39,7 +40,8 @@ side of the WebAssembly boundary it runs on:
   written the way a rulebook explains a game: who plays, what the pieces or
   cards are, how a turn goes, how it ends. Write this one first, because the
   code is meant to read like it.
-- Root `Cargo.toml` — add `crates/tabletop_games/rules/foo` to the members.
+- Root `Cargo.toml` — add `crates/tabletop_games/rules/foo` to the members,
+  which is how the generated buck rules find the crate and its dependencies.
 
 Anything a game depends on has to build for wasm32-unknown-unknown with no
 host to call into: no clock, no filesystem, no randomness. Whatever a game
@@ -220,11 +222,9 @@ reaches the test as a trap rather than a message.
 
 ## 4. Getting the module into the app
 
-Each rules crate has a `module` target, which is its wasm module; give a new
-game's `BUCK` file the same three targets `tic_tac_toe`'s has. Every crate
-under `crates/tabletop_games/rules` is staged beside the app as the Games
-plugin's data (`games/<game>.wasm`, see crates/editors/deterministic_game/BUCK),
-so nothing else needs editing. Creating a Game block opens a dialog listing
+Every crate under `crates/tabletop_games/rules` is staged beside the app as
+the Games plugin's data (`games/<game>.wasm`, see
+crates/editors/deterministic_game/BUCK), so nothing else needs editing. Creating a Game block opens a dialog listing
 those games by the name each module gives itself; choosing one copies that
 exact module into the workspace as a Game Module block under the new game, so
 the game keeps playing the bytes it started with whatever the app is later

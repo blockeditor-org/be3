@@ -11,9 +11,6 @@ crate-type = ["cdylib", "rlib"]
 game-api = { path = "../../api" }
 game-pieces = { path = "../../pieces" }
 
-[build-dependencies]
-game-api = { path = "../../api" }
-
 [dev-dependencies]
 bincode = "1"
 game-host = { path = "../../host" }

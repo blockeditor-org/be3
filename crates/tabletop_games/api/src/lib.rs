@@ -7,7 +7,6 @@ use uuid::Uuid;
 pub use board::{Board, Control, Gesture, Move, Scene, Spot};
 
 pub mod board;
-pub mod build;
 pub mod cards;
 pub mod guest;
 pub mod table;

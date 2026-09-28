@@ -13,6 +13,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck run //:verify` | autofixes, lints, tests and plugin tests; `-- --check` writes nothing, `-- --lint`, `--tests`, `--plugin-tests` run one part |
 | `./scripts/buck test //crates/...` | the tests alone |
 | `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; add `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings |
+| `./scripts/buck test //crates/editors/checklist:test -- --test-arg adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
 | `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |
 | `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display |
 | `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app, `be-server`, PDFium |
