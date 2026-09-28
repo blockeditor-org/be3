@@ -18,6 +18,7 @@ pub mod pan_zoom;
 pub mod pointer_lock;
 pub mod popover;
 pub mod pressable;
+pub mod fling;
 pub mod rubber_band;
 pub mod scroll;
 pub mod scrollbar;

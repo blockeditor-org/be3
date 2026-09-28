@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use accesskit::{Action, Node, Role};
 use beui_macros::{component, view};
 
+use super::fling::Fling;
 use super::rubber_band::{
     MAX_ANIMATION_STEP, MINIMUM_VELOCITY, SCROLL_SPRING, rubber_band, spring_back, unband,
 };
@@ -26,7 +27,6 @@ use beui_view::reactive::{
     with_document,
 };
 
-const INERTIA_FRICTION: f32 = 4.5;
 const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_INSET: f32 = -1.0;
 const STEP: f32 = 40.0;
@@ -73,6 +73,7 @@ struct Momentum {
     drag: Option<f32>,
     dragging: bool,
     velocity: f32,
+    fling: Option<Fling>,
     autoscroll: f32,
     stepped: Instant,
 }
@@ -84,29 +85,42 @@ impl Momentum {
             drag: None,
             dragging: false,
             velocity: 0.0,
+            fling: None,
             autoscroll: 0.0,
             stepped: beui_core::timer::now(),
         }
     }
 
     fn moving(&self) -> bool {
-        self.overscroll != 0.0 || self.velocity != 0.0 || self.autoscroll != 0.0
+        self.overscroll != 0.0
+            || self.velocity != 0.0
+            || self.fling.is_some()
+            || self.autoscroll != 0.0
     }
 
     fn flinging(&self) -> bool {
-        self.velocity != 0.0 && self.overscroll == 0.0 && self.drag.is_none()
+        self.fling.is_some() && self.overscroll == 0.0 && self.drag.is_none()
+    }
+
+    fn stop_fling(&mut self) {
+        if self.flinging() {
+            self.fling = None;
+            self.velocity = 0.0;
+        }
     }
 
     fn rest(&mut self) {
         self.overscroll = 0.0;
         self.drag = None;
         self.velocity = 0.0;
+        self.fling = None;
         self.autoscroll = 0.0;
     }
 
     fn grab(&mut self, position: &ScrollPosition) {
         self.drag = Some(position.offset + unband(self.overscroll, position.viewport));
         self.velocity = 0.0;
+        self.fling = None;
     }
 
     fn drag(&mut self, position: &mut ScrollPosition, delta: f32, banding: bool) {
@@ -127,9 +141,13 @@ impl Momentum {
         } else {
             velocity * 0.35
         };
-        if self.velocity.abs() < MINIMUM_VELOCITY && self.overscroll == 0.0 {
-            self.velocity = 0.0;
+        if self.overscroll != 0.0 {
+            return;
         }
+        self.fling = (self.velocity.abs() >= MINIMUM_VELOCITY)
+            .then(|| Fling::new(self.velocity))
+            .flatten();
+        self.velocity = self.fling.map_or(0.0, |fling| fling.velocity());
     }
 
     fn animate(&mut self, position: &mut ScrollPosition, elapsed: f32, banding: bool) {
@@ -154,18 +172,22 @@ impl Momentum {
             );
             return;
         }
-        if self.velocity == 0.0 {
+        let Some(fling) = &mut self.fling else {
+            self.velocity = 0.0;
             return;
+        };
+        let raw = position.offset + fling.advance(elapsed);
+        self.velocity = fling.velocity();
+        if fling.done() {
+            self.fling = None;
         }
-        let raw = position.offset + self.velocity * elapsed;
         position.offset = raw.clamp(0.0, position.max_offset());
-        self.velocity *= (-INERTIA_FRICTION * elapsed).exp();
-        if raw != position.offset && !banding {
-            self.velocity = 0.0;
-        } else if raw != position.offset {
-            self.overscroll = raw - position.offset;
-        } else if self.velocity.abs() < MINIMUM_VELOCITY {
-            self.velocity = 0.0;
+        if raw != position.offset {
+            self.fling = None;
+            match banding {
+                true => self.overscroll = raw - position.offset,
+                false => self.velocity = 0.0,
+            }
         }
     }
 }
@@ -211,10 +233,7 @@ impl Motion {
     }
 
     fn stop_fling(&self) {
-        let mut momentum = self.momentum.borrow_mut();
-        if momentum.flinging() {
-            momentum.velocity = 0.0;
-        }
+        self.momentum.borrow_mut().stop_fling();
     }
 
     fn wheel(&self, gesture: ScrollGesture) {
@@ -265,6 +284,7 @@ impl Motion {
         }
         momentum.drag = None;
         momentum.velocity = 0.0;
+        momentum.fling = None;
         momentum.autoscroll = autoscroll_speed(self.axis().main(gesture.pos - gesture.origin));
         self.animate(&mut momentum);
     }
