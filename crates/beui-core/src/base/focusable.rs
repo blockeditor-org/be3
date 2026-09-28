@@ -16,7 +16,7 @@ pub type KeyCallback = Callback<KeyPress, bool>;
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ImeCursor {
     pub node: NodeId,
-    pub rect: Rect,
+    pub rect: Option<Rect>,
 }
 
 pub struct FocusableNode {
@@ -201,7 +201,10 @@ impl Document {
             .filter(|cursor| self.contains(cursor.node))
             .and_then(|cursor| {
                 let anchor = self.node_rect(cursor.node)?;
-                Some(cursor.rect.translate(anchor.min.to_vec2()))
+                Some(match cursor.rect {
+                    Some(rect) => rect.translate(anchor.min.to_vec2()),
+                    None => anchor,
+                })
             })
             .unwrap_or(rect);
         Some(ImeArea { rect, cursor })

@@ -171,6 +171,7 @@ impl OffsetNode {
             return changed;
         }
         let mut from = None;
+        let mut unplaced = false;
         for item in stale.nodes {
             let Some(&index) = self.extents.indices.get(&item) else {
                 continue;
@@ -179,12 +180,14 @@ impl OffsetNode {
             if self.extents.lengths[index] != length {
                 self.extents.lengths[index] = length;
                 from = Some(from.map_or(index, |from: usize| from.min(index)));
+            } else if doc.arena.unplaced(item) {
+                unplaced = true;
             }
         }
         if let Some(from) = from {
             self.extents.sum_from(from);
         }
-        from.is_some()
+        from.is_some() || unplaced
     }
 
     fn nodes(&self) -> Vec<NodeId> {

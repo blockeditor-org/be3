@@ -34,7 +34,11 @@ pub use beui_core::node::{ClickHandler, Handler, NodeId};
 pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Painter, Shape};
 pub use beui_core::performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
-pub use beui_font_freetype::{FontSources, FreetypeFonts, ICONS_FONT};
+#[cfg(not(target_arch = "wasm32"))]
+pub use beui_font_freetype::system::SystemFonts;
+pub use beui_font_freetype::{
+    FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT,
+};
 pub use beui_inspector::install as install_inspector;
 #[cfg(feature = "render")]
 pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice};
@@ -78,6 +82,17 @@ pub fn context() -> Context {
     Context::new(FreetypeFonts::default())
 }
 
+pub fn system_fonts() -> FontLibrary {
+    let fonts = FontLibrary::bundled();
+    #[cfg(not(target_arch = "wasm32"))]
+    let fonts = fonts.with_fallback(beui_font_freetype::system::fallback());
+    fonts
+}
+
+pub fn system_context() -> Context {
+    Context::new(FreetypeFonts::new(system_fonts()))
+}
+
 #[cfg(all(feature = "window", not(target_os = "android")))]
 pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
     run_with(RunOptions::new(title), app)
@@ -85,7 +100,7 @@ pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<
 
 #[cfg(all(feature = "window", not(target_os = "android")))]
 pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
-    beui_adapter_winit::run_with(options, context(), app)
+    beui_adapter_winit::run_with(options, system_context(), app)
 }
 
 #[cfg(all(feature = "window", target_os = "android"))]
@@ -101,7 +116,7 @@ pub fn run_with(
     options: RunOptions,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    beui_adapter_android::run_with(options, context(), app)
+    beui_adapter_android::run_with(options, system_context(), app)
 }
 
 #[cfg(test)]

@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 54;
+pub const PROTOCOL_VERSION: u16 = 55;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -1398,6 +1398,8 @@ pub enum Message {
     HelloAccepted(HelloAccepted),
     HelloRejected(ProtocolError),
     Theme(Theme),
+    Fonts(Fonts),
+    MissingCharacters(Vec<char>),
     Screens(ScreenSet),
     Layout(ScreenLayout),
     RegionSizes(Vec<RegionSize>),
@@ -1444,6 +1446,7 @@ impl Message {
             Self::HelloAccepted(_)
             | Self::HelloRejected(_)
             | Self::Theme(_)
+            | Self::Fonts(_)
             | Self::Screens(_)
             | Self::Input(_)
             | Self::DrawFrame
@@ -1454,6 +1457,7 @@ impl Message {
             | Self::Acknowledged { .. }
             | Self::ShutdownAcknowledged
             | Self::Layout(_)
+            | Self::MissingCharacters(_)
             | Self::RegionSizes(_)
             | Self::Frames(_)
             | Self::FrameNeeded
@@ -1559,6 +1563,39 @@ pub struct HelloAccepted {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Theme {
     pub dark: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FontRole {
+    Text,
+    Monospace,
+    Fallback,
+    Icons,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FontFace {
+    pub role: FontRole,
+    pub index: u32,
+    #[serde(with = "serde_bytes")]
+    pub data: Vec<u8>,
+}
+
+impl fmt::Debug for FontFace {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FontFace")
+            .field("role", &self.role)
+            .field("index", &self.index)
+            .field("bytes", &self.data.len())
+            .finish()
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Fonts {
+    pub replace: bool,
+    pub faces: Vec<FontFace>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2056,6 +2093,14 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             .as_ref()
             .map_or(Ok(()), |presented| collection(presented.damage.len())),
         Message::RegionSizes(value) => collection(value.len()),
+        Message::Fonts(value) => {
+            collection(value.faces.len())?;
+            for face in &value.faces {
+                blob(&face.data)?;
+            }
+            Ok(())
+        }
+        Message::MissingCharacters(value) => collection(value.len()),
         Message::Editor(value) => validate_editor(value),
         Message::BlockTypes(value) => {
             collection(value.len())?;

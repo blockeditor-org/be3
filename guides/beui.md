@@ -221,7 +221,11 @@ hooks the higher crates fill in:
 - The simulated mouse is an `InputSimulation` the inspector installs on the
   `Context`.
 - Text is shaped by the `FontBackend` a `Context` is made with.
-  `beui::context()` makes one over `FreetypeFonts`.
+  `beui::context()` makes one over `FreetypeFonts` and only the fonts beui
+  bundles, which is what tests use; `beui::system_context()`, which the
+  runners use, adds the system's own fonts for whatever the bundled ones do
+  not cover. The fonts live in a `FontLibrary` that contexts can share and
+  that can be given more fonts later, which lays their text out again.
 - The document's theme lives in a typed slot on the document
   (`Document::extension`); `beui::styled::DocumentTheme` reads and writes it.
 - A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
@@ -269,9 +273,8 @@ need:
 
 `Drawing` is the one base node that paints rather than arranges: it takes a
 `Draw`, a callback handed the `Painter` and the rectangle the node was laid out
-at. It is for content whose shape is computed rather than arranged -
-`unstyled::TextArea` lays a syntax-highlighted document out itself, byte by
-byte, and paints the result as four layers. Build the callback in a memo over the page it draws,
+at. It is for content whose shape is computed rather than arranged - a plot, a
+waveform, a canvas of strokes. Build the callback in a memo over the page it draws,
 so the closure is replaced only when that page changes, and cull to
 `painter.clip_rect()` inside it, so a document far taller than the viewport
 costs the screenful it shows. Reach for it only when there genuinely is no
@@ -279,7 +282,21 @@ arrangement of nodes that says the same thing: a row of labels is a `List` of
 `Text`, not a `Drawing`. It measures to nothing, so it takes its size from
 whatever places it - a `Frame` with a width and a height, or a `CanvasItem`.
 
-The galleys such a page paints come from `layout_text(text, font, layout)`,
+Text is never one of those. `Text` takes `spans` - byte ranges of its string
+with a font, a colour, an underline or a strikethrough each, or a fixed-width
+space, or the next of its `TextItem` children laid inline - and lays the runs
+out and wraps them itself, breaking after whitespace or after a span marked
+`break_after`, with `line_padding` above and below each line. It also paints
+`marks` behind the text (a selection, a code background) and `carets` in front
+of it, blinking ones included, and a `TextItem` given `at` is placed at that
+index as if it were a caret, which is how something floats beside a position
+in the text. `Document::text_geometry` answers where an index is and which index is
+under a point from the node's last layout, without a document installed.
+`unstyled::TextArea` is built from exactly this: a row per document line in a
+`VirtualList`, a gutter of `Text`s beside it, and checkboxes, embedded widgets
+and the caret's anchor as `TextItem`s.
+
+The galleys a `Drawing` paints come from `layout_text(text, font, layout)`,
 which lays text out with the shown document's fonts and answers `None` until
 the document has been shown once. It is how a component measures text outside
 `measure` and `paint` - to work out where a caret sits, or how wide a column
@@ -343,9 +360,14 @@ under the pointer. The unstyled module contains
 `Stack`, `Calendar`, `DateTimeField`, `TimeList` and `ColorArea`. `TextArea` is the multiline one: it owns a
 `text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
 document out with a gutter, wrapping, collapsible sections and markdown
-checkboxes, and reserves room for the inline and block `TextWidget`s the caller
-names - which is how a block editor puts an embedded block inside the text and
-drives the same document from a toolbar of its own. The state republishes
+checkboxes, and lays out the inline and block `TextWidget`s the caller
+names - `block` builds what goes under a block widget's line, and
+`selected_widget` what floats under an inline one while it is selected - which
+is how a block editor puts an embedded block inside the text and drives the
+same document from a toolbar of its own. A `completer` names a trigger
+character and a search: typing it after a space opens the menu
+`completion_menu` draws under the caret, filtered by what follows it, with
+arrows, Enter and Escape; `styled::TextArea` uses it for emoji (`:rocket`). The state republishes
 what it shows whenever one of its own commands runs; code that changes the
 document behind it - adopting an edit that arrived from someone else - calls
 `sync()`, or `external_edit()` when the edit should also break the undo group,
@@ -1544,8 +1566,9 @@ stays where it is, touch scrolling does not start, and no other catcher arms.
 Paint such parts with `Painter::on_top`, which draws above the rest of the
 document, or of the overlay being painted, or from a `CanvasItem` with
 `clip=false`, which a canvas paints without cutting it to its own rectangle.
-The touch selection handles of `unstyled::TextArea` use `capture_at` and an
-unclipped item.
+The touch selection handles of `unstyled::TextArea` use `capture_at` and are
+carets with a handle, which `Text` paints on top; a single-line area paints
+them from an unclipped item.
 
 Do not put theme colors, fixed visual spacing, typography choices, or decorative
 shapes in this layer. A new skin should be able to use the unstyled control

@@ -296,6 +296,13 @@ impl Rect {
         self.expand(-amount)
     }
 
+    pub fn expand2(&self, amount: Vec2) -> Self {
+        Self {
+            min: self.min - amount,
+            max: self.max + amount,
+        }
+    }
+
     pub fn union(&self, other: Self) -> Self {
         Self {
             min: Pos2::new(self.min.x.min(other.min.x), self.min.y.min(other.min.y)),

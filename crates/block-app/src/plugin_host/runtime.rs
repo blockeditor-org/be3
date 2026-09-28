@@ -125,6 +125,8 @@ pub(super) struct Runtime {
     paint_at: Option<f64>,
     requested_at: Option<f64>,
     theme: Theme,
+    fonts_sent: bool,
+    fallbacks: super::fonts::Fallbacks,
     presents: Presents,
 }
 
@@ -185,6 +187,8 @@ impl Runtime {
             paint_at: None,
             requested_at: None,
             theme: theme(),
+            fonts_sent: false,
+            fallbacks: super::fonts::Fallbacks::new(),
             presents: Presents::default(),
         }
     }
@@ -209,6 +213,8 @@ impl Runtime {
         self.paint_at = None;
         self.requested_at = None;
         self.theme = theme();
+        self.fonts_sent = false;
+        self.fallbacks = super::fonts::Fallbacks::new();
         self.presents = Presents::default();
         self.instances.reopen();
         self.backend.start(&plugin);
@@ -224,6 +230,10 @@ impl Runtime {
         let drawing = self.session.granted_surface().is_some();
         let next = self.instances.next_screens(previous);
         let mut messages = Vec::new();
+        if !self.fonts_sent && *self.session.state() == SessionState::Running {
+            self.fonts_sent = true;
+            messages.push(Message::Fonts(super::fonts::bundled()));
+        }
         let theme = theme();
         if self.theme != theme {
             self.theme = theme;
@@ -347,6 +357,10 @@ impl Runtime {
                     false
                 }
                 Message::RegionSizes(sizes) => self.instances.set_region_sizes(sizes),
+                Message::MissingCharacters(missing) => {
+                    answers.extend(self.fallbacks.answer(&missing).map(Message::Fonts));
+                    false
+                }
                 Message::Frames(reports) => self.instances.set_frame_reports(reports),
                 Message::Children(placements) => {
                     let (answered, changed) = self.instances.set_children(placements);

@@ -9,9 +9,13 @@ use text_editor_core::{
 };
 
 use beui_core::geometry::{Pos2, Rect, Vec2};
-use beui_view::reactive::{NodeRef, ReadSignal, WriteSignal, create_signal, with_document};
+use beui_view::reactive::{NodeRef, ReadSignal, WriteSignal, create_signal};
 
-use super::layout::{DocumentLayout, LayoutOptions, TextWidget, hit_test, layout_document};
+use super::colors::TextAreaColors;
+use super::rows::{
+    DOCUMENT_PADDING, RowInputs, RowOptions, TextWidget, build_row, line_range, line_starts,
+    rich_layout,
+};
 
 #[derive(Clone, Copy)]
 pub enum Grab {
@@ -35,7 +39,6 @@ pub struct Snapshot {
     pub sections: Vec<CollapsibleSection>,
     pub hidden: Vec<Range<usize>>,
     pub checkboxes: Vec<MarkdownCheckbox>,
-    pub checkbox_markers: Vec<Range<usize>>,
     pub highlight: Option<SyntaxHighlight>,
 }
 
@@ -47,61 +50,39 @@ impl Snapshot {
     }
 }
 
+pub trait AreaGeometry {
+    fn caret_rect(&self, byte: usize) -> Option<Rect>;
+    fn index_at(&self, pos: Pos2) -> Option<usize>;
+}
+
 #[derive(Clone, Default)]
 pub struct TextAreaLayout {
-    document: Rc<DocumentLayout>,
-    origin: Vec2,
+    geometry: Option<Rc<dyn AreaGeometry>>,
 }
 
 impl TextAreaLayout {
-    pub fn new(document: Rc<DocumentLayout>, origin: Vec2) -> Self {
-        Self { document, origin }
-    }
-
-    pub fn with_origin(&self, origin: Vec2) -> Self {
+    pub fn new(geometry: Rc<dyn AreaGeometry>) -> Self {
         Self {
-            document: Rc::clone(&self.document),
-            origin,
+            geometry: Some(geometry),
         }
     }
 
-    pub fn document(&self) -> &DocumentLayout {
-        &self.document
-    }
-
-    pub fn origin(&self) -> Vec2 {
-        self.origin
-    }
-
-    pub fn size(&self) -> Vec2 {
-        self.document.size
-    }
-
     pub fn caret_rect(&self, byte: usize) -> Option<Rect> {
-        super::shapes::caret_rect(&self.document, byte, self.origin)
+        self.geometry.as_ref()?.caret_rect(byte)
     }
 
-    pub fn widget_rect(&self, widget: usize) -> Option<Rect> {
-        self.document
-            .widgets
-            .iter()
-            .find(|laid_out| laid_out.index == widget)
-            .map(|laid_out| laid_out.rect.translate(self.origin))
-    }
-
-    pub fn block_widgets(&self) -> Vec<usize> {
-        self.document
-            .widgets
-            .iter()
-            .filter(|laid_out| laid_out.block)
-            .map(|laid_out| laid_out.index)
-            .collect()
+    pub fn index_at(&self, pos: Pos2) -> Option<usize> {
+        self.geometry.as_ref()?.index_at(pos)
     }
 }
 
 impl PartialEq for TextAreaLayout {
     fn eq(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.document, &other.document) && self.origin == other.origin
+        match (&self.geometry, &other.geometry) {
+            (Some(left), Some(right)) => Rc::ptr_eq(left, right),
+            (None, None) => true,
+            _ => false,
+        }
     }
 }
 
@@ -426,9 +407,7 @@ impl TextAreaState {
     }
 
     pub fn byte_at(&self, pos: Pos2) -> Option<usize> {
-        let local = self.local(pos)?;
-        let layout = self.0.layout.get_untracked();
-        Some(hit_test(layout.document(), Vec2::new(local.x, local.y)))
+        self.0.layout.get_untracked().index_at(pos)
     }
 
     pub fn measure(&self, widgets: &[TextWidget], width: f32) -> Option<Vec2> {
@@ -436,16 +415,37 @@ impl TextAreaState {
         if !snapshot.loaded {
             return None;
         }
-        let document = layout_document(
-            &snapshot.bytes,
-            snapshot.highlight(),
-            widgets,
-            &snapshot.checkbox_markers,
-            &snapshot.hidden,
-            &LayoutOptions::wrapped((width - super::shapes::PADDING.x * 2.0).max(1.0)),
-            None,
-        )?;
-        Some(Vec2::new(width, document.size.y))
+        let options = RowOptions {
+            body_size: super::rows::BODY_SIZE,
+            mask: false,
+            single_line: false,
+        };
+        let colors = TextAreaColors::DEFAULT;
+        let starts = line_starts(&snapshot.bytes);
+        let wrap = (width - super::PADDING.x * 2.0).max(1.0);
+        let mut height = DOCUMENT_PADDING.y;
+        for line in 0..starts.len() {
+            let (start, end, newline) = line_range(&snapshot.bytes, &starts, line)?;
+            if snapshot.hidden.iter().any(|range| range.contains(&start)) {
+                continue;
+            }
+            let inputs = RowInputs {
+                snapshot: &snapshot,
+                widgets,
+                composition: None,
+                selection: &[],
+                colors: &colors,
+                options,
+                spacers: &[],
+                placeholder: None,
+            };
+            let row = build_row(&inputs, line, start, end, newline);
+            height += rich_layout(&row, options.body_size, options.padding(), wrap)?
+                .size
+                .y;
+            height += row.block.map_or(0.0, |(_, size)| size.y);
+        }
+        Some(Vec2::new(width, height))
     }
 
     pub fn find_open(&self) -> ReadSignal<bool> {
@@ -537,22 +537,6 @@ impl TextAreaState {
         &self.0.find
     }
 
-    pub fn local(&self, pos: Pos2) -> Option<Pos2> {
-        let node = self.0.canvas.try_get()?;
-        let rect = with_document(|document| document.node_rect(node))?;
-        let origin = self.0.layout.get_untracked().origin();
-        Some(Pos2::new(
-            pos.x - rect.min.x - origin.x,
-            pos.y - rect.min.y - origin.y,
-        ))
-    }
-
-    pub fn gutter_local(&self, pos: Pos2) -> Option<Pos2> {
-        let node = self.0.canvas.try_get()?;
-        let rect = with_document(|document| document.node_rect(node))?;
-        Some(Pos2::new(pos.x - rect.min.x, pos.y - rect.min.y))
-    }
-
     fn query(&self) -> (String, bool) {
         (
             self.0.find.query.get_untracked(),
@@ -584,10 +568,6 @@ impl TextAreaState {
             TextLanguage::Markdown => parse_markdown_checkboxes(&bytes),
             _ => Vec::new(),
         };
-        let checkbox_markers = checkboxes
-            .iter()
-            .map(|checkbox| checkbox.marker.clone())
-            .collect();
         let hidden = hidden_ranges(&sections);
         *self.0.snapshot.borrow_mut() = Snapshot {
             loaded,
@@ -597,7 +577,6 @@ impl TextAreaState {
             sections,
             hidden,
             checkboxes,
-            checkbox_markers,
             highlight: Some(highlight),
         };
         self.0.content_counter.set(self.0.content_counter.get() + 1);

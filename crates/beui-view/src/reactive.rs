@@ -1261,12 +1261,15 @@ pub use crate::components::offset::Offset;
 pub use crate::components::picture::Picture;
 pub use crate::components::portal::Portal;
 pub use crate::components::stroke::Stroke;
-pub use crate::components::text::Text;
+pub use crate::components::text::{Text, TextItem};
 pub use crate::components::viewport::Viewport;
 pub use crate::components::virtual_list::VirtualList;
 pub use beui_core::base::canvas::CanvasView;
 pub use beui_core::base::drawing::Draw;
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
+pub use beui_core::rich::{
+    CaretHandle, RichLayout, SpanKind, SpanStyle, TextCaret, TextMark, TextSpan,
+};
 
 #[component]
 pub fn List(

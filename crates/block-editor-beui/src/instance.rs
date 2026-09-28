@@ -114,7 +114,7 @@ impl BeuiRegion {
 impl BeuiRegion {
     fn new() -> Self {
         Self {
-            context: beui::context(),
+            context: crate::fonts::context(),
             events: Vec::new(),
             modifiers: beui::Modifiers::NONE,
             pointer: beui::Pos2::ZERO,

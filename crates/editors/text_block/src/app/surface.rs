@@ -1,10 +1,9 @@
 use beui::reactive::{
-    CanvasItem, ForEach, ReadSignal, Show, clone, component, create_effect, create_memo,
-    request_paste, untrack, view,
+    Frame, List, clone, component, create_effect, create_memo, request_paste, untrack, view,
 };
 use beui::styled::{Button, ButtonVariant, TextArea};
-use beui::unstyled::{RemoteTextCursor, TextAreaLayout, TextWidget};
-use beui::{Key, KeyPress, NodeId, Rect, Vec2};
+use beui::unstyled::{RemoteTextCursor, TextWidget};
+use beui::{Key, KeyPress, NodeId, Vec2};
 use block_editor_beui::{Drag, block_ui::BlockLabel};
 use text_editor_core::{CursorLeftRightStop, CursorPosition, EditorCommand};
 
@@ -21,7 +20,6 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
     let widgets = create_memo(clone!(embeds -> move || {
         embeds.get().iter().map(ResolvedEmbed::widget).collect::<Vec<TextWidget>>()
     }));
-    let layout = state.text.layout();
     let remote = state.presence_revision.clone();
     let cursors = state.text.cursors();
     let remote_cursors = create_memo(clone!(state remote cursors -> move || {
@@ -31,55 +29,17 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
     }));
     let drag = state.editor.drag();
     let drop_caret = create_memo(clone!(state drag -> move || drop_target(&state, drag.get())));
-
-    let block_widgets = create_memo(clone!(layout -> move || layout.get().block_widgets()));
-    let embed_row = clone!(state layout -> move |widget: usize| {
+    let embed_row = clone!(state -> move |widget: usize| {
         let state = state.clone();
-        let layout = layout.clone();
         view! {
-            <EmbedFrame state={state} layout={layout} widget={widget} />
+            <EmbedFrame state={state} widget={widget} />
         }
     });
-
-    let selected_embed = create_memo(clone!(state layout cursors -> move || {
-        cursors.get();
-        let layout = layout.get();
-        let ranges = state.text.selection_ranges();
-        let selection = (ranges.len() == 1).then(|| ranges[0].clone())?;
-        let embeds = state.embeds.get();
-        let index = embeds
-            .iter()
-            .position(|embed| !embed.large && embed.range == selection)?;
-        let rect = layout.widget_rect(index)?;
-        Some((embeds[index].id, embeds[index].block_type, rect))
-    }));
-    let open_embed = create_memo(clone!(selected_embed -> move || selected_embed.get().is_some()));
     let open_state = state.clone();
-    let open_row = move || {
-        let target = selected_embed.clone();
+    let open_row = move |widget: usize| {
         let state = open_state.clone();
-        let rect = target
-            .get_untracked()
-            .map(|(_, _, rect)| rect)
-            .unwrap_or(Rect::ZERO);
         view! {
-            <CanvasItem
-                x={rect.min.x}
-                y={rect.max.y + EMBED_BUTTON_GAP}
-                width={EMBED_BUTTON_SIZE.x}
-                height={EMBED_BUTTON_SIZE.y}
-            >
-                <Button
-                    label="Edit"
-                    variant=ButtonVariant::Secondary
-                    @test_id={"text.embed.open"}
-                    on_click={move || {
-                        if let Some((id, block_type, _)) = target.get_untracked() {
-                            state.host().open_block(id, block_type);
-                        }
-                    }}
-                />
-            </CanvasItem>
+            <OpenEmbed state widget />
         }
     };
 
@@ -125,32 +85,48 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
             @test_id={"text.surface"}
             on_widget_press={move |widget: usize| focus_embed(&press_state, widget)}
             on_key_override={move |press: KeyPress| paste_key(&key_state, press)}
-        >
-            <ForEach keys={block_widgets} view={embed_row} />
-            <Show condition={open_embed} then={open_row} />
-        </TextArea>
+            block={embed_row}
+            selected_widget={open_row}
+        />
     }
 }
 
 #[component]
-fn EmbedFrame(state: Shared, layout: ReadSignal<TextAreaLayout>, widget: usize) -> CanvasItem {
-    let rect = create_memo(clone!(layout -> move || {
-        layout.get().widget_rect(widget).unwrap_or(Rect::ZERO)
-    }));
-    let x = create_memo(clone!(rect -> move || rect.get().min.x));
-    let y = create_memo(clone!(rect -> move || rect.get().min.y));
-    let width = create_memo(clone!(rect -> move || rect.get().width()));
-    let height = create_memo(clone!(rect -> move || rect.get().height()));
+fn EmbedFrame(state: Shared, widget: usize) -> NodeId {
     let embed = state.embeds.get_untracked().get(widget).cloned();
     let Some(embed) = embed else {
         return view! {
-            <CanvasItem x=0.0 y=0.0 width=0.0 height=0.0 />
+            <Frame />
         };
     };
     view! {
-        <CanvasItem x={x} y={y} width={width} height={height}>
-            <LargeEmbed state={state} embed={embed} />
-        </CanvasItem>
+        <LargeEmbed state={state} embed={embed} />
+    }
+}
+
+#[component]
+fn OpenEmbed(state: Shared, widget: usize) -> NodeId {
+    let target = state
+        .embeds
+        .get_untracked()
+        .get(widget)
+        .map(|embed| (embed.id, embed.block_type));
+    view! {
+        <List spacing=0.0>
+            <Frame height=EMBED_BUTTON_GAP />
+            <Frame width={EMBED_BUTTON_SIZE.x} height={EMBED_BUTTON_SIZE.y}>
+                <Button
+                    label="Edit"
+                    variant=ButtonVariant::Secondary
+                    @test_id={"text.embed.open"}
+                    on_click={move || {
+                        if let Some((id, block_type)) = target {
+                            state.host().open_block(id, block_type);
+                        }
+                    }}
+                />
+            </Frame>
+        </List>
     }
 }
 
