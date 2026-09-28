@@ -2,12 +2,12 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
+use block_editor_beui::Editor;
 use block_editor_beui::beui::reactive::{
     Memo, WriteSignal, create_effect, create_memo, create_signal, untrack,
 };
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
-use block_editor_beui::Editor;
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq, Eq, Hash)]

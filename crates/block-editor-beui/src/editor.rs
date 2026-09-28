@@ -265,6 +265,8 @@ pub(crate) fn defer_graph_changes(host: &EditorHost) {
     host.defer_graph_changes_unless(|| beui::reactive::try_with_document(|_| ()).is_some());
 }
 
+type Pump = Rc<dyn Fn()>;
+
 #[derive(Clone)]
 pub struct Editor(Rc<EditorState>);
 
@@ -306,7 +308,7 @@ struct EditorState {
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
     pick: RefCell<Option<PendingPick>>,
-    pumps: RefCell<std::collections::HashMap<Option<Uuid>, Rc<dyn Fn()>>>,
+    pumps: RefCell<std::collections::HashMap<Option<Uuid>, Pump>>,
     due: Rc<RefCell<Vec<Option<Uuid>>>>,
     seen: Cell<Option<(u64, f32)>>,
     shown_rect: Cell<Option<Rect>>,
