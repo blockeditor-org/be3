@@ -76,6 +76,7 @@ pub(crate) fn interact(
         touch_scroll_target: None,
         clicks: ctx.input(|input| input.pointer.clicks()),
         modifiers,
+        visible: Rect::EVERYTHING,
     };
     let input = match pointer {
         true => input,
@@ -409,7 +410,7 @@ fn without_pointer(input: InteractInput) -> InteractInput {
 }
 
 fn captor(doc: &mut Document, rects: &Rects, id: NodeId, pos: Pos2) -> Option<NodeId> {
-    let rect = rects.get(&id)?;
+    let rect = rects.visible(&id)?;
     for child in doc.arena.get(id).children().into_iter().rev() {
         if let Some(found) = captor(doc, rects, child, pos) {
             return Some(found);
@@ -444,8 +445,11 @@ fn latched_wheel_target(
 ) -> Option<NodeId> {
     let (latched, last) = doc.wheel_latch?;
     let recent = now.saturating_duration_since(last) < WHEEL_LATCH_TIMEOUT;
-    let under =
-        pointer.is_some_and(|pos| rects.get(&latched).is_some_and(|rect| rect.contains(pos)));
+    let under = pointer.is_some_and(|pos| {
+        rects
+            .visible(&latched)
+            .is_some_and(|rect| rect.contains(pos))
+    });
     let still_wants = doc.arena.contains(latched) && wants_wheel(doc.arena.get(latched), wheel);
     (recent && under && still_wants).then_some(latched)
 }
@@ -486,7 +490,7 @@ fn deepest(
     pos: Pos2,
     wants: &dyn Fn(&dyn crate::node::Element) -> bool,
 ) -> Option<NodeId> {
-    if !rects.get(&id).is_some_and(|rect| rect.contains(pos)) {
+    if !rects.visible(&id).is_some_and(|rect| rect.contains(pos)) {
         return None;
     }
     let node = doc.arena.get(id);
@@ -576,7 +580,7 @@ fn interact_node(
     pool: &mut Vec<Vec<NodeId>>,
 ) {
     let rects = reach.rects;
-    let Some(rect) = rects.get(&id) else {
+    let (Some(rect), Some(visible)) = (rects.get(&id), rects.visible(&id)) else {
         return;
     };
     if !reach.reaches(doc, input, id) {
@@ -584,7 +588,16 @@ fn interact_node(
     }
     let mut children = pool.pop().unwrap_or_default();
     let mut element = doc.arena.take(id);
-    element.interact(doc, painter, input, id, rect, focus_target, &mut children);
+    let clipped = InteractInput { visible, ..*input };
+    element.interact(
+        doc,
+        painter,
+        &clipped,
+        id,
+        rect,
+        focus_target,
+        &mut children,
+    );
     let engaged = element.engaged();
     doc.arena.put_back(id, element);
     if engaged {
@@ -640,7 +653,7 @@ fn nearest_press(
     clip: Rect,
     nearest: &mut Option<(f32, Pos2)>,
 ) {
-    let Some(rect) = rects.get(&id).map(|rect| rect.intersect(clip)) else {
+    let Some(rect) = rects.visible(&id).map(|rect| rect.intersect(clip)) else {
         return;
     };
     if !rect.is_positive() || !rect.expand(TOUCH_REACH).contains(pos) {

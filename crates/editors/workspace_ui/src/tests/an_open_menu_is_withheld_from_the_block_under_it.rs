@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn an_open_menu_is_withheld_from_the_block_under_it() {
-    let (mut fixture, opened) = editor();
+    let (mut fixture, opened) = editor_sized(Some(Vec2::new(1000.0, 600.0)));
 
     show(&mut fixture, opened, None);
     assert!(

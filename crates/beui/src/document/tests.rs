@@ -83,6 +83,7 @@ mod a_removed_nodes_slot_is_reused_under_a_new_id;
 mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
+mod a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips;
 mod a_scroll_mixes_plain_children_with_a_nested_virtual_list;
 mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
 mod a_second_finger_cancels_the_press_the_first_began;
@@ -804,8 +805,15 @@ impl Harness {
         let tab = self.simulation_tab_center();
         self.click(tab);
         self.frame(Vec::new());
-        let toggle = self.inspector_center("inspector.accessibility.enabled");
-        self.click(toggle);
+        let toggle = self.inspector().find("inspector.accessibility.enabled");
+        self.document
+            .inspector
+            .as_mut()
+            .expect("the inspector is closed")
+            .document
+            .reveal_node(toggle);
+        self.frame(Vec::new());
+        self.click(self.node_center(toggle));
         self.toggle_inspector();
         self.frame(Vec::new());
     }

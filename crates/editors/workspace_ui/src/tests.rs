@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::{BlockContent, FileTreeContent};
 
-use block_editor_beui::beui::{Document, NodeId, Rect};
+use block_editor_beui::beui::{Document, NodeId, Rect, Vec2};
 use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -82,6 +82,10 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
 }
 
 fn editor() -> (Fixture, Uuid) {
+    editor_sized(None)
+}
+
+fn editor_sized(size: Option<Vec2>) -> (Fixture, Uuid) {
     let workspace = Uuid::new_v4();
     let opened = Uuid::new_v4();
     let host = EditorHost::default();
@@ -89,7 +93,10 @@ fn editor() -> (Fixture, Uuid) {
     host.set_client_id(Uuid::new_v4());
     let editor = Editor::new(host.clone(), workspace);
     let mut fixture = Fixture {
-        test: BeuiTest::new(editor),
+        test: match size {
+            Some(size) => BeuiTest::new(editor).with_size(size),
+            None => BeuiTest::new(editor),
+        },
         host,
     };
     fixture.settle();

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn the_quiz_records_a_bit_on_the_game_block() {
-    let mut editor = editor();
+    let mut editor = editor_sized(Some(Vec2::new(800.0, 900.0)));
 
     let level = ChallengeId::BinaryAddition;
     editor.click(&format!("logic-game.level.{}", level as usize));

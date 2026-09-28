@@ -1,6 +1,6 @@
 use super::*;
 use block_editor_beui::be_block::canvas::CanvasColor;
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, Vec2};
 
 #[test]
 fn every_transform_field_previews_what_is_typed() {
@@ -14,7 +14,12 @@ fn every_transform_field_previews_what_is_typed() {
         alpha: 255,
     });
     let drawn = format!("infinite-canvas.entity.{}", rectangle.id);
-    let mut editor = editor(std::slice::from_ref(&rectangle));
+    let mut editor = open_sized(
+        &Canvas::with_entities(vec![rectangle.clone()], None),
+        false,
+        &[],
+        Some(Vec2::new(800.0, 900.0)),
+    );
     editor.click(&drawn);
     editor.run();
     let resting = editor.rect_of(&drawn);
