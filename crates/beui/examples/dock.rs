@@ -16,7 +16,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 const FILES: TabId = TabId::new(1);
-const EMPTY: TabId = TabId::new(2);
 const FILES_SHARE: f32 = 0.78;
 const SHELL_PADDING: f32 = 10.0;
 const SHELL_SPACING: f32 = 10.0;
@@ -144,26 +143,18 @@ fn settled(mut state: DockState) -> DockState {
     let open = state
         .all_tabs()
         .into_iter()
-        .any(|tab| tab != FILES && tab != EMPTY && tab != SWATCH);
+        .any(|tab| tab != FILES && tab != SWATCH);
     if open {
-        state.remove(EMPTY);
-        return state;
-    }
-    if state.contains(EMPTY) {
+        state.remove_empty_panes();
         return state;
     }
     let files = state.find(FILES).map(|position| position.leaf);
     let elsewhere = state
-        .surfaces()
+        .leaves(state.main())
         .into_iter()
-        .flat_map(|surface| state.leaves(surface))
-        .find(|leaf| Some(*leaf) != files);
-    match (elsewhere, files) {
-        (Some(leaf), _) => state.push(leaf, EMPTY),
-        (None, Some(files)) => {
-            state.split(files, Side::Right, FILES_SHARE, vec![EMPTY]);
-        }
-        (None, None) => state.push_to_focused(EMPTY),
+        .any(|leaf| Some(leaf) != files);
+    if let (false, Some(files)) = (elsewhere, files) {
+        state.split(files, Side::Right, FILES_SHARE, Vec::new());
     }
     state
 }
@@ -175,10 +166,6 @@ fn open(state: &mut DockState, tab: TabId) {
     }
     if tab == SWATCH {
         state.open_window(SWATCH_WINDOW, vec![SWATCH]);
-        return;
-    }
-    if state.replace(EMPTY, tab) {
-        state.show(tab);
         return;
     }
     let files = state.find(FILES).map(|position| position.leaf);
@@ -207,7 +194,6 @@ fn DockShell() -> NodeId {
     let (state, set_state) = create_signal(starting_state());
     let title = Func::new(clone!(papers -> move |tab: TabId| match tab {
         FILES => "Files".to_owned(),
-        EMPTY => "Workspace".to_owned(),
         tab => papers.with(|papers| {
             papers
                 .iter()
@@ -239,9 +225,12 @@ fn DockShell() -> NodeId {
                     @sizing=ItemSize::Percent(100.0)
                     state={state}
                     title={title}
-                    closable={Func::new(|tab: TabId| tab != FILES && tab != EMPTY)}
+                    closable={Func::new(|tab: TabId| tab != FILES)}
                     on_change={move |next: DockState| set_state.set(settled(next))}
                     on_close={move |_: TabId| {}}
+                    empty={move || view! {
+                        <EmptyPanel />
+                    }}
                 >
                     {move |tab: TabId| {
                         let papers = content_papers.clone();
@@ -249,9 +238,6 @@ fn DockShell() -> NodeId {
                         match tab {
                             FILES => view! {
                                 <FilesPanel papers set_state />
-                            },
-                            EMPTY => view! {
-                                <EmptyPanel />
                             },
                             SWATCH => view! {
                                 <SwatchPanel />

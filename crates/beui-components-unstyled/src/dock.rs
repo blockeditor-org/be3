@@ -162,6 +162,7 @@ struct State {
     owner: Option<ScopeContext>,
     tab: RenderFn<DockTabHandle>,
     content: RenderFn<TabId>,
+    empty: RenderFn<()>,
     panel: RenderFn<DockPanelHandle>,
     splitter: RenderFn<DockSplitterHandle>,
     grip: RenderFn<DockGripHandle>,
@@ -508,9 +509,13 @@ impl State {
                 return (DockDrop::Group { leaf, index }, *rect);
             }
             if along(pos) < along(rect.center()) {
+                let at = match index.checked_sub(1).and_then(|before| rects.get(before)) {
+                    Some(before) => (along(before.max) + along(rect.min)) / 2.0,
+                    None => along(rect.min),
+                };
                 return (
                     DockDrop::Tab { leaf, index },
-                    marker_rect(direction, along(rect.min), bar),
+                    marker_rect(direction, at, bar),
                 );
             }
         }
@@ -711,6 +716,7 @@ pub fn Dock(
     #[prop(default = 0.0)] group_inset: f32,
     tab: RenderFn<DockTabHandle>,
     #[prop(children)] content: RenderFn<TabId>,
+    empty: Option<RenderFn<()>>,
     panel: Option<RenderFn<DockPanelHandle>>,
     splitter: Option<RenderFn<DockSplitterHandle>>,
     grip: Option<RenderFn<DockGripHandle>>,
@@ -739,6 +745,13 @@ pub fn Dock(
         bars: RefCell::default(),
         tab,
         content,
+        empty: empty.unwrap_or_else(|| {
+            RenderFn::new(|()| {
+                view! {
+                    <Frame />
+                }
+            })
+        }),
         panel: panel.unwrap_or_else(|| {
             RenderFn::new(|handle| {
                 view! {
@@ -1181,11 +1194,21 @@ fn DockTabBody(dock: Handle, leaf: LeafId) -> NodeId {
     let state = dock.state.clone();
     let shown = create_memo(clone!(state -> move || state.with(|state| state.active_tab(leaf))));
     let (panel, set_panel) = create_signal(None);
-    create_effect(clone!(dock -> move || {
+    create_effect(clone!(dock shown -> move || {
         set_panel.set(shown.get().map(|tab| dock.panel(tab)));
     }));
+    let vacant = create_memo(clone!(shown -> move || shown.get().is_none()));
+    let occupied = create_memo(move || shown.get().is_some());
+    let empty = dock.empty.clone();
     view! {
-        <Portal node={panel} />
+        <List spacing=0.0>
+            <Show condition={vacant}>
+                {empty.call(())} @sizing=ItemSize::Percent(100.0)
+            </Show>
+            <Show condition={occupied}>
+                <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
+            </Show>
+        </List>
     }
 }
 

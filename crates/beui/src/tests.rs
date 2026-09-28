@@ -32,6 +32,7 @@ mod a_disabled_checkbox_ignores_clicks_and_keeps_its_state;
 mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
 mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
+mod a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open;
 mod a_docked_pane_lays_its_content_inside_its_border;
 mod a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_tap;
 mod a_drag_preview_follows_the_pointer_until_the_drop;
@@ -60,8 +61,10 @@ mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
 mod a_lone_child_fills_a_children_prop_as_a_run_of_one;
 mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
+mod a_middle_click_on_a_dock_tab_closes_it;
 mod a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling;
 mod a_multi_root_view_fills_a_children_prop_in_order;
+mod a_narrow_inspector_puts_its_close_button_beside_its_tabs;
 mod a_nested_container_reports_its_own_width_not_the_windows;
 mod a_number_input_reports_what_was_typed_within_its_range;
 mod a_pan_zoom_follows_the_view_its_caller_sets;
@@ -210,6 +213,7 @@ mod dragging_a_pan_zoom_with_the_middle_button_pans_it;
 mod dragging_a_panes_grip_moves_every_tab_of_the_pane;
 mod dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it;
 mod dragging_a_slider_moves_its_value;
+mod dragging_a_tab_between_two_tabs_marks_the_middle_of_the_gap;
 mod dragging_a_tab_onto_a_window_bar_moves_it_into_the_window;
 mod dragging_a_tab_onto_the_edge_of_a_pane_splits_it;
 mod dragging_a_tab_over_a_window_bar_marks_where_it_lands;
@@ -346,7 +350,7 @@ mod the_color_areas_thumb_shows_a_grab_cursor;
 mod the_components_tab_lists_components_instead_of_base_nodes;
 mod the_demo_body_scrolls_rather_than_spilling_off_a_small_window;
 mod the_demo_catalog_survives_switching_tabs;
-mod the_dock_demo_leaves_a_tab_saying_nothing_is_open;
+mod the_dock_demo_leaves_a_pane_saying_nothing_is_open;
 mod the_dock_demo_opens_a_paper_from_the_files_it_lists;
 mod the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it;
 mod the_frame_output_reports_the_region_whose_shapes_changed;
@@ -757,6 +761,13 @@ impl Harness {
 
     pub(crate) fn close_button_center(&self) -> Pos2 {
         self.inspector_center("inspector.close")
+    }
+
+    pub(crate) fn bar_close_rect(&self) -> Rect {
+        self.inspector()
+            .bar_rect("inspector.bar.close")
+            .expect("the inspector's tab bar has no close button")
+            .scaled(crate::inspector::scale(&self.context))
     }
 
     pub(crate) fn bar_option_center(&self, index: usize) -> Pos2 {

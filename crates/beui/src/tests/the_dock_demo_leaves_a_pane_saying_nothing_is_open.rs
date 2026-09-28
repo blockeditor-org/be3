@@ -5,7 +5,7 @@ use super::*;
 include!("../../examples/dock.rs");
 
 #[test]
-fn the_dock_demo_leaves_a_tab_saying_nothing_is_open() {
+fn the_dock_demo_leaves_a_pane_saying_nothing_is_open() {
     let mut harness = Harness::sized(DockDemo::new().document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let root = harness.document().root().expect("the demo built a root");
@@ -23,7 +23,7 @@ fn the_dock_demo_leaves_a_tab_saying_nothing_is_open() {
 
     assert!(
         text_within(harness.document(), root, "Nothing open").is_some(),
-        "closing the last paper leaves a tab saying there is nothing open"
+        "closing the last paper leaves its pane saying there is nothing open"
     );
     let reopen = text_within(harness.document(), root, "Splits").expect("the files list names it");
     harness.click(harness.center(reopen));

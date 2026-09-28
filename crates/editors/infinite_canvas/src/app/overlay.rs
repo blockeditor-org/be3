@@ -1,16 +1,62 @@
 use block_editor_beui::ResizeMode;
-use block_editor_beui::be_block::canvas::{CanvasPoint, CanvasPreviewRegion};
+use block_editor_beui::be_block::canvas::CanvasPoint;
 use block_editor_beui::beui::{Color32, FontId, Painter, Rect, TextAlign, TextLayout, Vec2, pos2};
 
 use crate::geometry::*;
 
-use super::paint::{Camera, PREVIEW_REGION, Palette, SELECTION, arrowhead, handle, outline};
+use super::paint::{Camera, Palette, SELECTION, arrowhead, handle, outline};
 use super::state::{Gesture, Presence, Tool};
 
-const HINT: &str = "Drag or pinch to move around  ·  Pick a tool to draw\nDrop or paste images, or use Block to add content";
+const HINT: &str = "Scroll or use two fingers to move around  ·  Pick a tool to draw\nDrop or paste images, or use Block to add content";
 const HINT_MARGIN: f32 = 16.0;
 const SELECT_BOX_FILL: Color32 = Color32::from_rgba_unmultiplied(66, 153, 225, 28);
 const BADGE_SIDE: f32 = 22.0;
+const OUTSIDE_ARTBOARDS: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 56);
+const ARTBOARD_LABEL_SIZE: f32 = 12.0;
+
+#[derive(Clone, PartialEq)]
+pub(crate) struct Artboard {
+    pub(crate) bounds: WorldRect,
+    pub(crate) name: String,
+}
+
+#[derive(Clone, PartialEq)]
+pub(crate) struct Backdrop {
+    pub(crate) camera: Camera,
+    pub(crate) stage: Rect,
+    pub(crate) background: Color32,
+    pub(crate) label: Color32,
+    pub(crate) artboards: Vec<Artboard>,
+}
+
+impl Backdrop {
+    pub(crate) fn draw(&self, painter: &Painter) {
+        if self.artboards.is_empty() {
+            return;
+        }
+        painter.rect_filled(self.stage, 0.0, OUTSIDE_ARTBOARDS);
+        for artboard in &self.artboards {
+            painter.rect_filled(self.camera.rect(artboard.bounds), 0.0, self.background);
+        }
+        for artboard in &self.artboards {
+            let rect = self.camera.rect(artboard.bounds);
+            let galley = painter.layout(
+                &artboard.name,
+                FontId::proportional(ARTBOARD_LABEL_SIZE),
+                f32::INFINITY,
+            );
+            let height = galley.size().y;
+            painter.galley(
+                pos2(
+                    rect.left(),
+                    rect.top() - height - (ARTBOARD_LABEL_HEIGHT - height) / 2.0,
+                ),
+                galley,
+                self.label,
+            );
+        }
+    }
+}
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Overlay {
@@ -18,7 +64,6 @@ pub(crate) struct Overlay {
     pub(crate) palette: Palette,
     pub(crate) stage: Rect,
     pub(crate) empty: bool,
-    pub(crate) region: Option<CanvasPreviewRegion>,
     pub(crate) gesture: Option<Gesture>,
     pub(crate) frame: Option<SelectionFrame>,
     pub(crate) resize: ResizeMode,
@@ -49,16 +94,6 @@ impl Overlay {
                 self.palette.muted,
             );
         }
-        if let Some(region) = self.region {
-            let rect = self.camera.rect(preview_region_bounds(region));
-            painter.rect_stroke(rect, 0.0, 1.5, PREVIEW_REGION);
-            let label = painter.layout("Preview", FontId::proportional(12.0), f32::INFINITY);
-            painter.galley(
-                pos2(rect.left() + 5.0, rect.top() + 4.0),
-                label,
-                PREVIEW_REGION,
-            );
-        }
         self.draw_gesture(painter);
         if let Some(frame) = self.frame {
             self.draw_selection(painter, frame);
@@ -80,14 +115,16 @@ impl Overlay {
                 Tool::Line => {
                     painter.line(self.camera.at(*start), self.camera.at(*current), 2.0, color)
                 }
-                Tool::Rectangle | Tool::Text => {
+                Tool::Rectangle | Tool::Text | Tool::Artboard => {
                     let bounds = match tool {
-                        Tool::Rectangle => gesture_rect(*start, *current, *from_center),
+                        Tool::Rectangle | Tool::Artboard => {
+                            gesture_rect(*start, *current, *from_center)
+                        }
                         _ => WorldRect::from_points(*start, *current),
                     };
                     painter.rect_stroke(self.camera.rect(bounds), 0.0, 2.0, color);
                 }
-                Tool::Hand | Tool::Select | Tool::Pen => {}
+                Tool::Select | Tool::Pen => {}
             },
             Some(Gesture::Pen { points }) => {
                 for window in points.windows(2) {
@@ -166,11 +203,12 @@ impl Overlay {
 
     fn draw_badge(&self, painter: &Painter) {
         let glyph = match self.tool {
-            Tool::Hand | Tool::Select => return,
+            Tool::Select => return,
             Tool::Line => block_editor_beui::beui::icons::ICON_DIAGONAL_LINE,
             Tool::Rectangle => block_editor_beui::beui::icons::ICON_RECTANGLE,
             Tool::Text => block_editor_beui::beui::icons::ICON_TEXT_FIELDS,
             Tool::Pen => block_editor_beui::beui::icons::ICON_DRAW,
+            Tool::Artboard => block_editor_beui::beui::icons::ICON_CROP_FREE,
         };
         let Some(pointer) = self.pointer else {
             return;

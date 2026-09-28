@@ -10,10 +10,10 @@ use crate::graph::BlockParent;
 use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockPick, ChildId,
     ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage, DataListing,
-    EditorRegion, FetchResult, FilePick, HostReply, HostRequest, Occluder, PerformanceMeasurement,
-    Size, ViewChange, WebViewCommand, WebViewEvent,
+    EditorRegion, FetchResult, FilePick, FileSave, HostReply, HostRequest, Occluder,
+    PerformanceMeasurement, Size, ViewChange, WebViewCommand, WebViewEvent,
 };
-pub use block_plugin_api::{BlockFilter, FileFilter};
+pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};
 use uuid::Uuid;
@@ -953,6 +953,17 @@ impl EditorHost {
         }
     }
 
+    pub fn save_file(&self, file: SavedFile) -> u64 {
+        self.ask(HostRequest::SaveFile(file))
+    }
+
+    pub fn take_save(&self, request: u64) -> Option<FileSave> {
+        match self.take_reply(request)? {
+            HostReply::FileSaved(save) => Some(save),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
     pub fn pick_block(&self, filter: BlockFilter) -> u64 {
         self.ask(HostRequest::PickBlock(filter))
     }
@@ -1443,6 +1454,31 @@ impl FilePicker {
             FilePick::Cancelled => None,
             FilePick::Failed(error) => Some(Err(error)),
         }
+    }
+}
+
+#[derive(Default)]
+pub struct FileSaver {
+    request: Option<u64>,
+}
+
+impl FileSaver {
+    pub fn save(&mut self, host: &EditorHost, file: SavedFile) {
+        self.request = Some(host.save_file(file));
+    }
+
+    pub fn is_saving(&self) -> bool {
+        self.request.is_some()
+    }
+
+    pub fn poll(&mut self, host: &EditorHost) -> Option<Result<bool, String>> {
+        let save = host.take_save(self.request?)?;
+        self.request = None;
+        Some(match save {
+            FileSave::Saved => Ok(true),
+            FileSave::Cancelled => Ok(false),
+            FileSave::Failed(error) => Err(error),
+        })
     }
 }
 

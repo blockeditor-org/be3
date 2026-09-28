@@ -4,7 +4,7 @@ use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::canvas::Canvas;
 use block_editor_beui::be_block::canvas::{
     CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
-    CanvasPreviewRegion, CanvasTransform, InfiniteCanvasOperation,
+    CanvasTransform, InfiniteCanvasOperation,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::beui::Vec2;
@@ -29,7 +29,7 @@ mod clicking_a_live_editor_hands_it_the_frame;
 mod clicking_an_entity_selects_it_and_shows_its_handles;
 mod dragging_a_transform_field_twice_keeps_the_first_drag;
 mod dragging_any_transform_field_moves_the_entity;
-mod dragging_empty_canvas_with_a_finger_pans_it;
+mod dragging_with_the_artboard_tool_adds_an_artboard;
 mod dragging_with_the_rectangle_tool_adds_a_rectangle;
 mod drawing_with_a_finger_adds_a_rectangle;
 mod every_transform_field_previews_what_is_typed;
@@ -40,10 +40,11 @@ mod rotating_with_the_handle_is_drawn;
 mod selections_are_shared_with_peers_and_theirs_are_drawn;
 mod setting_component_value_writes_the_same_value_to_all_selected_entities;
 mod the_actions_menu_deletes_the_selection;
+mod the_canvas_opens_with_the_select_tool_so_a_finger_box_selects;
 mod the_canvas_paints_the_entities_it_holds;
-mod the_intrinsic_size_follows_the_preview_region;
-mod the_preview_centres_the_region_it_was_given;
-mod the_select_tool_box_selects_under_a_finger;
+mod the_intrinsic_size_follows_the_first_artboard;
+mod the_layers_panel_selects_reorders_and_hides;
+mod the_preview_shows_the_first_artboard;
 mod the_transform_fields_edit_the_selected_entity;
 mod typing_a_transform_value_and_pressing_escape_edits_nothing;
 
@@ -52,6 +53,20 @@ fn entity(id: Uuid) -> CanvasEntity {
         id,
         transform: CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(10.0, 10.0), 0.0),
         kind: CanvasEntityKind::Rectangle,
+        style: CanvasEntityStyle::default(),
+        group_id: None,
+        locked: false,
+        components: Vec::new(),
+    }
+}
+
+fn artboard(id: u128, center: CanvasPoint, size: CanvasPoint) -> CanvasEntity {
+    CanvasEntity {
+        id: Uuid::from_u128(id),
+        transform: CanvasTransform::new(center, size, 0.0),
+        kind: CanvasEntityKind::Artboard {
+            name: format!("Artboard {id}"),
+        },
         style: CanvasEntityStyle::default(),
         group_id: None,
         locked: false,
@@ -104,12 +119,12 @@ fn open_sized(
 }
 
 fn editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
-    open(&Canvas::with_entities(entities.to_vec(), None), false, &[])
+    open(&Canvas::with_entities(entities.to_vec()), false, &[])
 }
 
 fn phone(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
     open_sized(
-        &Canvas::with_entities(entities.to_vec(), None),
+        &Canvas::with_entities(entities.to_vec()),
         false,
         &[],
         Some(Vec2::new(390.0, 760.0)),

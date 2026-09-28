@@ -11,14 +11,15 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, IconSized, Tooltip,
-    Tree, TreeRowFace, tree_row_node, use_theme,
+    Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, IconSized, Paragraph,
+    Tooltip, Tree, TreeRowFace, tree_row_node, use_theme,
 };
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::{BlockFilter, BlockPicker, Drag, Editor, Toolbar};
 use uuid::Uuid;
 
+use super::export::{Export, Exporter, exportable};
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
 
 const PADDING: f32 = 8.0;
@@ -31,6 +32,8 @@ const FIELD_SPACING: f32 = 2.0;
 pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let tree = FileTree::watch(&editor);
     let picker = picker(&editor, Rc::clone(&tree));
+    let exporter = Exporter::new(&editor);
+    let exported = exporter.error();
     let held: Held = Rc::new(std::cell::Cell::new(None));
     let (inspecting, set_inspecting) = create_signal(None::<Inspection>);
     let inspect = set_inspecting.clone();
@@ -92,7 +95,8 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             [editor.block_id()].into_iter().collect::<HashSet<Uuid>>(),
         );
     });
-    let failure = picker.error();
+    let picked = picker.error();
+    let failure = create_memo(move || picked.get().or_else(|| exported.get()));
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
 
@@ -167,6 +171,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                         editor={editor.clone()}
                                         tree={Rc::clone(&tree)}
                                         picker={picker.clone()}
+                                        exporter={Rc::clone(&exporter)}
                                         inspect={inspect.clone()}
                                         row={row}
                                         face={face}
@@ -245,10 +250,15 @@ fn Inspector(
 
 #[component]
 fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
+    let theme = use_theme();
     view! {
         <List spacing=FIELD_SPACING>
             <Caption content={label} />
-            <Body content={value} @test_id={format!("file-tree.inspect.{named}")} />
+            <Paragraph
+                content={value}
+                color={theme.text.clone()}
+                @test_id={format!("file-tree.inspect.{named}")}
+            />
         </List>
     }
 }
@@ -285,6 +295,7 @@ fn TreeRow(
     editor: Editor,
     tree: Rc<FileTree>,
     picker: Rc<Picker>,
+    exporter: Rc<Exporter>,
     inspect: WriteSignal<Option<Inspection>>,
     row: Memo<Option<Row>>,
     face: TreeRowFace<RowKey>,
@@ -326,6 +337,7 @@ fn TreeRow(
         editor.clone(),
         Rc::clone(&tree),
         picker,
+        exporter,
         inspect,
         row.clone(),
     );
@@ -348,6 +360,9 @@ fn TreeRow(
     let orphaned = create_memo(clone!(row edit -> move || {
         edit.get() || row.get().is_some_and(|row| row.parent == BlockParent::Detached)
     }));
+    let unexportable = create_memo(clone!(row -> move || {
+        !row.get().is_some_and(|row| row.access.can_view() && exportable(row.block_type))
+    }));
     let uninspectable = create_memo(clone!(row -> move || {
         !row.get().is_some_and(|row| row.inspection.is_some())
     }));
@@ -362,6 +377,7 @@ fn TreeRow(
         <MenuItem label="Unlink" disabled={unlinkable} />
         <MenuItem label={delete_label} disabled={deletable} />
         <MenuItem label="Inspect" disabled={uninspectable} />
+        <MenuItem label="Export" disabled={unexportable} />
     };
     let theme = use_theme();
     let glyph_color = theme.text_muted.clone();
@@ -527,6 +543,7 @@ fn menu_action(
     editor: Editor,
     tree: Rc<FileTree>,
     picker: Rc<Picker>,
+    exporter: Rc<Exporter>,
     inspect: WriteSignal<Option<Inspection>>,
     row: Memo<Option<Row>>,
 ) -> impl Fn(Vec<usize>) + 'static {
@@ -558,6 +575,11 @@ fn menu_action(
                     .delete_block(id, shown.block_type, shown.source, shown.is_reference)
             }
             [6] => inspect.set(shown.inspection),
+            [7] => exporter.export(Export {
+                id,
+                block_type: shown.block_type,
+                name: shown.label.clone(),
+            }),
             _ => {}
         }
     }

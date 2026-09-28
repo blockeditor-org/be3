@@ -12,6 +12,7 @@ use uuid::Uuid;
 pub(crate) mod canvas;
 pub(crate) mod components;
 pub(crate) mod input;
+pub(crate) mod layers;
 pub(crate) mod menu;
 pub(crate) mod overlay;
 pub(crate) mod paint;
@@ -26,7 +27,7 @@ use sidebar::CanvasSidebar;
 use state::CanvasState;
 use toolbar::{CanvasToolbar, ToolDock};
 
-use crate::geometry::{MIN_SIZE, preview_region_for_entities};
+use crate::geometry::{MIN_SIZE, embedded_region};
 
 pub struct CanvasApp;
 
@@ -97,13 +98,10 @@ fn report_intrinsic_size(editor: &Editor, state: &Rc<CanvasState>) {
     let sized = Rc::clone(state);
     let sizing = editor.clone();
     create_effect(move || {
-        let region = sized
-            .preview_region
-            .get()
-            .unwrap_or_else(|| preview_region_for_entities(&sized.entities.get()));
+        let region = embedded_region(&sized.entities.get()).size();
         sizing.set_intrinsic_size(Some(Vec2::new(
-            region.size.x.max(MIN_SIZE),
-            region.size.y.max(MIN_SIZE),
+            region.x.max(MIN_SIZE),
+            region.y.max(MIN_SIZE),
         )));
     });
 }

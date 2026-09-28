@@ -107,6 +107,7 @@ impl EditorMessage {
             Self::Request { request, .. } => match request {
                 HostRequest::PickBlock(filter) => filter.excluded.iter_mut().for_each(existing),
                 HostRequest::PickFile(_)
+                | HostRequest::SaveFile(_)
                 | HostRequest::PasteImage
                 | HostRequest::Fetch(_)
                 | HostRequest::ListData
@@ -116,6 +117,7 @@ impl EditorMessage {
                 HostReply::BlockPicked(BlockPick::Chosen { block_id, .. }) => existing(block_id),
                 HostReply::BlockPicked(BlockPick::Cancelled | BlockPick::Failed(_))
                 | HostReply::FilePicked(_)
+                | HostReply::FileSaved(_)
                 | HostReply::ImagePasted(_)
                 | HostReply::Fetched(_)
                 | HostReply::DataListed(_)

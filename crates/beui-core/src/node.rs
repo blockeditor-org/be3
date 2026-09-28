@@ -33,6 +33,7 @@ pub struct InteractInput {
     pub secondary_drag: Option<SecondaryDrag>,
     pub middle_down: bool,
     pub middle_pressed_this_frame: bool,
+    pub middle_released_this_frame: bool,
     pub scroll: Vec2,
     pub scroll_fling: Vec2,
     pub zoom: f32,

@@ -10,7 +10,6 @@ use block_editor_beui::beui::{
 use crate::geometry::*;
 
 pub(crate) const SELECTION: Color32 = Color32::from_rgb(140, 200, 255);
-pub(crate) const PREVIEW_REGION: Color32 = Color32::from_rgb(245, 180, 60);
 const PLACEHOLDER: Color32 = Color32::from_rgb(35, 35, 35);
 const ARROW_SPREAD: f32 = 0.45;
 
@@ -98,6 +97,9 @@ impl PartialEq for EntityPaint {
 
 impl EntityPaint {
     pub(crate) fn draw(&self, painter: &Painter) {
+        if self.entity.style.hidden {
+            return;
+        }
         let opacity = self.entity.style.opacity.clamp(0.0, 1.0);
         let color = with_opacity(
             resolve_color(self.entity.style.foreground, self.palette.auto),
@@ -117,6 +119,7 @@ impl EntityPaint {
             CanvasEntityKind::DirectEditor { scale, .. } => {
                 self.draw_direct_editor(painter, color, opacity, *scale)
             }
+            CanvasEntityKind::Artboard { .. } => {}
         }
     }
 

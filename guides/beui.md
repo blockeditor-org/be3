@@ -767,6 +767,11 @@ Because the state is a plain value, the caller opens, closes, splits and floats
 by writing it: `show`, `push`, `push_to_focused`, `split`, `remove`, `replace`
 and `drop_tab` are the whole vocabulary, and `find`, `all_tabs`, `focused_tab`
 and `surface_tabs` read it back.
+A pane can hold no tabs at all - the main surface emptied of its last tab, or
+one `split` with none - and shows the `empty` view the caller passes in its
+body instead of a panel; `empty_panes` finds them and `remove_empty_panes`
+gives their room back, which is how the workspace keeps an empty pane beside
+Files that says nothing is open rather than a tab that says so.
 
 Each surface - the main one and one per window - lays its tree out over the
 rectangle it was given, so panes and the bars between them are canvas items at
@@ -781,7 +786,7 @@ inserts it between the tabs there, the middle of a pane joins that pane, and an
 edge of one splits it. Holding Alt while dropping floats the tab into a window
 instead, which is also what "Pop out into a window" on a tab's own menu does. Every pane
 and every window wears the same bar: a grip, the tabs, and a button that closes
-them all, shown only when every tab in it can close. A finger picks a tab up by
+them all, shown only when every tab in it can close. A middle click on a tab closes it. A finger picks a tab up by
 dragging it out of its bar, across the way the bar scrolls; sliding along the
 bar scrolls it. Dragging a docked pane's
 grip carries the whole pane (`DockState::drop_leaf`), with the same drop targets

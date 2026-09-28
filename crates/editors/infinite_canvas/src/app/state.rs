@@ -6,16 +6,15 @@ use std::rc::Rc;
 use crate::presence::CanvasCursor;
 use block_editor_beui::BlockList;
 use block_editor_beui::ContentProjection;
+use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::ImageContent;
-use block_editor_beui::be_block::canvas::Canvas;
 use block_editor_beui::be_block::canvas::{
     CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
-    CanvasLayerMove, CanvasPoint, CanvasPreviewRegion, CanvasTextStyle, CanvasTransform,
-    InfiniteCanvasOperation,
+    CanvasLayerMove, CanvasPoint, CanvasTextStyle, CanvasTransform, InfiniteCanvasOperation,
+    first_artboard,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
-use block_editor_beui::be_block::{CanvasContent, ObjectId};
 use block_editor_beui::beui::reactive::{
     CanvasView, ReadSignal, WriteSignal, create_effect, create_signal, untrack,
 };
@@ -79,8 +78,8 @@ pub(crate) fn common_value<T: Copy + PartialEq>(
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Tool {
-    Hand,
     Select,
+    Artboard,
     Line,
     Rectangle,
     Text,
@@ -237,14 +236,12 @@ pub(crate) struct CanvasState {
     grouped_edit: Cell<bool>,
     pointer_down: Cell<bool>,
     touch: Cell<bool>,
-    panning: Cell<Option<Pos2>>,
     pub(crate) pointer: ReadSignal<Option<CanvasPoint>>,
     set_pointer: WriteSignal<Option<CanvasPoint>>,
     last_foreground: Cell<CanvasColor>,
     last_fill: Cell<Option<CanvasColor>>,
     children: RefCell<HashMap<Uuid, ChildState>>,
     pub(crate) entities: ReadSignal<Vec<CanvasEntity>>,
-    pub(crate) preview_region: ReadSignal<Option<CanvasPreviewRegion>>,
     pub(crate) tool: ReadSignal<Tool>,
     set_tool: WriteSignal<Tool>,
     pub(crate) selection: ReadSignal<HashSet<Uuid>>,
@@ -280,9 +277,7 @@ impl CanvasState {
     pub(crate) fn new(editor: &Editor, preview: bool) -> Rc<Self> {
         let content = editor.block_content::<CanvasContent>();
         let entities = content.project(|canvas| canvas.root().entities());
-        let preview_region =
-            content.project(|canvas| canvas.field(ObjectId::ROOT, Canvas::PREVIEW_REGION));
-        let (tool, set_tool) = create_signal(Tool::Hand);
+        let (tool, set_tool) = create_signal(Tool::Select);
         let (selection, set_selection) = create_signal(HashSet::new());
         let (gesture, set_gesture) = create_signal(None);
         let (typed, set_typed) = create_signal(None);
@@ -310,14 +305,12 @@ impl CanvasState {
             grouped_edit: Cell::new(false),
             pointer_down: Cell::new(false),
             touch: Cell::new(false),
-            panning: Cell::new(None),
             pointer,
             set_pointer,
             last_foreground: Cell::new(CanvasEntityStyle::default().foreground),
             last_fill: Cell::new(CanvasEntityStyle::default().fill),
             children: RefCell::new(HashMap::new()),
             entities,
-            preview_region,
             tool,
             set_tool,
             selection,
@@ -377,12 +370,7 @@ impl CanvasState {
 
     pub(crate) fn centre(&self) -> CanvasPoint {
         match self.preview {
-            true => {
-                self.preview_region
-                    .get()
-                    .unwrap_or_else(|| preview_region_for_entities(&self.entities.get()))
-                    .center
-            }
+            true => embedded_region(&self.entities.get()).center(),
             false => CanvasPoint::default(),
         }
     }
@@ -587,8 +575,8 @@ impl CanvasState {
     }
 
     pub(crate) fn put_down_tool(&self) {
-        if !matches!(self.tool.get_untracked(), Tool::Hand | Tool::Select) {
-            self.set_tool(Tool::Hand);
+        if self.tool.get_untracked() != Tool::Select {
+            self.set_tool(Tool::Select);
         }
     }
 
@@ -669,26 +657,6 @@ impl CanvasState {
         self.touch.get()
     }
 
-    pub(crate) fn begin_pan(&self, at: Pos2) {
-        self.begin_gesture(None);
-        self.panning.set(Some(at));
-    }
-
-    pub(crate) fn pan_to(&self, at: Pos2) -> bool {
-        let Some(from) = self.panning.get() else {
-            return false;
-        };
-        if at != from {
-            self.editor.pan(at - from);
-            self.panning.set(Some(at));
-        }
-        true
-    }
-
-    pub(crate) fn end_pan(&self) {
-        self.panning.set(None);
-    }
-
     pub(crate) fn dismiss_import_error(&self) {
         self.set_import_error.set(None);
     }
@@ -699,9 +667,13 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn request_fit_preview_region(&self) {
-        if let Some(region) = self.preview_region.get_untracked() {
-            self.fit_into_view(preview_region_bounds(region));
+    pub(crate) fn first_artboard(&self) -> Option<CanvasEntity> {
+        first_artboard(&self.entities.get()).cloned()
+    }
+
+    pub(crate) fn request_fit_artboard(&self) {
+        if let Some(artboard) = first_artboard(&self.entities.get_untracked()) {
+            self.fit_into_view(entity_bounds(artboard));
         }
     }
 
@@ -773,12 +745,22 @@ impl CanvasState {
     }
 
     pub(crate) fn entity_at(&self, point: CanvasPoint) -> Option<Uuid> {
-        let radius = HIT_RADIUS / self.scale();
-        self.entities
-            .get_untracked()
+        let scale = self.scale();
+        let radius = HIT_RADIUS / scale;
+        let entities = self.entities.get_untracked();
+        let (artboards, drawn): (Vec<_>, Vec<_>) = entities
             .iter()
+            .filter(|entity| !entity.style.hidden)
+            .partition(|entity| entity.is_artboard());
+        drawn
+            .into_iter()
             .rev()
             .find(|entity| hit_entity(entity, point, radius))
+            .or_else(|| {
+                artboards.into_iter().rev().find(|entity| {
+                    artboard_label_hit(entity, point, scale) || hit_entity(entity, point, radius)
+                })
+            })
             .map(|entity| entity.id)
     }
 
@@ -829,6 +811,38 @@ impl CanvasState {
             originals,
             duplicate,
         }));
+    }
+
+    pub(crate) fn set_hidden(&self, id: Uuid, hidden: bool) {
+        let Some(held) = self
+            .entities
+            .get_untracked()
+            .into_iter()
+            .find(|entity| entity.id == id)
+        else {
+            return;
+        };
+        let mut updated = held.clone();
+        updated.style.hidden = hidden;
+        self.record_update(vec![held], vec![updated], false);
+    }
+
+    pub(crate) fn move_layer(&self, moved: Uuid, onto: Uuid, in_front: bool) {
+        if moved == onto {
+            return;
+        }
+        let mut order: Vec<Uuid> = self
+            .entities
+            .get_untracked()
+            .iter()
+            .map(|entity| entity.id)
+            .collect();
+        order.retain(|id| *id != moved);
+        let Some(at) = order.iter().position(|id| *id == onto) else {
+            return;
+        };
+        order.insert(at + usize::from(in_front), moved);
+        self.record(InfiniteCanvasOperation::ExactOrder { ids: order });
     }
 
     pub(crate) fn selection_can_group(&self) -> bool {
@@ -1269,17 +1283,6 @@ impl CanvasState {
         self.record_update(before, after, true);
     }
 
-    pub(crate) fn set_preview_region(&self, region: Option<CanvasPreviewRegion>) {
-        self.record(InfiniteCanvasOperation::SetPreviewRegion { region });
-    }
-
-    pub(crate) fn set_preview_region_grouped(&self, region: CanvasPreviewRegion) {
-        self.grouped_edit.set(true);
-        self.operate(&InfiniteCanvasOperation::SetPreviewRegion {
-            region: Some(region),
-        });
-    }
-
     pub(crate) fn replace_referenced_block(&self, old: Uuid, new: Uuid) -> bool {
         let replaced = self
             .entities
@@ -1433,6 +1436,7 @@ impl CanvasState {
                     let state = self.peek_child(entity.id);
                     !state.placed || state.capabilities.rotation
                 }
+                CanvasEntityKind::Artboard { .. } => false,
                 _ => true,
             })
     }
@@ -1560,9 +1564,12 @@ impl CanvasState {
                 ..
             } => {
                 if let Some(entity) = self.created_entity(tool, start, current, from_center) {
-                    let text = matches!(entity.kind, CanvasEntityKind::Text { .. });
+                    let done = matches!(
+                        entity.kind,
+                        CanvasEntityKind::Text { .. } | CanvasEntityKind::Artboard { .. }
+                    );
                     self.add_entity(entity);
-                    if text {
+                    if done {
                         self.put_down_tool();
                     }
                 }
@@ -1588,7 +1595,9 @@ impl CanvasState {
                     let box_rect = gesture_rect(start, current, from_center);
                     let hits = entities
                         .iter()
-                        .filter(|entity| box_rect.contains_rect(entity_bounds(entity)))
+                        .filter(|entity| {
+                            !entity.style.hidden && box_rect.contains_rect(entity_bounds(entity))
+                        })
                         .map(|entity| entity.id)
                         .collect::<Vec<_>>();
                     for id in hits {
@@ -1692,7 +1701,30 @@ impl CanvasState {
                     components: Vec::new(),
                 })
             }
-            Tool::Line | Tool::Hand | Tool::Select | Tool::Pen => None,
+            Tool::Artboard => {
+                let bounds = gesture_rect(start, current, from_center);
+                if bounds.size().x < MIN_SIZE || bounds.size().y < MIN_SIZE {
+                    return None;
+                }
+                let count = self
+                    .entities
+                    .get_untracked()
+                    .iter()
+                    .filter(|entity| entity.is_artboard())
+                    .count();
+                Some(CanvasEntity {
+                    id: Uuid::new_v4(),
+                    transform: CanvasTransform::new(bounds.center(), bounds.size(), 0.0),
+                    kind: CanvasEntityKind::Artboard {
+                        name: format!("Artboard {}", count + 1),
+                    },
+                    style: CanvasEntityStyle::default(),
+                    group_id: None,
+                    locked: false,
+                    components: Vec::new(),
+                })
+            }
+            Tool::Line | Tool::Select | Tool::Pen => None,
         }
     }
 }
@@ -1747,7 +1779,7 @@ impl CanvasState {
             let Some(size) = resized.get() else {
                 return;
             };
-            untrack(|| state.resize_preview_region(size));
+            untrack(|| state.resize_first_artboard(size));
         });
         let state = Rc::clone(self);
         let revealed = self.editor.revealed();
@@ -1932,20 +1964,18 @@ impl CanvasState {
         }
     }
 
-    fn resize_preview_region(&self, size: Vec2) {
-        let Some(region) = self.preview_region.get_untracked() else {
+    fn resize_first_artboard(&self, size: Vec2) {
+        let Some(artboard) = first_artboard(&self.entities.get_untracked()).cloned() else {
             return;
         };
-        let updated = CanvasPreviewRegion::new(
-            region.center,
-            CanvasPoint::new(size.x.max(MIN_SIZE), size.y.max(MIN_SIZE)),
-        );
-        if (updated.size.x - region.size.x).abs() < 0.01
-            && (updated.size.y - region.size.y).abs() < 0.01
-        {
+        let wanted = CanvasPoint::new(size.x.max(MIN_SIZE), size.y.max(MIN_SIZE));
+        let held = artboard.transform.size;
+        if (wanted.x - held.x).abs() < 0.01 && (wanted.y - held.y).abs() < 0.01 {
             return;
         }
-        self.set_preview_region(Some(updated));
+        let mut resized = artboard.clone();
+        resized.transform.size = wanted;
+        self.record_update(vec![artboard], vec![resized], false);
     }
 
     fn reveal_peer(&self, client_id: u64) {

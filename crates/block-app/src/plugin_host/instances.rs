@@ -5,9 +5,9 @@ use block_plugin_api::{
     ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
     CreationOutcome, CursorIcon, DataListing, EditorInstanceId, EditorMessage, EditorRegion,
-    FetchResult, FilePick, FrameReport, FrameSpec, HostReply, HostRequest, Message, Occluder,
-    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, ViewChange, WatchedContent,
+    FetchResult, FilePick, FileSave, FrameReport, FrameSpec, HostReply, HostRequest, Message,
+    Occluder, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout,
+    ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -25,7 +25,7 @@ use crate::{
     editors::plugin::discovery,
     host::{self, Target},
     performance,
-    platform::{FileFilter, FilePicker, http::Fetch},
+    platform::{FileFilter, FilePicker, FileSaver, SavedFile, http::Fetch},
     plugin_host::web_view::WebViewHost,
 };
 
@@ -381,6 +381,7 @@ struct Pending {
 
 enum Work {
     Pick(FilePicker),
+    Save(FileSaver),
     Fetch(Fetch),
     Paste(ClipboardImage),
     ListData(Fetch),
@@ -398,6 +399,11 @@ impl Work {
                 Some(Err(error)) => FilePick::Failed(error),
                 None if picker.is_open() => return None,
                 None => FilePick::Cancelled,
+            })),
+            Self::Save(saver) => Some(HostReply::FileSaved(match saver.poll()? {
+                Ok(true) => FileSave::Saved,
+                Ok(false) => FileSave::Cancelled,
+                Err(error) => FileSave::Failed(error),
             })),
             Self::Fetch(fetch) => match fetch.poll() {
                 Some(Ok(body)) => Some(HostReply::Fetched(FetchResult::Body(body))),
@@ -1851,6 +1857,15 @@ impl Instances {
                 let mut picker = FilePicker::default();
                 picker.open(&host_filter(filter));
                 Work::Pick(picker)
+            }
+            HostRequest::SaveFile(file) => {
+                let mut saver = FileSaver::default();
+                saver.save(SavedFile {
+                    name: file.name,
+                    mime_type: file.mime_type,
+                    data: file.data,
+                });
+                Work::Save(saver)
             }
             HostRequest::PasteImage => Work::Paste(super::clipboard::read_clipboard_image()),
             HostRequest::Fetch(_) => match fetch {

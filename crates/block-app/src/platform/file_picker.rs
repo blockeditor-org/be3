@@ -1,5 +1,7 @@
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "android")]
+pub(super) use android::main_activity;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod desktop;
 #[cfg(target_arch = "wasm32")]

@@ -22,12 +22,13 @@ const GRIP_HEIGHT: f32 = 4.0;
 pub fn Sheet(
     extent: Prop<f32>,
     #[prop(default = true)] open: Prop<bool>,
+    #[prop(default = SHEET_STOPS[1])] rest: f32,
     on_close: ClickCallback,
     children: Child,
 ) -> NodeId {
     let theme = use_theme();
     let extent = create_memo(move || extent.get().max(1.0));
-    let (share, set_share) = create_signal(SHEET_STOPS[1]);
+    let (share, set_share) = create_signal(rest);
     let height = create_memo(clone!(extent share -> move || {
         Some((share.get() * extent.get()).max(HANDLE_HEIGHT))
     }));
@@ -54,7 +55,7 @@ pub fn Sheet(
         }
         let held = share.get_untracked();
         if held < CLOSE_BELOW {
-            set_share.set(SHEET_STOPS[1]);
+            set_share.set(rest);
             closing.call();
             return;
         }

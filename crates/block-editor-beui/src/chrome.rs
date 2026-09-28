@@ -6,7 +6,7 @@ use beui::reactive::{
     create_memo, create_signal, on_cleanup, provide_context, untrack, use_context, view,
 };
 use beui::styled::theme::BORDER_WIDTH;
-use beui::styled::{Scroll, Separator, Sheet, ToggleButton, use_theme};
+use beui::styled::{SHEET_STOPS, Scroll, Separator, Sheet, ToggleButton, use_theme};
 
 pub const SIDEBAR_WIDTH: f32 = 260.0;
 pub const NARROW_WIDTH: f32 = 640.0;
@@ -45,6 +45,17 @@ impl ChromeLayout {
 pub fn narrow_chrome() -> Memo<bool> {
     match use_context::<ChromeLayout>() {
         Some(layout) => layout.narrow,
+        None => create_memo(|| false),
+    }
+}
+
+pub fn sheet_open() -> Memo<bool> {
+    match use_context::<ChromeLayout>() {
+        Some(layout) => {
+            let offers = layout.offers_sheet();
+            let open = layout.open;
+            create_memo(move || offers.get() && open.get())
+        }
         None => create_memo(|| false),
     }
 }
@@ -95,7 +106,12 @@ pub(crate) fn ChromeRoot(#[prop(children)] content: Render<()>) -> NodeId {
             </Show>
             {content} @sizing=ItemSize::Percent(100.0)
             <Show condition={sheet.clone()}>
-                <Sheet extent={extent} open={sheet} on_close={move || close.set(false)}>
+                <Sheet
+                    extent={extent}
+                    open={sheet}
+                    rest={SHEET_STOPS[0]}
+                    on_close={move || close.set(false)}
+                >
                     <List spacing=0.0>
                         <ForEach keys={panels}>
                             {move |panel: NodeId| {

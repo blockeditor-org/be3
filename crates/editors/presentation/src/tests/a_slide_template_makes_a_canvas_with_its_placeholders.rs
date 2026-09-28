@@ -24,10 +24,16 @@ fn a_slide_template_makes_a_canvas_with_its_placeholders() {
         })
         .expect("the slide was created with content");
     assert_eq!(block_type, CanvasContent::CONTENT_TYPE);
-    let placeholders: Vec<_> = CanvasContent::decode(&content)
-        .unwrap()
-        .root()
-        .entities()
+    let entities = CanvasContent::decode(&content).unwrap().root().entities();
+    let slide = entities
+        .first()
+        .filter(|entity| entity.is_artboard())
+        .expect("the slide is an artboard beneath its placeholders");
+    assert_eq!(
+        (slide.transform.size.x, slide.transform.size.y),
+        (960.0, 540.0)
+    );
+    let placeholders: Vec<_> = entities
         .into_iter()
         .filter_map(|entity| match entity.kind {
             CanvasEntityKind::Text { placeholder, .. } => Some(placeholder),

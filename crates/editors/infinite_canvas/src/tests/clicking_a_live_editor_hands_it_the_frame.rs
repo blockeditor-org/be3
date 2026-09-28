@@ -16,7 +16,7 @@ fn clicking_a_live_editor_hands_it_the_frame() {
     placed.transform =
         CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(240.0, 180.0), 0.0);
     let mut editor = open(
-        &Canvas::with_entities([placed], None),
+        &Canvas::with_entities([placed]),
         false,
         &[BlockInfo::new(
             counter,

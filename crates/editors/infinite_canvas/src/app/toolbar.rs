@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_DATA_OBJECT, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_KEYBOARD_ARROW_DOWN, ICON_MORE_HORIZ,
-    ICON_PAN_TOOL, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_CROP_FREE, ICON_DATA_OBJECT, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_KEYBOARD_ARROW_DOWN,
+    ICON_MORE_HORIZ, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, Show, Spacer, clone,
@@ -15,13 +15,13 @@ use block_editor_beui::beui::styled::{
 };
 use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::beui::unstyled::{Edge, Floating};
-use block_editor_beui::{Toolbar, narrow_chrome};
+use block_editor_beui::{Toolbar, narrow_chrome, sheet_open};
 
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
 
 const TOOLS: [(Tool, &str, &str); 6] = [
-    (Tool::Hand, ICON_PAN_TOOL, "Pan"),
     (Tool::Select, ICON_SELECT, "Select"),
+    (Tool::Artboard, ICON_CROP_FREE, "Artboard"),
     (Tool::Line, ICON_DIAGONAL_LINE, "Line"),
     (Tool::Rectangle, ICON_RECTANGLE, "Rectangle"),
     (Tool::Text, ICON_TEXT_FIELDS, "Text"),
@@ -91,7 +91,8 @@ pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId
 pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
     let narrow = narrow_chrome();
     let previewing = state.previewing();
-    let open = create_memo(move || shown.get() && narrow.get() && !previewing);
+    let sheet = sheet_open();
+    let open = create_memo(move || shown.get() && narrow.get() && !sheet.get() && !previewing);
     let theme = use_theme();
     let tools = Rc::clone(&state);
     view! {
@@ -216,7 +217,7 @@ fn ZoomControls(state: Rc<CanvasState>, compact: Memo<bool>) -> NodeId {
         state.editor().zoom(1.0 / scale.get_untracked().max(f32::EPSILON))
     });
     let inward = clone!(state -> move || state.editor().zoom(ZOOM_STEP));
-    let regioned = create_memo(clone!(state -> move || state.preview_region.get().is_none()));
+    let boardless = create_memo(clone!(state -> move || state.first_artboard().is_none()));
     let unselected = create_memo(clone!(state -> move || state.selection.get().is_empty()));
     let chosen = clone!(state scale -> move |path: Vec<usize>| {
         let Some(index) = path.first().copied() else {
@@ -230,7 +231,7 @@ fn ZoomControls(state: Rc<CanvasState>, compact: Memo<bool>) -> NodeId {
                     .zoom(wanted / scale.get_untracked().max(f32::EPSILON));
             }
             4 => state.editor().fit(),
-            5 => state.request_fit_preview_region(),
+            5 => state.request_fit_artboard(),
             _ => state.request_fit_selection(),
         }
     });
@@ -240,7 +241,7 @@ fn ZoomControls(state: Rc<CanvasState>, compact: Memo<bool>) -> NodeId {
         <MenuItem label="100%" />
         <MenuItem label="200%" />
         <MenuItem label="Fit all" />
-        <MenuItem label="Fit preview region" disabled={regioned} />
+        <MenuItem label="Fit first artboard" disabled={boardless} />
         <MenuItem label="Fit selection" disabled={unselected} />
     };
     view! {

@@ -8,7 +8,7 @@ const BLOCK: TabId = TabId::new(9);
 fn a_narrow_workspace_folds_files_into_the_pane_beside_it() {
     let mut layout = starting_layout();
     place_tab(&mut layout, BLOCK);
-    layout = settled(layout);
+    layout = settled(layout, false);
     assert_ne!(
         pane_of(&layout, FILES),
         pane_of(&layout, BLOCK),

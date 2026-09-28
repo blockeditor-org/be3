@@ -1271,6 +1271,7 @@ pub struct VersionCommit {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HostRequest {
     PickFile(FileFilter),
+    SaveFile(SavedFile),
     PickBlock(BlockFilter),
     PasteImage,
     Fetch(String),
@@ -1281,6 +1282,7 @@ pub enum HostRequest {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HostReply {
     FilePicked(FilePick),
+    FileSaved(FileSave),
     BlockPicked(BlockPick),
     ImagePasted(ClipboardImage),
     Fetched(FetchResult),
@@ -1310,6 +1312,20 @@ pub enum BlockPick {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FilePick {
     Chosen { name: String, data: Vec<u8> },
+    Cancelled,
+    Failed(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedFile {
+    pub name: String,
+    pub mime_type: String,
+    pub data: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FileSave {
+    Saved,
     Cancelled,
     Failed(String),
 }
@@ -2251,6 +2267,11 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
             collection(filter.mime_types.len())?;
             strings(filter.extensions.iter().chain(&filter.mime_types))
         }
+        HostRequest::SaveFile(file) => {
+            string(&file.name)?;
+            string(&file.mime_type)?;
+            blob(&file.data)
+        }
         HostRequest::PickBlock(filter) => {
             string(&filter.name)?;
             collection(filter.block_types.len())?;
@@ -2277,12 +2298,14 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
             strings(files)
         }
         HostReply::FilePicked(FilePick::Failed(message))
+        | HostReply::FileSaved(FileSave::Failed(message))
         | HostReply::BlockPicked(BlockPick::Failed(message))
         | HostReply::ImagePasted(ClipboardImage::Failed(message))
         | HostReply::Fetched(FetchResult::Failed(message))
         | HostReply::DataRead(FetchResult::Failed(message))
         | HostReply::DataListed(DataListing::Failed(message)) => string(message),
         HostReply::FilePicked(FilePick::Cancelled)
+        | HostReply::FileSaved(FileSave::Saved | FileSave::Cancelled)
         | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)
         | HostReply::ImagePasted(ClipboardImage::Empty) => Ok(()),
     }
