@@ -5,6 +5,7 @@ use std::cell::Cell;
 
 #[test]
 fn fonts_from_the_host_reach_the_plugin_and_missing_characters_go_back() {
+    forget();
     let mut plugin = HeadlessPlugin::new("fonts", "Fonts", "1");
     plugin.receive(Message::HelloAccepted(HelloAccepted {
         version: PROTOCOL_VERSION,

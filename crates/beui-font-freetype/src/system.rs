@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::ptr;
 
@@ -8,6 +9,7 @@ use crate::library::FontData;
 pub struct SystemFonts {
     fontconfig: Option<fontconfig::Fontconfig>,
     scanned: Option<Vec<PathBuf>>,
+    covering: HashMap<char, Vec<(PathBuf, u32)>>,
     given: Vec<(PathBuf, u32)>,
 }
 
@@ -16,6 +18,7 @@ impl SystemFonts {
         Self {
             fontconfig: fontconfig::Fontconfig::open(),
             scanned: None,
+            covering: HashMap::new(),
             given: Vec::new(),
         }
     }
@@ -31,10 +34,15 @@ impl SystemFonts {
     }
 
     pub fn candidates(&mut self, character: char) -> Vec<(PathBuf, u32)> {
-        match &self.fontconfig {
+        if let Some(known) = self.covering.get(&character) {
+            return known.clone();
+        }
+        let found = match &self.fontconfig {
             Some(fontconfig) => fontconfig.covering(character),
             None => self.scan(character),
-        }
+        };
+        self.covering.insert(character, found.clone());
+        found
     }
 
     fn scan(&mut self, character: char) -> Vec<(PathBuf, u32)> {

@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -18,6 +19,7 @@ struct State {
     faces: Vec<HostFont>,
     listeners: Vec<Listener>,
     missing: Vec<char>,
+    asked: HashSet<char>,
 }
 
 thread_local! {
@@ -35,8 +37,11 @@ pub fn watch_fonts(listener: impl Fn(&[HostFont], bool) + 'static) {
 pub fn report_missing(characters: impl IntoIterator<Item = char>) {
     STATE.with(|state| {
         let mut state = state.borrow_mut();
+        if state.faces.is_empty() {
+            return;
+        }
         for character in characters {
-            if !state.missing.contains(&character) {
+            if state.asked.insert(character) {
                 state.missing.push(character);
             }
         }
@@ -69,6 +74,11 @@ pub(crate) fn receive(fonts: &Fonts) {
 pub(crate) fn take_missing() -> Option<Message> {
     let missing = STATE.with(|state| std::mem::take(&mut state.borrow_mut().missing));
     (!missing.is_empty()).then_some(Message::MissingCharacters(missing))
+}
+
+#[cfg(test)]
+fn forget() {
+    STATE.with(|state| *state.borrow_mut() = State::default());
 }
 
 #[cfg(test)]

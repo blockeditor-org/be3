@@ -29,6 +29,7 @@ pub(super) use native::Fallbacks;
 #[cfg(not(target_arch = "wasm32"))]
 mod native {
     use std::cell::RefCell;
+    use std::collections::HashSet;
     use std::path::PathBuf;
 
     use block_plugin_api::{FontFace, FontRole, Fonts};
@@ -39,16 +40,23 @@ mod native {
 
     pub(in crate::plugin_host) struct Fallbacks {
         sent: Vec<(PathBuf, u32)>,
+        asked: HashSet<char>,
     }
 
     impl Fallbacks {
         pub(in crate::plugin_host) fn new() -> Self {
-            Self { sent: Vec::new() }
+            Self {
+                sent: Vec::new(),
+                asked: HashSet::new(),
+            }
         }
 
         pub(in crate::plugin_host) fn answer(&mut self, missing: &[char]) -> Option<Fonts> {
             let mut faces = Vec::new();
             for character in missing {
+                if !self.asked.insert(*character) {
+                    continue;
+                }
                 let candidates = SYSTEM.with(|system| {
                     system
                         .borrow_mut()
