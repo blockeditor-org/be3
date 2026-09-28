@@ -30,6 +30,7 @@ a machine with KVM or a device.
   whatever it is missing.
 - **Emoji picker in the multiline editor.** `:` opens a menu, typing after it
   filters, Enter inserts.
+
 ## 4. beui fonts
 
 - **Fonts.** Plugins shouldn't each embed fonts: the app provides fonts to
