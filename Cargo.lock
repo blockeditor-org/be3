@@ -801,30 +801,120 @@ name = "beui"
 version = "0.1.0"
 dependencies = [
  "accesskit",
- "accesskit_android",
- "accesskit_winit",
- "arboard",
+ "beui-adapter-android",
+ "beui-adapter-web",
+ "beui-adapter-winit",
+ "beui-components-styled",
+ "beui-components-unstyled",
+ "beui-core",
+ "beui-font-freetype",
+ "beui-inspector",
+ "beui-renderer-wgpu",
+ "beui-view",
  "beui_macros",
- "bytemuck",
- "freetype",
- "geometry",
- "harfbuzz_rs",
+ "reactive",
+ "text-editor-core",
+ "wgpu",
+]
+
+[[package]]
+name = "beui-adapter-android"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "accesskit_android",
+ "beui-core",
+ "beui-renderer-wgpu",
  "jni 0.22.4",
- "js-sys",
  "libc",
  "ndk 0.9.0",
  "ndk-context",
  "ndk-sys 0.6.0+11769913",
  "pollster",
- "reactive",
- "text-editor-core",
- "thumbhash",
- "unicode-script",
+ "wgpu",
+]
+
+[[package]]
+name = "beui-adapter-web"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "beui-adapter-winit"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "accesskit_winit",
+ "arboard",
+ "beui-core",
+ "beui-renderer-wgpu",
+ "pollster",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "beui-components-styled"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-components-unstyled",
+ "beui-core",
+ "beui-view",
+ "beui_macros",
+ "reactive",
+ "text-editor-core",
+]
+
+[[package]]
+name = "beui-components-unstyled"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-core",
+ "beui-view",
+ "beui_macros",
+ "reactive",
+ "text-editor-core",
+]
+
+[[package]]
+name = "beui-core"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "geometry",
+ "reactive",
+ "thumbhash",
+]
+
+[[package]]
+name = "beui-font-freetype"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "freetype",
+ "harfbuzz_rs",
+ "unicode-script",
+]
+
+[[package]]
+name = "beui-inspector"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-components-styled",
+ "beui-components-unstyled",
+ "beui-core",
+ "beui-view",
+ "beui_macros",
+ "reactive",
 ]
 
 [[package]]
@@ -833,6 +923,31 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "block-plugin-api",
+]
+
+[[package]]
+name = "beui-renderer-wgpu"
+version = "0.1.0"
+dependencies = [
+ "beui-components-unstyled",
+ "beui-core",
+ "beui-font-freetype",
+ "beui-view",
+ "beui_macros",
+ "bytemuck",
+ "pollster",
+ "web-sys",
+ "wgpu",
+]
+
+[[package]]
+name = "beui-view"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-core",
+ "beui_macros",
+ "reactive",
 ]
 
 [[package]]

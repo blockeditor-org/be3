@@ -1,0 +1,57 @@
+use super::*;
+use crate::reactive::{ItemSize, List, Show, build, create_signal, view};
+use crate::styled::Stack;
+use crate::unstyled::Button;
+use crate::unstyled::Container;
+
+const BREAKPOINT: f32 = 500.0;
+const ITEM_HEIGHT: f32 = 20.0;
+
+#[test]
+fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
+    let (toggle, left, right) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
+    let document = build({
+        let (toggle, left, right) = (toggle.clone(), left.clone(), right.clone());
+        move || {
+            let (visible, set_visible) = create_signal(false);
+            view! {
+                <Container>
+                    {move |_| view! {
+                        <List spacing=0.0>
+                            <Button @node_ref=&toggle on_click={move || set_visible.set(true)}>
+                                <Text string="toggle" />
+                            </Button>
+                            <Show condition={visible}>
+                                <Stack spacing=0.0 breakpoint=BREAKPOINT>
+                                    <Frame
+                                        @sizing=ItemSize::Percent(50.0)
+                                        @node_ref=&left
+                                        height=ITEM_HEIGHT
+                                    >
+                                        <Spacer />
+                                    </Frame>
+                                    <Frame
+                                        @sizing=ItemSize::Percent(50.0)
+                                        @node_ref=&right
+                                        height=ITEM_HEIGHT
+                                    >
+                                        <Spacer />
+                                    </Frame>
+                                </Stack>
+                            </Show>
+                        </List>
+                    }}
+                </Container>
+            }
+        }
+    });
+
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+    harness.click(harness.center(toggle.get()));
+    harness.frame(Vec::new());
+
+    let (left, right) = (left.get(), right.get());
+    assert_eq!(harness.rect(left).width(), VIEWPORT.x);
+    assert_eq!(harness.rect(right).top(), harness.rect(left).bottom());
+}

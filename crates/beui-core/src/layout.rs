@@ -1,0 +1,66 @@
+use crate::geometry::{Pos2, Rect, Vec2};
+use crate::painter::Painter;
+
+use crate::document::Document;
+use crate::node::{NodeId, Rects};
+
+pub fn measure(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec2) -> Vec2 {
+    if !doc.arena.contains(id) {
+        return Vec2::ZERO;
+    }
+    doc.note_parent(id);
+    doc.deliver_constraint(id, available);
+    if !doc.arena.contains(id) {
+        return Vec2::ZERO;
+    }
+    if let Some(size) = doc.measured(id, available) {
+        doc.note_measured(true);
+        return size;
+    }
+    doc.note_measured(false);
+    let watermark = doc.arena.layout_revision;
+    let element = doc.arena.take(id);
+    let outer = doc.enter_measure(id);
+    let measured = element.measure(doc, painter, available);
+    doc.leave_measure(outer);
+    doc.arena.put_back(id, element);
+    let size = doc.pixel_grid().snap_size(measured);
+    doc.remember_measurement(id, available, size, watermark);
+    size
+}
+
+pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out: &Rects) {
+    if !doc.arena.contains(id) {
+        return;
+    }
+    doc.note_parent(id);
+    let rect = doc.pixel_grid().snap_rect(rect);
+    doc.note_placed(id);
+    let state = painter.state();
+    let own = painter.entered(id, rect);
+    if doc.reuse_placement(id, rect, state, own.state(), out) {
+        doc.note_placed_work(true);
+        return;
+    }
+    doc.note_placed_work(false);
+    doc.record_placement(id, rect, state, own.state(), out);
+    let watermark = doc.arena.relaid_len();
+    doc.deliver_unmeasured_constraint(id, rect.size());
+    doc.deliver_placement(id, rect.translate(state.origin));
+    doc.assert_confined(id, watermark);
+    if !doc.arena.contains(id) {
+        return;
+    }
+    let mut element = doc.arena.take(id);
+    let frame = doc.enter_layout(id);
+    let outer = painter.ctx().swap_space_read(false);
+    let local = Rect::from_min_size(Pos2::ZERO, rect.size());
+    element.layout(doc, &own, local, out);
+    let reads = painter.ctx().swap_space_read(outer);
+    doc.note_space_reads(id, reads, frame.base());
+    doc.leave_layout(id, frame, out);
+    doc.arena.put_back(id, element);
+    let settled = doc.arena.relaid_len();
+    doc.settle_effects();
+    doc.assert_confined(id, settled);
+}

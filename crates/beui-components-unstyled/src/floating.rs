@@ -1,0 +1,36 @@
+use beui_macros::{component, view};
+
+use beui_core::base::overlay::{OverlayMode, Placement};
+use beui_core::node::NodeId;
+use beui_view::components::overlay::Overlay;
+use beui_view::reactive::{Child, NodeRef, Prop};
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub enum Edge {
+    Top,
+    #[default]
+    Bottom,
+}
+
+#[component]
+pub fn Floating(
+    anchor: NodeRef,
+    #[prop(default = Edge::Bottom)] edge: Prop<Edge>,
+    #[prop(default = true)] open: Prop<bool>,
+    #[prop(default = true)] interactive: Prop<bool>,
+    children: Child,
+) -> NodeId {
+    let placement = edge.map(|edge| match edge {
+        Edge::Top => Placement::InsideTop,
+        Edge::Bottom => Placement::InsideBottom,
+    });
+    let mode = interactive.map(|interactive| match interactive {
+        true => OverlayMode::Floating,
+        false => OverlayMode::Passive,
+    });
+    view! {
+        <Overlay anchor=&anchor placement={placement} mode={mode} traps_focus=false open={open}>
+            {children}
+        </Overlay>
+    }
+}

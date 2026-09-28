@@ -177,7 +177,7 @@ pub(crate) fn commit() {
                 }
                 _ => handle.set_drawing.set(match output.blits.is_empty() {
                     true => None,
-                    false => Some(Drawing::new(PluginDrawing::new(output.blits))),
+                    false => Some(beui::drawing(PluginDrawing::new(output.blits))),
                 }),
             }
         }

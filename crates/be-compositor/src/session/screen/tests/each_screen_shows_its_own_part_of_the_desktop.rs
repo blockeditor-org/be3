@@ -13,7 +13,7 @@ fn each_screen_shows_its_own_part_of_the_desktop() {
         crate::session::arrow::HEIGHT,
         &crate::session::arrow::pixels(),
     );
-    let context = Context::new();
+    let context = beui::context();
     let output = context.run(RawInput::default(), |context| {
         let painter = context.painter();
         painter.rect_filled(

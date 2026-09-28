@@ -108,7 +108,7 @@ the tree is built.
 
 A host sends `Event::Focus(false)` when its window or editor region loses focus. Text and paste arrive through `Event::Text`. An input method's composition arrives as `Event::Ime`: a focusable's `on_preedit` receives the uncommitted text (empty when it ends), and a commit reaches `on_text`. A text area lays the composition out underlined at its caret, pushing the text after it along without writing it to the document, leaves keys to the input method while it lasts, and reports its caret through `Focusable`'s `ime_cursor` so `FrameOutput::ime` places the candidate window beside it. Copy and cut return text in `FrameOutput::copied_text`; the host writes this to its clipboard. Both the desktop runner and the block editor integration handle these outputs. Clipboard access for other custom hosts belongs to their platform integration.
 
-Keyboard regression tests run without a window. `./scripts/buck test //crates/beui:test` runs beui's tests, and `./scripts/buck run //:verify` runs the whole workspace's.
+Keyboard regression tests run without a window. `./scripts/buck test //crates/beui:test` runs the tests that drive whole documents, each `beui-*` crate has its own `:test`, and `./scripts/buck run //:verify` runs the whole workspace's.
 
 ## Touch behavior
 

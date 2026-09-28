@@ -1,0 +1,13 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+cargo_library()
+
+cargo_test()
+
+# The Java half of the Android runner (src/lib.rs), which every APK whose
+# library runs beui compiles beside its own.
+filegroup(
+    name = "android-java",
+    srcs = glob(["android/java/**/*.java"]),
+    visibility = ["PUBLIC"],
+)

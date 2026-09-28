@@ -145,7 +145,7 @@ sysroot.
 
 ## Tests
 
-Most tests run on the workers, including beui's and be-compositor's, which draw
+Most tests run on the workers, including beui-renderer-wgpu's and be-compositor's, which draw
 through lavapipe from `buck/sysroot:amd64-test`. Two kinds stay local:
 
 - **Plugin tests** read and write the accepted paintings in `snapshots/`.
@@ -206,7 +206,7 @@ A native target depends on a wasm one through a transition in
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
   plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The Java is
-  the app's own and beui's (`//crates/beui:android-java`), against the
+  the app's own and beui's (`//crates/beui-adapter-android:android-java`), against the
   platform alone: the APK carries no libraries. `:android` signs it
   locally with `target/android-debug.keystore`, made on first use.
   `:android-dist` signs on a worker with CI's keystore, which BuildBuddy keeps

@@ -5,6 +5,7 @@ use beui::reactive::{
     Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
     create_selector, create_signal, focus_ring, view, with_document,
 };
+use beui::styled::DocumentTheme;
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Calendar, Caption, Card, Checkbox, ColorInput,
