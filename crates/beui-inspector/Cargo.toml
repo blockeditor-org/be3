@@ -10,7 +10,7 @@ beui-components-styled = { path = "../beui-components-styled" }
 beui-components-unstyled = { path = "../beui-components-unstyled" }
 beui-core = { path = "../beui-core" }
 beui-view = { path = "../beui-view" }
-beui_macros = { path = "../beui_macros" }
+beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
 
 [lints]

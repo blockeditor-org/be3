@@ -10,8 +10,8 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 beui = { path = "../../beui", default-features = false, features = ["render"] }
 block-editor-beui = { path = "../../block-editor-beui" }
-game-api = { path = "../../tabletop_games/api" }
-game-host = { path = "../../tabletop_games/host" }
+game-api = { path = "../../tabletop-games/api" }
+game-host = { path = "../../tabletop-games/host" }
 uuid = "1"
 
 [dev-dependencies]

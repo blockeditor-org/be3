@@ -15,9 +15,3 @@ a machine with KVM or a device.
   every later one.
 - **Edge fade.** The styled scroll view fades content out with a short
   opacity gradient at clipped edges instead of a hard cut.
-
-## 3. Tooling and repo hygiene
-
-- **Crate folder names use `-`.** Rename every crate folder under `crates/`
-  that uses `_` (`beui_macros`, `reactive_macros`, `tabletop_games` and its
-  rules, the `crates/editors/*` folders).

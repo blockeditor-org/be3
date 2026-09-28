@@ -3,11 +3,11 @@
 A deterministic game is a crate of its own that compiles to a single
 WebAssembly module. The app never links a game: a module is imported into a
 game module block, and the game block that references it runs the module
-through the `wasmi` interpreter in `crates/tabletop_games/host`, asking it what
+through the `wasmi` interpreter in `crates/tabletop-games/host`, asking it what
 a player currently sees. That is the same on desktop, Android and the browser,
 so a game is written and built once.
 
-Everything about games lives under `crates/tabletop_games`, split by which
+Everything about games lives under `crates/tabletop-games`, split by which
 side of the WebAssembly boundary it runs on:
 
 - `api` (`game-api`) is the contract, and is compiled into every game
@@ -23,24 +23,24 @@ side of the WebAssembly boundary it runs on:
 
 ## 1. Write the crate
 
-- `crates/tabletop_games/rules/foo/Cargo.toml` — copy `tic_tac_toe`'s. The
+- `crates/tabletop-games/rules/foo/Cargo.toml` — copy `tic_tac_toe`'s. The
   package name is the module's file name and the game's id, so it is written
   with underscores. It needs `crate-type = ["cdylib", "rlib"]`, `game-api`
   as a dependency, and `game-host` as a dev dependency so the tests can run
   the module.
-- `crates/tabletop_games/rules/foo/BUCK` — copy `tic_tac_toe`'s, renaming
+- `crates/tabletop-games/rules/foo/BUCK` — copy `tic_tac_toe`'s, renaming
   its `tic_tac_toe_wasm` library. It builds the crate natively for the tests,
   a second time for wasm32 as the `module` target, and points the tests'
   `GAME_WASM` at that module.
-- `crates/tabletop_games/rules/foo/src/lib.rs` — the game, ending in
+- `crates/tabletop-games/rules/foo/src/lib.rs` — the game, ending in
   `game_api::game!("Foo", foo);`. The first argument is the name the module
   gives itself, which is what the game module block's editor shows; the second
   is the game function.
-- `crates/tabletop_games/rules/foo/rulebook.md` — the rules in English,
+- `crates/tabletop-games/rules/foo/rulebook.md` — the rules in English,
   written the way a rulebook explains a game: who plays, what the pieces or
   cards are, how a turn goes, how it ends. Write this one first, because the
   code is meant to read like it.
-- Root `Cargo.toml` — add `crates/tabletop_games/rules/foo` to the members,
+- Root `Cargo.toml` — add `crates/tabletop-games/rules/foo` to the members,
   which is how the generated buck rules find the crate and its dependencies.
 
 Anything a game depends on has to build for wasm32-unknown-unknown with no
@@ -187,7 +187,7 @@ is that in one call.
 
 ### Games with pieces on a board
 
-`crates/tabletop_games/pieces` (`game-pieces`) is the same idea for games
+`crates/tabletop-games/pieces` (`game-pieces`) is the same idea for games
 like chess and checkers, where the rules are mostly how each piece moves. A
 piece is an implementation of `Piece`: its name (which is also its sprite
 kind), its letter for notation, whether it is royal - a side may never leave
@@ -222,16 +222,16 @@ reaches the test as a trap rather than a message.
 
 ## 4. Getting the module into the app
 
-Every crate under `crates/tabletop_games/rules` is staged beside the app as
+Every crate under `crates/tabletop-games/rules` is staged beside the app as
 the Games plugin's data (`games/<game>.wasm`, see
-crates/editors/deterministic_game/BUCK), so nothing else needs editing. Creating a Game block opens a dialog listing
+crates/editors/deterministic-game/BUCK), so nothing else needs editing. Creating a Game block opens a dialog listing
 those games by the name each module gives itself; choosing one copies that
 exact module into the workspace as a Game Module block under the new game, so
 the game keeps playing the bytes it started with whatever the app is later
 rebuilt with. The same dialog can instead play a Game Module block the
 workspace already holds, or one imported there and then from a `.wasm` file,
 which is how a game the app was not built with gets played:
-`./scripts/buck build //crates/tabletop_games/rules/<game>:module --out <game>.wasm`
+`./scripts/buck build //crates/tabletop-games/rules/<game>:module --out <game>.wasm`
 writes one.
 
 To try a game without a second client, the Game block's "Playing as" menu

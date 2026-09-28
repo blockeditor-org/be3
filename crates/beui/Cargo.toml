@@ -26,7 +26,7 @@ beui-font-freetype = { path = "../beui-font-freetype" }
 beui-inspector = { path = "../beui-inspector" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu", optional = true }
 beui-view = { path = "../beui-view" }
-beui_macros = { path = "../beui_macros" }
+beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
 
 [target.'cfg(target_os = "android")'.dependencies]

@@ -8,7 +8,7 @@ license.workspace = true
 accesskit = "0.24.1"
 beui-core = { path = "../beui-core" }
 beui-view = { path = "../beui-view" }
-beui_macros = { path = "../beui_macros" }
+beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
 text-editor-core = { path = "../text-editor-core" }
 
