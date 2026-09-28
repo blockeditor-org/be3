@@ -62,7 +62,7 @@ pub struct Document {
     pub touch_scroll_vertical: Option<NodeId>,
     pub touch_shift: crate::geometry::Vec2,
     pub touch_scroll_horizontal: Option<NodeId>,
-    pub wheel_latch: Option<(NodeId, Instant)>,
+    pub wheel_latch: Option<(NodeId, Instant, Option<crate::geometry::Pos2>)>,
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub pointer_capture: Option<NodeId>,
     pub drags: Rc<crate::drag_board::Board>,

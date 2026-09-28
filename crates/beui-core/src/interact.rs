@@ -13,6 +13,7 @@ use crate::document::Document;
 use crate::node::{InteractInput, NodeId, NodeMap, Rects};
 
 pub const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
+const WHEEL_LATCH_SLOP: f32 = 2.0;
 pub const TOUCH_REACH: f32 = 12.0;
 
 #[derive(Clone, Copy)]
@@ -131,7 +132,7 @@ pub fn interact(
                         wants_wheel(element, input.scroll)
                     })
                 });
-            doc.wheel_latch = target.map(|target| (target, now));
+            doc.wheel_latch = target.map(|target| (target, now, input.pointer_pos));
             target
         })
         .flatten();
@@ -454,15 +455,19 @@ fn latched_wheel_target(
     wheel: Vec2,
     now: Instant,
 ) -> Option<NodeId> {
-    let (latched, last) = doc.wheel_latch?;
+    let (latched, last, at) = doc.wheel_latch?;
     let recent = now.saturating_duration_since(last) < WHEEL_LATCH_TIMEOUT;
+    let still = match (at, pointer) {
+        (Some(at), Some(pos)) => at.distance(pos) <= WHEEL_LATCH_SLOP,
+        (at, pos) => at == pos,
+    };
     let under = pointer.is_some_and(|pos| {
         rects
             .visible(&latched)
             .is_some_and(|rect| rect.contains(pos))
     });
     let still_wants = doc.arena.contains(latched) && wants_wheel(doc.arena.get(latched), wheel);
-    (recent && under && still_wants).then_some(latched)
+    (recent && still && under && still_wants).then_some(latched)
 }
 
 fn wants_gestures(element: &dyn crate::node::Element) -> bool {
