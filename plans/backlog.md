@@ -4,10 +4,14 @@ The running to-do list, grouped. Every item says what "done" looks like.
 Items marked **(ask)** need a decision from the user during the work. Fixed
 items are removed as they land.
 
-## 1. Android startup crash
-The app is expected to crash on startup on Android. The emulator can't run in
-the cloud containers (no KVM, see guides/running_on_android.md), so this needs
-a machine with KVM or a device.
+## 1. Push, don't poll
+
+Editors are woken only when the host pushes a change, but each frame an
+editor still compares the host's change counter before re-reading host state
+and pumping projections (`block-editor-beui/src/editor.rs`). Make it fully
+push-based: each piece of host state (projections, the block graph, focus,
+drag, files, chrome, editable, presenting) notifies its own subscribers, so a
+frame does no checking at all.
 
 ## 2. beui scrolling
 
