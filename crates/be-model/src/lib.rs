@@ -149,6 +149,12 @@ pub enum Change {
         place: Place,
         anchor: Anchor,
     },
+    MoveIf {
+        object: ObjectId,
+        expected: Place,
+        place: Place,
+        anchor: Anchor,
+    },
 }
 
 impl Change {
@@ -178,6 +184,8 @@ pub trait Model: Sized {
     fn read(tree: &Tree, id: ObjectId) -> Self;
 
     fn write(&self, id: ObjectId, parent: Option<Place>, out: &mut Vec<(ObjectId, Object)>);
+
+    fn upgrade(tree: &mut Tree, id: ObjectId);
 }
 
 #[derive(Debug)]
@@ -266,7 +274,9 @@ impl<R: Model> Document<R> {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Malformed> {
-        Tree::decode(bytes).map(Self::from_tree)
+        let mut tree = Tree::decode(bytes)?;
+        R::upgrade(&mut tree, ObjectId::ROOT);
+        Ok(Self::from_tree(tree))
     }
 
     pub fn merge(base: &Self, ours: &Self, theirs: &Self) -> (Self, usize) {

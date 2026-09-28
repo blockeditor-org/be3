@@ -10,6 +10,10 @@ pub trait Field: Sized {
     fn read(tree: &Tree, value: &Value) -> Self;
 
     fn write(&self, owner: ObjectId, field: u16, out: &mut Vec<(ObjectId, Object)>) -> Value;
+
+    fn upgrade(tree: &mut Tree, owner: ObjectId, field: u16) {
+        let _ = (tree, owner, field);
+    }
 }
 
 pub trait Register: Serialize + DeserializeOwned + Clone + PartialEq + Default {}
@@ -153,6 +157,15 @@ impl<T: Model> Field for List<T> {
             item.value.write(item.id, Some(place), out);
         }
         Value::List(self.items.iter().map(|item| item.id).collect())
+    }
+
+    fn upgrade(tree: &mut Tree, owner: ObjectId, field: u16) {
+        for id in tree.list_ids(Place {
+            object: owner,
+            field,
+        }) {
+            T::upgrade(tree, id);
+        }
     }
 }
 
