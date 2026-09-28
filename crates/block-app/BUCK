@@ -40,7 +40,8 @@ cargo_library(
 # sysroot it was linked against. The plugin surface presenter's tests draw
 # through lavapipe, as the renderer's do.
 cargo_test(
-    env = commit | {
+    env = commit
+    | {
         "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
         "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
     },

@@ -75,9 +75,7 @@ pub use select::{
     Select, SelectOptionHandle, SelectTriggerHandle, select_highlighted, select_open,
     select_option_button, select_search, select_selected, select_trigger,
 };
-pub use selectable::{
-    Selectable, SelectableState, copy_selection, select_all, selectable_text,
-};
+pub use selectable::{Selectable, SelectableState, copy_selection, select_all, selectable_text};
 pub use slider::{Slider, SliderHandle, SliderScale, slider_value};
 pub use stack::Stack;
 pub use text_area::text_area_handles;

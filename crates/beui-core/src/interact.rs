@@ -231,8 +231,11 @@ pub fn interact(
         .enumerate()
         .map(|(level, _)| {
             floating[level + 1..].iter().any(|above| {
-                doc.node_rect(*above)
-                    .is_some_and(|rect| input.pointer_pos.is_some_and(|pos| rect.contains_half_open(pos)))
+                doc.node_rect(*above).is_some_and(|rect| {
+                    input
+                        .pointer_pos
+                        .is_some_and(|pos| rect.contains_half_open(pos))
+                })
             })
         })
         .collect();
@@ -501,7 +504,10 @@ fn deepest(
     pos: Pos2,
     wants: &dyn Fn(&dyn crate::node::Element) -> bool,
 ) -> Option<NodeId> {
-    if !rects.visible(&id).is_some_and(|rect| rect.contains_half_open(pos)) {
+    if !rects
+        .visible(&id)
+        .is_some_and(|rect| rect.contains_half_open(pos))
+    {
         return None;
     }
     let node = doc.arena.get(id);
@@ -556,7 +562,10 @@ impl<'a> Reach<'a> {
             return false;
         }
         let bounds = subtree_bounds(doc, self.rects, id);
-        probes.into_iter().flatten().any(|pos| bounds.contains_half_open(pos))
+        probes
+            .into_iter()
+            .flatten()
+            .any(|pos| bounds.contains_half_open(pos))
     }
 }
 
@@ -646,9 +655,11 @@ fn touch_shift(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Vec2 {
         if let Some((_, at)) = nearest {
             return at - pos;
         }
-        let covered = tops
-            .iter()
-            .any(|top| rects.get(top).is_some_and(|rect| rect.contains_half_open(pos)));
+        let covered = tops.iter().any(|top| {
+            rects
+                .get(top)
+                .is_some_and(|rect| rect.contains_half_open(pos))
+        });
         if layer != root && covered {
             return Vec2::ZERO;
         }

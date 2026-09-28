@@ -50,10 +50,12 @@ async fn portal(filter: &FileFilter) -> Result<Option<PathBuf>, ashpd::Error> {
         file_chooser::{FileFilter as PortalFilter, OpenFileRequest},
     };
 
-    let accepted = filter.extensions.iter().fold(
-        PortalFilter::new(&filter.name),
-        |accepted, extension| accepted.glob(&glob(extension)),
-    );
+    let accepted = filter
+        .extensions
+        .iter()
+        .fold(PortalFilter::new(&filter.name), |accepted, extension| {
+            accepted.glob(&glob(extension))
+        });
     let request = OpenFileRequest::default()
         .modal(true)
         .multiple(false)
