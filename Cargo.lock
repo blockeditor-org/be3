@@ -807,13 +807,17 @@ dependencies = [
  "beui-components-styled",
  "beui-components-unstyled",
  "beui-core",
+ "beui-font-browser",
  "beui-font-freetype",
  "beui-inspector",
+ "beui-renderer-dom",
  "beui-renderer-wgpu",
  "beui-view",
  "beui_macros",
  "reactive",
  "text-editor-core",
+ "wasm-bindgen",
+ "web-sys",
  "wgpu",
 ]
 
@@ -895,6 +899,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-font-browser"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "beui-font-freetype"
 version = "0.1.0"
 dependencies = [
@@ -926,6 +940,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-renderer-dom"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "beui-font-browser",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "beui-renderer-wgpu"
 version = "0.1.0"
 dependencies = [
@@ -948,6 +972,18 @@ dependencies = [
  "beui-core",
  "beui_macros",
  "reactive",
+]
+
+[[package]]
+name = "beui-web-demo"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "beui_macros",
+ "text-editor-core",
+ "wasi-threads",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]

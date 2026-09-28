@@ -137,7 +137,7 @@ fn run_frame() {
 struct Runner {
     app: Box<dyn App>,
     context: Context,
-    canvas: web_sys::HtmlCanvasElement,
+    surface: web_sys::HtmlElement,
     agent: web_sys::HtmlTextAreaElement,
     renderer: Box<dyn WebRenderer>,
     size: (u32, u32),
@@ -158,12 +158,10 @@ impl Runner {
             window.clear_timeout_with_handle(previous);
         }
         let ratio = window.device_pixel_ratio() as f32;
-        let bounds = self.canvas.get_bounding_client_rect();
+        let bounds = self.surface.get_bounding_client_rect();
         let width = ((bounds.width() as f32) * ratio).round().max(1.0) as u32;
         let height = ((bounds.height() as f32) * ratio).round().max(1.0) as u32;
         if self.size != (width, height) {
-            self.canvas.set_width(width);
-            self.canvas.set_height(height);
             self.size = (width, height);
             self.renderer.resize(width, height);
         }
@@ -204,7 +202,7 @@ impl Runner {
         if output.pointer_locked != self.pointer_locked {
             self.pointer_locked = output.pointer_locked;
             match output.pointer_locked {
-                true => self.canvas.request_pointer_lock(),
+                true => self.surface.request_pointer_lock(),
                 false => {
                     if let Some(document) = window.document() {
                         document.exit_pointer_lock();
@@ -215,7 +213,7 @@ impl Runner {
         if output.cursor_icon != self.cursor_icon {
             self.cursor_icon = output.cursor_icon;
             let _ = self
-                .canvas
+                .surface
                 .style()
                 .set_property("cursor", cursor(output.cursor_icon));
         }
@@ -307,26 +305,30 @@ pub fn accessibility_tree() -> Option<String> {
     Some(accessibility.text().to_owned())
 }
 
+pub fn request_frame() {
+    schedule();
+}
+
 pub async fn run_web<R: WebRenderer>(
-    canvas_id: &str,
+    element_id: &str,
     options: RunOptions,
     context: Context,
     app: impl App + 'static,
-    renderer: impl AsyncFnOnce(web_sys::HtmlCanvasElement, &Context) -> Result<R, Box<dyn Error>>,
+    renderer: impl AsyncFnOnce(web_sys::HtmlElement, &Context) -> Result<R, Box<dyn Error>>,
 ) -> Result<(), Box<dyn Error>> {
     let window = web_sys::window().ok_or("no browser window is available")?;
     let document = window
         .document()
         .ok_or("no browser document is available")?;
-    let canvas = document
-        .get_element_by_id(canvas_id)
-        .ok_or_else(|| format!("no element has the id {canvas_id}"))?
-        .dyn_into::<web_sys::HtmlCanvasElement>()
-        .map_err(|_| format!("the element {canvas_id} is not a canvas"))?;
+    let surface = document
+        .get_element_by_id(element_id)
+        .ok_or_else(|| format!("no element has the id {element_id}"))?
+        .dyn_into::<web_sys::HtmlElement>()
+        .map_err(|_| format!("the element {element_id} is not an html element"))?;
     document.set_title(&options.title);
-    let _ = canvas.style().set_property("touch-action", "none");
+    let _ = surface.style().set_property("touch-action", "none");
     let agent = text_agent(&document)?;
-    let renderer = renderer(canvas.clone(), &context).await?;
+    let renderer = renderer(surface.clone(), &context).await?;
 
     let mut app: Box<dyn App> = Box::new(app);
     let mut setup = Setup::new(waker());
@@ -335,7 +337,7 @@ pub async fn run_web<R: WebRenderer>(
     let runner = Runner {
         app,
         context,
-        canvas: canvas.clone(),
+        surface: surface.clone(),
         agent: agent.clone(),
         renderer: Box::new(renderer),
         size: (0, 0),
@@ -356,7 +358,7 @@ pub async fn run_web<R: WebRenderer>(
             schedule();
         }))
     });
-    listen(&window, &document, &canvas, &agent)?;
+    listen(&window, &document, &surface, &agent)?;
     schedule();
     Ok(())
 }
@@ -421,8 +423,8 @@ fn on<E: wasm_bindgen::convert::FromWasmAbi + 'static>(
     Ok(())
 }
 
-fn position(canvas: &web_sys::HtmlCanvasElement, event: &web_sys::MouseEvent) -> Pos2 {
-    let bounds = canvas.get_bounding_client_rect();
+fn position(surface: &web_sys::HtmlElement, event: &web_sys::MouseEvent) -> Pos2 {
+    let bounds = surface.get_bounding_client_rect();
     let scale = INPUT.with(|input| input.scale.get());
     let (x, y) = (
         client(event, "clientX").unwrap_or(f64::from(event.client_x())),
@@ -454,26 +456,26 @@ fn modifiers_of(alt: bool, ctrl: bool, meta: bool, shift: bool) -> Modifiers {
 fn listen(
     window: &web_sys::Window,
     document: &web_sys::Document,
-    canvas: &web_sys::HtmlCanvasElement,
+    surface: &web_sys::HtmlElement,
     agent: &web_sys::HtmlTextAreaElement,
 ) -> Result<(), Box<dyn Error>> {
-    let canvas_target: &web_sys::EventTarget = canvas.as_ref();
+    let surface_target: &web_sys::EventTarget = surface.as_ref();
     let agent_target: &web_sys::EventTarget = agent.as_ref();
 
-    on(canvas_target, "pointerdown", {
-        let canvas = canvas.clone();
+    on(surface_target, "pointerdown", {
+        let surface = surface.clone();
         let agent = agent.clone();
         move |event: web_sys::PointerEvent| {
             event.prevent_default();
             let _ = agent.focus();
-            let _ = canvas.set_pointer_capture(event.pointer_id());
+            let _ = surface.set_pointer_capture(event.pointer_id());
             let modifiers = modifiers_of(
                 event.alt_key(),
                 event.ctrl_key(),
                 event.meta_key(),
                 event.shift_key(),
             );
-            let pos = position(&canvas, &event);
+            let pos = position(&surface, &event);
             if event.pointer_type() == "touch" {
                 push(touch(&event, TouchPhase::Start, pos));
                 return;
@@ -490,8 +492,8 @@ fn listen(
             });
         }
     })?;
-    on(canvas_target, "pointermove", {
-        let canvas = canvas.clone();
+    on(surface_target, "pointermove", {
+        let surface = surface.clone();
         move |event: web_sys::PointerEvent| {
             if INPUT.with(|input| input.locked.get()) {
                 let scale = INPUT.with(|input| input.scale.get());
@@ -501,7 +503,7 @@ fn listen(
                 )));
                 return;
             }
-            let pos = position(&canvas, &event);
+            let pos = position(&surface, &event);
             if event.pointer_type() == "touch" {
                 push(touch(&event, TouchPhase::Move, pos));
                 return;
@@ -510,17 +512,17 @@ fn listen(
         }
     })?;
     for (name, cancelled) in [("pointerup", false), ("pointercancel", true)] {
-        on(canvas_target, name, {
-            let canvas = canvas.clone();
+        on(surface_target, name, {
+            let surface = surface.clone();
             move |event: web_sys::PointerEvent| {
-                let _ = canvas.release_pointer_capture(event.pointer_id());
+                let _ = surface.release_pointer_capture(event.pointer_id());
                 let modifiers = modifiers_of(
                     event.alt_key(),
                     event.ctrl_key(),
                     event.meta_key(),
                     event.shift_key(),
                 );
-                let pos = position(&canvas, &event);
+                let pos = position(&surface, &event);
                 if event.pointer_type() == "touch" {
                     let phase = match cancelled {
                         true => TouchPhase::Cancel,
@@ -543,7 +545,7 @@ fn listen(
         })?;
     }
     on(
-        canvas_target,
+        surface_target,
         "pointerleave",
         |event: web_sys::PointerEvent| {
             if event.pointer_type() != "touch" && INPUT.with(|input| input.buttons.get()) == 0 {
@@ -551,7 +553,7 @@ fn listen(
             }
         },
     )?;
-    on(canvas_target, "wheel", |event: web_sys::WheelEvent| {
+    on(surface_target, "wheel", |event: web_sys::WheelEvent| {
         event.prevent_default();
         let unit = match event.delta_mode() {
             web_sys::WheelEvent::DOM_DELTA_LINE => LINE_HEIGHT,
@@ -566,20 +568,20 @@ fn listen(
         push(Event::Scroll(-delta));
     })?;
     on(
-        canvas_target,
+        surface_target,
         "contextmenu",
         |event: web_sys::MouseEvent| {
             event.prevent_default();
         },
     )?;
-    on(canvas_target, "dragover", |event: web_sys::DragEvent| {
+    on(surface_target, "dragover", |event: web_sys::DragEvent| {
         event.prevent_default();
         push(Event::FileHovered);
     })?;
-    on(canvas_target, "dragleave", |_event: web_sys::DragEvent| {
+    on(surface_target, "dragleave", |_event: web_sys::DragEvent| {
         push(Event::FileHoverCancelled);
     })?;
-    on(canvas_target, "drop", |event: web_sys::DragEvent| {
+    on(surface_target, "drop", |event: web_sys::DragEvent| {
         event.prevent_default();
         let Some(files) = event.data_transfer().and_then(|transfer| transfer.files()) else {
             push(Event::FileHoverCancelled);
@@ -711,11 +713,11 @@ fn listen(
     let document_target: &web_sys::EventTarget = document.as_ref();
     on(document_target, "pointerlockchange", {
         let document = document.clone();
-        let canvas: web_sys::Element = canvas.clone().into();
+        let surface: web_sys::Element = surface.clone().into();
         move |_event: web_sys::Event| {
             let locked = document
                 .pointer_lock_element()
-                .is_some_and(|element| element == canvas);
+                .is_some_and(|element| element == surface);
             INPUT.with(|input| input.locked.set(locked));
             schedule();
         }
@@ -727,8 +729,8 @@ fn listen(
             .into_js_value()
             .unchecked_ref(),
     )
-    .map_err(|_| "could not watch the canvas size")?;
-    observer.observe(canvas);
+    .map_err(|_| "could not watch the element's size")?;
+    observer.observe(surface);
     std::mem::forget(observer);
     Ok(())
 }

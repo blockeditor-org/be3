@@ -203,11 +203,13 @@ direction:
 | --- | --- |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, and the `App` contract the runners drive |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
+| `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas, for the DOM renderer; no fonts in the module |
 | `beui-view` | `beui::reactive`: components, child slots, the `view!` integration and the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes |
 | `beui-components-unstyled` | `beui::unstyled` and `beui::datetime` |
 | `beui-components-styled` | `beui::styled`: themes and styled controls |
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
+| `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
 | `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's runner: its window or view, input, IME, clipboard and accessibility adapter |
 
 Core cannot see the crates above it, so the few places it used to reach up are
@@ -1076,7 +1078,7 @@ Run the repository examples with:
 ./scripts/buck run //crates/beui:demo-example
 ```
 
-Beui has three feature levels:
+Beui's features:
 
 - No features provides the document, components, layout, input model, and
   painting output. This is enough for headless logic tests.
@@ -1094,6 +1096,19 @@ Beui has three feature levels:
   calls on a thread of its own, and which calls `beui::run_with`.
 - `web` adds the browser runner, `beui::run_web(canvas_id, options, app)`,
   and enables `render`.
+- `dom` is the other browser runner,
+  `beui::run_dom(element_id, icons_font, options, app)`, which draws with DOM
+  elements instead of wgpu. Layout, input and focus are beui's as everywhere
+  else. Each `Display` in the frame's display tree keeps one element across
+  frames (by `Display::key`), holding its shapes and its children's elements
+  placed and clipped by their `Entry`; a display whose `Rc` is unchanged is not
+  looked at, so scrolling moves the rows' elements and rewrites nothing
+  inside them. Text is measured and drawn with the browser's fonts
+  (`beui-font-browser`), and the browser fetches the icon font from the URL
+  `icons_font` names. A `Drawing`, a `Punch` and a `Filter` draw nothing there.
+  `crates/beui-web-demo` is the demo this way:
+  `./scripts/buck run //crates/beui-web-demo:web-serve` serves it on
+  http://127.0.0.1:8070.
 
 `beui::run_with` takes `RunOptions` (title, app id, starting size) where
 `beui::run` takes only a title. The rest of

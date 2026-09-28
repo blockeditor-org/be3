@@ -8,7 +8,14 @@ license.workspace = true
 default = ["window"]
 render = ["dep:beui-renderer-wgpu"]
 window = ["render", "dep:beui-adapter-android", "dep:beui-adapter-winit"]
-web = ["render", "beui-renderer-wgpu/web", "dep:beui-adapter-web"]
+web = [
+    "render",
+    "beui-renderer-wgpu/web",
+    "dep:beui-adapter-web",
+    "dep:wasm-bindgen",
+    "dep:web-sys",
+]
+dom = ["dep:beui-adapter-web", "dep:beui-font-browser", "dep:beui-renderer-dom"]
 
 [dependencies]
 accesskit = "0.24.1"
@@ -30,6 +37,10 @@ beui-adapter-winit = { path = "../beui-adapter-winit", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 beui-adapter-web = { path = "../beui-adapter-web", optional = true }
+beui-font-browser = { path = "../beui-font-browser", optional = true }
+beui-renderer-dom = { path = "../beui-renderer-dom", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["HtmlCanvasElement", "HtmlElement"] }
 
 [dev-dependencies]
 text-editor-core = { path = "../text-editor-core" }

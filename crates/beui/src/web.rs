@@ -6,16 +6,22 @@ use beui_core::color::Color32;
 use beui_core::context::FrameOutput;
 use beui_core::geometry::Vec2;
 use beui_renderer_wgpu::canvas::CanvasSurface;
+use wasm_bindgen::JsCast;
 
-struct Canvas(CanvasSurface);
+struct Canvas {
+    element: web_sys::HtmlCanvasElement,
+    surface: CanvasSurface,
+}
 
 impl WebRenderer for Canvas {
     fn provide(&self, setup: &mut Setup) {
-        setup.provide(self.0.gpu());
+        setup.provide(self.surface.gpu());
     }
 
     fn resize(&mut self, width: u32, height: u32) {
-        self.0.resize(width, height);
+        self.element.set_width(width);
+        self.element.set_height(height);
+        self.surface.resize(width, height);
     }
 
     fn draw(
@@ -25,7 +31,7 @@ impl WebRenderer for Canvas {
         scale: f32,
         background: Color32,
     ) -> bool {
-        self.0.draw(output, physical, scale, background)
+        self.surface.draw(output, physical, scale, background)
     }
 }
 
@@ -39,11 +45,15 @@ pub async fn run_web(
         options,
         crate::context(),
         app,
-        async |canvas, context| Ok(Canvas(CanvasSurface::new(canvas, context).await?)),
+        async |element, context| {
+            let element = element
+                .dyn_into::<web_sys::HtmlCanvasElement>()
+                .map_err(|_| format!("the element {canvas_id} is not a canvas"))?;
+            Ok(Canvas {
+                surface: CanvasSurface::new(element.clone(), context).await?,
+                element,
+            })
+        },
     )
     .await
-}
-
-pub fn accessibility_tree() -> Option<String> {
-    beui_adapter_web::accessibility_tree()
 }
