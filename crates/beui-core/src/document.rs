@@ -715,7 +715,9 @@ impl Document {
         self.work.reset();
         let scale = ctx.pixels_per_point();
         let fonts_generation = ctx.fonts_generation();
-        if std::mem::replace(&mut self.fonts_generation, fonts_generation) != fonts_generation
+        let refonted = std::mem::replace(&mut self.fonts_generation, fonts_generation)
+            != fonts_generation;
+        if refonted
             || self
                 .viewport
                 .as_ref()
@@ -723,10 +725,11 @@ impl Document {
                     !ctx.same(old_ctx) || *old_rect != rect || *old_scale != scale
                 })
         {
-            let reattached = self
-                .viewport
-                .as_ref()
-                .is_none_or(|(old_ctx, _, _)| !ctx.same(old_ctx));
+            let reattached = refonted
+                || self
+                    .viewport
+                    .as_ref()
+                    .is_none_or(|(old_ctx, _, _)| !ctx.same(old_ctx));
             self.reattached.set(self.reattached.get() || reattached);
             self.arena.invalidate();
             self.viewport = Some((ctx.clone(), rect, scale));
@@ -767,11 +770,6 @@ impl Document {
                 }
             });
         }
-        if !keys.ignored()
-            && let Some(area) = self.focused_ime_area()
-        {
-            ctx.set_ime_area(Some(area));
-        }
         if self.handles_back() {
             ctx.handle_back();
         }
@@ -786,6 +784,11 @@ impl Document {
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
                 usize::from(self.update_layout(ctx, rect))
             });
+        if !keys.ignored()
+            && let Some(area) = self.focused_ime_area()
+        {
+            ctx.set_ime_area(Some(area));
+        }
         if ctx.test_ids_published() {
             let mut live = None;
             for (test_id, nodes) in &self.test_ids {
@@ -1565,7 +1568,11 @@ impl Document {
         }
         for _ in 0..LAYOUT_PASSES {
             self.lay_out_pass(ctx, rect);
+            let unsettled = self.root.is_some_and(|root| self.arena.unplaced(root));
             if !std::mem::take(&mut self.spaces_moved) {
+                if unsettled {
+                    continue;
+                }
                 break;
             }
             let context = self.reactive_scope().context();
@@ -1575,7 +1582,7 @@ impl Document {
                     crate::current::with_document(Document::redeliver_placements);
                 });
             }
-            if self.layout_revision == self.arena.layout_revision {
+            if !unsettled && self.layout_revision == self.arena.layout_revision {
                 break;
             }
         }

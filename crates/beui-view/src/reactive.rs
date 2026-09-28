@@ -1261,7 +1261,10 @@ pub use crate::components::offset::Offset;
 pub use crate::components::picture::Picture;
 pub use crate::components::portal::Portal;
 pub use crate::components::stroke::Stroke;
-pub use crate::components::text::Text;
+pub use crate::components::text::{Text, TextItem};
+pub use beui_core::rich::{
+    CaretHandle, RichLayout, SpanKind, SpanStyle, TextCaret, TextMark, TextSpan,
+};
 pub use crate::components::viewport::Viewport;
 pub use crate::components::virtual_list::VirtualList;
 pub use beui_core::base::canvas::CanvasView;
