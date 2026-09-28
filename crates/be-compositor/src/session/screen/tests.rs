@@ -2,7 +2,7 @@ use super::*;
 
 mod each_screen_shows_its_own_part_of_the_desktop;
 
-use beui::{Color32, Context, RawInput, pos2};
+use beui::{Color32, RawInput, pos2};
 
 use crate::test_client::{read, vulkan_device};
 

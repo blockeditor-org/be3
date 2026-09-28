@@ -1,0 +1,16 @@
+[package]
+name = "beui-components-unstyled"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+accesskit = "0.24.1"
+beui-core = { path = "../beui-core" }
+beui-view = { path = "../beui-view" }
+beui_macros = { path = "../beui_macros" }
+reactive = { path = "../reactive" }
+text-editor-core = { path = "../text-editor-core" }
+
+[lints]
+workspace = true

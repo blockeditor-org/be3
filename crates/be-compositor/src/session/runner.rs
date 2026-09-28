@@ -1,3 +1,4 @@
+use beui::Repainting;
 use std::error::Error;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -106,7 +107,7 @@ pub fn run(launches: Vec<String>) -> Result<(), Box<dyn Error>> {
     compositor.start(device, queue, FORMAT, Waker::new(move || ping.ping()));
     let gpu = compositor.gpu().ok_or("the compositor has no GPU")?;
     let arrow = Rc::new(gpu.rgba(arrow::WIDTH, arrow::HEIGHT, &arrow::pixels()));
-    let context = Context::new();
+    let context = beui::context();
     let mut session = Session {
         seat,
         active: true,

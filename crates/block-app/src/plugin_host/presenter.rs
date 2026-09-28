@@ -566,8 +566,11 @@ struct Presenter {
 }
 
 pub(super) fn install(setup: &beui::Setup) -> Availability {
-    let pipeline = BlitPipeline::new(&setup.device, setup.format);
-    let platform = build_presenter(&setup.device, &setup.queue);
+    let gpu = setup
+        .get::<beui::GpuSetup>()
+        .expect("beui's runner provides the GPU it draws with");
+    let pipeline = BlitPipeline::new(&gpu.device, gpu.format);
+    let platform = build_presenter(&gpu.device, &gpu.queue);
     let availability = Availability(platform.as_ref().map(|_| ()).map_err(Clone::clone));
     PRESENTER.with(|presenter| {
         *presenter.borrow_mut() = Some(Presenter {

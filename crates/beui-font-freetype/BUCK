@@ -1,0 +1,7 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+freetype_srcs = glob(["src/**/*.rs", "assets/**/*"])
+
+cargo_library(srcs = freetype_srcs)
+
+cargo_test(srcs = freetype_srcs)

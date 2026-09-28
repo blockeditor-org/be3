@@ -27,7 +27,7 @@ impl Harness {
             Vec::new(),
         );
         let client = TestClient::connect(app.server());
-        let context = Context::new();
+        let context = beui::context();
         context.set_test_ids_published(true);
         Self {
             app,
@@ -50,7 +50,7 @@ impl Harness {
             Waker::new(|| {}),
         );
         let client = TestClient::connect(app.server());
-        let context = Context::new();
+        let context = beui::context();
         context.set_test_ids_published(true);
         let harness = Self {
             app,

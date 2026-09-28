@@ -19,7 +19,7 @@ cargo_binary(name = "launcher")
     android_apk(
         name = name,
         application_id = application_id,
-        java = glob(["android/java/**/*.java"]) + ["//crates/beui:android-java"],
+        java = glob(["android/java/**/*.java"]) + ["//crates/beui-adapter-android:android-java"],
         label = label,
         library = ":be-launcher",
         manifest = "android/AndroidManifest.xml",

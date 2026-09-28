@@ -16,6 +16,7 @@ mod share;
 mod surfaces;
 mod ui;
 
+use beui::styled::DocumentTheme;
 use std::{collections::HashMap, error::Error};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -158,7 +159,9 @@ impl beui::App for Shell {
             not(target_os = "android"),
             not(target_arch = "wasm32")
         ))]
-        plugin_host::install_web_view(setup.window.clone());
+        if let Some(window) = setup.get::<std::sync::Arc<beui::winit::window::Window>>() {
+            plugin_host::install_web_view(window.clone());
+        }
     }
 
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {

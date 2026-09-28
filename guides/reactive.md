@@ -3,7 +3,7 @@
 `crates/reactive` provides a dependency-free, single-threaded reactive graph. It
 is intended for retained UI bindings: create a node once, then use an effect to
 update its properties when the values it reads change. `beui::reactive` (in
-`crates/beui/src/reactive.rs`) is the adapter that connects it to beui's
+`crates/beui-view/src/reactive.rs`) is the adapter that connects it to beui's
 `Document`; see "beui integration" below.
 
 ## Example
@@ -659,7 +659,7 @@ auto-height parent does in CSS. A `scroll` measures as nothing, so a percent
 scroll inside an intrinsically measured column collapses; give it a fixed length
 for that case. See
 `crates/beui/examples/counter.rs` for a full example and
-`crates/beui/src/document/tests/a_reactive_tree_can_nest_builder_calls_without_threading_the_document.rs`
+`crates/beui/src/tests/a_reactive_tree_can_nest_builder_calls_without_threading_the_document.rs`
 and `.../a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame.rs`
 for the behavior they rely on.
 

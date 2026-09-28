@@ -26,6 +26,8 @@ mod tests;
 
 #[cfg(not(target_os = "android"))]
 use std::error::Error;
+
+use beui::styled::DocumentTheme;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, channel};
 

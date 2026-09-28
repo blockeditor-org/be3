@@ -37,7 +37,7 @@ inside it.
 
 A component that returns its own type implements `ChildValue` to name the node
 the scope hangs on, and `IntoChild` for the slot that takes it, as
-`base/canvas.rs` does for `CanvasItem`.
+`beui-view`'s `components/canvas.rs` does for `CanvasItem`.
 
 A child needs no node at all. A `ChildValue` whose `anchor` is `None` keeps a
 `ChildScope` field instead, which the component's scope is moved into, so
@@ -58,7 +58,7 @@ a run of it is kept, so a `show` or a `for_each` can build one.
 Functions that build no part of a view are ordinary functions. Deriving a
 colour from theme tokens and interaction state, mapping a value to a label,
 reading state back out of a built node — write those as plain functions, as
-`styled/checkbox.rs` does with `box_fill` and `checkbox_checked`.
+`beui-components-styled`'s `checkbox.rs` does with `box_fill` and `checkbox_checked`.
 
 ### A component ends with one `view!` and nothing after it
 
@@ -191,6 +191,46 @@ them. Prefer `Show` over rebuilding, `Keyed` over `Dynamic` when only part of a
 value decides the shape, and `VirtualList` for a collection large enough that
 building every row is the cost.
 
+## Crates
+
+Beui is a family of crates. `beui` is the facade every app and editor depends
+on: it re-exports the others under the paths this guide uses (`beui::reactive`,
+`beui::styled`, `beui::unstyled`, `beui::Document`, ...) and assembles them,
+so code outside beui names only `beui`. The rest depend on each other in one
+direction:
+
+| Crate | Owns |
+| --- | --- |
+| `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, and the `App` contract the runners drive |
+| `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
+| `beui-view` | `beui::reactive`: components, child slots, the `view!` integration and the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes |
+| `beui-components-unstyled` | `beui::unstyled` and `beui::datetime` |
+| `beui-components-styled` | `beui::styled`: themes and styled controls |
+| `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
+| `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
+| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's runner: its window or view, input, IME, clipboard and accessibility adapter |
+
+Core cannot see the crates above it, so the few places it used to reach up are
+hooks the higher crates fill in:
+
+- The inspector is a `Tools` object on the document. `beui::reactive::build`
+  installs it (`beui::install_inspector`), and `Document::show` hands the frame
+  to it; a document built by `beui_view::reactive::build` has none.
+- The simulated mouse is an `InputSimulation` the inspector installs on the
+  `Context`.
+- Text is shaped by the `FontBackend` a `Context` is made with.
+  `beui::context()` makes one over `FreetypeFonts`.
+- The document's theme lives in a typed slot on the document
+  (`Document::extension`); `beui::styled::DocumentTheme` reads and writes it.
+- A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
+  the wgpu renderer.
+- The web runner draws through a `WebRenderer`, which the facade fills in with
+  the wgpu renderer's `CanvasSurface`.
+
+Inside the family, crates name each other directly (`beui_core::document::Document`),
+and the component crates declare `extern crate beui_view as beui;` so the
+`::beui::reactive` paths `#[component]` and `view!` expand to resolve there.
+
 ## Component layers
 
 Beui separates mechanism, behavior, and appearance. The dependency direction is
@@ -198,9 +238,9 @@ deliberate:
 
 | Layer | Location and public path | Responsibility |
 | --- | --- | --- |
-| Base | `crates/beui/src/base`; re-exported from `beui::reactive` | Retained nodes for layout, painting, visibility, focus, pointer input, offset content, and text. |
-| Unstyled | `crates/beui/src/unstyled`; `beui::unstyled` | Accessible interaction behavior composed from base components, without theme colors, typography, borders, or spacing. |
-| Styled | `crates/beui/src/styled`; `beui::styled` | Application-ready controls that compose an unstyled control and paint its state with base components and `styled::theme` tokens. |
+| Base | nodes in `crates/beui-core/src/base`, components in `crates/beui-view/src/components`; re-exported from `beui::reactive` | Retained nodes for layout, painting, visibility, focus, pointer input, offset content, and text. |
+| Unstyled | `crates/beui-components-unstyled`; `beui::unstyled` | Accessible interaction behavior composed from base components, without theme colors, typography, borders, or spacing. |
+| Styled | `crates/beui-components-styled`; `beui::styled` | Application-ready controls that compose an unstyled control and paint its state with base components and `styled::theme` tokens. |
 
 Styled components are composed out of unstyled ones, and unstyled ones are
 composed out of base ones. Work at the highest layer that can express what you
@@ -953,7 +993,7 @@ viewport and scissor as it found them: position what it draws from the
 rectangle it was given, the way beui's own shader does, rather than by setting
 a viewport.
 
-`Drawing::new` wraps a `Draw`, and two drawings are the same shape when they
+`beui::drawing` wraps a `Draw` in a `Drawing`, and two drawings are the same shape when they
 are the same `Rc`. That is what decides whether the frame changed, so a drawing
 whose contents have moved is a new `Drawing` and a frame that is showing the
 same thing keeps the one it had, which is what leaves an idle editor idle. The
@@ -973,7 +1013,7 @@ wgpu renderer. A standalone app builds its document once and implements
 use beui::reactive::{
     Frame, List, build, component, create_memo, create_signal, view,
 };
-use beui::styled::{Button, ButtonVariant, Display, use_theme};
+use beui::styled::{Button, ButtonVariant, Display, DocumentTheme, use_theme};
 use beui::{App, Color32, Context, Document, NodeId, Rect};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -1044,7 +1084,7 @@ Beui has three feature levels:
   this level.
 - `window` adds the native runner and enables `render`; it is the default.
   On the desktop it is winit's. On Android it is beui's own
-  (`src/app/android.rs`, with its Java in `crates/beui/android`): the app's
+  (`crates/beui-adapter-android`, with its Java in its `android` directory): the app's
   activity extends `com.be3.beui.BeuiActivity`, whose `BeuiView` is the
   surface, takes touches, keys and the soft keyboard's input connection, and
   hosts AccessKit. It has to be a view that input reaches through the view
@@ -1060,8 +1100,10 @@ Beui has three feature levels:
 `App` is optional:
 
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.
-  `Setup` hands over the wgpu device, queue and surface format, for an app that
-  paints with the gpu itself through a `Viewport`, and a `Waker`. `Waker::wake`
+  `Setup` hands over a `Waker`, and whatever the renderer and runner provide:
+  `setup.get::<beui::GpuSetup>()` is the wgpu device, queue and surface format,
+  for an app that paints with the gpu itself through a `Viewport`, and on the
+  desktop `setup.get::<Arc<beui::winit::window::Window>>()` is the window. `Waker::wake`
   can be called from any thread, and asks the runner for another frame: it is
   how work finishing elsewhere is pushed to the ui instead of polled for.
 - `close_requested` is asked when the window is closed, and can refuse by
@@ -1440,7 +1482,7 @@ filled in. Host services such as `BlockPicker` work there too, collected from
 ## Develop an unstyled component
 
 An unstyled component owns semantics and interaction, not appearance. Put it in
-`crates/beui/src/unstyled/<name>.rs`, declare it in `unstyled.rs`, and re-export
+`crates/beui-components-unstyled/src/<name>.rs`, declare it in `lib.rs`, and re-export
 the public component, handles, state readers, and supporting types there.
 
 Compose it from base components. For an interactive control this normally means:
@@ -1490,8 +1532,8 @@ and report user changes through its callback; see `unstyled::Toggle` and
 
 ## Develop a styled component
 
-Put a styled component in `crates/beui/src/styled/<name>.rs`, declare it in
-`styled.rs`, and re-export its public API there. An interactive styled component
+Put a styled component in `crates/beui-components-styled/src/<name>.rs`, declare it in
+`lib.rs`, and re-export its public API there. An interactive styled component
 wraps the matching unstyled component, supplies its accessibility label when
 needed, and renders the unstyled handle with base visual primitives:
 
@@ -1534,8 +1576,9 @@ behavior for each control family.
 
 `styled::Theme` holds the color tokens, and `Theme::DARK` and `Theme::EINK` are
 the built-in themes. Every `Document` owns a theme that styled components use
-when no provider covers them. Change it with `Document::set_theme` and read it
-with `Document::theme`, for example to pick an app's clear color. The
+when no provider covers them. Change it with `set_theme` and read it with
+`theme`, both from the `styled::DocumentTheme` trait, for example to pick an
+app's clear color. The
 inspector's Sim tab switches it at runtime.
 
 `ThemeProvider` overrides the theme for the subtree written between its tags and
@@ -1552,20 +1595,21 @@ view! {
 ## Develop a base component
 
 Base nodes are the only layer that should normally mutate a `Document` directly.
-Put the node in `crates/beui/src/base/<name>.rs` and register the module in
-`base.rs`. A base implementation has three parts:
+Put the node in `crates/beui-core/src/base/<name>.rs` and register the module in
+`base.rs`, and its component in `crates/beui-view/src/components/<name>.rs`. A
+base implementation has three parts:
 
-- A crate-private node struct containing its retained state and child ids.
+- A node struct containing its retained state and child ids.
 - An `Element` implementation for measurement, layout, painting, interaction,
   child traversal, and inspector metadata.
-- `Document::create_*` and `Document::set_*` methods plus a public
-  `#[component]` wrapper. The wrapper creates the node with `with_document` and
-  binds reactive props to setters with `create_effect`.
+- `Document::create_*` and `Document::set_*` methods beside the node, plus a
+  public `#[component]` wrapper in `beui-view`. The wrapper creates the node
+  with `with_document` and binds reactive props to setters with `create_effect`.
 
 `measure` takes `&self` and must not mutate; `layout` takes `&mut self` and may
 update the node's own retained state, which is how a `VirtualList` realises
 the rows its slice of the viewport calls for. Both receive `&mut Document` and are
-reached through `crate::layout::measure` and `crate::layout::layout`, which take
+reached through `beui_core::layout::measure` and `beui_core::layout::layout`, which take
 the element out of the arena for the duration so an effect woken mid-walk cannot
 alias it. Reach children through those two functions rather than calling another
 element's methods directly, or the node you descend into is never handed its

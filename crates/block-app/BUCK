@@ -190,7 +190,7 @@ app(
         name = name,
         application_id = application_id,
         assets = assets,
-        java = glob(["android/java/**/*.java"]) + ["//crates/beui:android-java"],
+        java = glob(["android/java/**/*.java"]) + ["//crates/beui-adapter-android:android-java"],
         label = label,
         library = ":block-app",
         manifest = "android/AndroidManifest.xml",

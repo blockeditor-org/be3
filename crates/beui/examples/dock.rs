@@ -2,6 +2,7 @@ use beui::reactive::{
     ForEach, Frame, Func, List, ReadSignal, Show, Spacer, WriteSignal, build, clone, component,
     create_memo, create_signal, view,
 };
+use beui::styled::DocumentTheme;
 use beui::styled::theme::use_theme;
 use beui::styled::{
     Body, Button, ButtonVariant, Caption, DockArea, Heading, ListRow, Paragraph, Scroll, Separator,

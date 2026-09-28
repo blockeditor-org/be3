@@ -68,7 +68,7 @@ pub(crate) struct GridScene(Rc<RefCell<Option<GridRenderer>>>);
 
 impl GridScene {
     pub(crate) fn drawing(&self, frame: RenderFrame) -> Drawing {
-        Drawing::new(GridDraw {
+        beui::drawing(GridDraw {
             scene: self.clone(),
             frame,
         })

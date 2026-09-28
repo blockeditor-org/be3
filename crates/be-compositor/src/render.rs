@@ -442,7 +442,7 @@ impl WindowDraw {
             .into_iter()
             .map(|(current, layer)| (current.texture, layer))
             .collect();
-        Drawing::new(Self {
+        beui::drawing(Self {
             gpu,
             layers,
             buffers,

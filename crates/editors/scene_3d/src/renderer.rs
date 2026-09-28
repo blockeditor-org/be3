@@ -54,7 +54,7 @@ pub(crate) struct Scene(Rc<RefCell<Option<SceneRenderer>>>);
 
 impl Scene {
     pub(crate) fn drawing(&self, camera: Camera) -> Drawing {
-        Drawing::new(SceneDraw {
+        beui::drawing(SceneDraw {
             scene: self.clone(),
             camera,
         })
