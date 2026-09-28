@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore = "two reorders of one list conflict in the list merge and one side's move is dropped without counting a conflict"]
 fn reorders_of_different_cards_on_each_side_merge_to_both() {
     let base = board();
     let (todo, _, _) = ids(&base);

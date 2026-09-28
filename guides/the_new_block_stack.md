@@ -290,7 +290,9 @@ both keep theirs, which is how a database row holds a cell per schema field.
 Anything else that is `Serialize + DeserializeOwned + Clone + PartialEq +
 Default` is a register: it is set as a whole, and setting it on both sides of an
 offline merge is a conflict. `Root` names the content type and, optionally, the
-block's name and the blocks it references.
+block's name and the blocks it references. Fields are stored by position, so a
+new field goes at the end of its struct: `Document::from_bytes` fills in the
+fields an older document lacks.
 
 `be-model` stores a document as a table of objects with ids, not as a tree of
 values, and every algorithm is written once against that table:
@@ -307,21 +309,32 @@ values, and every algorithm is written once against that table:
   `Calendar::update`, which only writes the fields that changed.
 - **Live editing.** Edits address objects by id and anchor inserts to a sibling,
   so they mean the same thing whatever the sequencer put before them: there is
-  nothing to rebase.
+  nothing to rebase. The tree remembers where each removed or moved-away object
+  was, so an insert anchored after it lands where it was. Anything two peers may
+  create at once for the same purpose (a database row past the end, a canvas
+  component for a schema, a logic game solution) takes an id derived from what
+  it is for, so the second insert is refused and its edits land on the first.
 - **Offline merge.** `Document::merge` matches objects by id across the three
   versions and merges each field on its own: registers take whichever side
   changed, counts add both sides, lists merge their order the way `merge_slices`
-  merges lines, and an object that moved on one side and was edited on the other
-  keeps both. Deleting an object that the other side edited, or that the other
-  side put something into, keeps it and counts a conflict rather than losing the
-  edit.
+  merges lines once the items either side moved are taken out and put back after
+  the sibling they followed on that side, and an object that moved on one side
+  and was edited on the other keeps both. You delete what you saw: deleting an
+  object (or map key) the other side edited deletes it and counts a conflict.
+  What the other side moved or inserted into a removed container, which the
+  deleting side never saw there, survives: a moved object goes back to the list
+  it came from (or the first sibling container), a new one brings its container
+  back, and either counts a conflict.
 - **Undo.** `Document::step` records, for each change, the change that undoes it
   and the one that redoes it, both taken against the state before the edit. A
   register's undo is conditional (`Change::SetIf`, and `Change::PutIf` for a map
   key): it only puts the old value back if nobody has changed it since, which is how undo leaves other
-  people's edits alone. A removed object is put back with everything under it,
-  after the sibling it followed. Consecutive sets of the same fields absorb into
-  one step.
+  people's edits alone. A move's undo (`Change::MoveIf`) only moves the object
+  back if it is still where the move put it. A removed object is put back with
+  everything under it, after the sibling it followed. `Change::RemoveIf` removes
+  an object only if it still holds what the remover expected, for cleanups like
+  a database dropping a row it emptied. Consecutive sets of the same fields
+  absorb into one step.
 - **Grids.** A paint is a list of cells, each optionally conditional on what the
   cell held, so a paint's undo repaints only the cells nobody has painted since,
   and a burst of paints into one grid undoes as one stroke. An offline merge
@@ -349,8 +362,11 @@ canvas and pixel art work the same way: the editor speaks in an operation enum
 as a command, and `edit_for` on the content turns a command into an edit
 against the content as it is now. The logic grid computes that by applying the
 command to the grid it reads back and writing the fields that differ, so its
-components merge field by field and its wires, stored as a set of segments,
-merge segment by segment and are normalized when read. The canvas keeps its
+components merge field by field and its wires, stored as a set of unit-length
+segments and a set of wire ends, merge segment by segment, so a cut, an
+extension and a branch made at once all survive; they are joined back into
+wires, split at the stored ends, when read. Two components given the same id at
+once are both kept, the later one read with a fresh id. The canvas keeps its
 layering as the order of its entity list, so bringing an entity to the front is
 a move. Pixel art keeps its pixels in a `Grid`. The database schema shows the other direction: its fields and enum
 options are objects, and their ids are the ids a database's cells and enum values

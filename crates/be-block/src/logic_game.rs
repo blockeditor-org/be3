@@ -142,7 +142,8 @@ impl LogicGameProgress {
                     (Some(_), index) => Anchor::After(existing[index.min(existing.len()) - 1].0),
                 };
                 Self::SOLUTIONS
-                    .insert(
+                    .insert_as(
+                        solution_id(*challenge, *solution),
                         ObjectId::ROOT,
                         anchor,
                         &Solution {
@@ -150,7 +151,6 @@ impl LogicGameProgress {
                             block: Some(*solution),
                         },
                     )
-                    .1
                     .into()
             }
             LogicGameOperation::RemoveSolution {
@@ -179,6 +179,12 @@ impl LogicGameProgress {
             }
         }
     }
+}
+
+fn solution_id(challenge: ChallengeId, solution: Uuid) -> ObjectId {
+    ObjectId::from_uuid(Uuid::from_u128(
+        solution.as_u128() ^ (challenge as u128).wrapping_add(1).rotate_left(64),
+    ))
 }
 
 impl Root for LogicGameProgress {

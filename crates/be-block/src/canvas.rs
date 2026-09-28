@@ -455,11 +455,15 @@ fn update_components(held: &be_model::Item<Entity>, wanted: &[CanvasComponent]) 
             .iter()
             .any(|existing| existing.schema == Some(component.schema_id))
         {
-            changes.push(
-                Entity::COMPONENTS
-                    .insert(held.id, Anchor::End, &Component::of(component))
-                    .1,
-            );
+            let id = ObjectId::from_uuid(Uuid::from_u128(
+                held.id.as_uuid().as_u128() ^ component.schema_id.as_u128(),
+            ));
+            changes.push(Entity::COMPONENTS.insert_as(
+                id,
+                held.id,
+                Anchor::End,
+                &Component::of(component),
+            ));
         }
     }
     changes

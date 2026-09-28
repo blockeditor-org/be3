@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore = "a branch splits the stored wire into new segments, so the merge keeps both halves of the wire the other side removed"]
 fn a_wire_removed_on_one_side_stays_removed_when_the_other_branches_off_it() {
     let base = logic_run(
         &LogicGridContent::default(),

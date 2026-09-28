@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore = "a move's undo moves the card back even when someone else has moved it since"]
 fn undoing_a_move_leaves_a_card_someone_else_moved_since() {
     let mut document = board();
     let (todo, done, write) = ids(&document);

@@ -12,7 +12,6 @@ struct PinnableNote {
 }
 
 #[test]
-#[ignore = "an object saved before a field was added holds fewer fields, and a set of the new field is dropped"]
 fn a_field_added_to_a_type_after_a_document_was_saved_can_be_set() {
     let saved = Document::new(&Note {
         text: "hello".to_owned(),
