@@ -1073,6 +1073,7 @@ fn Editing(field: Field, children: Children<CanvasItem>) -> NodeId {
             on_key={move |press: KeyPress| {
                 !key_cx.preedit.get_untracked().is_empty()
                     || (!key_cx.disabled.get_untracked()
+                        && !keys::leaves_on_tab(&key_cx, press)
                         && (on_key_override.call(press) || keys::key(&key_cx, press)))
             }}
         >

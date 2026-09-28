@@ -26,6 +26,15 @@ pub(super) fn key(cx: &Context, press: KeyPress) -> bool {
     handled
 }
 
+pub(super) fn leaves_on_tab(cx: &Context, press: KeyPress) -> bool {
+    if !press.pressed {
+        return false;
+    }
+    let escaping = press.key == Key::Escape && !cx.state.find_open().get_untracked();
+    let released = cx.state.release_tab(escaping);
+    released && press.key == Key::Tab && !press.modifiers.ctrl && !press.modifiers.alt
+}
+
 pub(super) fn submit(cx: &Context) {
     cx.state.external_edit();
     cx.on_submit.call();
