@@ -410,10 +410,11 @@ impl InputState {
             .map(|since| (since + self.long_press_delay).saturating_duration_since(now))
     }
 
-    pub fn begin_frame(&mut self, raw: RawInput) {
+    pub fn begin_frame(&mut self, raw: RawInput, now: Instant) {
         self.pointer.begin_frame();
+        self.touch.now = now;
         self.touch.begin_frame(&mut self.pointer);
-        if let Some(pos) = self.touch.long_press(self.long_press_delay, Instant::now()) {
+        if let Some(pos) = self.touch.long_press(self.long_press_delay, now) {
             self.pointer.pos = Some(pos);
             self.pointer.secondary_pressed = true;
         }
@@ -465,7 +466,7 @@ impl InputState {
                             self.pointer.primary_down = *pressed;
                             if *pressed {
                                 self.pointer.primary_pressed = true;
-                                self.pointer.count_click(*pos);
+                                self.pointer.count_click(*pos, now);
                             } else {
                                 self.pointer.primary_released = true;
                             }
@@ -569,6 +570,7 @@ pub struct TouchState {
     fingers_moved: bool,
     fingers_since: Option<Instant>,
     finger_tap: Option<usize>,
+    now: Instant,
 }
 
 impl Default for TouchState {
@@ -599,6 +601,7 @@ impl Default for TouchState {
             fingers_moved: false,
             fingers_since: None,
             finger_tap: None,
+            now: Instant::now(),
         }
     }
 }
@@ -651,7 +654,7 @@ impl TouchState {
         if self.points.is_empty() {
             self.fingers = 0;
             self.fingers_moved = false;
-            self.fingers_since = Some(Instant::now());
+            self.fingers_since = Some(self.now);
         }
         self.points.insert(id, TouchPoint { id, pos, force });
         self.origins.insert(id, pos);
@@ -676,15 +679,15 @@ impl TouchState {
         self.direction = TouchDirection::Undecided;
         self.dragged = false;
         self.samples.clear();
-        self.samples.push_back((Instant::now(), pos));
+        self.samples.push_back((self.now, pos));
         self.velocity = Vec2::ZERO;
-        self.held_since = Some(Instant::now());
+        self.held_since = Some(self.now);
         self.long_pressed = false;
         pointer.pos = Some(pos);
         pointer.primary_down = true;
         pointer.primary_pressed = true;
         pointer.from_touch = true;
-        pointer.count_click(pos);
+        pointer.count_click(pos, self.now);
     }
 
     fn move_to(&mut self, id: TouchId, pos: Pos2, force: Option<f32>, pointer: &mut Pointer) {
@@ -752,7 +755,7 @@ impl TouchState {
             let quick = self
                 .fingers_since
                 .take()
-                .is_some_and(|since| since.elapsed() <= FINGER_TAP_TIME);
+                .is_some_and(|since| self.now.duration_since(since) <= FINGER_TAP_TIME);
             if !cancelled && quick && !self.fingers_moved && self.fingers >= 2 {
                 self.finger_tap = Some(self.fingers);
             }
@@ -852,7 +855,7 @@ impl TouchState {
     }
 
     fn sample(&mut self, pos: Pos2) {
-        let now = Instant::now();
+        let now = self.now;
         self.samples.push_back((now, pos));
         while self.samples.len() > 2
             && self.samples.front().is_some_and(|(when, _)| {
@@ -956,8 +959,7 @@ impl Pointer {
         self.motion = Vec2::ZERO;
     }
 
-    fn count_click(&mut self, pos: Pos2) {
-        let now = Instant::now();
+    fn count_click(&mut self, pos: Pos2, now: Instant) {
         let repeated = self.last_click.is_some_and(|(when, at)| {
             now.duration_since(when).as_secs_f32() <= MULTI_CLICK_DELAY
                 && at.distance(pos) <= MULTI_CLICK_DISTANCE

@@ -124,7 +124,7 @@ pub fn interact(
     }
     let wheel_target = (input.scroll != Vec2::ZERO)
         .then(|| {
-            let now = Instant::now();
+            let now = doc.now();
             let target = latched_wheel_target(doc, rects, input.pointer_pos, input.scroll, now)
                 .or_else(|| {
                     target(doc, rects, root, input.pointer_pos, &|element| {

@@ -137,12 +137,6 @@ impl PaintCache {
         due
     }
 
-    pub fn expire_deadlines(&mut self, now: Instant) {
-        for deadline in self.deadlines.values_mut() {
-            *deadline = now;
-        }
-    }
-
     pub fn next_deadline(&self) -> Option<Instant> {
         self.deadlines.values().min().copied()
     }

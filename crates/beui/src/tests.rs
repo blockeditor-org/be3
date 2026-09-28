@@ -117,6 +117,8 @@ mod a_time_list_moves_through_its_times_and_picks_one;
 mod a_timer_asks_for_frames_until_its_work_settles;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
 mod a_touch_beside_a_control_reaches_the_nearest_one;
+mod a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames;
+mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
 mod a_touch_fling_that_ends_without_moving_keeps_its_momentum;
 mod a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
@@ -414,6 +416,7 @@ const WIDE_VIEWPORT: Vec2 = Vec2::new(1000.0, 600.0);
 const TALL_VIEWPORT: Vec2 = Vec2::new(1000.0, 1400.0);
 const VIRTUAL_ITEM_COUNT: usize = 10_000;
 const VIRTUAL_ITEM_HEIGHT: f32 = 20.0;
+const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
     Event::Touch {
@@ -434,11 +437,28 @@ impl Harness {
     pub(crate) fn new(mut document: Document) -> Self {
         crate::verify_paint(true);
         crate::inspector::install(&mut document);
+        let context = Context::new(crate::FreetypeFonts::default());
+        context.stop_clock();
         Self {
-            context: Context::new(crate::FreetypeFonts::default()),
+            context,
             document,
             viewport: VIEWPORT,
         }
+    }
+
+    pub(crate) fn advance(&mut self, by: Duration) {
+        self.context.advance_clock(by);
+    }
+
+    pub(crate) fn settle(&mut self) -> usize {
+        const LIMIT: usize = 1200;
+        for frames in 0..LIMIT {
+            let output = self.frame(Vec::new());
+            if !output.repaint && output.repaint_after > Duration::ZERO {
+                return frames;
+            }
+        }
+        panic!("still animating after {LIMIT} frames");
     }
 
     pub(crate) fn sized(document: Document, viewport: Vec2) -> Self {
@@ -459,6 +479,7 @@ impl Harness {
             viewport,
         } = self;
         let input = RawInput { events };
+        context.advance_clock(FRAME_INTERVAL);
         context.run(input, |context| {
             document.show(context, Rect::from_min_size(Pos2::ZERO, *viewport));
         })
@@ -1325,7 +1346,7 @@ pub(crate) fn toolbar_of<const N: usize>(
 use crate::node::{Element, InteractInput, Rects};
 use crate::painter::Painter;
 use std::any::Any;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 struct Counted {
     inner: Box<dyn Element>,

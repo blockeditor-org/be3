@@ -73,7 +73,7 @@ impl Band {
             offset: Vec2::ZERO,
             velocity: Vec2::ZERO,
             held: false,
-            stepped: Instant::now(),
+            stepped: beui_core::timer::now(),
             samples: VecDeque::new(),
             spring,
         }

@@ -63,6 +63,8 @@ struct Inner {
     accessibility_published: RefCell<HashSet<u32>>,
     test_ids_published: Cell<bool>,
     renderer_info: RefCell<Option<RendererInfo>>,
+    clock: Cell<Option<Instant>>,
+    now: Cell<Instant>,
 }
 
 pub trait InputSimulation: Any {
@@ -232,6 +234,8 @@ impl Context {
                 accessibility_published: RefCell::new(HashSet::new()),
                 test_ids_published: Cell::new(true),
                 renderer_info: RefCell::new(None),
+                clock: Cell::new(None),
+                now: Cell::new(Instant::now()),
             }),
         }
     }
@@ -272,7 +276,23 @@ impl Context {
         self.inner.test_ids_published.get()
     }
 
+    pub fn now(&self) -> Instant {
+        self.inner.now.get()
+    }
+
+    pub fn stop_clock(&self) {
+        self.inner.clock.set(Some(self.inner.now.get()));
+    }
+
+    pub fn advance_clock(&self, by: Duration) {
+        let now = self.inner.clock.get().unwrap_or_else(|| self.inner.now.get()) + by;
+        self.inner.clock.set(Some(now));
+        self.inner.now.set(now);
+    }
+
     pub fn begin_frame(&self, raw: RawInput) {
+        let now = self.inner.clock.get().unwrap_or_else(Instant::now);
+        self.inner.now.set(now);
         self.apply_pixels_per_point();
         self.inner.repaint.set(false);
         self.inner.repaint_after.set(Duration::MAX);
@@ -284,8 +304,8 @@ impl Context {
         if let Some(delay) = wake {
             self.request_repaint_after(delay);
         }
-        self.inner.input.borrow_mut().begin_frame(raw);
-        let held = self.inner.input.borrow().long_press_due(Instant::now());
+        self.inner.input.borrow_mut().begin_frame(raw, now);
+        let held = self.inner.input.borrow().long_press_due(now);
         if let Some(delay) = held {
             self.request_repaint_after(delay);
         }
@@ -565,7 +585,7 @@ impl Context {
             items: frame.items,
             own: frame.own,
             bounds: frame.bounds,
-            deadline: (frame.delay < Duration::MAX).then(|| Instant::now() + frame.delay),
+            deadline: (frame.delay < Duration::MAX).then(|| self.now() + frame.delay),
             reads: false,
         }
     }

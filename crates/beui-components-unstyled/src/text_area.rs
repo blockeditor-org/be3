@@ -7,7 +7,7 @@ pub mod state;
 use std::cell::RefCell;
 use std::ops::Range;
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use accesskit::{Node, Role};
 
@@ -1213,13 +1213,13 @@ fn Caret(page: Memo<Page>, size: Memo<Vec2>) -> CanvasItem {
 }
 
 fn blinking(page: Page) -> Draw {
-    let since = Instant::now();
+    let since = beui_core::timer::now();
     let draw = page.draw();
     Rc::new(move |painter: &Painter, rect: Rect| {
         if page.is_empty() {
             return;
         }
-        let elapsed = since.elapsed().as_nanos();
+        let elapsed = painter.ctx().now().saturating_duration_since(since).as_nanos();
         let interval = BLINK_INTERVAL.as_nanos();
         if (elapsed / interval).is_multiple_of(2) {
             draw(painter, rect);

@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
@@ -7,7 +7,7 @@ use crate::theme::use_theme;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Direction, Frame, ItemSize, List, Prop, Spacer, clone, component_accessibility, create_effect,
-    create_memo, create_signal, create_timer, node_placed,
+    create_memo, create_signal, create_timer, node_placed, now,
 };
 
 const HEIGHT: f32 = 4.0;
@@ -21,7 +21,7 @@ pub fn Spinner(
     #[prop(default = 40.0)] width: Prop<f32>,
     #[prop(default = String::new())] label: Prop<String>,
 ) -> NodeId {
-    let started = Instant::now();
+    let started = now();
     let (phase, set_phase) = create_signal(0.0_f32);
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::ProgressIndicator);
@@ -58,7 +58,7 @@ pub fn Spinner(
         if !placed.get_untracked() {
             return None;
         }
-        set_phase.set((started.elapsed().as_secs_f32() / PERIOD).fract());
+        set_phase.set((now().saturating_duration_since(started).as_secs_f32() / PERIOD).fract());
         Some(FRAME)
     }));
     create_effect(move || match placed.get() {

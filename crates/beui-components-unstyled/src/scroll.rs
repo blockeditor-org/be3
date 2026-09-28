@@ -83,7 +83,7 @@ impl Momentum {
             dragging: false,
             velocity: 0.0,
             autoscroll: 0.0,
-            stepped: Instant::now(),
+            stepped: beui_core::timer::now(),
         }
     }
 
@@ -257,7 +257,7 @@ impl Motion {
             return;
         };
         if !animation.running() {
-            momentum.stepped = Instant::now();
+            momentum.stepped = beui_core::timer::now();
         }
         animation.start(Duration::ZERO);
     }
@@ -307,7 +307,7 @@ impl Motion {
         }
         let steered = with_document(|document| document.take_offset_steered(self.node));
         let mut momentum = self.momentum.borrow_mut();
-        let now = Instant::now();
+        let now = beui_core::timer::now();
         let elapsed = now.duration_since(momentum.stepped).as_secs_f32();
         momentum.stepped = now;
         if steered {

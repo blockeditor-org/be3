@@ -14,7 +14,7 @@ use beui_core::geometry::{Rect, Vec2};
 use beui_core::node::NodeId;
 
 pub use beui_core::callback::{Callback, ClickCallback, NodeRef};
-pub use beui_core::timer::{Timer, create_timer};
+pub use beui_core::timer::{Timer, create_timer, now};
 
 pub use beui_core::current::enter;
 pub use beui_core::current::{try_with_document, with_document, with_reactive_scope};

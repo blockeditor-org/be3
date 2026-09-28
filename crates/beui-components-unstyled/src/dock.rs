@@ -5,7 +5,7 @@ mod tests;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
@@ -1568,7 +1568,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
             };
             let banding = with_document(|document| document.rubber_banding());
             let mut origin = window.min;
-            if !band.step(Instant::now(), &mut origin, limit, banding) {
+            if !band.step(beui_core::timer::now(), &mut origin, limit, banding) {
                 return None;
             }
             if origin != window.min {
@@ -1691,7 +1691,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                 let origin = reachable_origin(placed, bounds, reach());
                                 let banding = with_document(|document| document.rubber_banding());
                                 let mut band = stretched.borrow_mut();
-                                band.stretch(origin, placed.min - origin, bounds, banding, Instant::now());
+                                band.stretch(origin, placed.min - origin, bounds, banding, beui_core::timer::now());
                                 set_stretch.set(band.offset);
                                 moved.edit(|state| {
                                     state.set_window_rect(
@@ -1704,7 +1704,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                 if active {
                                     return;
                                 }
-                                released.borrow_mut().release(Instant::now());
+                                released.borrow_mut().release(beui_core::timer::now());
                                 bounce.start(Duration::ZERO);
                             }}
                         >
