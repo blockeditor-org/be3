@@ -5,8 +5,9 @@ use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{MenuItem, SelectableState, copy_selection, select_all};
 use beui_core::base::ItemSize;
+use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Child, Prop, clone, create_memo, set_component_state};
+use beui_view::reactive::{Child, Prop, clone, create_memo, create_signal, set_component_state};
 
 #[component]
 pub fn SelectableText(
@@ -17,10 +18,16 @@ pub fn SelectableText(
     let state = SelectableState::default();
     set_component_state(state.clone());
     let color = create_memo(clone!(theme -> move || theme.accent_soft.get()));
+    let handle_color = create_memo(clone!(theme -> move || theme.accent.get()));
+    let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
+    let close_menu = set_menu_at.clone();
     let chosen = state.clone();
     view! {
         <ContextMenu
             child_size
+            open_at={menu_at}
+            open_at_focuses=false
+            on_close={move || close_menu.set(None)}
             items={view! {
                 <MenuItem label="Copy" />
                 <MenuItem label="Select All" />
@@ -31,7 +38,14 @@ pub fn SelectableText(
                 _ => {}
             }}
         >
-            <unstyled::Selectable state color>{children}</unstyled::Selectable>
+            <unstyled::Selectable
+                state
+                color
+                handle_color
+                on_menu={move |at: Pos2| set_menu_at.set(Some(at))}
+            >
+                {children}
+            </unstyled::Selectable>
         </ContextMenu>
     }
 }

@@ -15,7 +15,7 @@ use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId, Rects};
 use crate::rich::{
-    RichLayout, RichOptions, SpanStyle, TextCaret, TextMark, TextSpan, handle_shapes,
+    CaretHandle, RichLayout, RichOptions, SpanStyle, TextCaret, TextMark, TextSpan, handle_shapes,
 };
 
 const UNDERLINE_OFFSET: f32 = 0.1;
@@ -78,6 +78,7 @@ pub struct TextNode {
     underline: bool,
     ellipsis: bool,
     selection: Option<(Range<usize>, Color32)>,
+    handles: Vec<(usize, CaretHandle, Color32)>,
     rich: Option<Box<Rich>>,
     items: ChildList<NodeId>,
     placed: Rc<RefCell<Option<Placed>>>,
@@ -428,6 +429,15 @@ impl Element for TextNode {
             }
         }
         clipped.galley(placed.origin, placed.galley.clone(), self.color);
+        if !self.handles.is_empty() {
+            let top = painter.on_top();
+            for (index, handle, color) in &self.handles {
+                let caret = plain_caret_rect(&placed.galley, placed.origin, *index);
+                for (shape, radius) in handle_shapes(caret, *handle) {
+                    top.rect_filled(shape, radius, *color);
+                }
+            }
+        }
         if self.underline {
             for line in self.underline_rects(&placed.galley, placed.origin) {
                 clipped.rect_filled(line, 0.0, self.color);
@@ -492,6 +502,7 @@ impl Document {
             underline: false,
             ellipsis: false,
             selection: None,
+            handles: Vec::new(),
             rich: None,
             items: ChildList::default(),
             placed: Rc::new(RefCell::new(None)),
@@ -572,6 +583,16 @@ impl Document {
     pub fn set_text_clip(&mut self, text: NodeId, clip: bool) {
         if self.arena.get_as::<TextNode>(text).clip != clip {
             self.arena.paint_mut_as::<TextNode>(text).clip = clip;
+        }
+    }
+
+    pub fn set_text_selection_handles(
+        &mut self,
+        text: NodeId,
+        handles: Vec<(usize, CaretHandle, Color32)>,
+    ) {
+        if self.arena.get_as::<TextNode>(text).handles != handles {
+            self.arena.paint_mut_as::<TextNode>(text).handles = handles;
         }
     }
 
@@ -739,7 +760,19 @@ impl Document {
     }
 
     pub fn text_caret_rect(&self, text: NodeId, index: usize, width: f32) -> Option<Rect> {
-        self.text_geometry(text).caret_rect(index, width)
+        if let Some(rect) = self.text_geometry(text).caret_rect(index, width) {
+            return Some(rect);
+        }
+        let rect = self.node_rect(text)?;
+        let node = self.arena.get_as::<TextNode>(text);
+        let placed = node.placed.borrow();
+        let placed = placed.as_ref()?;
+        let origin = rect.min + (placed.origin - placed.rect.min);
+        let caret = plain_caret_rect(&placed.galley, origin, index);
+        Some(Rect::from_min_size(
+            caret.min,
+            Vec2::new(width, caret.height()),
+        ))
     }
 
     pub fn text_index_at(&self, text: NodeId, pos: Pos2) -> Option<usize> {
@@ -750,8 +783,8 @@ impl Document {
         let node = self.arena.get_as::<TextNode>(text);
         let placed = node.placed.borrow();
         let placed = placed.as_ref()?;
-        let local = pos - rect.min.to_vec2();
-        let index = placed.galley.cursor_at(placed.origin, local);
+        let origin = rect.min + (placed.origin - placed.rect.min);
+        let index = placed.galley.cursor_at(origin, pos);
         Some(index.min(node.content.len()))
     }
 
@@ -817,4 +850,9 @@ impl TextGeometry {
         let (shift, layout) = self.placement()?;
         layout.inline_at(pos - shift)
     }
+}
+
+fn plain_caret_rect(galley: &Galley, origin: Pos2, index: usize) -> Rect {
+    let top = galley.cursor_pos(origin, index.min(galley.text().len()));
+    Rect::from_min_size(top, Vec2::new(0.0, galley.line_height()))
 }
