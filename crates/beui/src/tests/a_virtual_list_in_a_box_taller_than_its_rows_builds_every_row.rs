@@ -16,7 +16,11 @@ fn a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row() {
                     <Offset @sizing=ItemSize::Percent(100.0)>
                         <Frame min_height={VIEWPORT.y}>
                             <List spacing=0.0>
-                                <VirtualList @node_ref=&list keys={indices(ROWS)} item_size=ESTIMATE>
+                                <VirtualList
+                                    @node_ref=&list
+                                    keys={indices(ROWS)}
+                                    item_size=ESTIMATE
+                                >
                                     {move |_: usize| view! {
                                         <Frame height=ACTUAL>
                                             <Spacer />

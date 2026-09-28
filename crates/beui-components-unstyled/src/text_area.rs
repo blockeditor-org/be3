@@ -19,25 +19,24 @@ use text_editor_core::{
 use beui_macros::{component, view};
 
 use crate::{Edge, Floating, Scroll};
+use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::text::TextGeometry;
 use beui_core::base::{ImeCursor, ItemSize, ScrollPosition};
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::font::{FontId, TextAlign};
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::icons::{ICON_CHECK, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT};
-use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
-use beui_view::components::overlay::Overlay;
-use beui_core::base::text::TextGeometry;
 use beui_core::node::{NodeId, Rects};
 use beui_core::rich::{CaretHandle, TextCaret, TextMark, handle_center};
+use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, Canvas, CanvasItem, Child, ClickCallback, ClickCatcher, Focusable, ForEach, Frame,
     List, Memo, NodeRef, Portal, Prop, ReadSignal, Render, RenderFn, Show, Text, TextItem,
     VirtualList, WriteSignal, clone, component_accessibility, component_rect, component_size,
     create_effect, create_memo, create_signal, create_timer, in_new_scope, on_cleanup,
-    try_with_document,
-    pixels_per_point, set_component_state, untrack, with_document,
+    pixels_per_point, set_component_state, try_with_document, untrack, with_document,
 };
 
 use rows::{
@@ -257,7 +256,8 @@ impl Surface {
         let list = self.list.try_get()?;
         let canvas = self.canvas_rect()?;
         let rect = self.rects.get(&list)?;
-        let offset = try_with_document(|document| document.virtual_list_offset::<usize>(list, &line))??;
+        let offset =
+            try_with_document(|document| document.virtual_list_offset::<usize>(list, &line))??;
         Some(rect.min.y - canvas.min.y + offset)
     }
 
@@ -430,7 +430,10 @@ impl Surface {
         };
         let (anchor, focus) = {
             let core = self.state.core();
-            (core.position(query.range.start), core.position(query.range.end))
+            (
+                core.position(query.range.start),
+                core.position(query.range.end),
+            )
         };
         self.state
             .execute(EditorCommand::SetSelection { anchor, focus });
@@ -536,10 +539,8 @@ impl Surface {
             return true;
         };
         match self.single_line {
-            true => {
-                (viewport.min.x - HANDLE_SLACK..=viewport.max.x + HANDLE_SLACK)
-                    .contains(&caret.min.x)
-            }
+            true => (viewport.min.x - HANDLE_SLACK..=viewport.max.x + HANDLE_SLACK)
+                .contains(&caret.min.x),
             false => caret.max.y > viewport.min.y && caret.min.y < viewport.max.y,
         }
     }
@@ -745,8 +746,8 @@ fn tap(cx: &Context, press: PointerPress) {
 }
 
 fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
-    match cx.inline_at(pos) {
-        Some((_, item)) => match item.inline {
+    if let Some((_, item)) = cx.inline_at(pos) {
+        match item.inline {
             Inline::Checkbox { line_start, .. } => {
                 let position = cx.state.core().position(line_start);
                 cx.state
@@ -772,8 +773,7 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
                 cx.state.set_selecting(false);
                 return;
             }
-        },
-        None => {}
+        }
     }
     let Some(target) = cx.hit(pos) else {
         return;
@@ -1078,7 +1078,11 @@ pub fn TextArea(
             None => set_dismissed.set(None),
         }
     }));
-    let anchor = in_new_scope(|| view! { <Frame width=CARET_WIDTH /> });
+    let anchor = in_new_scope(|| {
+        view! {
+            <Frame width=CARET_WIDTH />
+        }
+    });
     on_cleanup(move || {
         beui_core::current::try_with_document(|document| document.remove_node(anchor));
     });
@@ -1146,7 +1150,7 @@ pub fn TextArea(
         }));
     }
 
-    let ime_cursor = create_memo(clone!(state focused font_size -> move || {
+    let ime_cursor = create_memo(clone!(state focused -> move || {
         state.cursors().get();
         if !focused.get() {
             return None;
@@ -1155,7 +1159,6 @@ pub fn TextArea(
             node: anchor,
             rect: None,
         })
-        .filter(|_| font_size.get() > 0.0)
     }));
 
     let focus_requests = state.focus_requests();
@@ -1225,8 +1228,12 @@ pub fn TextArea(
     let gutter_color = create_memo(clone!(colors -> move || colors.get().gutter));
     let border_color = create_memo(clone!(colors -> move || colors.get().gutter_border));
     let border_x = create_memo(clone!(gutter -> move || gutter.get() - 1.0));
-    let (strip_height, border_height, area_width, area_height) =
-        (height.clone(), height.clone(), width.clone(), height.clone());
+    let (strip_height, border_height, area_width, area_height) = (
+        height.clone(),
+        height.clone(),
+        width.clone(),
+        height.clone(),
+    );
     let has_menu = completion_menu.is_some();
     let menu = create_memo(clone!(completing -> move || has_menu && completing.get()));
     let menu_cx = cx.clone();
@@ -1267,7 +1274,9 @@ pub fn TextArea(
                             .clone()
                             .expect("a completion menu is only shown when the area was given one");
                         let cx = menu_cx.clone();
-                        view! { <Completions cx render /> }
+                        view! {
+                            <Completions cx render />
+                        }
                     }}
                 </Show>
             </List>
@@ -1401,7 +1410,9 @@ fn Editing(field: Field) -> NodeId {
             >
                 {{
                     match single_line {
-                        false => view! { <Lines cx={body_cx} /> },
+                        false => view! {
+                            <Lines cx={body_cx} />
+                        },
                         true => {
                             let field = view! {
                                 <FieldFrame
@@ -1431,14 +1442,17 @@ fn Lines(cx: Context) -> NodeId {
     let list = cx.list.clone();
     let keys = cx.visible.clone();
     let top = create_memo(clone!(cx -> move || Some(cx.padding.get().y)));
-    let bottom = create_memo(clone!(cx -> move || Some((DOCUMENT_PADDING.y - cx.padding.get().y).max(0.0))));
+    let bottom =
+        create_memo(clone!(cx -> move || Some((DOCUMENT_PADDING.y - cx.padding.get().y).max(0.0))));
     let estimate = cx.row_estimate();
     view! {
         <Frame @node_ref=&canvas min_height={fill}>
             <List spacing=0.0>
                 <Frame height={top} />
                 <VirtualList @node_ref=&list keys item_size=estimate>
-                    {move |line: usize| view! { <AreaRow cx={cx.clone()} line /> }}
+                    {move |line: usize| view! {
+                        <AreaRow cx={cx.clone()} line />
+                    }}
                 </VirtualList>
                 <Frame height={bottom} />
             </List>
@@ -1462,7 +1476,8 @@ fn SingleLine(cx: Context) -> NodeId {
     let canvas_width = create_memo(clone!(cx text -> move || {
         text.get().x + cx.padding.get().x * 2.0 + CARET_WIDTH
     }));
-    let canvas_height = create_memo(clone!(cx text -> move || text.get().y + cx.padding.get().y * 2.0));
+    let canvas_height =
+        create_memo(clone!(cx text -> move || text.get().y + cx.padding.get().y * 2.0));
     let x = create_memo(clone!(cx -> move || cx.padding.get().x - cx.shift.get()));
     let y = create_memo(clone!(cx text -> move || {
         let padding = cx.padding.get();
@@ -1478,7 +1493,12 @@ fn SingleLine(cx: Context) -> NodeId {
     let (text_cx, text_model) = (cx.clone(), model.clone());
     view! {
         <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height}>
-            <CanvasItem x={x.clone()} y={y.clone()} width={text_width.clone()} height={text_height.clone()}>
+            <CanvasItem
+                x={x.clone()}
+                y={y.clone()}
+                width={text_width.clone()}
+                height={text_height.clone()}
+            >
                 <AreaText cx={text_cx} model={text_model} />
             </CanvasItem>
             <CanvasItem x y width={text_width} height={text_height} clip=false>
@@ -1608,7 +1628,8 @@ fn row_model(cx: &Context, line: usize) -> Memo<Rc<Row>> {
         };
         let selection = cx.state.selection_ranges();
         Rc::new(cx.state.with_snapshot(|snapshot| {
-            let (start, end, newline) = line_range(&snapshot.bytes, &starts, line).unwrap_or((0, 0, false));
+            let (start, end, newline) =
+                line_range(&snapshot.bytes, &starts, line).unwrap_or((0, 0, false));
             let spacers = tables.get(&start).map_or(&[][..], Vec::as_slice);
             let placeholder = (snapshot.bytes.is_empty() && !placeholder.is_empty() && line == 0)
                 .then_some(placeholder.as_str());
@@ -1808,17 +1829,23 @@ fn RowText(
 #[component]
 fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
     let item = create_memo(clone!(model -> move || model.get().inline.get(index).cloned()));
-    let checkbox = create_memo(clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Checkbox { .. }))));
+    let checkbox = create_memo(
+        clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Checkbox { .. }))),
+    );
     let widget = create_memo(clone!(checkbox -> move || !checkbox.get()));
     let (checkbox_cx, widget_cx) = (cx.clone(), cx);
     let (checkbox_item, widget_item) = (item.clone(), item);
     view! {
         <List spacing=0.0>
             <Show condition={checkbox}>
-                {move || view! { <CheckboxBox cx={checkbox_cx.clone()} item={checkbox_item.clone()} /> }}
+                {move || view! {
+                    <CheckboxBox cx={checkbox_cx.clone()} item={checkbox_item.clone()} />
+                }}
             </Show>
             <Show condition={widget}>
-                {move || view! { <WidgetPill cx={widget_cx.clone()} item={widget_item.clone()} /> }}
+                {move || view! {
+                    <WidgetPill cx={widget_cx.clone()} item={widget_item.clone()} />
+                }}
             </Show>
         </List>
     }
@@ -1826,7 +1853,9 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
 
 #[component]
 fn CheckboxBox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
-    let checked = create_memo(clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Checkbox { checked: true, .. }))));
+    let checked = create_memo(
+        clone!(item -> move || matches!(item.get().map(|item| item.inline), Some(Inline::Checkbox { checked: true, .. }))),
+    );
     let fill = create_memo(clone!(cx checked -> move || match checked.get() {
         true => cx.colors.get().widget,
         false => Color32::TRANSPARENT,
@@ -1863,10 +1892,12 @@ fn CheckboxBox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 
 #[component]
 fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
-    let index = create_memo(clone!(item -> move || match item.get().map(|item| item.inline) {
-        Some(Inline::Widget(index)) => Some(index),
-        _ => None,
-    }));
+    let index = create_memo(
+        clone!(item -> move || match item.get().map(|item| item.inline) {
+            Some(Inline::Widget(index)) => Some(index),
+            _ => None,
+        }),
+    );
     let widget = create_memo(clone!(cx index -> move || {
         let index = index.get()?;
         cx.widgets.get().get(index).cloned()
@@ -1878,15 +1909,27 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             false => colors.widget,
         }
     }));
-    let width = create_memo(clone!(item -> move || Some(item.get().map_or(0.0, |item| item.size.x))));
-    let icon = create_memo(clone!(widget -> move || widget.get().and_then(|widget| widget.icon).unwrap_or("").to_owned()));
+    let width =
+        create_memo(clone!(item -> move || Some(item.get().map_or(0.0, |item| item.size.x))));
+    let icon = create_memo(
+        clone!(widget -> move || widget.get().and_then(|widget| widget.icon).unwrap_or("").to_owned()),
+    );
     let has_icon = create_memo(clone!(icon -> move || !icon.get().is_empty()));
-    let label = create_memo(clone!(item -> move || item.get().map(|item| item.label).unwrap_or_default()));
-    let color = create_memo(clone!(item -> move || item.get().map_or(Color32::WHITE, |item| item.style.color)));
-    let font_size = create_memo(clone!(item -> move || item.get().map_or(BODY_SIZE, |item| item.style.font.size)));
-    let bold = create_memo(clone!(item -> move || item.get().is_some_and(|item| item.style.font.bold)));
-    let italic = create_memo(clone!(item -> move || item.get().is_some_and(|item| item.style.font.italic)));
-    let monospace = create_memo(clone!(item -> move || item.get().is_some_and(|item| item.style.font.family == beui_core::font::FontFamily::Monospace)));
+    let label =
+        create_memo(clone!(item -> move || item.get().map(|item| item.label).unwrap_or_default()));
+    let color = create_memo(
+        clone!(item -> move || item.get().map_or(Color32::WHITE, |item| item.style.color)),
+    );
+    let font_size = create_memo(
+        clone!(item -> move || item.get().map_or(BODY_SIZE, |item| item.style.font.size)),
+    );
+    let bold =
+        create_memo(clone!(item -> move || item.get().is_some_and(|item| item.style.font.bold)));
+    let italic =
+        create_memo(clone!(item -> move || item.get().is_some_and(|item| item.style.font.italic)));
+    let monospace = create_memo(
+        clone!(item -> move || item.get().is_some_and(|item| item.style.font.family == beui_core::font::FontFamily::Monospace)),
+    );
     let selected = create_memo(clone!(cx index -> move || {
         cx.state.cursors().get();
         let Some(index) = index.get() else {
@@ -1914,7 +1957,13 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
                 <Show condition={has_icon}>
                     {move || view! {
                         <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
-                            <Text string={icon.clone()} icon=true font_size=16.0 color={Color32::WHITE} align=TextAlign::Center />
+                            <Text
+                                string={icon.clone()}
+                                icon=true
+                                font_size=16.0
+                                color={Color32::WHITE}
+                                align=TextAlign::Center
+                            />
                         </Frame>
                     }}
                 </Show>
@@ -1935,7 +1984,9 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
                             .clone()
                             .expect("a widget only offers a popup when the area was given one");
                         let index = popup_index.get_untracked().unwrap_or_default();
-                        view! { <WidgetPopup anchor render index /> }
+                        view! {
+                            <WidgetPopup anchor render index />
+                        }
                     }}
                 </Show>
             </List>
@@ -1947,9 +1998,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 fn WidgetPopup(anchor: NodeRef, render: RenderFn<usize>, index: usize) -> NodeId {
     let content = render.call(index);
     view! {
-        <Floating anchor edge=Edge::Bottom>
-            {content}
-        </Floating>
+        <Floating anchor edge=Edge::Bottom>{content}</Floating>
     }
 }
 
@@ -1957,9 +2006,7 @@ fn WidgetPopup(anchor: NodeRef, render: RenderFn<usize>, index: usize) -> NodeId
 fn BlockSlot(render: RenderFn<usize>, index: usize, size: Vec2) -> NodeId {
     let content = render.call(index);
     view! {
-        <Frame width={size.x} height={size.y}>
-            {content}
-        </Frame>
+        <Frame width={size.x} height={size.y}>{content}</Frame>
     }
 }
 
@@ -1987,7 +2034,13 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
         <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
             <Frame width=GUTTER_PADDING_LEFT />
             <Frame width=GUTTER_ARROW_SIZE height={height.clone()}>
-                <Text string={arrow} icon=true font_size=GUTTER_ARROW_SIZE color={arrow_color} align=TextAlign::Center />
+                <Text
+                    string={arrow}
+                    icon=true
+                    font_size=GUTTER_ARROW_SIZE
+                    color={arrow_color}
+                    align=TextAlign::Center
+                />
             </Frame>
             <Frame @sizing=ItemSize::Percent(100.0) height={height}>
                 <Text
@@ -2044,7 +2097,10 @@ pub fn text_area_handles(document: &Document, area: NodeId) -> Vec<Pos2> {
             let caret = entry
                 .text()?
                 .caret_rect(entry.row().to_display(byte), CARET_WIDTH)?;
-            let viewport = cx.viewport.try_get().and_then(|node| document.node_rect(node));
+            let viewport = cx
+                .viewport
+                .try_get()
+                .and_then(|node| document.node_rect(node));
             let shown = viewport.is_none_or(|viewport| match cx.single_line {
                 true => (viewport.min.x - HANDLE_SLACK..=viewport.max.x + HANDLE_SLACK)
                     .contains(&caret.min.x),
@@ -2068,7 +2124,13 @@ fn FieldFrame(color: Memo<Color32>, report: WriteSignal<Rect>, children: Child) 
 fn hover_cursor(cx: &Context, pos: Pos2) -> CursorIcon {
     let pointing = matches!(
         cx.inline_at(pos),
-        Some((_, InlineItem { inline: Inline::Checkbox { .. }, .. }))
+        Some((
+            _,
+            InlineItem {
+                inline: Inline::Checkbox { .. },
+                ..
+            }
+        ))
     ) || cx.gutter_arrow_at(pos).is_some();
     match pointing {
         true => CursorIcon::PointingHand,

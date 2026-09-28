@@ -176,8 +176,20 @@ impl TextNode {
         });
     }
 
-    fn paint_rich(&self, doc: &Document, painter: &Painter, rects: &Rects, rich: &Rich, rect: Rect) {
-        let Some(placed) = self.placed.borrow().clone().filter(|placed| placed.rect == rect) else {
+    fn paint_rich(
+        &self,
+        doc: &Document,
+        painter: &Painter,
+        rects: &Rects,
+        rich: &Rich,
+        rect: Rect,
+    ) {
+        let Some(placed) = self
+            .placed
+            .borrow()
+            .clone()
+            .filter(|placed| placed.rect == rect)
+        else {
             return;
         };
         let Some(layout) = placed.rich else {
@@ -594,7 +606,11 @@ impl Document {
 
     pub fn set_text_line_padding(&mut self, text: NodeId, padding: (f32, f32)) {
         let node = self.arena.get_as::<TextNode>(text);
-        if node.rich.as_ref().is_some_and(|rich| rich.padding == padding) {
+        if node
+            .rich
+            .as_ref()
+            .is_some_and(|rich| rich.padding == padding)
+        {
             return;
         }
         self.text_rich(text).padding = padding;
@@ -602,7 +618,11 @@ impl Document {
 
     pub fn set_text_marks(&mut self, text: NodeId, marks: Vec<TextMark>) {
         let node = self.arena.get_as::<TextNode>(text);
-        if node.rich.as_ref().map_or(marks.is_empty(), |rich| rich.marks == marks) {
+        if node
+            .rich
+            .as_ref()
+            .map_or(marks.is_empty(), |rich| rich.marks == marks)
+        {
             return;
         }
         self.arena
@@ -614,7 +634,11 @@ impl Document {
 
     pub fn set_text_carets(&mut self, text: NodeId, carets: Vec<TextCaret>) {
         let node = self.arena.get_as::<TextNode>(text);
-        if node.rich.as_ref().map_or(carets.is_empty(), |rich| rich.carets == carets) {
+        if node
+            .rich
+            .as_ref()
+            .map_or(carets.is_empty(), |rich| rich.carets == carets)
+        {
             return;
         }
         let rich = self

@@ -37,12 +37,15 @@ mod native {
         static SYSTEM: RefCell<Option<beui::SystemFonts>> = const { RefCell::new(None) };
     }
 
-    #[derive(Default)]
     pub(in crate::plugin_host) struct Fallbacks {
         sent: Vec<(PathBuf, u32)>,
     }
 
     impl Fallbacks {
+        pub(in crate::plugin_host) fn new() -> Self {
+            Self { sent: Vec::new() }
+        }
+
         pub(in crate::plugin_host) fn answer(&mut self, missing: &[char]) -> Option<Fonts> {
             let mut faces = Vec::new();
             for character in missing {
@@ -52,7 +55,10 @@ mod native {
                         .get_or_insert_with(beui::SystemFonts::new)
                         .candidates(*character)
                 });
-                if candidates.iter().any(|candidate| self.sent.contains(candidate)) {
+                if candidates
+                    .iter()
+                    .any(|candidate| self.sent.contains(candidate))
+                {
                     continue;
                 }
                 let Some((path, index)) = candidates.into_iter().next() else {
@@ -77,11 +83,14 @@ mod native {
 }
 
 #[cfg(target_arch = "wasm32")]
-#[derive(Default)]
 pub(super) struct Fallbacks;
 
 #[cfg(target_arch = "wasm32")]
 impl Fallbacks {
+    pub(super) fn new() -> Self {
+        Self
+    }
+
     pub(super) fn answer(&mut self, _missing: &[char]) -> Option<Fonts> {
         None
     }

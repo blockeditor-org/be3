@@ -41,5 +41,8 @@ fn a_colon_in_a_text_area_offers_emoji_that_enter_inserts() {
         "I am \u{1f680}",
         "Enter replaces the colon and what was typed after it with the emoji"
     );
-    assert!(!offered(&harness), "the menu closes once an emoji is picked");
+    assert!(
+        !offered(&harness),
+        "the menu closes once an emoji is picked"
+    );
 }

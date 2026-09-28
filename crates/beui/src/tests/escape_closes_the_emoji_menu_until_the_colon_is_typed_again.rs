@@ -32,7 +32,10 @@ fn escape_closes_the_emoji_menu_until_the_colon_is_typed_again() {
     assert!(!offered(&harness), "Escape closes the menu");
     harness.type_text("r");
     harness.frame(Vec::new());
-    assert!(!offered(&harness), "typing on after Escape leaves it closed");
+    assert!(
+        !offered(&harness),
+        "typing on after Escape leaves it closed"
+    );
 
     harness.key(Key::Enter, Modifiers::NONE);
     harness.type_text("10:30 and :");

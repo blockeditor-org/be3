@@ -11,7 +11,15 @@ fn fonts_added_later_redraw_the_text_that_was_missing_them() {
 
     let generation = library.generation();
     library.replace(FontSources::bundled());
-    assert_ne!(library.generation(), generation, "new fonts start a new generation");
+    assert_ne!(
+        library.generation(),
+        generation,
+        "new fonts start a new generation"
+    );
     let after = fonts.layout("Aa", FontId::proportional(14.0), TextLayout::DEFAULT, 1.0);
-    assert_eq!(after.glyphs().len(), 2, "the same text is laid out again with the new fonts");
+    assert_eq!(
+        after.glyphs().len(),
+        2,
+        "the same text is laid out again with the new fonts"
+    );
 }

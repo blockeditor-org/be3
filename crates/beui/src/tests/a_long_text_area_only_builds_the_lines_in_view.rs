@@ -45,7 +45,10 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
     let state = held.borrow().clone().expect("the text area was built");
     let root = harness.document().root().expect("the document has a root");
     let built = built_lines(harness.document(), root).expect("the lines are a virtual list");
-    assert!(built < SHOWN, "only the lines in view are built, not {built}");
+    assert!(
+        built < SHOWN,
+        "only the lines in view are built, not {built}"
+    );
 
     harness.click(pos2(250.0, 20.0));
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
@@ -74,5 +77,8 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
         "jumping to the end scrolls the last line into view: {rect:?} in {visible:?}"
     );
     let built = built_lines(harness.document(), root).expect("the lines are a virtual list");
-    assert!(built < SHOWN, "scrolling keeps building only what is in view, not {built}");
+    assert!(
+        built < SHOWN,
+        "scrolling keeps building only what is in view, not {built}"
+    );
 }

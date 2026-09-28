@@ -95,7 +95,9 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
 fn EmbedFrame(state: Shared, widget: usize) -> NodeId {
     let embed = state.embeds.get_untracked().get(widget).cloned();
     let Some(embed) = embed else {
-        return view! { <Frame /> };
+        return view! {
+            <Frame />
+        };
     };
     view! {
         <LargeEmbed state={state} embed={embed} />

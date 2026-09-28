@@ -68,11 +68,7 @@ pub fn fallback() -> impl FnMut(char) -> Option<FontData> {
     move |character| fonts.lookup(character)
 }
 
-fn face_covering(
-    library: ft::FT_Library,
-    path: &Path,
-    character: char,
-) -> Option<(PathBuf, u32)> {
+fn face_covering(library: ft::FT_Library, path: &Path, character: char) -> Option<(PathBuf, u32)> {
     let name = std::ffi::CString::new(path.to_str()?).ok()?;
     let mut index = 0;
     loop {
@@ -107,7 +103,8 @@ fn font_directories() -> Vec<PathBuf> {
         directories.push(PathBuf::from("/System/Library/Fonts"));
         directories.push(PathBuf::from("/Library/Fonts"));
     } else if cfg!(target_os = "windows") {
-        let root = std::env::var_os("WINDIR").map_or_else(|| PathBuf::from("C:\\Windows"), PathBuf::from);
+        let root =
+            std::env::var_os("WINDIR").map_or_else(|| PathBuf::from("C:\\Windows"), PathBuf::from);
         directories.push(root.join("Fonts"));
     } else {
         directories.push(PathBuf::from("/usr/share/fonts"));
@@ -228,12 +225,20 @@ mod fontconfig {
                 let set_destroy: Symbol<unsafe extern "C" fn(*mut FontSet)> =
                     library.get(b"FcFontSetDestroy\0").ok()?;
                 let get_charset: Symbol<
-                    unsafe extern "C" fn(*const Pattern, *const c_char, c_int, *mut *mut CharSet)
-                        -> c_int,
+                    unsafe extern "C" fn(
+                        *const Pattern,
+                        *const c_char,
+                        c_int,
+                        *mut *mut CharSet,
+                    ) -> c_int,
                 > = library.get(b"FcPatternGetCharSet\0").ok()?;
                 let get_string: Symbol<
-                    unsafe extern "C" fn(*const Pattern, *const c_char, c_int, *mut *mut u8)
-                        -> c_int,
+                    unsafe extern "C" fn(
+                        *const Pattern,
+                        *const c_char,
+                        c_int,
+                        *mut *mut u8,
+                    ) -> c_int,
                 > = library.get(b"FcPatternGetString\0").ok()?;
                 let get_integer: Symbol<
                     unsafe extern "C" fn(*const Pattern, *const c_char, c_int, *mut c_int) -> c_int,

@@ -188,7 +188,7 @@ impl Runtime {
             requested_at: None,
             theme: theme(),
             fonts_sent: false,
-            fallbacks: super::fonts::Fallbacks::default(),
+            fallbacks: super::fonts::Fallbacks::new(),
             presents: Presents::default(),
         }
     }
@@ -214,7 +214,7 @@ impl Runtime {
         self.requested_at = None;
         self.theme = theme();
         self.fonts_sent = false;
-        self.fallbacks = super::fonts::Fallbacks::default();
+        self.fallbacks = super::fonts::Fallbacks::new();
         self.presents = Presents::default();
         self.instances.reopen();
         self.backend.start(&plugin);

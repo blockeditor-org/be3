@@ -32,11 +32,11 @@ pub use beui_core::node::{ClickHandler, Handler, NodeId};
 pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Painter, Shape};
 pub use beui_core::performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
+#[cfg(not(target_arch = "wasm32"))]
+pub use beui_font_freetype::system::SystemFonts;
 pub use beui_font_freetype::{
     FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT,
 };
-#[cfg(not(target_arch = "wasm32"))]
-pub use beui_font_freetype::system::SystemFonts;
 pub use beui_inspector::install as install_inspector;
 #[cfg(feature = "render")]
 pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice};

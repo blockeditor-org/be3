@@ -434,7 +434,9 @@ impl TextAreaState {
                 placeholder: None,
             };
             let row = build_row(&inputs, line, start, end, newline);
-            height += rich_layout(&row, options.body_size, options.padding(), wrap)?.size.y;
+            height += rich_layout(&row, options.body_size, options.padding(), wrap)?
+                .size
+                .y;
             height += row.block.map_or(0.0, |(_, size)| size.y);
         }
         Some(Vec2::new(width, height))

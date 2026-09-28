@@ -153,7 +153,10 @@ impl RichRun {
     fn x_of(&self, index: usize) -> f32 {
         match &self.galley {
             Some(galley) if index > self.range.start => {
-                self.x + galley.cursor_pos(pos2(0.0, 0.0), index - self.range.start).x
+                self.x
+                    + galley
+                        .cursor_pos(pos2(0.0, 0.0), index - self.range.start)
+                        .x
             }
             _ if index > self.range.start => self.x + self.width,
             _ => self.x,

@@ -715,8 +715,8 @@ impl Document {
         self.work.reset();
         let scale = ctx.pixels_per_point();
         let fonts_generation = ctx.fonts_generation();
-        let refonted = std::mem::replace(&mut self.fonts_generation, fonts_generation)
-            != fonts_generation;
+        let refonted =
+            std::mem::replace(&mut self.fonts_generation, fonts_generation) != fonts_generation;
         if refonted
             || self
                 .viewport

@@ -101,10 +101,14 @@ pub struct Row {
     pub line_height: f32,
     pub block: Option<(usize, Vec2)>,
     pub code: Vec<Range<usize>>,
+    pub placeholder: bool,
 }
 
 impl Row {
     pub fn to_display(&self, byte: usize) -> usize {
+        if self.placeholder {
+            return 0;
+        }
         for segment in &self.segments {
             if segment.source.is_empty() {
                 continue;
@@ -128,7 +132,9 @@ impl Row {
             .iter()
             .find(|segment| segment.display.contains(&display))
         {
-            Some(segment) if segment.mapped => segment.source.start + (display - segment.display.start),
+            Some(segment) if segment.mapped => {
+                segment.source.start + (display - segment.display.start)
+            }
             Some(segment) => {
                 let into = display - segment.display.start;
                 match into * 2 < segment.display.len() {
@@ -171,11 +177,7 @@ impl Row {
     }
 
     pub fn inline_sizes(&self) -> impl Fn(usize) -> Vec2 + '_ {
-        move |index| {
-            self.inline
-                .get(index)
-                .map_or(Vec2::ZERO, |item| item.size)
-        }
+        move |index| self.inline.get(index).map_or(Vec2::ZERO, |item| item.size)
     }
 }
 
@@ -243,7 +245,9 @@ pub fn line_range(bytes: &[u8], starts: &[usize], line: usize) -> Option<(usize,
 }
 
 pub fn line_of(starts: &[usize], byte: usize) -> usize {
-    starts.partition_point(|start| *start <= byte).saturating_sub(1)
+    starts
+        .partition_point(|start| *start <= byte)
+        .saturating_sub(1)
 }
 
 fn next_character(bytes: &[u8]) -> Option<(char, usize)> {
@@ -283,7 +287,14 @@ impl Builder<'_> {
         }
     }
 
-    fn push(&mut self, text: &str, source: Range<usize>, mapped: bool, style: SpanStyle, kind: SpanKind) {
+    fn push(
+        &mut self,
+        text: &str,
+        source: Range<usize>,
+        mapped: bool,
+        style: SpanStyle,
+        kind: SpanKind,
+    ) {
         self.push_breaking(text, source, mapped, style, kind, false);
     }
 
@@ -418,7 +429,10 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     };
     let body = SpanStyle::new(
         FontId::proportional(options.body_size),
-        inputs.colors.syntax.scope(SynHlColorScope::MarkdownPlainText),
+        inputs
+            .colors
+            .syntax
+            .scope(SynHlColorScope::MarkdownPlainText),
     );
     if let Some(placeholder) = inputs.placeholder {
         let style = SpanStyle {
@@ -426,6 +440,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             ..body
         };
         builder.push(placeholder, start..start, false, style, SpanKind::Text);
+        builder.row.placeholder = true;
         return finish(builder, body);
     }
     let trailing_from = bytes[start..end]
@@ -464,7 +479,12 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                 builder.row.block = Some((widget_index, widget.block_size.unwrap_or_default()));
             }
             let label = widget_label(widget);
-            builder.inline(Inline::Widget(widget_index), widget.range.clone(), base, label);
+            builder.inline(
+                Inline::Widget(widget_index),
+                widget.range.clone(),
+                base,
+                label,
+            );
             index = widget.range.end;
             continue;
         }
@@ -499,7 +519,10 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                     .checkboxes
                     .iter()
                     .any(|checkbox| checkbox.marker.start == stop)
-                || inputs.widgets.iter().any(|widget| widget.range.start == stop)
+                || inputs
+                    .widgets
+                    .iter()
+                    .any(|widget| widget.range.start == stop)
                 || style_at(stop) != style
                 || (invisibles && invisible_marker(bytes[stop]).is_some())
             {
@@ -607,10 +630,15 @@ pub fn rich_layout(
         style: SpanStyle::new(FontId::proportional(body_size), Color32::WHITE),
     };
     let sizes = row.inline_sizes();
-    let mut shaper = |text: &str, font: FontId| {
-        galley(text, font).unwrap_or_else(|| empty_galley(font))
-    };
-    Some(RichLayout::new(&row.display, &row.spans, &sizes, options, &mut shaper))
+    let mut shaper =
+        |text: &str, font: FontId| galley(text, font).unwrap_or_else(|| empty_galley(font));
+    Some(RichLayout::new(
+        &row.display,
+        &row.spans,
+        &sizes,
+        options,
+        &mut shaper,
+    ))
 }
 
 fn empty_galley(font: FontId) -> Galley {
@@ -652,8 +680,12 @@ pub fn table_spacers(inputs: &TableInputs) -> HashMap<usize, Vec<(usize, f32)>> 
                     end,
                     newline,
                 );
-                let layout =
-                    rich_layout(&row, inputs.options.body_size, (0.0, 0.0), inputs.wrap_width)?;
+                let layout = rich_layout(
+                    &row,
+                    inputs.options.body_size,
+                    (0.0, 0.0),
+                    inputs.wrap_width,
+                )?;
                 let first = layout.lines.first()?;
                 let cells: Vec<(Range<usize>, f32, f32)> = table_row
                     .cells
@@ -668,7 +700,11 @@ pub fn table_spacers(inputs: &TableInputs) -> HashMap<usize, Vec<(usize, f32)>> 
         if rows.is_empty() {
             continue;
         }
-        let columns = rows.iter().map(|(_, cells, _)| cells.len()).max().unwrap_or(0);
+        let columns = rows
+            .iter()
+            .map(|(_, cells, _)| cells.len())
+            .max()
+            .unwrap_or(0);
         let mut widths = vec![0.0_f32; columns];
         let mut gaps = vec![0.0_f32; columns.saturating_sub(1)];
         let mut prefix = 0.0_f32;

@@ -100,7 +100,9 @@ pub fn EmojiMenu(menu: CompletionMenu) -> NodeId {
                 <ForEach keys>
                     {move |index: usize| {
                         let menu = menu.clone();
-                        view! { <EmojiRow menu index /> }
+                        view! {
+                            <EmojiRow menu index />
+                        }
                     }}
                 </ForEach>
             </List>
@@ -118,8 +120,10 @@ fn EmojiRow(menu: CompletionMenu, index: usize) -> NodeId {
         highlight,
     } = menu;
     let item = create_memo(clone!(items -> move || items.get().get(index).cloned()));
-    let emoji = create_memo(clone!(item -> move || item.get().map(|item| item.insert).unwrap_or_default()));
-    let label = create_memo(clone!(item -> move || item.get().map(|item| item.label).unwrap_or_default()));
+    let emoji =
+        create_memo(clone!(item -> move || item.get().map(|item| item.insert).unwrap_or_default()));
+    let label =
+        create_memo(clone!(item -> move || item.get().map(|item| item.label).unwrap_or_default()));
     let fill = create_memo(clone!(theme -> move || match highlighted.get() == index {
         true => theme.accent_soft.get(),
         false => Color32::TRANSPARENT,
