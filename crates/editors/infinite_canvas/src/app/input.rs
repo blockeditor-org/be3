@@ -15,10 +15,6 @@ impl CanvasState {
             Tool::Line | Tool::Rectangle | Tool::Pen => CursorIcon::Crosshair,
             Tool::Text => CursorIcon::Text,
             Tool::Select => self.select_cursor(),
-            Tool::Hand => match self.select_cursor() {
-                CursorIcon::Default if self.pointer_over_nothing() => CursorIcon::Grab,
-                cursor => cursor,
-            },
         }
     }
 
@@ -48,13 +44,6 @@ impl CanvasState {
             },
             None => CursorIcon::Default,
         }
-    }
-
-    fn pointer_over_nothing(&self) -> bool {
-        self.pointer.get().is_some_and(|world| {
-            self.entity_at(world).is_none()
-                && selection_frame_of(self).is_none_or(|frame| !frame.contains(world))
-        })
     }
 
     pub(crate) fn hover(&self, at: Option<CanvasPoint>) {
@@ -101,7 +90,7 @@ impl CanvasState {
             }
         }
         if press.clicks >= 2
-            && matches!(self.tool.get_untracked(), Tool::Hand | Tool::Select)
+            && self.tool.get_untracked() == Tool::Select
             && let Some(id) = self.entity_at(world)
         {
             let entities = self.entities.get_untracked();
@@ -117,7 +106,7 @@ impl CanvasState {
             }
         }
         match self.tool.get_untracked() {
-            Tool::Hand | Tool::Select => self.press_select(press, world),
+            Tool::Select => self.press_select(press, world),
             Tool::Line | Tool::Rectangle | Tool::Text => {
                 self.begin_gesture(Some(Gesture::Create {
                     tool: self.tool.get_untracked(),
@@ -213,10 +202,6 @@ impl CanvasState {
             self.begin_move(world, press.modifiers.alt);
             return;
         }
-        if self.tool.get_untracked() == Tool::Hand && !press.modifiers.shift {
-            self.begin_pan(press.pos);
-            return;
-        }
         self.begin_gesture(Some(Gesture::SelectBox {
             start: world,
             current: world,
@@ -245,9 +230,6 @@ impl CanvasState {
 
     pub(crate) fn drag(&self, press: PointerPress) {
         if self.previewing() || !self.pointer_held() {
-            return;
-        }
-        if self.pan_to(press.pos) {
             return;
         }
         let world = self.world_at(press.pos);
@@ -333,7 +315,6 @@ impl CanvasState {
     }
 
     pub(crate) fn release(&self) {
-        self.end_pan();
         if self.touching() {
             self.hover(None);
         }
@@ -347,7 +328,6 @@ impl CanvasState {
     }
 
     pub(crate) fn cancel(&self) {
-        self.end_pan();
         self.begin_gesture(None);
     }
 
@@ -360,7 +340,7 @@ impl CanvasState {
                 self.focus_editor(None);
             } else {
                 self.begin_gesture(None);
-                self.set_tool(Tool::Hand);
+                self.set_tool(Tool::Select);
             }
             return true;
         }
@@ -370,7 +350,6 @@ impl CanvasState {
         let modifiers = press.modifiers;
         if !modifiers.ctrl && !modifiers.alt {
             let tool = match press.key {
-                Key::H => Some(Tool::Hand),
                 Key::V => Some(Tool::Select),
                 Key::R => Some(Tool::Rectangle),
                 Key::L => Some(Tool::Line),
@@ -430,7 +409,7 @@ impl CanvasState {
             return true;
         }
         if matches!(press.key, Key::Delete | Key::Backspace)
-            && matches!(self.tool.get_untracked(), Tool::Hand | Tool::Select)
+            && self.tool.get_untracked() == Tool::Select
             && !self.selection.get_untracked().is_empty()
         {
             self.run(CanvasCommand::Delete);
@@ -452,7 +431,7 @@ impl CanvasState {
                     placeholder: "Text".into(),
                 },
             )),
-            Tool::Hand | Tool::Select | Tool::Pen => None,
+            Tool::Select | Tool::Pen => None,
         };
         let Some((size, kind)) = entity else {
             self.set_tool(tool);

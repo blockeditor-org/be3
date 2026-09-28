@@ -87,7 +87,7 @@ impl Overlay {
                     };
                     painter.rect_stroke(self.camera.rect(bounds), 0.0, 2.0, color);
                 }
-                Tool::Hand | Tool::Select | Tool::Pen => {}
+                Tool::Select | Tool::Pen => {}
             },
             Some(Gesture::Pen { points }) => {
                 for window in points.windows(2) {
@@ -166,7 +166,7 @@ impl Overlay {
 
     fn draw_badge(&self, painter: &Painter) {
         let glyph = match self.tool {
-            Tool::Hand | Tool::Select => return,
+            Tool::Select => return,
             Tool::Line => block_editor_beui::beui::icons::ICON_DIAGONAL_LINE,
             Tool::Rectangle => block_editor_beui::beui::icons::ICON_RECTANGLE,
             Tool::Text => block_editor_beui::beui::icons::ICON_TEXT_FIELDS,

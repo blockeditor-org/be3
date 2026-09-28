@@ -3,7 +3,7 @@ use std::rc::Rc;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_DATA_OBJECT, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_KEYBOARD_ARROW_DOWN, ICON_MORE_HORIZ,
-    ICON_PAN_TOOL, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, Show, Spacer, clone,
@@ -19,8 +19,7 @@ use block_editor_beui::{Toolbar, narrow_chrome};
 
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
 
-const TOOLS: [(Tool, &str, &str); 6] = [
-    (Tool::Hand, ICON_PAN_TOOL, "Pan"),
+const TOOLS: [(Tool, &str, &str); 5] = [
     (Tool::Select, ICON_SELECT, "Select"),
     (Tool::Line, ICON_DIAGONAL_LINE, "Line"),
     (Tool::Rectangle, ICON_RECTANGLE, "Rectangle"),

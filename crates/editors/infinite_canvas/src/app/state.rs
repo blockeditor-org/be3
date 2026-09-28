@@ -79,7 +79,6 @@ pub(crate) fn common_value<T: Copy + PartialEq>(
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Tool {
-    Hand,
     Select,
     Line,
     Rectangle,
@@ -237,7 +236,6 @@ pub(crate) struct CanvasState {
     grouped_edit: Cell<bool>,
     pointer_down: Cell<bool>,
     touch: Cell<bool>,
-    panning: Cell<Option<Pos2>>,
     pub(crate) pointer: ReadSignal<Option<CanvasPoint>>,
     set_pointer: WriteSignal<Option<CanvasPoint>>,
     last_foreground: Cell<CanvasColor>,
@@ -282,7 +280,7 @@ impl CanvasState {
         let entities = content.project(|canvas| canvas.root().entities());
         let preview_region =
             content.project(|canvas| canvas.field(ObjectId::ROOT, Canvas::PREVIEW_REGION));
-        let (tool, set_tool) = create_signal(Tool::Hand);
+        let (tool, set_tool) = create_signal(Tool::Select);
         let (selection, set_selection) = create_signal(HashSet::new());
         let (gesture, set_gesture) = create_signal(None);
         let (typed, set_typed) = create_signal(None);
@@ -310,7 +308,6 @@ impl CanvasState {
             grouped_edit: Cell::new(false),
             pointer_down: Cell::new(false),
             touch: Cell::new(false),
-            panning: Cell::new(None),
             pointer,
             set_pointer,
             last_foreground: Cell::new(CanvasEntityStyle::default().foreground),
@@ -587,8 +584,8 @@ impl CanvasState {
     }
 
     pub(crate) fn put_down_tool(&self) {
-        if !matches!(self.tool.get_untracked(), Tool::Hand | Tool::Select) {
-            self.set_tool(Tool::Hand);
+        if self.tool.get_untracked() != Tool::Select {
+            self.set_tool(Tool::Select);
         }
     }
 
@@ -667,26 +664,6 @@ impl CanvasState {
 
     pub(crate) fn touching(&self) -> bool {
         self.touch.get()
-    }
-
-    pub(crate) fn begin_pan(&self, at: Pos2) {
-        self.begin_gesture(None);
-        self.panning.set(Some(at));
-    }
-
-    pub(crate) fn pan_to(&self, at: Pos2) -> bool {
-        let Some(from) = self.panning.get() else {
-            return false;
-        };
-        if at != from {
-            self.editor.pan(at - from);
-            self.panning.set(Some(at));
-        }
-        true
-    }
-
-    pub(crate) fn end_pan(&self) {
-        self.panning.set(None);
     }
 
     pub(crate) fn dismiss_import_error(&self) {
@@ -1692,7 +1669,7 @@ impl CanvasState {
                     components: Vec::new(),
                 })
             }
-            Tool::Line | Tool::Hand | Tool::Select | Tool::Pen => None,
+            Tool::Line | Tool::Select | Tool::Pen => None,
         }
     }
 }
