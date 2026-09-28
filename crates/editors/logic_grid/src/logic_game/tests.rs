@@ -26,7 +26,6 @@ fn editor_sized(size: Option<Vec2>) -> BeuiTest<LogicGameApp> {
     };
     editor.hold(None, LogicGameContent::default());
     editor.run();
-    editor.run();
     editor
 }
 

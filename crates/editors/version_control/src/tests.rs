@@ -26,9 +26,7 @@ fn editor<A: BeuiApp, C: LiveEdit>(content: C, status: VersionStatus) -> BeuiTes
     let mut editor = BeuiTest::new(editor);
     editor.hold(None, content);
     editor.set_version_status(status);
-    for _ in 0..3 {
-        editor.run();
-    }
+    editor.run();
     editor
 }
 

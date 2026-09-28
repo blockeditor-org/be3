@@ -25,7 +25,6 @@ fn editor() -> BeuiTest<LogicGridApp> {
     let mut editor = BeuiTest::new(editor);
     editor.hold(None, LogicGridContent::default());
     editor.run();
-    editor.run();
     editor
 }
 

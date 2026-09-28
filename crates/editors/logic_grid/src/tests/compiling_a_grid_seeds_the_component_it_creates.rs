@@ -11,7 +11,6 @@ fn compiling_a_grid_seeds_the_component_it_creates() {
     let point = canvas_point(&editor, Vec2::new(30.0, 30.0));
     editor.click_at(point);
     editor.run();
-    editor.run();
 
     editor.click("logic-grid.compile");
     editor.run();

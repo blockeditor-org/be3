@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::app::CounterApp;
 
+mod a_click_paints_its_count_in_the_frame_that_takes_it;
 mod an_edit_stays_on_screen_until_the_host_takes_it;
 mod clicking_the_plus_button_counts_up_on_the_block;
 mod resetting_puts_the_block_back_to_zero;

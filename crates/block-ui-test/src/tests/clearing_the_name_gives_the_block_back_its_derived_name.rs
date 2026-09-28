@@ -17,7 +17,6 @@ fn clearing_the_name_gives_the_block_back_its_derived_name() {
     test.key_press(Key::Backspace);
     test.key_press(Key::Enter);
     test.run();
-    test.run();
 
     assert_eq!(name(&store, block), None, "the manual name is gone");
     assert_eq!(shown_name(&test), "");

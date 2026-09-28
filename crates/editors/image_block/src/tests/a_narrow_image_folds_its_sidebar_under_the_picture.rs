@@ -10,7 +10,6 @@ fn a_narrow_image_folds_its_sidebar_under_the_picture() {
     let mut editor = BeuiTest::<ImageApp>::new(editor).with_size(Vec2::new(390.0, 760.0));
     editor.hold(None, ImageContent::from_file("picture.png", png(8, 4)));
     editor.run();
-    editor.run();
 
     assert!(
         !editor.shown("image.replace"),

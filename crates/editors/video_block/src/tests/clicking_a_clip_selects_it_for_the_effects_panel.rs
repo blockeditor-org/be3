@@ -9,7 +9,6 @@ fn clicking_a_clip_selects_it_for_the_effects_panel() {
 
     fixture.editor.click(&format!("video.clip.{clip}"));
     fixture.editor.run();
-    fixture.editor.run();
 
     assert!(
         fixture.editor.shown("video.clip-length"),

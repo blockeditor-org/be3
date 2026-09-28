@@ -6,7 +6,6 @@ fn a_recording_is_reviewed_one_frame_at_a_time() {
     review.write(PATH, &recording(&[20, 130, 240]));
     editor.click("paint_review.refresh");
     editor.run();
-    editor.run();
     editor.click(&entry_id(PATH));
     settled(&mut editor);
     assert_eq!(shown_frame(&editor), 0);
@@ -30,14 +29,12 @@ fn a_recording_is_reviewed_one_frame_at_a_time() {
     editor.run();
     let started = shown_frame(&editor);
     editor.run();
-    editor.run();
     assert_ne!(shown_frame(&editor), started);
     editor.record();
 
     editor.click("paint_review.frame.play");
     editor.run();
     let paused = shown_frame(&editor);
-    editor.run();
     editor.run();
     assert_eq!(shown_frame(&editor), paused);
 

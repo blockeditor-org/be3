@@ -17,7 +17,6 @@ fn editor() -> BeuiTest<MapApp> {
     let mut editor = BeuiTest::new(editor).in_viewport();
     editor.hold(None, MapContent::default());
     editor.run();
-    editor.run();
     editor
 }
 

@@ -31,6 +31,5 @@ fn editor(entries: usize) -> (Fixture, Vec<Uuid>) {
     let mut editor = BeuiTest::new(editor);
     editor.hold(None, content);
     editor.run();
-    editor.run();
     (Fixture { editor }, children)
 }

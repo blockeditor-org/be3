@@ -8,7 +8,6 @@ fn typing_inserts_text_into_the_document() {
     editor.run();
     editor.text(" two");
     editor.run();
-    editor.run();
 
     assert_eq!(text(&editor), "one two");
 }
