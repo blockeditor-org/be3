@@ -19,7 +19,6 @@ fn an_image_still_loading_shows_its_thumbhash() {
     info.thumbhash = Some(derived);
     loading.store().add_block(info);
     loading.run();
-    loading.run();
 
     assert!(
         !loading.store().holds(None),

@@ -33,8 +33,8 @@ pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
-    BlockSource, ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock,
-    HostContent, ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
+    ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock, HostContent,
+    ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
     PerformanceReporter, PickedBlock, PickedFile, Pushed, SeededContent, ShowRequest,
     ShownPresence, Waker,
 };

@@ -13,7 +13,6 @@ fn typing_an_address_navigates_the_web_view() {
     tab.run();
     tab.editor.click("browser.go");
     tab.run();
-    tab.run();
 
     assert_eq!(
         tab.urls().last().map(String::as_str),

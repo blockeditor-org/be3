@@ -62,9 +62,7 @@ impl Fixture {
     }
 
     fn settle(&mut self) {
-        for _ in 0..3 {
-            self.editor.run();
-        }
+        self.editor.run();
     }
 }
 

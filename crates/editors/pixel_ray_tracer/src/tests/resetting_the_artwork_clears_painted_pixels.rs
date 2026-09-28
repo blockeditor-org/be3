@@ -23,7 +23,6 @@ fn resetting_the_artwork_clears_painted_pixels() {
 
     editor.click("pixel_ray_tracer.reset");
     editor.run();
-    editor.run();
 
     assert!(
         scene(&editor)

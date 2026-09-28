@@ -14,7 +14,6 @@ mod a_shown_block_is_reported_as_focused;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod closing_the_only_tab_leaves_the_blank_workspace;
 
-const SETTLE_FRAMES: usize = 8;
 const MAX_TAB: u64 = 64;
 
 struct Fixture {
@@ -24,9 +23,7 @@ struct Fixture {
 
 impl Fixture {
     fn settle(&mut self) {
-        for _ in 0..SETTLE_FRAMES {
-            self.test.run();
-        }
+        self.test.run();
     }
 
     fn shown(&self) -> Vec<Uuid> {

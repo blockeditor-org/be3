@@ -19,7 +19,6 @@ fn editor(data: Vec<u8>) -> BeuiTest<ImageApp> {
     let mut editor = BeuiTest::new(editor);
     editor.hold(None, ImageContent::from_file("picture.png", data));
     editor.run();
-    editor.run();
     editor
 }
 

@@ -15,7 +15,6 @@ fn dropping_a_hotbar_slot_on_an_open_folder_puts_it_inside() {
     let to = Pos2::new(column.center().x, column.bottom() - 8.0);
     editor.drag(from, to);
     editor.run();
-    editor.run();
 
     assert!(
         editor.label("logic-grid.slot.0").contains("Merger"),

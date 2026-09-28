@@ -21,7 +21,6 @@ fn selections_are_shared_with_peers_and_theirs_are_drawn() {
 
     editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
-    editor.run();
 
     let shown = editor.take_shown_presence();
     let cursor: CanvasCursor = shown
@@ -45,7 +44,6 @@ fn selections_are_shared_with_peers_and_theirs_are_drawn() {
             value: serde_json::to_vec(&theirs).unwrap(),
         }],
     );
-    editor.run();
     editor.run();
 
     editor.snapshot("selections_are_shared_with_peers_and_theirs_are_drawn");

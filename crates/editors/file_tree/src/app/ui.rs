@@ -16,7 +16,7 @@ use block_editor_beui::beui::styled::{
 };
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};
-use block_editor_beui::{BlockFilter, BlockPicker, BlockSource, Drag, Editor, Toolbar};
+use block_editor_beui::{BlockFilter, BlockPicker, Drag, Editor, Toolbar};
 use uuid::Uuid;
 
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
@@ -471,7 +471,7 @@ fn AddChildFace(handle: ButtonHandle) -> NodeId {
 pub(crate) struct Carried {
     id: Uuid,
     block_type: Uuid,
-    source: BlockSource,
+    source: BlockParent,
     is_reference: bool,
 }
 
@@ -498,7 +498,7 @@ fn arrival(
                 .then(|| (row.key.clone(), id, row.can_add))
         })
     })?;
-    let accepts = can_add && carried.id != id && carried.source != BlockSource::Block(id);
+    let accepts = can_add && carried.id != id && carried.source != BlockParent::Block(id);
     if drag.dropped {
         held.set(None);
         if accepts {

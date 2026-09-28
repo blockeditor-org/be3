@@ -15,9 +15,7 @@ struct Fixture {
 
 impl Fixture {
     fn settle(&mut self) {
-        for _ in 0..6 {
-            self.test.run();
-        }
+        self.test.run();
     }
 
     fn opened(&mut self) -> Vec<Uuid> {

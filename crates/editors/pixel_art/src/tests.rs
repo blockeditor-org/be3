@@ -25,7 +25,6 @@ fn editor() -> BeuiTest<PixelArtApp> {
     let mut editor = BeuiTest::new(editor);
     editor.hold(None, PixelArtContent::default());
     editor.run();
-    editor.run();
     editor
 }
 

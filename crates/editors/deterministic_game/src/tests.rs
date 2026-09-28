@@ -75,7 +75,6 @@ fn placed(
         GameModuleContent::from_file("game.wasm", module),
     );
     harness.run();
-    harness.run();
     harness
 }
 

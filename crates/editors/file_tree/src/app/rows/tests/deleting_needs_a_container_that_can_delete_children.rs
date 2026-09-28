@@ -10,7 +10,7 @@ fn deleting_needs_a_container_that_can_delete_children() {
         &client,
         &refusing,
         &block_types,
-        BlockSource::Block(CONTAINER),
+        BlockParent::Block(CONTAINER),
         LISTED,
         false
     ));
@@ -19,7 +19,7 @@ fn deleting_needs_a_container_that_can_delete_children() {
             &client,
             &refusing,
             &block_types,
-            BlockSource::Root,
+            BlockParent::Root,
             LISTED,
             false
         ),
@@ -29,7 +29,7 @@ fn deleting_needs_a_container_that_can_delete_children() {
         &client,
         &refusing,
         &block_types,
-        BlockSource::Orphaned,
+        BlockParent::Detached,
         LISTED,
         true
     ));
@@ -43,7 +43,7 @@ fn deleting_needs_a_container_that_can_delete_children() {
         &client,
         &deleting,
         &block_types,
-        BlockSource::Block(CONTAINER),
+        BlockParent::Block(CONTAINER),
         LISTED,
         false
     ));

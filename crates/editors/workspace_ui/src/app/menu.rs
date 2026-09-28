@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use block_editor_beui::BlockSource;
 use block_editor_beui::beui::reactive::{Memo, clone, component, create_memo, view};
 use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::block_ui::BlockTypes;
@@ -27,7 +26,7 @@ pub(crate) struct Permissions {
     pub(crate) delete: bool,
     pub(crate) unlink: Result<(), &'static str>,
     pub(crate) is_reference: bool,
-    pub(crate) source: BlockSource,
+    pub(crate) source: BlockParent,
 }
 
 pub(crate) fn action_for(path: &[usize]) -> Option<Action> {
@@ -41,14 +40,6 @@ pub(crate) fn action_for(path: &[usize]) -> Option<Action> {
         [5] => Some(Action::Unlink),
         [6] => Some(Action::Delete),
         _ => None,
-    }
-}
-
-pub(crate) fn source_of(parent: BlockParent) -> BlockSource {
-    match parent {
-        BlockParent::Root => BlockSource::Root,
-        BlockParent::Detached => BlockSource::Orphaned,
-        BlockParent::Block(id) => BlockSource::Block(id),
     }
 }
 
@@ -70,10 +61,10 @@ pub(crate) fn unlink_permission(
     }
 }
 
-fn can_delete_from(workspace: &Workspace, source: BlockSource) -> bool {
+fn can_delete_from(workspace: &Workspace, source: BlockParent) -> bool {
     match source {
-        BlockSource::Root | BlockSource::Orphaned => true,
-        BlockSource::Block(id) => {
+        BlockParent::Root | BlockParent::Detached => true,
+        BlockParent::Block(id) => {
             let types = workspace.types();
             workspace
                 .known_type(id)
@@ -89,13 +80,13 @@ pub(crate) fn permissions(
     containing: Option<Uuid>,
 ) -> Permissions {
     let can_edit = workspace.can_edit(reference.id);
-    let source = containing.map_or_else(|| source_of(reference.parent), BlockSource::Block);
+    let source = containing.map_or(reference.parent, BlockParent::Block);
     let is_reference = containing.is_some_and(|id| reference.parent != BlockParent::Block(id));
     let types = workspace.types();
     Permissions {
         add: types.child_edits(reference.block_type).add && can_edit,
         edit: can_edit,
-        delete: source != BlockSource::Orphaned
+        delete: source != BlockParent::Detached
             && can_delete_from(workspace, source)
             && (is_reference || can_edit),
         unlink: unlink_permission(workspace, containing),
@@ -124,7 +115,7 @@ pub(crate) fn apply(
         Action::Rename => workspace.host().rename_block(reference.id),
         Action::Share => workspace.host().share_block(reference.id),
         Action::Unlink => {
-            if let BlockSource::Block(container) = permissions.source {
+            if let BlockParent::Block(container) = permissions.source {
                 workspace.host().unlink_block(reference.id, container);
             }
         }

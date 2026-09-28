@@ -76,7 +76,6 @@ fn editor_on(source: Uuid, name: Option<&str>) -> BeuiTest<CompiledLogicApp> {
         CompiledLogicContent::new(&CompiledLogicDocument::of(compiled(source))),
     );
     editor.run();
-    editor.run();
     editor
 }
 

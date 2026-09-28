@@ -2113,14 +2113,18 @@ impl Instances {
                 false
             }
             EditorMessage::SeedContent {
+                instance,
                 block_id,
                 content_type,
                 bytes,
-                ..
             } => {
                 let block = Uuid::from_bytes(block_id);
                 let content_type = Uuid::from_bytes(content_type);
-                if crate::be::is_known(content_type) {
+                let holds = self
+                    .entries
+                    .get(&instance)
+                    .is_some_and(|entry| entry.holds(block));
+                if holds && crate::be::is_known(content_type) {
                     crate::be::seed(block, content_type, bytes);
                 }
                 false

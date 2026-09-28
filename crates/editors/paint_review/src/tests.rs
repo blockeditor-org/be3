@@ -62,7 +62,6 @@ impl Review {
             store: editor.store(),
         };
         editor.run();
-        editor.run();
         (review, editor)
     }
 

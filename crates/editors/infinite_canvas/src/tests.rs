@@ -99,7 +99,6 @@ fn open_sized(
     }
     harness.hold(None, CanvasContent::new(canvas));
     harness.run();
-    harness.run();
     harness
 }
 

@@ -25,7 +25,6 @@ fn editor(text: &str) -> BeuiTest<TextApp> {
     let mut editor = BeuiTest::new(editor);
     editor.hold(None, TextContent::from(text));
     editor.run();
-    editor.run();
     editor
 }
 
