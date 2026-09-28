@@ -90,10 +90,16 @@ impl LogicGridDocument {
     pub fn with_grid(grid: &LogicGrid, challenge: Option<ChallengeId>) -> Self {
         Self {
             components: grid.components().map(GridComponent::of).collect(),
-            wires: units(grid.wires()).into_iter().map(|wire| (wire, ())).collect(),
+            wires: units(grid.wires())
+                .into_iter()
+                .map(|wire| (wire, ()))
+                .collect(),
             challenge,
             completed: false,
-            ends: ends(grid.wires()).into_iter().map(|end| (end, ())).collect(),
+            ends: ends(grid.wires())
+                .into_iter()
+                .map(|end| (end, ()))
+                .collect(),
         }
     }
 
@@ -254,15 +260,12 @@ impl LogicGridDocument {
         let holding = |id: ComponentId| holders.get(&id).cloned().unwrap_or_default();
         for component in before.components() {
             match after.component(component.id) {
-                None => changes.extend(
-                    holding(component.id)
-                        .into_iter()
-                        .map(Change::remove),
-                ),
+                None => changes.extend(holding(component.id).into_iter().map(Change::remove)),
                 Some(changed) if changed != component => {
                     for held in holding(component.id) {
                         if changed.position != component.position {
-                            changes.push(GridComponent::POSITION.set(held, &Some(changed.position)));
+                            changes
+                                .push(GridComponent::POSITION.set(held, &Some(changed.position)));
                         }
                         if changed.orientation != component.orientation {
                             changes.push(
@@ -270,7 +273,8 @@ impl LogicGridDocument {
                             );
                         }
                         if changed.kind != component.kind {
-                            changes.push(GridComponent::KIND.set(held, &Some(changed.kind.clone())));
+                            changes
+                                .push(GridComponent::KIND.set(held, &Some(changed.kind.clone())));
                         }
                     }
                 }
@@ -292,7 +296,8 @@ impl LogicGridDocument {
     fn wire_changes(&self, after: &LogicGrid) -> Vec<Change> {
         let stored: BTreeSet<Wire> = self.wires.iter().map(|(wire, ())| *wire).collect();
         let wanted = units(after.wires());
-        let stored_ends: BTreeSet<(Point, Scale)> = self.ends.iter().map(|(end, ())| *end).collect();
+        let stored_ends: BTreeSet<(Point, Scale)> =
+            self.ends.iter().map(|(end, ())| *end).collect();
         let wanted_ends = ends(after.wires());
         let removed = stored
             .difference(&wanted)

@@ -18,12 +18,26 @@ pub(crate) fn merge3(base: &Tree, ours: &Tree, theirs: &Tree) -> (Tree, usize) {
     let mut dropped = Vec::new();
     for id in ids {
         let resolved = match (base.object(id), ours.object(id), theirs.object(id)) {
-            (Some(before), None, Some(other)) => {
-                removed_or_moved(id, before, other, ours, theirs, &mut rescued, &mut dropped, &mut conflicts)
-            }
-            (Some(before), Some(mine), None) => {
-                removed_or_moved(id, before, mine, theirs, ours, &mut rescued, &mut dropped, &mut conflicts)
-            }
+            (Some(before), None, Some(other)) => removed_or_moved(
+                id,
+                before,
+                other,
+                ours,
+                theirs,
+                &mut rescued,
+                &mut dropped,
+                &mut conflicts,
+            ),
+            (Some(before), Some(mine), None) => removed_or_moved(
+                id,
+                before,
+                mine,
+                theirs,
+                ours,
+                &mut rescued,
+                &mut dropped,
+                &mut conflicts,
+            ),
             (before, mine, other) => merge_object(before, mine, other, &mut conflicts),
         };
         if let Some(object) = resolved {
@@ -43,7 +57,9 @@ pub(crate) fn merge3(base: &Tree, ours: &Tree, theirs: &Tree) -> (Tree, usize) {
                 }
                 break;
             }
-            cursor = survivor.object(parent.object).and_then(|object| object.parent);
+            cursor = survivor
+                .object(parent.object)
+                .and_then(|object| object.parent);
         }
     }
     if !kept.contains_key(&ObjectId::ROOT)
@@ -314,7 +330,13 @@ fn sibling_list(kept: &Objects, versions: [&Tree; 3], removed: Place) -> Option<
         .find(|place| holds_list(kept, *place))
 }
 
-fn rebuild_lists(merged: &mut Tree, base: &Tree, ours: &Tree, theirs: &Tree, conflicts: &mut usize) {
+fn rebuild_lists(
+    merged: &mut Tree,
+    base: &Tree,
+    ours: &Tree,
+    theirs: &Tree,
+    conflicts: &mut usize,
+) {
     let children = merged.children_by_place();
     let mut places: Vec<Place> = Vec::new();
     for (id, object) in merged.objects() {
@@ -352,7 +374,9 @@ fn rebuild_lists(merged: &mut Tree, base: &Tree, ours: &Tree, theirs: &Tree, con
             let seen = [&mine, &other, &before]
                 .into_iter()
                 .find(|version| version.contains(&id));
-            let index = seen.map_or(items.len(), |version| after_placed(&items, version, id, |_| true));
+            let index = seen.map_or(items.len(), |version| {
+                after_placed(&items, version, id, |_| true)
+            });
             items.insert(index, id);
         }
         merged.set_list(place, items);

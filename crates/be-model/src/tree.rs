@@ -366,14 +366,23 @@ impl Tree {
         }
     }
 
-    fn inverse_move(&self, object: ObjectId, place: Place, anchor: Anchor) -> Option<(Change, Change)> {
+    fn inverse_move(
+        &self,
+        object: ObjectId,
+        place: Place,
+        anchor: Anchor,
+    ) -> Option<(Change, Change)> {
         let from = self.objects.get(&object)?.parent?;
         if !self.can_move(object, place) || anchor == Anchor::After(object) {
             return None;
         }
         if from == place {
             let items = self.list(place)?;
-            let mut moved: Vec<ObjectId> = items.iter().copied().filter(|held| *held != object).collect();
+            let mut moved: Vec<ObjectId> = items
+                .iter()
+                .copied()
+                .filter(|held| *held != object)
+                .collect();
             let index = self.index_in(&moved, place, anchor);
             moved.insert(index, object);
             if moved == *items {
