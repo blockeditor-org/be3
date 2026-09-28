@@ -31,19 +31,19 @@ use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::{NodeId, Rects};
 use beui_core::rich::{CaretHandle, handle_center};
 use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, Child, ClickCallback, ClickCatcher, Focusable, Frame, List,
-    Memo, NodeRef, Prop, ReadSignal, Render, RenderFn, Show, WriteSignal, clone,
-    component_accessibility, component_rect, component_size, create_effect, create_memo,
-    create_signal, create_timer, in_new_scope, on_cleanup, pixels_per_point, set_component_state,
-    try_with_document, untrack, with_document,
+    Callback, Canvas, CanvasItem, Child, ClickCallback, ClickCatcher, Focusable, Frame, List, Memo,
+    NodeRef, Prop, ReadSignal, Render, RenderFn, Show, WriteSignal, clone, component_accessibility,
+    component_rect, component_size, create_effect, create_memo, create_signal, create_timer,
+    in_new_scope, on_cleanup, pixels_per_point, set_component_state, try_with_document, untrack,
+    with_document,
 };
 
+use completion::{Completions, Query, query};
+use lines::{Lines, SingleLine};
 use rows::{
     BODY_SIZE, Composition, Inline, InlineItem, LINE_PADDING, Row, RowOptions, TableSpacers,
     galley, line_of, line_starts, rich_layout, table_spacers,
 };
-use completion::{Completions, Query, query};
-use lines::{Lines, SingleLine};
 use state::{AreaGeometry, Grab};
 
 pub use colors::{SyntaxColors, TextAreaColors};
@@ -70,7 +70,6 @@ const SELECT_ALL_CLICKS: u32 = 4;
 const WORD_CLICKS: u32 = 2;
 const LINE_CLICKS: u32 = 3;
 const HANDLE_SLACK: f32 = 0.5;
-
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RemoteTextCursor {
@@ -576,7 +575,6 @@ impl Surface {
         });
     }
 }
-
 
 #[derive(Clone, Copy)]
 enum Beyond {

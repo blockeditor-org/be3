@@ -24,8 +24,8 @@ use super::rows::{
 };
 use super::{
     CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
-    GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT, GUTTER_PADDING_RIGHT, GUTTER_TEXT_SIZE,
-    GeometryCell, INLINE_WIDGET_RADIUS, REMOTE_SELECTION_ALPHA, RowEntry,
+    GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT, GUTTER_PADDING_RIGHT, GUTTER_TEXT_SIZE, GeometryCell,
+    INLINE_WIDGET_RADIUS, REMOTE_SELECTION_ALPHA, RowEntry,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -663,4 +663,3 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
         </List>
     }
 }
-

@@ -38,7 +38,9 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
                     <TextArea
                         state={state}
                         widgets={widgets}
-                        block={move |_: usize| view! { <Frame @node_ref=&block /> }}
+                        block={move |_: usize| view! {
+                            <Frame @node_ref=&block />
+                        }}
                         selected_widget={move |_: usize| view! {
                             <Frame @node_ref=&popup width=40.0 height=20.0 />
                         }}
@@ -60,7 +62,11 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
     };
 
     let placed = harness.rect(block.get());
-    assert_eq!(placed.size(), BLOCK, "a block widget gets the size it asked for");
+    assert_eq!(
+        placed.size(),
+        BLOCK,
+        "a block widget gets the size it asked for"
+    );
     assert!(
         placed.min.y >= caret(13).max.y && placed.max.y <= caret(19).min.y,
         "the block sits between its line {:?} and the next {:?}: {placed:?}",
@@ -71,7 +77,11 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
         caret(7).min.x > caret(4).min.x,
         "an inline widget takes room in its line"
     );
-    assert_eq!(caret(8).min.y, caret(4).min.y, "the text after it stays on the line");
+    assert_eq!(
+        caret(8).min.y,
+        caret(4).min.y,
+        "the text after it stays on the line"
+    );
 
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
         let (anchor, focus) = {

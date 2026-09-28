@@ -110,4 +110,3 @@ pub(super) fn query(state: &TextAreaState, trigger: u8) -> Option<Query> {
         text: String::from_utf8_lossy(&bytes[start..caret]).into_owned(),
     })
 }
-

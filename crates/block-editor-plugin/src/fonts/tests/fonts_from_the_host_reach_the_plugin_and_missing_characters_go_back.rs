@@ -31,8 +31,15 @@ fn fonts_from_the_host_reach_the_plugin_and_missing_characters_go_back() {
             },
         ],
     }));
-    assert!(replies.is_empty(), "fonts are accepted without a reply: {replies:?}");
-    assert_eq!(heard.get(), 2, "whoever watches the fonts hears of both faces");
+    assert!(
+        replies.is_empty(),
+        "fonts are accepted without a reply: {replies:?}"
+    );
+    assert_eq!(
+        heard.get(),
+        2,
+        "whoever watches the fonts hears of both faces"
+    );
     let held = host_fonts();
     assert_eq!(held.len(), 2);
     assert_eq!(&*held[0].data, &[1, 2, 3]);
@@ -44,7 +51,10 @@ fn fonts_from_the_host_reach_the_plugin_and_missing_characters_go_back() {
         "each missing character is asked for once: {outbound:?}"
     );
     assert!(
-        !plugin.outbound().iter().any(|message| matches!(message, Message::MissingCharacters(_))),
+        !plugin
+            .outbound()
+            .iter()
+            .any(|message| matches!(message, Message::MissingCharacters(_))),
         "and only once"
     );
 }
