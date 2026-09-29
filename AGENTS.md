@@ -37,7 +37,6 @@ Do:
 - If you find yourself polling waiting for a command to finish, run `./scripts/nopoll` in the foreground
 
 Do not:
-- Do not use worktrees. If using subagents, run them sequentially rather than in parallel.
 - Do not create routines. Do not subscribe to PRs. Do not set check-in timers.
 
 Design principles:
