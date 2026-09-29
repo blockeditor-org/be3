@@ -12,7 +12,7 @@ fn a_narrow_canvas_opens_its_inspector_under_the_stage() {
     editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
     editor.record();
-    editor.click("chrome.sidebar");
+    editor.click("infinite-canvas.inspect");
     editor.run();
     editor.record();
 
@@ -27,7 +27,8 @@ fn a_narrow_canvas_opens_its_inspector_under_the_stage() {
     );
     editor.snapshot("a_narrow_canvas_opens_its_inspector_under_the_stage");
 
-    editor.click("chrome.sidebar");
+    let handle = editor.rect_of("sheet.handle").center();
+    editor.drag(handle, handle + Vec2::new(0.0, 700.0));
     editor.run();
     assert!(!editor.shown("infinite-canvas.selection"));
     assert!(

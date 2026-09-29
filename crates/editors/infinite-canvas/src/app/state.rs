@@ -16,7 +16,7 @@ use block_editor_beui::be_block::canvas::{
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::beui::reactive::{
-    CanvasView, ReadSignal, WriteSignal, create_effect, create_signal, untrack,
+    CanvasView, Memo, ReadSignal, WriteSignal, create_effect, create_signal, untrack,
 };
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
@@ -24,7 +24,7 @@ use block_editor_beui::{
     BlockFilter, ChildState, Drag, Editor, FileDrop, FilePicker, ImagePaster, InteractionMode,
     PastedImage, ResizeMode,
 };
-use block_editor_beui::{BlockParent, BlockQuery};
+use block_editor_beui::{BlockParent, BlockQuery, narrow_chrome, sheet_control};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -236,6 +236,9 @@ pub(crate) struct CanvasState {
     grouped_edit: Cell<bool>,
     pointer_down: Cell<bool>,
     touch: Cell<bool>,
+    retapped: Cell<Option<Uuid>>,
+    narrow: Memo<bool>,
+    sheet: Option<WriteSignal<bool>>,
     pub(crate) pointer: ReadSignal<Option<CanvasPoint>>,
     set_pointer: WriteSignal<Option<CanvasPoint>>,
     last_foreground: Cell<CanvasColor>,
@@ -305,6 +308,9 @@ impl CanvasState {
             grouped_edit: Cell::new(false),
             pointer_down: Cell::new(false),
             touch: Cell::new(false),
+            retapped: Cell::new(None),
+            narrow: narrow_chrome(),
+            sheet: sheet_control(),
             pointer,
             set_pointer,
             last_foreground: Cell::new(CanvasEntityStyle::default().foreground),
@@ -605,6 +611,12 @@ impl CanvasState {
         if self.editing_text.get_untracked() != entity {
             self.set_editing_text.set(entity);
         }
+        if entity.is_some()
+            && self.narrow.get_untracked()
+            && let Some(sheet) = &self.sheet
+        {
+            sheet.set(true);
+        }
     }
 
     pub(crate) fn fit_text(&self, mut entity: CanvasEntity) -> CanvasEntity {
@@ -655,6 +667,14 @@ impl CanvasState {
 
     pub(crate) fn touching(&self) -> bool {
         self.touch.get()
+    }
+
+    pub(crate) fn note_retap(&self, id: Option<Uuid>) {
+        self.retapped.set(id);
+    }
+
+    pub(crate) fn take_retap(&self) -> Option<Uuid> {
+        self.retapped.take()
     }
 
     pub(crate) fn dismiss_import_error(&self) {

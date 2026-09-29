@@ -21,6 +21,7 @@ mod a_finger_drags_a_transform_field_in_the_sheet;
 mod a_finger_just_outside_a_corner_resizes_the_selection;
 mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_narrow_canvas_opens_its_inspector_under_the_stage;
+mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
 mod a_second_finger_calls_off_the_shape_being_drawn;
 mod a_typed_transform_value_is_one_edit;
 mod an_image_still_loading_is_drawn_as_its_thumbhash;
@@ -45,6 +46,7 @@ mod the_canvas_paints_the_entities_it_holds;
 mod the_intrinsic_size_follows_the_first_artboard;
 mod the_layers_panel_selects_reorders_and_hides;
 mod the_preview_shows_the_first_artboard;
+mod tapping_selected_text_on_a_phone_edits_it;
 mod the_transform_fields_edit_the_selected_entity;
 mod typing_a_transform_value_and_pressing_escape_edits_nothing;
 
@@ -106,7 +108,7 @@ fn open_sized(
         false => BeuiTest::new(editor),
     };
     let test = match size {
-        Some(size) => test.with_size(size),
+        Some(size) => test.with_size(size).with_phone_bar(1),
         None => test,
     };
     let mut harness = test.in_viewport();
