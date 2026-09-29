@@ -260,3 +260,20 @@ and 6 is small. The largest pieces are:
 - the picker protocol change (phase 4);
 - the more-sheet contribution question (phase 5, **(ask)**);
 - sticky notes, if they become a new entity kind.
+
+## Status
+
+All six phases are implemented. Where the result differs from the plan:
+
+- Recents live in the WorkspaceUi block, so they sync across devices.
+- Search only shows a "coming soon" screen.
+- There is no sticky note. Artboard and Line moved from the canvas dock to
+  the More sheet.
+- Editors add to the More sheet with `bar_item`, since the whole top bar
+  belongs to the plugin. On a phone, the side panel is opened from the More
+  sheet or the canvas selection's tune button.
+- The save state is shown in the app menu sheet, not pushed to plugins. The
+  app menu opens through `BlockCommand::AppMenu` from the account button on
+  the Files page.
+- Onboarding screens and the web build at phone width have not been
+  checked.
