@@ -139,7 +139,7 @@ pub(crate) fn PhoneFiles(
             .map(|crumb| crumb.id)
         });
         let excluded = parent.into_iter().collect::<HashSet<Uuid>>();
-        picker.open(&editor, parent, excluded);
+        picker.open_placed(&editor, parent, excluded);
     });
     let rising = clone!(level set_level -> move || set_level.set(level.get_untracked().up()));
     let rows_editor = editor.clone();
@@ -662,6 +662,7 @@ fn RowActions(
 ) -> NodeId {
     let open = create_memo(clone!(acting -> move || acting.get().is_some()));
     let row = create_memo(clone!(acting -> move || acting.get()));
+    let adding = Rc::clone(&picker);
     let chosen = Rc::new(menu_action(
         editor.clone(),
         tree,
@@ -670,6 +671,14 @@ fn RowActions(
         inspect,
         row.clone(),
     ));
+    let add_editor = editor.clone();
+    let add_inside = clone!(row set_acting -> move || {
+        let Some(id) = row.get_untracked().and_then(|row| row.id) else {
+            return;
+        };
+        set_acting.set(None);
+        adding.open_placed(&add_editor, Some(id), [id].into_iter().collect());
+    });
     let off = |test: fn(&Row) -> bool| {
         let row = row.clone();
         create_memo(move || !row.get().is_some_and(|row| test(&row)))
@@ -744,7 +753,7 @@ fn RowActions(
                         label="New file inside"
                         glyph={ICON_NOTE_ADD.to_owned()}
                         disabled={unaddable}
-                        on_click={run(&[0])}
+                        on_click={add_inside}
                     />
                     <ActionRow
                         @test_id={"file-tree.actions.rename"}

@@ -4,7 +4,7 @@ use beui::reactive::{
     create_memo, view,
 };
 use beui::styled::{Caption, Icon, MenuButton, Separator, Spinner, use_theme};
-use beui::unstyled::MenuItem;
+use beui::unstyled::{Container, MenuItem};
 use beui::{Color32, NodeId};
 
 use super::debug::{DebugCommand, DebugWindow};
@@ -20,6 +20,20 @@ const STATUS_PADDING_VERTICAL: f32 = 4.0;
 
 #[component]
 pub(super) fn WorkspaceScreen(view: AppViewStore) -> NodeId {
+    view! {
+        <Container>
+            {move |_| {
+                let view = view.clone();
+                view! {
+                    <WorkspaceBody view />
+                }
+            }}
+        </Container>
+    }
+}
+
+#[component]
+fn WorkspaceBody(view: AppViewStore) -> NodeId {
     let presenting = view.presenting.clone();
     let normal = create_memo(clone!(presenting -> move || !presenting.get()));
     let status = create_memo(clone!(view -> move || view.status.get()));

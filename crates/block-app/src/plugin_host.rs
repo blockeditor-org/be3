@@ -103,6 +103,7 @@ pub(crate) struct BlockPickRequest {
     pub(crate) block_types: Vec<Uuid>,
     pub(crate) excluded: Vec<Uuid>,
     pub(crate) templates: bool,
+    pub(crate) place: Option<be_graph::BlockParent>,
 }
 
 pub(crate) struct RuntimeStatus {

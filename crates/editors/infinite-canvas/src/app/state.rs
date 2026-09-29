@@ -1175,6 +1175,7 @@ impl CanvasState {
                 block_types: vec![DatabaseSchemaContent::CONTENT_TYPE.into_bytes()],
                 excluded: Vec::new(),
                 templates: false,
+                place: None,
             },
             move |picked| {
                 if let (Some(state), Ok(picked)) = (state.upgrade(), picked) {
@@ -1204,6 +1205,7 @@ impl CanvasState {
                 block_types: vec![block_type.into_bytes()],
                 excluded: Vec::new(),
                 templates: false,
+                place: None,
             },
             None => BlockFilter::default(),
         };

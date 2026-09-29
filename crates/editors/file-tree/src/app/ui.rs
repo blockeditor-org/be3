@@ -622,8 +622,22 @@ impl Picker {
     }
 
     pub(crate) fn open(&self, editor: &Editor, parent: Option<Uuid>, excluded: HashSet<Uuid>) {
+        self.request(editor, parent, excluded, false);
+    }
+
+    pub(crate) fn open_placed(
+        &self,
+        editor: &Editor,
+        parent: Option<Uuid>,
+        excluded: HashSet<Uuid>,
+    ) {
+        self.request(editor, parent, excluded, true);
+    }
+
+    fn request(&self, editor: &Editor, parent: Option<Uuid>, excluded: HashSet<Uuid>, placed: bool) {
         self.set_error.set(None);
         self.target.set(parent);
+        let place = parent.map_or(BlockParent::Root, BlockParent::Block);
         self.picker.borrow_mut().open(
             editor.host(),
             BlockFilter {
@@ -631,6 +645,7 @@ impl Picker {
                 block_types: Vec::new(),
                 excluded: excluded.into_iter().map(Uuid::into_bytes).collect(),
                 templates: false,
+                place: placed.then(|| place.encode()),
             },
         );
     }
@@ -659,6 +674,13 @@ fn picker(editor: &Editor, tree: Rc<FileTree>) -> Rc<Picker> {
             }
         };
         tree.remember(picked.id, picked.block_type);
+        if picked.placed {
+            match target {
+                Some(parent) => host.open_block_via(picked.id, picked.block_type, parent),
+                None => host.open_block(picked.id, picked.block_type),
+            }
+            return;
+        }
         match target {
             None => {
                 if !picked.linked {

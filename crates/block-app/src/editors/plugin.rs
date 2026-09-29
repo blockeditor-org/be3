@@ -295,6 +295,9 @@ fn serve_block_pick(
         } else {
             picker.open_for_types(excluded, request.block_types);
         }
+        if let Some(place) = request.place {
+            picker.place_at(place);
+        }
         *pending = Some(PendingBlockPick {
             request_id: request.request_id,
             picker,
@@ -309,6 +312,7 @@ fn serve_block_pick(
             block_id: result.id.into_bytes(),
             block_type: result.block_type.into_bytes(),
             linked: result.linked,
+            placed: result.placed,
         }),
         None if waiting.picker.is_open() => None,
         None => Some(BlockPick::Cancelled),

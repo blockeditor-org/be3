@@ -606,41 +606,60 @@ impl Workspace {
 
     pub(crate) fn create_in(self: &Rc<Self>, parent: BlockParent) {
         self.set_sheet.set(PhoneSheet::Closed);
-        match parent {
-            BlockParent::Block(parent) => self.open_picker(parent),
-            BlockParent::Root | BlockParent::Detached => self.open_root_picker(),
-        }
-    }
-
-    fn open_root_picker(self: &Rc<Self>) {
         self.set_error.set(None);
+        let parent = match parent {
+            BlockParent::Detached => BlockParent::Root,
+            parent => parent,
+        };
+        let excluded = match parent {
+            BlockParent::Block(id) => vec![id.into_bytes()],
+            BlockParent::Root | BlockParent::Detached => Vec::new(),
+        };
         let picking = Rc::downgrade(self);
         self.editor.pick_block(
             BlockFilter {
                 name: "Block".to_owned(),
                 block_types: Vec::new(),
-                excluded: Vec::new(),
+                excluded,
                 templates: false,
+                place: Some(parent.encode()),
             },
             move |picked: Result<PickedBlock, String>| {
                 let Some(workspace) = picking.upgrade() else {
                     return;
                 };
-                match picked {
-                    Ok(picked) => {
-                        if !picked.linked {
+                let picked = match picked {
+                    Ok(picked) => picked,
+                    Err(error) => {
+                        workspace.set_error.set(Some(error));
+                        return;
+                    }
+                };
+                let container = match parent {
+                    BlockParent::Block(id) => Some(id),
+                    BlockParent::Root | BlockParent::Detached => None,
+                };
+                if !picked.placed {
+                    match container {
+                        Some(id) => workspace.host().place_block(
+                            picked.id,
+                            picked.block_type,
+                            id,
+                            picked.linked,
+                        ),
+                        None if !picked.linked => {
                             workspace.blocks().set_parent(picked.id, BlockParent::Root);
                         }
-                        workspace.open(
-                            TabItem {
-                                id: picked.id,
-                                block_type: picked.block_type,
-                            },
-                            None,
-                        );
+                        None => {}
                     }
-                    Err(error) => workspace.set_error.set(Some(error)),
                 }
+                workspace.open(
+                    TabItem {
+                        id: picked.id,
+                        block_type: picked.block_type,
+                    },
+                    container,
+                );
             },
         );
     }
@@ -654,6 +673,7 @@ impl Workspace {
                 block_types: Vec::new(),
                 excluded: vec![parent.into_bytes()],
                 templates: false,
+                place: None,
             },
             move |picked: Result<PickedBlock, String>| {
                 let Some(workspace) = picking.upgrade() else {

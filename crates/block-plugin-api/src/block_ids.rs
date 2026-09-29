@@ -107,7 +107,12 @@ impl EditorMessage {
                 }
             }
             Self::Request { request, .. } => match request {
-                HostRequest::PickBlock(filter) => filter.excluded.iter_mut().for_each(existing),
+                HostRequest::PickBlock(filter) => {
+                    filter.excluded.iter_mut().for_each(&mut existing);
+                    if let Some(place) = &mut filter.place {
+                        location(place, &mut existing);
+                    }
+                }
                 HostRequest::PickFile(_)
                 | HostRequest::SaveFile(_)
                 | HostRequest::PasteImage

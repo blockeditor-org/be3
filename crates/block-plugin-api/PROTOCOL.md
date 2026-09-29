@@ -411,6 +411,13 @@ which of them was pressed, and the host hands that to the instance that placed
 the child, which decides what going back, switching file or showing the file's
 details means.
 
+A block pick may name a place for what it makes: the top level or a block. The
+host then asks for a name and lets the user choose the place as well, and
+creates the block there under that name; its answer says so, and the plugin
+only opens what it was given. A block chosen from the ones that already exist
+is never placed by the host, and the plugin places it as it would without a
+place.
+
 The host answers with a status per child: whether the block could be opened
 at all, the size and shape its editor asks for, whether the pointer is over
 it, whether it is being given input, whether its own editor is live or only

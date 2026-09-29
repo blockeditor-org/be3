@@ -5,13 +5,15 @@ use block_plugin_api::manifest_from_json;
 use uuid::Uuid;
 
 use super::{
-    CreateView, PickerView, add_sections, creation_surface, publish, template_sections, views,
+    CreateView, PickerView, add_sections, creation_surface, places, publish, template_sections,
+    views,
 };
 use crate::editors::EditorRegistry;
 use crate::surfaces::SurfaceId;
 
 mod a_picker_opened_from_a_creation_dialog_is_shown_above_it;
 mod a_picker_with_nothing_to_show_is_not_shown;
+mod a_placing_picker_offers_the_top_level_first;
 mod important_regular_and_debug_blocks_sit_under_their_own_headings;
 mod templates_are_grouped_under_the_editor_that_declares_them;
 

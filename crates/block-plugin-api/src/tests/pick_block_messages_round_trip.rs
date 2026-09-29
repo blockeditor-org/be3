@@ -10,6 +10,7 @@ fn pick_block_messages_round_trip() {
             block_types: vec![[9; 16]],
             excluded: vec![[3; 16]],
             templates: true,
+            place: Some(BlockLocation::Block([4; 16])),
         }),
     );
     assert_eq!(decode_frame(&encode_frame(&asked).unwrap()).unwrap(), asked);
@@ -19,6 +20,7 @@ fn pick_block_messages_round_trip() {
             block_id: [1; 16],
             block_type: [9; 16],
             linked: true,
+            placed: true,
         },
         BlockPick::Cancelled,
         BlockPick::Failed("the block could not be created".into()),
@@ -38,6 +40,7 @@ fn pick_block_messages_round_trip() {
             block_types: Vec::new(),
             excluded: Vec::new(),
             templates: false,
+            place: None,
         }),
     );
     assert_eq!(

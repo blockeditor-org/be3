@@ -1916,6 +1916,13 @@ impl Instances {
                         .collect(),
                     excluded: filter.excluded.into_iter().map(Uuid::from_bytes).collect(),
                     templates: filter.templates,
+                    place: filter.place.and_then(|place| match place {
+                        block_plugin_api::BlockLocation::Root => Some(be_graph::BlockParent::Root),
+                        block_plugin_api::BlockLocation::Block(id) => {
+                            Some(be_graph::BlockParent::Block(Uuid::from_bytes(id)))
+                        }
+                        block_plugin_api::BlockLocation::Detached => None,
+                    }),
                 });
                 return true;
             }

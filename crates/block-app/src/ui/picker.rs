@@ -1,20 +1,22 @@
 use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, Text, clone, component,
-    create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Portal, Show, Spacer, Text, clone,
+    component, create_memo, view,
 };
+use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::{
-    Button, ButtonVariant, Caption, Dialog, Heading, Icon, Scroll, Separator, Spinner, Tabs,
-    TextInput, use_theme,
+    Button, ButtonVariant, Caption, Dialog, Heading, Icon, ModalSheet, SHEET_STOPS, Scroll,
+    Separator, Spinner, Tabs, TextInput, Title, ToggleButton, use_theme,
 };
-use beui::unstyled::{self, ButtonHandle, ChoiceOption};
+use beui::unstyled::{self, ButtonHandle, ChoiceOption, narrower_than};
+use be_graph::BlockParent;
 use beui::{NodeId, TextAlign};
 use uuid::Uuid;
 
 use super::onboarding::ErrorText;
 use super::{AppViewStore, UiCommand, send};
 use crate::block_picker::{
-    ChooseView, CreateView, LinkRow, PickerAction, PickerCommand, PickerTab, PickerView, Tile,
-    TileSection, creation_surface,
+    ChooseView, CreateView, LinkRow, PickerAction, PickerCommand, PickerTab, PickerView, Placing,
+    Tile, TileSection, creation_surface,
 };
 use crate::surfaces::{self, HostSurface, SurfaceId};
 
@@ -22,6 +24,7 @@ const TILE_WIDTH: f32 = 132.0;
 const TILE_HEIGHT: f32 = 124.0;
 const PICKER_WIDTH: f32 = 640.0;
 const PICKER_HEIGHT: f32 = 420.0;
+const SHEET_PADDING: f32 = 16.0;
 
 fn act(picker: Uuid, action: PickerAction) {
     send(UiCommand::Picker(PickerCommand { picker, action }));
@@ -60,18 +63,74 @@ fn PickerDialog(id: Uuid, picker: Memo<Option<PickerView>>) -> NodeId {
     let create =
         create_memo(clone!(picker -> move || picker.get().and_then(|picker| picker.create)));
     let error = create_memo(move || picker.get().and_then(|picker| picker.error));
+    let phone = narrower_than(NARROW_WIDTH);
     view! {
         <List spacing=0.0>
-            <ChooseDialog id={id.clone()} choose />
-            <CreateDialog id={id.clone()} create surface />
+            <ChooseDialog id={id.clone()} choose phone={phone.clone()} />
+            <CreateDialog id={id.clone()} create surface phone />
             <PickerError id error />
         </List>
     }
 }
 
 #[component]
-fn ChooseDialog(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>) -> NodeId {
-    let open = create_memo(clone!(choose -> move || choose.get().is_some()));
+fn ChooseDialog(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>, phone: Memo<bool>) -> NodeId {
+    let wide = create_memo(clone!(choose phone -> move || choose.get().is_some() && !phone.get()));
+    let narrow = create_memo(clone!(choose phone -> move || choose.get().is_some() && phone.get()));
+    let placing = create_memo(clone!(choose -> move || {
+        choose.get().is_some_and(|choose| choose.placing.is_some())
+    }));
+    let sheet_title = create_memo(move || match placing.get() {
+        true => "New file".to_owned(),
+        false => "Add block".to_owned(),
+    });
+    let (close_id, sheet_close, done_id) = (id.clone(), id.clone(), id.clone());
+    let (dialog_id, sheet_id) = (id.clone(), id);
+    let dialog_choose = choose.clone();
+    view! {
+        <List spacing=0.0>
+            <Dialog
+                open={wide}
+                title="Add block"
+                width=PICKER_WIDTH
+                on_dismiss={move || act(close_id.get_untracked(), PickerAction::Close)}
+            >
+                <List spacing=10.0>
+                    <ChooseBody id={dialog_id} choose={dialog_choose} phone=false />
+                    <Separator />
+                    <List direction=Direction::Horizontal spacing=8.0>
+                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <Button
+                            label="Close"
+                            variant=ButtonVariant::Secondary
+                            on_click={move || act(done_id.get_untracked(), PickerAction::Close)}
+                        />
+                    </List>
+                </List>
+            </Dialog>
+            <ModalSheet
+                open={narrow}
+                rest={SHEET_STOPS[2]}
+                on_close={move || act(sheet_close.get_untracked(), PickerAction::Close)}
+            >
+                <Frame padding_horizontal=SHEET_PADDING padding_vertical=4.0>
+                    <List spacing=10.0>
+                        <Title content={sheet_title} />
+                        <ChooseBody
+                            @sizing=ItemSize::Percent(100.0)
+                            id={sheet_id}
+                            choose
+                            phone=true
+                        />
+                    </List>
+                </Frame>
+            </ModalSheet>
+        </List>
+    }
+}
+
+#[component]
+fn ChooseBody(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>, phone: bool) -> NodeId {
     let tab = create_memo(clone!(choose -> move || {
         choose.get().map_or(PickerTab::Add, |choose| choose.tab)
     }));
@@ -103,96 +162,166 @@ fn ChooseDialog(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>) -> NodeId {
     let empty = create_memo(clone!(choose -> move || {
         choose.get().map(|choose| choose.empty).unwrap_or_default()
     }));
+    let placing = create_memo(clone!(choose -> move || {
+        choose.get().and_then(|choose| choose.placing)
+    }));
     let search = create_memo(move || choose.get().map(|choose| choose.search).unwrap_or_default());
-    let (tab_id, search_id, close_id) = (id.clone(), id.clone(), id.clone());
-    let (tile_id, link_id, done_id) = (id.clone(), id.clone(), id.clone());
+    let (tab_id, search_id, place_id) = (id.clone(), id.clone(), id.clone());
+    let (tile_id, link_id) = (id.clone(), id);
+    let height = match phone {
+        true => None,
+        false => Some(PICKER_HEIGHT),
+    };
+    let area = match phone {
+        true => ItemSize::Percent(100.0),
+        false => ItemSize::Intrinsic,
+    };
     view! {
-        <Dialog
-            open={open}
-            title="Add block"
-            width=PICKER_WIDTH
-            on_dismiss={move || act(close_id.get_untracked(), PickerAction::Close)}
-        >
-            <List spacing=10.0>
-                <Tabs
-                    selected={tab_index}
-                    on_change={move |index: usize| {
-                        let tab = match index {
-                            0 => PickerTab::Add,
-                            1 => PickerTab::Templates,
-                            _ => PickerTab::LinkExisting,
-                        };
-                        act(tab_id.get_untracked(), PickerAction::Tab(tab));
-                    }}
-                    options={view! {
-                        <ChoiceOption label="Add" />
-                        <ChoiceOption label="Templates" />
-                        <ChoiceOption label="Link existing" />
-                    }}
-                />
-                <Frame height=PICKER_HEIGHT>
-                    <List spacing=8.0>
-                        <Show condition={tiling}>
-                            <Scroll @sizing=ItemSize::Percent(100.0)>
-                                <List spacing=16.0>
-                                    <Show condition={no_sections}>
-                                        <Caption content={tab_empty} />
-                                    </Show>
-                                    <ForEach keys={section_keys}>
-                                        {move |key: String| {
-                                            let sections = sections.clone();
-                                            let section = create_memo(move || {
-                                                sections.get().into_iter().find(|section| section.key == key)
-                                            });
-                                            view! {
-                                                <TileSectionView id={tile_id.clone()} section />
-                                            }
-                                        }}
-                                    </ForEach>
-                                </List>
-                            </Scroll>
-                        </Show>
-                        <Show condition={linking.clone()}>
-                            <TextInput
-                                value={search}
-                                placeholder="Search by name or UUID"
-                                label="Search"
-                                on_change={move |value: String| {
-                                    act(search_id.get_untracked(), PickerAction::Search(value));
-                                }}
-                            />
-                        </Show>
-                        <Show condition={linking}>
-                            <Scroll @sizing=ItemSize::Percent(100.0)>
-                                <Show condition={no_links}>
-                                    <Caption content={empty} />
+        <List spacing=10.0>
+            <PlacingFields id={place_id} placing />
+            <Tabs
+                selected={tab_index}
+                on_change={move |index: usize| {
+                    let tab = match index {
+                        0 => PickerTab::Add,
+                        1 => PickerTab::Templates,
+                        _ => PickerTab::LinkExisting,
+                    };
+                    act(tab_id.get_untracked(), PickerAction::Tab(tab));
+                }}
+                options={view! {
+                    <ChoiceOption label="Add" />
+                    <ChoiceOption label="Templates" />
+                    <ChoiceOption label="Link existing" />
+                }}
+            />
+            <Frame @sizing={area} height={height}>
+                <List spacing=8.0>
+                    <Show condition={tiling}>
+                        <Scroll @sizing=ItemSize::Percent(100.0)>
+                            <List spacing=16.0>
+                                <Show condition={no_sections}>
+                                    <Caption content={tab_empty} />
                                 </Show>
-                                <ForEach keys={link_keys}>
-                                    {move |block: Uuid| {
-                                        let links = links.clone();
-                                        let link = create_memo(move || {
-                                            links.get().into_iter().find(|link| link.id == block)
+                                <ForEach keys={section_keys}>
+                                    {move |key: String| {
+                                        let sections = sections.clone();
+                                        let section = create_memo(move || {
+                                            sections.get().into_iter().find(|section| section.key == key)
                                         });
                                         view! {
-                                            <LinkButton id={link_id.clone()} link />
+                                            <TileSectionView id={tile_id.clone()} section />
                                         }
                                     }}
                                 </ForEach>
-                            </Scroll>
-                        </Show>
-                    </List>
-                </Frame>
-                <Separator />
-                <List direction=Direction::Horizontal spacing=8.0>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Button
-                        label="Close"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || act(done_id.get_untracked(), PickerAction::Close)}
-                    />
+                            </List>
+                        </Scroll>
+                    </Show>
+                    <Show condition={linking.clone()}>
+                        <TextInput
+                            value={search}
+                            placeholder="Search by name or UUID"
+                            label="Search"
+                            on_change={move |value: String| {
+                                act(search_id.get_untracked(), PickerAction::Search(value));
+                            }}
+                        />
+                    </Show>
+                    <Show condition={linking}>
+                        <Scroll @sizing=ItemSize::Percent(100.0)>
+                            <Show condition={no_links}>
+                                <Caption content={empty} />
+                            </Show>
+                            <ForEach keys={link_keys}>
+                                {move |block: Uuid| {
+                                    let links = links.clone();
+                                    let link = create_memo(move || {
+                                        links.get().into_iter().find(|link| link.id == block)
+                                    });
+                                    view! {
+                                        <LinkButton id={link_id.clone()} link />
+                                    }
+                                }}
+                            </ForEach>
+                        </Scroll>
+                    </Show>
                 </List>
-            </List>
-        </Dialog>
+            </Frame>
+        </List>
+    }
+}
+
+#[component]
+fn PlacingFields(id: Memo<Uuid>, placing: Memo<Option<Placing>>) -> NodeId {
+    let shown = create_memo(clone!(placing -> move || placing.get().is_some()));
+    let name = create_memo(clone!(placing -> move || {
+        placing.get().map(|placing| placing.name).unwrap_or_default()
+    }));
+    let places = create_memo(clone!(placing -> move || {
+        placing.get().map(|placing| placing.places).unwrap_or_default()
+    }));
+    let keys = create_memo(clone!(places -> move || {
+        places.get().into_iter().map(|place| place.parent).collect::<Vec<BlockParent>>()
+    }));
+    let chosen = create_memo(clone!(placing -> move || placing.get().map(|placing| placing.place)));
+    let naming = id.clone();
+    view! {
+        <List spacing=0.0>
+            <Show condition={shown}>
+                <List spacing=8.0>
+                    <Caption content="Name" />
+                    <TextInput
+                        @test_id={"picker.name"}
+                        value={name}
+                        placeholder="Untitled"
+                        label="Name"
+                        on_change={move |value: String| {
+                            act(naming.get_untracked(), PickerAction::Name(value));
+                        }}
+                    />
+                    <Caption content="Location" />
+                    <Scroll direction=Direction::Horizontal>
+                        <ForEach keys={keys}>
+                            {move |parent: BlockParent| {
+                                let place = create_memo(clone!(places -> move || {
+                                    places.get().into_iter().find(|place| place.parent == parent)
+                                }));
+                                let label = create_memo(clone!(place -> move || {
+                                    place.get().map(|place| place.name).unwrap_or_default()
+                                }));
+                                let glyph = create_memo(clone!(place -> move || {
+                                    place.get().map(|place| place.icon).unwrap_or_default()
+                                }));
+                                let pressed = create_memo(clone!(chosen -> move || {
+                                    chosen.get() == Some(parent)
+                                }));
+                                let id = id.clone();
+                                let named = match parent {
+                                    BlockParent::Block(block) => format!("picker.place.{block}"),
+                                    BlockParent::Root | BlockParent::Detached => {
+                                        "picker.place.root".to_owned()
+                                    }
+                                };
+                                view! {
+                                    <Frame padding_horizontal=3.0>
+                                        <ToggleButton
+                                            @test_id={named}
+                                            label
+                                            glyph
+                                            pressed
+                                            on_change={move |_: bool| {
+                                                act(id.get_untracked(), PickerAction::Place(parent));
+                                            }}
+                                        />
+                                    </Frame>
+                                }
+                            }}
+                        </ForEach>
+                    </Scroll>
+                    <Caption content="Choose a type to create it" />
+                </List>
+            </Show>
+        </List>
     }
 }
 
@@ -326,14 +455,56 @@ fn LinkButton(id: Memo<Uuid>, link: Memo<Option<LinkRow>>) -> NodeId {
 }
 
 #[component]
-fn CreateDialog(id: Memo<Uuid>, create: Memo<Option<CreateView>>, surface: SurfaceId) -> NodeId {
+fn CreateDialog(
+    id: Memo<Uuid>,
+    create: Memo<Option<CreateView>>,
+    surface: SurfaceId,
+    phone: Memo<bool>,
+) -> NodeId {
     let open = create_memo(clone!(create -> move || create.get().is_some()));
+    let wide = create_memo(clone!(open phone -> move || open.get() && !phone.get()));
+    let narrow = create_memo(clone!(open phone -> move || open.get() && phone.get()));
     let title = create_memo(clone!(create -> move || {
         format!(
             "New {}",
             create.get().map(|create| create.title).unwrap_or_default()
         )
     }));
+    let body = view! {
+        <CreateBody id={id.clone()} create surface />
+    };
+    let in_dialog = create_memo(clone!(wide -> move || wide.get().then_some(body)));
+    let in_sheet = create_memo(clone!(narrow -> move || narrow.get().then_some(body)));
+    let (dismiss, closing) = (id.clone(), id);
+    let sheet_title = title.clone();
+    view! {
+        <List spacing=0.0>
+            <Dialog
+                open={wide}
+                title={title}
+                width=360.0
+                on_dismiss={move || act(dismiss.get_untracked(), PickerAction::CancelCreation)}
+            >
+                <Portal node={in_dialog} />
+            </Dialog>
+            <ModalSheet
+                open={narrow}
+                fit=true
+                on_close={move || act(closing.get_untracked(), PickerAction::CancelCreation)}
+            >
+                <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
+                    <List spacing=10.0>
+                        <Title content={sheet_title} />
+                        <Portal node={in_sheet} />
+                    </List>
+                </Frame>
+            </ModalSheet>
+        </List>
+    }
+}
+
+#[component]
+fn CreateBody(id: Memo<Uuid>, create: Memo<Option<CreateView>>, surface: SurfaceId) -> NodeId {
     let working =
         create_memo(clone!(create -> move || create.get().is_some_and(|create| create.working)));
     let waiting_label = create_memo(clone!(create -> move || {
@@ -347,44 +518,37 @@ fn CreateDialog(id: Memo<Uuid>, create: Memo<Option<CreateView>>, surface: Surfa
         create_memo(clone!(create -> move || !create.get().is_some_and(|create| create.ready)));
     let dialog = create_memo(move || create.get().is_some_and(|create| create.dialog));
     let height = surfaces::handle(surface).height();
-    let (create_id, cancel_id) = (id.clone(), id.clone());
+    let (create_id, cancel_id) = (id.clone(), id);
     view! {
-        <Dialog
-            open={open}
-            title={title}
-            width=360.0
-            on_dismiss={move || act(id.get_untracked(), PickerAction::CancelCreation)}
-        >
-            <List spacing=10.0>
-                <Show condition={dialog}>
-                    <Frame height={height}>
-                        <HostSurface id=surface />
-                    </Frame>
-                </Show>
-                <Separator />
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Show condition={options}>
-                        <Button
-                            label="Create"
-                            variant=ButtonVariant::Primary
-                            disabled={not_ready}
-                            on_click={move || act(create_id.get_untracked(), PickerAction::Create)}
-                        />
-                    </Show>
-                    <Show condition={working}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Spinner />
-                            <Caption content={waiting_label} />
-                        </List>
-                    </Show>
+        <List spacing=10.0>
+            <Show condition={dialog}>
+                <Frame height={height}>
+                    <HostSurface id=surface />
+                </Frame>
+            </Show>
+            <Separator />
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Show condition={options}>
                     <Button
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || act(cancel_id.get_untracked(), PickerAction::CancelCreation)}
+                        label="Create"
+                        variant=ButtonVariant::Primary
+                        disabled={not_ready}
+                        on_click={move || act(create_id.get_untracked(), PickerAction::Create)}
                     />
-                </List>
+                </Show>
+                <Show condition={working}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <Spinner />
+                        <Caption content={waiting_label} />
+                    </List>
+                </Show>
+                <Button
+                    label="Cancel"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || act(cancel_id.get_untracked(), PickerAction::CancelCreation)}
+                />
             </List>
-        </Dialog>
+        </List>
     }
 }
 

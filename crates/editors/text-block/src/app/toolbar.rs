@@ -318,6 +318,7 @@ fn pick_block(state: &Shared) {
             block_types: Vec::new(),
             excluded: Vec::new(),
             templates: false,
+            place: None,
         },
         move |result| {
             let Ok(block) = result else {

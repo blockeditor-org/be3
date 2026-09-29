@@ -98,6 +98,7 @@ pub struct PickedBlock {
     pub id: Uuid,
     pub block_type: Uuid,
     pub linked: bool,
+    pub placed: bool,
 }
 
 #[derive(Clone, Default, PartialEq)]
@@ -1580,10 +1581,12 @@ impl BlockPicker {
                 block_id,
                 block_type,
                 linked,
+                placed,
             } => Some(Ok(PickedBlock {
                 id: Uuid::from_bytes(block_id),
                 block_type: Uuid::from_bytes(block_type),
                 linked,
+                placed,
             })),
             BlockPick::Cancelled => None,
             BlockPick::Failed(error) => Some(Err(error)),

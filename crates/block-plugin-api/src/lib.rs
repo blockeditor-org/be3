@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 56;
+pub const PROTOCOL_VERSION: u16 = 57;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -1333,6 +1333,7 @@ pub struct BlockFilter {
     pub block_types: Vec<[u8; 16]>,
     pub excluded: Vec<[u8; 16]>,
     pub templates: bool,
+    pub place: Option<BlockLocation>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1341,6 +1342,7 @@ pub enum BlockPick {
         block_id: [u8; 16],
         block_type: [u8; 16],
         linked: bool,
+        placed: bool,
     },
     Cancelled,
     Failed(String),
