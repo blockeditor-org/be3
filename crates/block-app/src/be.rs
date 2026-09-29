@@ -613,13 +613,30 @@ pub(crate) fn access(block: Uuid) -> be_graph::Access {
     node(block).map_or(be_graph::Access::None, |node| node.access)
 }
 
+thread_local! {
+    static PENDING_NAMES: std::cell::RefCell<std::collections::HashMap<Uuid, String>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+pub(crate) fn name_when_created(block: Uuid, name: String) {
+    if node(block).is_some() {
+        set_name(block, Some(name));
+        return;
+    }
+    PENDING_NAMES.with(|pending| pending.borrow_mut().insert(block, name));
+}
+
 pub(crate) fn create(
     block: Uuid,
     content_type: Uuid,
     parent: be_graph::BlockParent,
-    metadata: be_block::BlockMetadata,
+    mut metadata: be_block::BlockMetadata,
     content: Option<Vec<u8>>,
 ) {
+    if let Some(name) = PENDING_NAMES.with(|pending| pending.borrow_mut().remove(&block)) {
+        metadata.name = Some(name);
+        metadata.named_by_hand = true;
+    }
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {
         shared.graph.change(Node {

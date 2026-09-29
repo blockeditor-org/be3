@@ -132,6 +132,7 @@ impl Slides {
                 block_types: Vec::new(),
                 excluded: Vec::new(),
                 templates: true,
+                place: None,
             },
             move |picked| {
                 let Ok(picked) = picked else {

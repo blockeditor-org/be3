@@ -4,6 +4,7 @@ mod block_data;
 mod linked;
 mod menu;
 mod panel;
+mod phone;
 mod status;
 mod tab;
 pub(crate) mod workspace;

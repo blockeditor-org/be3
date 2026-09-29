@@ -11,7 +11,7 @@ fn a_finger_drags_a_transform_field_in_the_sheet() {
     editor.run();
     editor.finger(1, TouchPhase::End, at);
     editor.run();
-    editor.click("chrome.sidebar");
+    editor.click("infinite-canvas.inspect");
     editor.run();
     let handle = editor.rect_of("sheet.handle").center();
     editor.drag(handle, handle - Vec2::new(0.0, 400.0));

@@ -1,8 +1,10 @@
 use beui::reactive::{
-    Func, Memo, clone, component, create_effect, create_memo, create_signal, untrack, view,
+    Func, ItemSize, List, Memo, Show, clone, component, create_effect, create_memo, create_signal,
+    untrack, view,
 };
 use beui::styled::DockArea;
-use beui::unstyled::{DockState, TabId};
+use beui::styled::theme::NARROW_WIDTH;
+use beui::unstyled::{DockState, TabId, narrower_than};
 use beui::{NodeId, Rect, pos2, vec2};
 
 use super::debug::{
@@ -112,62 +114,83 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
             });
         }));
     }
+    let narrow = narrower_than(NARROW_WIDTH);
+    let lone = create_memo(clone!(state -> move || {
+        narrow.get() && state.with(only_the_workspace)
+    }));
+    let docked = create_memo(clone!(lone -> move || !lone.get()));
     let status = view.status.clone();
     let title = Func::new(move |tab: TabId| match Tool::of(tab) {
         Some(tool) => tool.title().to_owned(),
         None => status.get().workspace,
     });
     view! {
-        <DockArea
-            state={state}
-            title={title}
-            closable={Func::new(|tab: TabId| tab != WORKSPACE)}
-            on_change={move |next: DockState| set_state.set(next)}
-            on_close={|tab: TabId| {
-                if let Some(tool) = Tool::of(tab) {
-                    tool.close();
-                }
-            }}
-        >
-            {move |tab: TabId| {
-                let view = view.clone();
-                let debug = view.debug.clone();
-                match Tool::of(tab) {
-                    None => view! {
-                        <HostSurface id=SurfaceId::Main />
-                    },
-                    Some(Tool::Debug(DebugWindow::Client)) => {
-                        let client = create_memo(move || debug.get().client);
-                        view! {
-                            <ClientPanel client />
+        <List spacing=0.0>
+            <Show condition={lone}>
+                <HostSurface @sizing=ItemSize::Percent(100.0) id=SurfaceId::Main />
+            </Show>
+            <Show condition={docked}>
+                <DockArea
+                    @sizing=ItemSize::Percent(100.0)
+                    state={state}
+                    title={title}
+                    closable={Func::new(|tab: TabId| tab != WORKSPACE)}
+                    on_change={move |next: DockState| set_state.set(next)}
+                    on_close={|tab: TabId| {
+                        if let Some(tool) = Tool::of(tab) {
+                            tool.close();
                         }
-                    }
-                    Some(Tool::Debug(DebugWindow::Performance)) => {
-                        let performance = create_memo(move || debug.get().performance);
-                        view! {
-                            <PerformancePanel performance />
+                    }}
+                >
+                    {move |tab: TabId| {
+                        let view = view.clone();
+                        let debug = view.debug.clone();
+                        match Tool::of(tab) {
+                            None => view! {
+                                <HostSurface id=SurfaceId::Main />
+                            },
+                            Some(Tool::Debug(DebugWindow::Client)) => {
+                                let client = create_memo(move || debug.get().client);
+                                view! {
+                                    <ClientPanel client />
+                                }
+                            }
+                            Some(Tool::Debug(DebugWindow::Performance)) => {
+                                let performance = create_memo(move || debug.get().performance);
+                                view! {
+                                    <PerformancePanel performance />
+                                }
+                            }
+                            Some(Tool::Debug(DebugWindow::Plugins)) => {
+                                let plugins = create_memo(move || debug.get().plugins);
+                                view! {
+                                    <PluginsPanel plugins />
+                                }
+                            }
+                            Some(Tool::Debug(DebugWindow::Version)) => {
+                                let version = create_memo(move || debug.get().version);
+                                view! {
+                                    <VersionPanel version />
+                                }
+                            }
+                            Some(Tool::Invite) => view! {
+                                <InvitePanel view />
+                            },
+                            Some(Tool::About) => view! {
+                                <AboutPanel />
+                            },
                         }
-                    }
-                    Some(Tool::Debug(DebugWindow::Plugins)) => {
-                        let plugins = create_memo(move || debug.get().plugins);
-                        view! {
-                            <PluginsPanel plugins />
-                        }
-                    }
-                    Some(Tool::Debug(DebugWindow::Version)) => {
-                        let version = create_memo(move || debug.get().version);
-                        view! {
-                            <VersionPanel version />
-                        }
-                    }
-                    Some(Tool::Invite) => view! {
-                        <InvitePanel view />
-                    },
-                    Some(Tool::About) => view! {
-                        <AboutPanel />
-                    },
-                }
-            }}
-        </DockArea>
+                    }}
+                </DockArea>
+            </Show>
+        </List>
     }
+}
+
+fn only_the_workspace(state: &DockState) -> bool {
+    let leaves = state.leaves(state.main());
+    state.windows().is_empty()
+        && leaves.len() == 1
+        && state.entries(leaves[0]).len() == 1
+        && state.active_tab(leaves[0]) == Some(WORKSPACE)
 }

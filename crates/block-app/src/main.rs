@@ -180,7 +180,9 @@ impl beui::App for Shell {
         });
         host::filter_document_input(context);
         self.document.show(context, rect);
-        surfaces::read_placements();
+        if surfaces::read_placements() {
+            context.request_repaint();
+        }
         let commands = ui::take_commands();
         if !commands.is_empty() {
             for command in commands {
@@ -258,6 +260,7 @@ struct BlockApp {
     rename: Option<RenameState>,
     share: ShareDialog,
     about_open: bool,
+    app_menu_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
     scheduled_account_switch: Option<Account>,
     allow_close: bool,
@@ -436,6 +439,7 @@ impl BlockApp {
             rename: None,
             share: ShareDialog::default(),
             about_open: false,
+            app_menu_open: false,
             pending_destructive_action: None,
             scheduled_account_switch: None,
             allow_close: false,
@@ -867,6 +871,7 @@ impl BlockApp {
         self.share = ShareDialog::default();
         debug::close_client_windows();
         self.about_open = false;
+        self.app_menu_open = false;
         self.pending_destructive_action = None;
         self.scheduled_account_switch = None;
         self.allow_close = false;
@@ -1438,6 +1443,7 @@ impl BlockApp {
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
+            BlockCommand::AppMenu => self.app_menu_open = true,
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }
@@ -1690,6 +1696,7 @@ impl BlockApp {
                 }
             }
             UiCommand::About(open) => self.about_open = open,
+            UiCommand::AppMenu(open) => self.app_menu_open = open,
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
                     && !email.trim().is_empty()
@@ -1815,6 +1822,7 @@ impl BlockApp {
                 sent: self.invite_sent,
             }),
             about: self.about_open,
+            app_menu: self.app_menu_open,
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             rename: self.rename.as_ref().map(|rename| ui::RenameView {
                 id: rename.id,

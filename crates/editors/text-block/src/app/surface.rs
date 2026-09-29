@@ -76,6 +76,7 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
 
     let press_state = state.clone();
     let key_state = state.clone();
+    let typing = state.set_typing.clone();
     view! {
         <TextArea
             state={state.text.clone()}
@@ -85,6 +86,7 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
             @test_id={"text.surface"}
             on_widget_press={move |widget: usize| focus_embed(&press_state, widget)}
             on_key_override={move |press: KeyPress| paste_key(&key_state, press)}
+            on_focus_change={move |focused: bool| typing.set(focused)}
             block={embed_row}
             selected_widget={open_row}
         />

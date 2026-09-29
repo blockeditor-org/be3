@@ -13,5 +13,8 @@ fn a_block_tab_asks_its_editor_for_the_top_bar() {
         .find(|placement| Uuid::from_bytes(placement.block_id) == opened)
         .expect("the shown block is placed");
     assert!(placement.own_frame, "a block tab owns its frame");
-    assert!(placement.top_bar, "a block tab asks for the top bar");
+    assert!(
+        placement.top_bar.shown(),
+        "a block tab asks for the top bar"
+    );
 }

@@ -28,7 +28,7 @@ fn active_child(instances: &mut Instances) {
                 height: 100.0,
             },
             own_frame: false,
-            top_bar: false,
+            top_bar: block_plugin_api::TopBar::Hidden,
             corner_radius: 0.0,
             layer: ChildLayer::Below,
             mode: ChildMode::Active,

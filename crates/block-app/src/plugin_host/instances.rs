@@ -79,6 +79,7 @@ struct Instance {
     view: Option<EditorView>,
     reported_view: Option<EditorView>,
     view_changes: Vec<ViewChange>,
+    bar_actions: Vec<block_plugin_api::BarAction>,
     presenting: bool,
     reported_presenting: bool,
     grabbed: bool,
@@ -248,6 +249,7 @@ impl Instance {
             view: None,
             reported_view: None,
             view_changes: Vec::new(),
+            bar_actions: Vec::new(),
             presenting: false,
             reported_presenting: false,
             grabbed: false,
@@ -790,6 +792,16 @@ impl Instances {
             width: size.x,
             height: size.y,
         })]
+    }
+
+    pub(super) fn take_bar_actions(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Vec<block_plugin_api::BarAction> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.bar_actions))
+            .unwrap_or_default()
     }
 
     pub(super) fn take_view_changes(&mut self, instance: EditorInstanceId) -> Vec<ViewChange> {
@@ -1602,6 +1614,25 @@ impl Instances {
             .collect()
     }
 
+    pub(super) fn child_bar_actions(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        actions: Vec<(ChildId, block_plugin_api::BarAction)>,
+    ) -> Vec<Message> {
+        actions
+            .into_iter()
+            .map(|(child, action)| {
+                Message::Editor(EditorMessage::ChildBar {
+                    instance,
+                    region,
+                    child,
+                    action,
+                })
+            })
+            .collect()
+    }
+
     pub(super) fn replace_child(
         &mut self,
         instance: EditorInstanceId,
@@ -1885,6 +1916,13 @@ impl Instances {
                         .collect(),
                     excluded: filter.excluded.into_iter().map(Uuid::from_bytes).collect(),
                     templates: filter.templates,
+                    place: filter.place.and_then(|place| match place {
+                        block_plugin_api::BlockLocation::Root => Some(be_graph::BlockParent::Root),
+                        block_plugin_api::BlockLocation::Block(id) => {
+                            Some(be_graph::BlockParent::Block(Uuid::from_bytes(id)))
+                        }
+                        block_plugin_api::BlockLocation::Detached => None,
+                    }),
                 });
                 return true;
             }
@@ -2325,6 +2363,13 @@ impl Instances {
                     return false;
                 };
                 entry.leaving = true;
+                true
+            }
+            EditorMessage::BarAction { instance, action } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.bar_actions.push(action);
                 true
             }
             EditorMessage::ChangeView { instance, change } => {

@@ -22,7 +22,7 @@ fn a_focused_beui_child_gets_the_whole_frame_not_just_its_embedded_rect() {
             width: 120.0,
             height: 90.0,
         }),
-        true,
+        TopBar::Shown,
     );
 
     session.run(EditorRegion::Frame, 1);

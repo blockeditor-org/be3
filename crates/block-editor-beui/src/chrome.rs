@@ -1,3 +1,4 @@
+use crate::beui_frame::bar_item;
 use beui::NodeId;
 use beui::icons::ICON_TUNE;
 use beui::reactive::{
@@ -6,10 +7,10 @@ use beui::reactive::{
     create_memo, create_signal, on_cleanup, provide_context, untrack, use_context, view,
 };
 use beui::styled::theme::BORDER_WIDTH;
+pub use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::{SHEET_STOPS, Scroll, Separator, Sheet, ToggleButton, use_theme};
 
 pub const SIDEBAR_WIDTH: f32 = 260.0;
-pub const NARROW_WIDTH: f32 = 640.0;
 
 const PADDING: f32 = 14.0;
 const SPACING: f32 = 10.0;
@@ -49,6 +50,10 @@ pub fn narrow_chrome() -> Memo<bool> {
     }
 }
 
+pub fn sheet_control() -> Option<WriteSignal<bool>> {
+    use_context::<ChromeLayout>().map(|layout| layout.set_open)
+}
+
 pub fn sheet_open() -> Memo<bool> {
     match use_context::<ChromeLayout>() {
         Some(layout) => {
@@ -61,7 +66,11 @@ pub fn sheet_open() -> Memo<bool> {
 }
 
 #[component]
-pub(crate) fn ChromeRoot(#[prop(children)] content: Render<()>) -> NodeId {
+pub(crate) fn ChromeRoot(
+    #[prop(default = false)] phone: Prop<bool>,
+    #[prop(children)] content: Render<()>,
+) -> NodeId {
+    let phone = create_memo(move || phone.get());
     let size = component_size();
     let narrow = create_memo(clone!(size -> move || {
         let width = size.get().x;
@@ -82,7 +91,11 @@ pub(crate) fn ChromeRoot(#[prop(children)] content: Render<()>) -> NodeId {
     let content = content.call(());
     let offers = layout.offers_sheet();
     let sheet = create_memo(clone!(offers open -> move || offers.get() && open.get()));
-    let bare = create_memo(clone!(offers toolbars -> move || offers.get() && toolbars.get() == 0));
+    let bare = create_memo(clone!(offers toolbars phone -> move || {
+        offers.get() && toolbars.get() == 0 && !phone.get()
+    }));
+    let listed = create_memo(clone!(offers phone -> move || offers.get() && phone.get()));
+    let opener = layout.set_open.clone();
     let theme = use_theme();
     let bar_color = theme.surface.clone();
     let extent = create_memo(clone!(size -> move || size.get().y));
@@ -104,6 +117,11 @@ pub(crate) fn ChromeRoot(#[prop(children)] content: Render<()>) -> NodeId {
                     </List>
                 </Frame>
             </Show>
+            <Show condition={listed}>
+                {move || view! {
+                    <PanelItem set_open={opener.clone()} />
+                }}
+            </Show>
             {content} @sizing=ItemSize::Percent(100.0)
             <Show condition={sheet.clone()}>
                 <Sheet
@@ -124,6 +142,19 @@ pub(crate) fn ChromeRoot(#[prop(children)] content: Render<()>) -> NodeId {
                 </Sheet>
             </Show>
         </List>
+    }
+}
+
+#[component]
+fn PanelItem(set_open: WriteSignal<bool>) -> NodeId {
+    bar_item(
+        "Open the side panel",
+        ICON_TUNE,
+        create_memo(|| false),
+        move || set_open.set(true),
+    );
+    view! {
+        <List spacing=0.0 />
     }
 }
 
@@ -220,7 +251,8 @@ pub fn Toolbar(
     let offers = match use_context::<ChromeLayout>() {
         Some(layout) => {
             count_toolbar(&layout, shown.clone());
-            layout.offers_sheet()
+            let offers = layout.offers_sheet();
+            create_memo(clone!(shown -> move || offers.get() && shown.get()))
         }
         None => create_memo(|| false),
     };

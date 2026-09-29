@@ -165,7 +165,7 @@ fn screens() -> Message {
                 frame: Some(FrameSpec {
                     chrome: FrameChrome::Drawn,
                     content: None,
-                    top_bar: false,
+                    top_bar: block_plugin_api::TopBar::Hidden,
                 }),
                 metrics: ViewportMetrics {
                     logical_width: WIDTH as f32,

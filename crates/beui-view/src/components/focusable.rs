@@ -9,6 +9,7 @@ use beui_macros::component;
 #[component]
 pub fn Focusable(
     #[prop(default = true)] tab_stop: Prop<bool>,
+    #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] ime: Prop<bool>,
     #[prop(default = None)] ime_cursor: Prop<Option<ImeCursor>>,
@@ -42,6 +43,9 @@ pub fn Focusable(
     });
     create_effect(move || {
         with_document(|document| document.set_focusable_tab_stop(focusable, tab_stop.get()))
+    });
+    create_effect(move || {
+        with_document(|document| document.set_focusable_press_focus(focusable, press_focus.get()))
     });
     create_effect(move || {
         with_document(|document| document.set_focusable_ime(focusable, ime.get()))

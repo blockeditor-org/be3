@@ -176,6 +176,7 @@ pub fn interact(
         });
     }
     let mut focus_target = None;
+    let focus_before = doc.focused_node();
     let covered = input
         .pointer_pos
         .is_some_and(|pos| doc.floating_covers(pos));
@@ -283,6 +284,7 @@ pub fn interact(
         doc.set_focus_visible(false);
     }
     if doc.pointer_capture.is_none()
+        && doc.focused_node() == focus_before
         && ((input.pressed_this_frame && !input.touch_started)
             || (input.touch_ended && !input.touch_dragged && !input.touch_cancelled))
     {

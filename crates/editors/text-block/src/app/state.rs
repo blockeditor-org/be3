@@ -50,6 +50,8 @@ pub(crate) struct State {
     pub set_embeds: WriteSignal<Vec<ResolvedEmbed>>,
     pub hex_view: ReadSignal<bool>,
     pub set_hex_view: WriteSignal<bool>,
+    pub typing: ReadSignal<bool>,
+    pub set_typing: WriteSignal<bool>,
     pub hex_insert_mode: ReadSignal<bool>,
     pub set_hex_insert_mode: WriteSignal<bool>,
     pub hex_pending_nibble: Cell<Option<u8>>,
@@ -76,6 +78,7 @@ impl State {
         let dependencies = client.watch(BlockQuery::References(block_id));
         let (embeds, set_embeds) = create_signal(Vec::new());
         let (hex_view, set_hex_view) = create_signal(false);
+        let (typing, set_typing) = create_signal(false);
         let (hex_insert_mode, set_hex_insert_mode) = create_signal(false);
         let (import_error, set_import_error) = create_signal(None);
         let (presence_revision, set_presence_revision) = create_signal(0);
@@ -104,6 +107,8 @@ impl State {
             set_embeds,
             hex_view,
             set_hex_view,
+            typing,
+            set_typing,
             hex_insert_mode,
             set_hex_insert_mode,
             hex_pending_nibble: Cell::new(None),

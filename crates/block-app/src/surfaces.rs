@@ -213,7 +213,8 @@ fn local(damage: &[Rect], origin: beui::Pos2) -> Region {
     })
 }
 
-pub(crate) fn read_placements() {
+pub(crate) fn read_placements() -> bool {
+    let mut moved = false;
     for id in SurfaceId::ALL {
         let placement = handle(id)
             .slot
@@ -222,13 +223,16 @@ pub(crate) fn read_placements() {
             .map(|placement| (placement.rect, placement.clip));
         let shown = handle(id).shown.get_untracked();
         with_state(id, |state| {
-            state.placement = if shown || id == SurfaceId::Main {
+            let next = if shown || id == SurfaceId::Main {
                 placement
             } else {
                 None
             };
+            moved |= state.placement != next;
+            state.placement = next;
         });
     }
+    moved
 }
 
 #[component]

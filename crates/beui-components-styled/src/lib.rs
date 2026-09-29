@@ -1,6 +1,7 @@
 extern crate beui_view as beui;
 
 pub mod accordion;
+pub mod action_row;
 pub mod border;
 pub mod button;
 pub mod calendar;
@@ -42,6 +43,7 @@ pub mod tooltip;
 pub mod tree;
 
 pub use accordion::{Accordion, accordion_open};
+pub use action_row::ActionRow;
 pub use border::{Bordered, Separator};
 pub use button::{Button, ButtonVariant};
 pub use calendar::Calendar;
@@ -68,7 +70,7 @@ pub use scroll::Scroll;
 pub use scrollbar::Scrollbar;
 pub use select::{Select, select_open, select_selected};
 pub use selectable_text::SelectableText;
-pub use sheet::{SHEET_STOPS, Sheet};
+pub use sheet::{ModalSheet, SHEET_STOPS, Sheet};
 pub use shortcut::Shortcut;
 pub use slider::{Slider, slider_value};
 pub use spinner::Spinner;

@@ -16,10 +16,11 @@ use block_editor_beui::beui::styled::{
 };
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};
-use block_editor_beui::{BlockFilter, BlockPicker, Drag, Editor, Toolbar};
+use block_editor_beui::{BlockFilter, BlockPicker, Drag, Editor, Toolbar, phone_layout};
 use uuid::Uuid;
 
 use super::export::{Export, Exporter, exportable};
+use super::phone::PhoneFiles;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
 
 const PADDING: f32 = 8.0;
@@ -125,13 +126,22 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         editor.host().drag_block(carried.id, carried.block_type);
     });
 
+    let narrow = phone_layout();
+    let wide = create_memo(clone!(narrow -> move || !narrow.get()));
     let chrome = editor.chrome_shown();
+    let toolbar = create_memo(clone!(chrome wide -> move || chrome.get() && wide.get()));
     let content = NodeRef::new();
     editor.content(&content);
+    let phone_editor = editor.clone();
+    let phone_tree = Rc::clone(&tree);
+    let phone_picker = Rc::clone(&picker);
+    let phone_exporter = Rc::clone(&exporter);
+    let phone_inspect = inspect.clone();
+    let covered = create_memo(clone!(inspecting -> move || inspecting.get().is_some()));
     let node = view! {
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
-                <Toolbar shown={chrome}>
+                <Toolbar shown={toolbar}>
                     <IconButton
                         glyph={ICON_ADD.to_owned()}
                         label="Add a root block"
@@ -142,43 +152,56 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                 </Toolbar>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <List spacing=0.0>
+                        <Show condition={narrow}>
+                            <PhoneFiles
+                                @sizing=ItemSize::Percent(100.0)
+                                editor={phone_editor}
+                                tree={phone_tree}
+                                picker={phone_picker}
+                                exporter={phone_exporter}
+                                inspect={phone_inspect}
+                                covered
+                            />
+                        </Show>
                         <Show condition={failed}>
                             <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                                 <Caption content={reason} color={theme.danger.clone()} />
                             </Frame>
                         </Show>
-                        <Tree
-                            @sizing=ItemSize::Percent(100.0)
-                            @node_ref={&tree_ref}
-                            keys={keys}
-                            item={item}
-                            selected={focused}
-                            ancestors={move |key: RowKey| ancestors(&key)}
-                            spacing=2.0
-                            padding=PADDING
-                            row_test_id={move |key: RowKey| row_test_id(&key)}
-                            reveal_test_id={"file-tree.reveal".to_owned()}
-                            outline={outline}
-                            on_select={open}
-                            on_expand={expand}
-                            on_reveal={reveal}
-                            on_drag_start={start}
-                        >
-                            {move |face: TreeRowFace<RowKey>| {
-                                let row = tree.row(face.key.clone());
-                                view! {
-                                    <TreeRow
-                                        editor={editor.clone()}
-                                        tree={Rc::clone(&tree)}
-                                        picker={picker.clone()}
-                                        exporter={Rc::clone(&exporter)}
-                                        inspect={inspect.clone()}
-                                        row={row}
-                                        face={face}
-                                    />
-                                }
-                            }}
-                        </Tree>
+                        <Show condition={wide}>
+                            <Tree
+                                @sizing=ItemSize::Percent(100.0)
+                                @node_ref={&tree_ref}
+                                keys={keys}
+                                item={item}
+                                selected={focused}
+                                ancestors={move |key: RowKey| ancestors(&key)}
+                                spacing=2.0
+                                padding=PADDING
+                                row_test_id={move |key: RowKey| row_test_id(&key)}
+                                reveal_test_id={"file-tree.reveal".to_owned()}
+                                outline={outline}
+                                on_select={open}
+                                on_expand={expand}
+                                on_reveal={reveal}
+                                on_drag_start={start}
+                            >
+                                {move |face: TreeRowFace<RowKey>| {
+                                    let row = tree.row(face.key.clone());
+                                    view! {
+                                        <TreeRow
+                                            editor={editor.clone()}
+                                            tree={Rc::clone(&tree)}
+                                            picker={picker.clone()}
+                                            exporter={Rc::clone(&exporter)}
+                                            inspect={inspect.clone()}
+                                            row={row}
+                                            face={face}
+                                        />
+                                    }
+                                }}
+                            </Tree>
+                        </Show>
                     </List>
                 </Frame>
                 <Inspector inspecting={inspecting} set_inspecting={set_inspecting} />
@@ -539,7 +562,7 @@ fn row_rect(tree: NodeId, key: &RowKey) -> Option<Rect> {
     })
 }
 
-fn menu_action(
+pub(crate) fn menu_action(
     editor: Editor,
     tree: Rc<FileTree>,
     picker: Rc<Picker>,
@@ -599,8 +622,28 @@ impl Picker {
     }
 
     pub(crate) fn open(&self, editor: &Editor, parent: Option<Uuid>, excluded: HashSet<Uuid>) {
+        self.request(editor, parent, excluded, false);
+    }
+
+    pub(crate) fn open_placed(
+        &self,
+        editor: &Editor,
+        parent: Option<Uuid>,
+        excluded: HashSet<Uuid>,
+    ) {
+        self.request(editor, parent, excluded, true);
+    }
+
+    fn request(
+        &self,
+        editor: &Editor,
+        parent: Option<Uuid>,
+        excluded: HashSet<Uuid>,
+        placed: bool,
+    ) {
         self.set_error.set(None);
         self.target.set(parent);
+        let place = parent.map_or(BlockParent::Root, BlockParent::Block);
         self.picker.borrow_mut().open(
             editor.host(),
             BlockFilter {
@@ -608,6 +651,7 @@ impl Picker {
                 block_types: Vec::new(),
                 excluded: excluded.into_iter().map(Uuid::into_bytes).collect(),
                 templates: false,
+                place: placed.then(|| place.encode()),
             },
         );
     }
@@ -636,6 +680,13 @@ fn picker(editor: &Editor, tree: Rc<FileTree>) -> Rc<Picker> {
             }
         };
         tree.remember(picked.id, picked.block_type);
+        if picked.placed {
+            match target {
+                Some(parent) => host.open_block_via(picked.id, picked.block_type, parent),
+                None => host.open_block(picked.id, picked.block_type),
+            }
+            return;
+        }
         match target {
             None => {
                 if !picked.linked {

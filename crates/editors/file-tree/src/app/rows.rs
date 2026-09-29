@@ -188,6 +188,10 @@ impl Tree {
         &self.client
     }
 
+    pub(crate) fn block_types(&self) -> HashMap<Uuid, Uuid> {
+        self.watched.borrow().block_types.clone()
+    }
+
     pub(crate) fn toggle(&self, key: &RowKey, id: Option<Uuid>, expanded: bool) {
         match key {
             RowKey::Orphans => {
@@ -265,48 +269,29 @@ impl Builder<'_> {
         self.watched
             .block_types
             .insert(reference.id, reference.block_type);
-        let is_reference = container.is_some_and(|id| reference.parent != BlockParent::Block(id));
-        let source = container.map_or_else(
-            || match reference.parent {
-                BlockParent::Detached => BlockParent::Detached,
-                BlockParent::Root | BlockParent::Block(_) => BlockParent::Root,
-            },
-            BlockParent::Block,
-        );
-        let access = self.client.access(reference.id);
-        let can_edit = access.can_edit();
-        let can_add = self.types.child_edits(reference.block_type).add && can_edit;
-        let can_delete = source != BlockParent::Detached
-            && self.can_move_out_of(source, reference.id, is_reference);
-        let unlink = self.unlink_permission(container);
-        let expandable = !is_reference && !reference.references.is_empty();
         let mut key_path = path.clone();
         key_path.push(reference.id);
-        let expanded = expandable && self.watched.expanded.contains_key(&reference.id);
-        let label = reference.label(self.types);
-        let inspection = self.inspect(&reference, &label.name, access, is_reference);
-        self.rows.push(Row {
-            key: RowKey::Block(key_path.clone()),
-            id: Some(reference.id),
-            block_type: reference.block_type,
-            label: label.name,
-            glyph: label.icon.map(str::to_owned).unwrap_or_default(),
-            automatic: label.automatic,
-            depth,
-            expandable,
-            expanded,
-            container,
-            source,
-            is_reference,
-            access,
-            dynamic_artifact: reference.is_artifact(),
-            parent: reference.parent,
-            can_add,
-            can_edit,
-            can_delete,
-            unlink,
-            inspection: Some(inspection),
-        });
+        let expanded = self.watched.expanded.contains_key(&reference.id);
+        let rows = &self.rows;
+        let row = describe(
+            self.client,
+            self.types,
+            &self.watched.block_types,
+            &reference,
+            Placement {
+                key: RowKey::Block(key_path.clone()),
+                depth,
+                container,
+                expanded,
+            },
+            |id| {
+                rows.iter()
+                    .find(|row| row.id == Some(id))
+                    .map_or_else(|| id.to_string(), |row| format!("{} ({id})", row.label))
+            },
+        );
+        let expanded = row.expanded;
+        self.rows.push(row);
         if !expanded || path.contains(&reference.id) {
             return;
         }
@@ -324,79 +309,129 @@ impl Builder<'_> {
         }
         path.pop();
     }
+}
 
-    fn inspect(
-        &self,
-        block: &BlockInfo,
-        name: &str,
-        access: AccessLevel,
-        is_reference: bool,
-    ) -> Inspection {
-        let named = match block.named_by_hand {
-            true => name.to_owned(),
-            false => format!("{name} (automatic)"),
-        };
-        let parent = match block.parent {
-            BlockParent::Root => "Root".to_owned(),
-            BlockParent::Detached => "Recently Deleted".to_owned(),
-            BlockParent::Block(id) => self.described(id),
-        };
-        let author = match block.author.is_nil() {
-            true => "Unknown".to_owned(),
-            false => block.author.to_string(),
-        };
-        let generated = block.artifact.as_ref().map_or_else(
-            || "No".to_owned(),
-            |artifact| format!("From {}", self.type_name(artifact.source_type)),
-        );
-        Inspection {
-            name: named,
-            id: block.id.to_string(),
-            block_type: self.type_name(block.block_type),
-            author,
-            parent,
-            references: block.references.len().to_string(),
-            access: access_name(access).to_owned(),
-            generated,
-            shown_as: match is_reference {
-                true => "A link to a block that lives elsewhere".to_owned(),
-                false => "The block itself".to_owned(),
-            },
-        }
-    }
+pub(crate) struct Placement {
+    pub(crate) key: RowKey,
+    pub(crate) depth: usize,
+    pub(crate) container: Option<Uuid>,
+    pub(crate) expanded: bool,
+}
 
-    fn type_name(&self, block_type: Uuid) -> String {
-        match self.types.display_name(block_type) {
-            Some(name) => format!("{name} ({block_type})"),
-            None => block_type.to_string(),
-        }
-    }
-
-    fn described(&self, id: Uuid) -> String {
-        self.rows
-            .iter()
-            .find(|row| row.id == Some(id))
-            .map_or_else(|| id.to_string(), |row| format!("{} ({id})", row.label))
-    }
-
-    fn can_move_out_of(&self, source: BlockParent, child: Uuid, is_reference: bool) -> bool {
-        can_move_out_of(
-            self.client,
-            self.types,
-            &self.watched.block_types,
+pub(crate) fn describe(
+    client: &Blocks,
+    types: &dyn BlockTypes,
+    block_types: &HashMap<Uuid, Uuid>,
+    reference: &BlockInfo,
+    placement: Placement,
+    described: impl Fn(Uuid) -> String,
+) -> Row {
+    let Placement {
+        key,
+        depth,
+        container,
+        expanded,
+    } = placement;
+    let is_reference = container.is_some_and(|id| reference.parent != BlockParent::Block(id));
+    let source = container.map_or_else(
+        || match reference.parent {
+            BlockParent::Detached => BlockParent::Detached,
+            BlockParent::Root | BlockParent::Block(_) => BlockParent::Root,
+        },
+        BlockParent::Block,
+    );
+    let access = client.access(reference.id);
+    let can_edit = access.can_edit();
+    let can_add = types.child_edits(reference.block_type).add && can_edit;
+    let can_delete = source != BlockParent::Detached
+        && can_move_out_of(
+            client,
+            types,
+            block_types,
             source,
-            child,
+            reference.id,
             is_reference,
-        )
+        );
+    let unlink = unlink_permission(client, types, block_types, container);
+    let expandable = !is_reference && !reference.references.is_empty();
+    let label = reference.label(types);
+    let inspection = inspect(
+        types,
+        reference,
+        &label.name,
+        access,
+        is_reference,
+        described,
+    );
+    Row {
+        key,
+        id: Some(reference.id),
+        block_type: reference.block_type,
+        label: label.name,
+        glyph: label.icon.map(str::to_owned).unwrap_or_default(),
+        automatic: label.automatic,
+        depth,
+        expandable,
+        expanded: expandable && expanded,
+        container,
+        source,
+        is_reference,
+        access,
+        dynamic_artifact: reference.is_artifact(),
+        parent: reference.parent,
+        can_add,
+        can_edit,
+        can_delete,
+        unlink,
+        inspection: Some(inspection),
     }
+}
 
-    fn unlink_permission(&self, container: Option<Uuid>) -> Result<(), &'static str> {
-        unlink_permission(
-            self.client,
-            self.types,
-            &self.watched.block_types,
-            container,
-        )
+fn inspect(
+    types: &dyn BlockTypes,
+    block: &BlockInfo,
+    name: &str,
+    access: AccessLevel,
+    is_reference: bool,
+    described: impl Fn(Uuid) -> String,
+) -> Inspection {
+    let named = match block.named_by_hand {
+        true => name.to_owned(),
+        false => format!("{name} (automatic)"),
+    };
+    let parent = match block.parent {
+        BlockParent::Root => "Root".to_owned(),
+        BlockParent::Detached => "Recently Deleted".to_owned(),
+        BlockParent::Block(id) => described(id),
+    };
+    let author = match block.author.is_nil() {
+        true => "Unknown".to_owned(),
+        false => block.author.to_string(),
+    };
+    let generated = block.artifact.as_ref().map_or_else(
+        || "No".to_owned(),
+        |artifact| format!("From {}", type_name(types, artifact.source_type)),
+    );
+    Inspection {
+        name: named,
+        id: block.id.to_string(),
+        block_type: type_name(types, block.block_type),
+        author,
+        parent,
+        references: block.references.len().to_string(),
+        access: access_name(access).to_owned(),
+        generated,
+        shown_as: match is_reference {
+            true => "A link to a block that lives elsewhere".to_owned(),
+            false => "The block itself".to_owned(),
+        },
+    }
+}
+
+fn type_name(types: &dyn BlockTypes, block_type: Uuid) -> String {
+    match types.display_name(block_type) {
+        Some(name) => format!("{name} ({block_type})"),
+        None => block_type.to_string(),
     }
 }
 
