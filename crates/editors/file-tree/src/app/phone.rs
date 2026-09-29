@@ -23,9 +23,7 @@ use block_editor_beui::beui::styled::{
 use block_editor_beui::beui::unstyled::{Edge, Floating};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::root_settings::RootSetting;
-use block_editor_beui::{
-    BlockParent, BlockQuery, ChildTarget, Editor, watch_block_label,
-};
+use block_editor_beui::{BlockParent, BlockQuery, ChildTarget, Editor, watch_block_label};
 use uuid::Uuid;
 
 use super::export::{Exporter, exportable};

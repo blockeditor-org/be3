@@ -119,7 +119,9 @@ impl BeuiFrame {
         let editor = editor.clone();
         let document = beui::reactive::build(move || {
             provide_context(BarItems::new());
-            provide_context(PhoneLayout(create_memo(clone!(bar -> move || bar.get().on_phone))));
+            provide_context(PhoneLayout(create_memo(
+                clone!(bar -> move || bar.get().on_phone),
+            )));
             let phone = create_memo(clone!(bar -> move || bar.get().phone.is_some()));
             view! {
                 <List spacing=0.0>

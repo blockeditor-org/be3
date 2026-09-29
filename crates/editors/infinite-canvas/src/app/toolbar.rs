@@ -17,9 +17,7 @@ use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, IconButton, MenuButton, ToggleButton, use_theme,
 };
 use block_editor_beui::beui::unstyled::{Edge, Floating, MenuItem};
-use block_editor_beui::{
-    BottomDock, Toolbar, bar_item, narrow_chrome, phone_layout, sheet_open,
-};
+use block_editor_beui::{BottomDock, Toolbar, bar_item, narrow_chrome, phone_layout, sheet_open};
 
 use super::selection_bar::SelectionTools;
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};

@@ -14,8 +14,7 @@ use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::root_settings::RootSetting;
 use block_editor_beui::{
     AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
-    ContentProjection, Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed,
-    TopBar,
+    ContentProjection, Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -845,10 +844,7 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
 }
 
 #[component]
-pub(crate) fn FilesPanel(
-    workspace: Rc<Workspace>,
-    #[prop(default = false)] phone: bool,
-) -> NodeId {
+pub(crate) fn FilesPanel(workspace: Rc<Workspace>, #[prop(default = false)] phone: bool) -> NodeId {
     let files = workspace.files.clone();
     let target = create_memo(move || {
         files

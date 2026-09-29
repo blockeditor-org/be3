@@ -8,11 +8,12 @@ use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::TextInputHandle;
 use beui_core::document::Document;
+use beui_core::icons::ICON_CLOSE;
 use beui_core::input::KeyPress;
 use beui_core::node::NodeId;
-use beui_core::icons::ICON_CLOSE;
 use beui_view::reactive::{
-    Align, Callback, ClickCallback, Direction, Frame, ItemSize, List, Memo, Prop, Show, clone, create_memo,
+    Align, Callback, ClickCallback, Direction, Frame, ItemSize, List, Memo, Prop, Show, clone,
+    create_memo,
 };
 
 use crate::icon_button::{IconButton, IconButtonSize};
