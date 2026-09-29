@@ -3,6 +3,7 @@ use super::*;
 mod a_back_gesture_slides_a_dialog_and_closes_it;
 mod a_back_handler_slides_its_content_and_goes_back_while_enabled;
 mod a_button_that_leaves_focus_alone_keeps_the_keyboard_on_the_text;
+mod a_clearable_text_input_empties_from_its_clear_button;
 mod a_calendar_jumps_to_a_month_from_its_months_view;
 mod a_calendar_keeps_its_focus_between_its_limits;
 mod a_calendar_reaches_a_distant_year_from_its_years_view;
