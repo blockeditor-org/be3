@@ -798,6 +798,16 @@ body instead of a panel; `empty_panes` finds them and `remove_empty_panes`
 gives their room back, which is how the workspace keeps an empty pane beside
 Files that says nothing is open rather than a tab that says so.
 
+`mode=DockMode::Stacked` draws the same state as one screen: the focused tab
+fills the dock with no tab bars, splitters or windows, and everything else in
+the state is kept, so switching back to `DockMode::Tiled` restores the layout.
+Each tab's panel is built once and moved between the two, so what it holds
+survives the switch. `recent_tabs` lists the tabs from the one shown last (the
+order is part of the state, so it is saved with the layout), and
+`stacked_tab` is the tab a stacked dock shows: the focused one, or the one
+shown last when the focused pane is empty. The workspace stacks its dock on a
+phone.
+
 Each surface - the main one and one per window - lays its tree out over the
 rectangle it was given, so panes and the bars between them are canvas items at
 computed rectangles rather than nested boxes. `layout_surface` is that

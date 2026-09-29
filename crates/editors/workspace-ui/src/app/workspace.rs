@@ -8,21 +8,23 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Frame, Func, ItemSize, List, NodeRef, ReadSignal, Show, Spacer, WriteSignal, clone,
-    component, create_effect, create_memo, create_signal, untrack, view,
+    Align, BackHandler, Frame, Func, ItemSize, List, NodeRef, ReadSignal, Show, Spacer,
+    WriteSignal, clone, component, create_effect, create_memo, create_signal, untrack, view,
 };
 use block_editor_beui::beui::styled::{Caption, DockArea, Heading, use_theme};
-use block_editor_beui::beui::unstyled::{Container, DockState, LeafId, Side, TabId, narrower_than};
+use block_editor_beui::beui::unstyled::{
+    Container, DockMode, DockState, LeafId, Side, TabId, narrower_than,
+};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
-    Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
+    AccessLevel, BarAction, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState,
+    ChildTarget, Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
 use super::panel::BlockPanel;
-use super::phone::PhoneShell;
+use super::phone::PhoneSheets;
 use super::saved::{self, LAYOUT};
 use super::tab::TabItem;
 
@@ -34,12 +36,6 @@ const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 6.0;
 
 type Tabs = HashMap<TabId, TabItem>;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PhonePage {
-    Files,
-    Tab(TabId),
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PhoneSheet {
@@ -76,10 +72,6 @@ pub(crate) struct Workspace {
     active: Cell<Option<Uuid>>,
     pub(crate) phone: ReadSignal<bool>,
     set_phone: WriteSignal<bool>,
-    pub(crate) page: ReadSignal<PhonePage>,
-    set_page: WriteSignal<PhonePage>,
-    pub(crate) order: ReadSignal<Vec<TabId>>,
-    set_order: WriteSignal<Vec<TabId>>,
     pub(crate) sheet: ReadSignal<PhoneSheet>,
     set_sheet: WriteSignal<PhoneSheet>,
 }
@@ -96,8 +88,6 @@ impl Workspace {
         let (files, set_files) = create_signal(None);
         let (routes, set_routes) = create_signal(0);
         let (phone, set_phone) = create_signal(false);
-        let (page, set_page) = create_signal(PhonePage::Files);
-        let (order, set_order) = create_signal(Vec::new());
         let (sheet, set_sheet) = create_signal(PhoneSheet::Closed);
         let workspace = Rc::new(Self {
             editor,
@@ -127,10 +117,6 @@ impl Workspace {
             active: Cell::new(None),
             phone,
             set_phone,
-            page,
-            set_page,
-            order,
-            set_order,
             sheet,
             set_sheet,
         });
@@ -315,13 +301,6 @@ impl Workspace {
             self.set_tabs.set(tabs);
             self.set_views.set(views);
             self.set_layout.set(settled(dock));
-            let focused = self
-                .layout
-                .with_untracked(DockState::focused_tab)
-                .filter(|tab| *tab != FILES);
-            self.set_order.set(focused.into_iter().collect());
-            self.set_page
-                .set(focused.map_or(PhonePage::Files, PhonePage::Tab));
         }
         let files = files.or_else(|| self.create_view(FILES_EDITOR, None));
         self.set_files.set(files);
@@ -357,15 +336,9 @@ impl Workspace {
 
     fn report_focus(&self) {
         let shown = match self.phone.get() {
-            true => match self.page.get() {
-                PhonePage::Tab(tab) => Some(tab),
-                PhonePage::Files => None,
-            },
+            true => self.layout.with(DockState::stacked_tab),
             false => self.layout.with(DockState::focused_tab),
         };
-        if let Some(tab) = shown.filter(|tab| *tab != FILES) {
-            untrack(|| self.visit(tab));
-        }
         let current = shown
             .and_then(|tab| self.tabs.with(|tabs| tabs.get(&tab).copied()))
             .map(|item| item.id);
@@ -480,7 +453,6 @@ impl Workspace {
             layout.show(tab);
             self.set_layout.set(layout);
             self.active.set(Some(item.id));
-            self.set_page.set(PhonePage::Tab(tab));
             return;
         }
         let tab = TabId::new(self.next_tab.get());
@@ -497,20 +469,6 @@ impl Workspace {
         place_tab(&mut layout, tab);
         self.set_layout.set(settled(layout));
         self.active.set(Some(item.id));
-        self.set_page.set(PhonePage::Tab(tab));
-    }
-
-    fn visit(&self, tab: TabId) {
-        if self
-            .order
-            .with_untracked(|order| order.first() == Some(&tab))
-        {
-            return;
-        }
-        self.set_order.update(|order| {
-            order.retain(|other| *other != tab);
-            order.insert(0, tab);
-        });
     }
 
     pub(crate) fn open_count(&self) -> usize {
@@ -519,20 +477,17 @@ impl Workspace {
 
     pub(crate) fn open_tabs(&self) -> Vec<TabId> {
         let tabs = self.tabs.get();
-        let mut open: Vec<TabId> = self
-            .order
-            .get()
+        self.layout
+            .with(DockState::recent_tabs)
             .into_iter()
             .filter(|tab| tabs.contains_key(tab))
-            .collect();
-        let mut rest: Vec<TabId> = tabs
-            .keys()
-            .copied()
-            .filter(|tab| !open.contains(tab))
-            .collect();
-        rest.sort();
-        open.extend(rest);
-        open
+            .collect()
+    }
+
+    pub(crate) fn shown_tab(&self) -> Option<TabId> {
+        self.layout
+            .with(DockState::stacked_tab)
+            .filter(|tab| *tab != FILES)
     }
 
     pub(crate) fn show_tab(&self, tab: TabId) {
@@ -540,12 +495,10 @@ impl Workspace {
         layout.show(tab);
         self.set_layout.set(layout);
         self.set_sheet.set(PhoneSheet::Closed);
-        self.set_page.set(PhonePage::Tab(tab));
     }
 
     pub(crate) fn go_files(&self) {
-        self.set_sheet.set(PhoneSheet::Closed);
-        self.set_page.set(PhonePage::Files);
+        self.show_tab(FILES);
     }
 
     pub(crate) fn set_sheet(&self, sheet: PhoneSheet) {
@@ -560,8 +513,13 @@ impl Workspace {
 
     pub(crate) fn close_tab(&self, tab: TabId) {
         let mut layout = self.layout.get_untracked();
+        let shown = layout.stacked_tab() == Some(tab);
         layout.remove(tab);
-        self.set_layout.set(settled(layout));
+        let mut layout = settled(layout);
+        if shown && let Some(next) = layout.recent_tabs().first().copied() {
+            layout.show(next);
+        }
+        self.set_layout.set(layout);
         self.close(tab);
     }
 
@@ -585,15 +543,6 @@ impl Workspace {
             self.blocks().set_parent(view, BlockParent::Detached);
         }
         self.set_tabs.set(tabs);
-        self.set_order
-            .update(|order| order.retain(|other| *other != tab));
-        if self.page.get_untracked() == PhonePage::Tab(tab) {
-            let next = self
-                .order
-                .with_untracked(|order| order.first().copied())
-                .map_or(PhonePage::Files, PhonePage::Tab);
-            self.set_page.set(next);
-        }
         if !still_open {
             self.forget(closed.id);
         }
@@ -620,18 +569,6 @@ impl Workspace {
     }
 
     fn set_phone(&self, phone: bool) {
-        if phone {
-            let focused = self
-                .layout
-                .with_untracked(DockState::focused_tab)
-                .filter(|tab| *tab != FILES);
-            self.set_page
-                .set(focused.map_or(PhonePage::Files, PhonePage::Tab));
-        } else if let PhonePage::Tab(tab) = self.page.get_untracked() {
-            let mut layout = self.layout.get_untracked();
-            layout.show(tab);
-            self.set_layout.set(layout);
-        }
         self.set_sheet.set(PhoneSheet::Closed);
         self.set_phone.set(phone);
     }
@@ -688,10 +625,7 @@ impl Workspace {
     }
 
     pub(crate) fn new_file_beside_page(self: &Rc<Self>) {
-        let shown = match self.page.get_untracked() {
-            PhonePage::Tab(tab) => self.tab(tab).map(|item| item.id),
-            PhonePage::Files => None,
-        };
+        let shown = untrack(|| self.shown_tab()).and_then(|tab| self.tab(tab).map(|item| item.id));
         match shown {
             Some(id) => self.new_file_near(id),
             None => self.create_in(BlockParent::Root),
@@ -897,8 +831,14 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
         }
     });
     let phone = workspace.phone.clone();
-    let desktop = create_memo(clone!(phone -> move || !phone.get()));
-    let shell = Rc::clone(&workspace);
+    let mode = create_memo(clone!(phone -> move || match phone.get() {
+        true => DockMode::Stacked,
+        false => DockMode::Tiled,
+    }));
+    let in_file = Rc::clone(&workspace);
+    let leaves = create_memo(move || phone.get() && in_file.shown_tab().is_some());
+    let leaving = Rc::clone(&workspace);
+    let sheets = Rc::clone(&workspace);
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     let layout = workspace.layout.clone();
@@ -925,13 +865,14 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                 <Show condition={failed}>
                     <Caption content={reason} color={theme.danger.clone()} />
                 </Show>
-                <Show condition={phone}>
-                    <PhoneShell @sizing=ItemSize::Percent(100.0) workspace={shell} />
-                </Show>
-                <Show condition={desktop}>
+                <BackHandler
+                    @sizing=ItemSize::Percent(100.0)
+                    enabled={leaves}
+                    on_back={move || leaving.go_files()}
+                >
                     <DockArea
-                        @sizing=ItemSize::Percent(100.0)
                         state={layout}
+                        mode={mode}
                         title={title}
                         closable={Func::new(|tab: TabId| tab != FILES)}
                         on_change={move |next: DockState| changing.changed(next)}
@@ -947,19 +888,29 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                                     <FilesPanel workspace={workspace} />
                                 },
                                 tab => view! {
-                                    <BlockPanel workspace={workspace} tab={tab} phone=false />
+                                    <BlockPanel workspace={workspace} tab={tab} />
                                 },
                             }
                         }}
                     </DockArea>
-                </Show>
+                </BackHandler>
+                <PhoneSheets workspace={sheets} />
             </List>
         </Frame>
     }
 }
 
 #[component]
-pub(crate) fn FilesPanel(workspace: Rc<Workspace>, #[prop(default = false)] phone: bool) -> NodeId {
+pub(crate) fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
+    let phone = workspace.phone.clone();
+    let counting = Rc::clone(&workspace);
+    let top_bar = create_memo(move || match phone.get() {
+        true => TopBar::PhoneHidden {
+            open_files: u32::try_from(counting.open_count()).unwrap_or(u32::MAX),
+        },
+        false => TopBar::Hidden,
+    });
+    let switching = Rc::clone(&workspace);
     let files = workspace.files.clone();
     let target = create_memo(move || {
         files
@@ -973,9 +924,10 @@ pub(crate) fn FilesPanel(workspace: Rc<Workspace>, #[prop(default = false)] phon
             block={target}
             mode=ChildMode::Live
             own_frame=true
-            top_bar={match phone {
-                true => TopBar::PhoneHidden,
-                false => TopBar::Hidden,
+            top_bar={top_bar}
+            on_bar={move |action: BarAction| match action {
+                BarAction::Switch => switching.set_sheet(PhoneSheet::Switcher),
+                BarAction::Back | BarAction::Details => {}
             }}
             @test_id={"workspace.files"}
         >

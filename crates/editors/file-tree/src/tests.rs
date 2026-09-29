@@ -15,6 +15,7 @@ mod exporting_a_text_block_saves_it_as_a_markdown_file;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
 mod the_inspect_dialog_stays_on_a_narrow_screen;
 mod the_phone_files_header_opens_the_app_menu;
+mod the_phone_files_header_opens_the_file_switcher;
 
 struct Fixture {
     test: BeuiTest<FileTreeApp>,
@@ -105,13 +106,17 @@ fn viewed(view: EditorViewContent) -> Fixture {
 }
 
 fn phone() -> Fixture {
+    phone_with_files(0)
+}
+
+fn phone_with_files(open_files: u32) -> Fixture {
     let tree = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
     let editor = Editor::new(host.clone(), tree);
     let test = BeuiTest::new(editor)
         .with_size(Vec2::new(390.0, 800.0))
-        .on_phone();
+        .on_phone_with_files(open_files);
     let mut fixture = Fixture { test, host };
     fixture.settle();
     fixture

@@ -80,6 +80,7 @@ pub struct Frame {
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,
     pub ime: Option<Ime>,
+    pub handles_back: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

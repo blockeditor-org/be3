@@ -7,8 +7,8 @@ use block_editor_beui::beui::icons::{
     ICON_LINK_OFF, ICON_NOTE_ADD, ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, BackHandler, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, Text,
-    clone, component, create_effect, create_memo, create_signal, view,
+    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, Text, clone, component,
+    create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::theme::{CARD_RADIUS, FONT_BODY};
 use block_editor_beui::beui::styled::{
@@ -21,9 +21,9 @@ use block_editor_beui::{BlockInfo, BlockParent};
 use uuid::Uuid;
 
 use super::menu::{Action, apply, permissions};
-use super::panel::{BlockPanel, Info, Refs, Watched, read_info};
+use super::panel::{Info, Refs, Watched, read_info};
 use super::tab::TabItem;
-use super::workspace::{FilesPanel, PhonePage, PhoneSheet, Workspace};
+use super::workspace::{PhoneSheet, Workspace};
 
 const SHEET_PADDING: f32 = 12.0;
 const CARD_SPACING: f32 = 10.0;
@@ -32,46 +32,13 @@ const CARD_PADDING: f32 = 6.0;
 const SECTION_PADDING: f32 = 8.0;
 
 #[component]
-pub(crate) fn PhoneShell(workspace: Rc<Workspace>) -> NodeId {
-    let page = workspace.page.clone();
-    let pages = Rc::clone(&workspace);
+pub(crate) fn PhoneSheets(workspace: Rc<Workspace>) -> NodeId {
     let switcher = Rc::clone(&workspace);
     view! {
         <List spacing=0.0>
-            <Dynamic value={page}>
-                {move |page: PhonePage| {
-                    let workspace = Rc::clone(&pages);
-                    match page {
-                        PhonePage::Files => view! {
-                            <FilesPanel
-                                @sizing=ItemSize::Percent(100.0)
-                                workspace={workspace}
-                                phone=true
-                            />
-                        },
-                        PhonePage::Tab(tab) => view! {
-                            <PhoneBlock
-                                @sizing=ItemSize::Percent(100.0)
-                                workspace={workspace}
-                                tab
-                            />
-                        },
-                    }
-                }}
-            </Dynamic>
             <SwitcherSheet workspace={switcher} />
             <DetailsSheet workspace={workspace} />
         </List>
-    }
-}
-
-#[component]
-fn PhoneBlock(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
-    let leaving = Rc::clone(&workspace);
-    view! {
-        <BackHandler on_back={move || leaving.go_files()}>
-            <BlockPanel workspace={workspace} tab={tab} phone=true />
-        </BackHandler>
     }
 }
 
@@ -200,8 +167,8 @@ fn SwitcherCard(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
             .and_then(|item| types.display_name(item.block_type).map(str::to_owned))
             .unwrap_or_default()
     });
-    let page = workspace.page.clone();
-    let current = create_memo(move || page.get() == PhonePage::Tab(tab));
+    let shown = Rc::clone(&workspace);
+    let current = create_memo(move || shown.shown_tab() == Some(tab));
     let outline = create_memo(clone!(theme current -> move || match current.get() {
         true => theme.accent.get(),
         false => theme.border.get(),

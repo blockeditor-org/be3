@@ -139,7 +139,7 @@ pub(crate) fn read_info(
 }
 
 #[component]
-pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId, phone: bool) -> NodeId {
+pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
     let (info, set_info) = create_signal(None::<Info>);
     let reading = Rc::downgrade(&workspace);
     let watched = RefCell::new(Watched::default());
@@ -158,13 +158,14 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId, phone: bool) -> N
     let branch = Rc::clone(&workspace);
     let branch_info = info.clone();
     let counting = Rc::clone(&workspace);
-    let top_bar = create_memo(move || match phone {
+    let phone = workspace.phone.clone();
+    let top_bar = create_memo(clone!(phone -> move || match phone.get() {
         true => TopBar::Phone {
             open_files: u32::try_from(counting.open_count()).unwrap_or(u32::MAX),
         },
         false => TopBar::Shown,
-    });
-    let desktop = !phone;
+    }));
+    let desktop = create_memo(move || !phone.get());
     view! {
         <Frame>
             <List spacing=0.0>

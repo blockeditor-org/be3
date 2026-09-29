@@ -337,6 +337,7 @@ pub struct DockState {
     surfaces: Vec<Surface>,
     groups: Vec<Group>,
     focus: Option<LeafId>,
+    recent: Vec<TabId>,
     next: u64,
     #[serde(skip)]
     lookup: Lookup,
@@ -354,6 +355,7 @@ impl DockState {
             surfaces: Vec::new(),
             groups: Vec::new(),
             focus: None,
+            recent: Vec::new(),
             next: 0,
             lookup: Lookup::default(),
         };
@@ -366,6 +368,7 @@ impl DockState {
             window: None,
         });
         state.focus = Some(focus);
+        state.remember_focus();
         state
     }
 
@@ -593,6 +596,7 @@ impl DockState {
         {
             leaf.active = index;
         }
+        self.remember_focus();
     }
 
     pub fn is_vertical(&self, leaf: LeafId) -> bool {
@@ -713,6 +717,34 @@ impl DockState {
         self.focus.and_then(|leaf| self.active_tab(leaf))
     }
 
+    pub fn recent_tabs(&self) -> Vec<TabId> {
+        let all = self.all_tabs();
+        let mut recent: Vec<TabId> = self
+            .recent
+            .iter()
+            .copied()
+            .filter(|tab| all.contains(tab))
+            .collect();
+        recent.extend(all.into_iter().filter(|tab| !self.recent.contains(tab)));
+        recent
+    }
+
+    pub fn stacked_tab(&self) -> Option<TabId> {
+        self.focused_tab()
+            .or_else(|| self.recent_tabs().first().copied())
+    }
+
+    fn remember_focus(&mut self) {
+        let Some(tab) = self.focused_tab() else {
+            return;
+        };
+        if self.recent.first() == Some(&tab) {
+            return;
+        }
+        self.recent.retain(|other| *other != tab);
+        self.recent.insert(0, tab);
+    }
+
     pub fn focus(&mut self, leaf: LeafId) {
         if self.leaf(leaf).is_none() {
             return;
@@ -722,6 +754,7 @@ impl DockState {
         if let Some(surface) = self.surface_of(leaf) {
             self.raise(surface);
         }
+        self.remember_focus();
     }
 
     fn reveal(&mut self, leaf: LeafId) {
@@ -831,6 +864,7 @@ impl DockState {
         if !self.take(Entry::Tab(tab)) {
             return false;
         }
+        self.recent.retain(|other| *other != tab);
         self.normalize();
         self.settle_focus();
         true
@@ -863,6 +897,11 @@ impl DockState {
             return false;
         };
         leaf.entries[index] = Entry::Tab(with);
+        for recent in &mut self.recent {
+            if *recent == tab {
+                *recent = with;
+            }
+        }
         true
     }
 

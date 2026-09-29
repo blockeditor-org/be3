@@ -12,10 +12,13 @@ mod a_block_tab_asks_its_editor_for_the_top_bar;
 mod a_closed_tab_gives_up_its_view_block;
 mod a_phone_shows_one_file_at_a_time_and_its_bar_goes_back_or_switches;
 mod a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them;
+mod a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown;
 mod a_shown_block_is_remembered_in_the_recents;
 mod a_shown_block_is_reported_as_focused;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod closing_the_only_tab_leaves_the_blank_workspace;
+mod crossing_the_phone_width_keeps_the_block_on_show;
+mod the_back_gesture_on_a_phone_leaves_a_file_for_the_files;
 
 const MAX_TAB: u64 = 64;
 const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_7431);
@@ -91,6 +94,10 @@ fn editor_sized(size: Option<Vec2>) -> (Fixture, Uuid) {
 }
 
 fn profiled(layout: Option<ViewState>) -> (Fixture, Uuid) {
+    profiled_sized(None, layout)
+}
+
+fn profiled_sized(size: Option<Vec2>, layout: Option<ViewState>) -> (Fixture, Uuid) {
     let mut profile = EditorView::document(WORKSPACE_EDITOR, None);
     if let Some(layout) = layout {
         let edit = profile
@@ -98,7 +105,7 @@ fn profiled(layout: Option<ViewState>) -> (Fixture, Uuid) {
             .set_state("layout", Some(&layout), 1, Uuid::nil());
         profile.apply(&edit);
     }
-    open_editor(None, Some(profile))
+    open_editor(size, Some(profile))
 }
 
 fn open_editor(size: Option<Vec2>, profile: Option<EditorViewContent>) -> (Fixture, Uuid) {

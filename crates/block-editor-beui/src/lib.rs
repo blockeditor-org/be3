@@ -18,7 +18,7 @@ pub mod version_control;
 
 use be_block::presence::PresenceColor;
 
-pub use beui_frame::{BarItem, bar_item, phone_layout};
+pub use beui_frame::{BarItem, OpenFiles, bar_item, open_files, phone_layout};
 pub use block_link::{BlockDisplay, BlockLink, watch_block_label};
 pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
 pub use chrome::{

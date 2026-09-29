@@ -331,7 +331,11 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn on_phone(self) -> Self {
-        self.with_bar(false, TopBar::PhoneHidden)
+        self.on_phone_with_files(0)
+    }
+
+    pub fn on_phone_with_files(self, open_files: u32) -> Self {
+        self.with_bar(false, TopBar::PhoneHidden { open_files })
     }
 
     fn with_bar(mut self, closable: bool, top_bar: TopBar) -> Self {
@@ -398,10 +402,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn with_size(mut self, size: Vec2) -> Self {
+        self.set_size(size);
+        self
+    }
+
+    pub fn set_size(&mut self, size: Vec2) {
         self.size = size;
         self.place();
         self.run();
-        self
     }
 
     pub fn with_scale_factor(mut self, scale_factor: f32) -> Self {
@@ -887,6 +895,16 @@ impl<A: BeuiApp> BeuiTest<A> {
         if self.frames.last().is_some_and(|frame| !frame.is_empty()) {
             self.frames.push(Vec::new());
         }
+    }
+
+    pub fn back(&mut self) {
+        self.push(Event::Back(beui::BackGesture::Invoked));
+    }
+
+    pub fn handles_back(&self) -> bool {
+        self.report
+            .as_ref()
+            .is_some_and(|report| report.handles_back)
     }
 
     pub fn hover_at(&mut self, pos: Pos2) {

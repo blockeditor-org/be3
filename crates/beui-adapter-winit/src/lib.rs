@@ -38,6 +38,8 @@ const TOUCH_CURSOR_SIZE: u16 = 20;
 const TOUCH_CURSOR_RADIUS: f32 = TOUCH_CURSOR_SIZE as f32 / 2.0;
 const TOUCH_CURSOR_STROKE: f32 = 1.0;
 const TOUCH_CURSOR_SAMPLES: u16 = 4;
+#[cfg(target_os = "linux")]
+const EVDEV_BACK: u32 = 158;
 
 enum UserEvent {
     AccessKit(AccessKitEvent),
@@ -555,23 +557,27 @@ impl ApplicationHandler<UserEvent> for Runner {
                         self.push(Event::PhysicalKey { code, pressed });
                     }
                 }
-                if let PhysicalKey::Code(code) = event.physical_key {
-                    if pressed
-                        && code == KeyCode::KeyV
-                        && self.modifiers.ctrl
-                        && !self.modifiers.alt
-                        && let Some(text) = self.clipboard.get()
-                    {
-                        self.push(Event::Text(text));
+                let named = match event.physical_key {
+                    PhysicalKey::Code(code) => {
+                        if pressed
+                            && code == KeyCode::KeyV
+                            && self.modifiers.ctrl
+                            && !self.modifiers.alt
+                            && let Some(text) = self.clipboard.get()
+                        {
+                            self.push(Event::Text(text));
+                        }
+                        key(code)
                     }
-                    if let Some(key) = key(code) {
-                        self.push(Event::Key {
-                            key,
-                            pressed,
-                            repeat: event.repeat,
-                            modifiers: self.modifiers,
-                        });
-                    }
+                    PhysicalKey::Unidentified(_) => unidentified_key(event.physical_key),
+                };
+                if let Some(key) = named {
+                    self.push(Event::Key {
+                        key,
+                        pressed,
+                        repeat: event.repeat,
+                        modifiers: self.modifiers,
+                    });
                 }
                 if pressed
                     && !self.modifiers.ctrl
@@ -771,6 +777,20 @@ fn cursor(icon: CursorIcon) -> Option<winit::window::CursorIcon> {
         CursorIcon::Alias => winit::window::CursorIcon::Alias,
         CursorIcon::None => return None,
     })
+}
+
+#[cfg(target_os = "linux")]
+fn unidentified_key(physical: PhysicalKey) -> Option<Key> {
+    use winit::platform::scancode::PhysicalKeyExtScancode;
+    match physical.to_scancode() {
+        Some(EVDEV_BACK) => Some(Key::BrowserBack),
+        _ => None,
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn unidentified_key(_: PhysicalKey) -> Option<Key> {
+    None
 }
 
 fn key(code: KeyCode) -> Option<Key> {
