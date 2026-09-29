@@ -72,6 +72,12 @@ public final class LauncherActivity extends BeuiActivity {
         }
     }
 
+    public static String apk() {
+        LauncherActivity activity = current;
+        if (activity == null) return null;
+        return activity.getApplicationInfo().sourceDir;
+    }
+
     public static boolean openUrl(String url) {
         LauncherActivity activity = current;
         if (activity == null) return false;

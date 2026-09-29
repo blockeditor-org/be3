@@ -23,7 +23,11 @@ impl Slot {
     }
 
     pub(crate) fn manifest_url(self, commit: &str) -> String {
-        format!("{STORE}/{}/build.json?commit={commit}", self.name())
+        format!("{STORE}/{}/{commit}.json", self.name())
+    }
+
+    pub(crate) fn latest_url(self) -> String {
+        format!("{STORE}/{}/build.json", self.name())
     }
 
     pub(crate) fn object_url(self, hash: &str) -> String {
@@ -169,7 +173,7 @@ fn remove(path: &Path) -> Result<(), String> {
     }
 }
 
-fn hash_file(path: &Path) -> Option<String> {
+pub(crate) fn hash_file(path: &Path) -> Option<String> {
     let mut file = File::open(path).ok()?;
     let mut hasher = Sha256::new();
     let mut buffer = vec![0; 1 << 16];

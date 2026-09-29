@@ -1,10 +1,12 @@
 #[cfg(target_os = "android")]
 use beui::icons::ICON_ARROW_BACK;
 use beui::icons::{
-    ICON_CALL_SPLIT, ICON_CANCEL, ICON_DRAFT, ICON_MERGE, ICON_REFRESH, ICON_SEARCH,
+    ICON_CALL_SPLIT, ICON_CANCEL, ICON_DRAFT, ICON_FRAME_INSPECT, ICON_MERGE, ICON_REFRESH,
+    ICON_SEARCH,
 };
 #[cfg(target_os = "android")]
 use beui::reactive::BackHandler;
+use beui::reactive::with_document;
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, Text, clone,
     component, create_memo, view,
@@ -16,7 +18,7 @@ use beui::styled::{
     Caption, Heading, Icon, IconButton, ListRow, Scroll, Spinner, Tabs, TextInput, use_theme,
 };
 use beui::unstyled::ChoiceOption;
-use beui::{Color32, NodeId};
+use beui::{Color32, Document, NodeId};
 
 #[cfg(target_os = "android")]
 use crate::detail::Detail;
@@ -155,6 +157,11 @@ fn Sidebar(model: Model) -> NodeId {
                             <Heading content="Pull requests" />
                             <Caption content={repository} />
                         </List>
+                        <IconButton
+                            glyph=ICON_FRAME_INSPECT
+                            label="Open the inspector"
+                            on_click={|| with_document(Document::open_inspector)}
+                        />
                         <IconButton glyph=ICON_REFRESH label="Refresh" on_click={refresh} />
                     </List>
                     <MainActions model={main} />

@@ -119,7 +119,7 @@ impl Tasks {
         });
     }
 
-    fn github(&self) -> Result<&GitHub, String> {
+    pub(crate) fn github(&self) -> Result<&GitHub, String> {
         self.github
             .get_or_init(|| GitHub::connect(&self.root))
             .as_ref()

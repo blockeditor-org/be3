@@ -514,9 +514,13 @@ jobs:
   # main: one build a slot, which the next replaces. Each APK is named by the
   # SHA-256 of its bytes, <hash>.apk, so one the slot already holds is not
   # uploaded again, and nor does the launcher download or install it again.
-  # build.json, uploaded after them, names them: the commit, and the hash and
-  # size of the app and of the launcher. The APKs it no longer names are
-  # deleted after it. android-builds.yml deletes a closed pull request's slot.
+  # <commit>.json, uploaded after them, names them: the commit, and the hash and
+  # size of the app and of the launcher. build.json is a copy of it, which the
+  # launcher falls back to while CI has not published the commit it asks for.
+  # The CDN ignores query strings and keeps a file for a month, so build.json
+  # can be a stale copy there; <commit>.json never changes, and a 404 is not
+  # kept, so asking for the commit is what finds a new build. The APKs and
+  # manifests it no longer names are deleted after it. android-builds.yml deletes a closed pull request's slot.
   # Only main and pull requests from this repository have one, since a fork's
   # pull request has no BuildBuddy key to sign it with. As with the paint
   # previews, the storage key is given to the upload step alone, and what the
@@ -565,7 +569,7 @@ jobs:
             --arg commit "$COMMIT" \
             --argjson app "$(object "$android/block-app.apk")" \
             --argjson launcher "$(object "$android/be-launcher.apk")" \
-            '{commit: $commit, app: $app, launcher: $launcher}' > "$RUNNER_TEMP/build.json"
+            '{commit: $commit, app: $app, launcher: $launcher}' > "$objects/$COMMIT.json"
 
           present="$(curl --fail --silent --show-error --retry 3 \
             --header "AccessKey: $BUNNY_STORAGE_KEY" "$store/" |
@@ -583,12 +587,14 @@ jobs:
             fi
           done
 
-          curl --fail --silent --show-error --retry 3 --output /dev/null \
-            --request PUT \
-            --header "AccessKey: $BUNNY_STORAGE_KEY" \
-            --header 'Content-Type: application/json' \
-            --upload-file "$RUNNER_TEMP/build.json" \
-            "$store/build.json"
+          for name in "$COMMIT.json" build.json; do
+            curl --fail --silent --show-error --retry 3 --output /dev/null \
+              --request PUT \
+              --header "AccessKey: $BUNNY_STORAGE_KEY" \
+              --header 'Content-Type: application/json' \
+              --upload-file "$objects/$COMMIT.json" \
+              "$store/$name"
+          done
 
           wanted="$(ls "$objects")"
           while IFS= read -r name; do
