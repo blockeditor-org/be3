@@ -189,7 +189,7 @@ where
     let edge = create_memo(clone!(astray -> move || astray.get().unwrap_or(Edge::Bottom)));
     let glyph = create_memo(clone!(edge -> move || match edge.get() {
         Edge::Top | Edge::TopEnd => ICON_ARROW_UPWARD.to_owned(),
-        Edge::Bottom => ICON_ARROW_DOWNWARD.to_owned(),
+        Edge::Bottom | Edge::BottomEnd => ICON_ARROW_DOWNWARD.to_owned(),
     }));
     let label = create_memo(clone!(selected -> move || {
         let label = selected.get().map(|key| item.call(key).label).unwrap_or_default();

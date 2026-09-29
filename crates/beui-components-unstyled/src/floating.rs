@@ -11,6 +11,7 @@ pub enum Edge {
     TopEnd,
     #[default]
     Bottom,
+    BottomEnd,
 }
 
 #[component]
@@ -25,6 +26,7 @@ pub fn Floating(
         Edge::Top => Placement::InsideTop,
         Edge::TopEnd => Placement::InsideTopEnd,
         Edge::Bottom => Placement::InsideBottom,
+        Edge::BottomEnd => Placement::InsideBottomEnd,
     });
     let mode = interactive.map(|interactive| match interactive {
         true => OverlayMode::Floating,

@@ -38,6 +38,7 @@ pub enum Placement {
     InsideTop,
     InsideTopEnd,
     InsideBottom,
+    InsideBottomEnd,
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -125,10 +126,14 @@ fn resolve_rect(
             content_size,
         );
     }
-    if placement == Placement::InsideTopEnd {
+    if let Placement::InsideTopEnd | Placement::InsideBottomEnd = placement {
+        let y = match placement {
+            Placement::InsideTopEnd => anchor_rect.top(),
+            _ => (anchor_rect.bottom() - content_size.y).max(anchor_rect.top()),
+        };
         let origin = pos2(
             (anchor_rect.right() - content_size.x).max(anchor_rect.left()),
-            anchor_rect.top(),
+            y,
         );
         return Rect::from_min_size(
             pos2(origin.x.max(viewport.left()), origin.y.max(viewport.top())),
@@ -162,7 +167,8 @@ fn resolve_rect(
         | Placement::Fill
         | Placement::InsideTop
         | Placement::InsideTopEnd
-        | Placement::InsideBottom => {
+        | Placement::InsideBottom
+        | Placement::InsideBottomEnd => {
             unreachable!("a centred or pinned overlay is placed above")
         }
     };
