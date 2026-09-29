@@ -402,7 +402,9 @@ fn RecentCard(editor: Editor, id: Uuid, block_type: Uuid) -> NodeId {
                 >
                     <Frame height={RECENT_HEIGHT - 8.0} padding_vertical=6.0>
                         <List spacing=6.0>
-                            <Icon glyph color={theme.accent.clone()} />
+                            <List direction=Direction::Horizontal spacing=0.0>
+                                <Icon glyph color={theme.accent.clone()} />
+                            </List>
                             <Spacer @sizing=ItemSize::Percent(100.0) />
                             <Text
                                 string={name}

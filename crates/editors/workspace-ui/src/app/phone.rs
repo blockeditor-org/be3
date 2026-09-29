@@ -219,7 +219,9 @@ fn SwitcherCard(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                 >
                     <Frame padding_vertical=CARD_PADDING>
                         <List spacing=6.0>
-                            <Icon glyph color={theme.accent.clone()} />
+                            <List direction=Direction::Horizontal spacing=0.0>
+                                <Icon glyph color={theme.accent.clone()} />
+                            </List>
                             <Text
                                 string={name}
                                 font_size=FONT_BODY

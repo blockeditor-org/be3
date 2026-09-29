@@ -176,6 +176,7 @@ pub struct BlockPickerResult {
     pub block_type: Uuid,
     pub linked: bool,
     pub placed: bool,
+    pub into: Option<Uuid>,
 }
 
 pub struct BlockPicker {
@@ -270,6 +271,7 @@ impl BlockPicker {
                             block_type: block.content_type,
                             linked: true,
                             placed: false,
+                            into: None,
                         });
                     }
                 }
@@ -280,7 +282,11 @@ impl BlockPicker {
                 }
                 PickerAction::CancelCreation => self.pending_block = None,
                 PickerAction::DismissError => self.error = None,
-                PickerAction::Name(name) => self.name = name,
+                PickerAction::Name(name) => {
+                    if self.open {
+                        self.name = name;
+                    }
+                }
                 PickerAction::Place(place) => {
                     if self.place.is_some() {
                         self.place = Some(place);
@@ -415,9 +421,9 @@ impl BlockPicker {
                     editors,
                     id,
                     pending.target.block_type,
-                    self.place.unwrap_or(parent),
+                    parent,
                     name,
-                    self.place.is_some(),
+                    self.place,
                 ))
             }
             Ok(None) => {
@@ -438,19 +444,28 @@ impl BlockPicker {
         declared: Uuid,
         parent: BlockParent,
         name: Option<String>,
-        placed: bool,
+        place: Option<BlockParent>,
     ) -> BlockPickerResult {
         let block_type = crate::be::node(id).map_or(declared, |node| node.content_type);
+        let into = match place {
+            Some(BlockParent::Block(container)) => Some(container),
+            Some(BlockParent::Root | BlockParent::Detached) | None => None,
+        };
+        let parent = match place {
+            Some(BlockParent::Root) => BlockParent::Root,
+            Some(BlockParent::Block(_) | BlockParent::Detached) | None => parent,
+        };
         crate::be::set_parent(id, parent);
-        if name.is_some() {
-            crate::be::set_name(id, name);
+        if let Some(name) = name {
+            crate::be::name_when_created(id, name);
         }
         editors.ensure(id, block_type);
         BlockPickerResult {
             id,
             block_type,
             linked: false,
-            placed,
+            placed: place.is_some(),
+            into,
         }
     }
 }

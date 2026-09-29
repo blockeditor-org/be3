@@ -284,7 +284,7 @@ fn serve_block_pick(
     editors: &mut EditorAccess<'_>,
     excluded: Vec<Uuid>,
     parent: be_graph::BlockParent,
-) {
+) -> Option<EditorAction> {
     if pending.is_none()
         && let Some(request) = crate::plugin_host::take_block_pick(plugin_id, instance)
     {
@@ -303,10 +303,19 @@ fn serve_block_pick(
             picker,
         });
     }
-    let Some(waiting) = pending.as_mut() else {
-        return;
-    };
+    let waiting = pending.as_mut()?;
     let picked = waiting.picker.handle(editors, parent);
+    let placing = picked.as_ref().and_then(|result| {
+        let container = result.into?;
+        Some(EditorAction::Command {
+            id: result.id,
+            command: block_plugin_api::BlockCommand::Place {
+                block_type: result.block_type.into_bytes(),
+                parent: container.into_bytes(),
+                linked: false,
+            },
+        })
+    });
     let pick = match picked {
         Some(result) => Some(BlockPick::Chosen {
             block_id: result.id.into_bytes(),
@@ -317,12 +326,11 @@ fn serve_block_pick(
         None if waiting.picker.is_open() => None,
         None => Some(BlockPick::Cancelled),
     };
-    let Some(pick) = pick else {
-        return;
-    };
+    let pick = pick?;
     let request_id = waiting.request_id;
     *pending = None;
     crate::plugin_host::block_picked(plugin_id, instance, request_id, pick);
+    placing
 }
 
 impl PluginEditor {
@@ -608,7 +616,7 @@ impl PluginEditor {
         crate::plugin_host::report_child_views(&plugin.identity.id, self.instance, region, views);
         crate::plugin_host::report_child_bars(&plugin.identity.id, self.instance, region, bars);
         if region == EditorRegion::Frame {
-            self.block_pick_ui(editors);
+            action = action.or(self.block_pick_ui(editors));
         }
         action
     }
@@ -749,10 +757,8 @@ impl PluginEditor {
         );
     }
 
-    fn block_pick_ui(&mut self, editors: &mut EditorAccess<'_>) {
-        let Some(plugin) = &self.plugin else {
-            return;
-        };
+    fn block_pick_ui(&mut self, editors: &mut EditorAccess<'_>) -> Option<EditorAction> {
+        let plugin = self.plugin.as_ref()?;
         serve_block_pick(
             &plugin.identity.id,
             self.instance,
@@ -760,7 +766,7 @@ impl PluginEditor {
             editors,
             vec![self.id],
             be_graph::BlockParent::Block(self.id),
-        );
+        )
     }
 
     fn take_bar_actions(&mut self, viewport: &mut DirectEditorViewport) {

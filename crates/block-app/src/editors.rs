@@ -706,6 +706,11 @@ impl DirectEditorTabBands<'_, '_> {
         if owns_frame {
             self.exit |= self.editor.take_direct_editor_frame_exit();
         }
+        if !placed && let Some(outer) = self.outer.as_deref_mut() {
+            for bar in self.viewport.take_bar_actions() {
+                outer.push_bar_action(bar);
+            }
+        }
         action
     }
 

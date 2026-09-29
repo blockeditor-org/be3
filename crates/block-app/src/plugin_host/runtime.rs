@@ -571,6 +571,11 @@ impl EditorPresentation {
         if self.floating.is_empty() {
             return;
         }
+        if let Some(target) = self.id {
+            for rect in &self.floating {
+                ui.register(target, *rect);
+            }
+        }
         let floating = self.floating.clone();
         self.blit(ui, &floating);
     }
