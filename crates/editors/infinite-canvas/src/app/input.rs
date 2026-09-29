@@ -187,6 +187,12 @@ impl CanvasState {
                     return;
                 }
             }
+            let retap = press.touch
+                && !entity.locked
+                && matches!(entity.kind, CanvasEntityKind::Text { .. })
+                && self.selection.get_untracked().len() == 1
+                && self.selection.get_untracked().contains(&id);
+            self.note_retap(retap.then_some(id));
             if press.modifiers.shift {
                 self.select(id, true);
                 self.begin_gesture(None);
@@ -322,7 +328,14 @@ impl CanvasState {
         self.hold_pointer(false);
         self.finish_grouped_edit();
         let gesture = self.gesture.get_untracked();
+        let retapped = self.take_retap();
         self.begin_gesture(None);
+        if let (Some(id), Some(Gesture::Move { start, current, .. })) = (retapped, &gesture)
+            && start == current
+        {
+            self.edit_text(Some(id));
+            return;
+        }
         if let Some(gesture) = gesture {
             self.finish_gesture(gesture);
         }

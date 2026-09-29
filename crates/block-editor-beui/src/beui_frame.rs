@@ -3,13 +3,24 @@ use std::rc::Rc;
 
 use be_block::metadata::MAX_NAME_BYTES;
 use beui::NodeId;
-use beui::icons::{ICON_REDO, ICON_SHARE, ICON_UNDO};
-use beui::reactive::{
-    ClickCallback, Frame, ItemSize, List, Memo, ReadSignal, Show, WriteSignal, clone, component,
-    create_effect, create_memo, create_signal, focus_takes_text, on_finger_tap, on_shortcut, view,
+use beui::accesskit::{Node as AccessNode, Role};
+use beui::icons::{
+    ICON_ARROW_BACK, ICON_CLOSE, ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_EXPAND_MORE, ICON_INFO,
+    ICON_MORE_VERT, ICON_REDO, ICON_SHARE, ICON_UNDO,
 };
-use beui::styled::{Button, ButtonVariant, IconButton, TextInput};
+use beui::reactive::{
+    Align, ClickCallback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, Text,
+    WriteSignal, clone, component, create_effect, create_memo, create_signal, focus_ring,
+    focus_takes_text, on_cleanup, on_finger_tap, on_shortcut, provide_context, use_context, view,
+};
+use beui::styled::theme::{FONT_BODY, FONT_SMALL};
+use beui::styled::{
+    ActionRow, Button, ButtonVariant, Caption, Icon, IconButton, ListRow, ModalSheet, Scroll,
+    TextInput, use_theme,
+};
+use beui::unstyled;
 use beui::{Context, Document, Key, KeyPress};
+use block_plugin_api::BarAction;
 use block_ui::{BlockLabel, BlockTypes};
 use uuid::Uuid;
 
@@ -17,12 +28,78 @@ use crate::chrome::ChromeRoot;
 use crate::{BlockInfo, BlockList, BlockQuery, Editor, Toolbar};
 
 const BAR_SPACING: f32 = 6.0;
+const PHONE_BAR_SPACING: f32 = 2.0;
 const NAME_WIDTH: f32 = 280.0;
+const TITLE_SPACING: f32 = 10.0;
+const COUNT_SIDE: f32 = 22.0;
+const COUNT_TARGET: f32 = 40.0;
+const SHEET_PADDING: f32 = 8.0;
+const MORE_STOPS: [f32; 2] = [0.5, 0.9];
+
+#[derive(Clone)]
+pub struct BarItem {
+    pub label: String,
+    pub glyph: String,
+    pub disabled: Memo<bool>,
+    pub run: Rc<dyn Fn()>,
+}
+
+#[derive(Clone)]
+struct BarItems {
+    items: ReadSignal<Vec<(u64, BarItem)>>,
+    set_items: WriteSignal<Vec<(u64, BarItem)>>,
+    next: Rc<Cell<u64>>,
+}
+
+impl BarItems {
+    fn new() -> Self {
+        let (items, set_items) = create_signal(Vec::new());
+        Self {
+            items,
+            set_items,
+            next: Rc::new(Cell::new(0)),
+        }
+    }
+}
+
+pub fn bar_item(
+    label: impl Into<String>,
+    glyph: &str,
+    disabled: Memo<bool>,
+    run: impl Fn() + 'static,
+) {
+    let Some(items) = use_context::<BarItems>() else {
+        return;
+    };
+    let key = items.next.get();
+    items.next.set(key + 1);
+    let item = BarItem {
+        label: label.into(),
+        glyph: glyph.to_owned(),
+        disabled,
+        run: Rc::new(run),
+    };
+    items.set_items.update(|items| items.push((key, item)));
+    let set_items = items.set_items;
+    on_cleanup(move || set_items.update(|items| items.retain(|(other, _)| *other != key)));
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FrameBar {
     pub shown: bool,
     pub closable: bool,
+    pub phone: Option<u32>,
+    pub on_phone: bool,
+}
+
+#[derive(Clone)]
+struct PhoneLayout(Memo<bool>);
+
+pub fn phone_layout() -> Memo<bool> {
+    match use_context::<PhoneLayout>() {
+        Some(PhoneLayout(phone)) => phone,
+        None => create_memo(|| false),
+    }
 }
 
 pub struct BeuiFrame {
@@ -41,10 +118,15 @@ impl BeuiFrame {
         let content_slot_writer = content_slot.clone();
         let editor = editor.clone();
         let document = beui::reactive::build(move || {
+            provide_context(BarItems::new());
+            provide_context(PhoneLayout(create_memo(
+                clone!(bar -> move || bar.get().on_phone),
+            )));
+            let phone = create_memo(clone!(bar -> move || bar.get().phone.is_some()));
             view! {
                 <List spacing=0.0>
                     <TopBar editor bar on_exit={move || exit_writer.set(true)} />
-                    <ChromeRoot @sizing=ItemSize::Percent(100.0)>
+                    <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>
                         {move || {
                             let content = view();
                             content_slot_writer.set(Some(content));
@@ -93,6 +175,8 @@ struct BarState {
     can_share: bool,
     name: String,
     placeholder: String,
+    type_name: String,
+    glyph: String,
 }
 
 struct Watched {
@@ -143,6 +227,10 @@ impl Watched {
             .and_then(|block_type| types.display_name(block_type))
             .unwrap_or("Untitled")
             .to_owned();
+        let glyph = block_type
+            .and_then(|block_type| types.icon(block_type))
+            .unwrap_or_default()
+            .to_owned();
         let editable = self.editor.editable().get() && self.can_edit();
         let (can_undo, can_redo) = match editable {
             true => self.history(),
@@ -150,7 +238,7 @@ impl Watched {
         };
         let (name, placeholder) = match label.automatic {
             true => (String::new(), label.name),
-            false => (label.name, fallback),
+            false => (label.name, fallback.clone()),
         };
         BarState {
             can_undo,
@@ -159,6 +247,8 @@ impl Watched {
             can_share: self.can_edit(),
             name,
             placeholder,
+            type_name: fallback,
+            glyph,
         }
     }
 
@@ -234,7 +324,10 @@ impl Watched {
 #[component]
 pub(crate) fn TopBar(editor: Editor, bar: ReadSignal<FrameBar>, on_exit: ClickCallback) -> NodeId {
     let shown = create_memo(clone!(bar -> move || bar.get().shown));
-    let closable = create_memo(move || bar.get().closable);
+    let closable = create_memo(clone!(bar -> move || bar.get().closable));
+    let phone = create_memo(clone!(bar -> move || bar.get().phone));
+    let desktop = create_memo(clone!(shown phone -> move || shown.get() && phone.get().is_none()));
+    let phoned = create_memo(clone!(shown phone -> move || shown.get() && phone.get().is_some()));
     let (state, set_state) = create_signal(BarState::default());
     let watched = Rc::new(Watched {
         editor: editor.clone(),
@@ -254,6 +347,42 @@ pub(crate) fn TopBar(editor: Editor, bar: ReadSignal<FrameBar>, on_exit: ClickCa
             set_state.set(reading.read());
         }
     });
+    let phone_watched = Rc::clone(&watched);
+    let phone_state = state.clone();
+    let phone_editor = editor.clone();
+    let phone_exit = on_exit.clone();
+    view! {
+        <List spacing=0.0>
+            <DesktopBar
+                editor
+                watched
+                state
+                shown={desktop}
+                closable={closable.clone()}
+                on_exit={move || on_exit.call()}
+            />
+            <PhoneBar
+                editor={phone_editor}
+                watched={phone_watched}
+                state={phone_state}
+                shown={phoned}
+                open_files={create_memo(move || phone.get().unwrap_or(0))}
+                closable
+                on_exit={move || phone_exit.call()}
+            />
+        </List>
+    }
+}
+
+#[component]
+fn DesktopBar(
+    editor: Editor,
+    watched: Rc<Watched>,
+    state: ReadSignal<BarState>,
+    shown: Memo<bool>,
+    closable: Memo<bool>,
+    on_exit: ClickCallback,
+) -> NodeId {
     let undo_off = field(&state, |state| !state.can_undo);
     let redo_off = field(&state, |state| !state.can_redo);
     let rename_off = field(&state, |state| !state.can_rename);
@@ -326,6 +455,279 @@ pub(crate) fn TopBar(editor: Editor, bar: ReadSignal<FrameBar>, on_exit: ClickCa
                 />
             </Show>
         </Toolbar>
+    }
+}
+
+#[component]
+fn PhoneBar(
+    editor: Editor,
+    watched: Rc<Watched>,
+    state: ReadSignal<BarState>,
+    shown: Memo<bool>,
+    open_files: Memo<u32>,
+    closable: Memo<bool>,
+    on_exit: ClickCallback,
+) -> NodeId {
+    let theme = use_theme();
+    let title = field(&state, |state| match state.name.is_empty() {
+        true => state.placeholder.clone(),
+        false => state.name.clone(),
+    });
+    let kind = field(&state, |state| state.type_name.clone());
+    let glyph = field(&state, |state| state.glyph.clone());
+    let (more, set_more) = create_signal(false);
+    let host = editor.host().clone();
+    let back = clone!(host -> move || host.bar_action(BarAction::Back));
+    let switch = clone!(host -> move || host.bar_action(BarAction::Switch));
+    let counted = clone!(host -> move || host.bar_action(BarAction::Switch));
+    let opening = set_more.clone();
+    let closing = set_more.clone();
+    view! {
+        <List spacing=0.0>
+            <Toolbar shown={shown} spacing=PHONE_BAR_SPACING fit=true>
+                <IconButton
+                    @test_id={"editor.back"}
+                    glyph={ICON_ARROW_BACK.to_owned()}
+                    label="Back to files"
+                    on_click={back}
+                />
+                <ListRow
+                    @sizing=ItemSize::Percent(100.0)
+                    @test_id={"editor.switch"}
+                    on_click={switch}
+                >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
+                        <Icon glyph color={theme.accent.clone()} />
+                        <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                            <Text
+                                string={title}
+                                font_size=FONT_BODY
+                                color={theme.text.clone()}
+                                ellipsis=true
+                            />
+                            <Caption content={kind} ellipsis=true />
+                        </List>
+                        <Icon
+                            glyph={ICON_EXPAND_MORE.to_owned()}
+                            color={theme.text_muted.clone()}
+                        />
+                    </List>
+                </ListRow>
+                <OpenFiles count={open_files} on_click={counted} />
+                <IconButton
+                    @test_id={"editor.more"}
+                    glyph={ICON_MORE_VERT.to_owned()}
+                    label="More"
+                    on_click={move || opening.set(true)}
+                />
+            </Toolbar>
+            <ModalSheet
+                open={more}
+                rest={MORE_STOPS[0]}
+                stops={MORE_STOPS.to_vec()}
+                on_close={move || closing.set(false)}
+            >
+                <MoreSheet
+                    editor
+                    watched
+                    state
+                    closable
+                    on_exit={move || on_exit.call()}
+                    set_more
+                />
+            </ModalSheet>
+        </List>
+    }
+}
+
+#[component]
+fn OpenFiles(count: Memo<u32>, on_click: ClickCallback) -> NodeId {
+    let theme = use_theme();
+    let label = create_memo(clone!(count -> move || count.get().to_string()));
+    let accessibility = create_memo(clone!(count -> move || {
+        let mut node = AccessNode::new(Role::Button);
+        node.set_label(match count.get() {
+            1 => "1 open file".to_owned(),
+            count => format!("{count} open files"),
+        });
+        node
+    }));
+    view! {
+        <unstyled::Button
+            @test_id={"editor.files"}
+            accessibility
+            on_click={move || on_click.call()}
+            content={move |handle: unstyled::ButtonHandle| {
+                let unstyled::ButtonHandle { hovered, focused, .. } = handle;
+                let theme = theme.clone();
+                let fill = create_memo(clone!(theme -> move || match hovered.get() {
+                    true => theme.hover.get(),
+                    false => beui::Color32::TRANSPARENT,
+                }));
+                let label = label.clone();
+                view! {
+                    <Frame
+                        width=COUNT_TARGET
+                        height=COUNT_TARGET
+                        color={fill}
+                        radius=8
+                        outline={theme.accent.clone()}
+                        outline_width=2.0
+                        outline_visible={focus_ring(focused)}
+                    >
+                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                            <Frame @sizing=ItemSize::Percent(50.0) />
+                            <Frame
+                                width=COUNT_SIDE
+                                height=COUNT_SIDE
+                                radius=6
+                                outline={theme.text.clone()}
+                                outline_width=2.0
+                                outline_visible=true
+                            >
+                                <Text
+                                    string={label}
+                                    font_size=FONT_SMALL
+                                    color={theme.text.clone()}
+                                    align=beui::TextAlign::Center
+                                />
+                            </Frame>
+                            <Frame @sizing=ItemSize::Percent(50.0) />
+                        </List>
+                    </Frame>
+                }
+            }}
+        />
+    }
+}
+
+#[component]
+fn MoreSheet(
+    editor: Editor,
+    watched: Rc<Watched>,
+    state: ReadSignal<BarState>,
+    closable: Memo<bool>,
+    on_exit: ClickCallback,
+    set_more: WriteSignal<bool>,
+) -> NodeId {
+    let undo_off = field(&state, |state| !state.can_undo);
+    let redo_off = field(&state, |state| !state.can_redo);
+    let rename_off = field(&state, |state| !state.can_rename);
+    let share_off = field(&state, |state| !state.can_share);
+    let items = use_context::<BarItems>().map(|items| items.items);
+    let keys = create_memo(clone!(items -> move || {
+        items
+            .as_ref()
+            .map(|items| items.with(|items| items.iter().map(|(key, _)| *key).collect()))
+            .unwrap_or_default()
+    }));
+    let host = editor.host().clone();
+    let id = editor.block_id();
+    let undo = clone!(watched set_more -> move || {
+        set_more.set(false);
+        watched.step(false);
+    });
+    let redo = clone!(watched set_more -> move || {
+        set_more.set(false);
+        watched.step(true);
+    });
+    let rename = clone!(host set_more -> move || {
+        set_more.set(false);
+        host.rename_block(id);
+    });
+    let share = clone!(host set_more -> move || {
+        set_more.set(false);
+        host.share_block(id);
+    });
+    let details = clone!(host set_more -> move || {
+        set_more.set(false);
+        host.bar_action(BarAction::Details);
+    });
+    let leave = clone!(set_more -> move || {
+        set_more.set(false);
+        on_exit.call();
+    });
+    let running = set_more.clone();
+    view! {
+        <Scroll>
+            <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
+                <List spacing=0.0>
+                    <ActionRow
+                        @test_id={"editor.more.undo"}
+                        label="Undo"
+                        glyph={ICON_UNDO.to_owned()}
+                        disabled={undo_off}
+                        on_click={undo}
+                    />
+                    <ActionRow
+                        @test_id={"editor.more.redo"}
+                        label="Redo"
+                        glyph={ICON_REDO.to_owned()}
+                        disabled={redo_off}
+                        on_click={redo}
+                    />
+                    <ActionRow
+                        @test_id={"editor.more.rename"}
+                        label="Rename"
+                        glyph={ICON_DRIVE_FILE_RENAME_OUTLINE.to_owned()}
+                        disabled={rename_off}
+                        on_click={rename}
+                    />
+                    <ActionRow
+                        @test_id={"editor.more.share"}
+                        label="Share"
+                        glyph={ICON_SHARE.to_owned()}
+                        disabled={share_off}
+                        on_click={share}
+                    />
+                    <ForEach keys={keys}>
+                        {move |key: u64| {
+                            let item = items.as_ref().and_then(|items| {
+                                items.with_untracked(|items| {
+                                    items
+                                        .iter()
+                                        .find(|(other, _)| *other == key)
+                                        .map(|(_, item)| item.clone())
+                                })
+                            });
+                            let BarItem { label, glyph, disabled, run } = item.unwrap_or(BarItem {
+                                label: String::new(),
+                                glyph: String::new(),
+                                disabled: create_memo(|| true),
+                                run: Rc::new(|| {}),
+                            });
+                            let closing = running.clone();
+                            view! {
+                                <ActionRow
+                                    @test_id={format!("editor.more.item.{key}")}
+                                    label
+                                    glyph
+                                    disabled
+                                    on_click={move || {
+                                        closing.set(false);
+                                        run();
+                                    }}
+                                />
+                            }
+                        }}
+                    </ForEach>
+                    <ActionRow
+                        @test_id={"editor.more.details"}
+                        label="File details"
+                        glyph={ICON_INFO.to_owned()}
+                        on_click={details}
+                    />
+                    <Show condition={closable}>
+                        <ActionRow
+                            @test_id={"editor.more.close"}
+                            label="Close"
+                            glyph={ICON_CLOSE.to_owned()}
+                            on_click={leave}
+                        />
+                    </Show>
+                </List>
+            </Frame>
+        </Scroll>
     }
 }
 

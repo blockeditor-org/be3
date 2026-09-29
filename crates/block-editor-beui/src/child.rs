@@ -3,7 +3,7 @@ use beui::reactive::{
     Callback, Embed, EmbedSlot, IntoProp, Prop, ReadSignal, Render, clone, component, create_memo,
     view,
 };
-use block_plugin_api::{ChildLayer, ChildMode, ViewChange};
+use block_plugin_api::{BarAction, ChildLayer, ChildMode, TopBar, ViewChange};
 
 use crate::{ChildState, ChildTarget, Editor};
 
@@ -19,13 +19,14 @@ pub fn ChildBlock(
     #[prop(default = ChildMode::Passive)] mode: Prop<ChildMode>,
     #[prop(default = ChildLayer::Below)] layer: Prop<ChildLayer>,
     #[prop(default = false)] own_frame: Prop<bool>,
-    #[prop(default = false)] top_bar: Prop<bool>,
+    #[prop(default = TopBar::Hidden)] top_bar: Prop<TopBar>,
     #[prop(default = true)] punch: Prop<bool>,
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
     on_state: Callback<ChildState>,
     on_view_change: Callback<ViewChange>,
+    on_bar: Callback<BarAction>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
 ) -> NodeId {
     let slot = EmbedSlot::new();
@@ -45,6 +46,7 @@ pub fn ChildBlock(
         intrinsic,
         on_state,
         on_view_change,
+        on_bar,
     );
     let handle = ChildHandle { state };
     let children = content.map(|content| content.call(handle));

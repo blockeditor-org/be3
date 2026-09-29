@@ -4,7 +4,7 @@ use std::rc::Rc;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::{
-    Align, Dynamic, Frame, ItemSize, List, ReadSignal, clone, component, create_effect,
+    Align, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, clone, component, create_effect,
     create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{Caption, Heading};
@@ -12,7 +12,7 @@ use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{
-    ArtifactState, ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor,
+    ArtifactState, BarAction, ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, TopBar,
 };
 use uuid::Uuid;
 
@@ -21,7 +21,7 @@ use super::block_data::BlockData;
 use super::linked::LinkedBar;
 use super::status::StatusBar;
 use super::tab::TabItem;
-use super::workspace::{PanelStatus, Workspace};
+use super::workspace::{PanelStatus, PhoneSheet, Workspace};
 
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 6.0;
@@ -57,7 +57,7 @@ enum Content {
 }
 
 #[derive(Default)]
-struct Watched {
+pub(crate) struct Watched {
     id: Option<Uuid>,
     parents: Option<BlockList>,
     references: Option<BlockList>,
@@ -83,7 +83,11 @@ fn refs(list: Option<&BlockList>) -> Refs {
     })
 }
 
-fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> Option<Info> {
+pub(crate) fn read_info(
+    workspace: &Workspace,
+    tab: TabId,
+    watched: &RefCell<Watched>,
+) -> Option<Info> {
     let item = workspace.tab(tab)?;
     workspace.record_type(item.id, item.block_type);
     let mut watched = watched.borrow_mut();
@@ -133,7 +137,7 @@ fn read_info(workspace: &Workspace, tab: TabId, watched: &RefCell<Watched>) -> O
 }
 
 #[component]
-pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
+pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId, phone: bool) -> NodeId {
     let (info, set_info) = create_signal(None::<Info>);
     let reading = Rc::downgrade(&workspace);
     let watched = RefCell::new(Watched::default());
@@ -151,6 +155,14 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
     let editor = workspace.editor().clone();
     let branch = Rc::clone(&workspace);
     let branch_info = info.clone();
+    let counting = Rc::clone(&workspace);
+    let top_bar = create_memo(move || match phone {
+        true => TopBar::Phone {
+            open_files: u32::try_from(counting.open_count()).unwrap_or(u32::MAX),
+        },
+        false => TopBar::Shown,
+    });
+    let desktop = !phone;
     view! {
         <Frame>
             <List spacing=0.0>
@@ -161,6 +173,7 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                         let workspace = Rc::clone(&branch);
                         let info = branch_info.clone();
                         let editor = editor.clone();
+                        let top_bar = top_bar.clone();
                         match content {
                             Content::Debug => view! {
                                 <BlockData
@@ -177,19 +190,36 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                                     @sizing=ItemSize::Percent(100.0)
                                     editor={editor}
                                     info={info}
+                                    top_bar={top_bar}
+                                    on_bar={move |action: BarAction| match action {
+                                        BarAction::Back => workspace.go_files(),
+                                        BarAction::Switch => {
+                                            workspace.set_sheet(PhoneSheet::Switcher)
+                                        }
+                                        BarAction::Details => {
+                                            workspace.set_sheet(PhoneSheet::Details(tab))
+                                        }
+                                    }}
                                 />
                             },
                         }
                     }}
                 </Dynamic>
-                <StatusBar workspace={workspace} info={info} />
+                <Show condition={desktop}>
+                    <StatusBar workspace={workspace} info={info} />
+                </Show>
             </List>
         </Frame>
     }
 }
 
 #[component]
-fn BlockChild(editor: Editor, info: ReadSignal<Option<Info>>) -> NodeId {
+fn BlockChild(
+    editor: Editor,
+    info: ReadSignal<Option<Info>>,
+    top_bar: Memo<TopBar>,
+    on_bar: block_editor_beui::beui::reactive::Callback<BarAction>,
+) -> NodeId {
     let target = create_memo(move || {
         info.with(|info| {
             info.as_ref()
@@ -202,7 +232,8 @@ fn BlockChild(editor: Editor, info: ReadSignal<Option<Info>>) -> NodeId {
             block={target}
             mode=ChildMode::Live
             own_frame=true
-            top_bar=true
+            top_bar={top_bar}
+            on_bar={move |action: BarAction| on_bar.call(action)}
             @test_id={"workspace.block"}
         >
             {move |handle: ChildBlockHandle| view! {

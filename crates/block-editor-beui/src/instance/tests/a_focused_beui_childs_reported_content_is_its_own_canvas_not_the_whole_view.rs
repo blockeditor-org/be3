@@ -27,7 +27,7 @@ fn a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view()
             width: 120.0,
             height: 90.0,
         }),
-        true,
+        TopBar::Shown,
     );
 
     session.run(EditorRegion::Frame, 1);

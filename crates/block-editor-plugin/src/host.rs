@@ -7,10 +7,11 @@ use std::{
 };
 
 use crate::graph::BlockParent;
+use block_plugin_api::TopBar;
 use block_plugin_api::{
-    AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockPick, ChildId,
-    ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage, DataListing,
-    EditorRegion, FetchResult, FilePick, FileSave, HostReply, HostRequest, Occluder,
+    AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand, BlockPick,
+    ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
+    DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostReply, HostRequest, Occluder,
     PerformanceMeasurement, Size, ViewChange, WebViewCommand, WebViewEvent,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
@@ -96,6 +97,7 @@ pub struct PickedBlock {
     pub id: Uuid,
     pub block_type: Uuid,
     pub linked: bool,
+    pub placed: bool,
 }
 
 #[derive(Clone, Default, PartialEq)]
@@ -367,6 +369,8 @@ pub struct EditorHost {
     presenting: Rc<Cell<bool>>,
     present_requests: Rc<RefCell<Vec<bool>>>,
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
+    child_bars: Rc<RefCell<HashMap<ChildId, Vec<BarAction>>>>,
+    bar_actions: Rc<RefCell<Vec<BarAction>>>,
     chrome: Rc<Cell<Option<bool>>>,
     content: Rc<Cell<Option<Rect>>>,
     copied: Rc<RefCell<Vec<String>>>,
@@ -596,6 +600,12 @@ impl EditorHost {
         self.block_commands
             .borrow_mut()
             .push((block_id, BlockCommand::Share));
+    }
+
+    pub fn show_app_menu(&self, block_id: Uuid) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::AppMenu));
     }
 
     pub fn rename_block(&self, block_id: Uuid) {
@@ -1176,6 +1186,15 @@ impl EditorHost {
         self.leaving.take()
     }
 
+    pub fn bar_action(&self, action: BarAction) {
+        self.bar_actions.borrow_mut().push(action);
+        self.changed();
+    }
+
+    pub fn take_bar_actions(&self) -> Vec<BarAction> {
+        std::mem::take(&mut self.bar_actions.borrow_mut())
+    }
+
     pub fn presenting(&self) -> bool {
         self.presenting.get()
     }
@@ -1206,7 +1225,7 @@ impl EditorHost {
         mode: ChildMode,
         layer: ChildLayer,
         own_frame: bool,
-        top_bar: bool,
+        top_bar: TopBar,
         rotation: f32,
         opacity: f32,
         intrinsic: Option<Vec2>,
@@ -1393,6 +1412,22 @@ impl EditorHost {
             .unwrap_or_default()
     }
 
+    pub fn take_child_bar_actions(&self, child: ChildId) -> Vec<BarAction> {
+        self.child_bars
+            .borrow_mut()
+            .remove(&child)
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn push_child_bar_action(&self, child: ChildId, action: BarAction) {
+        self.child_bars
+            .borrow_mut()
+            .entry(child)
+            .or_default()
+            .push(action);
+        self.changed();
+    }
+
     pub(crate) fn push_child_view_change(&self, child: ChildId, change: ViewChange) {
         self.child_views
             .borrow_mut()
@@ -1551,10 +1586,12 @@ impl BlockPicker {
                 block_id,
                 block_type,
                 linked,
+                placed,
             } => Some(Ok(PickedBlock {
                 id: Uuid::from_bytes(block_id),
                 block_type: Uuid::from_bytes(block_type),
                 linked,
+                placed,
             })),
             BlockPick::Cancelled => None,
             BlockPick::Failed(error) => Some(Err(error)),

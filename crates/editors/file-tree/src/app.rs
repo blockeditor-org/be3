@@ -3,6 +3,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::view;
 
 mod export;
+mod phone;
 mod rows;
 mod ui;
 

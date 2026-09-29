@@ -25,7 +25,7 @@ use canvas::CanvasStage;
 use selection_bar::SelectionBar;
 use sidebar::CanvasSidebar;
 use state::CanvasState;
-use toolbar::{CanvasToolbar, ToolDock};
+use toolbar::{CanvasToolbar, ImportError, ToolDock, ZoomPill, phone_items};
 
 use crate::geometry::{MIN_SIZE, embedded_region};
 
@@ -71,15 +71,21 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let docked = chrome.clone();
     let barred = chrome.clone();
     let side = chrome.clone();
+    let zoom = Rc::clone(&state);
+    let zoom_anchor = content.clone();
+    let errors = Rc::clone(&state);
+    phone_items(&state);
     view! {
         <List spacing=0.0>
             <CanvasToolbar state={bar} shown={chrome.clone()} />
+            <ImportError state={errors} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={stage} />
                 <CanvasSidebar state={state} shown={side} />
             </List>
             <ToolDock state={dock} anchor={anchor} shown={docked} />
             <SelectionBar state={bar_state} anchor={bar_anchor} shown={barred} />
+            <ZoomPill state={zoom} anchor={zoom_anchor} shown={chrome} />
         </List>
     }
 }

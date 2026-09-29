@@ -28,6 +28,7 @@ pub fn Button(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = true)] tab_stop: Prop<bool>,
+    #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
@@ -91,6 +92,7 @@ pub fn Button(
     view! {
         <Focusable
             tab_stop
+            press_focus
             focused={focus_request}
             on_key={move |press| on_key.call(press)}
             on_text={move |text| on_text.call(text)}

@@ -311,6 +311,16 @@ impl Screens {
                     session.child_view_change(*child, *change);
                 }
             }
+            Message::Editor(EditorMessage::ChildBar {
+                instance,
+                child,
+                action,
+                ..
+            }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.child_bar_action(*child, *action);
+                }
+            }
             Message::Editor(EditorMessage::ReplaceChild {
                 instance,
                 request_id,

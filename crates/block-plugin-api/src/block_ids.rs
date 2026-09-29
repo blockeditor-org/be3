@@ -103,11 +103,17 @@ impl EditorMessage {
                     | BlockCommand::Redo
                     | BlockCommand::Artifact { .. }
                     | BlockCommand::SimulateAccess { .. }
-                    | BlockCommand::CloseEditor => {}
+                    | BlockCommand::CloseEditor
+                    | BlockCommand::AppMenu => {}
                 }
             }
             Self::Request { request, .. } => match request {
-                HostRequest::PickBlock(filter) => filter.excluded.iter_mut().for_each(existing),
+                HostRequest::PickBlock(filter) => {
+                    filter.excluded.iter_mut().for_each(&mut existing);
+                    if let Some(place) = &mut filter.place {
+                        location(place, &mut existing);
+                    }
+                }
                 HostRequest::PickFile(_)
                 | HostRequest::SaveFile(_)
                 | HostRequest::PasteImage
@@ -202,6 +208,7 @@ impl EditorMessage {
             | Self::PresentingChanged { .. }
             | Self::Resized { .. }
             | Self::LeaveFrame { .. }
+            | Self::BarAction { .. }
             | Self::Close { .. }
             | Self::DragLeft { .. }
             | Self::FileDrop { .. }
@@ -224,6 +231,7 @@ impl EditorMessage {
             | Self::Presence { .. }
             | Self::ChildReplaced { .. }
             | Self::ChildView { .. }
+            | Self::ChildBar { .. }
             | Self::CopyText { .. }
             | Self::PasteText { .. }
             | Self::AspectRatio { .. }

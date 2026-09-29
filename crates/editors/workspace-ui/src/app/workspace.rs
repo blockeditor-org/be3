@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::{BlockContent, FileTreeContent};
+use block_editor_beui::be_block::{BlockContent, FileTreeContent, WorkspaceUiContent};
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -10,27 +10,40 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::beui::styled::{Caption, DockArea, Heading, use_theme};
 use block_editor_beui::beui::unstyled::{Container, DockState, LeafId, Side, TabId, narrower_than};
-use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
+use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::root_settings::RootSetting;
 use block_editor_beui::{
     AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
-    Editor, EditorHost, FocusedBlock, PickedBlock, Pushed,
+    ContentProjection, Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
 use super::panel::BlockPanel;
+use super::phone::PhoneShell;
 use super::tab::TabItem;
 
 pub(crate) const FILES: TabId = TabId::new(1);
 const FIRST_BLOCK_TAB: u64 = 2;
 const FILES_SHARE: f32 = 0.22;
-const COMPACT_FILES_WIDTH: f32 = 700.0;
 const MAX_OPENED_VIA_HOPS: usize = 64;
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 6.0;
 
 type Tabs = HashMap<TabId, TabItem>;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PhonePage {
+    Files,
+    Tab(TabId),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PhoneSheet {
+    Closed,
+    Switcher,
+    Details(TabId),
+}
 
 pub(crate) struct Workspace {
     editor: Editor,
@@ -49,6 +62,7 @@ pub(crate) struct Workspace {
     files: ReadSignal<Option<Uuid>>,
     set_files: WriteSignal<Option<Uuid>>,
     file_tree: RefCell<RootSetting<FileTreeContent>>,
+    recents: Rc<ContentProjection<WorkspaceUiContent>>,
     handles: RefCell<HashMap<Uuid, BlockList>>,
     block_types: RefCell<HashMap<Uuid, Uuid>>,
     opened_via: RefCell<HashMap<Uuid, Uuid>>,
@@ -56,7 +70,14 @@ pub(crate) struct Workspace {
     set_routes: WriteSignal<u64>,
     next_tab: Cell<u64>,
     active: Cell<Option<Uuid>>,
-    compact: Cell<bool>,
+    pub(crate) phone: ReadSignal<bool>,
+    set_phone: WriteSignal<bool>,
+    pub(crate) page: ReadSignal<PhonePage>,
+    set_page: WriteSignal<PhonePage>,
+    pub(crate) order: ReadSignal<Vec<TabId>>,
+    set_order: WriteSignal<Vec<TabId>>,
+    pub(crate) sheet: ReadSignal<PhoneSheet>,
+    set_sheet: WriteSignal<PhoneSheet>,
 }
 
 impl Workspace {
@@ -69,6 +90,11 @@ impl Workspace {
         let (error, set_error) = create_signal(None);
         let (files, set_files) = create_signal(None);
         let (routes, set_routes) = create_signal(0);
+        let recents = editor.block_content::<WorkspaceUiContent>();
+        let (phone, set_phone) = create_signal(false);
+        let (page, set_page) = create_signal(PhonePage::Files);
+        let (order, set_order) = create_signal(Vec::new());
+        let (sheet, set_sheet) = create_signal(PhoneSheet::Closed);
         let workspace = Rc::new(Self {
             editor,
             layout,
@@ -86,6 +112,7 @@ impl Workspace {
             files,
             set_files,
             file_tree: RefCell::new(RootSetting::default()),
+            recents,
             handles: RefCell::new(HashMap::new()),
             block_types: RefCell::new(HashMap::new()),
             opened_via: RefCell::new(HashMap::new()),
@@ -93,7 +120,14 @@ impl Workspace {
             set_routes,
             next_tab: Cell::new(FIRST_BLOCK_TAB),
             active: Cell::new(None),
-            compact: Cell::new(false),
+            phone,
+            set_phone,
+            page,
+            set_page,
+            order,
+            set_order,
+            sheet,
+            set_sheet,
         });
         let shows = workspace.editor.pushed(Pushed::Shows);
         let showing = Rc::downgrade(&workspace);
@@ -227,7 +261,16 @@ impl Workspace {
     }
 
     fn report_focus(&self) {
-        let shown = self.layout.with(DockState::focused_tab);
+        let shown = match self.phone.get() {
+            true => match self.page.get() {
+                PhonePage::Tab(tab) => Some(tab),
+                PhonePage::Files => None,
+            },
+            false => self.layout.with(DockState::focused_tab),
+        };
+        if let Some(tab) = shown.filter(|tab| *tab != FILES) {
+            untrack(|| self.visit(tab));
+        }
         let current = shown
             .and_then(|tab| self.tabs.with(|tabs| tabs.get(&tab).copied()))
             .map(|item| item.id);
@@ -238,11 +281,24 @@ impl Workspace {
             let block_type = self.block_types.borrow().get(&id).copied()?;
             Some((id, block_type))
         });
+        if let Some((id, block_type)) = focused {
+            untrack(|| self.remember(id, block_type));
+        }
         self.host().report_focus(FocusedBlock {
             block_id: focused.map(|(id, _)| id),
             block_type: focused.map_or_else(Uuid::nil, |(_, block_type)| block_type),
             via: focused.map_or_else(Vec::new, |(id, _)| self.via_chain(id)),
         });
+    }
+
+    fn remember(&self, id: Uuid, block_type: Uuid) {
+        let visit = self
+            .recents
+            .read(|content| content.root().visit(id, block_type))
+            .flatten();
+        if let Some(edit) = visit {
+            self.recents.operate(edit);
+        }
     }
 
     fn watch_artifacts(&self) {
@@ -327,6 +383,7 @@ impl Workspace {
             layout.show(tab);
             self.set_layout.set(layout);
             self.active.set(Some(item.id));
+            self.set_page.set(PhonePage::Tab(tab));
             return;
         }
         let tab = TabId::new(self.next_tab.get());
@@ -336,8 +393,74 @@ impl Workspace {
         self.set_tabs.set(tabs);
         let mut layout = self.layout.get_untracked();
         place_tab(&mut layout, tab);
-        self.set_layout.set(settled(layout, self.compact.get()));
+        self.set_layout.set(settled(layout));
         self.active.set(Some(item.id));
+        self.set_page.set(PhonePage::Tab(tab));
+    }
+
+    fn visit(&self, tab: TabId) {
+        if self
+            .order
+            .with_untracked(|order| order.first() == Some(&tab))
+        {
+            return;
+        }
+        self.set_order.update(|order| {
+            order.retain(|other| *other != tab);
+            order.insert(0, tab);
+        });
+    }
+
+    pub(crate) fn open_count(&self) -> usize {
+        self.tabs.with(HashMap::len)
+    }
+
+    pub(crate) fn open_tabs(&self) -> Vec<TabId> {
+        let tabs = self.tabs.get();
+        let mut open: Vec<TabId> = self
+            .order
+            .get()
+            .into_iter()
+            .filter(|tab| tabs.contains_key(tab))
+            .collect();
+        let mut rest: Vec<TabId> = tabs
+            .keys()
+            .copied()
+            .filter(|tab| !open.contains(tab))
+            .collect();
+        rest.sort();
+        open.extend(rest);
+        open
+    }
+
+    pub(crate) fn show_tab(&self, tab: TabId) {
+        let mut layout = self.layout.get_untracked();
+        layout.show(tab);
+        self.set_layout.set(layout);
+        self.set_sheet.set(PhoneSheet::Closed);
+        self.set_page.set(PhonePage::Tab(tab));
+    }
+
+    pub(crate) fn go_files(&self) {
+        self.set_sheet.set(PhoneSheet::Closed);
+        self.set_page.set(PhonePage::Files);
+    }
+
+    pub(crate) fn set_sheet(&self, sheet: PhoneSheet) {
+        self.set_sheet.set(sheet);
+    }
+
+    pub(crate) fn dismiss_sheet(&self, sheet: PhoneSheet) {
+        if self.sheet.get_untracked() == sheet {
+            self.set_sheet.set(PhoneSheet::Closed);
+        }
+    }
+
+    pub(crate) fn close_tab(&self, tab: TabId) {
+        let mut layout = self.layout.get_untracked();
+        layout.remove(tab);
+        self.set_layout.set(settled(layout));
+        self.close(tab);
     }
 
     fn tab_showing(&self, id: Uuid) -> Option<TabId> {
@@ -355,6 +478,15 @@ impl Workspace {
         };
         let still_open = tabs.values().any(|item| item.id == closed.id);
         self.set_tabs.set(tabs);
+        self.set_order
+            .update(|order| order.retain(|other| *other != tab));
+        if self.page.get_untracked() == PhonePage::Tab(tab) {
+            let next = self
+                .order
+                .with_untracked(|order| order.first().copied())
+                .map_or(PhonePage::Files, PhonePage::Tab);
+            self.set_page.set(next);
+        }
         if !still_open {
             self.forget(closed.id);
         }
@@ -377,14 +509,24 @@ impl Workspace {
     }
 
     fn changed(&self, next: DockState) {
-        self.set_layout.set(settled(next, self.compact.get()));
+        self.set_layout.set(settled(next));
     }
 
-    fn set_compact(&self, compact: bool) {
-        self.compact.set(compact);
-        let mut layout = self.layout.get_untracked();
-        set_files_compact(&mut layout, compact);
-        self.set_layout.set(settled(layout, compact));
+    fn set_phone(&self, phone: bool) {
+        if phone {
+            let focused = self
+                .layout
+                .with_untracked(DockState::focused_tab)
+                .filter(|tab| *tab != FILES);
+            self.set_page
+                .set(focused.map_or(PhonePage::Files, PhonePage::Tab));
+        } else if let PhonePage::Tab(tab) = self.page.get_untracked() {
+            let mut layout = self.layout.get_untracked();
+            layout.show(tab);
+            self.set_layout.set(layout);
+        }
+        self.set_sheet.set(PhoneSheet::Closed);
+        self.set_phone.set(phone);
     }
 
     pub(crate) fn can_edit(&self, id: Uuid) -> bool {
@@ -438,6 +580,94 @@ impl Workspace {
         )
     }
 
+    pub(crate) fn new_file_beside_page(self: &Rc<Self>) {
+        let shown = match self.page.get_untracked() {
+            PhonePage::Tab(tab) => self.tab(tab).map(|item| item.id),
+            PhonePage::Files => None,
+        };
+        match shown {
+            Some(id) => self.new_file_near(id),
+            None => self.create_in(BlockParent::Root),
+        }
+    }
+
+    pub(crate) fn new_file_near(self: &Rc<Self>, id: Uuid) {
+        let holds_children = self
+            .known_type(id)
+            .is_some_and(|block_type| self.types().child_edits(block_type).add)
+            && self.can_edit(id);
+        let parent = match holds_children {
+            true => BlockParent::Block(id),
+            false => self
+                .info(id)
+                .map_or(BlockParent::Root, |info| match info.parent {
+                    BlockParent::Detached => BlockParent::Root,
+                    parent => parent,
+                }),
+        };
+        self.create_in(parent);
+    }
+
+    pub(crate) fn create_in(self: &Rc<Self>, parent: BlockParent) {
+        self.set_sheet.set(PhoneSheet::Closed);
+        self.set_error.set(None);
+        let parent = match parent {
+            BlockParent::Detached => BlockParent::Root,
+            parent => parent,
+        };
+        let excluded = match parent {
+            BlockParent::Block(id) => vec![id.into_bytes()],
+            BlockParent::Root | BlockParent::Detached => Vec::new(),
+        };
+        let picking = Rc::downgrade(self);
+        self.editor.pick_block(
+            BlockFilter {
+                name: "Block".to_owned(),
+                block_types: Vec::new(),
+                excluded,
+                templates: false,
+                place: Some(parent.encode()),
+            },
+            move |picked: Result<PickedBlock, String>| {
+                let Some(workspace) = picking.upgrade() else {
+                    return;
+                };
+                let picked = match picked {
+                    Ok(picked) => picked,
+                    Err(error) => {
+                        workspace.set_error.set(Some(error));
+                        return;
+                    }
+                };
+                let container = match parent {
+                    BlockParent::Block(id) => Some(id),
+                    BlockParent::Root | BlockParent::Detached => None,
+                };
+                if !picked.placed {
+                    match container {
+                        Some(id) => workspace.host().place_block(
+                            picked.id,
+                            picked.block_type,
+                            id,
+                            picked.linked,
+                        ),
+                        None if !picked.linked => {
+                            workspace.blocks().set_parent(picked.id, BlockParent::Root);
+                        }
+                        None => {}
+                    }
+                }
+                workspace.open(
+                    TabItem {
+                        id: picked.id,
+                        block_type: picked.block_type,
+                    },
+                    container,
+                );
+            },
+        );
+    }
+
     pub(crate) fn open_picker(self: &Rc<Self>, parent: Uuid) {
         self.set_error.set(None);
         let picking = Rc::downgrade(self);
@@ -447,6 +677,7 @@ impl Workspace {
                 block_types: Vec::new(),
                 excluded: vec![parent.into_bytes()],
                 templates: false,
+                place: None,
             },
             move |picked: Result<PickedBlock, String>| {
                 let Some(workspace) = picking.upgrade() else {
@@ -473,9 +704,9 @@ pub(crate) fn starting_layout() -> DockState {
     state
 }
 
-pub(crate) fn settled(mut state: DockState, compact: bool) -> DockState {
+pub(crate) fn settled(mut state: DockState) -> DockState {
     let open = state.all_tabs().into_iter().any(|tab| tab != FILES);
-    if open || compact {
+    if open {
         state.remove_empty_panes();
         return state;
     }
@@ -521,38 +752,6 @@ pub(crate) fn place_tab(state: &mut DockState, tab: TabId) {
     state.show(tab);
 }
 
-pub(crate) fn set_files_compact(state: &mut DockState, compact: bool) {
-    let Some(position) = state.find(FILES) else {
-        return;
-    };
-    let alone = state.entries(position.leaf).len() == 1;
-    if compact != alone {
-        return;
-    }
-    let focused = state.focused_tab().filter(|tab| *tab != FILES);
-    let target = match compact {
-        true => state
-            .surfaces()
-            .into_iter()
-            .flat_map(|surface| state.leaves(surface))
-            .find(|leaf| *leaf != position.leaf),
-        false => Some(position.leaf),
-    };
-    let Some(target) = target else {
-        return;
-    };
-    state.remove(FILES);
-    match compact {
-        true => state.push(target, FILES),
-        false => {
-            state.split(target, Side::Left, FILES_SHARE, vec![FILES]);
-        }
-    }
-    if let Some(tab) = focused {
-        state.show(tab);
-    }
-}
-
 #[component]
 pub(crate) fn WorkspaceShell(editor: Editor) -> NodeId {
     let workspace = Workspace::new(editor);
@@ -570,18 +769,21 @@ pub(crate) fn WorkspaceShell(editor: Editor) -> NodeId {
 
 #[component]
 fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
-    let compact = narrower_than(COMPACT_FILES_WIDTH);
+    let narrow = narrower_than(NARROW_WIDTH);
     let sizing = Rc::downgrade(&workspace);
-    let was_compact = Cell::new(false);
+    let was_narrow = Cell::new(false);
     create_effect(move || {
-        let now = compact.get();
+        let now = narrow.get();
         let Some(workspace) = sizing.upgrade() else {
             return;
         };
-        if was_compact.replace(now) != now {
-            untrack(|| workspace.set_compact(now));
+        if was_narrow.replace(now) != now {
+            untrack(|| workspace.set_phone(now));
         }
     });
+    let phone = workspace.phone.clone();
+    let desktop = create_memo(clone!(phone -> move || !phone.get()));
+    let shell = Rc::clone(&workspace);
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     let layout = workspace.layout.clone();
@@ -608,36 +810,41 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                 <Show condition={failed}>
                     <Caption content={reason} color={theme.danger.clone()} />
                 </Show>
-                <DockArea
-                    @sizing=ItemSize::Percent(100.0)
-                    state={layout}
-                    title={title}
-                    closable={Func::new(|tab: TabId| tab != FILES)}
-                    on_change={move |next: DockState| changing.changed(next)}
-                    on_close={move |tab: TabId| closing.close(tab)}
-                    empty={move || view! {
-                        <EmptyPanel />
-                    }}
-                >
-                    {move |tab: TabId| {
-                        let workspace = Rc::clone(&content);
-                        match tab {
-                            FILES => view! {
-                                <FilesPanel workspace={workspace} />
-                            },
-                            tab => view! {
-                                <BlockPanel workspace={workspace} tab={tab} />
-                            },
-                        }
-                    }}
-                </DockArea>
+                <Show condition={phone}>
+                    <PhoneShell @sizing=ItemSize::Percent(100.0) workspace={shell} />
+                </Show>
+                <Show condition={desktop}>
+                    <DockArea
+                        @sizing=ItemSize::Percent(100.0)
+                        state={layout}
+                        title={title}
+                        closable={Func::new(|tab: TabId| tab != FILES)}
+                        on_change={move |next: DockState| changing.changed(next)}
+                        on_close={move |tab: TabId| closing.close(tab)}
+                        empty={move || view! {
+                            <EmptyPanel />
+                        }}
+                    >
+                        {move |tab: TabId| {
+                            let workspace = Rc::clone(&content);
+                            match tab {
+                                FILES => view! {
+                                    <FilesPanel workspace={workspace} />
+                                },
+                                tab => view! {
+                                    <BlockPanel workspace={workspace} tab={tab} phone=false />
+                                },
+                            }
+                        }}
+                    </DockArea>
+                </Show>
             </List>
         </Frame>
     }
 }
 
 #[component]
-fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
+pub(crate) fn FilesPanel(workspace: Rc<Workspace>, #[prop(default = false)] phone: bool) -> NodeId {
     let files = workspace.files.clone();
     let target = create_memo(move || {
         files
@@ -651,6 +858,10 @@ fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
             block={target}
             mode=ChildMode::Live
             own_frame=true
+            top_bar={match phone {
+                true => TopBar::PhoneHidden,
+                false => TopBar::Hidden,
+            }}
             @test_id={"workspace.files"}
         >
             {move |handle: ChildBlockHandle| view! {

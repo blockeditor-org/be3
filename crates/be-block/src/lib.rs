@@ -38,6 +38,7 @@ pub mod text;
 pub mod ui_settings;
 pub mod version_control;
 pub mod video;
+pub mod workspace_ui;
 
 pub use audio::{AudioContent, AudioHeader};
 pub use be_model;
@@ -56,9 +57,7 @@ pub use folder::{Folder, FolderContent};
 pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, GameMove};
 pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use image::{ImageContent, ImageHeader, ImageOp};
-pub use kinds::{
-    FileTreeContent, PanZoomContent, Scene3dContent, TriangleContent, WorkspaceUiContent,
-};
+pub use kinds::{FileTreeContent, PanZoomContent, Scene3dContent, TriangleContent};
 pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
@@ -80,6 +79,7 @@ pub use version_control::{
     RepositoryContent,
 };
 pub use video::{VideoContent, VideoProject};
+pub use workspace_ui::{RecentBlock, WorkspaceUi, WorkspaceUiContent};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ContentError {

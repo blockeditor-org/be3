@@ -27,7 +27,7 @@ impl crate::BeuiApp for NestingApp {
 #[test]
 fn a_child_block_asks_the_host_for_the_frame_it_will_own() {
     let mut session = session::<NestingApp>(Uuid::new_v4());
-    frame(&mut session, None, false);
+    frame(&mut session, None, TopBar::Hidden);
 
     session.run(EditorRegion::Frame, 1);
     session.run(EditorRegion::Frame, 2);

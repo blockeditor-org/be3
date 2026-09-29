@@ -536,5 +536,6 @@ pub(crate) fn module_filter() -> BlockFilter {
         block_types: vec![GameModuleContent::CONTENT_TYPE.into_bytes()],
         excluded: Vec::new(),
         templates: false,
+        place: None,
     }
 }

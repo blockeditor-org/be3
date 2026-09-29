@@ -8,12 +8,14 @@ use uuid::Uuid;
 
 use crate::{BeuiTest, ContentStore};
 
+mod a_child_block_hears_what_its_childs_bar_asked_for;
 mod a_child_block_reports_its_placement_and_follows_its_status;
 mod a_shortcut_on_punctuation_reaches_the_editor;
 mod clearing_the_name_gives_the_block_back_its_derived_name;
 mod ctrl_z_in_a_text_field_is_left_to_the_field;
 mod ctrl_z_undoes_the_block_through_the_top_bar;
 mod tapping_with_two_fingers_undoes_and_three_redoes;
+mod the_phone_bar_hands_back_and_switch_to_the_workspace;
 mod the_top_bar_offers_close_only_to_a_framed_child;
 mod the_top_bar_renames_its_block;
 mod the_top_bar_shrinks_its_name_to_keep_its_buttons_on_a_narrow_screen;

@@ -84,6 +84,7 @@ pub enum DirectEditorViewportCommand {
 
 pub struct DirectEditorViewport {
     commands: Vec<DirectEditorViewportCommand>,
+    bar_actions: Vec<block_plugin_api::BarAction>,
     content_rect: Option<Rect>,
     scale: f32,
     gestures_read: bool,
@@ -93,6 +94,7 @@ impl DirectEditorViewport {
     pub fn new() -> Self {
         Self {
             commands: Vec::new(),
+            bar_actions: Vec::new(),
             content_rect: None,
             scale: 1.0,
             gestures_read: false,
@@ -124,6 +126,14 @@ impl DirectEditorViewport {
 
     pub fn drain(&mut self) -> impl Iterator<Item = DirectEditorViewportCommand> + '_ {
         self.commands.drain(..)
+    }
+
+    pub fn push_bar_action(&mut self, action: block_plugin_api::BarAction) {
+        self.bar_actions.push(action);
+    }
+
+    pub fn take_bar_actions(&mut self) -> Vec<block_plugin_api::BarAction> {
+        std::mem::take(&mut self.bar_actions)
     }
 
     pub fn content_rect(&self) -> Option<Rect> {
@@ -447,7 +457,7 @@ pub struct FrameSlot {
     pub clip: Rect,
     pub content: Option<Rect>,
     pub chrome: Chrome,
-    pub top_bar: bool,
+    pub top_bar: block_plugin_api::TopBar,
 }
 
 #[derive(Clone)]
@@ -455,7 +465,7 @@ struct TabFrame {
     frame: Rect,
     clip: Rect,
     stack: Vec<Uuid>,
-    top_bar: bool,
+    top_bar: block_plugin_api::TopBar,
 }
 
 thread_local! {
@@ -502,7 +512,7 @@ pub fn direct_editor_tab_ui(
         frame,
         clip,
         stack: stack.clone(),
-        top_bar: false,
+        top_bar: block_plugin_api::TopBar::Hidden,
     }));
     let slot = FrameSlot {
         frame,
@@ -512,7 +522,7 @@ pub fn direct_editor_tab_ui(
             Some(_) => Chrome::None,
             None => Chrome::Drawn,
         },
-        top_bar: false,
+        top_bar: block_plugin_api::TopBar::Hidden,
     };
     let (action, own_exit) = direct_editor_frame_ui(editor, ui, editors, &slot, None);
     let exit = own_exit || take_frame_exit();
@@ -533,7 +543,7 @@ pub fn own_frame_child_ui(
     ui: &mut Ui,
     editors: &mut EditorAccess<'_>,
     block_id: Uuid,
-    top_bar: bool,
+    top_bar: block_plugin_api::TopBar,
     frame: Rect,
     clip_rect: Rect,
     viewport: &mut DirectEditorViewport,
@@ -695,6 +705,11 @@ impl DirectEditorTabBands<'_, '_> {
         };
         if owns_frame {
             self.exit |= self.editor.take_direct_editor_frame_exit();
+        }
+        if !placed && let Some(outer) = self.outer.as_deref_mut() {
+            for bar in self.viewport.take_bar_actions() {
+                outer.push_bar_action(bar);
+            }
         }
         action
     }

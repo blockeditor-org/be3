@@ -571,6 +571,11 @@ impl EditorPresentation {
         if self.floating.is_empty() {
             return;
         }
+        if let Some(target) = self.id {
+            for rect in &self.floating {
+                ui.register(target, *rect);
+            }
+        }
         let floating = self.floating.clone();
         self.blit(ui, &floating);
     }
@@ -744,6 +749,23 @@ pub(crate) fn report_child_views(
         let messages = runtime
             .instances
             .child_view_changes(instance, region, changes);
+        runtime.send(messages);
+    });
+}
+
+pub(crate) fn report_child_bars(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    actions: Vec<(block_plugin_api::ChildId, block_plugin_api::BarAction)>,
+) {
+    if actions.is_empty() {
+        return;
+    }
+    with(plugin_id, |runtime| {
+        let messages = runtime
+            .instances
+            .child_bar_actions(instance, region, actions);
         runtime.send(messages);
     });
 }
@@ -1207,6 +1229,16 @@ pub(crate) fn resized(plugin_id: &str, instance: EditorInstanceId, size: Vec2) {
 pub(crate) fn take_view_changes(plugin_id: &str, instance: EditorInstanceId) -> Vec<ViewChange> {
     with(plugin_id, |runtime| {
         runtime.instances.take_view_changes(instance)
+    })
+    .unwrap_or_default()
+}
+
+pub(crate) fn take_bar_actions(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<block_plugin_api::BarAction> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_bar_actions(instance)
     })
     .unwrap_or_default()
 }
