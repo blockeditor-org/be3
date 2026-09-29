@@ -352,6 +352,11 @@ fn finish() -> Output {
 }
 
 #[cfg(test)]
+pub(crate) fn repaint_requested() -> bool {
+    with(|host| host.output.repaint)
+}
+
+#[cfg(test)]
 pub(crate) fn test_frame(events: Vec<Event>, pointer: Option<Pos2>, pressed: bool) {
     test_frame_with(events, pointer, pressed, false);
 }

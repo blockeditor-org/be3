@@ -348,6 +348,8 @@ pub struct EditorCapabilities {
     pub rotation: bool,
     pub preserve_aspect_ratio: bool,
     pub pan_and_zoom: bool,
+    #[serde(default)]
+    pub max_zoom: Option<u32>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
