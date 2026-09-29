@@ -5,7 +5,7 @@ use std::rc::Rc;
 use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceUiContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE,
+    ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_DELETE,
     ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_FILE_DOWNLOAD, ICON_HISTORY, ICON_INFO, ICON_LINK_OFF,
     ICON_MORE_VERT, ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_SEARCH, ICON_SEARCH_OFF,
     ICON_SHARE,
@@ -20,10 +20,11 @@ use block_editor_beui::beui::styled::{
     ActionRow, Button, ButtonVariant, Caption, Heading, Icon, IconButton, IconSized, ListRow,
     ModalSheet, Scroll, TextInput, Title, use_theme,
 };
+use block_editor_beui::beui::unstyled::{Edge, Floating};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::root_settings::RootSetting;
 use block_editor_beui::{
-    BlockParent, BlockQuery, BottomDock, ChildTarget, Editor, watch_block_label,
+    BlockParent, BlockQuery, ChildTarget, Editor, watch_block_label,
 };
 use uuid::Uuid;
 
@@ -40,7 +41,7 @@ const RECENT_WIDTH: f32 = 132.0;
 const RECENT_HEIGHT: f32 = 96.0;
 const RECENT_SHOWN: usize = 10;
 const DOCK_ROOM: f32 = 88.0;
-const SEARCH_HEIGHT: f32 = 44.0;
+const NEW_MARGIN: f32 = 16.0;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Crumb {
@@ -197,15 +198,17 @@ pub(crate) fn PhoneFiles(
                         </Show>
                     </List>
                 </Frame>
-                <BottomDock anchor={page} open={can_create} name="file-tree.dock">
-                    <Button
-                        @test_id={"file-tree.new"}
-                        label="New"
-                        glyph={ICON_ADD.to_owned()}
-                        variant=ButtonVariant::Primary
-                        on_click={creating}
-                    />
-                </BottomDock>
+                <Floating anchor={page} edge=Edge::BottomEnd open={can_create}>
+                    <Frame padding_horizontal=NEW_MARGIN padding_vertical=NEW_MARGIN>
+                        <Button
+                            @test_id={"file-tree.new"}
+                            label="New"
+                            glyph={ICON_ADD.to_owned()}
+                            variant=ButtonVariant::Primary
+                            on_click={creating}
+                        />
+                    </Frame>
+                </Floating>
                 <RowActions editor tree picker exporter inspect acting set_acting set_level />
             </List>
         </BackHandler>
@@ -237,8 +240,6 @@ fn Header(
     }));
     let up = clone!(level -> move || set_level.set(level.get_untracked().up()));
     let typed = query.clone();
-    let clearable = create_memo(clone!(query -> move || !query.get().is_empty()));
-    let changing = set_query.clone();
     view! {
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=PADDING>
@@ -273,36 +274,15 @@ fn Header(
                         </List>
                     </List>
                 </Show>
-                <Frame
-                    height=SEARCH_HEIGHT
-                    radius=CARD_RADIUS
-                    color={theme.surface.clone()}
-                    outline={theme.border.clone()}
-                    outline_width=1.0
-                    outline_visible=true
-                    padding_horizontal=12.0
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                        <Icon glyph={ICON_SEARCH.to_owned()} color={theme.text_muted.clone()} />
-                        <TextInput
-                            @sizing=ItemSize::Percent(100.0)
-                            @test_id={"file-tree.search"}
-                            value={typed}
-                            placeholder="Search files"
-                            label="Search files"
-                            plain=true
-                            on_change={move |value: String| changing.set(value)}
-                        />
-                        <Show condition={clearable}>
-                            <IconButton
-                                @test_id={"file-tree.search.clear"}
-                                glyph={ICON_CLOSE.to_owned()}
-                                label="Clear search"
-                                on_click={move || set_query.set(String::new())}
-                            />
-                        </Show>
-                    </List>
-                </Frame>
+                <TextInput
+                    @test_id={"file-tree.search"}
+                    value={typed}
+                    placeholder="Search files"
+                    label="Search files"
+                    glyph={ICON_SEARCH.to_owned()}
+                    clearable=true
+                    on_change={move |value: String| set_query.set(value)}
+                />
             </List>
         </Frame>
     }
