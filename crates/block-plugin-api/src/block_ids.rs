@@ -202,6 +202,7 @@ impl EditorMessage {
             | Self::PresentingChanged { .. }
             | Self::Resized { .. }
             | Self::LeaveFrame { .. }
+            | Self::BarAction { .. }
             | Self::Close { .. }
             | Self::DragLeft { .. }
             | Self::FileDrop { .. }
@@ -224,6 +225,7 @@ impl EditorMessage {
             | Self::Presence { .. }
             | Self::ChildReplaced { .. }
             | Self::ChildView { .. }
+            | Self::ChildBar { .. }
             | Self::CopyText { .. }
             | Self::PasteText { .. }
             | Self::AspectRatio { .. }

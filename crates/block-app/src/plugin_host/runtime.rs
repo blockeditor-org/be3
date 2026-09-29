@@ -748,6 +748,23 @@ pub(crate) fn report_child_views(
     });
 }
 
+pub(crate) fn report_child_bars(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    actions: Vec<(block_plugin_api::ChildId, block_plugin_api::BarAction)>,
+) {
+    if actions.is_empty() {
+        return;
+    }
+    with(plugin_id, |runtime| {
+        let messages = runtime
+            .instances
+            .child_bar_actions(instance, region, actions);
+        runtime.send(messages);
+    });
+}
+
 pub(crate) fn report_children(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -1209,6 +1226,13 @@ pub(crate) fn take_view_changes(plugin_id: &str, instance: EditorInstanceId) -> 
         runtime.instances.take_view_changes(instance)
     })
     .unwrap_or_default()
+}
+
+pub(crate) fn take_bar_actions(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<block_plugin_api::BarAction> {
+    with(plugin_id, |runtime| runtime.instances.take_bar_actions(instance)).unwrap_or_default()
 }
 
 pub(crate) fn aspect_ratio(plugin_id: &str, instance: EditorInstanceId) -> Option<f32> {

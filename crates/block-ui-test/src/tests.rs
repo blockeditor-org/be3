@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::{BeuiTest, ContentStore};
 
+mod a_child_block_hears_what_its_childs_bar_asked_for;
 mod a_child_block_reports_its_placement_and_follows_its_status;
 mod a_shortcut_on_punctuation_reaches_the_editor;
 mod clearing_the_name_gives_the_block_back_its_derived_name;

@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 55;
+pub const PROTOCOL_VERSION: u16 = 56;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -49,7 +49,30 @@ pub enum FrameChrome {
 pub struct FrameSpec {
     pub chrome: FrameChrome,
     pub content: Option<ChildRect>,
-    pub top_bar: bool,
+    pub top_bar: TopBar,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TopBar {
+    #[default]
+    Hidden,
+    Shown,
+    Phone {
+        open_files: u32,
+    },
+}
+
+impl TopBar {
+    pub fn shown(self) -> bool {
+        !matches!(self, Self::Hidden)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BarAction {
+    Back,
+    Switch,
+    Details,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -211,7 +234,7 @@ pub struct ChildPlacement {
     pub rect: ChildRect,
     pub clip: ChildRect,
     pub own_frame: bool,
-    pub top_bar: bool,
+    pub top_bar: TopBar,
     pub corner_radius: f32,
     pub layer: ChildLayer,
     pub mode: ChildMode,
@@ -619,6 +642,10 @@ pub enum EditorMessage {
     LeaveFrame {
         instance: EditorInstanceId,
     },
+    BarAction {
+        instance: EditorInstanceId,
+        action: BarAction,
+    },
     Close {
         instance: EditorInstanceId,
     },
@@ -830,6 +857,12 @@ pub enum EditorMessage {
         child: ChildId,
         change: ViewChange,
     },
+    ChildBar {
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        child: ChildId,
+        action: BarAction,
+    },
     CopyText {
         instance: EditorInstanceId,
         text: String,
@@ -911,6 +944,7 @@ impl EditorMessage {
             | Self::PresentingChanged { instance, .. }
             | Self::Resized { instance, .. }
             | Self::LeaveFrame { instance, .. }
+            | Self::BarAction { instance, .. }
             | Self::Close { instance, .. }
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
@@ -951,6 +985,7 @@ impl EditorMessage {
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
             | Self::ChildView { instance, .. }
+            | Self::ChildBar { instance, .. }
             | Self::CopyText { instance, .. }
             | Self::PasteText { instance }
             | Self::AspectRatio { instance, .. }
@@ -1502,6 +1537,7 @@ impl EditorMessage {
             | Self::HistoryStates { .. }
             | Self::ReplaceChild { .. }
             | Self::ChildView { .. }
+            | Self::ChildBar { .. }
             | Self::Blocks { .. }
             | Self::VersionStatus { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
@@ -1514,6 +1550,7 @@ impl EditorMessage {
             | Self::ChangeView { .. }
             | Self::Present { .. }
             | Self::LeaveFrame { .. }
+            | Self::BarAction { .. }
             | Self::GrabCursor { .. }
             | Self::WebView { .. }
             | Self::WebViewCommand { .. }

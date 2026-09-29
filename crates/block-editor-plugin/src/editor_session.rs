@@ -1,6 +1,6 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::{
-    ArtifactDescription, ChildId, ChildPlacement, ChildPlacements, ChildRect, ChildStatus,
+    ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect, ChildStatus,
     CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
     FrameReport, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS, Message,
     Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange, ViewportMetrics,
@@ -468,6 +468,9 @@ impl EditorSession {
         if self.host.take_leave_frame() {
             messages.push(Message::Editor(EditorMessage::LeaveFrame { instance }));
         }
+        for action in self.host.take_bar_actions() {
+            messages.push(Message::Editor(EditorMessage::BarAction { instance, action }));
+        }
         for shown in self.host.take_shown_presence() {
             let Some(block) = shown.block.or(self.own_block) else {
                 continue;
@@ -697,6 +700,10 @@ impl EditorSession {
 
     pub(crate) fn child_view_change(&self, child: ChildId, change: ViewChange) {
         self.host.push_child_view_change(child, change);
+    }
+
+    pub(crate) fn child_bar_action(&self, child: ChildId, action: BarAction) {
+        self.host.push_child_bar_action(child, action);
     }
 
     pub(crate) fn set_child_statuses(&self, statuses: Vec<ChildStatus>) {

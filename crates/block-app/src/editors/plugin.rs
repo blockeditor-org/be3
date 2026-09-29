@@ -467,7 +467,7 @@ impl PluginEditor {
                 false => FrameChrome::None,
             },
             content: None,
-            top_bar: false,
+            top_bar: block_plugin_api::TopBar::Hidden,
         };
         let action = self.frame_ui(ui, editors, frame, rect.size(), view);
         self.take_view_changes(rect, viewport);
@@ -541,6 +541,7 @@ impl PluginEditor {
             });
         let mut statuses = Vec::new();
         let mut views = Vec::new();
+        let mut bars = Vec::new();
         let mut child_viewport = DirectEditorViewport::new();
         child_viewport.set_gestures_read(self.capabilities().pan_and_zoom);
         for child in presentation
@@ -555,6 +556,12 @@ impl PluginEditor {
                 &mut child_viewport,
                 &mut statuses,
                 &mut views,
+            );
+            bars.extend(
+                child_viewport
+                    .take_bar_actions()
+                    .into_iter()
+                    .map(|action| (child.child, action)),
             );
             action = action.or(next);
         }
@@ -584,11 +591,18 @@ impl PluginEditor {
                 &mut statuses,
                 &mut views,
             );
+            bars.extend(
+                child_viewport
+                    .take_bar_actions()
+                    .into_iter()
+                    .map(|action| (child.child, action)),
+            );
             action = action.or(next);
         }
         presentation.present_floating(ui);
         presentation.report(statuses);
         crate::plugin_host::report_child_views(&plugin.identity.id, self.instance, region, views);
+        crate::plugin_host::report_child_bars(&plugin.identity.id, self.instance, region, bars);
         if region == EditorRegion::Frame {
             self.block_pick_ui(editors);
         }
@@ -743,6 +757,15 @@ impl PluginEditor {
             vec![self.id],
             be_graph::BlockParent::Block(self.id),
         );
+    }
+
+    fn take_bar_actions(&mut self, viewport: &mut DirectEditorViewport) {
+        let Some(plugin) = &self.plugin else {
+            return;
+        };
+        for action in crate::plugin_host::take_bar_actions(&plugin.identity.id, self.instance) {
+            viewport.push_bar_action(action);
+        }
     }
 
     fn take_view_changes(&mut self, rect: Rect, viewport: &mut DirectEditorViewport) {
@@ -1007,6 +1030,7 @@ impl PluginEditor {
         };
         let action = self.frame_ui(ui, editors, frame, rect.size(), view);
         self.take_view_changes(rect, viewport);
+        self.take_bar_actions(viewport);
         if slot.content.is_some()
             && slot.chrome == Chrome::Drawn
             && let Some(plugin) = &self.plugin

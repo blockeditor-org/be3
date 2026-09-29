@@ -10,7 +10,8 @@ use beui::reactive::{
 };
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    ChildId, ChildLayer, ChildMode, EditorCapabilities, InteractionMode, ResizeMode, ViewChange,
+    BarAction, ChildId, ChildLayer, ChildMode, EditorCapabilities, InteractionMode, ResizeMode,
+    TopBar, ViewChange,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -180,7 +181,7 @@ struct ChildRecord {
     mode: Prop<ChildMode>,
     layer: Prop<ChildLayer>,
     own_frame: Prop<bool>,
-    top_bar: Prop<bool>,
+    top_bar: Prop<TopBar>,
     rotation: Prop<f32>,
     opacity: Prop<f32>,
     intrinsic: Prop<Option<Vec2>>,
@@ -188,6 +189,7 @@ struct ChildRecord {
     read: ReadSignal<ChildState>,
     report: Callback<ChildState>,
     view_change: Callback<ViewChange>,
+    bar: Callback<BarAction>,
     child: Cell<Option<ChildId>>,
 }
 
@@ -638,12 +640,13 @@ impl Editor {
         mode: Prop<ChildMode>,
         layer: Prop<ChildLayer>,
         own_frame: Prop<bool>,
-        top_bar: Prop<bool>,
+        top_bar: Prop<TopBar>,
         rotation: Prop<f32>,
         opacity: Prop<f32>,
         intrinsic: Prop<Option<Vec2>>,
         report: Callback<ChildState>,
         view_change: Callback<ViewChange>,
+        bar: Callback<BarAction>,
     ) -> ReadSignal<ChildState> {
         let (state, set_state) = create_signal(ChildState::default());
         let key = self.0.next_child.get();
@@ -664,6 +667,7 @@ impl Editor {
                 read: state.clone(),
                 report,
                 view_change,
+                bar,
                 child: Cell::new(None),
             }),
         ));
@@ -928,6 +932,9 @@ impl Editor {
             if let Some(child) = record.child.get() {
                 for change in self.0.host.take_child_view_changes(child) {
                     record.view_change.call(change);
+                }
+                for action in self.0.host.take_child_bar_actions(child) {
+                    record.bar.call(action);
                 }
             }
             let state = ChildState::of(&self.0.host, record.child.get());

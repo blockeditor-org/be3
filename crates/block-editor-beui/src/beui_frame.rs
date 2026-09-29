@@ -23,6 +23,7 @@ const NAME_WIDTH: f32 = 280.0;
 pub struct FrameBar {
     pub shown: bool,
     pub closable: bool,
+    pub phone: Option<u32>,
 }
 
 pub struct BeuiFrame {

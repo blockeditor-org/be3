@@ -403,6 +403,14 @@ interface draws a pane of files beside the block being edited. The two are
 exclusive: a child that owns a frame of its own never takes the frame it was
 placed in.
 
+A child that owns a frame of its own may also be given the framework's top bar
+over it, and the placement says which: the plain bar, or the one a phone
+shows, which carries how many files the parent has open. The phone bar's back
+button, title and file count do nothing inside the child: the instance reports
+which of them was pressed, and the host hands that to the instance that placed
+the child, which decides what going back, switching file or showing the file's
+details means.
+
 The host answers with a status per child: whether the block could be opened
 at all, the size and shape its editor asks for, whether the pointer is over
 it, whether it is being given input, whether its own editor is live or only

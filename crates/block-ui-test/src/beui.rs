@@ -9,9 +9,9 @@ use block_editor_beui::{
     ShownPresence, ViewChange, WebViewCommand,
 };
 use block_plugin_api::{
-    BlockTypeDescriptor, ChildRect, EditorMessage, FrameChrome, FrameReport, HelloAccepted,
-    InputBatch, Message, PROTOCOL_VERSION, ScreenId, ScreenRequest, ScreenSet, SurfaceFormat,
-    SurfaceSpec, Theme, ViewportMetrics,
+    BarAction, BlockTypeDescriptor, ChildId, ChildRect, EditorMessage, FrameChrome,
+    FrameReport, HelloAccepted, InputBatch, Message, PROTOCOL_VERSION, ScreenId, ScreenRequest,
+    ScreenSet, SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
@@ -187,7 +187,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         let frame = matches!(kind, Kind::Frame(_)).then(|| block_plugin_api::FrameSpec {
             chrome: FrameChrome::Drawn,
             content: None,
-            top_bar: false,
+            top_bar: TopBar::Hidden,
         });
         let mut test = Self {
             plugin,
@@ -321,7 +321,15 @@ impl<A: BeuiApp> BeuiTest<A> {
             }));
     }
 
-    pub fn with_top_bar(mut self, closable: bool) -> Self {
+    pub fn with_top_bar(self, closable: bool) -> Self {
+        self.with_bar(closable, TopBar::Shown)
+    }
+
+    pub fn with_phone_bar(self, open_files: u32) -> Self {
+        self.with_bar(false, TopBar::Phone { open_files })
+    }
+
+    fn with_bar(mut self, closable: bool, top_bar: TopBar) -> Self {
         self.frame = Some(block_plugin_api::FrameSpec {
             chrome: FrameChrome::Drawn,
             content: closable.then_some(ChildRect {
@@ -330,7 +338,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 width: self.size.x,
                 height: self.size.y,
             }),
-            top_bar: true,
+            top_bar,
         });
         self.place();
         self.run();
@@ -348,6 +356,15 @@ impl<A: BeuiApp> BeuiTest<A> {
         };
         self.place();
         self.run();
+    }
+
+    pub fn child_bar(&mut self, child: ChildId, action: BarAction) {
+        self.inbox.push(Message::Editor(EditorMessage::ChildBar {
+            instance: INSTANCE,
+            region: EditorRegion::Frame,
+            child,
+            action,
+        }));
     }
 
     pub fn set_view(&mut self, view: Rect, scale: f32) {
@@ -730,6 +747,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn take_view_changes(&mut self) -> Vec<ViewChange> {
         self.take_where(|message| match message {
             EditorMessage::ChangeView { change, .. } => Some(*change),
+            _ => None,
+        })
+    }
+
+    pub fn take_bar_actions(&mut self) -> Vec<BarAction> {
+        self.take_where(|message| match message {
+            EditorMessage::BarAction { action, .. } => Some(*action),
             _ => None,
         })
     }

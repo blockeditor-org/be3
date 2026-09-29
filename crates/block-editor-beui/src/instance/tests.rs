@@ -19,7 +19,7 @@ fn session<A: BeuiApp>(block_type: Uuid) -> EditorSession {
     session
 }
 
-fn frame(session: &mut EditorSession, content: Option<ChildRect>, top_bar: bool) {
+fn frame(session: &mut EditorSession, content: Option<ChildRect>, top_bar: TopBar) {
     session.place(
         &[ScreenPlacement {
             screen: ScreenId(0),

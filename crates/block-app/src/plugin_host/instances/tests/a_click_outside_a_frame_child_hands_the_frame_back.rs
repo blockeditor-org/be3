@@ -29,7 +29,7 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
                 height: 100.0,
             },
             own_frame: false,
-            top_bar: false,
+            top_bar: block_plugin_api::TopBar::Hidden,
             corner_radius: 0.0,
             layer: ChildLayer::Below,
             mode: ChildMode::Active,

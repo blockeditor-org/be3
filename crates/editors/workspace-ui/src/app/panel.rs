@@ -12,7 +12,7 @@ use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{
-    ArtifactState, ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor,
+    ArtifactState, ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, TopBar,
 };
 use uuid::Uuid;
 
@@ -202,7 +202,7 @@ fn BlockChild(editor: Editor, info: ReadSignal<Option<Info>>) -> NodeId {
             block={target}
             mode=ChildMode::Live
             own_frame=true
-            top_bar=true
+            top_bar=TopBar::Shown
             @test_id={"workspace.block"}
         >
             {move |handle: ChildBlockHandle| view! {
