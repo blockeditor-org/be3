@@ -1,5 +1,6 @@
 use crate::reactive::{
-    Child, ChildValue, Children, NodeSlot, Prop, Scope, SlotChild, create_effect, with_document,
+    BuildsNode, Child, ChildValue, Children, NodeSlot, Prop, Scope, SlotChild, create_effect,
+    with_document,
 };
 use beui_core::base::canvas::{CanvasNode, CanvasView};
 use beui_core::document::Document;
@@ -9,6 +10,12 @@ use beui_macros::component;
 
 pub struct CanvasItem {
     node: NodeId,
+}
+
+impl BuildsNode for CanvasItem {
+    fn built_node(&self) -> NodeId {
+        self.node
+    }
 }
 
 impl ChildValue for CanvasItem {

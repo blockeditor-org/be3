@@ -1,5 +1,6 @@
 use crate::reactive::{
-    Child, ChildValue, Children, NodeSlot, Prop, Scope, SlotChild, create_effect, with_document,
+    BuildsNode, Child, ChildValue, Children, NodeSlot, Prop, Scope, SlotChild, create_effect,
+    with_document,
 };
 use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
@@ -87,6 +88,12 @@ pub fn Text(
 
 pub struct TextItem {
     node: NodeId,
+}
+
+impl BuildsNode for TextItem {
+    fn built_node(&self) -> NodeId {
+        self.node
+    }
 }
 
 impl ChildValue for TextItem {

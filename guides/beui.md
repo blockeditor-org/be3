@@ -46,10 +46,11 @@ the owner tree does the rest. That is how an item made of data rather than
 nodes — a label, a key, a callback — can still be a component, with its own
 scope, context, memos and cleanups, and still be written as a tag. Such a
 component has nothing for `component_state`, `component_accessibility`,
-`component_size` or `component_rect` to watch, and `@test_id` and `@node_ref`
-name a node it does not have, so all six panic rather than going quietly
-nowhere. `unstyled::MenuItem` is one: a menu item is a label, a disabled flag
-and its own submenu items, so a menu is written as tags and each row follows
+`component_size` or `component_rect` to watch, so all four panic rather than
+going quietly nowhere, and `@test_id` and `@node_ref` on its tag do not compile,
+because they only take a component whose output implements `BuildsNode`.
+`unstyled::MenuItem` is one: a menu item is a label, a disabled flag and its
+own submenu items, so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
 options of a tab bar, a listbox, a radio group and a select. Declare the type
 with `value_child_type!` rather than `child_type!`, which additionally says how
@@ -97,10 +98,12 @@ slot of the parent they are written in, so their children are laid out by that
 parent, with its direction, spacing and alignment, and the children written
 around them keep their places however the run changes. That is why a `ForEach`
 has no spacing of its own, why `@sizing` belongs on the rows rather than on the
-`ForEach`, and why `@test_id` and `@node_ref` on one of them panics: there is
-no node to name. Each needs a parent that keeps its children in slots - a
-list, a `Scroll` or a `Canvas` - so a single-child slot like `Frame`'s takes a
-`List` around one.
+`ForEach`, and why `@test_id` and `@node_ref` on one of them do not compile:
+there is no node to name. Each needs a parent that keeps its children in
+slots - a list, a `Scroll` or a `Canvas` - so one written in a single-child slot like
+`Frame`'s does not compile until a `List` goes around it. A component whose
+whole view is a `Show` returns it typed `-> DynamicSegment<ListChild>` (or
+whatever kind of child its parent takes) rather than a `NodeId`.
 
 The exception is a component whose root is a base node it creates directly —
 the base layer itself, where `List` calls `create_list` and binds setters with

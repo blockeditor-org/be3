@@ -525,7 +525,8 @@ Either way the block is exactly one child, because a `Render` returns one of
 them; two tags there are a compile error naming the tag that wrote them.
 A slot the component always calls is a required prop like any other, so a
 `Show` with nothing between its tags, or a `ForEach` with no closure, does not
-compile rather than panicking once the view runs.
+compile rather than panicking once the view runs. Each misuse the types turn
+away like this has a case in `compile_fail/beui/` naming the error it gets.
 Handing a slot a `Render`/`RenderFn` a component was given itself stays an
 attribute, like `panel={panel.clone()}` — only a closure or a tag block can be
 written between the tags.
@@ -611,11 +612,16 @@ much room it wants the way any child of a list does — `@sizing` on the root it
 returns — and a row builder that returns a plain node is intrinsic. Each row is
 free to differ from the others and to change its mind reactively.
 
-Because they build no node, `@test_id` and `@node_ref` on one of them panic,
-and a slot that takes exactly one node — `frame`'s child, a `render` prop —
-needs a `List` around one. A row builder returns whatever kind of child the
-parent takes, so a closure that returns a plain node fits a list, a `scroll` or
-anything else that takes one child per row without saying so.
+Because they build no node, `@test_id` and `@node_ref` on one of them are a
+compile error. Each is a `DynamicSegment<C>`, which fills a slot that keeps a
+run of children but not one that takes exactly one — `frame`'s child, a `render` prop — so
+writing one there is a compile error, and a `List` around it is the fix. A
+component whose view is one of them returns it as it is, typed
+`-> DynamicSegment<C>`, and is written wherever a run of `C` fits.
+
+A row builder returns whatever kind of child the parent takes, so a closure
+that returns a plain node fits a list, a `scroll` or anything else that takes
+one child per row without saying so.
 
 ```rust
 <ForEach spacing=0.0 keys>

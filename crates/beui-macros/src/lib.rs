@@ -5,7 +5,8 @@ use syn::parenthesized;
 use syn::parse::{Parse, ParseStream};
 use syn::{
     Attribute, Expr, ExprCall, ExprLit, ExprPath, ExprReference, ExprUnary, FnArg, GenericArgument,
-    Ident, ItemFn, Lit, Pat, PatType, Path, PathArguments, Token, Type, UnOp, parse_macro_input,
+    Ident, ItemFn, Lit, Pat, PatType, Path, PathArguments, ReturnType, Token, Type, UnOp,
+    parse_macro_input,
 };
 
 struct Prop {
@@ -159,17 +160,16 @@ fn render_children_block(
         .clone()
         .unwrap_or_else(|| syn::parse_quote!(()));
     let child = render_child(render);
-    let block = quote! { [::beui::reactive::ChildSegment<#child>; CHILDREN] };
     let (bound, build) = if render.once {
         (
-            quote! { ::core::ops::FnOnce() -> #block + 'static },
+            quote! { ::core::ops::FnOnce() -> ChildrenBlock + 'static },
             quote! { ::beui::reactive::Render::new(
                 move |_handle: #handle| ::beui::reactive::OneChild::one_child(children()),
             ) },
         )
     } else {
         (
-            quote! { ::core::ops::Fn() -> #block + 'static },
+            quote! { ::core::ops::Fn() -> ChildrenBlock + 'static },
             quote! { ::beui::reactive::RenderFn::new(
                 move |_handle: #handle| ::beui::reactive::OneChild::one_child(children()),
             ) },
@@ -177,12 +177,12 @@ fn render_children_block(
     };
     Setter {
         method: format_ident!("children_block"),
-        generics: quote! { <ChildrenFn, const CHILDREN: usize> },
+        generics: quote! { <ChildrenFn, ChildrenBlock> },
         args: quote! { children: ChildrenFn },
         where_clause: quote! {
             where
                 ChildrenFn: #bound + ::beui::reactive::UnitHandle<#handle>,
-                #block: ::beui::reactive::OneChild<#child>,
+                ChildrenBlock: ::beui::reactive::OneChild<#child>,
         },
         value: wrap(build),
     }
@@ -195,13 +195,10 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
         let child = quote! { <#ty as ::beui::reactive::ChildrenSlot>::Child };
         return vec![Setter {
             method: block,
-            generics: quote! { <const CHILDREN: usize> },
-            args: quote! {
-                children: impl ::core::ops::FnOnce()
-                    -> [::beui::reactive::ChildSegment<#child>; CHILDREN]
-            },
-            where_clause: quote! {},
-            value: quote! { ::beui::reactive::Children::from(children()) },
+            generics: quote! { <ChildrenBlock> },
+            args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
+            where_clause: quote! { where ChildrenBlock: ::beui::reactive::IntoSegments<#child> },
+            value: quote! { ::beui::reactive::Children::from_block(children()) },
         }];
     }
     if prop.is_optional_child {
@@ -453,6 +450,10 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let component_ident = sig.ident.clone();
     let builder_ident = format_ident!("{}Builder", name);
     let output = sig.output.clone();
+    let output_ty = match &sig.output {
+        ReturnType::Type(_, ty) => quote! { #ty },
+        ReturnType::Default => quote! { () },
+    };
 
     let props: Vec<Prop> = sig
         .inputs
@@ -637,10 +638,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let field_idents: Vec<Ident> = props
         .iter()
         .map(|prop| prop.ident.clone())
-        .chain([
-            format_ident!("with_test_id"),
-            format_ident!("with_node_ref"),
-        ])
+        .chain([format_ident!("with_node")])
         .chain(phantom_field.is_some().then(|| phantom_ident.clone()))
         .collect();
 
@@ -859,8 +857,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         #(#attrs)*
         #vis struct #builder_ident #decl_generics #where_clause {
             #(#fields,)*
-            with_test_id: Option<::beui::reactive::Prop<String>>,
-            with_node_ref: Option<::beui::reactive::NodeRef>,
+            with_node: ::std::vec::Vec<::std::boxed::Box<dyn ::core::ops::FnOnce(&#output_ty)>>,
             #phantom_field
         }
 
@@ -868,8 +865,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         #vis fn #component_ident #component_generics () -> #builder_default #where_clause {
             #builder_ident {
                 #(#init_fields,)*
-                with_test_id: None,
-                with_node_ref: None,
+                with_node: ::std::vec::Vec::new(),
                 #phantom_init
             }
         }
@@ -880,13 +876,28 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
             pub fn with_test_id(
                 mut self,
                 value: impl ::beui::reactive::IntoProp<String>,
-            ) -> Self {
-                self.with_test_id = Some(::beui::reactive::IntoProp::into_prop(value));
+            ) -> Self
+            where
+                for<'built> #output_ty: ::beui::reactive::BuildsNode,
+            {
+                let test_id = ::beui::reactive::IntoProp::into_prop(value);
+                self.with_node.push(::std::boxed::Box::new(move |built: &#output_ty| {
+                    ::beui::reactive::bind_test_id(
+                        ::beui::reactive::BuildsNode::built_node(built),
+                        test_id,
+                    )
+                }));
                 self
             }
 
-            pub fn with_node_ref(mut self, value: &::beui::reactive::NodeRef) -> Self {
-                self.with_node_ref = Some(value.clone());
+            pub fn with_node_ref(mut self, value: &::beui::reactive::NodeRef) -> Self
+            where
+                for<'built> #output_ty: ::beui::reactive::BuildsNode,
+            {
+                let node_ref = value.clone();
+                self.with_node.push(::std::boxed::Box::new(move |built: &#output_ty| {
+                    node_ref.fill(::beui::reactive::BuildsNode::built_node(built))
+                }));
                 self
             }
         }
@@ -896,20 +907,11 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         impl #all_generics #builder_all #where_clause {
             #[track_caller]
             pub fn build(self) #output #build_where {
-                let test_id = self.with_test_id;
-                let node_ref = self.with_node_ref;
+                let with_node = self.with_node;
                 #(#field_lets)*
                 let node = #finish;
-                let anchor = || {
-                    ::beui::reactive::ChildValue::anchor(&node).expect(
-                        "`@test_id` and `@node_ref` name a node, and this component builds none",
-                    )
-                };
-                if let Some(test_id) = test_id {
-                    ::beui::reactive::bind_test_id(anchor(), test_id);
-                }
-                if let Some(node_ref) = node_ref {
-                    node_ref.fill(anchor());
+                for bind in with_node {
+                    bind(&node);
                 }
                 node
             }
@@ -1252,6 +1254,26 @@ fn expand_child_items(children: &[ViewChild]) -> Vec<proc_macro2::TokenStream> {
         .collect()
 }
 
+fn expand_child_block(children: &[ViewChild]) -> proc_macro2::TokenStream {
+    let [child] = children else {
+        let items = expand_child_items(children);
+        return quote! { [#(#items),*] };
+    };
+    let node = match &child.kind {
+        ViewChildKind::Node(node) => expand_view_node(node),
+        ViewChildKind::Expr(expr, _) => quote! { #expr },
+    };
+    match child.sizing() {
+        None => quote! { ::beui::reactive::SingleChild(#node) },
+        Some(sizing) => {
+            let value = &sizing.value;
+            quote_spanned! { sizing.span =>
+                ::beui::reactive::SingleChild(::beui::reactive::ListChild::new(#node, #value))
+            }
+        }
+    }
+}
+
 fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
     let mut segments = node.tag_path.clone();
     let last = segments.pop().expect("tag path always has one segment");
@@ -1288,8 +1310,8 @@ fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
                     #component_path() #(#setters)* .#children_render(#closure) .#build()
                 };
             }
-            let items = expand_child_items(children);
-            let block = quote_spanned! { tag => move || [#(#items),*] };
+            let items = expand_child_block(children);
+            let block = quote_spanned! { tag => move || #items };
             let children_block = format_ident!("children_block", span = tag);
             quote_spanned! { tag =>
                 #component_path() #(#setters)* .#children_block(#block) .#build()

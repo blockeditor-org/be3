@@ -1,0 +1,8 @@
+load(":defs.bzl", "compile_fail")
+
+# ./scripts/buck test //compile_fail/...
+
+compile_fail(
+    name = "beui",
+    deps = ["//crates/beui:beui"],
+)

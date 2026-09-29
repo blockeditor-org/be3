@@ -55,7 +55,7 @@ rust_files() {
 }
 
 starlark_files() {
-    find buck crates third-party/system third-party/pdfium third-party/rust BUCK.v2 PACKAGE -type f \
+    find buck crates compile_fail third-party/system third-party/pdfium third-party/rust BUCK.v2 PACKAGE -type f \
         \( -name BUCK -o -name '*.bzl' -o -name '*.bxl' -o -name BUCK.v2 -o -name PACKAGE \) \
         ! -path buck/cargo/crates.bzl ! -path buck/sysroot/packages.bzl | sort
 }
@@ -191,7 +191,7 @@ if $lint; then
 fi
 
 if $tests; then
-    step "buck2 test" "$buck" test //crates/... --exclude plugin
+    step "buck2 test" "$buck" test //crates/... //compile_fail/... --exclude plugin
 fi
 
 if $plugin_tests; then
