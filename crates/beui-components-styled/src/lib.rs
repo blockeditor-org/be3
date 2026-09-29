@@ -1,6 +1,7 @@
 extern crate beui_view as beui;
 
 pub mod accordion;
+pub mod action_row;
 pub mod border;
 pub mod button;
 pub mod calendar;
@@ -42,6 +43,7 @@ pub mod tooltip;
 pub mod tree;
 
 pub use accordion::{Accordion, accordion_open};
+pub use action_row::ActionRow;
 pub use border::{Bordered, Separator};
 pub use button::{Button, ButtonVariant};
 pub use calendar::Calendar;
