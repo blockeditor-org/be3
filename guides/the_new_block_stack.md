@@ -280,13 +280,18 @@ impl Root for Calendar {
 pub type CalendarContent = Document<Calendar>;
 ```
 
-A field is one of five things. A `Count` is a counter whose concurrent changes
+A field is one of seven things. A `Count` is a counter whose concurrent changes
 add up. A `Grid<T>` is a dense block of fixed-size cells addressed by
 coordinates, for pixel data: its bounds are part of its value, so a resize moves
 the bounds and keeps every cell at its coordinates, `paint` sets cells and
 `reshape` sets the bounds. A `List<T>` holds objects of a `Model` type `T`. A `Map<K, V>` holds
 values by key, each key its own register: two people setting different keys
 both keep theirs, which is how a database row holds a cell per schema field.
+`Latest<T>` and `LatestMap<K, V>` are last-write-wins: every write carries a
+`Stamp` (a time and the writing client), a write only replaces an older stamp,
+and a merge keeps the later stamp per key, so they never conflict and never
+undo. `next(time, origin)` stamps a write past the one it replaces, so a client
+with a slow clock still overwrites what it last read. View state uses them.
 Anything else that is `Serialize + DeserializeOwned + Clone + PartialEq +
 Default` is a register: it is set as a whole, and setting it on both sides of an
 offline merge is a conflict. `Root` names the content type and, optionally, the
@@ -655,6 +660,33 @@ within 750 ms of the last one may be absorbed into it, and `be::undo` and
 Plugins reach it with `BlockCommand::Undo` and `BlockCommand::Redo`, and watch
 whether either is possible with `EditorMessage::WatchHistory`, which the host
 answers with `HistoryStates` whenever they change.
+
+### Profiles and view state
+
+What a person has open is blocks too, one generic type for all of it:
+`EditorView { editor, content, state }` names the editor that draws it, the
+block it shows (none for the file tree or the workspace itself), and a
+`LatestMap` of opaque `ViewState { bytes, refs }` the editor owns. `refs` are the
+blocks an entry points at; `references()` is `content` plus every entry's refs,
+and a deleted or replaced child is blanked or repointed in place, so the bytes
+can index into `refs`.
+
+A profile is an `EditorView` of the workspace editor. Each account has its own
+settings block (the top-level `Settings` block it authored); its `profiles` lists
+every profile, and `Settings::profile(client)` is the one this client uses. The
+host opens the shell on that profile, creating one named after the device when
+the client has none, and reopens the shell when it changes. The workspace keeps
+its dock layout and recents in the profile's state; every tab, and the file tree,
+is an `EditorView` child of the profile that the layout references, and closing
+a tab detaches its view.
+
+An editor learns its view block from `Open { view_block }`, which a parent sets
+with `ChildTarget::viewed_by(view)`. `editor.view_state(key)` and
+`editor.set_view_state(key, state)` read and write it; writes skip the block's
+editability, since view state is the viewer's own. An editor on no content (the
+file tree, the workspace) is opened on its own view block, and the host links
+that block's content as an `EditorView`. `be_block::profile::VIEW_EDITORS` lists
+the editor ids that are not content types.
 
 ### What to keep true
 

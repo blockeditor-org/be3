@@ -266,12 +266,19 @@ impl Instance {
             blocks_seen: None,
             version_sent: None,
             content: match role {
-                InstanceRole::Editor(block) => crate::be::is_known(block.block_type)
-                    .then(|| ContentLink::new(block.block_type)),
+                InstanceRole::Editor(block) => own_content_type(block).map(ContentLink::new),
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
             },
         }
     }
+}
+
+fn own_content_type(block: EditorBlock) -> Option<Uuid> {
+    if crate::be::is_known(block.block_type) {
+        return Some(block.block_type);
+    }
+    (block.view_block == Some(block.id))
+        .then_some(<be_block::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE)
 }
 
 impl Instance {
@@ -964,6 +971,7 @@ impl Instances {
                         instance,
                         block_id: block.id.into_bytes(),
                         block_type: block.block_type.into_bytes(),
+                        view_block: block.view_block.map(Uuid::into_bytes),
                         account_id,
                         workspace_id,
                         client_id,
@@ -1269,6 +1277,7 @@ impl Instances {
                 top_bar: child.top_bar,
                 block_id: Uuid::from_bytes(child.block_id),
                 block_type: Uuid::from_bytes(child.block_type),
+                view_block: child.view_block.map(Uuid::from_bytes),
                 rect: child_rect,
                 clip: child_clip,
                 layer: child.layer,

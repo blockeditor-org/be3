@@ -10,6 +10,7 @@ beui-core = { path = "../beui-core" }
 beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
+serde = { version = "1", features = ["derive"] }
 text-editor-core = { path = "../text-editor-core" }
 
 [lints]

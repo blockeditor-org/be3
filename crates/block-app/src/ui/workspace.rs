@@ -1,6 +1,7 @@
 use beui::icons::{
-    ICON_ACCOUNT_CIRCLE, ICON_BUG_REPORT, ICON_CHECK, ICON_EXTENSION, ICON_HISTORY, ICON_INFO,
-    ICON_LAYERS, ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD, ICON_SETTINGS, ICON_SPEED, ICON_SWAP_HORIZ,
+    ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_BUG_REPORT, ICON_CHECK, ICON_DEVICES, ICON_EXTENSION,
+    ICON_HISTORY, ICON_INFO, ICON_LAYERS, ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD, ICON_SETTINGS,
+    ICON_SPEED, ICON_SWAP_HORIZ,
 };
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
@@ -88,8 +89,39 @@ const MORE_PLUGINS: usize = 3;
 const MORE_VERSION: usize = 4;
 const MORE_INSPECTOR: usize = 5;
 const MORE_WORKSPACE: usize = 6;
-const MORE_ACCOUNTS: usize = 7;
-const MORE_ABOUT: usize = 8;
+const MORE_PROFILE: usize = 7;
+const MORE_ACCOUNTS: usize = 8;
+const MORE_ABOUT: usize = 9;
+
+fn profile_label(profile: &super::ProfileRow) -> String {
+    match profile.current {
+        true => format!("{} (current)", profile.name),
+        false => profile.name.clone(),
+    }
+}
+
+fn profile_ids(status: &Memo<StatusView>) -> Memo<Vec<uuid::Uuid>> {
+    create_memo(clone!(status -> move || {
+        status
+            .get()
+            .profiles
+            .into_iter()
+            .map(|profile| profile.id)
+            .collect::<Vec<_>>()
+    }))
+}
+
+fn profile_name(status: &Memo<StatusView>, id: uuid::Uuid) -> Memo<String> {
+    create_memo(clone!(status -> move || {
+        status
+            .get()
+            .profiles
+            .iter()
+            .find(|profile| profile.id == id)
+            .map(profile_label)
+            .unwrap_or_default()
+    }))
+}
 
 #[component]
 fn StatusBar(status: Memo<StatusView>) -> NodeId {
@@ -115,6 +147,18 @@ fn StatusBar(status: Memo<StatusView>) -> NodeId {
     }));
     let listed = accounts.clone();
     let chosen = accounts;
+    let profile = create_memo(clone!(status -> move || {
+        let current = status
+            .get()
+            .profiles
+            .into_iter()
+            .find(|profile| profile.current)
+            .map(|profile| profile.name);
+        format!("Profile: {}", current.unwrap_or_default())
+    }));
+    let profile_keys = profile_ids(&status);
+    let profile_names = status.clone();
+    let profiles = status.clone();
     view! {
         <Frame
             color={theme.surface.clone()}
@@ -134,7 +178,9 @@ fn StatusBar(status: Memo<StatusView>) -> NodeId {
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <MenuButton
                     label="More"
-                    on_select={move |path: Vec<usize>| more(&path, &chosen.get_untracked())}
+                    on_select={move |path: Vec<usize>| {
+                        more(&path, &chosen.get_untracked(), &profiles.get_untracked().profiles)
+                    }}
                     items={view! {
                         <MenuItem label="Settings" />
                         <MenuItem label="Block stack" />
@@ -145,6 +191,17 @@ fn StatusBar(status: Memo<StatusView>) -> NodeId {
                         <MenuItem label={workspace}>
                             <MenuItem label="Invite member" />
                             <MenuItem label="Switch workspace" />
+                        </MenuItem>
+                        <MenuItem label={profile}>
+                            <ForEach keys={profile_keys}>
+                                {move |id: uuid::Uuid| {
+                                    let label = profile_name(&profile_names, id);
+                                    view! {
+                                        <MenuItem label={label} />
+                                    }
+                                }}
+                            </ForEach>
+                            <MenuItem label="New profile" />
                         </MenuItem>
                         <MenuItem label={signed_in_as}>
                             <ForEach keys={account_keys}>
@@ -200,9 +257,11 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
         let accounts = accounts.clone();
         move || {
             send(UiCommand::AppMenu(false));
-            more(&path, &accounts.get_untracked());
+            more(&path, &accounts.get_untracked(), &[]);
         }
     };
+    let profile_keys = profile_ids(&status);
+    let profile_names = status.clone();
     let listed = accounts.clone();
     let chosen = accounts.clone();
     let manage = accounts.clone();
@@ -247,6 +306,31 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
                         glyph={ICON_SWAP_HORIZ.to_owned()}
                         on_click={pick(vec![MORE_WORKSPACE, 1])}
                     />
+                    <ForEach keys={profile_keys}>
+                        {move |id: uuid::Uuid| {
+                            let label = profile_name(&profile_names, id);
+                            view! {
+                                <ActionRow
+                                    @test_id={format!("app.menu.profile.{id}")}
+                                    label
+                                    glyph={ICON_DEVICES.to_owned()}
+                                    on_click={move || {
+                                        send(UiCommand::AppMenu(false));
+                                        send(UiCommand::SwitchProfile(id));
+                                    }}
+                                />
+                            }
+                        }}
+                    </ForEach>
+                    <ActionRow
+                        @test_id={"app.menu.new-profile"}
+                        label="New profile"
+                        glyph={ICON_ADD.to_owned()}
+                        on_click={move || {
+                            send(UiCommand::AppMenu(false));
+                            send(UiCommand::NewProfile);
+                        }}
+                    />
                     <ForEach keys={account_keys}>
                         {move |key: String| {
                             let listed = listed.clone();
@@ -273,7 +357,7 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
                                         let accounts = chosen.get_untracked();
                                         let index = accounts.iter().position(|account| account.key == key);
                                         if let Some(index) = index {
-                                            more(&[MORE_ACCOUNTS, index], &accounts);
+                                            more(&[MORE_ACCOUNTS, index], &accounts, &[]);
                                         }
                                     }}
                                 />
@@ -289,7 +373,7 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
                         on_click={move || {
                             send(UiCommand::AppMenu(false));
                             let accounts = manage.get_untracked();
-                            more(&[MORE_ACCOUNTS, accounts.len()], &accounts);
+                            more(&[MORE_ACCOUNTS, accounts.len()], &accounts, &[]);
                         }}
                     />
                     <ActionRow
@@ -330,7 +414,7 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
     }
 }
 
-fn more(path: &[usize], accounts: &[super::AccountRow]) {
+fn more(path: &[usize], accounts: &[super::AccountRow], profiles: &[super::ProfileRow]) {
     let open = |window| send(UiCommand::Debug(DebugCommand::Open(window)));
     match path {
         [MORE_SETTINGS] => send(UiCommand::OpenSettings),
@@ -341,6 +425,10 @@ fn more(path: &[usize], accounts: &[super::AccountRow]) {
         [MORE_INSPECTOR] => send(UiCommand::OpenInspector),
         [MORE_WORKSPACE, 0] => send(UiCommand::InviteMember),
         [MORE_WORKSPACE, 1] => send(UiCommand::SwitchWorkspace),
+        [MORE_PROFILE, index] => match profiles.get(*index) {
+            Some(profile) => send(UiCommand::SwitchProfile(profile.id)),
+            None => send(UiCommand::NewProfile),
+        },
         [MORE_ACCOUNTS, index] => match accounts.get(*index) {
             Some(account) => send(UiCommand::SwitchTo(account.key.clone())),
             None => send(UiCommand::ManageAccounts),

@@ -172,6 +172,9 @@ fn merge_fields(base: &Object, ours: &Object, theirs: &Object, conflicts: &mut u
                 (Value::Grid(before), Value::Grid(mine), Value::Grid(other)) => {
                     Value::Grid(crate::Cells::merge(before, mine, other, conflicts))
                 }
+                (Value::Latest(_), Value::Latest(mine), Value::Latest(other)) => {
+                    Value::Latest(crate::latest::merge(mine, other))
+                }
                 _ => mine.clone(),
             }
         })
@@ -191,6 +194,7 @@ fn blank_like(object: &Object) -> Object {
                 Value::List(_) => Value::List(Vec::new()),
                 Value::Map(_) => Value::Map(BTreeMap::new()),
                 Value::Grid(cells) => Value::Grid(cells.emptied()),
+                Value::Latest(_) => Value::Latest(BTreeMap::new()),
             })
             .collect(),
     }

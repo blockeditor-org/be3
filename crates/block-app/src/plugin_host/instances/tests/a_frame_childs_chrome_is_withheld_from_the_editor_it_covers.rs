@@ -15,6 +15,7 @@ fn active_child(instances: &mut Instances) {
             child: CHILD,
             block_id: [0; 16],
             block_type: [0; 16],
+            view_block: None,
             rect: ChildRect {
                 x: 0.0,
                 y: 0.0,

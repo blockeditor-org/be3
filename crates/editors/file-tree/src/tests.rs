@@ -1,3 +1,4 @@
+use block_editor_beui::be_block::EditorViewContent;
 use block_editor_beui::beui::{Document, Event, Modifiers, NodeId, PointerButton, Pos2, Vec2};
 use block_editor_beui::{Editor, EditorHost};
 use block_ui_test::BeuiTest;
@@ -7,6 +8,7 @@ use crate::app::FileTreeApp;
 
 mod a_narrow_files_pane_on_a_desktop_keeps_the_tree;
 mod a_phone_walks_into_folders_and_opens_files;
+mod an_opened_folder_is_kept_open_in_the_view_and_reopens_open;
 mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
 mod exporting_a_text_block_saves_it_as_a_markdown_file;
@@ -83,6 +85,21 @@ fn editor_sized(size: Option<Vec2>) -> Fixture {
         None => test,
     };
     let mut fixture = Fixture { test, host };
+    fixture.settle();
+    fixture
+}
+
+fn viewed(view: EditorViewContent) -> Fixture {
+    let tree = Uuid::new_v4();
+    let host = EditorHost::default();
+    host.set_editable(true);
+    host.set_view_block(Some(tree));
+    let editor = Editor::new(host.clone(), tree);
+    let mut fixture = Fixture {
+        test: BeuiTest::new(editor),
+        host,
+    };
+    fixture.test.hold(None, view);
     fixture.settle();
     fixture
 }

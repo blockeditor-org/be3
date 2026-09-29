@@ -1,6 +1,6 @@
 use beui::NodeId;
 use beui::reactive::{Frame, ReadSignal, Text, component, create_memo, view};
-use block_editor_beui::be_block::{BlockContent, FileTreeContent};
+use block_editor_beui::be_block::FILES_EDITOR;
 use block_editor_beui::{
     BeuiApp, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget, Editor, EditorHost,
 };
@@ -22,7 +22,7 @@ mod the_top_bar_shrinks_its_name_to_keep_its_buttons_on_a_narrow_screen;
 mod undo_in_the_top_bar_asks_the_host_for_a_block_it_cannot_open;
 
 const SLIDE: Uuid = Uuid::from_u128(0x0001);
-const FILE_TREE: Uuid = FileTreeContent::CONTENT_TYPE;
+const FILE_TREE: Uuid = FILES_EDITOR;
 const SLIDE_TYPE: Uuid = Uuid::from_u128(0x0002);
 
 struct ChildApp;

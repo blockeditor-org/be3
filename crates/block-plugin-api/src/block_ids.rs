@@ -22,6 +22,9 @@ impl Message {
                         BlockIdRole::Existing,
                         &mut child.block_id,
                     );
+                    if let Some(view_block) = &mut child.view_block {
+                        visit(placements.instance, BlockIdRole::Existing, view_block);
+                    }
                 }
             }
             Self::Hello(_)
@@ -53,8 +56,15 @@ impl EditorMessage {
         let instance = self.instance();
         let mut existing = |id: &mut [u8; 16]| visit(instance, BlockIdRole::Existing, id);
         match self {
-            Self::Open { block_id, .. }
-            | Self::Content { block_id, .. }
+            Self::Open {
+                block_id,
+                view_block,
+                ..
+            } => {
+                existing(block_id);
+                view_block.iter_mut().for_each(existing);
+            }
+            Self::Content { block_id, .. }
             | Self::ContentOperations { block_id, .. }
             | Self::Operate { block_id, .. }
             | Self::ResendContent { block_id, .. }

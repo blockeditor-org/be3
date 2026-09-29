@@ -298,9 +298,10 @@ impl<'a> EditorAccess<'a> {
         self.editors.contains_key(&id)
     }
 
-    pub fn ensure(&mut self, id: Uuid, block_type: Uuid) {
+    pub fn ensure(&mut self, id: Uuid, block_type: Uuid, view_block: Option<Uuid>) {
         if !self.active.contains(&id) && !self.editors.contains_key(&id) {
-            self.editors.insert(id, self.registry.open(id, block_type));
+            self.editors
+                .insert(id, self.registry.open(id, block_type).viewed_by(view_block));
         }
     }
 

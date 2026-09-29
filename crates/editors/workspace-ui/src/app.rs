@@ -5,6 +5,7 @@ mod linked;
 mod menu;
 mod panel;
 mod phone;
+mod saved;
 mod status;
 mod tab;
 pub(crate) mod workspace;
