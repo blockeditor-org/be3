@@ -330,7 +330,11 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn on_phone(self) -> Self {
-        self.with_bar(false, TopBar::PhoneHidden)
+        self.on_phone_with_files(0)
+    }
+
+    pub fn on_phone_with_files(self, open_files: u32) -> Self {
+        self.with_bar(false, TopBar::PhoneHidden { open_files })
     }
 
     fn with_bar(mut self, closable: bool, top_bar: TopBar) -> Self {

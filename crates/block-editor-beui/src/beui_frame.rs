@@ -90,10 +90,21 @@ pub struct FrameBar {
     pub closable: bool,
     pub phone: Option<u32>,
     pub on_phone: bool,
+    pub open_files: u32,
 }
 
 #[derive(Clone)]
 struct PhoneLayout(Memo<bool>);
+
+#[derive(Clone)]
+struct OpenFileCount(Memo<u32>);
+
+pub fn open_files() -> Memo<u32> {
+    match use_context::<OpenFileCount>() {
+        Some(OpenFileCount(count)) => count,
+        None => create_memo(|| 0),
+    }
+}
 
 pub fn phone_layout() -> Memo<bool> {
     match use_context::<PhoneLayout>() {
@@ -121,6 +132,9 @@ impl BeuiFrame {
             provide_context(BarItems::new());
             provide_context(PhoneLayout(create_memo(
                 clone!(bar -> move || bar.get().on_phone),
+            )));
+            provide_context(OpenFileCount(create_memo(
+                clone!(bar -> move || bar.get().open_files),
             )));
             let phone = create_memo(clone!(bar -> move || bar.get().phone.is_some()));
             view! {
@@ -513,7 +527,7 @@ fn PhoneBar(
                         />
                     </List>
                 </ListRow>
-                <OpenFiles count={open_files} on_click={counted} />
+                <OpenFiles count={open_files} on_click={counted} id={"editor.files".to_owned()} />
                 <IconButton
                     @test_id={"editor.more"}
                     glyph={ICON_MORE_VERT.to_owned()}
@@ -541,7 +555,7 @@ fn PhoneBar(
 }
 
 #[component]
-fn OpenFiles(count: Memo<u32>, on_click: ClickCallback) -> NodeId {
+pub fn OpenFiles(count: Memo<u32>, on_click: ClickCallback, id: String) -> NodeId {
     let theme = use_theme();
     let label = create_memo(clone!(count -> move || count.get().to_string()));
     let accessibility = create_memo(clone!(count -> move || {
@@ -554,7 +568,7 @@ fn OpenFiles(count: Memo<u32>, on_click: ClickCallback) -> NodeId {
     }));
     view! {
         <unstyled::Button
-            @test_id={"editor.files"}
+            @test_id={id}
             accessibility
             on_click={move || on_click.call()}
             content={move |handle: unstyled::ButtonHandle| {

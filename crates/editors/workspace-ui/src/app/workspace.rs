@@ -15,8 +15,9 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::root_settings::RootSetting;
 use block_editor_beui::{
-    AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
-    ContentProjection, Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
+    AccessLevel, BarAction, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState,
+    ChildTarget, ContentProjection, Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock,
+    Pushed, TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -795,10 +796,14 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
 #[component]
 pub(crate) fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
     let phone = workspace.phone.clone();
+    let counting = Rc::clone(&workspace);
     let top_bar = create_memo(move || match phone.get() {
-        true => TopBar::PhoneHidden,
+        true => TopBar::PhoneHidden {
+            open_files: u32::try_from(counting.open_count()).unwrap_or(u32::MAX),
+        },
         false => TopBar::Hidden,
     });
+    let switching = Rc::clone(&workspace);
     let files = workspace.files.clone();
     let target = create_memo(move || {
         files
@@ -813,6 +818,10 @@ pub(crate) fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
             mode=ChildMode::Live
             own_frame=true
             top_bar={top_bar}
+            on_bar={move |action: BarAction| match action {
+                BarAction::Switch => switching.set_sheet(PhoneSheet::Switcher),
+                BarAction::Back | BarAction::Details => {}
+            }}
             @test_id={"workspace.files"}
         >
             {move |handle: ChildBlockHandle| view! {
