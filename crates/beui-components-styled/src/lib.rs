@@ -68,7 +68,7 @@ pub use scroll::Scroll;
 pub use scrollbar::Scrollbar;
 pub use select::{Select, select_open, select_selected};
 pub use selectable_text::SelectableText;
-pub use sheet::{SHEET_STOPS, Sheet};
+pub use sheet::{ModalSheet, SHEET_STOPS, Sheet};
 pub use shortcut::Shortcut;
 pub use slider::{Slider, slider_value};
 pub use spinner::Spinner;
