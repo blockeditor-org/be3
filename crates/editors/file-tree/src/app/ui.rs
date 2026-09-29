@@ -16,7 +16,7 @@ use block_editor_beui::beui::styled::{
 };
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};
-use block_editor_beui::{BlockFilter, BlockPicker, Drag, Editor, Toolbar, narrow_chrome};
+use block_editor_beui::{BlockFilter, BlockPicker, Drag, Editor, Toolbar, phone_layout};
 use uuid::Uuid;
 
 use super::export::{Export, Exporter, exportable};
@@ -126,7 +126,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         editor.host().drag_block(carried.id, carried.block_type);
     });
 
-    let narrow = narrow_chrome();
+    let narrow = phone_layout();
     let wide = create_memo(clone!(narrow -> move || !narrow.get()));
     let chrome = editor.chrome_shown();
     let toolbar = create_memo(clone!(chrome wide -> move || chrome.get() && wide.get()));

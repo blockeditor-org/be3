@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 58;
+pub const PROTOCOL_VERSION: u16 = 59;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -60,11 +60,16 @@ pub enum TopBar {
     Phone {
         open_files: u32,
     },
+    PhoneHidden,
 }
 
 impl TopBar {
     pub fn shown(self) -> bool {
-        !matches!(self, Self::Hidden)
+        !matches!(self, Self::Hidden | Self::PhoneHidden)
+    }
+
+    pub fn phone(self) -> bool {
+        matches!(self, Self::Phone { .. } | Self::PhoneHidden)
     }
 }
 

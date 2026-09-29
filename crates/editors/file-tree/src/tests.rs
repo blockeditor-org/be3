@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::app::FileTreeApp;
 
+mod a_narrow_files_pane_on_a_desktop_keeps_the_tree;
 mod a_phone_walks_into_folders_and_opens_files;
 mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
@@ -81,6 +82,19 @@ fn editor_sized(size: Option<Vec2>) -> Fixture {
         Some(size) => test.with_size(size),
         None => test,
     };
+    let mut fixture = Fixture { test, host };
+    fixture.settle();
+    fixture
+}
+
+fn phone() -> Fixture {
+    let tree = Uuid::new_v4();
+    let host = EditorHost::default();
+    host.set_editable(true);
+    let editor = Editor::new(host.clone(), tree);
+    let test = BeuiTest::new(editor)
+        .with_size(Vec2::new(390.0, 800.0))
+        .on_phone();
     let mut fixture = Fixture { test, host };
     fixture.settle();
     fixture

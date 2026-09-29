@@ -1,12 +1,11 @@
 use block_editor_beui::be_block::{BlockContent, FolderContent};
-use block_editor_beui::beui::Vec2;
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 
 use super::*;
 
 #[test]
 fn a_phone_walks_into_folders_and_opens_files() {
-    let mut fixture = editor_sized(Some(Vec2::new(390.0, 800.0)));
+    let mut fixture = phone();
     let text_type = Uuid::from_u128(7);
     let folder = Uuid::from_u128(2);
     let notes = Uuid::from_u128(3);

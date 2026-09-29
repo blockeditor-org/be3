@@ -89,6 +89,17 @@ pub struct FrameBar {
     pub shown: bool,
     pub closable: bool,
     pub phone: Option<u32>,
+    pub on_phone: bool,
+}
+
+#[derive(Clone)]
+struct PhoneLayout(Memo<bool>);
+
+pub fn phone_layout() -> Memo<bool> {
+    match use_context::<PhoneLayout>() {
+        Some(PhoneLayout(phone)) => phone,
+        None => create_memo(|| false),
+    }
 }
 
 pub struct BeuiFrame {
@@ -108,6 +119,7 @@ impl BeuiFrame {
         let editor = editor.clone();
         let document = beui::reactive::build(move || {
             provide_context(BarItems::new());
+            provide_context(PhoneLayout(create_memo(clone!(bar -> move || bar.get().on_phone))));
             let phone = create_memo(clone!(bar -> move || bar.get().phone.is_some()));
             view! {
                 <List spacing=0.0>

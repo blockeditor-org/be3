@@ -43,7 +43,7 @@ pub(crate) fn PhoneShell(workspace: Rc<Workspace>) -> NodeId {
                     let workspace = Rc::clone(&pages);
                     match page {
                         PhonePage::Files => view! {
-                            <FilesPanel @sizing=ItemSize::Percent(100.0) workspace={workspace} />
+                            <FilesPanel @sizing=ItemSize::Percent(100.0) workspace={workspace} phone=true />
                         },
                         PhonePage::Tab(tab) => view! {
                             <PhoneBlock

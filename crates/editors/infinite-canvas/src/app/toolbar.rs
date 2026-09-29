@@ -17,7 +17,9 @@ use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, IconButton, MenuButton, ToggleButton, use_theme,
 };
 use block_editor_beui::beui::unstyled::{Edge, Floating, MenuItem};
-use block_editor_beui::{BottomDock, Toolbar, bar_item, narrow_chrome, sheet_open};
+use block_editor_beui::{
+    BottomDock, Toolbar, bar_item, narrow_chrome, phone_layout, sheet_open,
+};
 
 use super::selection_bar::SelectionTools;
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
@@ -57,7 +59,8 @@ pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId
     let roomy = create_memo(clone!(narrow -> move || !narrow.get()));
     let menu_compact = narrow.clone();
     let zoom_compact = narrow.clone();
-    let shown = create_memo(move || shown.get() && !narrow.get());
+    let phone = phone_layout();
+    let shown = create_memo(move || shown.get() && !phone.get());
     view! {
         <Toolbar shown={shown}>
             <List @sizing=ItemSize::Percent(100.0) spacing=6.0>
@@ -156,10 +159,10 @@ pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool
 
 #[component]
 pub(crate) fn ZoomPill(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
-    let narrow = narrow_chrome();
+    let phone = phone_layout();
     let sheet = sheet_open();
     let previewing = state.previewing();
-    let open = create_memo(move || shown.get() && narrow.get() && !sheet.get() && !previewing);
+    let open = create_memo(move || shown.get() && phone.get() && !sheet.get() && !previewing);
     let scale = state.editor().scale();
     let readout = create_memo(clone!(scale -> move || format!("{:.0}%", scale.get() * 100.0)));
     let out = clone!(state -> move || state.editor().zoom(1.0 / ZOOM_STEP));

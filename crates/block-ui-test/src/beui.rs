@@ -329,6 +329,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.with_bar(false, TopBar::Phone { open_files })
     }
 
+    pub fn on_phone(self) -> Self {
+        self.with_bar(false, TopBar::PhoneHidden)
+    }
+
     fn with_bar(mut self, closable: bool, top_bar: TopBar) -> Self {
         self.frame = Some(block_plugin_api::FrameSpec {
             chrome: FrameChrome::Drawn,

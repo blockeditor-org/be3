@@ -14,7 +14,7 @@ use beui::styled::{
 };
 use beui::unstyled::{ChoiceOption, MenuItem, Scroll};
 use block_editor_beui::BlockParent;
-use block_editor_beui::{BlockFilter, Toolbar, bar_item, block_ui::BlockLabel, narrow_chrome};
+use block_editor_beui::{BlockFilter, Toolbar, bar_item, block_ui::BlockLabel, phone_layout};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
 use super::state::Shared;
@@ -35,8 +35,8 @@ pub(crate) fn EditorToolbar(state: Shared) -> NodeId {
         false => "Switch to hex view".to_owned(),
     }));
     let hex_state = state.clone();
-    let narrow = narrow_chrome();
-    let wide = create_memo(clone!(narrow -> move || !narrow.get()));
+    let phone = phone_layout();
+    let wide = create_memo(clone!(phone -> move || !phone.get()));
     phone_items(&state);
     view! {
         <Toolbar shown={wide}>
@@ -89,10 +89,10 @@ fn phone_items(state: &Shared) {
 #[component]
 pub(crate) fn FormatBar(state: Shared) -> NodeId {
     let theme = use_theme();
-    let narrow = narrow_chrome();
+    let phone = phone_layout();
     let typing = state.typing.clone();
     let hex = state.hex_view.clone();
-    let shown = create_memo(move || narrow.get() && typing.get() && !hex.get());
+    let shown = create_memo(move || phone.get() && typing.get() && !hex.get());
     let content = state.text.content();
     let markdown = create_memo(clone!(state -> move || {
         content.get();

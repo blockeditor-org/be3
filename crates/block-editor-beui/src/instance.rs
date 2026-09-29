@@ -424,8 +424,9 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                     closable: spec.content.is_some(),
                     phone: match spec.top_bar {
                         TopBar::Phone { open_files } => Some(open_files),
-                        TopBar::Hidden | TopBar::Shown => None,
+                        TopBar::Hidden | TopBar::Shown | TopBar::PhoneHidden => None,
                     },
+                    on_phone: spec.top_bar.phone(),
                 };
                 let editor = views.editor.clone();
                 beui::reactive::with_reactive_scope(chrome.document_mut(), || {
