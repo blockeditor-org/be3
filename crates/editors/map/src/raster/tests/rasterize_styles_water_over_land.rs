@@ -1,4 +1,6 @@
-use super::{Feature, GeometryKind, LAND, Layer, TILE_PIXELS, Tile, WATER, rasterize, square};
+use super::{
+    Feature, GeometryKind, LAND, Layer, TILE_PIXELS, Tile, WATER, Window, rasterize, square,
+};
 
 #[test]
 fn rasterize_styles_water_over_land() {
@@ -16,7 +18,7 @@ fn rasterize_styles_water_over_land() {
             }],
         }],
     };
-    let raster = rasterize(&tile, 5);
+    let raster = rasterize(&tile, 5, Window::WHOLE);
 
     let pixel = |x: usize, y: usize| {
         let index = (y * TILE_PIXELS + x) * 4;

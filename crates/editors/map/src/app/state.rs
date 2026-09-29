@@ -7,7 +7,7 @@ use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::map::{MapColor, MapCoordinate, MapPoint, MapRegion};
 use block_editor_beui::be_block::{Edit, Map, MapContent};
 use block_editor_beui::beui::reactive::{
-    ReadSignal, WriteSignal, create_effect, create_signal, untrack,
+    CanvasView, ReadSignal, WriteSignal, create_effect, create_signal, untrack,
 };
 use block_editor_beui::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
@@ -22,8 +22,10 @@ use crate::raster::{TILE_PIXELS, TileLabel};
 use crate::tiles::{TileId, TileWorker};
 
 pub(crate) const WORLD_POINTS: f32 = 1024.0;
-pub(crate) const MAX_PREVIEW_WORLD: f64 = (WORLD_POINTS * 4096.0) as f64;
+pub(crate) const MAX_SCALE: f32 = 32768.0;
+pub(crate) const MAX_PREVIEW_WORLD: f64 = (WORLD_POINTS * MAX_SCALE) as f64;
 pub(crate) const ZOOM_STEP: f32 = 1.25;
+const MAX_HELD_TILES: usize = 160;
 
 #[derive(Clone)]
 pub(crate) enum TileState {
@@ -51,6 +53,8 @@ pub(crate) struct MapState {
     dependencies: BlockList,
     worker: RefCell<Option<TileWorker>>,
     tiles: RefCell<HashMap<TileId, TileState>>,
+    used: RefCell<HashMap<TileId, u64>>,
+    uses: Cell<u64>,
     waker: RefCell<Waker>,
     paster: RefCell<ImagePaster>,
     dragged: Cell<Option<(Uuid, Vec2)>>,
@@ -75,6 +79,8 @@ pub(crate) struct MapState {
     set_revision: WriteSignal<u64>,
     pub(crate) reloads: ReadSignal<u64>,
     set_reloads: WriteSignal<u64>,
+    pub(crate) anchor: ReadSignal<[f64; 2]>,
+    set_anchor: WriteSignal<[f64; 2]>,
 }
 
 impl MapState {
@@ -91,6 +97,7 @@ impl MapState {
         let (revision, set_revision) = create_signal(0);
         let (reloads, set_reloads) = create_signal(0);
         let (fit_requested, set_fit_requested) = create_signal(true);
+        let (anchor, set_anchor) = create_signal([0.0, 0.0]);
         Rc::new(Self {
             dependencies: editor
                 .blocks()
@@ -100,6 +107,8 @@ impl MapState {
             block,
             worker: RefCell::new(None),
             tiles: RefCell::new(HashMap::new()),
+            used: RefCell::new(HashMap::new()),
+            uses: Cell::new(0),
             waker: RefCell::new(Waker::default()),
             paster: RefCell::new(ImagePaster::default()),
             dragged: Cell::new(None),
@@ -124,6 +133,8 @@ impl MapState {
             set_revision,
             reloads,
             set_reloads,
+            anchor,
+            set_anchor,
         })
     }
 
@@ -160,6 +171,7 @@ impl MapState {
             worker.forget(self.editor.host());
         }
         self.tiles.borrow_mut().clear();
+        self.used.borrow_mut().clear();
         self.set_last_error.set(None);
         self.bump();
         self.set_reloads.update(|reloads| *reloads += 1);
@@ -210,9 +222,8 @@ impl MapState {
     }
 
     pub(crate) fn centre_on(&self, position: MapCoordinate) {
-        let view = self.view();
-        let region = self.content_rect();
-        self.editor.pan(region.center() - view.position(position));
+        let shown = self.screen(self.view().position(position));
+        self.editor.pan(self.screen_rect().center() - shown);
     }
 
     pub(crate) fn content_rect(&self) -> Rect {
@@ -230,27 +241,91 @@ impl MapState {
             || self.editor.placed().get_untracked().is_positive()
     }
 
-    pub(crate) fn world_rect(&self) -> Rect {
-        if self.preview {
-            return self.view().world_rect();
+    fn host_camera(&self) -> Option<CanvasView> {
+        match self.preview {
+            true => None,
+            false => self.editor.canvas().get_untracked(),
         }
-        let content = self.content_rect();
-        let side = content.width().min(content.height());
-        let centre = content.center();
-        Rect::from_min_size(
-            Pos2::new(centre.x - side / 2.0, centre.y - side / 2.0),
-            Vec2::splat(side),
-        )
     }
 
-    pub(crate) fn view(&self) -> MapView {
+    pub(crate) fn camera(&self) -> Option<CanvasView> {
+        let _ = self.editor.canvas().get();
+        let _ = self.anchor.get();
+        self.anchored_camera()
+    }
+
+    fn anchored_camera(&self) -> Option<CanvasView> {
+        let host = self.host_camera()?;
+        let anchor = self.anchor.get_untracked();
+        let scale = f64::from(host.scale);
+        Some(CanvasView::new(
+            Pos2::new(
+                (f64::from(host.origin.x) + anchor[0] * scale) as f32,
+                (f64::from(host.origin.y) + anchor[1] * scale) as f32,
+            ),
+            host.scale,
+        ))
+    }
+
+    fn screen_rect(&self) -> Rect {
+        let placed = self.editor.placed().get_untracked();
+        match self.host_camera().is_some() && placed.is_positive() {
+            true => placed,
+            false => self.content_rect(),
+        }
+    }
+
+    pub(crate) fn screen(&self, position: Pos2) -> Pos2 {
+        self.anchored_camera()
+            .map_or(position, |camera| camera.to_screen(position))
+    }
+
+    fn unscreen(&self, position: Pos2) -> Pos2 {
+        self.anchored_camera()
+            .map_or(position, |camera| camera.to_canvas(position))
+    }
+
+    pub(crate) fn visible(&self) -> Rect {
+        let _ = self.editor.canvas().get();
+        let _ = self.editor.placed().get();
+        let _ = self.anchor.get();
+        let screen = self.screen_rect();
+        Rect::from_min_max(self.unscreen(screen.min), self.unscreen(screen.max))
+    }
+
+    fn world_view(&self) -> MapView {
         match self.preview {
             true => MapView::covering(
                 self.displayed_region.get_untracked(),
                 self.content_rect(),
                 MAX_PREVIEW_WORLD,
             ),
-            false => MapView::from_world_rect(self.world_rect()),
+            false => {
+                let content = self.content_rect();
+                let side = content.width().min(content.height());
+                let centre = content.center();
+                MapView::from_world_rect(Rect::from_min_size(
+                    Pos2::new(centre.x - side / 2.0, centre.y - side / 2.0),
+                    Vec2::splat(side),
+                ))
+            }
+        }
+    }
+
+    pub(crate) fn view(&self) -> MapView {
+        self.world_view().anchored(self.anchor.get_untracked())
+    }
+
+    fn settle_anchor(&self) {
+        let Some(host) = self.host_camera() else {
+            return;
+        };
+        let world = self.world_view();
+        let centre = host.to_canvas(self.screen_rect().center());
+        let zoom = super::tiles::tile_zoom(world, host.scale);
+        let anchor = world.tile_anchor(zoom, centre);
+        if self.anchor.get_untracked() != anchor {
+            self.set_anchor.set(anchor);
         }
     }
 
@@ -265,11 +340,12 @@ impl MapState {
     pub(crate) fn press(&self, at: Pos2) {
         let view = self.view();
         let points = self.points.get_untracked();
-        let hit = crate::points::point_at(&points, view, at);
+        let tip = |point: &MapPoint| self.screen(view.position(point.position));
+        let hit = crate::points::point_at(&points, tip, at);
         self.set_selected.set(hit);
         self.dragged.set(hit.and_then(|id| {
             let point = points.iter().find(|point| point.id == id)?;
-            Some((id, view.position(point.position) - at))
+            Some((id, tip(point) - at))
         }));
     }
 
@@ -282,7 +358,7 @@ impl MapState {
         let Some(mut point) = points.iter().copied().find(|point| point.id == id) else {
             return;
         };
-        let position = view.coordinate(at + offset);
+        let position = view.coordinate(self.unscreen(at + offset));
         if position == point.position {
             return;
         }
@@ -337,9 +413,22 @@ impl MapState {
         let state = Rc::clone(self);
         let world = self.editor.world();
         let placed = self.editor.placed();
+        let canvas = self.editor.canvas();
         create_effect(move || {
             world.with(|_| ());
             placed.with(|_| ());
+            canvas.with(|_| ());
+            untrack(|| state.settle_anchor());
+        });
+        let state = Rc::clone(self);
+        let world = self.editor.world();
+        let placed = self.editor.placed();
+        let canvas = self.editor.canvas();
+        create_effect(move || {
+            world.with(|_| ());
+            placed.with(|_| ());
+            canvas.with(|_| ());
+            state.anchor.with(|_| ());
             state.preview_region.with(|_| ());
             state.fit_requested.with(|_| ());
             untrack(|| state.settle_view());
@@ -347,26 +436,32 @@ impl MapState {
     }
 
     fn settle_view(&self) {
-        let region = self.content_rect();
         let view = self.view();
-        self.set_visible_region.set(view.region(region));
-        self.view_center.set(view.coordinate(region.center()));
+        let visible = untrack(|| self.visible());
+        let region = view.region(visible);
+        if self.visible_region.get_untracked() != region {
+            self.set_visible_region.set(region);
+        }
+        self.view_center.set(view.coordinate(visible.center()));
         if self.sized()
+            && self.host_camera().is_some()
             && self.fit_requested.get_untracked()
             && let Some(preview) = self.preview_region.get_untracked()
         {
             self.set_fit_requested.set(false);
-            self.fit_preview_region(view, region, preview);
+            self.fit_preview_region(view, preview);
         }
     }
 
-    fn fit_preview_region(&self, view: MapView, clip: Rect, region: MapRegion) {
+    fn fit_preview_region(&self, view: MapView, region: MapRegion) {
         let rect = view.region_rect(region);
+        let shown = Rect::from_min_max(self.screen(rect.min), self.screen(rect.max));
+        let clip = self.screen_rect();
         let available = (clip.size() - Vec2::splat(24.0)).max(Vec2::new(1.0, 1.0));
         let factor =
-            (available.x / rect.width().max(0.01)).min(available.y / rect.height().max(0.01));
+            (available.x / shown.width().max(0.01)).min(available.y / shown.height().max(0.01));
         self.editor.zoom(factor);
-        self.editor.pan(clip.center() - rect.center());
+        self.editor.pan((clip.center() - shown.center()) * factor);
     }
 
     fn publish_references(&self) {
@@ -393,7 +488,7 @@ impl MapState {
         if !drag.dropped {
             return;
         }
-        let position = self.view().coordinate(drag.position);
+        let position = self.view().coordinate(self.unscreen(drag.position));
         self.editor
             .blocks()
             .set_parent(drag.block_id, BlockParent::Block(self.block_id()));
@@ -406,7 +501,7 @@ impl MapState {
             return;
         };
         let view = self.view();
-        let at = |position: Pos2| view.coordinate(position);
+        let at = |position: Pos2| view.coordinate(self.unscreen(position));
         if !drop.dropped {
             self.pending_file_drop.set(Some(at(drop.position)));
             return;
@@ -446,6 +541,49 @@ impl MapState {
     fn import(&self, image: ImageContent, position: MapCoordinate) {
         let created = self.editor.create_child(&image);
         self.add_point(created, position);
+    }
+
+    pub(crate) fn unwant_tile(&self, id: TileId) {
+        if !matches!(self.tiles.borrow().get(&id), Some(TileState::Loading)) {
+            return;
+        }
+        let cancelled = self
+            .worker
+            .borrow_mut()
+            .as_mut()
+            .is_some_and(|worker| worker.cancel(id));
+        if cancelled {
+            self.tiles.borrow_mut().remove(&id);
+        }
+    }
+
+    pub(crate) fn use_tiles(&self, shown: &[TileId]) {
+        let uses = self.uses.get() + 1;
+        self.uses.set(uses);
+        let mut used = self.used.borrow_mut();
+        for tile in shown {
+            let mut held = Some(*tile);
+            while let Some(tile) = held {
+                used.insert(tile, uses);
+                held = tile.parent();
+            }
+        }
+        let mut tiles = self.tiles.borrow_mut();
+        if tiles.len() <= MAX_HELD_TILES {
+            return;
+        }
+        let mut idle: Vec<(u64, TileId)> = tiles
+            .iter()
+            .filter(|(_, state)| !matches!(state, TileState::Loading))
+            .map(|(id, _)| (used.get(id).copied().unwrap_or(0), *id))
+            .filter(|(last, _)| *last != uses)
+            .collect();
+        idle.sort_unstable_by_key(|(last, id)| (*last, id.zoom, id.x, id.y));
+        let excess = tiles.len() - MAX_HELD_TILES;
+        for (_, id) in idle.into_iter().take(excess) {
+            tiles.remove(&id);
+            used.remove(&id);
+        }
     }
 
     pub(crate) fn want_tile(&self, id: TileId) {

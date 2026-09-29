@@ -19,5 +19,5 @@ fn queue_serves_latest_requests_first() {
     worker.request(first);
 
     assert_eq!(worker.queued, vec![first, second]);
-    assert!(worker.requested.contains(&first));
+    assert_eq!(worker.waiting[&first], vec![first]);
 }

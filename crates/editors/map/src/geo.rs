@@ -1,9 +1,9 @@
 use std::f64::consts::PI;
 
 use block_editor_beui::be_block::map::{MAX_LATITUDE, MapCoordinate, MapRegion};
-use block_editor_beui::beui::{Pos2, Rect, Vec2};
+use block_editor_beui::beui::{Pos2, Rect};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) struct MapView {
     origin: [f64; 2],
     size: f64,
@@ -32,11 +32,38 @@ impl MapView {
         }
     }
 
-    pub(crate) fn world_rect(self) -> Rect {
-        Rect::from_min_size(
-            Pos2::new(self.origin[0] as f32, self.origin[1] as f32),
-            Vec2::splat(self.size as f32),
+    pub(crate) fn anchored(self, anchor: [f64; 2]) -> Self {
+        Self {
+            origin: [self.origin[0] - anchor[0], self.origin[1] - anchor[1]],
+            size: self.size,
+        }
+    }
+
+    pub(crate) fn size(self) -> f64 {
+        self.size
+    }
+
+    pub(crate) fn tile_anchor(self, zoom: u8, point: Pos2) -> [f64; 2] {
+        let side = self.size / f64::from(1u32 << zoom);
+        let snap = |axis: usize, value: f32| {
+            let steps = ((f64::from(value) - self.origin[axis]) / side).floor();
+            self.origin[axis] + steps * side
+        };
+        [snap(0, point.x), snap(1, point.y)]
+    }
+
+    pub(crate) fn normalized_position(self, normalized: [f64; 2]) -> Pos2 {
+        Pos2::new(
+            (self.origin[0] + normalized[0] * self.size) as f32,
+            (self.origin[1] + normalized[1] * self.size) as f32,
         )
+    }
+
+    pub(crate) fn normalized(self, position: Pos2) -> [f64; 2] {
+        [
+            (f64::from(position.x) - self.origin[0]) / self.size,
+            (f64::from(position.y) - self.origin[1]) / self.size,
+        ]
     }
 
     pub(crate) fn position(self, coordinate: MapCoordinate) -> Pos2 {

@@ -84,6 +84,7 @@ fn child_capabilities(editors: &EditorAccess<'_>, block_id: Uuid) -> EditorCapab
         rotation: capabilities.allow_rotation,
         preserve_aspect_ratio: capabilities.preserve_aspect_ratio,
         pan_and_zoom: capabilities.supports_pan_and_zoom,
+        max_zoom: capabilities.max_zoom,
     }
 }
 
@@ -854,6 +855,7 @@ impl PluginEditor {
             allow_rotation: capabilities.rotation,
             preserve_aspect_ratio: capabilities.preserve_aspect_ratio,
             supports_pan_and_zoom: capabilities.pan_and_zoom,
+            max_zoom: capabilities.max_zoom,
         }
     }
 

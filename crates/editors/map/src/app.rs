@@ -7,6 +7,7 @@ use block_editor_beui::{Creation, Editor, Sidebar};
 use uuid::Uuid;
 
 pub(crate) mod canvas;
+pub(crate) mod labels;
 pub(crate) mod sidebar;
 pub(crate) mod state;
 pub(crate) mod tiles;

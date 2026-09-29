@@ -7,9 +7,14 @@ use uuid::Uuid;
 use crate::app::MapApp;
 
 mod a_new_map_shows_the_whole_world;
+mod labels_hold_still_between_frames;
+mod labels_stay_while_deeper_tiles_load;
+mod overlapping_labels_keep_the_larger_one;
 mod reloading_fetches_the_tiles_again;
 mod the_sidebar_captures_the_preview_region;
+mod the_whole_world_button_redraws_in_the_run_it_is_clicked;
 mod tiles_from_the_tile_source_are_drawn;
+mod zooming_in_draws_deeper_tiles_over_the_shallower_ones;
 
 fn editor() -> BeuiTest<MapApp> {
     let block = Uuid::new_v4();
@@ -50,8 +55,42 @@ fn zigzag(value: i64) -> u64 {
     ((value << 1) ^ (value >> 63)) as u64
 }
 
+const EXTENT: i64 = 4096;
+
 fn ocean_tile() -> Vec<u8> {
-    let extent = 4096;
+    ocean_layer()
+}
+
+fn labelled_tile(labels: &[(&str, &str, i64, i64)]) -> Vec<u8> {
+    let mut layer = length_delimited(1, b"place_labels");
+    layer.extend(varint(5 << 3));
+    layer.extend(varint(EXTENT as u64));
+    layer.extend(length_delimited(3, b"name"));
+    layer.extend(length_delimited(3, b"kind"));
+    for (index, (name, kind, x, y)) in labels.iter().enumerate() {
+        layer.extend(length_delimited(4, &length_delimited(1, name.as_bytes())));
+        layer.extend(length_delimited(4, &length_delimited(1, kind.as_bytes())));
+        let tags: Vec<u8> = [0, index as u64 * 2, 1, index as u64 * 2 + 1]
+            .into_iter()
+            .flat_map(varint)
+            .collect();
+        let geometry: Vec<u8> = [1 << 3 | 1, zigzag(*x), zigzag(*y)]
+            .into_iter()
+            .flat_map(varint)
+            .collect();
+        let mut feature = length_delimited(2, &tags);
+        feature.extend(varint(3 << 3));
+        feature.extend(varint(1));
+        feature.extend(length_delimited(4, &geometry));
+        layer.extend(length_delimited(2, &feature));
+    }
+    let mut tile = ocean_layer();
+    tile.extend(length_delimited(3, &layer));
+    tile
+}
+
+fn ocean_layer() -> Vec<u8> {
+    let extent = EXTENT;
     let geometry: Vec<u8> = [
         1 << 3 | 1,
         zigzag(0),
@@ -96,6 +135,21 @@ fn tile_drawn(editor: &BeuiTest<MapApp>, test_id: &str) -> bool {
 }
 
 fn serve_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<String> {
+    serve_tiles_with(editor, ocean_tile)
+}
+
+fn requested_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<(u64, String)> {
+    editor
+        .take_requests()
+        .into_iter()
+        .filter_map(|(request, asked)| match asked {
+            HostRequest::Fetch(url) => Some((request, url)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn serve_tiles_with(editor: &mut BeuiTest<MapApp>, tile: impl Fn() -> Vec<u8>) -> Vec<String> {
     let mut served = Vec::new();
     loop {
         for (request, asked) in editor.take_requests() {
@@ -103,7 +157,7 @@ fn serve_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<String> {
                 continue;
             };
             assert!(url.starts_with("https://vector.openstreetmap.org/") && url.ends_with(".mvt"));
-            editor.reply(request, HostReply::Fetched(FetchResult::Body(ocean_tile())));
+            editor.reply(request, HostReply::Fetched(FetchResult::Body(tile())));
             served.push(url);
         }
         let ids: Vec<String> = served.iter().map(|url| tile_test_id(url)).collect();
