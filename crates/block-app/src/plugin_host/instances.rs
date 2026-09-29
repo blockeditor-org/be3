@@ -1304,6 +1304,7 @@ impl Instances {
                 matches!(child.mode, ChildMode::Active | ChildMode::Live)
                     && !child.own_frame
                     && !screen.frame_revoked.contains(&child.child)
+                    && !screen.revoked.contains(&child.child)
                     && !child.rect.is_empty()
             })
             .map(|child| Uuid::from_bytes(child.block_id))

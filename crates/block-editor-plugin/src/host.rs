@@ -1147,8 +1147,9 @@ impl EditorHost {
     }
 
     pub fn set_chrome_shown(&self, chrome: bool) {
-        self.chrome.set(Some(chrome));
-        self.changed();
+        if self.chrome.replace(Some(chrome)) != Some(chrome) {
+            self.changed();
+        }
     }
 
     pub fn copy_text(&self, text: impl Into<String>) {

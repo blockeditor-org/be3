@@ -363,17 +363,14 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
                             </List>
                         },
                         false => view! {
-                            <List spacing=0.0 @sizing=ItemSize::Percent(100.0)>
-                                <Stage
-                                    @sizing=ItemSize::Percent(100.0)
-                                    @node_ref={&stage}
-                                    editor
-                                    play
-                                    layout
-                                    steps
-                                />
-                                <Bar panel />
-                            </List>
+                            <Stage
+                                @sizing=ItemSize::Percent(100.0)
+                                @node_ref={&stage}
+                                editor
+                                play
+                                layout
+                                steps
+                            />
                         },
                     }
                 }}
@@ -445,39 +442,6 @@ fn Sidebar(panel: Panel) -> NodeId {
                 </Frame>
             </Scroll>
         </Frame>
-    }
-}
-
-#[component]
-fn Bar(panel: Panel) -> NodeId {
-    let theme = use_theme();
-    let Panel {
-        game,
-        play,
-        controls,
-        editable,
-        ..
-    } = panel;
-    let choosing = create_memo(clone!(play -> move || !play.choices.with(Vec::is_empty)));
-    let idle = create_memo(clone!(choosing -> move || !choosing.get()));
-    let needed = create_memo(clone!(choosing controls -> move || {
-        choosing.get() || !controls.with(Vec::is_empty)
-    }));
-    view! {
-        <List spacing=0.0>
-            <Show condition={needed}>
-                <Frame color={theme.surface.clone()} padding_horizontal=10.0 padding_vertical=6.0>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Show condition={choosing}>
-                            <ChoiceButtons play />
-                        </Show>
-                        <Show condition={idle}>
-                            <Controls game controls editable />
-                        </Show>
-                    </List>
-                </Frame>
-            </Show>
-        </List>
     }
 }
 

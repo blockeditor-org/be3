@@ -51,6 +51,7 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
 }
 
 mod a_block_is_named_after_its_content_until_someone_names_it;
+mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;
 mod a_frame_childs_chrome_is_withheld_from_the_editor_it_covers;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
