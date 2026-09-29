@@ -9,6 +9,7 @@ fn placements(occluders: Vec<Occluder>) -> Message {
             child: ChildId(1),
             block_id: [1; 16],
             block_type: [2; 16],
+            view_block: None,
             rect: ChildRect::default(),
             clip: ChildRect::default(),
             own_frame: false,

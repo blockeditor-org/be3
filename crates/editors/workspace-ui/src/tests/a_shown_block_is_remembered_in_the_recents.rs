@@ -1,28 +1,27 @@
-use block_editor_beui::be_block::WorkspaceUiContent;
+use block_editor_beui::be_block::Recents;
+use block_editor_beui::be_block::profile::RECENTS;
 
 use super::*;
 
 #[test]
 fn a_shown_block_is_remembered_in_the_recents() {
-    let (mut fixture, opened) = editor();
-    fixture.test.hold(None, WorkspaceUiContent::default());
-    fixture.settle();
+    let (mut fixture, opened) = profiled(None);
     let second = Uuid::new_v4();
 
     show(&mut fixture, opened, None);
     show(&mut fixture, second, Some(opened));
 
-    let recents = fixture
-        .test
-        .content::<WorkspaceUiContent>(None)
-        .root()
-        .recent_blocks();
+    let recents: Vec<Uuid> = profile(&fixture)
+        .state(RECENTS)
+        .and_then(ViewState::value::<Recents>)
+        .expect("the profile keeps recents")
+        .0
+        .into_iter()
+        .map(|recent| recent.block)
+        .collect();
     assert_eq!(
         recents,
-        vec![
-            (second, FileTreeContent::CONTENT_TYPE),
-            (opened, FileTreeContent::CONTENT_TYPE),
-        ],
+        vec![second, opened],
         "the block shown last comes first"
     );
 }

@@ -1,8 +1,8 @@
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceUiContent};
+use block_editor_beui::be_block::profile::RECENTS;
+use block_editor_beui::be_block::{BlockContent, EditorViewContent, FolderContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_DELETE,
@@ -22,7 +22,6 @@ use block_editor_beui::beui::styled::{
 };
 use block_editor_beui::beui::unstyled::{Edge, Floating};
 use block_editor_beui::block_ui::BlockTypes;
-use block_editor_beui::root_settings::RootSetting;
 use block_editor_beui::{
     BarAction, BlockParent, BlockQuery, ChildTarget, Editor, OpenFiles, open_files,
     watch_block_label,
@@ -328,21 +327,25 @@ fn SearchSoon() -> NodeId {
 
 #[component]
 fn Recents(editor: Editor) -> NodeId {
-    let setting = RefCell::new(RootSetting::<WorkspaceUiContent>::default());
-    let finding = editor.clone();
-    let block = create_memo(move || {
-        setting
-            .borrow_mut()
-            .find(&finding, finding.host().client_id())
+    let view = editor
+        .view_block()
+        .map(|view| editor.watch_blocks(BlockQuery::Block(view)));
+    let profile = create_memo(move || {
+        let listed = view.as_ref()?.get()?;
+        listed.first()?.parent.block()
     });
     let own = editor.block_id();
     let recents = editor
-        .related_content::<WorkspaceUiContent>(block)
+        .related_content::<EditorViewContent>(profile)
         .project(move |content| {
             content
                 .root()
-                .recent_blocks()
+                .state(RECENTS)
+                .and_then(|state| state.value::<block_editor_beui::be_block::Recents>())
+                .unwrap_or_default()
+                .0
                 .into_iter()
+                .map(|recent| (recent.block, recent.block_type))
                 .filter(|(id, _)| *id != own)
                 .take(RECENT_SHOWN)
                 .collect::<Vec<(Uuid, Uuid)>>()

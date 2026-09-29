@@ -118,6 +118,10 @@ impl EditorSession {
         self.host.set_audio(status);
     }
 
+    pub(crate) fn set_view_block(&self, view_block: Option<Uuid>) {
+        self.host.set_view_block(view_block);
+    }
+
     pub(crate) fn set_client_id(&self, client_id: Uuid) {
         self.host.set_client_id(client_id);
     }

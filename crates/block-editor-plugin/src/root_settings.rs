@@ -5,7 +5,8 @@ use uuid::Uuid;
 use crate::BlockParent;
 
 pub trait SettingsGraph {
-    fn roots(&self) -> Option<Vec<(Uuid, Uuid)>>;
+    fn roots(&self) -> Option<Vec<(Uuid, Uuid, Uuid)>>;
+    fn account(&self) -> Uuid;
     fn settings(&self, block: Uuid) -> Option<Settings>;
     fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid;
     fn edit_settings(&self, block: Uuid, edit: Edit);
@@ -19,11 +20,15 @@ pub struct RootSettings {
 impl RootSettings {
     pub fn find(&mut self, graph: &dyn SettingsGraph) -> Option<Uuid> {
         if self.block.is_none() {
+            let account = graph.account();
             self.block = graph
                 .roots()?
                 .into_iter()
-                .find(|(_, block_type)| *block_type == Settings::CONTENT_TYPE)
-                .map(|(id, _)| id);
+                .filter(|(_, block_type, author)| {
+                    *block_type == Settings::CONTENT_TYPE && *author == account
+                })
+                .map(|(id, _, _)| id)
+                .min();
         }
         self.block
     }

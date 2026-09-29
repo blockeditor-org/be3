@@ -265,7 +265,7 @@ impl BlockPicker {
                 PickerAction::Link(id) => {
                     self.open = false;
                     if let Some(block) = crate::be::node(id) {
-                        editors.ensure(block.id, block.content_type);
+                        editors.ensure(block.id, block.content_type, None);
                         result = Some(BlockPickerResult {
                             id: block.id,
                             block_type: block.content_type,
@@ -459,7 +459,7 @@ impl BlockPicker {
         if let Some(name) = name {
             crate::be::name_when_created(id, name);
         }
-        editors.ensure(id, block_type);
+        editors.ensure(id, block_type, None);
         BlockPickerResult {
             id,
             block_type,

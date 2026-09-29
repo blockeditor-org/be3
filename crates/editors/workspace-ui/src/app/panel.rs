@@ -35,6 +35,7 @@ pub(crate) struct Refs {
 #[derive(Clone, PartialEq)]
 pub(crate) struct Info {
     pub(crate) item: TabItem,
+    pub(crate) view: Option<Uuid>,
     pub(crate) access: AccessLevel,
     pub(crate) ceiling: AccessLevel,
     pub(crate) can_edit: bool,
@@ -116,6 +117,7 @@ pub(crate) fn read_info(
         .map_or_else(|| item.block_type.to_string(), str::to_owned);
     Some(Info {
         item,
+        view: workspace.view_of(tab),
         access,
         ceiling,
         can_edit: workspace.can_edit(item.id),
@@ -223,8 +225,13 @@ fn BlockChild(
 ) -> NodeId {
     let target = create_memo(move || {
         info.with(|info| {
-            info.as_ref()
-                .map(|info| ChildTarget::new(info.item.id, info.item.block_type))
+            info.as_ref().map(|info| {
+                let target = ChildTarget::new(info.item.id, info.item.block_type);
+                match info.view {
+                    Some(view) => target.viewed_by(view),
+                    None => target,
+                }
+            })
         })
     });
     view! {

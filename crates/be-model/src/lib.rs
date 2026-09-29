@@ -8,6 +8,7 @@ use uuid::Uuid;
 mod field;
 mod grid;
 mod history;
+mod latest;
 mod merge;
 mod tree;
 
@@ -15,6 +16,7 @@ pub use be_model_derive::Model;
 pub use field::{Count, Field, FieldRef, Item, List, Map, Register};
 pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
+pub use latest::{Latest, LatestMap, Stamp, Stamped};
 pub use tree::Tree;
 
 #[derive(
@@ -71,6 +73,7 @@ pub enum Value {
     List(Vec<ObjectId>),
     Map(BTreeMap<Vec<u8>, Vec<u8>>),
     Grid(Cells),
+    Latest(BTreeMap<Vec<u8>, Stamped>),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -158,6 +161,12 @@ pub enum Change {
         expected: Place,
         place: Place,
         anchor: Anchor,
+    },
+    Stamp {
+        object: ObjectId,
+        field: u16,
+        key: Vec<u8>,
+        stamped: Stamped,
     },
 }
 

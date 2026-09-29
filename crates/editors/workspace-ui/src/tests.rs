@@ -1,7 +1,7 @@
-use block_editor_beui::be_block::{BlockContent, FileTreeContent};
+use block_editor_beui::be_block::{EditorView, EditorViewContent, ViewState, WORKSPACE_EDITOR};
 
 use block_editor_beui::beui::{Document, NodeId, Rect, Vec2};
-use block_editor_beui::{Editor, EditorHost};
+use block_editor_beui::{BlockParent, Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -9,7 +9,9 @@ use crate::app::WorkspaceUiApp;
 
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
+mod a_closed_tab_gives_up_its_view_block;
 mod a_phone_shows_one_file_at_a_time_and_its_bar_goes_back_or_switches;
+mod a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them;
 mod a_shown_block_is_remembered_in_the_recents;
 mod a_shown_block_is_reported_as_focused;
 mod an_open_menu_is_withheld_from_the_block_under_it;
@@ -18,6 +20,7 @@ mod crossing_the_phone_width_keeps_the_block_on_show;
 mod the_back_gesture_on_a_phone_leaves_a_file_for_the_files;
 
 const MAX_TAB: u64 = 64;
+const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_7431);
 
 struct Fixture {
     test: BeuiTest<WorkspaceUiApp>,
@@ -86,11 +89,29 @@ fn editor() -> (Fixture, Uuid) {
 }
 
 fn editor_sized(size: Option<Vec2>) -> (Fixture, Uuid) {
+    open_editor(size, None)
+}
+
+fn profiled(layout: Option<ViewState>) -> (Fixture, Uuid) {
+    let mut profile = EditorView::document(WORKSPACE_EDITOR, None);
+    if let Some(layout) = layout {
+        let edit = profile
+            .root()
+            .set_state("layout", Some(&layout), 1, Uuid::nil());
+        profile.apply(&edit);
+    }
+    open_editor(None, Some(profile))
+}
+
+fn open_editor(size: Option<Vec2>, profile: Option<EditorViewContent>) -> (Fixture, Uuid) {
     let workspace = Uuid::new_v4();
     let opened = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_client_id(Uuid::new_v4());
+    if profile.is_some() {
+        host.set_view_block(Some(workspace));
+    }
     let editor = Editor::new(host.clone(), workspace);
     let mut fixture = Fixture {
         test: match size {
@@ -99,13 +120,18 @@ fn editor_sized(size: Option<Vec2>) -> (Fixture, Uuid) {
         },
         host,
     };
+    if let Some(profile) = profile {
+        fixture.test.hold(None, profile);
+    }
     fixture.settle();
     (fixture, opened)
 }
 
+fn profile(fixture: &Fixture) -> EditorView {
+    fixture.test.content::<EditorViewContent>(None).root()
+}
+
 fn show(fixture: &mut Fixture, id: Uuid, via: Option<Uuid>) {
-    fixture
-        .host
-        .show_block(id, FileTreeContent::CONTENT_TYPE, via);
+    fixture.host.show_block(id, SHOWN_TYPE, via);
     fixture.settle();
 }

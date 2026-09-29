@@ -75,6 +75,7 @@ impl Screens {
                 instance,
                 block_id,
                 block_type,
+                view_block,
                 account_id,
                 workspace_id,
                 client_id,
@@ -83,6 +84,7 @@ impl Screens {
                 let block_types = Rc::clone(&self.block_types);
                 let session = self.open(*instance, Uuid::from_bytes(*block_type));
                 session.set_block_types(block_types);
+                session.set_view_block(view_block.map(Uuid::from_bytes));
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
                 session.set_workspace_id(Uuid::from_bytes(*workspace_id));

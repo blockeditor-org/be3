@@ -1,13 +1,15 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use block_editor_beui::Editor;
+use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::reactive::{
     Memo, WriteSignal, create_effect, create_memo, create_signal, untrack,
 };
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -81,6 +83,14 @@ impl Row {
     }
 }
 
+const OPENED: &str = "opened";
+
+#[derive(Default, Deserialize, Serialize)]
+struct Opened {
+    expanded: Vec<Uuid>,
+    orphans: bool,
+}
+
 #[derive(Default)]
 struct Watched {
     expanded: HashMap<Uuid, BlockList>,
@@ -152,6 +162,45 @@ impl Tree {
             let rows = builder.rows;
             drop(watched);
             set_rows.set(rows);
+        });
+
+        let restored = Rc::new(Cell::new(false));
+        let restoring = editor.clone();
+        let adopted = Rc::clone(&restored);
+        let (adopt_expanded, adopt_orphans) = (set_expanded.clone(), set_orphans_open.clone());
+        create_effect(move || {
+            if adopted.get() {
+                return;
+            }
+            let Some(view) = restoring.view_content() else {
+                return;
+            };
+            let Some(opened) = view.read(|held| {
+                held.root()
+                    .state(OPENED)
+                    .and_then(ViewState::value::<Opened>)
+            }) else {
+                return;
+            };
+            adopted.set(true);
+            if let Some(opened) = opened {
+                untrack(|| {
+                    adopt_expanded.set(opened.expanded.into_iter().collect());
+                    adopt_orphans.set(opened.orphans);
+                });
+            }
+        });
+        let saving = editor.clone();
+        let (open, orphans) = (expanded, orphans_open.clone());
+        create_effect(move || {
+            let mut expanded: Vec<Uuid> = open.get().into_iter().collect();
+            let orphans = orphans.get();
+            if !restored.get() {
+                return;
+            }
+            expanded.sort_unstable();
+            let opened = ViewState::new(&Opened { expanded, orphans }, Vec::new());
+            untrack(|| saving.set_view_state(OPENED, Some(&opened)));
         });
 
         Rc::new(Self {

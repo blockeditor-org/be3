@@ -56,6 +56,7 @@ pub(crate) struct HostChild {
     pub(crate) top_bar: block_plugin_api::TopBar,
     pub(crate) block_id: Uuid,
     pub(crate) block_type: Uuid,
+    pub(crate) view_block: Option<Uuid>,
     pub(crate) rect: Rect,
     pub(crate) clip: Rect,
     pub(crate) layer: ChildLayer,
@@ -206,6 +207,7 @@ pub(crate) struct EditorSlot<'a> {
 pub(crate) struct EditorBlock {
     pub(crate) id: Uuid,
     pub(crate) block_type: Uuid,
+    pub(crate) view_block: Option<Uuid>,
 }
 
 #[derive(Clone, Copy)]

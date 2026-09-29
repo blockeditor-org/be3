@@ -30,6 +30,7 @@ fn f6_moves_the_focus_to_the_next_plugin() {
         InstanceRole::Editor(EditorBlock {
             id: Uuid::nil(),
             block_type: Uuid::nil(),
+            view_block: None,
         }),
         &Arc::new(Vec::new()),
         Some(block_plugin_api::FrameSpec::default()),

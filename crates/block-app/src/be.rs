@@ -252,11 +252,10 @@ const KINDS: &[Kind] = &[
     kind_with_history::<be_block::SettingsContent>(),
     kind::<be_block::FolderContent>(),
     kind_with_history::<be_block::PixelRayTracerContent>(),
-    kind::<be_block::FileTreeContent>(),
+    kind::<be_block::EditorViewContent>(),
     kind::<be_block::PanZoomContent>(),
     kind::<be_block::Scene3dContent>(),
     kind::<be_block::TriangleContent>(),
-    kind::<be_block::WorkspaceUiContent>(),
     kind::<be_block::RepositoryContent>(),
     kind::<be_block::CheckoutContent>(),
 ];

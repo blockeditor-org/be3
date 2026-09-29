@@ -1,4 +1,7 @@
-use block_editor_beui::be_block::{BlockContent, FileTreeContent, WorkspaceUiContent};
+use block_editor_beui::be_block::profile::RECENTS;
+use block_editor_beui::be_block::{
+    BlockContent, EditorView, EditorViewContent, FILES_EDITOR, Recents, ViewState,
+};
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -13,17 +16,16 @@ use block_editor_beui::beui::unstyled::{
     Container, DockMode, DockState, LeafId, Side, TabId, narrower_than,
 };
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
-use block_editor_beui::root_settings::RootSetting;
 use block_editor_beui::{
     AccessLevel, BarAction, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState,
-    ChildTarget, ContentProjection, Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock,
-    Pushed, TopBar,
+    ChildTarget, Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
 use super::panel::BlockPanel;
 use super::phone::PhoneSheets;
+use super::saved::{self, LAYOUT};
 use super::tab::TabItem;
 
 pub(crate) const FILES: TabId = TabId::new(1);
@@ -48,6 +50,9 @@ pub(crate) struct Workspace {
     set_layout: WriteSignal<DockState>,
     tabs: ReadSignal<Tabs>,
     set_tabs: WriteSignal<Tabs>,
+    views: ReadSignal<HashMap<TabId, Uuid>>,
+    set_views: WriteSignal<HashMap<TabId, Uuid>>,
+    restored: Cell<bool>,
     titles: ReadSignal<HashMap<TabId, String>>,
     set_titles: WriteSignal<HashMap<TabId, String>>,
     simulated: ReadSignal<HashMap<Uuid, AccessLevel>>,
@@ -58,8 +63,6 @@ pub(crate) struct Workspace {
     set_error: WriteSignal<Option<String>>,
     files: ReadSignal<Option<Uuid>>,
     set_files: WriteSignal<Option<Uuid>>,
-    file_tree: RefCell<RootSetting<FileTreeContent>>,
-    recents: Rc<ContentProjection<WorkspaceUiContent>>,
     handles: RefCell<HashMap<Uuid, BlockList>>,
     block_types: RefCell<HashMap<Uuid, Uuid>>,
     opened_via: RefCell<HashMap<Uuid, Uuid>>,
@@ -77,13 +80,13 @@ impl Workspace {
     fn new(editor: Editor) -> Rc<Self> {
         let (layout, set_layout) = create_signal(starting_layout());
         let (tabs, set_tabs) = create_signal(Tabs::new());
+        let (views, set_views) = create_signal(HashMap::new());
         let (titles, set_titles) = create_signal(HashMap::new());
         let (simulated, set_simulated) = create_signal(HashMap::new());
         let (debugged, set_debugged) = create_signal(HashSet::new());
         let (error, set_error) = create_signal(None);
         let (files, set_files) = create_signal(None);
         let (routes, set_routes) = create_signal(0);
-        let recents = editor.block_content::<WorkspaceUiContent>();
         let (phone, set_phone) = create_signal(false);
         let (sheet, set_sheet) = create_signal(PhoneSheet::Closed);
         let workspace = Rc::new(Self {
@@ -92,6 +95,9 @@ impl Workspace {
             set_layout,
             tabs,
             set_tabs,
+            views,
+            set_views,
+            restored: Cell::new(false),
             titles,
             set_titles,
             simulated,
@@ -102,8 +108,6 @@ impl Workspace {
             set_error,
             files,
             set_files,
-            file_tree: RefCell::new(RootSetting::default()),
-            recents,
             handles: RefCell::new(HashMap::new()),
             block_types: RefCell::new(HashMap::new()),
             opened_via: RefCell::new(HashMap::new()),
@@ -124,10 +128,16 @@ impl Workspace {
                 untrack(|| workspace.show_requested());
             }
         });
-        let finding = Rc::downgrade(&workspace);
+        let restoring = Rc::downgrade(&workspace);
         create_effect(move || {
-            if let Some(workspace) = finding.upgrade() {
-                workspace.find_files();
+            if let Some(workspace) = restoring.upgrade() {
+                workspace.restore();
+            }
+        });
+        let saving = Rc::downgrade(&workspace);
+        create_effect(move || {
+            if let Some(workspace) = saving.upgrade() {
+                workspace.save();
             }
         });
         let titling = Rc::downgrade(&workspace);
@@ -223,12 +233,89 @@ impl Workspace {
         }
     }
 
-    fn find_files(&self) {
-        let files = self
-            .file_tree
-            .borrow_mut()
-            .find(&self.editor, self.host().client_id());
+    pub(crate) fn view_of(&self, tab: TabId) -> Option<Uuid> {
+        self.views.with(|views| views.get(&tab).copied())
+    }
+
+    fn create_view(&self, editor: Uuid, content: Option<Uuid>) -> Option<Uuid> {
+        let profile = self.editor.view_block()?;
+        Some(self.blocks().create_with(
+            EditorViewContent::CONTENT_TYPE,
+            Some(EditorView::document(editor, content).encode()),
+            BlockParent::Block(profile),
+            None,
+            None,
+        ))
+    }
+
+    fn restore(&self) {
+        if self.restored.get() {
+            return;
+        }
+        let Some(view) = self.editor.view_content() else {
+            return;
+        };
+        let Some(layout) = view.read(|held| held.root().state(LAYOUT).cloned()) else {
+            return;
+        };
+        self.restored.set(true);
+        untrack(|| self.adopt(layout.as_ref().and_then(saved::restore)));
+    }
+
+    fn adopt(&self, restored: Option<saved::Restored>) {
+        let mut files = None;
+        if let Some(restored) = restored {
+            files = restored.files;
+            let mut dock = restored.dock;
+            let mut tabs = Tabs::new();
+            let mut views = HashMap::new();
+            for (tab, (item, view)) in restored.tabs {
+                self.record_type(item.id, item.block_type);
+                tabs.insert(tab, item);
+                views.insert(tab, view);
+            }
+            for tab in dock.all_tabs() {
+                if tab != FILES && !tabs.contains_key(&tab) {
+                    dock.remove(tab);
+                }
+            }
+            if !dock.contains(FILES) {
+                dock = starting_layout_with(dock);
+            }
+            let mut next = restored
+                .next_tab
+                .max(FIRST_BLOCK_TAB)
+                .max(tabs.keys().map(|tab| tab.value() + 1).max().unwrap_or(0));
+            let opened = self.tabs.get_untracked();
+            let mut opened_views = self.views.get_untracked();
+            for (tab, item) in opened {
+                let moved = TabId::new(next);
+                next += 1;
+                tabs.insert(moved, item);
+                if let Some(view) = opened_views.remove(&tab) {
+                    views.insert(moved, view);
+                }
+                place_tab(&mut dock, moved);
+            }
+            self.next_tab.set(next);
+            self.set_tabs.set(tabs);
+            self.set_views.set(views);
+            self.set_layout.set(settled(dock));
+        }
+        let files = files.or_else(|| self.create_view(FILES_EDITOR, None));
         self.set_files.set(files);
+    }
+
+    fn save(&self) {
+        let layout = self.layout.get();
+        let tabs = self.tabs.get();
+        let views = self.views.get();
+        let files = self.files.get();
+        if !self.restored.get() {
+            return;
+        }
+        let state = saved::save(&layout, self.next_tab.get(), files, &tabs, &views);
+        untrack(|| self.editor.set_view_state(LAYOUT, Some(&state)));
     }
 
     fn refresh_titles(&self) {
@@ -273,12 +360,14 @@ impl Workspace {
     }
 
     fn remember(&self, id: Uuid, block_type: Uuid) {
-        let visit = self
-            .recents
-            .read(|content| content.root().visit(id, block_type))
-            .flatten();
-        if let Some(edit) = visit {
-            self.recents.operate(edit);
+        let recents: Recents = self
+            .editor
+            .view_state(RECENTS)
+            .and_then(|state| state.value())
+            .unwrap_or_default();
+        if let Some(visited) = recents.visit(id, block_type) {
+            self.editor
+                .set_view_state(RECENTS, Some(&ViewState::new(&visited, Vec::new())));
         }
     }
 
@@ -368,6 +457,11 @@ impl Workspace {
         }
         let tab = TabId::new(self.next_tab.get());
         self.next_tab.set(self.next_tab.get() + 1);
+        if let Some(view) = self.create_view(item.block_type, Some(item.id)) {
+            self.set_views.update(|views| {
+                views.insert(tab, view);
+            });
+        }
         let mut tabs = self.tabs.get_untracked();
         tabs.insert(tab, item);
         self.set_tabs.set(tabs);
@@ -443,6 +537,11 @@ impl Workspace {
             return;
         };
         let still_open = tabs.values().any(|item| item.id == closed.id);
+        let mut views = self.views.get_untracked();
+        if let Some(view) = views.remove(&tab) {
+            self.set_views.set(views);
+            self.blocks().set_parent(view, BlockParent::Detached);
+        }
         self.set_tabs.set(tabs);
         if !still_open {
             self.forget(closed.id);
@@ -646,6 +745,14 @@ pub(crate) fn starting_layout() -> DockState {
     state
 }
 
+fn starting_layout_with(previous: DockState) -> DockState {
+    let mut state = starting_layout();
+    for tab in previous.all_tabs() {
+        place_tab(&mut state, tab);
+    }
+    state
+}
+
 pub(crate) fn settled(mut state: DockState) -> DockState {
     let open = state.all_tabs().into_iter().any(|tab| tab != FILES);
     if open {
@@ -808,7 +915,7 @@ pub(crate) fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
     let target = create_memo(move || {
         files
             .get()
-            .map(|id| ChildTarget::new(id, FileTreeContent::CONTENT_TYPE))
+            .map(|id| ChildTarget::new(id, FILES_EDITOR).viewed_by(id))
     });
     let editor = workspace.editor().clone();
     view! {

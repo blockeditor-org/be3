@@ -262,6 +262,7 @@ pub(crate) struct PluginEditor {
     plugin: Option<Arc<PluginManifest>>,
     id: Uuid,
     block_type: Uuid,
+    view_block: Option<Uuid>,
     instance: EditorInstanceId,
     opened: bool,
     block_pick: Option<PendingBlockPick>,
@@ -347,6 +348,7 @@ impl PluginEditor {
             plugin,
             id,
             block_type,
+            view_block: None,
             instance: next_instance(),
             opened: false,
             block_pick: None,
@@ -356,6 +358,11 @@ impl PluginEditor {
             main_region_id: None,
             framed: false,
         }
+    }
+
+    pub(crate) fn viewed_by(mut self, view_block: Option<Uuid>) -> Self {
+        self.view_block = view_block;
+        self
     }
 
     fn manifest(&self) -> Option<&EditorManifest> {
@@ -523,6 +530,7 @@ impl PluginEditor {
                 role: InstanceRole::Editor(EditorBlock {
                     id: self.id,
                     block_type: self.block_type,
+                    view_block: self.view_block,
                 }),
                 instance: self.instance,
                 region,
@@ -630,7 +638,7 @@ impl PluginEditor {
         statuses: &mut Vec<HostChildStatus>,
         views: &mut Vec<(block_plugin_api::ChildId, ViewChange)>,
     ) -> Option<EditorAction> {
-        editors.ensure(child.block_id, child.block_type);
+        editors.ensure(child.block_id, child.block_type, child.view_block);
         let available = editors.is_open(child.block_id);
         if let Some(size) = child.intrinsic {
             editors.set_direct_editor_intrinsic_size(child.block_id, size);
@@ -728,7 +736,7 @@ impl PluginEditor {
         }
         let mut statuses = Vec::new();
         for child in &presentation.children {
-            editors.ensure(child.block_id, child.block_type);
+            editors.ensure(child.block_id, child.block_type, child.view_block);
             let available = editors.is_open(child.block_id);
             if available && child.is_preview() && presentation.drawn {
                 let corners = mapped_corners(corners, presentation.size, child.rect);
@@ -1124,6 +1132,7 @@ impl PluginArtifact {
             block: EditorBlock {
                 id: target_id,
                 block_type: target_type,
+                view_block: None,
             },
             instance: next_instance(),
             opened: false,

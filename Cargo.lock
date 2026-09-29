@@ -886,6 +886,7 @@ dependencies = [
  "beui-view",
  "beui_macros",
  "reactive",
+ "serde",
  "text-editor-core",
 ]
 
@@ -2571,6 +2572,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "serde",
  "uuid",
 ]
 
@@ -8940,6 +8942,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "serde",
  "serde_json",
  "uuid",
 ]

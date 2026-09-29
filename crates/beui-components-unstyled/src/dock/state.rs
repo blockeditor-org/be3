@@ -5,8 +5,9 @@ use std::rc::Rc;
 
 use beui_core::base::Direction;
 use beui_core::geometry::{Pos2, Rect, Vec2};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct TabId(u64);
 
 impl TabId {
@@ -19,19 +20,19 @@ impl TabId {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct LeafId(u64);
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct SplitId(u64);
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct SurfaceId(u64);
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct GroupId(u64);
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 pub enum Entry {
     Tab(TabId),
     Group(GroupId),
@@ -115,7 +116,7 @@ pub const FLOATING_SIZE: Vec2 = Vec2::new(420.0, 300.0);
 pub const SIDEBAR_WIDTH: f32 = 180.0;
 pub const MIN_SIDEBAR_WIDTH: f32 = 80.0;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct Leaf {
     id: LeafId,
     entries: Vec<Entry>,
@@ -124,16 +125,17 @@ struct Leaf {
     sidebar: f32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct Split {
     id: SplitId,
+    #[serde(with = "direction")]
     direction: Direction,
     fraction: f32,
     first: Box<Node>,
     second: Box<Node>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 enum Node {
     Leaf(Leaf),
     Split(Split),
@@ -256,14 +258,15 @@ impl Node {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct Surface {
     id: SurfaceId,
     root: Node,
+    #[serde(with = "window")]
     window: Option<Rect>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct Group {
     id: GroupId,
     root: Node,
@@ -329,13 +332,14 @@ impl fmt::Debug for Lookup {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DockState {
     surfaces: Vec<Surface>,
     groups: Vec<Group>,
     focus: Option<LeafId>,
     recent: Vec<TabId>,
     next: u64,
+    #[serde(skip)]
     lookup: Lookup,
 }
 
@@ -1479,4 +1483,49 @@ pub fn fraction_moved(
         return fraction;
     }
     (fraction + moved / length).clamp(MIN_FRACTION, 1.0 - MIN_FRACTION)
+}
+
+mod direction {
+    use beui_core::base::Direction;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(
+        direction: &Direction,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_bool(matches!(direction, Direction::Vertical))
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Direction, D::Error> {
+        Ok(match bool::deserialize(deserializer)? {
+            true => Direction::Vertical,
+            false => Direction::Horizontal,
+        })
+    }
+}
+
+mod window {
+    use beui_core::geometry::{Pos2, Rect};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(
+        window: &Option<Rect>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        window
+            .map(|rect| [rect.min.x, rect.min.y, rect.max.x, rect.max.y])
+            .serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<Rect>, D::Error> {
+        Ok(
+            Option::<[f32; 4]>::deserialize(deserializer)?.map(|[left, top, right, bottom]| {
+                Rect::from_min_max(Pos2::new(left, top), Pos2::new(right, bottom))
+            }),
+        )
+    }
 }

@@ -16,6 +16,7 @@ pub mod counter;
 pub mod database;
 pub mod database_schema;
 pub mod database_view;
+pub mod editor_view;
 pub mod folder;
 pub mod game;
 pub mod hotbar;
@@ -32,13 +33,13 @@ pub mod pixel_art;
 pub mod pixel_ray_tracer;
 pub mod presence;
 pub mod presentation;
+pub mod profile;
 pub mod settings;
 pub mod streamed;
 pub mod text;
 pub mod ui_settings;
 pub mod version_control;
 pub mod video;
-pub mod workspace_ui;
 
 pub use audio::{AudioContent, AudioHeader};
 pub use be_model;
@@ -53,11 +54,12 @@ pub use counter::{Counter, CounterContent};
 pub use database::{Database, DatabaseContent};
 pub use database_schema::{DatabaseSchema, DatabaseSchemaContent};
 pub use database_view::{DatabaseView, DatabaseViewContent};
+pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use folder::{Folder, FolderContent};
 pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, GameMove};
 pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use image::{ImageContent, ImageHeader, ImageOp};
-pub use kinds::{FileTreeContent, PanZoomContent, Scene3dContent, TriangleContent};
+pub use kinds::{PanZoomContent, Scene3dContent, TriangleContent};
 pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
@@ -68,6 +70,7 @@ pub use pdf::{PdfContent, PdfHeader};
 pub use pixel_art::{PixelArtContent, PixelArtDocument};
 pub use pixel_ray_tracer::PixelRayTracerContent;
 pub use presentation::{Presentation, PresentationContent};
+pub use profile::{FILES_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR};
 pub use settings::{Settings, SettingsContent};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
@@ -79,7 +82,6 @@ pub use version_control::{
     RepositoryContent,
 };
 pub use video::{VideoContent, VideoProject};
-pub use workspace_ui::{RecentBlock, WorkspaceUi, WorkspaceUiContent};
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ContentError {

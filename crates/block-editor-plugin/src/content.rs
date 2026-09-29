@@ -189,6 +189,10 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
         if !self.host.editable() {
             return;
         }
+        self.operate_anyway(operation);
+    }
+
+    pub fn operate_anyway(&self, operation: C::Op) {
         self.visible
             .borrow_mut()
             .apply_touching(&operation, &mut self.touched.borrow_mut());

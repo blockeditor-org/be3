@@ -1,46 +1,40 @@
 use super::*;
-use crate::workspace_ui::{MAX_RECENT, WorkspaceUi, WorkspaceUiContent};
+use crate::profile::{MAX_RECENT, Recents};
 
-fn visited(content: &WorkspaceUiContent, block: Uuid) -> WorkspaceUiContent {
-    match content.root().visit(block, Uuid::nil()) {
-        Some(edit) => edited(content, [edit]),
-        None => content.clone(),
-    }
+fn blocks(recents: &Recents) -> Vec<Uuid> {
+    recents.0.iter().map(|recent| recent.block).collect()
 }
 
-fn blocks(content: &WorkspaceUiContent) -> Vec<Uuid> {
-    content
-        .root()
-        .recent_blocks()
-        .into_iter()
-        .map(|(block, _)| block)
-        .collect()
+fn visited(recents: &Recents, block: Uuid) -> Recents {
+    recents
+        .visit(block, Uuid::nil())
+        .unwrap_or_else(|| recents.clone())
 }
 
 #[test]
 fn visiting_a_block_puts_it_first_in_the_recents_once() {
     let first = Uuid::from_u128(1);
     let second = Uuid::from_u128(2);
-    let content = visited(&WorkspaceUiContent::default(), first);
-    let content = visited(&content, second);
-    assert_eq!(blocks(&content), [second, first]);
+    let recents = visited(&Recents::default(), first);
+    let recents = visited(&recents, second);
+    assert_eq!(blocks(&recents), [second, first]);
 
     assert!(
-        content.root().visit(second, Uuid::nil()).is_none(),
+        recents.visit(second, Uuid::nil()).is_none(),
         "visiting the first block again changes nothing"
     );
 
-    let content = visited(&content, first);
-    assert_eq!(blocks(&content), [first, second], "a block is listed once");
+    let recents = visited(&recents, first);
+    assert_eq!(blocks(&recents), [first, second], "a block is listed once");
 
-    let mut content = content;
+    let mut recents = recents;
     for index in 0..MAX_RECENT as u128 + 5 {
-        content = visited(&content, Uuid::from_u128(100 + index));
+        recents = visited(&recents, Uuid::from_u128(100 + index));
     }
-    assert_eq!(blocks(&content).len(), MAX_RECENT, "the list keeps its cap");
+    assert_eq!(blocks(&recents).len(), MAX_RECENT, "the list keeps its cap");
 
-    let newest = blocks(&content)[0];
-    let content = edited(&content, [content.root().forget(newest)]);
-    assert!(!blocks(&content).contains(&newest));
-    assert!(WorkspaceUi::default().recent_blocks().is_empty());
+    let newest = blocks(&recents)[0];
+    let recents = recents.forget(newest).expect("the block was listed");
+    assert!(!blocks(&recents).contains(&newest));
+    assert!(recents.forget(newest).is_none());
 }
