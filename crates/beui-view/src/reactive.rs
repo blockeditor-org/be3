@@ -488,6 +488,26 @@ impl ChildValue for NodeId {
     }
 }
 
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` is no node, so `@test_id` and `@node_ref` have nothing to name",
+    label = "put `@test_id` or `@node_ref` on a tag that builds a node, inside this one or around it"
+)]
+pub trait BuildsNode {
+    fn built_node(&self) -> NodeId;
+}
+
+impl BuildsNode for NodeId {
+    fn built_node(&self) -> NodeId {
+        *self
+    }
+}
+
+impl BuildsNode for ListChild {
+    fn built_node(&self) -> NodeId {
+        self.node
+    }
+}
+
 impl ChildValue for ListChild {
     fn anchor(&self) -> Option<NodeId> {
         Some(self.node)

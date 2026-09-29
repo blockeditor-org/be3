@@ -5,7 +5,8 @@ use syn::parenthesized;
 use syn::parse::{Parse, ParseStream};
 use syn::{
     Attribute, Expr, ExprCall, ExprLit, ExprPath, ExprReference, ExprUnary, FnArg, GenericArgument,
-    Ident, ItemFn, Lit, Pat, PatType, Path, PathArguments, Token, Type, UnOp, parse_macro_input,
+    Ident, ItemFn, Lit, Pat, PatType, Path, PathArguments, ReturnType, Token, Type, UnOp,
+    parse_macro_input,
 };
 
 struct Prop {
@@ -449,6 +450,10 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let component_ident = sig.ident.clone();
     let builder_ident = format_ident!("{}Builder", name);
     let output = sig.output.clone();
+    let output_ty = match &sig.output {
+        ReturnType::Type(_, ty) => quote! { #ty },
+        ReturnType::Default => quote! { () },
+    };
 
     let props: Vec<Prop> = sig
         .inputs
@@ -633,10 +638,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let field_idents: Vec<Ident> = props
         .iter()
         .map(|prop| prop.ident.clone())
-        .chain([
-            format_ident!("with_test_id"),
-            format_ident!("with_node_ref"),
-        ])
+        .chain([format_ident!("with_node")])
         .chain(phantom_field.is_some().then(|| phantom_ident.clone()))
         .collect();
 
@@ -855,8 +857,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         #(#attrs)*
         #vis struct #builder_ident #decl_generics #where_clause {
             #(#fields,)*
-            with_test_id: Option<::beui::reactive::Prop<String>>,
-            with_node_ref: Option<::beui::reactive::NodeRef>,
+            with_node: ::std::vec::Vec<::std::boxed::Box<dyn ::core::ops::FnOnce(&#output_ty)>>,
             #phantom_field
         }
 
@@ -864,8 +865,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         #vis fn #component_ident #component_generics () -> #builder_default #where_clause {
             #builder_ident {
                 #(#init_fields,)*
-                with_test_id: None,
-                with_node_ref: None,
+                with_node: ::std::vec::Vec::new(),
                 #phantom_init
             }
         }
@@ -876,13 +876,28 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
             pub fn with_test_id(
                 mut self,
                 value: impl ::beui::reactive::IntoProp<String>,
-            ) -> Self {
-                self.with_test_id = Some(::beui::reactive::IntoProp::into_prop(value));
+            ) -> Self
+            where
+                for<'built> #output_ty: ::beui::reactive::BuildsNode,
+            {
+                let test_id = ::beui::reactive::IntoProp::into_prop(value);
+                self.with_node.push(::std::boxed::Box::new(move |built: &#output_ty| {
+                    ::beui::reactive::bind_test_id(
+                        ::beui::reactive::BuildsNode::built_node(built),
+                        test_id,
+                    )
+                }));
                 self
             }
 
-            pub fn with_node_ref(mut self, value: &::beui::reactive::NodeRef) -> Self {
-                self.with_node_ref = Some(value.clone());
+            pub fn with_node_ref(mut self, value: &::beui::reactive::NodeRef) -> Self
+            where
+                for<'built> #output_ty: ::beui::reactive::BuildsNode,
+            {
+                let node_ref = value.clone();
+                self.with_node.push(::std::boxed::Box::new(move |built: &#output_ty| {
+                    node_ref.fill(::beui::reactive::BuildsNode::built_node(built))
+                }));
                 self
             }
         }
@@ -892,20 +907,11 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         impl #all_generics #builder_all #where_clause {
             #[track_caller]
             pub fn build(self) #output #build_where {
-                let test_id = self.with_test_id;
-                let node_ref = self.with_node_ref;
+                let with_node = self.with_node;
                 #(#field_lets)*
                 let node = #finish;
-                let anchor = || {
-                    ::beui::reactive::ChildValue::anchor(&node).expect(
-                        "`@test_id` and `@node_ref` name a node, and this component builds none",
-                    )
-                };
-                if let Some(test_id) = test_id {
-                    ::beui::reactive::bind_test_id(anchor(), test_id);
-                }
-                if let Some(node_ref) = node_ref {
-                    node_ref.fill(anchor());
+                for bind in with_node {
+                    bind(&node);
                 }
                 node
             }
