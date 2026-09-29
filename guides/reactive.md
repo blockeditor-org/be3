@@ -525,7 +525,8 @@ Either way the block is exactly one child, because a `Render` returns one of
 them; two tags there are a compile error naming the tag that wrote them.
 A slot the component always calls is a required prop like any other, so a
 `Show` with nothing between its tags, or a `ForEach` with no closure, does not
-compile rather than panicking once the view runs.
+compile rather than panicking once the view runs. Each misuse the types turn
+away like this has a case in `compile_fail/beui/` naming the error it gets.
 Handing a slot a `Render`/`RenderFn` a component was given itself stays an
 attribute, like `panel={panel.clone()}` — only a closure or a tag block can be
 written between the tags.

@@ -157,6 +157,14 @@ through lavapipe from `buck/sysroot:amd64-test`. Two kinds stay local:
   with the FreeType and HarfBuzz the plugin ships.
 - `block-plugin-api`'s test that walks `crates/editors`.
 
+`compile_fail/` holds code that must not compile: `compile_fail(name, deps)`
+in its `BUCK` makes `<name>/lib.rs` a crate and `:<name>-test`, which reads
+the crate's `[diag.json]` and passes when every line marked
+`//~ ERROR <part of the message>` has that error and no other line has one.
+It is rustc's check pass once for all the cases, with nothing linked. The
+crates sit outside `crates/` because `build //crates/...`, `//:check` and
+clippy would fail on them, and the autofixes would delete the markers.
+
 Arguments after `--` go to the test executor: `--env NAME=VALUE` sets a
 variable, `--test-arg NAME` runs one test. buck2 runs a binary's tests on
 threads, like `cargo test`, so tests that touch process-wide state must take
