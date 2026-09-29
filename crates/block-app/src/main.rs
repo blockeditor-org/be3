@@ -180,7 +180,9 @@ impl beui::App for Shell {
         });
         host::filter_document_input(context);
         self.document.show(context, rect);
-        surfaces::read_placements();
+        if surfaces::read_placements() {
+            context.request_repaint();
+        }
         let commands = ui::take_commands();
         if !commands.is_empty() {
             for command in commands {
