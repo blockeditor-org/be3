@@ -55,6 +55,13 @@ const GROUP_ZONE: f32 = 0.3;
 const OUTER_EDGE: f32 = 18.0;
 const WINDOW_KEEP_VISIBLE: f32 = 96.0;
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum DockMode {
+    #[default]
+    Tiled,
+    Stacked,
+}
+
 pub struct DockTabHandle {
     pub entry: Entry,
     pub leaf: LeafId,
@@ -712,6 +719,7 @@ pub fn Dock(
     on_change: Callback<DockState>,
     on_close: Callback<TabId>,
     title: Func<TabId, String>,
+    #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = SPLITTER_THICKNESS)] splitter_thickness: f32,
     #[prop(default = 0.0)] group_inset: f32,
     tab: RenderFn<DockTabHandle>,
@@ -808,6 +816,52 @@ pub fn Dock(
         dock.keep_panels(&tabs);
     }));
     on_cleanup(clone!(dock -> move || dock.keep_panels(&[])));
+    let mode = create_memo(move || mode.get());
+    view! {
+        <List spacing=0.0>
+            <Dynamic value={mode}>
+                {move |mode: DockMode| {
+                    let dock = dock.clone();
+                    match mode {
+                        DockMode::Tiled => view! {
+                            <DockTiles dock @sizing=ItemSize::Percent(100.0) />
+                        },
+                        DockMode::Stacked => view! {
+                            <DockStack dock @sizing=ItemSize::Percent(100.0) />
+                        },
+                    }
+                }}
+            </Dynamic>
+        </List>
+    }
+}
+
+#[component]
+fn DockStack(dock: Handle) -> NodeId {
+    let state = dock.state.clone();
+    let shown = create_memo(clone!(state -> move || state.with(DockState::stacked_tab)));
+    let (panel, set_panel) = create_signal(None);
+    create_effect(clone!(dock shown -> move || {
+        set_panel.set(shown.get().map(|tab| dock.panel(tab)));
+    }));
+    let vacant = create_memo(clone!(shown -> move || shown.get().is_none()));
+    let occupied = create_memo(move || shown.get().is_some());
+    let empty = dock.empty.clone();
+    view! {
+        <List spacing=0.0>
+            <Show condition={vacant}>
+                {empty.call(())} @sizing=ItemSize::Percent(100.0)
+            </Show>
+            <Show condition={occupied}>
+                <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
+            </Show>
+        </List>
+    }
+}
+
+#[component]
+fn DockTiles(dock: Handle) -> NodeId {
+    let current = dock.state.clone();
     let main = create_memo(clone!(current -> move || current.with(DockState::main)));
     let windows = create_memo(clone!(current -> move || current.with(DockState::windows)));
     let panes = dock.clone();

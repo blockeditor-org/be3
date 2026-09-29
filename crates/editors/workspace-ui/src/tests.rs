@@ -14,6 +14,8 @@ mod a_shown_block_is_remembered_in_the_recents;
 mod a_shown_block_is_reported_as_focused;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod closing_the_only_tab_leaves_the_blank_workspace;
+mod crossing_the_phone_width_keeps_the_block_on_show;
+mod the_back_gesture_on_a_phone_leaves_a_file_for_the_files;
 
 const MAX_TAB: u64 = 64;
 

@@ -42,6 +42,7 @@ fn frame_screens_and_reports_round_trip() {
             width: 120.0,
             height: 90.0,
         }],
+        handles_back: true,
     }]);
     assert_eq!(
         decode_frame(&encode_frame(&frames).unwrap()).unwrap(),

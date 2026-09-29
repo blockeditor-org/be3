@@ -51,6 +51,14 @@ the receiver reads as a zoom of its own. Consecutive moves from one touch
 coalesce to their latest position and pressure. Consecutive zoom gestures
 coalesce by multiplying their factors.
 
+A back gesture - the system's back button or swipe, or a Back key - is an
+input event of its own, carrying its phase: started from an edge, its
+progress, cancelled, or invoked. It is not sent to the screen with the focus.
+Each frame report says whether the instance has something to go back from on
+that screen, and the host sends the gesture to the last screen it drew whose
+report said so, unless the host's own interface takes it first. With no such
+screen the gesture is left to the platform.
+
 A screen's input goes out at the start of the host frame that received it,
 before the host lays anything out, and it is routed against where the screen
 sat and what covered it the last time the screen was drawn. The host has that

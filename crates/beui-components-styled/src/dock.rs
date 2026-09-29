@@ -7,8 +7,9 @@ use crate::text::{Body, IconSized};
 use crate::theme::{CARD_RADIUS, FONT_BODY, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    DockDragged, DockGripHandle, DockPanelHandle, DockPreviewHandle, DockSplitterHandle, DockState,
-    DockTabHandle, DockWindowHandle, Entry, MenuItem, SPLITTER_THICKNESS, TabId, sidebar_size,
+    DockDragged, DockGripHandle, DockMode, DockPanelHandle, DockPreviewHandle, DockSplitterHandle,
+    DockState, DockTabHandle, DockWindowHandle, Entry, MenuItem, SPLITTER_THICKNESS, TabId,
+    sidebar_size,
 };
 use beui_core::base::{Align, Direction, ItemSize};
 use beui_core::color::Color32;
@@ -43,6 +44,7 @@ pub fn DockArea(
     on_close: Callback<TabId>,
     title: Func<TabId, String>,
     closable: Option<Func<TabId, bool>>,
+    #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     empty: Option<RenderFn<()>>,
     #[prop(children)] content: RenderFn<TabId>,
 ) -> NodeId {
@@ -57,6 +59,7 @@ pub fn DockArea(
     view! {
         <unstyled::Dock
             state
+            mode
             group_inset=GROUP_INSET
             on_change={move |state: DockState| on_change.call(state)}
             on_close={move |tab: TabId| on_close.call(tab)}

@@ -298,6 +298,9 @@ impl InputAdapter {
                     beui::ImeEvent::Disabled => ImeInput::Disabled,
                 }));
             }
+            Event::Back(gesture) if host::back_target() == Some(target) => {
+                output.push(InputEvent::Back(beui_plugin_input::back_phase(gesture)));
+            }
             Event::Focus(false) if self.focused => {
                 self.focused = false;
                 self.captured = false;

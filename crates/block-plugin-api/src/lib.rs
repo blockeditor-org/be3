@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 59;
+pub const PROTOCOL_VERSION: u16 = 60;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -86,6 +86,7 @@ pub struct FrameReport {
     pub content: ChildRect,
     pub painted: Vec<ChildRect>,
     pub floating: Vec<ChildRect>,
+    pub handles_back: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1747,6 +1748,22 @@ pub enum InputEvent {
     Ime(ImeInput),
     Modifiers(Modifiers),
     Focus(bool),
+    Back(BackPhase),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum BackPhase {
+    Started { edge: BackEdge },
+    Progressed(f32),
+    Cancelled,
+    Invoked,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BackEdge {
+    None,
+    Left,
+    Right,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

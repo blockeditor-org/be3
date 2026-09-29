@@ -475,6 +475,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 rect: area.rect.scaled(unscale),
                 cursor: area.cursor.scaled(unscale),
             }),
+            handles_back: output.handles_back,
         };
         state.note_output(&output, frame);
         state.output = Some(output);
@@ -701,6 +702,9 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 ImeInput::Disabled => beui::ImeEvent::Disabled,
             })),
             InputEvent::Focus(_) => {}
+            InputEvent::Back(phase) => state
+                .events
+                .push(beui::Event::Back(beui_plugin_input::beui_back(*phase))),
         }
     }
 }

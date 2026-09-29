@@ -629,6 +629,13 @@ pub(crate) fn editor_ui(ui: &mut Ui, slot: EditorSlot<'_>) -> EditorPresentation
         let target = Target { instance, region };
         let clip = ui.clip();
         ui.register(target, rect);
+        if runtime
+            .instances
+            .frame_report(instance)
+            .is_some_and(|report| region == EditorRegion::Frame && report.handles_back)
+        {
+            host::offer_back(target);
+        }
         let cropped = Quad::upright(rect).crop_to(clip);
         let visible = cropped
             .as_ref()

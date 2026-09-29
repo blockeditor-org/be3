@@ -277,3 +277,7 @@ All six phases are implemented. Where the result differs from the plan:
   the Files page.
 - Onboarding screens and the web build at phone width have not been
   checked.
+- The phone shell is no longer a separate tree: the workspace draws its
+  dock in stacked mode, so the tabs and the editors in them survive
+  crossing the breakpoint, and the switcher lists the dock's recent tabs.
+  The system back gesture reaches plugins' BackHandlers.
