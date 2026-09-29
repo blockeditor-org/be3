@@ -607,21 +607,6 @@ pub enum ChildSegment<T: SlotChild> {
 }
 
 impl<T: SlotChild> ChildSegment<T> {
-    fn items(self) -> Vec<T> {
-        match self {
-            ChildSegment::One(item) => vec![item],
-            ChildSegment::Many(items) => items,
-            ChildSegment::Nested(segments) => {
-                segments.into_iter().flat_map(ChildSegment::items).collect()
-            }
-            ChildSegment::Dynamic(_) => panic!(
-                "a show, a dynamic or a keyed run builds however many children its value asks \
-                 for, and this slot takes a fixed child; put it in a `Column` or hand it to a \
-                 slot that takes a run"
-            ),
-        }
-    }
-
     fn map(self, change: &Rc<dyn Fn(T) -> T>) -> Self {
         match self {
             ChildSegment::One(item) => ChildSegment::One(change(item)),
@@ -683,6 +668,23 @@ impl<T: SlotChild> ChildValue for DynamicSegment<T> {
 
     fn adopt_scope(&mut self, scope: Scope) {
         self.scope = Some(scope);
+    }
+}
+
+#[diagnostic::on_unimplemented(
+    message = "a `Show`, `Dynamic`, `Keyed` or `ForEach` builds a run of children, and this slot takes exactly one child",
+    label = "put it in a `List`, or return it from a component typed `-> DynamicSegment<_>` and write that component where a run of children fits"
+)]
+pub trait FixedChild<T> {
+    fn into_fixed_child(self) -> T;
+}
+
+impl<T: SlotChild> IntoChild<T> for DynamicSegment<T>
+where
+    Self: FixedChild<T>,
+{
+    fn into_child(self) -> T {
+        self.into_fixed_child()
     }
 }
 
@@ -1194,6 +1196,34 @@ fn mount_segment<T: NodeSlot>(parent: NodeId, segment: ChildSegment<T>) {
 }
 
 #[diagnostic::on_unimplemented(
+    message = "these cannot be written between these tags",
+    label = "this component takes `{T}` children"
+)]
+pub trait IntoSegments<T: SlotChild> {
+    fn into_segments(self, segments: &mut Vec<ChildSegment<T>>);
+}
+
+impl<T: SlotChild> IntoSegments<T> for () {
+    fn into_segments(self, _segments: &mut Vec<ChildSegment<T>>) {}
+}
+
+impl<T: SlotChild, H: IntoSegment<T>, R: IntoSegments<T>> IntoSegments<T> for (H, R) {
+    fn into_segments(self, segments: &mut Vec<ChildSegment<T>>) {
+        let (head, rest) = self;
+        segments.push(head.into_segment());
+        rest.into_segments(segments);
+    }
+}
+
+impl<T: SlotChild> Children<T> {
+    pub fn from_block(block: impl IntoSegments<T>) -> Self {
+        let mut segments = Vec::new();
+        block.into_segments(&mut segments);
+        Self(segments)
+    }
+}
+
+#[diagnostic::on_unimplemented(
     message = "this component builds exactly one child",
     label = "write one child between these tags"
 )]
@@ -1201,17 +1231,9 @@ pub trait OneChild<T> {
     fn one_child(self) -> T;
 }
 
-impl<T: SlotChild> OneChild<T> for [ChildSegment<T>; 1] {
+impl<T, H: IntoChild<T>> OneChild<T> for (H, ()) {
     fn one_child(self) -> T {
-        let [child] = self;
-        let mut items = child.items();
-        assert_eq!(
-            items.len(),
-            1,
-            "this component builds exactly one child, and what is written between its tags builds {} of them",
-            items.len()
-        );
-        items.remove(0)
+        self.0.into_child()
     }
 }
 
@@ -1223,22 +1245,15 @@ pub trait AtMostOneChild<T> {
     fn at_most_one_child(self) -> Option<T>;
 }
 
-impl<T: SlotChild> AtMostOneChild<T> for [ChildSegment<T>; 0] {
+impl<T> AtMostOneChild<T> for () {
     fn at_most_one_child(self) -> Option<T> {
         None
     }
 }
 
-impl<T: SlotChild> AtMostOneChild<T> for [ChildSegment<T>; 1] {
+impl<T, H: IntoChild<T>> AtMostOneChild<T> for (H, ()) {
     fn at_most_one_child(self) -> Option<T> {
-        let [child] = self;
-        let mut items = child.items();
-        assert!(
-            items.len() <= 1,
-            "this component builds at most one child, and what is written between its tags builds {} of them",
-            items.len()
-        );
-        items.pop()
+        Some(self.0.into_child())
     }
 }
 

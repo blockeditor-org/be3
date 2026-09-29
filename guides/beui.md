@@ -99,8 +99,10 @@ around them keep their places however the run changes. That is why a `ForEach`
 has no spacing of its own, why `@sizing` belongs on the rows rather than on the
 `ForEach`, and why `@test_id` and `@node_ref` on one of them panics: there is
 no node to name. Each needs a parent that keeps its children in slots - a
-list, a `Scroll` or a `Canvas` - so a single-child slot like `Frame`'s takes a
-`List` around one.
+list, a `Scroll` or a `Canvas` - so one written in a single-child slot like
+`Frame`'s does not compile until a `List` goes around it. A component whose
+whole view is a `Show` returns it typed `-> DynamicSegment<ListChild>` (or
+whatever kind of child its parent takes) rather than a `NodeId`.
 
 The exception is a component whose root is a base node it creates directly —
 the base layer itself, where `List` calls `create_list` and binds setters with

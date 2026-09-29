@@ -159,17 +159,16 @@ fn render_children_block(
         .clone()
         .unwrap_or_else(|| syn::parse_quote!(()));
     let child = render_child(render);
-    let block = quote! { [::beui::reactive::ChildSegment<#child>; CHILDREN] };
     let (bound, build) = if render.once {
         (
-            quote! { ::core::ops::FnOnce() -> #block + 'static },
+            quote! { ::core::ops::FnOnce() -> ChildrenBlock + 'static },
             quote! { ::beui::reactive::Render::new(
                 move |_handle: #handle| ::beui::reactive::OneChild::one_child(children()),
             ) },
         )
     } else {
         (
-            quote! { ::core::ops::Fn() -> #block + 'static },
+            quote! { ::core::ops::Fn() -> ChildrenBlock + 'static },
             quote! { ::beui::reactive::RenderFn::new(
                 move |_handle: #handle| ::beui::reactive::OneChild::one_child(children()),
             ) },
@@ -177,12 +176,12 @@ fn render_children_block(
     };
     Setter {
         method: format_ident!("children_block"),
-        generics: quote! { <ChildrenFn, const CHILDREN: usize> },
+        generics: quote! { <ChildrenFn, ChildrenBlock> },
         args: quote! { children: ChildrenFn },
         where_clause: quote! {
             where
                 ChildrenFn: #bound + ::beui::reactive::UnitHandle<#handle>,
-                #block: ::beui::reactive::OneChild<#child>,
+                ChildrenBlock: ::beui::reactive::OneChild<#child>,
         },
         value: wrap(build),
     }
@@ -195,13 +194,10 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
         let child = quote! { <#ty as ::beui::reactive::ChildrenSlot>::Child };
         return vec![Setter {
             method: block,
-            generics: quote! { <const CHILDREN: usize> },
-            args: quote! {
-                children: impl ::core::ops::FnOnce()
-                    -> [::beui::reactive::ChildSegment<#child>; CHILDREN]
-            },
-            where_clause: quote! {},
-            value: quote! { ::beui::reactive::Children::from(children()) },
+            generics: quote! { <ChildrenBlock> },
+            args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
+            where_clause: quote! { where ChildrenBlock: ::beui::reactive::IntoSegments<#child> },
+            value: quote! { ::beui::reactive::Children::from_block(children()) },
         }];
     }
     if prop.is_optional_child {
@@ -1252,6 +1248,25 @@ fn expand_child_items(children: &[ViewChild]) -> Vec<proc_macro2::TokenStream> {
         .collect()
 }
 
+fn expand_child_block(children: &[ViewChild]) -> proc_macro2::TokenStream {
+    children.iter().rev().fold(quote! { () }, |rest, child| {
+        let node = match &child.kind {
+            ViewChildKind::Node(node) => expand_view_node(node),
+            ViewChildKind::Expr(expr, _) => quote! { #expr },
+        };
+        let value = match child.sizing() {
+            None => node,
+            Some(sizing) => {
+                let value = &sizing.value;
+                quote_spanned! { sizing.span =>
+                    ::beui::reactive::ListChild::new(#node, #value)
+                }
+            }
+        };
+        quote! { (#value, #rest) }
+    })
+}
+
 fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
     let mut segments = node.tag_path.clone();
     let last = segments.pop().expect("tag path always has one segment");
@@ -1288,8 +1303,8 @@ fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
                     #component_path() #(#setters)* .#children_render(#closure) .#build()
                 };
             }
-            let items = expand_child_items(children);
-            let block = quote_spanned! { tag => move || [#(#items),*] };
+            let items = expand_child_block(children);
+            let block = quote_spanned! { tag => move || #items };
             let children_block = format_ident!("children_block", span = tag);
             quote_spanned! { tag =>
                 #component_path() #(#setters)* .#children_block(#block) .#build()
