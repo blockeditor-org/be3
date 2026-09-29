@@ -920,6 +920,7 @@ pub(crate) fn preview(ui: &mut Ui, slot: PreviewSlot<'_>) -> PreviewPresentation
             InstanceRole::Editor(EditorBlock {
                 id: block_id,
                 block_type,
+                view_block: None,
             }),
             block_types,
             None,

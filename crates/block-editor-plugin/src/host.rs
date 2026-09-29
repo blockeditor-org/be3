@@ -351,6 +351,7 @@ pub struct EditorHost {
     editable: Rc<Cell<bool>>,
     block_type: Rc<Cell<Option<Uuid>>>,
     client_id: Rc<Cell<Uuid>>,
+    view_block: Rc<Cell<Option<Uuid>>>,
     view: Rc<Cell<Option<View>>>,
     view_changes: Rc<RefCell<Vec<ViewChange>>>,
     creation_ready: Rc<Cell<bool>>,
@@ -894,6 +895,14 @@ impl EditorHost {
         self.client_id.get()
     }
 
+    pub fn view_block(&self) -> Option<Uuid> {
+        self.view_block.get()
+    }
+
+    pub fn set_view_block(&self, view_block: Option<Uuid>) {
+        self.view_block.set(view_block);
+    }
+
     pub fn view(&self) -> Option<Rect> {
         let origin = self.region.get().origin;
         self.view.get().map(|view| view.rect.translate(origin))
@@ -1220,6 +1229,7 @@ impl EditorHost {
         &self,
         block_id: Uuid,
         block_type: Uuid,
+        view_block: Option<Uuid>,
         rect: Rect,
         clip: Rect,
         mode: ChildMode,
@@ -1238,6 +1248,7 @@ impl EditorHost {
             child,
             block_id: block_id.into_bytes(),
             block_type: block_type.into_bytes(),
+            view_block: view_block.map(Uuid::into_bytes),
             rect: child_rect(rect.translate(-state.origin)),
             clip: child_rect(clip.translate(-state.origin)),
             own_frame,

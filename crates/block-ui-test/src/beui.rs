@@ -159,6 +159,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                     instance: INSTANCE,
                     block_id: block.into_bytes(),
                     block_type: block_type.into_bytes(),
+                    view_block: host.view_block().map(Uuid::into_bytes),
                     account_id,
                     workspace_id,
                     client_id,

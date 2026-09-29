@@ -7,10 +7,7 @@ fn a_shown_block_is_reported_as_focused() {
 
     show(&mut fixture, opened, None);
     assert_eq!(fixture.focused(), Some(opened));
-    assert_eq!(
-        fixture.host.focused_block().block_type,
-        FileTreeContent::CONTENT_TYPE
-    );
+    assert_eq!(fixture.host.focused_block().block_type, SHOWN_TYPE);
 
     show(&mut fixture, second, Some(opened));
 

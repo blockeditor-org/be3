@@ -176,6 +176,15 @@ impl Tree {
                 anchor,
                 objects,
             } => self.insert(*place, *anchor, objects),
+            Change::Stamp {
+                object,
+                field,
+                key,
+                stamped,
+            } => match self.value_mut(*object, *field) {
+                Some(Value::Latest(entries)) => crate::latest::stamp(entries, key, stamped),
+                _ => false,
+            },
             Change::Remove { object } => self.remove(*object),
             Change::RemoveIf { object, expected } => {
                 self.holds(*object, expected) && self.remove(*object)
@@ -326,6 +335,7 @@ impl Tree {
                     },
                 ))
             }
+            Change::Stamp { .. } => None,
             Change::Insert { place, objects, .. } => {
                 let (top, _) = objects.first()?;
                 (!self.contains(*top) && self.list(*place).is_some())
@@ -413,7 +423,8 @@ impl Tree {
             | Change::Put { object, field, .. }
             | Change::PutIf { object, field, .. }
             | Change::Paint { object, field, .. }
-            | Change::Reshape { object, field, .. } => {
+            | Change::Reshape { object, field, .. }
+            | Change::Stamp { object, field, .. } => {
                 out.push(Touched::Field(*object, *field));
                 self.touch_up(*object, out);
             }

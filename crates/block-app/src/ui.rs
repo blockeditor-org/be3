@@ -146,6 +146,14 @@ pub(crate) struct StatusView {
     pub(crate) workspace: String,
     pub(crate) signed_in_as: String,
     pub(crate) accounts: Vec<AccountRow>,
+    pub(crate) profiles: Vec<ProfileRow>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct ProfileRow {
+    pub(crate) id: Uuid,
+    pub(crate) name: String,
+    pub(crate) current: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -227,6 +235,8 @@ pub(crate) enum UiCommand {
     InviteMember,
     SwitchWorkspace,
     SwitchTo(String),
+    SwitchProfile(Uuid),
+    NewProfile,
     ManageAccounts,
     About(bool),
     AppMenu(bool),

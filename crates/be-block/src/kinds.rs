@@ -17,11 +17,6 @@ macro_rules! kind {
 }
 
 kind!(
-    FileTree,
-    FileTreeContent,
-    0x6669_6c65_2d74_7265_652d_626c_6f63_6b01
-);
-kind!(
     PanZoom,
     PanZoomContent,
     0x7061_6e5f_7a6f_6f6d_2d62_6c6f_636b_0001

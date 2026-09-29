@@ -128,11 +128,21 @@ pub struct Drag {
 pub struct ChildTarget {
     pub id: Uuid,
     pub block_type: Uuid,
+    pub view_block: Option<Uuid>,
 }
 
 impl ChildTarget {
     pub fn new(id: Uuid, block_type: Uuid) -> Self {
-        Self { id, block_type }
+        Self {
+            id,
+            block_type,
+            view_block: None,
+        }
+    }
+
+    pub fn viewed_by(mut self, view_block: Uuid) -> Self {
+        self.view_block = Some(view_block);
+        self
     }
 }
 
@@ -440,6 +450,38 @@ impl Editor {
         }
         self.0.host.watch_content(block, C::CONTENT_TYPE);
         self.projection(Some(block))
+    }
+
+    pub fn view_block(&self) -> Option<Uuid> {
+        self.0.host.view_block()
+    }
+
+    pub fn view_content(&self) -> Option<Rc<ContentProjection<be_block::EditorViewContent>>> {
+        self.view_block()
+            .map(|block| self.content_of::<be_block::EditorViewContent>(block))
+    }
+
+    pub fn view_state(&self, key: &str) -> Option<be_block::ViewState> {
+        self.view_content()?
+            .read(|view| view.root().state(key).cloned())
+            .flatten()
+    }
+
+    pub fn set_view_state(&self, key: &str, state: Option<&be_block::ViewState>) {
+        let Some(view) = self.view_content() else {
+            return;
+        };
+        let client = self.0.host.client_id();
+        let now = be_block::editor_view::now_milliseconds();
+        let edit = untrack(|| {
+            view.read(|held| {
+                let root = held.root();
+                (root.state(key) != state).then(|| root.set_state(key, state, now, client))
+            })
+        });
+        if let Some(edit) = edit.flatten() {
+            view.operate_anyway(edit);
+        }
     }
 
     pub fn related_content<C>(&self, block: Memo<Option<Uuid>>) -> Rc<crate::RelatedContent<C>>
@@ -984,6 +1026,7 @@ impl Editor {
         Some(self.0.host.place_child(
             target.id,
             target.block_type,
+            target.view_block,
             rect.scaled(unscale),
             placement.clip.scaled(unscale),
             record.mode.peek(),
@@ -1081,15 +1124,19 @@ impl Creation {
 }
 
 impl crate::root_settings::SettingsGraph for Editor {
-    fn roots(&self) -> Option<Vec<(Uuid, Uuid)>> {
+    fn roots(&self) -> Option<Vec<(Uuid, Uuid, Uuid)>> {
         let mut roots = self.0.roots.borrow_mut();
         let list = roots.get_or_insert_with(|| self.blocks().watch(BlockQuery::Roots));
         list.is_loaded().then(|| {
             list.read()
                 .into_iter()
-                .map(|info| (info.id, info.block_type))
+                .map(|info| (info.id, info.block_type, info.author))
                 .collect()
         })
+    }
+
+    fn account(&self) -> Uuid {
+        self.0.host.account_id()
     }
 
     fn settings(&self, block: Uuid) -> Option<be_block::Settings> {

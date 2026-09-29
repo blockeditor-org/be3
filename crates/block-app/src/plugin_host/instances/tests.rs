@@ -23,6 +23,7 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
     let role = InstanceRole::Editor(EditorBlock {
         id: block,
         block_type,
+        view_block: None,
     });
     instances.report(
         INSTANCE,

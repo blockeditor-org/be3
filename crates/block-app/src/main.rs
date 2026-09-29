@@ -25,7 +25,7 @@ use std::{io, path::PathBuf};
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
 use be_block::metadata::MAX_NAME_BYTES;
-use be_block::{BlockContent, FileTreeContent, UiSettingsContent, WorkspaceUiContent};
+use be_block::{BlockContent, UiSettingsContent, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
@@ -34,7 +34,7 @@ use editors::{
     ArtifactSession, ArtifactStatus, BlockLabel, EditorAccess, EditorAction, EditorRegistry,
     PluginEditor, SidebarDragSource, direct_editor_tab_ui,
 };
-use root_settings::{RootSetting, RootSettings};
+use root_settings::RootSettings;
 use share::ShareDialog;
 use surfaces::SurfaceId;
 use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
@@ -235,8 +235,6 @@ struct BlockApp {
     server_url: String,
     account: Account,
     root_settings: RootSettings,
-    file_tree: RootSetting<FileTreeContent>,
-    workspace_ui: RootSetting<WorkspaceUiContent>,
     shell: Option<Uuid>,
     ui_settings: Option<Uuid>,
     block_types: HashMap<Uuid, Uuid>,
@@ -420,8 +418,6 @@ impl BlockApp {
             server_url,
             account,
             root_settings: RootSettings::default(),
-            file_tree: RootSetting::default(),
-            workspace_ui: RootSetting::default(),
             shell: None,
             ui_settings: None,
             block_types: HashMap::new(),
@@ -808,8 +804,6 @@ impl BlockApp {
         self.dynamic_artifact_unlink = None;
         self.share = ShareDialog::default();
         self.root_settings = RootSettings::default();
-        self.file_tree = RootSetting::default();
-        self.workspace_ui = RootSetting::default();
         self.shell = None;
         self.ui_settings = None;
         self.workspace = Some(workspace.clone());
@@ -885,8 +879,6 @@ impl BlockApp {
         self.reauth = None;
         self.invite_open = false;
         self.root_settings = RootSettings::default();
-        self.file_tree = RootSetting::default();
-        self.workspace_ui = RootSetting::default();
         self.shell = None;
         self.ui_settings = None;
         self.account = account;
@@ -1156,12 +1148,18 @@ impl BlockApp {
     }
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
-        self.file_tree.ensure(self.client_id);
-        let id = self.workspace_ui.ensure(self.client_id)?;
-        self.block_types
-            .insert(id, WorkspaceUiContent::CONTENT_TYPE);
+        let id = self.root_settings.ensure_profile(self.client_id)?;
+        if let Some(previous) = self.shell.filter(|previous| *previous != id) {
+            self.shell = None;
+            let open: Vec<Uuid> = self.editors.keys().copied().collect();
+            for editor in open {
+                self.close_editor(editor);
+            }
+            self.block_types.remove(&previous);
+        }
+        self.block_types.insert(id, WORKSPACE_EDITOR);
         if !self.editors.contains_key(&id) {
-            let editor = self.registry.open(id, WorkspaceUiContent::CONTENT_TYPE);
+            let editor = self.registry.open(id, WORKSPACE_EDITOR).viewed_by(Some(id));
             self.editors.insert(id, editor);
         }
         self.shell = Some(id);
@@ -1680,6 +1678,10 @@ impl BlockApp {
             }
             UiCommand::ReauthClose => self.close_reauth(),
             UiCommand::OpenSettings => self.open_settings(),
+            UiCommand::SwitchProfile(profile) => {
+                self.root_settings.use_profile(self.client_id, profile);
+            }
+            UiCommand::NewProfile => self.root_settings.new_profile(self.client_id),
             UiCommand::OpenInspector => self.inspector_requested = Some(true),
             UiCommand::InviteMember => self.invite_open = true,
             UiCommand::SwitchWorkspace => {
@@ -1814,6 +1816,12 @@ impl BlockApp {
                 workspace: workspace_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
                 accounts,
+                profiles: self
+                    .root_settings
+                    .profiles(self.client_id)
+                    .into_iter()
+                    .map(|(id, name, current)| ui::ProfileRow { id, name, current })
+                    .collect(),
             },
             invite: self.invite_open.then(|| ui::InviteView {
                 workspace: workspace_name,

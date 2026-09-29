@@ -192,6 +192,7 @@ pub fn interact(
         },
     };
     let reach = Reach::new(doc, rects, &input);
+    doc.interact_pass += 1;
     let mut pool = doc.take_interact_pool();
     if doc.overlay_stack.is_empty() {
         interact_node(
@@ -626,6 +627,10 @@ fn interact_node(
         return;
     };
     if !reach.reaches(doc, input, id) {
+        return;
+    }
+    let pass = doc.interact_pass;
+    if doc.interacted.insert(id, pass) == Some(pass) {
         return;
     }
     let mut children = pool.pop().unwrap_or_default();
