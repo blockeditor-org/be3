@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::app::FileTreeApp;
 
+mod a_phone_walks_into_folders_and_opens_files;
 mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
 mod exporting_a_text_block_saves_it_as_a_markdown_file;

@@ -16,10 +16,11 @@ use block_editor_beui::beui::styled::{
 };
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};
-use block_editor_beui::{BlockFilter, BlockPicker, Drag, Editor, Toolbar};
+use block_editor_beui::{BlockFilter, BlockPicker, Drag, Editor, Toolbar, narrow_chrome};
 use uuid::Uuid;
 
 use super::export::{Export, Exporter, exportable};
+use super::phone::PhoneFiles;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
 
 const PADDING: f32 = 8.0;
@@ -125,13 +126,22 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         editor.host().drag_block(carried.id, carried.block_type);
     });
 
+    let narrow = narrow_chrome();
+    let wide = create_memo(clone!(narrow -> move || !narrow.get()));
     let chrome = editor.chrome_shown();
+    let toolbar = create_memo(clone!(chrome wide -> move || chrome.get() && wide.get()));
     let content = NodeRef::new();
     editor.content(&content);
+    let phone_editor = editor.clone();
+    let phone_tree = Rc::clone(&tree);
+    let phone_picker = Rc::clone(&picker);
+    let phone_exporter = Rc::clone(&exporter);
+    let phone_inspect = inspect.clone();
+    let covered = create_memo(clone!(inspecting -> move || inspecting.get().is_some()));
     let node = view! {
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
-                <Toolbar shown={chrome}>
+                <Toolbar shown={toolbar}>
                     <IconButton
                         glyph={ICON_ADD.to_owned()}
                         label="Add a root block"
@@ -142,11 +152,23 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                 </Toolbar>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <List spacing=0.0>
+                        <Show condition={narrow}>
+                            <PhoneFiles
+                                @sizing=ItemSize::Percent(100.0)
+                                editor={phone_editor}
+                                tree={phone_tree}
+                                picker={phone_picker}
+                                exporter={phone_exporter}
+                                inspect={phone_inspect}
+                                covered
+                            />
+                        </Show>
                         <Show condition={failed}>
                             <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                                 <Caption content={reason} color={theme.danger.clone()} />
                             </Frame>
                         </Show>
+                        <Show condition={wide}>
                         <Tree
                             @sizing=ItemSize::Percent(100.0)
                             @node_ref={&tree_ref}
@@ -179,6 +201,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                 }
                             }}
                         </Tree>
+                        </Show>
                     </List>
                 </Frame>
                 <Inspector inspecting={inspecting} set_inspecting={set_inspecting} />
@@ -539,7 +562,7 @@ fn row_rect(tree: NodeId, key: &RowKey) -> Option<Rect> {
     })
 }
 
-fn menu_action(
+pub(crate) fn menu_action(
     editor: Editor,
     tree: Rc<FileTree>,
     picker: Rc<Picker>,

@@ -14,7 +14,10 @@ fn the_inspect_dialog_stays_on_a_narrow_screen() {
     fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
     fixture.settle();
 
-    fixture.choose(block, "Inspect");
+    fixture.test.click(&format!("file-tree.{block}.more"));
+    fixture.settle();
+    fixture.test.click("file-tree.actions.inspect");
+    fixture.settle();
 
     for field in ["file-tree.inspect.id", "file-tree.inspect.close"] {
         let rect = fixture.test.rect_of(field);
