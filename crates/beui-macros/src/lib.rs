@@ -1255,22 +1255,23 @@ fn expand_child_items(children: &[ViewChild]) -> Vec<proc_macro2::TokenStream> {
 }
 
 fn expand_child_block(children: &[ViewChild]) -> proc_macro2::TokenStream {
-    children.iter().rev().fold(quote! { () }, |rest, child| {
-        let node = match &child.kind {
-            ViewChildKind::Node(node) => expand_view_node(node),
-            ViewChildKind::Expr(expr, _) => quote! { #expr },
-        };
-        let value = match child.sizing() {
-            None => node,
-            Some(sizing) => {
-                let value = &sizing.value;
-                quote_spanned! { sizing.span =>
-                    ::beui::reactive::ListChild::new(#node, #value)
-                }
+    let [child] = children else {
+        let items = expand_child_items(children);
+        return quote! { [#(#items),*] };
+    };
+    let node = match &child.kind {
+        ViewChildKind::Node(node) => expand_view_node(node),
+        ViewChildKind::Expr(expr, _) => quote! { #expr },
+    };
+    match child.sizing() {
+        None => quote! { ::beui::reactive::SingleChild(#node) },
+        Some(sizing) => {
+            let value = &sizing.value;
+            quote_spanned! { sizing.span =>
+                ::beui::reactive::SingleChild(::beui::reactive::ListChild::new(#node, #value))
             }
-        };
-        quote! { (#value, #rest) }
-    })
+        }
+    }
 }
 
 fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {

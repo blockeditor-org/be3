@@ -1223,15 +1223,17 @@ pub trait IntoSegments<T: SlotChild> {
     fn into_segments(self, segments: &mut Vec<ChildSegment<T>>);
 }
 
-impl<T: SlotChild> IntoSegments<T> for () {
-    fn into_segments(self, _segments: &mut Vec<ChildSegment<T>>) {}
+pub struct SingleChild<H>(pub H);
+
+impl<T: SlotChild, H: IntoSegment<T>> IntoSegments<T> for SingleChild<H> {
+    fn into_segments(self, segments: &mut Vec<ChildSegment<T>>) {
+        segments.push(self.0.into_segment());
+    }
 }
 
-impl<T: SlotChild, H: IntoSegment<T>, R: IntoSegments<T>> IntoSegments<T> for (H, R) {
+impl<T: SlotChild, const N: usize> IntoSegments<T> for [ChildSegment<T>; N] {
     fn into_segments(self, segments: &mut Vec<ChildSegment<T>>) {
-        let (head, rest) = self;
-        segments.push(head.into_segment());
-        rest.into_segments(segments);
+        segments.extend(self);
     }
 }
 
@@ -1251,7 +1253,7 @@ pub trait OneChild<T> {
     fn one_child(self) -> T;
 }
 
-impl<T, H: IntoChild<T>> OneChild<T> for (H, ()) {
+impl<T, H: IntoChild<T>> OneChild<T> for SingleChild<H> {
     fn one_child(self) -> T {
         self.0.into_child()
     }
@@ -1265,13 +1267,13 @@ pub trait AtMostOneChild<T> {
     fn at_most_one_child(self) -> Option<T>;
 }
 
-impl<T> AtMostOneChild<T> for () {
+impl<T: SlotChild> AtMostOneChild<T> for [ChildSegment<T>; 0] {
     fn at_most_one_child(self) -> Option<T> {
         None
     }
 }
 
-impl<T, H: IntoChild<T>> AtMostOneChild<T> for (H, ()) {
+impl<T, H: IntoChild<T>> AtMostOneChild<T> for SingleChild<H> {
     fn at_most_one_child(self) -> Option<T> {
         Some(self.0.into_child())
     }
