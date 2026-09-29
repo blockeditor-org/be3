@@ -86,6 +86,7 @@ pub fn TextArea(
     #[prop(default = true)] emoji: bool,
     on_widget_press: Callback<usize, bool>,
     on_key_override: Callback<KeyPress, bool>,
+    on_focus_change: Callback<bool>,
 ) -> NodeId {
     let theme = use_theme();
     let colors = create_memo(move || TextAreaColors {
@@ -144,6 +145,7 @@ pub fn TextArea(
                     password
                     on_widget_press={move |widget: usize| on_widget_press.call(widget)}
                     on_key_override={move |press: KeyPress| on_key_override.call(press)}
+                    on_focus_change={move |focused: bool| on_focus_change.call(focused)}
                     on_menu={move |at: Pos2| set_menu_at.set(Some(at))}
                     block={move |index: usize| forward(block.as_ref(), index)}
                     selected_widget={move |index: usize| forward(selected_widget.as_ref(), index)}

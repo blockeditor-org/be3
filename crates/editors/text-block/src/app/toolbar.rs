@@ -1,19 +1,20 @@
 use beui::NodeId;
 use beui::icons::{
-    ICON_CHECKLIST, ICON_CODE, ICON_DATA_ARRAY, ICON_FIND_REPLACE, ICON_FORMAT_BOLD,
+    ICON_ADD_BOX, ICON_CHECKLIST, ICON_CODE, ICON_DATA_ARRAY, ICON_FIND_REPLACE, ICON_FORMAT_BOLD,
     ICON_FORMAT_ITALIC, ICON_FORMAT_LIST_BULLETED, ICON_FORMAT_LIST_NUMBERED,
-    ICON_FORMAT_STRIKETHROUGH, ICON_IMAGE, ICON_LINK, ICON_TITLE,
+    ICON_FORMAT_STRIKETHROUGH, ICON_IMAGE, ICON_KEYBOARD_HIDE, ICON_LINK, ICON_TITLE,
 };
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Show, clone, component, create_memo, view,
+    with_document,
 };
 use beui::styled::{
-    Body, Button, ButtonVariant, IconButton, MenuButton, NumberInput, Select, ToggleButton,
-    use_theme,
+    Body, Button, ButtonVariant, IconButton, MenuButton, NumberInput, Select, Separator,
+    ToggleButton, use_theme,
 };
 use beui::unstyled::{ChoiceOption, MenuItem, Scroll};
 use block_editor_beui::BlockParent;
-use block_editor_beui::{BlockFilter, Toolbar, block_ui::BlockLabel};
+use block_editor_beui::{BlockFilter, Toolbar, bar_item, block_ui::BlockLabel, narrow_chrome};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
 use super::state::Shared;
@@ -21,6 +22,7 @@ use super::state::Shared;
 const TOOLBAR_SPACING: f32 = 6.0;
 const SELECT_WIDTH: f32 = 120.0;
 const NUMBER_WIDTH: f32 = 70.0;
+const FORMAT_PADDING: f32 = 6.0;
 
 #[component]
 pub(crate) fn EditorToolbar(state: Shared) -> NodeId {
@@ -33,8 +35,11 @@ pub(crate) fn EditorToolbar(state: Shared) -> NodeId {
         false => "Switch to hex view".to_owned(),
     }));
     let hex_state = state.clone();
+    let narrow = narrow_chrome();
+    let wide = create_memo(clone!(narrow -> move || !narrow.get()));
+    phone_items(&state);
     view! {
-        <Toolbar>
+        <Toolbar shown={wide}>
             <ToggleButton
                 glyph=ICON_DATA_ARRAY
                 icon_only=true
@@ -54,6 +59,135 @@ pub(crate) fn EditorToolbar(state: Shared) -> NodeId {
                 }}
             </Show>
         </Toolbar>
+    }
+}
+
+fn phone_items(state: &Shared) {
+    let never = create_memo(|| false);
+    let hex = state.hex_view.clone();
+    let in_hex = create_memo(move || hex.get());
+    bar_item(
+        "Switch between text and hex",
+        ICON_DATA_ARRAY,
+        never.clone(),
+        clone!(state -> move || state.toggle_hex_view()),
+    );
+    bar_item(
+        "Find and replace",
+        ICON_FIND_REPLACE,
+        in_hex.clone(),
+        clone!(state -> move || state.text.open_find(true)),
+    );
+    bar_item(
+        "Insert a block",
+        ICON_ADD_BOX,
+        in_hex,
+        clone!(state -> move || pick_block(&state)),
+    );
+}
+
+#[component]
+pub(crate) fn FormatBar(state: Shared) -> NodeId {
+    let theme = use_theme();
+    let narrow = narrow_chrome();
+    let typing = state.typing.clone();
+    let hex = state.hex_view.clone();
+    let shown = create_memo(move || narrow.get() && typing.get() && !hex.get());
+    let content = state.text.content();
+    let markdown = create_memo(clone!(state -> move || {
+        content.get();
+        state.text.language() == TextLanguage::Markdown
+    }));
+    let controls = move || {
+        let state = state.clone();
+        view! {
+            <PhoneMarkdownControls state />
+        }
+    };
+    let bar = move || {
+        let controls = controls.clone();
+        view! {
+            <Frame color={theme.surface.clone()}>
+                <List spacing=0.0>
+                    <Separator />
+                    <Frame padding_vertical=FORMAT_PADDING>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                            <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
+                                <Frame padding_horizontal=FORMAT_PADDING>
+                                    <List spacing=0.0>
+                                        <Show condition={markdown.clone()} then={controls} />
+                                    </List>
+                                </Frame>
+                            </Scroll>
+                            <Frame padding_horizontal=FORMAT_PADDING>
+                                <IconButton
+                                    glyph=ICON_KEYBOARD_HIDE
+                                    label="Done"
+                                    press_focus=false
+                                    @test_id={"text.format.done"}
+                                    on_click={|| with_document(|document| document.update_focus(None))}
+                                />
+                            </Frame>
+                        </List>
+                    </Frame>
+                </List>
+            </Frame>
+        }
+    };
+    view! {
+        <List spacing=0.0>
+            <Show condition={shown} then={bar} />
+        </List>
+    }
+}
+
+#[component]
+fn PhoneMarkdownControls(state: Shared) -> NodeId {
+    let buttons: Vec<(&str, &str, &str, MarkdownCommand)> = vec![
+        (ICON_TITLE, "Heading", "text.format.heading", MarkdownCommand::Heading(2)),
+        (ICON_FORMAT_BOLD, "Bold", "text.format.bold", MarkdownCommand::Bold),
+        (ICON_FORMAT_ITALIC, "Italic", "text.format.italic", MarkdownCommand::Italic),
+        (
+            ICON_FORMAT_LIST_BULLETED,
+            "Bulleted list",
+            "text.format.bulleted-list",
+            MarkdownCommand::BulletedList,
+        ),
+        (ICON_CHECKLIST, "Checklist", "text.format.checklist", MarkdownCommand::Checklist),
+        (ICON_LINK, "Link", "text.format.link", MarkdownCommand::Link),
+        (
+            ICON_FORMAT_STRIKETHROUGH,
+            "Strikethrough",
+            "text.format.strikethrough",
+            MarkdownCommand::Strikethrough,
+        ),
+        (ICON_CODE, "Inline code", "text.format.inline-code", MarkdownCommand::InlineCode),
+        (
+            ICON_FORMAT_LIST_NUMBERED,
+            "Numbered list",
+            "text.format.numbered-list",
+            MarkdownCommand::NumberedList,
+        ),
+    ];
+    let count = buttons.len();
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
+            <ForEach keys={(0..count).collect::<Vec<usize>>()}>
+                {move |index: usize| {
+                    let (glyph, label, id, command) = buttons[index];
+                    view! {
+                        <MarkdownButton
+                            state={state.clone()}
+                            glyph={glyph.to_owned()}
+                            label={label.to_owned()}
+                            id={id.to_owned()}
+                            command
+                            press_focus=false
+                        />
+                    }
+                }}
+            </ForEach>
+        </List>
     }
 }
 
@@ -299,11 +433,13 @@ fn MarkdownButton(
     label: String,
     id: String,
     command: MarkdownCommand,
+    #[prop(default = true)] press_focus: bool,
 ) -> NodeId {
     view! {
         <IconButton
             glyph={glyph}
             label={label}
+            press_focus
             @test_id={id}
             on_click={move || state.text.execute(EditorCommand::Markdown(command))}
         />
