@@ -6,16 +6,14 @@ use block_editor_beui::beui::icons::{
     ICON_MORE_HORIZ, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, Show, Spacer, clone,
+    Align, Direction, ForEach, ItemSize, List, Memo, NodeRef, Prop, Show, Spacer, clone,
     component, create_memo, view,
 };
-use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, IconButton, MenuButton, ToggleButton, use_theme,
 };
 use block_editor_beui::beui::unstyled::MenuItem;
-use block_editor_beui::beui::unstyled::{Edge, Floating};
-use block_editor_beui::{Toolbar, narrow_chrome, sheet_open};
+use block_editor_beui::{BottomDock, Toolbar, narrow_chrome};
 
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
 
@@ -37,8 +35,6 @@ const ACTIONS: [(&str, CanvasCommand); 5] = [
 ];
 
 const ZOOM_PRESETS: [f32; 4] = [0.25, 0.5, 1.0, 2.0];
-const DOCK_MARGIN: f32 = 12.0;
-const DOCK_RADIUS: u8 = 12;
 
 #[component]
 pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId {
@@ -91,36 +87,19 @@ pub(crate) fn CanvasToolbar(state: Rc<CanvasState>, shown: Prop<bool>) -> NodeId
 pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
     let narrow = narrow_chrome();
     let previewing = state.previewing();
-    let sheet = sheet_open();
-    let open = create_memo(move || shown.get() && narrow.get() && !sheet.get() && !previewing);
-    let theme = use_theme();
+    let open = create_memo(move || shown.get() && narrow.get() && !previewing);
     let tools = Rc::clone(&state);
     view! {
-        <Floating anchor={anchor} edge=Edge::Bottom open={open}>
-            <Frame padding_vertical=DOCK_MARGIN>
-                <Frame
-                    color={theme.surface.clone()}
-                    outline={theme.border.clone()}
-                    outline_width=BORDER_WIDTH
-                    outline_visible=true
-                    radius=DOCK_RADIUS
-                    padding_horizontal=6.0
-                    padding_vertical=6.0
-                    @test_id={"infinite-canvas.dock"}
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                        <ForEach keys={(0..TOOLS.len()).collect::<Vec<usize>>()}>
-                            {move |index: usize| {
-                                let state = Rc::clone(&tools);
-                                view! {
-                                    <ToolChoice state index docked=true />
-                                }
-                            }}
-                        </ForEach>
-                    </List>
-                </Frame>
-            </Frame>
-        </Floating>
+        <BottomDock anchor={anchor} open={open} name="infinite-canvas.dock">
+            <ForEach keys={(0..TOOLS.len()).collect::<Vec<usize>>()}>
+                {move |index: usize| {
+                    let state = Rc::clone(&tools);
+                    view! {
+                        <ToolChoice state index docked=true />
+                    }
+                }}
+            </ForEach>
+        </BottomDock>
     }
 }
 

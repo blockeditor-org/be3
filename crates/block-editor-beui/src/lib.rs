@@ -6,6 +6,7 @@ pub mod beui_frame;
 mod block_link;
 mod child;
 mod chrome;
+mod dock;
 pub mod database;
 mod editor;
 mod file_chooser;
@@ -19,6 +20,7 @@ use be_block::presence::PresenceColor;
 
 pub use block_link::{BlockDisplay, BlockLink, watch_block_label};
 pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
+pub use dock::BottomDock;
 pub use chrome::{NARROW_WIDTH, SIDEBAR_WIDTH, Side, Sidebar, Toolbar, narrow_chrome, sheet_open};
 pub use editor::{Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, fit_content};
 pub use file_chooser::{FileChooser, content_file_creation};
