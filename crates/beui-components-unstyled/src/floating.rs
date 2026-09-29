@@ -8,6 +8,7 @@ use beui_view::reactive::{Child, NodeRef, Prop};
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum Edge {
     Top,
+    TopEnd,
     #[default]
     Bottom,
 }
@@ -22,6 +23,7 @@ pub fn Floating(
 ) -> NodeId {
     let placement = edge.map(|edge| match edge {
         Edge::Top => Placement::InsideTop,
+        Edge::TopEnd => Placement::InsideTopEnd,
         Edge::Bottom => Placement::InsideBottom,
     });
     let mode = interactive.map(|interactive| match interactive {

@@ -108,10 +108,11 @@ impl BeuiFrame {
         let editor = editor.clone();
         let document = beui::reactive::build(move || {
             provide_context(BarItems::new());
+            let phone = create_memo(clone!(bar -> move || bar.get().phone.is_some()));
             view! {
                 <List spacing=0.0>
                     <TopBar editor bar on_exit={move || exit_writer.set(true)} />
-                    <ChromeRoot @sizing=ItemSize::Percent(100.0)>
+                    <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>
                         {move || {
                             let content = view();
                             content_slot_writer.set(Some(content));
