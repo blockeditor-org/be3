@@ -603,6 +603,12 @@ impl EditorHost {
             .push((block_id, BlockCommand::Share));
     }
 
+    pub fn show_app_menu(&self, block_id: Uuid) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::AppMenu));
+    }
+
     pub fn rename_block(&self, block_id: Uuid) {
         self.block_commands
             .borrow_mut()

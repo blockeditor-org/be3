@@ -1,8 +1,10 @@
 use beui::reactive::{
-    Func, Memo, clone, component, create_effect, create_memo, create_signal, untrack, view,
+    Func, ItemSize, List, Memo, Show, clone, component, create_effect, create_memo, create_signal,
+    untrack, view,
 };
 use beui::styled::DockArea;
-use beui::unstyled::{DockState, TabId};
+use beui::styled::theme::NARROW_WIDTH;
+use beui::unstyled::{DockState, TabId, narrower_than};
 use beui::{NodeId, Rect, pos2, vec2};
 
 use super::debug::{
@@ -112,13 +114,24 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
             });
         }));
     }
+    let narrow = narrower_than(NARROW_WIDTH);
+    let lone = create_memo(clone!(state -> move || {
+        narrow.get() && state.with(|state| only_the_workspace(state))
+    }));
+    let docked = create_memo(clone!(lone -> move || !lone.get()));
     let status = view.status.clone();
     let title = Func::new(move |tab: TabId| match Tool::of(tab) {
         Some(tool) => tool.title().to_owned(),
         None => status.get().workspace,
     });
     view! {
-        <DockArea
+        <List spacing=0.0>
+            <Show condition={lone}>
+                <HostSurface @sizing=ItemSize::Percent(100.0) id=SurfaceId::Main />
+            </Show>
+            <Show condition={docked}>
+                <DockArea
+            @sizing=ItemSize::Percent(100.0)
             state={state}
             title={title}
             closable={Func::new(|tab: TabId| tab != WORKSPACE)}
@@ -168,6 +181,16 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
                     },
                 }
             }}
-        </DockArea>
+                </DockArea>
+            </Show>
+        </List>
     }
+}
+
+fn only_the_workspace(state: &DockState) -> bool {
+    let leaves = state.leaves(state.main());
+    state.windows().is_empty()
+        && leaves.len() == 1
+        && state.entries(leaves[0]).len() == 1
+        && state.active_tab(leaves[0]) == Some(WORKSPACE)
 }

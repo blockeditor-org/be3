@@ -103,7 +103,8 @@ impl EditorMessage {
                     | BlockCommand::Redo
                     | BlockCommand::Artifact { .. }
                     | BlockCommand::SimulateAccess { .. }
-                    | BlockCommand::CloseEditor => {}
+                    | BlockCommand::CloseEditor
+                    | BlockCommand::AppMenu => {}
                 }
             }
             Self::Request { request, .. } => match request {

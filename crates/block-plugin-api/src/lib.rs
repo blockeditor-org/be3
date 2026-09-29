@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 57;
+pub const PROTOCOL_VERSION: u16 = 58;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -1227,6 +1227,7 @@ pub enum BlockCommand {
         parent: [u8; 16],
         linked: bool,
     },
+    AppMenu,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
