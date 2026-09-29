@@ -6,10 +6,10 @@ use beui::reactive::{
     create_memo, create_signal, on_cleanup, provide_context, untrack, use_context, view,
 };
 use beui::styled::theme::BORDER_WIDTH;
+pub use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::{SHEET_STOPS, Scroll, Separator, Sheet, ToggleButton, use_theme};
 
 pub const SIDEBAR_WIDTH: f32 = 260.0;
-pub const NARROW_WIDTH: f32 = 640.0;
 
 const PADDING: f32 = 14.0;
 const SPACING: f32 = 10.0;

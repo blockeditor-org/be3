@@ -14,7 +14,7 @@ use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_beui::root_settings::RootSetting;
 use block_editor_beui::{
     AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
-    Editor, EditorHost, FocusedBlock, PickedBlock, Pushed,
+    Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -25,7 +25,6 @@ use super::tab::TabItem;
 pub(crate) const FILES: TabId = TabId::new(1);
 const FIRST_BLOCK_TAB: u64 = 2;
 const FILES_SHARE: f32 = 0.22;
-const COMPACT_FILES_WIDTH: f32 = 700.0;
 const MAX_OPENED_VIA_HOPS: usize = 64;
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 6.0;
@@ -570,7 +569,7 @@ pub(crate) fn WorkspaceShell(editor: Editor) -> NodeId {
 
 #[component]
 fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
-    let compact = narrower_than(COMPACT_FILES_WIDTH);
+    let compact = narrower_than(NARROW_WIDTH);
     let sizing = Rc::downgrade(&workspace);
     let was_compact = Cell::new(false);
     create_effect(move || {
