@@ -23,6 +23,7 @@ pub struct FocusableNode {
     pub child: Option<NodeId>,
     pub focused: bool,
     pub tab_stop: bool,
+    pub press_focus: bool,
     pub ime: bool,
     pub ime_cursor: Option<ImeCursor>,
     pub on_focus_change: Callback<bool>,
@@ -48,6 +49,7 @@ impl FocusableNode {
             child: None,
             focused: false,
             tab_stop: true,
+            press_focus: true,
             ime: false,
             ime_cursor: None,
             on_focus_change: Callback::empty(),
@@ -85,7 +87,7 @@ impl Element for FocusableNode {
 
     fn interact(
         &mut self,
-        _doc: &mut Document,
+        doc: &mut Document,
         _painter: &Painter,
         input: &InteractInput,
         id: NodeId,
@@ -98,7 +100,10 @@ impl Element for FocusableNode {
             && ((input.pressed_this_frame && !input.touch_started)
                 || (input.touch_ended && !input.touch_dragged && !input.touch_cancelled))
         {
-            *focus_target = Some(id);
+            *focus_target = match self.press_focus {
+                true => Some(id),
+                false => doc.focused_node(),
+            };
         }
         children.extend(self.child);
     }
@@ -137,6 +142,15 @@ impl Document {
         }
         if self.arena.get_as::<FocusableNode>(focusable).tab_stop != tab_stop {
             self.arena.touch_mut_as::<FocusableNode>(focusable).tab_stop = tab_stop;
+        }
+    }
+
+    pub fn set_focusable_press_focus(&mut self, focusable: NodeId, press_focus: bool) {
+        if !self.contains(focusable) {
+            return;
+        }
+        if self.arena.get_as::<FocusableNode>(focusable).press_focus != press_focus {
+            self.arena.get_mut_as::<FocusableNode>(focusable).press_focus = press_focus;
         }
     }
 
