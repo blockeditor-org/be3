@@ -9,7 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 beui = { path = "../beui", default-features = false, features = ["dom"] }
-beui_macros = { path = "../beui_macros" }
+beui_macros = { path = "../beui-macros" }
 text-editor-core = { path = "../text-editor-core" }
 wasi-threads = { path = "../wasi-threads" }
 wasm-bindgen = "0.2"

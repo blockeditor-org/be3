@@ -1,9 +1,13 @@
+mod library;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod system;
+
 use std::collections::HashMap;
 use std::ptr;
 use std::rc::Rc;
 
 use freetype::freetype as ft;
-use harfbuzz_rs::{Face as HbFace, Font as HbFont, Owned, Tag, UnicodeBuffer, shape};
+use harfbuzz_rs::{Blob, Face as HbFace, Font as HbFont, Owned, Tag, UnicodeBuffer, shape};
 use unicode_script::{Script, UnicodeScript};
 
 use beui_core::font::{
@@ -12,8 +16,13 @@ use beui_core::font::{
 };
 use beui_core::geometry::vec2;
 
+pub use library::{FontBytes, FontData, FontLibrary, FontSources, ICONS_FONT};
+
 pub struct FreetypeFonts {
     library: ft::FT_Library,
+    fonts: FontLibrary,
+    generation: u64,
+    fallbacks: usize,
     faces: Vec<FaceData>,
     proportional: Vec<usize>,
     monospace: Vec<usize>,
@@ -22,67 +31,110 @@ pub struct FreetypeFonts {
 }
 
 impl FreetypeFonts {
-    pub fn new(sources: &FontSources) -> Self {
+    pub fn new(fonts: FontLibrary) -> Self {
         let mut library = ptr::null_mut();
         let opened = unsafe { ft::FT_Init_FreeType(&mut library) == 0 };
-        let mut fonts = Self {
+        let mut backend = Self {
             library: if opened { library } else { ptr::null_mut() },
+            generation: fonts.generation(),
+            fonts,
+            fallbacks: 0,
             faces: Vec::new(),
             proportional: Vec::new(),
             monospace: Vec::new(),
             icons: Vec::new(),
             glyphs: HashMap::new(),
         };
-        if opened {
-            fonts.load_families(sources);
-        }
-        fonts
+        backend.load_families();
+        backend
     }
 
-    fn load_families(&mut self, sources: &FontSources) {
+    fn load_families(&mut self) {
+        if self.library.is_null() {
+            return;
+        }
+        let sources = self.fonts.sources();
         let proportional = self.load_chain(&sources.proportional);
         let monospace = self.load_chain(&sources.monospace);
         let fallback = self.load_chain(&sources.fallback);
+        self.fallbacks = sources.fallback.len();
         self.proportional = chain(&proportional, &[&monospace, &fallback]);
         self.monospace = chain(&monospace, &[&proportional, &fallback]);
         self.icons = self.load_chain(&sources.icons);
     }
 
-    fn load_chain(&mut self, sources: &[&'static [u8]]) -> Vec<usize> {
+    fn refresh(&mut self) {
+        let generation = self.fonts.generation();
+        if generation == self.generation {
+            return;
+        }
+        self.generation = generation;
+        self.close_faces();
+        self.glyphs.clear();
+        self.load_families();
+    }
+
+    fn load_new_fallbacks(&mut self) -> bool {
+        if self.library.is_null() || self.fonts.fallback_count() <= self.fallbacks {
+            return false;
+        }
+        let added = self.fonts.fallback_from(self.fallbacks);
+        self.fallbacks += added.len();
+        let loaded = self.load_chain(&added);
+        for index in &loaded {
+            for family in [&mut self.proportional, &mut self.monospace] {
+                if !family.contains(index) {
+                    family.push(*index);
+                }
+            }
+        }
+        !loaded.is_empty()
+    }
+
+    fn load_chain(&mut self, sources: &[FontData]) -> Vec<usize> {
         sources
             .iter()
             .filter_map(|source| self.load_face(source))
             .collect()
     }
 
-    fn load_face(&mut self, source: &'static [u8]) -> Option<usize> {
-        if let Some(index) = self
-            .faces
-            .iter()
-            .position(|face| ptr::eq(face.source, source))
-        {
+    fn load_face(&mut self, source: &FontData) -> Option<usize> {
+        if let Some(index) = self.faces.iter().position(|face| face.data.same(source)) {
             return Some(index);
         }
         let mut face = ptr::null_mut();
         unsafe {
             if ft::FT_New_Memory_Face(
                 self.library,
-                source.as_ptr(),
-                source.len() as ft::FT_Long,
-                0,
+                source.bytes.as_ptr(),
+                source.bytes.len() as ft::FT_Long,
+                source.index as ft::FT_Long,
                 &mut face,
             ) != 0
             {
                 return None;
             }
         }
-        let hb_face = HbFace::from_bytes(source, 0);
+        let blob = Blob::with_bytes_owned(source.bytes.clone(), |bytes| bytes);
+        let hb_face = HbFace::new(blob, source.index);
         self.faces.push(FaceData {
-            source,
+            data: source.clone(),
             face,
             font: HbFont::new(hb_face),
         });
         Some(self.faces.len() - 1)
+    }
+
+    fn close_faces(&mut self) {
+        for face in self.faces.drain(..) {
+            unsafe {
+                ft::FT_Done_Face(face.face);
+            }
+        }
+        self.proportional.clear();
+        self.monospace.clear();
+        self.icons.clear();
+        self.fallbacks = 0;
     }
 
     fn family(&self, family: FontFamily) -> &[usize] {
@@ -101,6 +153,7 @@ impl FreetypeFonts {
         shape: Shaping,
         scale: f32,
     ) -> Galley {
+        self.refresh();
         let (ascent, descent) = self.metrics(family, pixel_size);
         let line_height = (shape.line() * shape.spacing()).round().max(1.0);
         let baseline = ((line_height - (ascent - descent)) / 2.0).round() + ascent;
@@ -277,6 +330,9 @@ impl FreetypeFonts {
 
     fn shape_line(&mut self, text: &str, family: FontFamily, pixel_size: u32) -> Vec<ShapedGlyph> {
         let mut glyphs = Vec::new();
+        if self.faces.is_empty() {
+            return glyphs;
+        }
         for run in self.font_runs(text, family) {
             let offset = run.start;
             let face = &mut self.faces[run.face];
@@ -312,7 +368,7 @@ impl FreetypeFonts {
         glyphs
     }
 
-    fn font_runs(&self, text: &str, family: FontFamily) -> Vec<FontRun> {
+    fn font_runs(&mut self, text: &str, family: FontFamily) -> Vec<FontRun> {
         let mut runs = Vec::new();
         for run in script_runs(text) {
             let mut start = run.start;
@@ -347,7 +403,25 @@ impl FreetypeFonts {
         runs
     }
 
-    fn face_for(&self, character: char, family: FontFamily) -> Option<usize> {
+    fn face_for(&mut self, character: char, family: FontFamily) -> Option<usize> {
+        if let Some(face) = self.covering(character, family) {
+            return Some(face);
+        }
+        if family == FontFamily::Icons || !wants_fallback(character) {
+            return None;
+        }
+        if self.load_new_fallbacks()
+            && let Some(face) = self.covering(character, family)
+        {
+            return Some(face);
+        }
+        if self.fonts.missing(character) && self.load_new_fallbacks() {
+            return self.covering(character, family);
+        }
+        None
+    }
+
+    fn covering(&self, character: char, family: FontFamily) -> Option<usize> {
         self.family(family).iter().copied().find(|index| unsafe {
             ft::FT_Get_Char_Index(self.faces[*index].face, character as ft::FT_ULong) != 0
         })
@@ -356,7 +430,7 @@ impl FreetypeFonts {
 
 impl Default for FreetypeFonts {
     fn default() -> Self {
-        Self::new(&FontSources::default())
+        Self::new(FontLibrary::bundled())
     }
 }
 
@@ -370,6 +444,10 @@ impl FontBackend for FreetypeFonts {
         pixels_per_point: f32,
     ) -> Galley {
         self.build_galley(text, family, pixel_size, shape, pixels_per_point)
+    }
+
+    fn generation(&self) -> u64 {
+        self.fonts.generation()
     }
 }
 
@@ -393,27 +471,8 @@ fn split_subpixel(x: f32) -> (f32, u32) {
     (whole, (steps - whole * positions) as u32)
 }
 
-#[derive(Clone, Debug)]
-pub struct FontSources {
-    pub proportional: Vec<&'static [u8]>,
-    pub monospace: Vec<&'static [u8]>,
-    pub fallback: Vec<&'static [u8]>,
-    pub icons: Vec<&'static [u8]>,
-}
-
-impl Default for FontSources {
-    fn default() -> Self {
-        Self {
-            proportional: vec![UBUNTU_LIGHT],
-            monospace: vec![HACK_REGULAR],
-            fallback: vec![NOTO_EMOJI_REGULAR],
-            icons: vec![ICONS_FONT],
-        }
-    }
-}
-
 struct FaceData {
-    source: &'static [u8],
+    data: FontData,
     face: ft::FT_Face,
     font: Owned<HbFont<'static>>,
 }
@@ -430,10 +489,8 @@ struct ShapedGlyph {
 
 impl Drop for FreetypeFonts {
     fn drop(&mut self) {
+        self.close_faces();
         unsafe {
-            for face in &self.faces {
-                ft::FT_Done_Face(face.face);
-            }
             if !self.library.is_null() {
                 ft::FT_Done_FreeType(self.library);
             }
@@ -452,6 +509,22 @@ struct ScriptRun {
     start: usize,
     end: usize,
     script: Option<Script>,
+}
+
+fn wants_fallback(character: char) -> bool {
+    !character.is_whitespace()
+        && !character.is_control()
+        && !matches!(
+            character,
+            '\u{200b}'..='\u{200f}'
+                | '\u{2060}'..='\u{206f}'
+                | '\u{fe00}'..='\u{fe0f}'
+                | '\u{feff}'
+                | '\u{fffc}'
+                | '\u{1f3fb}'..='\u{1f3ff}'
+                | '\u{e0000}'..='\u{e007f}'
+                | '\u{e0100}'..='\u{e01ef}'
+        )
 }
 
 fn chain(primary: &[usize], others: &[&[usize]]) -> Vec<usize> {
@@ -524,11 +597,6 @@ fn pixels(bitmap: &ft::FT_Bitmap) -> Vec<u8> {
     }
     pixels
 }
-
-pub const ICONS_FONT: &[u8] = include_bytes!("../assets/icons/MaterialSymbolsRounded-Filled.ttf");
-const UBUNTU_LIGHT: &[u8] = include_bytes!("../assets/fonts/Ubuntu-Light.ttf");
-const HACK_REGULAR: &[u8] = include_bytes!("../assets/fonts/Hack-Regular.ttf");
-const NOTO_EMOJI_REGULAR: &[u8] = include_bytes!("../assets/fonts/NotoEmoji-Regular.ttf");
 
 #[cfg(test)]
 mod tests;

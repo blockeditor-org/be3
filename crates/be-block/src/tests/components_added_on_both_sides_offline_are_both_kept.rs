@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore = "each side takes the grid's next component id, and grid() keeps only the first component with a given id"]
 fn components_added_on_both_sides_offline_are_both_kept() {
     let base = LogicGridContent::default();
     let id = base.root().grid().next_component_id();

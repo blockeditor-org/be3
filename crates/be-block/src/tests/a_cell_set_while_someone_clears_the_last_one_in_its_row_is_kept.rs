@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore = "clearing a row's last cell removes the row as it was seen, taking a cell someone set in it at the same time"]
 fn a_cell_set_while_someone_clears_the_last_one_in_its_row_is_kept() {
     let (name, age) = (Uuid::new_v4(), Uuid::new_v4());
     let empty = DatabaseContent::default();

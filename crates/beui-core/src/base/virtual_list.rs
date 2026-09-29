@@ -92,6 +92,12 @@ impl Metrics {
         (index - at) as f32 * self.estimated + measured
     }
 
+    fn estimate(&self, index: usize) -> f32 {
+        let at = self.entries.partition_point(|(held, _)| *held < index);
+        let measured: f32 = self.entries[..at].iter().map(|(_, length)| length).sum();
+        (index - at) as f32 * self.estimated + measured
+    }
+
     fn total(&self) -> f32 {
         (self.count - self.entries.len()) as f32 * self.estimated + self.measured
     }
@@ -493,6 +499,16 @@ impl Document {
         for row in evicted {
             self.remove_node(row);
         }
+    }
+
+    pub fn virtual_list_offset<K: Clone + Hash + Eq + 'static>(
+        &self,
+        list: NodeId,
+        key: &K,
+    ) -> Option<f32> {
+        let node = self.arena.get_as::<VirtualListNode<K>>(list);
+        let index = *node.indices.get(key)?;
+        Some(node.metrics.estimate(index))
     }
 
     pub fn set_virtual_list_item_size<K: Clone + Hash + Eq + 'static>(

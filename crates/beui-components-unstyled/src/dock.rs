@@ -5,7 +5,7 @@ mod tests;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
@@ -162,6 +162,7 @@ struct State {
     owner: Option<ScopeContext>,
     tab: RenderFn<DockTabHandle>,
     content: RenderFn<TabId>,
+    empty: RenderFn<()>,
     panel: RenderFn<DockPanelHandle>,
     splitter: RenderFn<DockSplitterHandle>,
     grip: RenderFn<DockGripHandle>,
@@ -508,9 +509,13 @@ impl State {
                 return (DockDrop::Group { leaf, index }, *rect);
             }
             if along(pos) < along(rect.center()) {
+                let at = match index.checked_sub(1).and_then(|before| rects.get(before)) {
+                    Some(before) => (along(before.max) + along(rect.min)) / 2.0,
+                    None => along(rect.min),
+                };
                 return (
                     DockDrop::Tab { leaf, index },
-                    marker_rect(direction, along(rect.min), bar),
+                    marker_rect(direction, at, bar),
                 );
             }
         }
@@ -711,6 +716,7 @@ pub fn Dock(
     #[prop(default = 0.0)] group_inset: f32,
     tab: RenderFn<DockTabHandle>,
     #[prop(children)] content: RenderFn<TabId>,
+    empty: Option<RenderFn<()>>,
     panel: Option<RenderFn<DockPanelHandle>>,
     splitter: Option<RenderFn<DockSplitterHandle>>,
     grip: Option<RenderFn<DockGripHandle>>,
@@ -739,6 +745,13 @@ pub fn Dock(
         bars: RefCell::default(),
         tab,
         content,
+        empty: empty.unwrap_or_else(|| {
+            RenderFn::new(|()| {
+                view! {
+                    <Frame />
+                }
+            })
+        }),
         panel: panel.unwrap_or_else(|| {
             RenderFn::new(|handle| {
                 view! {
@@ -1181,11 +1194,21 @@ fn DockTabBody(dock: Handle, leaf: LeafId) -> NodeId {
     let state = dock.state.clone();
     let shown = create_memo(clone!(state -> move || state.with(|state| state.active_tab(leaf))));
     let (panel, set_panel) = create_signal(None);
-    create_effect(clone!(dock -> move || {
+    create_effect(clone!(dock shown -> move || {
         set_panel.set(shown.get().map(|tab| dock.panel(tab)));
     }));
+    let vacant = create_memo(clone!(shown -> move || shown.get().is_none()));
+    let occupied = create_memo(move || shown.get().is_some());
+    let empty = dock.empty.clone();
     view! {
-        <Portal node={panel} />
+        <List spacing=0.0>
+            <Show condition={vacant}>
+                {empty.call(())} @sizing=ItemSize::Percent(100.0)
+            </Show>
+            <Show condition={occupied}>
+                <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
+            </Show>
+        </List>
     }
 }
 
@@ -1568,7 +1591,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
             };
             let banding = with_document(|document| document.rubber_banding());
             let mut origin = window.min;
-            if !band.step(Instant::now(), &mut origin, limit, banding) {
+            if !band.step(beui_core::timer::now(), &mut origin, limit, banding) {
                 return None;
             }
             if origin != window.min {
@@ -1691,7 +1714,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                 let origin = reachable_origin(placed, bounds, reach());
                                 let banding = with_document(|document| document.rubber_banding());
                                 let mut band = stretched.borrow_mut();
-                                band.stretch(origin, placed.min - origin, bounds, banding, Instant::now());
+                                band.stretch(origin, placed.min - origin, bounds, banding, beui_core::timer::now());
                                 set_stretch.set(band.offset);
                                 moved.edit(|state| {
                                     state.set_window_rect(
@@ -1704,7 +1727,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                 if active {
                                     return;
                                 }
-                                released.borrow_mut().release(Instant::now());
+                                released.borrow_mut().release(beui_core::timer::now());
                                 bounce.start(Duration::ZERO);
                             }}
                         >

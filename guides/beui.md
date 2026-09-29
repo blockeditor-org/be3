@@ -221,7 +221,11 @@ hooks the higher crates fill in:
 - The simulated mouse is an `InputSimulation` the inspector installs on the
   `Context`.
 - Text is shaped by the `FontBackend` a `Context` is made with.
-  `beui::context()` makes one over `FreetypeFonts`.
+  `beui::context()` makes one over `FreetypeFonts` and only the fonts beui
+  bundles, which is what tests use; `beui::system_context()`, which the
+  runners use, adds the system's own fonts for whatever the bundled ones do
+  not cover. The fonts live in a `FontLibrary` that contexts can share and
+  that can be given more fonts later, which lays their text out again.
 - The document's theme lives in a typed slot on the document
   (`Document::extension`); `beui::styled::DocumentTheme` reads and writes it.
 - A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
@@ -269,9 +273,8 @@ need:
 
 `Drawing` is the one base node that paints rather than arranges: it takes a
 `Draw`, a callback handed the `Painter` and the rectangle the node was laid out
-at. It is for content whose shape is computed rather than arranged -
-`unstyled::TextArea` lays a syntax-highlighted document out itself, byte by
-byte, and paints the result as four layers. Build the callback in a memo over the page it draws,
+at. It is for content whose shape is computed rather than arranged - a plot, a
+waveform, a canvas of strokes. Build the callback in a memo over the page it draws,
 so the closure is replaced only when that page changes, and cull to
 `painter.clip_rect()` inside it, so a document far taller than the viewport
 costs the screenful it shows. Reach for it only when there genuinely is no
@@ -279,7 +282,21 @@ arrangement of nodes that says the same thing: a row of labels is a `List` of
 `Text`, not a `Drawing`. It measures to nothing, so it takes its size from
 whatever places it - a `Frame` with a width and a height, or a `CanvasItem`.
 
-The galleys such a page paints come from `layout_text(text, font, layout)`,
+Text is never one of those. `Text` takes `spans` - byte ranges of its string
+with a font, a colour, an underline or a strikethrough each, or a fixed-width
+space, or the next of its `TextItem` children laid inline - and lays the runs
+out and wraps them itself, breaking after whitespace or after a span marked
+`break_after`, with `line_padding` above and below each line. It also paints
+`marks` behind the text (a selection, a code background) and `carets` in front
+of it, blinking ones included, and a `TextItem` given `at` is placed at that
+index as if it were a caret, which is how something floats beside a position
+in the text. `Document::text_geometry` answers where an index is and which index is
+under a point from the node's last layout, without a document installed.
+`unstyled::TextArea` is built from exactly this: a row per document line in a
+`VirtualList`, a gutter of `Text`s beside it, and checkboxes, embedded widgets
+and the caret's anchor as `TextItem`s.
+
+The galleys a `Drawing` paints come from `layout_text(text, font, layout)`,
 which lays text out with the shown document's fonts and answers `None` until
 the document has been shown once. It is how a component measures text outside
 `measure` and `paint` - to work out where a caret sits, or how wide a column
@@ -343,9 +360,14 @@ under the pointer. The unstyled module contains
 `Stack`, `Calendar`, `DateTimeField`, `TimeList` and `ColorArea`. `TextArea` is the multiline one: it owns a
 `text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
 document out with a gutter, wrapping, collapsible sections and markdown
-checkboxes, and reserves room for the inline and block `TextWidget`s the caller
-names - which is how a block editor puts an embedded block inside the text and
-drives the same document from a toolbar of its own. The state republishes
+checkboxes, and lays out the inline and block `TextWidget`s the caller
+names - `block` builds what goes under a block widget's line, and
+`selected_widget` what floats under an inline one while it is selected - which
+is how a block editor puts an embedded block inside the text and drives the
+same document from a toolbar of its own. A `completer` names a trigger
+character and a search: typing it after a space opens the menu
+`completion_menu` draws under the caret, filtered by what follows it, with
+arrows, Enter and Escape; `styled::TextArea` uses it for emoji (`:rocket`). The state republishes
 what it shows whenever one of its own commands runs; code that changes the
 document behind it - adopting an edit that arrived from someone else - calls
 `sync()`, or `external_edit()` when the edit should also break the undo group,
@@ -767,6 +789,11 @@ Because the state is a plain value, the caller opens, closes, splits and floats
 by writing it: `show`, `push`, `push_to_focused`, `split`, `remove`, `replace`
 and `drop_tab` are the whole vocabulary, and `find`, `all_tabs`, `focused_tab`
 and `surface_tabs` read it back.
+A pane can hold no tabs at all - the main surface emptied of its last tab, or
+one `split` with none - and shows the `empty` view the caller passes in its
+body instead of a panel; `empty_panes` finds them and `remove_empty_panes`
+gives their room back, which is how the workspace keeps an empty pane beside
+Files that says nothing is open rather than a tab that says so.
 
 Each surface - the main one and one per window - lays its tree out over the
 rectangle it was given, so panes and the bars between them are canvas items at
@@ -781,7 +808,7 @@ inserts it between the tabs there, the middle of a pane joins that pane, and an
 edge of one splits it. Holding Alt while dropping floats the tab into a window
 instead, which is also what "Pop out into a window" on a tab's own menu does. Every pane
 and every window wears the same bar: a grip, the tabs, and a button that closes
-them all, shown only when every tab in it can close. A finger picks a tab up by
+them all, shown only when every tab in it can close. A middle click on a tab closes it. A finger picks a tab up by
 dragging it out of its bar, across the way the bar scrolls; sliding along the
 bar scrolls it. Dragging a docked pane's
 grip carries the whole pane (`DockState::drop_leaf`), with the same drop targets
@@ -1094,6 +1121,12 @@ Beui's features:
   NativeActivity's input queue never delivers. The library defines
   `#[unsafe(no_mangle)] fn android_main(app: beui::AndroidApp)`, which beui
   calls on a thread of its own, and which calls `beui::run_with`.
+
+The soft keyboard takes its room out of the window rather than covering it: on
+Android its inset joins the safe area, and on the web the pages' viewport meta
+asks for `interactive-widget=resizes-content`. When the rectangle a document is
+shown in changes size while the focus takes text, the document scrolls the
+focused field into what is left, through every scroll it sits in.
 - `web` adds the browser runner, `beui::run_web(canvas_id, options, app)`,
   and enables `render`.
 - `dom` is the other browser runner,
@@ -1165,10 +1198,12 @@ and in a beui block editor plugin.
 
 "Simulate mouse with touch" turns the whole shown rectangle into a trackpad and
 paints a cursor the document reacts to, in the shape of the frame's
-`CursorIcon`. One finger moves the cursor, a tap clicks it, a tap followed by a
-press and drag drags with the primary button, and two fingers scroll smoothly. A
-stroke that moved the cursor is never a tap, and the press after a tap only
-becomes a drag once it moves: lifted in place it is a second click. The strip along the bottom holds the left, middle,
+`CursorIcon`. One finger moves the cursor, and two fingers scroll smoothly. A
+tap presses the primary button where it lands and holds it until the double-tap
+timer runs out, which makes it a click. A press within that time keeps the
+button down: moving it drags from where the tap landed, and lifting it in place
+locks the button, so that the drag carries on across touches until a single tap
+releases it. A stroke that moved the cursor is never a tap. The strip along the bottom holds the left, middle,
 and right mouse buttons plus a keyboard toggle: a button stays held for as long
 as its finger is down, another finger can work the trackpad at the same time,
 and swiping up or down on the middle button scrolls a wheel tick at a time. The
@@ -1531,8 +1566,9 @@ stays where it is, touch scrolling does not start, and no other catcher arms.
 Paint such parts with `Painter::on_top`, which draws above the rest of the
 document, or of the overlay being painted, or from a `CanvasItem` with
 `clip=false`, which a canvas paints without cutting it to its own rectangle.
-The touch selection handles of `unstyled::TextArea` use `capture_at` and an
-unclipped item.
+The touch selection handles of `unstyled::TextArea` use `capture_at` and are
+carets with a handle, which `Text` paints on top; a single-line area paints
+them from an unclipped item.
 
 Do not put theme colors, fixed visual spacing, typography choices, or decorative
 shapes in this layer. A new skin should be able to use the unstyled control
@@ -1694,7 +1730,10 @@ drawing's own coordinates, is damaged (the plugin host does this with the
 rectangles each plugin frame reports it changed). beui's own tests, and every test that drives a plugin through
 `block-ui-test` (which turns on `beui::verify_paint`), paint every frame again
 from scratch and fail when the retained painting differs from it or changed
-outside the damage.
+outside the damage. With `BEUI_OVER_REPAINT=1` in the environment (or
+`beui::detect_over_repaint(true)` on the thread that paints) they also report
+every frame whose damage is more than four times the area of the shapes that
+changed, to stderr and to `beui::take_over_repaints`.
 
 What a node recorded is an immutable display list (`display.rs`) holding its own
 shapes and its children's lists, and a frame hands the renderer the lists of its

@@ -352,6 +352,11 @@ fn finish() -> Output {
 }
 
 #[cfg(test)]
+pub(crate) fn repaint_requested() -> bool {
+    with(|host| host.output.repaint)
+}
+
+#[cfg(test)]
 pub(crate) fn test_frame(events: Vec<Event>, pointer: Option<Pos2>, pressed: bool) {
     test_frame_with(events, pointer, pressed, false);
 }
@@ -647,6 +652,7 @@ pub(crate) struct Ui<'a> {
     rect: Rect,
     clip: Rect,
     layer: u8,
+    passive: bool,
 }
 
 impl<'a> Ui<'a> {
@@ -656,11 +662,24 @@ impl<'a> Ui<'a> {
             rect,
             clip,
             layer,
+            passive: false,
         }
     }
 
     pub(crate) fn register(&self, target: Target, rect: Rect) {
-        register(target, rect, self.clip, self.layer);
+        if !self.passive {
+            register(target, rect, self.clip, self.layer);
+        }
+    }
+
+    pub(crate) fn passive(&mut self, passive: bool) -> Ui<'_> {
+        Ui {
+            output: self.output,
+            rect: self.rect,
+            clip: self.clip,
+            layer: self.layer,
+            passive: self.passive || passive,
+        }
     }
 
     pub(crate) fn rect(&self) -> Rect {
@@ -677,6 +696,7 @@ impl<'a> Ui<'a> {
             rect,
             clip: clip.intersect(self.clip),
             layer: self.layer,
+            passive: self.passive,
         }
     }
 

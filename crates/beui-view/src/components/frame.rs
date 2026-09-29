@@ -28,6 +28,7 @@ pub fn Frame(
     #[prop(default = None)] width: Prop<Option<f32>>,
     #[prop(default = None)] max_width: Prop<Option<f32>>,
     #[prop(default = None)] height: Prop<Option<f32>>,
+    #[prop(default = None)] min_height: Prop<Option<f32>>,
     #[prop(default = None)] aspect_ratio: Prop<Option<f32>>,
     #[prop(default = 0.0)] padding_horizontal: Prop<f32>,
     #[prop(default = 0.0)] padding_vertical: Prop<f32>,
@@ -50,6 +51,7 @@ pub fn Frame(
     bind_measurement(frame, width, Document::set_frame_width);
     bind_measurement(frame, max_width, Document::set_frame_max_width);
     bind_measurement(frame, height, Document::set_frame_height);
+    bind_measurement(frame, min_height, Document::set_frame_min_height);
     bind_measurement(frame, aspect_ratio, Document::set_frame_aspect_ratio);
     create_effect(move || {
         with_document(|document| {

@@ -72,10 +72,11 @@ fn Line(
     color: Prop<Color32>,
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
     #[prop(default = false)] wrap: Prop<bool>,
+    #[prop(default = false)] ellipsis: Prop<bool>,
 ) -> NodeId {
     let text = create_memo(move || content.get());
     view! {
-        <Text string={text} font_size color align wrap />
+        <Text string={text} font_size color align wrap ellipsis />
     }
 }
 
@@ -129,9 +130,10 @@ pub fn Caption(
     #[prop(default = TextAlign::Start)] align: Prop<TextAlign>,
     #[prop(default = muted_color())] color: Prop<Color32>,
     #[prop(default = false)] wrap: Prop<bool>,
+    #[prop(default = false)] ellipsis: Prop<bool>,
 ) -> NodeId {
     view! {
-        <Line content font_size=FONT_SMALL color align wrap />
+        <Line content font_size=FONT_SMALL color align wrap ellipsis />
     }
 }
 

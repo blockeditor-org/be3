@@ -93,9 +93,6 @@ rodio = "0.20"
 # and the browser sandbox has neither.
 [target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 arboard = "3.6"
-# The native file dialog. Android and the browser reach their own pickers
-# instead, from platform/file_picker.rs.
-rfd = "0.15"
 winit = "0.30"
 wry = { version = "0.55.1", optional = true }
 
@@ -103,6 +100,17 @@ wry = { version = "0.55.1", optional = true }
 # a plugin's session messages it accepts. Nothing in the app links it.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 block-editor-plugin = { path = "../block-editor-plugin" }
+pollster = "0.4"
+
+# The native file dialog. Android and the browser reach their own pickers
+# instead, from platform/file_picker.rs, and Linux asks xdg-desktop-portal and
+# then zenity itself, so it can say when neither is there.
+[target.'cfg(all(not(target_os = "android"), not(target_os = "linux"), not(target_arch = "wasm32")))'.dependencies]
+rfd = "0.15"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd = { version = "0.11", default-features = false, features = ["async-std"] }
+pollster = "0.4"
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 libc = "0.2"
@@ -132,6 +140,7 @@ web-sys = { version = "0.3", features = [
     "File",
     "FileList",
     "Headers",
+    "HtmlAnchorElement",
     "HtmlAudioElement",
     "HtmlElement",
     "HtmlInputElement",

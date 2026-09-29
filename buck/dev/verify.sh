@@ -6,19 +6,23 @@
 # snapshots/. Naming none runs all three; CI runs them on three runners.
 # Every tool writes its fixes and the plugin tests accept new paintings, unless
 # --check, which writes nothing and fails on anything that would change.
+# Locally it prints only what failed, cut down by scripts/internal/quiet.awk;
+# in CI, or with --verbose, it prints everything as it goes.
 #
 # Usage:
-#   ./scripts/buck run //:verify [-- --check] [--lint] [--tests] [--plugin-tests]
+#   ./scripts/buck run //:verify [-- --check] [--lint] [--tests] [--plugin-tests] [--verbose]
 set -u
 buck="$(pwd)/scripts/buck"
-check=false lint=false tests=false plugin_tests=false
+check=false lint=false tests=false plugin_tests=false verbose=false
+[ -n "${CI:-}" ] && [ "${CI:-}" != false ] && verbose=true
 for argument in "$@"; do
     case "$argument" in
         --check) check=true ;;
         --lint) lint=true ;;
         --tests) tests=true ;;
         --plugin-tests) plugin_tests=true ;;
-        *) echo "Usage: ./scripts/buck run //:verify -- [--check] [--lint] [--tests] [--plugin-tests]" >&2; exit 1 ;;
+        --verbose) verbose=true ;;
+        *) echo "Usage: ./scripts/buck run //:verify -- [--check] [--lint] [--tests] [--plugin-tests] [--verbose]" >&2; exit 1 ;;
     esac
 done
 if ! $lint && ! $tests && ! $plugin_tests; then
@@ -26,9 +30,20 @@ if ! $lint && ! $tests && ! $plugin_tests; then
 fi
 failed=false
 
+quiet_filter="$(pwd)/scripts/internal/quiet.awk"
+step_log="$(pwd)/target/verify-step.log"
+
 step() {
     name="$1"
     shift
+    if ! $verbose; then
+        "$@" > "$step_log" 2>&1 && return 0
+        failed=true
+        echo "$name failed:"
+        awk -f "$quiet_filter" < "$step_log"
+        echo
+        return 0
+    fi
     echo "$name..."
     started="$(date +%s)"
     "$@" || failed=true
@@ -127,14 +142,40 @@ plugin_tests() {
     return 1
 }
 
-if $lint; then
+build_tools() {
     tools="$("$buck" build --show-full-output //buck/tools:rustfmt-sysroot //buck/tools:starlark_fmt \
-        //crates/fix-rust-source:fix-rust-source-bin //crates/buck-tools:buck-tools-bin)" || exit 1
-    path() { echo "$tools" | awk -v target="$1" '$1 == target { print $2 }'; }
+        //crates/fix-rust-source:fix-rust-source-bin //crates/buck-tools:buck-tools-bin 2> "$step_log")" || {
+        echo "Building the lint tools failed:"
+        if $verbose; then cat "$step_log"; else awk -f "$quiet_filter" < "$step_log"; fi
+        exit 1
+    }
+    $verbose && cat "$step_log" >&2
     rustfmt="$(path root//buck/tools:rustfmt-sysroot)/bin/rustfmt"
     starlark_fmt="$(path root//buck/tools:starlark_fmt)"
     fix_rust_source="$(path root//crates/fix-rust-source:fix-rust-source-bin)"
     buck_tools="$(path root//crates/buck-tools:buck-tools-bin)"
+}
+
+path() { echo "$tools" | awk -v target="$1" '$1 == target { print $2 }'; }
+
+tools_missing() {
+    for tool in "$rustfmt" "$starlark_fmt" "$fix_rust_source" "$buck_tools"; do
+        [ -x "$tool" ] || return 0
+    done
+    return 1
+}
+
+# When BuildBuddy resets a download, ./scripts/buck builds again and buck2 can
+# answer that everything is built while some of the files it lost are not on
+# disk, because its materializer state says they are. Cleaning forgets that
+# state, and the next build downloads them from the cache.
+if $lint; then
+    build_tools
+    if tools_missing; then
+        echo "buck2 built the lint tools without writing all of them; cleaning and building again." >&2
+        "$buck" clean > /dev/null 2>&1
+        build_tools
+    fi
 
     step "file modes" file_modes
     step Cargo.lock cargo_lock

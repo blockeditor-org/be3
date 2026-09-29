@@ -70,6 +70,7 @@ impl Screens {
     pub(crate) fn receive(&mut self, message: &Message) -> bool {
         match message {
             Message::HelloAccepted(accepted) => self.surface = accepted.surface,
+            Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::Editor(EditorMessage::Open {
                 instance,
                 block_id,
@@ -459,7 +460,7 @@ impl Screens {
     }
 
     pub(crate) fn outbound(&mut self) -> Vec<Message> {
-        let mut messages = Vec::new();
+        let mut messages = Vec::from_iter(crate::fonts::take_missing());
         for session in self.sessions.values_mut() {
             messages.extend(session.outbound());
         }

@@ -6,7 +6,6 @@ fn the_sidebar_captures_the_preview_region() {
 
     editor.click("map.preview-region");
     editor.run();
-    editor.run();
 
     let region = map(&editor).preview_region;
     assert!(region.is_some());

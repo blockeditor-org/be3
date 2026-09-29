@@ -35,6 +35,7 @@ pub struct FrameNode {
     pub width: Option<f32>,
     pub max_width: Option<f32>,
     pub height: Option<f32>,
+    pub min_height: Option<f32>,
     pub aspect_ratio: Option<f32>,
     pub padding_horizontal: f32,
     pub padding_vertical: f32,
@@ -106,6 +107,7 @@ impl Default for FrameNode {
             width: None,
             max_width: None,
             height: None,
+            min_height: None,
             aspect_ratio: None,
             padding_horizontal: 0.0,
             padding_vertical: 0.0,
@@ -136,7 +138,9 @@ impl Element for FrameNode {
         let padded = inner + padding;
         let size = grid.snap_vec(vec2(
             self.width_within(available.x, padded.x),
-            self.height.unwrap_or(padded.y),
+            self.height
+                .unwrap_or(padded.y)
+                .max(self.min_height.unwrap_or(0.0)),
         ));
         match self.aspect_ratio {
             Some(ratio) if ratio > 0.0 => grid.snap_vec(cover(size, ratio)),
@@ -240,6 +244,12 @@ impl Document {
     pub fn set_frame_max_width(&mut self, frame: NodeId, max_width: Option<f32>) {
         if self.arena.get_as::<FrameNode>(frame).max_width != max_width {
             self.arena.get_mut_as::<FrameNode>(frame).max_width = max_width;
+        }
+    }
+
+    pub fn set_frame_min_height(&mut self, frame: NodeId, min_height: Option<f32>) {
+        if self.arena.get_as::<FrameNode>(frame).min_height != min_height {
+            self.arena.get_mut_as::<FrameNode>(frame).min_height = min_height;
         }
     }
 

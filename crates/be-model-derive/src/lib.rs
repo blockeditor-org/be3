@@ -70,6 +70,11 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
                 ];
                 out[slot].1 = ::be_model::Object::new(parent, fields);
             }
+
+            fn upgrade(tree: &mut ::be_model::Tree, id: ::be_model::ObjectId) {
+                tree.upgrade(id, <Self as ::be_model::Model>::blank());
+                #(<#types as ::be_model::Field>::upgrade(tree, id, #indices);)*
+            }
         }
 
         impl #implementation #name #type_arguments #where_clause {

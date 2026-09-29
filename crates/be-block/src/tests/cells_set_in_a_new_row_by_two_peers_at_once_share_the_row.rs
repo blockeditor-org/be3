@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore = "set_cell addresses a row by index and inserts a fresh row when it is missing, so two peers filling the same new row make two rows"]
 fn cells_set_in_a_new_row_by_two_peers_at_once_share_the_row() {
     let (name, age) = (Uuid::new_v4(), Uuid::new_v4());
     let base = DatabaseContent::default();

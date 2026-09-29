@@ -1748,7 +1748,14 @@ fn scissor(damaged: [f32; 4], origin: Vec2) -> [u32; 4] {
 }
 
 pub fn clear_color(color: Color32) -> wgpu::Color {
-    let [red, green, blue, alpha] = color.to_linear_f32();
+    clear_color_in(wgpu::TextureFormat::Rgba8UnormSrgb, color)
+}
+
+pub fn clear_color_in(format: wgpu::TextureFormat, color: Color32) -> wgpu::Color {
+    let [red, green, blue, alpha] = match format.is_srgb() {
+        true => color.to_linear_f32(),
+        false => color.to_normalized_gamma_f32(),
+    };
     wgpu::Color {
         r: red as f64,
         g: green as f64,

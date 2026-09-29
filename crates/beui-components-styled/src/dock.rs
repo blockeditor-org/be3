@@ -15,8 +15,8 @@ use beui_core::color::Color32;
 use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_TAB_GROUP};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCallback, Frame, Func, List, Memo, Prop, ReadSignal, RenderFn, Show, Text,
-    clone, create_memo, focus_ring,
+    Callback, ClickCallback, ClickCatcher, Frame, Func, List, Memo, Prop, ReadSignal, RenderFn,
+    Show, Text, clone, create_memo, focus_ring,
 };
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
@@ -43,9 +43,17 @@ pub fn DockArea(
     on_close: Callback<TabId>,
     title: Func<TabId, String>,
     closable: Option<Func<TabId, bool>>,
+    empty: Option<RenderFn<()>>,
     #[prop(children)] content: RenderFn<TabId>,
 ) -> NodeId {
     let closable = closable.unwrap_or_else(|| Func::new(|_| true));
+    let empty = empty.unwrap_or_else(|| {
+        RenderFn::new(|()| {
+            view! {
+                <Frame />
+            }
+        })
+    });
     view! {
         <unstyled::Dock
             state
@@ -54,6 +62,7 @@ pub fn DockArea(
             on_close={move |tab: TabId| on_close.call(tab)}
             title
             content
+            empty={move || empty.call(())}
             tab={clone!(closable -> move |handle: DockTabHandle| {
                 let closable = closable.clone();
                 view! {
@@ -118,6 +127,8 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
     let alone = create_memo(clone!(has_next -> move || !has_next.get()));
     let grouped = matches!(entry, Entry::Group(_));
     let closing = close.clone();
+    let middle = close.clone();
+    let closes = closable.clone();
     let items = match grouped {
         false => view! {
             <MenuItem label="Pop out into a window" disabled={floating} />
@@ -151,19 +162,27 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
                 _ => {}
             }}
         >
-            <DockTabChrome
-                title
-                grouped
-                vertical
-                selected
-                hovered
-                active
-                focused
-                dragged
-                closable
-                close_test_id={close_test_id(entry)}
-                close={move || close.call()}
-            />
+            <ClickCatcher
+                on_middle_click={move || {
+                    if closes.get_untracked() {
+                        middle.call();
+                    }
+                }}
+            >
+                <DockTabChrome
+                    title
+                    grouped
+                    vertical
+                    selected
+                    hovered
+                    active
+                    focused
+                    dragged
+                    closable
+                    close_test_id={close_test_id(entry)}
+                    close={move || close.call()}
+                />
+            </ClickCatcher>
         </ContextMenu>
     }
 }

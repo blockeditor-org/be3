@@ -33,7 +33,9 @@ pub struct InteractInput {
     pub secondary_drag: Option<SecondaryDrag>,
     pub middle_down: bool,
     pub middle_pressed_this_frame: bool,
+    pub middle_released_this_frame: bool,
     pub scroll: Vec2,
+    pub scroll_fling: Vec2,
     pub zoom: f32,
     pub touch_pan: Vec2,
     pub zoom_pos: Option<Pos2>,
@@ -55,7 +57,7 @@ pub struct InteractInput {
 
 impl InteractInput {
     pub fn over(&self, rect: Rect, pos: Pos2) -> bool {
-        rect.contains(pos) && self.visible.contains(pos)
+        rect.contains_half_open(pos) && self.visible.contains_half_open(pos)
     }
 
     pub fn pointer_over(&self, rect: Rect) -> bool {
@@ -92,6 +94,10 @@ pub trait Element: Any {
     }
 
     fn captures(&mut self, _doc: &mut Document, _pos: Pos2, _rect: Rect) -> bool {
+        false
+    }
+
+    fn intercepts(&mut self, _doc: &mut Document, _pos: Pos2, _rect: Rect) -> bool {
         false
     }
 

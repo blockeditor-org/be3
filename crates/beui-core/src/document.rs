@@ -62,7 +62,7 @@ pub struct Document {
     pub touch_scroll_vertical: Option<NodeId>,
     pub touch_shift: crate::geometry::Vec2,
     pub touch_scroll_horizontal: Option<NodeId>,
-    pub wheel_latch: Option<(NodeId, Instant)>,
+    pub wheel_latch: Option<(NodeId, Instant, Option<crate::geometry::Pos2>)>,
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub pointer_capture: Option<NodeId>,
     pub drags: Rc<crate::drag_board::Board>,
@@ -95,6 +95,7 @@ pub struct Document {
     pub verifies_paint: bool,
     pub copied_text: Option<String>,
     next_paint: Option<Instant>,
+    now: Instant,
     reactive_scope: ::reactive::Scope,
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
@@ -264,6 +265,7 @@ impl Document {
             verifies_paint: true,
             copied_text: None,
             next_paint: None,
+            now: Instant::now(),
             reactive_scope: ::reactive::Scope::new(),
             extensions: HashMap::new(),
             node_scopes: HashMap::new(),
@@ -391,7 +393,7 @@ impl Document {
         if self.reattached.replace(false) {
             self.attached.1.update(|attached| *attached += 1);
         }
-        let now = Instant::now();
+        let now = self.now;
         let mut timers = self.timers.borrow_mut();
         timers.retain(|timer| timer.strong_count() > 0);
         let due: Vec<_> = timers
@@ -710,12 +712,25 @@ impl Document {
         self.placement.and_then(|(_, placement)| placement)
     }
 
+    pub fn now(&self) -> Instant {
+        self.now
+    }
+
     pub fn show_content(&mut self, ctx: &Context, rect: Rect, pointer: bool, keys: Keys) {
+        self.now = ctx.now();
         let mut measurement = FrameMeasurement::new();
         self.work.reset();
         let scale = ctx.pixels_per_point();
         let fonts_generation = ctx.fonts_generation();
-        if std::mem::replace(&mut self.fonts_generation, fonts_generation) != fonts_generation
+        let resized = self
+            .viewport
+            .as_ref()
+            .is_some_and(|(old_ctx, old_rect, _)| {
+                ctx.same(old_ctx) && old_rect.size() != rect.size()
+            });
+        let refonted =
+            std::mem::replace(&mut self.fonts_generation, fonts_generation) != fonts_generation;
+        if refonted
             || self
                 .viewport
                 .as_ref()
@@ -723,10 +738,11 @@ impl Document {
                     !ctx.same(old_ctx) || *old_rect != rect || *old_scale != scale
                 })
         {
-            let reattached = self
-                .viewport
-                .as_ref()
-                .is_none_or(|(old_ctx, _, _)| !ctx.same(old_ctx));
+            let reattached = refonted
+                || self
+                    .viewport
+                    .as_ref()
+                    .is_none_or(|(old_ctx, _, _)| !ctx.same(old_ctx));
             self.reattached.set(self.reattached.get() || reattached);
             self.arena.invalidate();
             self.viewport = Some((ctx.clone(), rect, scale));
@@ -767,11 +783,6 @@ impl Document {
                 }
             });
         }
-        if !keys.ignored()
-            && let Some(area) = self.focused_ime_area()
-        {
-            ctx.set_ime_area(Some(area));
-        }
         if self.handles_back() {
             ctx.handle_back();
         }
@@ -784,8 +795,18 @@ impl Document {
         }
         measurement.layout_passes =
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
-                usize::from(self.update_layout(ctx, rect))
+                let mut passes = usize::from(self.update_layout(ctx, rect));
+                if resized && self.focus_takes_text() {
+                    self.reveal_focus(&ctx.painter());
+                    passes += usize::from(self.update_layout(ctx, rect));
+                }
+                passes
             });
+        if !keys.ignored()
+            && let Some(area) = self.focused_ime_area()
+        {
+            ctx.set_ime_area(Some(area));
+        }
         if ctx.test_ids_published() {
             let mut live = None;
             for (test_id, nodes) in &self.test_ids {
@@ -808,7 +829,7 @@ impl Document {
                 }
             }
         }
-        let now = Instant::now();
+        let now = self.now;
         self.changes.prune(now);
         self.damage_flashes.prune(now);
         if self.arena.take_everything() {
@@ -832,10 +853,11 @@ impl Document {
             FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
             let moves = self.paint_cache.get_mut().take_moves();
+            let everything = self.damage.is_everything();
             let region = self.damage.take(rect);
             let (region, moved) = self.settle_moves(moves, region, rect);
             if let Some(previous) = previous {
-                self.verify_paint(ctx, rect, &previous, &region, moved);
+                self.verify_paint(ctx, rect, &previous, &region, moved, everything);
             }
             for damaged in region.rects() {
                 self.damage_flashes.record(*damaged, now);
@@ -848,10 +870,10 @@ impl Document {
             self.next_paint = self.paint_cache.get_mut().next_deadline();
         }
         if let Some(deadline) = self.next_paint {
-            ctx.request_repaint_after(deadline.saturating_duration_since(Instant::now()));
+            ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
         }
         if let Some(deadline) = self.next_timer() {
-            ctx.request_repaint_after(deadline.saturating_duration_since(Instant::now()));
+            ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
         }
         ctx.show_painting(&self.painting);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
@@ -912,12 +934,19 @@ impl Document {
         };
         let visible = only.viewport.intersect(viewport);
         let rooted = self.paint_cache.borrow().rooted();
-        let (fixed, inner) = paint::fixed_damage(&rooted, only.node, visible, only.by);
+        let (fixed, inner) =
+            paint::fixed_damage(&rooted, only.node, &only.moving, visible, only.by);
         let shown = visible.intersect(inner);
         let landed = shown.intersect(shown.translate(only.by));
         let damaged = region
             .rects()
             .iter()
+            .filter(|rect| {
+                !only
+                    .absorbed
+                    .iter()
+                    .any(|absorbed| absorbed.contains_rect(**rect))
+            })
             .flat_map(|rect| [*rect, rect.translate(only.by).intersect(landed)])
             .chain(only.damaged.clipped(viewport).rects().iter().copied())
             .chain(fixed.rects().iter().copied())
@@ -958,6 +987,7 @@ impl Document {
         previous: &[Shape],
         region: &crate::damage::Region,
         moved: Option<Moved>,
+        everything: bool,
     ) {
         let counted = (
             self.work.painted_nodes.get(),
@@ -1001,13 +1031,36 @@ impl Document {
         let old = &previous[prefix..previous.len() - suffix];
         let new = &shapes[prefix..shapes.len() - suffix];
         let landed = moved.map_or(Rect::NOTHING, |moved| moved.from.translate(moved.by));
-        let changed = old
+        let changed: Vec<&Shape> = old
             .iter()
             .filter(|shape| !new.iter().any(|new| kept(shape, new)))
             .chain(
                 new.iter()
                     .filter(|shape| !old.iter().any(|old| kept(old, shape))),
-            );
+            )
+            .collect();
+        let mut needed = crate::damage::Region::NOTHING;
+        for shape in &changed {
+            needed.add(crate::damage::bounds(shape).intersect(viewport));
+        }
+        if !everything && moved.is_none() && detecting_over_repaint() {
+            let area = |region: &crate::damage::Region| {
+                region
+                    .rects()
+                    .iter()
+                    .map(|rect| rect.width() * rect.height())
+                    .sum::<f32>()
+            };
+            let (damaged, changed_area) = (area(region), area(&needed));
+            if damaged > changed_area * OVER_REPAINT_FACTOR + OVER_REPAINT_SLACK {
+                let report = OverRepaint {
+                    damaged: region.rects().to_vec(),
+                    changed: needed.rects().to_vec(),
+                };
+                eprintln!("beui over-repaint: {report:?}");
+                OVER_REPAINTS.with_borrow_mut(|reports| reports.push(report));
+            }
+        }
         for shape in changed {
             let bounds = crate::damage::bounds(shape).intersect(viewport);
             assert!(
@@ -1565,7 +1618,11 @@ impl Document {
         }
         for _ in 0..LAYOUT_PASSES {
             self.lay_out_pass(ctx, rect);
+            let unsettled = self.root.is_some_and(|root| self.arena.unplaced(root));
             if !std::mem::take(&mut self.spaces_moved) {
+                if unsettled {
+                    continue;
+                }
                 break;
             }
             let context = self.reactive_scope().context();
@@ -1575,7 +1632,7 @@ impl Document {
                     crate::current::with_document(Document::redeliver_placements);
                 });
             }
-            if self.layout_revision == self.arena.layout_revision {
+            if !unsettled && self.layout_revision == self.arena.layout_revision {
                 break;
             }
         }
@@ -1703,6 +1760,33 @@ fn flatten(painting: &[(Rc<Display>, Entry)]) -> Vec<Shape> {
         main.append(&mut top);
     }
     main
+}
+
+const OVER_REPAINT_FACTOR: f32 = 4.0;
+const OVER_REPAINT_SLACK: f32 = 64.0 * 64.0;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct OverRepaint {
+    pub damaged: Vec<Rect>,
+    pub changed: Vec<Rect>,
+}
+
+thread_local! {
+    static OVER_REPAINTS: RefCell<Vec<OverRepaint>> = const { RefCell::new(Vec::new()) };
+    static DETECT_OVER_REPAINT: Cell<bool> =
+        Cell::new(std::env::var_os("BEUI_OVER_REPAINT").is_some());
+}
+
+pub fn detect_over_repaint(enabled: bool) {
+    DETECT_OVER_REPAINT.set(enabled);
+}
+
+fn detecting_over_repaint() -> bool {
+    DETECT_OVER_REPAINT.get()
+}
+
+pub fn take_over_repaints() -> Vec<OverRepaint> {
+    OVER_REPAINTS.with_borrow_mut(std::mem::take)
 }
 
 static VERIFY_PAINT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);

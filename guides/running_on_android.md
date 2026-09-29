@@ -8,6 +8,10 @@ If that does not print `ok`, give up on the emulator: do not install the SDK, bo
 emulator without acceleration, or try to work around it. Without KVM the system image
 never becomes usable. Say in your handoff message that the change was not run on Android.
 
+Claude Code's cloud containers have no KVM: `/dev/kvm` does not exist and the CPU does not
+expose `vmx`/`svm` to the guest, so there the emulator cannot run. Only building the APK
+works.
+
 ## Starting it
 
     ./scripts/buck run //crates/block-app:android

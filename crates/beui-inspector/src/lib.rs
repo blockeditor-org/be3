@@ -353,6 +353,8 @@ pub struct Inspector {
     set_performance: WriteSignal<panel::PerformanceSummary>,
     set_renderer: WriteSignal<panel::RendererRows>,
     set_selection: WriteSignal<Vec<Key>>,
+    panel_compact: WriteSignal<bool>,
+    shown_compact: bool,
     tree: NodeRef,
     bar: panel::Bar,
     toolbar: responsive::Toolbar,
@@ -392,6 +394,8 @@ impl Inspector {
             set_performance: panel.set_performance,
             set_renderer: panel.set_renderer,
             set_selection: panel.set_selection,
+            panel_compact: panel.set_compact,
+            shown_compact: false,
             width: DEFAULT_WIDTH,
             grabbed: None,
             grip: false,
@@ -419,6 +423,11 @@ impl Inspector {
         let document = &self.bar.document;
         let bar = document.find_test_id("inspector.bar")?;
         document.node_rect(document.children(bar)[index])
+    }
+
+    pub fn bar_rect(&self, test_id: &str) -> Option<Rect> {
+        let document = &self.bar.document;
+        document.node_rect(document.find_test_id(test_id)?)
     }
 
     pub fn toolbar_rect(&self, test_id: &str) -> Option<Rect> {
@@ -577,6 +586,11 @@ impl Inspector {
         self.forget_removed(target);
         self.sync(target, ctx);
         let scale = scale(ctx);
+        let compact = self.state.compact.get();
+        if std::mem::replace(&mut self.shown_compact, compact) != compact {
+            let set_compact = self.panel_compact.clone();
+            with_reactive_scope(&mut self.document, || set_compact.set(compact));
+        }
         let document = &mut self.document;
         if panel.is_positive() {
             let focused = document.focused_node().is_some();
@@ -587,6 +601,8 @@ impl Inspector {
                 };
                 document.show_content(ctx, panel.scaled(scale.recip()), true, keys);
             });
+        } else {
+            document.hide();
         }
         self.show_bar(ctx, bar);
         if self.state.reset_performance.take() {
@@ -714,6 +730,7 @@ impl Inspector {
             ctx.report_damage(toolbar);
         }
         if !toolbar.is_positive() {
+            self.toolbar.document.hide();
             return;
         }
         let scale = scale(ctx);
@@ -736,6 +753,7 @@ impl Inspector {
 
     fn show_bar(&mut self, ctx: &Context, bar: Rect) {
         if !bar.is_positive() {
+            self.bar.document.hide();
             return;
         }
         let scale = scale(ctx);

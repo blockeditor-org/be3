@@ -29,6 +29,7 @@ pub struct ClickCatcherNode {
     pub dragged: Option<Pos2>,
     pub pan_active: bool,
     pub middle_dragged: Option<Pos2>,
+    pub middle_armed: bool,
     pub secondary_dragged: Option<Pos2>,
     pub on_click: ClickCallback,
     pub on_click_at: Callback<PointerPress>,
@@ -36,6 +37,7 @@ pub struct ClickCatcherNode {
     pub on_hover_move: Callback<PointerPress>,
     pub on_active_change: Callback<bool>,
     pub on_cancel: ClickCallback,
+    pub on_middle_click: ClickCallback,
     pub on_press: Callback<PointerPress>,
     pub on_secondary_press: Callback<PointerPress>,
     pub on_secondary_drag: Callback<SecondaryDrag>,
@@ -47,6 +49,7 @@ pub struct ClickCatcherNode {
     pub on_autoscroll: Callback<AutoscrollGesture>,
     pub on_zoom: Callback<ZoomGesture>,
     pub capture_at: Callback<Pos2, bool>,
+    pub intercept_at: Callback<Pos2, bool>,
 }
 
 impl Default for ClickCatcherNode {
@@ -74,6 +77,7 @@ impl ClickCatcherNode {
             dragged: None,
             pan_active: false,
             middle_dragged: None,
+            middle_armed: false,
             secondary_dragged: None,
             on_click: ClickCallback::empty(),
             on_click_at: Callback::empty(),
@@ -81,6 +85,7 @@ impl ClickCatcherNode {
             on_hover_move: Callback::empty(),
             on_active_change: Callback::empty(),
             on_cancel: ClickCallback::empty(),
+            on_middle_click: ClickCallback::empty(),
             on_press: Callback::empty(),
             on_secondary_press: Callback::empty(),
             on_secondary_drag: Callback::empty(),
@@ -92,6 +97,7 @@ impl ClickCatcherNode {
             on_autoscroll: Callback::empty(),
             on_zoom: Callback::empty(),
             capture_at: Callback::empty(),
+            intercept_at: Callback::empty(),
         }
     }
 
@@ -116,7 +122,7 @@ impl ClickCatcherNode {
     }
 
     pub fn claims_middle(&self) -> bool {
-        self.wants_autoscroll() || !self.on_pan_drag.is_empty()
+        self.wants_autoscroll() || !self.on_pan_drag.is_empty() || !self.on_middle_click.is_empty()
     }
 
     pub fn wants_wheel(&self, wheel: Vec2) -> bool {
@@ -171,6 +177,21 @@ impl ClickCatcherNode {
         }
         if fingers && input.touch_pan != Vec2::ZERO {
             self.on_pan_drag.call(input.touch_pan);
+        }
+    }
+
+    fn middle_click(&mut self, input: &InteractInput, contains_pointer: bool) {
+        if self.on_middle_click.is_empty() {
+            return;
+        }
+        if input.middle_pressed_this_frame {
+            self.middle_armed = contains_pointer;
+        }
+        if input.middle_released_this_frame {
+            if self.middle_armed && contains_pointer {
+                self.on_middle_click.call();
+            }
+            self.middle_armed = false;
         }
     }
 
@@ -266,11 +287,16 @@ impl Element for ClickCatcherNode {
             || self.dragged.is_some()
             || self.pan_active
             || self.middle_dragged.is_some()
+            || self.middle_armed
             || self.secondary_dragged.is_some()
     }
 
     fn captures(&mut self, _doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
-        (self.capture_presses && rect.contains(pos)) || self.capture_at.call(pos)
+        (self.capture_presses && rect.contains_half_open(pos)) || self.capture_at.call(pos)
+    }
+
+    fn intercepts(&mut self, _doc: &mut Document, pos: Pos2, _rect: Rect) -> bool {
+        self.intercept_at.call(pos)
     }
 
     fn interact(
@@ -368,14 +394,16 @@ impl Element for ClickCatcherNode {
             let press = self.press(input, rect, pos);
             self.on_drag.call(press);
         }
+        self.middle_click(input, contains_pointer);
         self.pan_drag(input, id, contains_pointer);
         self.secondary_drag(input, rect);
         if input.wheel_target == Some(id)
-            && input.scroll != Vec2::ZERO
+            && (input.scroll != Vec2::ZERO || input.scroll_fling != Vec2::ZERO)
             && let Some(pos) = input.pointer_pos
         {
             self.on_scroll.call(ScrollGesture {
                 delta: input.scroll,
+                fling: input.scroll_fling,
                 pos,
                 modifiers: input.modifiers,
             });
@@ -426,8 +454,18 @@ impl Document {
 
     pub fn capture_pointer(&mut self, captor: NodeId) {
         self.pointer_capture = Some(captor);
-        self.touch_scroll_vertical = None;
-        self.touch_scroll_horizontal = None;
+        let scrolls = |direction| {
+            self.arena.contains(captor)
+                && self
+                    .arena
+                    .get(captor)
+                    .as_any()
+                    .downcast_ref::<ClickCatcherNode>()
+                    .is_some_and(|catcher| catcher.catches_drag(direction))
+        };
+        let (vertical, horizontal) = (scrolls(Direction::Vertical), scrolls(Direction::Horizontal));
+        self.touch_scroll_vertical = vertical.then_some(captor);
+        self.touch_scroll_horizontal = horizontal.then_some(captor);
     }
 
     pub fn set_click_catcher_child(&mut self, click_catcher: NodeId, child: NodeId) {

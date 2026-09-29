@@ -4,6 +4,7 @@ pub use reactive;
 
 mod content;
 pub mod editor_session;
+pub mod fonts;
 mod graph;
 pub mod headless;
 mod host;
@@ -22,10 +23,10 @@ pub use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioStatus, BlockCommand, BlockFilter, BlockPick, ChildId,
     ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, ConflictSide, CursorIcon,
     DataListing, EditorBand, EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult,
-    FrameChrome, FrameSpec, HostReply, HostRequest, InputEvent, InteractionMode, Key, Modifiers,
-    Occluder, PointerButton, ResizeMode, ScreenPlacement, SurfaceRect, TouchPhase, VersionBranch,
-    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange,
-    WebViewCommand, WebViewEvent, WheelUnit,
+    FileSave, FrameChrome, FrameSpec, HostReply, HostRequest, InputEvent, InteractionMode, Key,
+    Modifiers, Occluder, PointerButton, ResizeMode, ScreenPlacement, SurfaceRect, TouchPhase,
+    VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionStatus,
+    ViewChange, WebViewCommand, WebViewEvent, WheelUnit,
 };
 pub use block_ui;
 pub use content::ContentProjection;
@@ -33,9 +34,9 @@ pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
-    BlockSource, ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FocusedBlock,
+    ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FileSaver, FocusedBlock,
     HostContent, ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
-    PerformanceReporter, PickedBlock, PickedFile, Pushed, SeededContent, ShowRequest,
+    PerformanceReporter, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest,
     ShownPresence, Waker,
 };
 #[cfg(target_arch = "wasm32")]

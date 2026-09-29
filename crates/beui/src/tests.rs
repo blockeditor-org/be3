@@ -15,6 +15,7 @@ mod a_click_catcher_that_takes_touch_drags_keeps_a_vertical_finger_drag;
 mod a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked;
 mod a_clicked_number_input_selects_its_text_until_enter;
 mod a_closure_child_receives_the_handle_its_slot_hands_over;
+mod a_colon_in_a_text_area_offers_emoji_that_enter_inserts;
 mod a_color_input_opens_its_picker_from_the_swatch;
 mod a_color_input_reports_the_hex_it_was_typed;
 mod a_component_function_returns_its_base_node;
@@ -32,7 +33,9 @@ mod a_disabled_checkbox_ignores_clicks_and_keeps_its_state;
 mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
 mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
+mod a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open;
 mod a_docked_pane_lays_its_content_inside_its_border;
+mod a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_tap;
 mod a_drag_preview_follows_the_pointer_until_the_drop;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
@@ -58,9 +61,13 @@ mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
 mod a_lone_child_fills_a_children_prop_as_a_run_of_one;
+mod a_long_press_on_selectable_text_selects_the_word_and_copy_copies_it;
+mod a_long_text_area_only_builds_the_lines_in_view;
 mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
+mod a_middle_click_on_a_dock_tab_closes_it;
 mod a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling;
 mod a_multi_root_view_fills_a_children_prop_in_order;
+mod a_narrow_inspector_puts_its_close_button_beside_its_tabs;
 mod a_nested_container_reports_its_own_width_not_the_windows;
 mod a_number_input_reports_what_was_typed_within_its_range;
 mod a_pan_zoom_follows_the_view_its_caller_sets;
@@ -77,10 +84,13 @@ mod a_quick_tap_with_several_fingers_is_a_finger_tap;
 mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
 mod a_reactive_test_id_follows_its_signal;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
+mod a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint;
 mod a_rect_watched_inside_a_scroll_follows_it_as_it_scrolls;
 mod a_redrawn_drawing_damages_only_the_part_it_names;
 mod a_removed_nodes_slot_is_reused_under_a_new_id;
 mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
+mod a_row_replaced_by_narrower_rows_leaves_nothing_of_it_behind_the_copy;
+mod a_row_that_leaves_a_virtual_list_moves_the_rows_below_it_by_a_copy;
 mod a_scroll_in_a_dialog_follows_the_wheel;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
 mod a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips;
@@ -88,6 +98,7 @@ mod a_scroll_mixes_plain_children_with_a_nested_virtual_list;
 mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
 mod a_second_finger_cancels_the_press_the_first_began;
 mod a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch;
+mod a_second_swipe_during_a_fling_keeps_scrolling;
 mod a_select_following_its_prop_does_not_report_a_change;
 mod a_selected_radio_option_marks_its_ring_with_the_accent_colour;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
@@ -108,6 +119,8 @@ mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
+mod a_tap_during_a_fling_stops_it_without_clicking_a_row;
+mod a_tap_on_the_simulated_trackpad_holds_its_press_until_the_double_tap_timer_runs_out;
 mod a_test_id_names_the_copy_that_is_shown;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
 mod a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field;
@@ -117,13 +130,16 @@ mod a_time_list_moves_through_its_times_and_picks_one;
 mod a_timer_asks_for_frames_until_its_work_settles;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
 mod a_touch_beside_a_control_reaches_the_nearest_one;
+mod a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames;
 mod a_touch_fling_that_ends_without_moving_keeps_its_momentum;
 mod a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop;
+mod a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
 mod a_twelve_hour_time_field_types_the_afternoon_with_a_p;
 mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_value_written_between_tags_takes_the_sizing_after_it;
 mod a_viewport_fills_the_space_it_is_given;
+mod a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row;
 mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
 mod a_virtual_list_scrolled_out_of_view_releases_its_rows;
@@ -131,6 +147,7 @@ mod a_virtual_scroll_only_builds_the_items_in_view;
 mod a_virtual_scroll_row_can_build_reactive_content_during_dispatch;
 mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
 mod a_window_larger_than_the_dock_is_drawn_no_larger_than_it;
+mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
 mod a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows;
 mod a_window_with_tabs_in_a_sidebar_has_no_title_bar;
 mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
@@ -164,6 +181,7 @@ mod arrow_keys_step_a_date_segment_and_keep_the_day_in_its_month;
 mod arrow_keys_step_the_focused_slider;
 mod arrow_keys_walk_the_rows_of_the_inspector_tree;
 mod arrows_at_the_ends_of_a_date_field_leave_its_value_alone;
+mod arrows_pick_which_emoji_the_menu_inserts;
 mod backspace_deletes_the_character_before_the_caret;
 mod children_written_between_show_tags_are_not_built_until_it_is_shown;
 mod choosing_the_e_ink_theme_in_the_inspector_restyles_the_document;
@@ -204,6 +222,7 @@ mod dragging_a_pan_zoom_with_the_middle_button_pans_it;
 mod dragging_a_panes_grip_moves_every_tab_of_the_pane;
 mod dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it;
 mod dragging_a_slider_moves_its_value;
+mod dragging_a_tab_between_two_tabs_marks_the_middle_of_the_gap;
 mod dragging_a_tab_onto_a_window_bar_moves_it_into_the_window;
 mod dragging_a_tab_onto_the_edge_of_a_pane_splits_it;
 mod dragging_a_tab_over_a_window_bar_marks_where_it_lands;
@@ -229,6 +248,7 @@ mod enter_in_a_single_line_text_area_submits_rather_than_breaking_the_line;
 mod enter_on_an_inspector_row_selects_it_without_collapsing_it;
 mod enter_toggles_the_focused_checkbox;
 mod escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger;
+mod escape_closes_the_emoji_menu_until_the_colon_is_typed_again;
 mod escape_discards_what_was_typed_into_a_number_input;
 mod evicting_a_virtual_scroll_row_disposes_its_effects;
 mod finding_a_node_by_its_test_id;
@@ -254,12 +274,14 @@ mod inserting_above_a_virtual_list_view_keeps_the_rows_in_place;
 mod inserting_into_a_virtual_list_view_builds_only_the_new_row;
 mod jumping_up_a_virtual_scroll_only_builds_the_items_in_view;
 mod keys_without_alt_reach_the_control_the_screen_reader_focused;
+mod lifting_the_fingers_off_a_trackpad_scroll_carries_it_on;
 mod middle_clicking_a_scroll_scrolls_it_towards_the_pointer;
 mod moving_a_dock_tab_to_another_pane_keeps_its_panel;
 mod on_a_narrow_screen_picking_a_date_moves_on_to_the_time;
 mod opening_a_menu_button_damages_only_the_button_and_its_menu;
 mod opening_a_menu_damages_only_where_it_appears;
 mod opening_a_select_focuses_its_search_box_and_highlights_the_selected_option;
+mod overscrolling_squishes_the_scrollbar_thumb_against_the_end;
 mod painting_never_has_to_move_a_rect_onto_the_pixel_grid;
 mod painting_skips_the_elements_outside_the_damaged_region;
 mod percent_children_land_on_whole_device_pixels;
@@ -331,6 +353,8 @@ mod tapping_inside_a_touch_selection_opens_a_menu_that_copies_it;
 mod tapping_the_caret_handle_of_a_text_area_opens_a_menu_that_pastes;
 mod tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste;
 mod tapping_then_dragging_on_the_simulated_trackpad_drags_from_where_the_tap_landed;
+mod text_widgets_sit_in_the_text_and_blocks_below_their_line;
+mod text_with_spans_wraps_places_inline_items_and_answers_where_indices_are;
 mod the_caret_of_a_focused_text_area_blinks_on_a_deadline;
 mod the_caret_of_a_text_input_paints_two_points_wide;
 mod the_click_that_ends_autoscroll_presses_nothing;
@@ -338,7 +362,7 @@ mod the_color_areas_thumb_shows_a_grab_cursor;
 mod the_components_tab_lists_components_instead_of_base_nodes;
 mod the_demo_body_scrolls_rather_than_spilling_off_a_small_window;
 mod the_demo_catalog_survives_switching_tabs;
-mod the_dock_demo_leaves_a_tab_saying_nothing_is_open;
+mod the_dock_demo_leaves_a_pane_saying_nothing_is_open;
 mod the_dock_demo_opens_a_paper_from_the_files_it_lists;
 mod the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it;
 mod the_frame_output_reports_the_region_whose_shapes_changed;
@@ -351,6 +375,7 @@ mod the_inspector_shows_document_performance;
 mod the_inspector_shows_the_accesskit_tree;
 mod the_inspector_shows_the_base_nodes_of_a_styled_component;
 mod the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition;
+mod the_keyboard_opening_scrolls_the_focused_field_into_what_is_left;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row;
 mod the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in;
@@ -414,6 +439,7 @@ const WIDE_VIEWPORT: Vec2 = Vec2::new(1000.0, 600.0);
 const TALL_VIEWPORT: Vec2 = Vec2::new(1000.0, 1400.0);
 const VIRTUAL_ITEM_COUNT: usize = 10_000;
 const VIRTUAL_ITEM_HEIGHT: f32 = 20.0;
+const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 
 fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
     Event::Touch {
@@ -434,11 +460,28 @@ impl Harness {
     pub(crate) fn new(mut document: Document) -> Self {
         crate::verify_paint(true);
         crate::inspector::install(&mut document);
+        let context = Context::new(crate::FreetypeFonts::default());
+        context.stop_clock();
         Self {
-            context: Context::new(crate::FreetypeFonts::default()),
+            context,
             document,
             viewport: VIEWPORT,
         }
+    }
+
+    pub(crate) fn advance(&mut self, by: Duration) {
+        self.context.advance_clock(by);
+    }
+
+    pub(crate) fn settle(&mut self) -> usize {
+        const LIMIT: usize = 1200;
+        for frames in 0..LIMIT {
+            let output = self.frame(Vec::new());
+            if !output.repaint && output.repaint_after > Duration::ZERO {
+                return frames;
+            }
+        }
+        panic!("still animating after {LIMIT} frames");
     }
 
     pub(crate) fn sized(document: Document, viewport: Vec2) -> Self {
@@ -459,6 +502,7 @@ impl Harness {
             viewport,
         } = self;
         let input = RawInput { events };
+        context.advance_clock(FRAME_INTERVAL);
         context.run(input, |context| {
             document.show(context, Rect::from_min_size(Pos2::ZERO, *viewport));
         })
@@ -731,6 +775,13 @@ impl Harness {
         self.inspector_center("inspector.close")
     }
 
+    pub(crate) fn bar_close_rect(&self) -> Rect {
+        self.inspector()
+            .bar_rect("inspector.bar.close")
+            .expect("the inspector's tab bar has no close button")
+            .scaled(crate::inspector::scale(&self.context))
+    }
+
     pub(crate) fn bar_option_center(&self, index: usize) -> Pos2 {
         self.bar_option_rect(index).center()
     }
@@ -798,10 +849,24 @@ impl Harness {
     }
 
     pub(crate) fn tap_trackpad(&mut self) {
+        self.quick_tap_trackpad();
+        self.wait_out_double_tap();
+    }
+
+    pub(crate) fn quick_tap_trackpad(&mut self) {
         let at = self.simulated_trackpad();
         self.finger(1, TouchPhase::Start, at);
         self.finger(1, TouchPhase::End, at);
         self.frame(Vec::new());
+    }
+
+    pub(crate) fn wait_out_double_tap(&mut self) {
+        self.advance(crate::mouse_simulation::DOUBLE_TAP_TIME);
+        self.frame(Vec::new());
+    }
+
+    pub(crate) fn simulated_left_held(&self) -> bool {
+        self.simulation(MouseSimulation::left_held)
     }
 
     pub(crate) fn enable_screen_reader(&mut self) {
@@ -1325,7 +1390,7 @@ pub(crate) fn toolbar_of<const N: usize>(
 use crate::node::{Element, InteractInput, Rects};
 use crate::painter::Painter;
 use std::any::Any;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 struct Counted {
     inner: Box<dyn Element>,
@@ -1353,6 +1418,10 @@ impl Element for Counted {
 
     fn captures(&mut self, doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
         self.inner.captures(doc, pos, rect)
+    }
+
+    fn intercepts(&mut self, doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
+        self.inner.intercepts(doc, pos, rect)
     }
 
     fn interact(
@@ -1452,7 +1521,9 @@ mod activation_requires_a_matching_release_and_escape_cancels_it;
 mod clicking_a_button_focuses_it_without_a_ring_until_a_key_is_pressed;
 mod clicking_a_choice_keeps_keyboard_focus_on_the_selected_option;
 mod copy_and_cut_export_only_selected_text_and_cut_can_be_undone;
+mod dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection;
 mod empty_choices_and_invalid_selection_do_not_break_tab_navigation;
+mod escape_then_tab_moves_the_focus_out_of_a_text_area_that_takes_tab;
 mod every_styled_interactive_control_paints_a_keyboard_focus_ring;
 mod focus_loss_and_hidden_content_cancel_keyboard_activation;
 mod hover_only_repaints_when_its_handler_changes_a_node;
@@ -1466,11 +1537,16 @@ mod losing_window_focus_cancels_a_held_activation_key;
 mod performance_measurements_report_what_the_frame_reused;
 mod radio_groups_select_with_space_and_arrows_without_leaving_the_group;
 mod resizing_scaling_and_replacing_the_root_invalidate_the_cache;
+mod returning_to_the_inspector_tab_repaints_the_whole_panel;
+mod showing_a_child_at_the_end_of_a_list_damages_only_that_child;
 mod slider_home_end_and_page_keys_clamp_at_the_bounds;
 mod space_toggles_checkboxes_switches_and_toggle_buttons;
 mod tabbing_to_an_offscreen_control_reveals_it;
 mod tabs_have_one_tab_stop_and_wrap_with_arrow_keys;
 mod text_laid_out_to_an_alignment_indents_each_line_to_it;
+mod text_that_does_not_fit_ends_in_an_ellipsis;
+mod the_edge_two_rows_share_hovers_only_the_lower_one;
+mod the_menu_of_a_selectable_text_copies_what_is_selected;
 mod unchanged_input_reuses_layout_and_paint;
 
 mod a_bare_separator_rules_across_the_column_it_sits_in;
@@ -1488,3 +1564,37 @@ mod scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes;
 mod the_app_tab_shows_the_document_below_the_tab_bar;
 mod the_inspector_shows_the_renderer_the_host_reports;
 mod unused_navigation_keys_scroll_the_nearest_ancestor;
+
+use crate::interact::WHEEL_LATCH_TIMEOUT;
+use crate::reactive::DynamicSegment;
+use crate::unstyled::Scroll;
+
+fn nested() -> Document {
+    build(move || {
+        view! {
+            <List spacing=0.0>
+                <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer">
+                    <Frame height=200.0 />
+                    <Frame height=150.0>
+                        <Scroll @test_id="inner">
+                            <Rows count=20 />
+                        </Scroll>
+                    </Frame>
+                    <Rows count=20 />
+                </Scroll>
+            </List>
+        }
+    })
+}
+
+#[component]
+fn Rows(count: usize) -> DynamicSegment<NodeId> {
+    view! {
+        <ForEach keys={indices(count)}>
+            {|index: usize| view! {
+                <Text string={format!("Row {index}")} font_size=20.0 color=Color32::WHITE />
+            }}
+        </ForEach>
+    }
+}
+mod moving_the_pointer_ends_the_wheel_latch;

@@ -110,6 +110,7 @@ impl From<&str> for TextContent {
 pub enum TextOp {
     Insert { at: u64, bytes: Vec<u8> },
     Delete { at: u64, length: u64 },
+    DeleteRanges { ranges: Vec<(u64, u64)> },
     SetLanguage(TextLanguage),
     SetIndentation(TextIndentation),
 }
@@ -179,6 +180,14 @@ impl Streamed for TextContent {
     }
 }
 
+impl TextContent {
+    fn delete(&mut self, at: u64, length: u64) {
+        let at = (at as usize).min(self.bytes.len());
+        let end = at.saturating_add(length as usize).min(self.bytes.len());
+        self.bytes.drain(at..end);
+    }
+}
+
 impl LiveEdit for TextContent {
     type Op = TextOp;
 
@@ -188,10 +197,11 @@ impl LiveEdit for TextContent {
                 let at = (*at as usize).min(self.bytes.len());
                 self.bytes.splice(at..at, bytes.iter().copied());
             }
-            TextOp::Delete { at, length } => {
-                let at = (*at as usize).min(self.bytes.len());
-                let end = at.saturating_add(*length as usize).min(self.bytes.len());
-                self.bytes.drain(at..end);
+            TextOp::Delete { at, length } => self.delete(*at, *length),
+            TextOp::DeleteRanges { ranges } => {
+                for (at, length) in ranges.iter().rev() {
+                    self.delete(*at, *length);
+                }
             }
             TextOp::SetLanguage(language) => self.header.language = *language,
             TextOp::SetIndentation(indentation) => {
@@ -231,103 +241,138 @@ fn transform(ours: TextOp, theirs: &TextOp) -> Option<TextOp> {
                 bytes,
             })
         }
-        (
-            TextOp::Insert { at, bytes },
-            TextOp::Delete {
-                at: their_at,
-                length,
-            },
-        ) => {
-            let at = if their_at + length <= at {
-                at - length
-            } else if *their_at < at {
-                *their_at
-            } else {
-                at
-            };
+        (TextOp::Insert { at, bytes }, deleted) => {
+            let at = spans(deleted)
+                .iter()
+                .rev()
+                .fold(at, |at, (their_at, length)| {
+                    if their_at + length <= at {
+                        at - length
+                    } else if *their_at < at {
+                        *their_at
+                    } else {
+                        at
+                    }
+                });
             Some(TextOp::Insert { at, bytes })
         }
         (
-            TextOp::Delete { at, length },
+            deleting,
             TextOp::Insert {
                 at: their_at,
                 bytes,
             },
         ) => {
             let inserted = bytes.len() as u64;
-            if *their_at <= at {
-                Some(TextOp::Delete {
-                    at: at + inserted,
-                    length,
-                })
-            } else if *their_at < at + length {
-                Some(TextOp::Delete {
-                    at,
-                    length: length + inserted,
-                })
-            } else {
-                Some(TextOp::Delete { at, length })
+            let mut ranges = Vec::new();
+            for (at, length) in spans(&deleting) {
+                if *their_at <= at {
+                    ranges.push((at + inserted, length));
+                } else if *their_at < at + length {
+                    ranges.push((at, their_at - at));
+                    ranges.push((their_at + inserted, at + length - their_at));
+                } else {
+                    ranges.push((at, length));
+                }
             }
+            deletion(ranges)
         }
-        (
-            TextOp::Delete { at, length },
-            TextOp::Delete {
-                at: their_at,
-                length: their_length,
-            },
-        ) => {
-            let (their_at, their_length) = (*their_at, *their_length);
-            if their_at + their_length <= at {
-                return Some(TextOp::Delete {
-                    at: at - their_length,
-                    length,
-                });
-            }
-            if their_at >= at + length {
-                return Some(TextOp::Delete { at, length });
-            }
-            let overlap = (at + length).min(their_at + their_length) - at.max(their_at);
-            let length = length.checked_sub(overlap)?;
-            if length == 0 {
-                return None;
-            }
-            Some(TextOp::Delete {
-                at: at.min(their_at),
-                length,
-            })
+        (deleting, deleted) => {
+            let theirs = spans(deleted);
+            let ranges = spans(&deleting)
+                .into_iter()
+                .map(|range| {
+                    theirs
+                        .iter()
+                        .rev()
+                        .fold(range, |(at, length), (their_at, their_length)| {
+                            let end = at + length;
+                            let their_end = their_at + their_length;
+                            let overlap = end.min(their_end).saturating_sub(at.max(*their_at));
+                            let start = if their_end <= at {
+                                at - their_length
+                            } else {
+                                at.min(*their_at)
+                            };
+                            (start, length - overlap)
+                        })
+                })
+                .collect();
+            deletion(ranges)
         }
+    }
+}
+
+fn spans(operation: &TextOp) -> Vec<(u64, u64)> {
+    match operation {
+        TextOp::Delete { at, length } => vec![(*at, *length)],
+        TextOp::DeleteRanges { ranges } => ranges.clone(),
+        _ => Vec::new(),
+    }
+}
+
+fn deletion(ranges: Vec<(u64, u64)>) -> Option<TextOp> {
+    let mut joined: Vec<(u64, u64)> = Vec::new();
+    for (at, length) in ranges.into_iter().filter(|(_, length)| *length > 0) {
+        match joined.last_mut() {
+            Some((last_at, last_length)) if *last_at + *last_length >= at => {
+                *last_length = (at + length).max(*last_at + *last_length) - *last_at;
+            }
+            _ => joined.push((at, length)),
+        }
+    }
+    match joined.as_slice() {
+        [] => None,
+        [(at, length)] => Some(TextOp::Delete {
+            at: *at,
+            length: *length,
+        }),
+        _ => Some(TextOp::DeleteRanges { ranges: joined }),
     }
 }
 
 impl Merge for TextContent {
     fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
-        let language = if ours.header.language == base.header.language {
-            theirs.header.language
-        } else {
-            ours.header.language
-        };
-        let indentation = if ours.header.indentation == base.header.indentation {
-            theirs.header.indentation
-        } else {
-            ours.header.indentation
-        };
+        let mut conflicts = 0;
+        let language = pick(
+            base.header.language,
+            ours.header.language,
+            theirs.header.language,
+            &mut conflicts,
+        );
+        let indentation = pick(
+            base.header.indentation,
+            ours.header.indentation,
+            theirs.header.indentation,
+            &mut conflicts,
+        );
         let outcome = merge_lines(&base.bytes, &ours.bytes, &theirs.bytes);
         let header = TextHeader {
             language,
             indentation,
         };
-        if outcome.is_clean() {
-            return MergeResult::Clean(Self {
-                header,
-                bytes: be_commit::merge::join_lines(&outcome.merged),
-            });
+        let bytes = if outcome.is_clean() {
+            be_commit::merge::join_lines(&outcome.merged)
+        } else {
+            conflicts += outcome.conflicts.len();
+            render_conflicts(&outcome, "local", "remote")
+        };
+        let value = Self { header, bytes };
+        if conflicts == 0 {
+            MergeResult::Clean(value)
+        } else {
+            MergeResult::Conflicted { value, conflicts }
         }
-        MergeResult::Conflicted {
-            conflicts: outcome.conflicts.len(),
-            value: Self {
-                header,
-                bytes: render_conflicts(&outcome, "local", "remote"),
-            },
+    }
+}
+
+fn pick<T: PartialEq>(base: T, ours: T, theirs: T, conflicts: &mut usize) -> T {
+    if ours == base {
+        theirs
+    } else {
+        if theirs != base && theirs != ours {
+            *conflicts += 1;
         }
+        ours
     }
 }

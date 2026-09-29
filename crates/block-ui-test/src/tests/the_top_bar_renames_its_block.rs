@@ -15,7 +15,6 @@ fn the_top_bar_renames_its_block() {
     test.text("Plans");
     test.key_press(Key::Enter);
     test.run();
-    test.run();
 
     let named = name(&store, block).expect("the block took the typed name as a manual one");
     assert_eq!(named, "Plans");

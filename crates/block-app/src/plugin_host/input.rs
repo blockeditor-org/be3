@@ -223,6 +223,9 @@ impl InputAdapter {
                     unit: WheelUnit::Pixels,
                 });
             }
+            Event::ScrollEnded if hovered && !self.over_hole => {
+                output.push(InputEvent::WheelEnded);
+            }
             Event::Zoom(factor) if hovered && !self.over_hole => {
                 output.push(InputEvent::Zoom { factor });
             }

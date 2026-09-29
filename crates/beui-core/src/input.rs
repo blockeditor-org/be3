@@ -11,6 +11,7 @@ const LONG_PRESS_DELAY: Duration = Duration::from_millis(500);
 const FINGER_TAP_TIME: Duration = Duration::from_millis(350);
 const TOUCH_VELOCITY_WINDOW: f32 = 0.12;
 const MAX_TOUCH_VELOCITY: f32 = 4_000.0;
+const WHEEL_VELOCITY_WINDOW: Duration = Duration::from_millis(100);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Key {
@@ -153,6 +154,7 @@ pub struct PointerPress {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ScrollGesture {
     pub delta: Vec2,
+    pub fling: Vec2,
     pub pos: Pos2,
     pub modifiers: Modifiers,
 }
@@ -258,6 +260,7 @@ pub enum Event {
     PointerMotion(Vec2),
     PointerMoved(Pos2),
     Scroll(Vec2),
+    ScrollEnded,
     PhysicalKey {
         code: u32,
         pressed: bool,
@@ -347,9 +350,11 @@ pub struct InputState {
     pub pointer: Pointer,
     pub touch: TouchState,
     pub scroll_delta: Vec2,
+    pub scroll_fling: Vec2,
     pub zoom_factor: f32,
     pub modifiers: Modifiers,
     pub long_press_delay: Duration,
+    scroll_samples: VecDeque<(Instant, Vec2)>,
 }
 
 impl Default for InputState {
@@ -359,9 +364,11 @@ impl Default for InputState {
             pointer: Pointer::default(),
             touch: TouchState::default(),
             scroll_delta: Vec2::ZERO,
+            scroll_fling: Vec2::ZERO,
             zoom_factor: 1.0,
             modifiers: Modifiers::default(),
             long_press_delay: LONG_PRESS_DELAY,
+            scroll_samples: VecDeque::new(),
         }
     }
 }
@@ -410,15 +417,18 @@ impl InputState {
             .map(|since| (since + self.long_press_delay).saturating_duration_since(now))
     }
 
-    pub fn begin_frame(&mut self, raw: RawInput) {
+    pub fn begin_frame(&mut self, raw: RawInput, now: Instant) {
         self.pointer.begin_frame();
+        self.touch.now = now;
         self.touch.begin_frame(&mut self.pointer);
-        if let Some(pos) = self.touch.long_press(self.long_press_delay, Instant::now()) {
+        if let Some(pos) = self.touch.long_press(self.long_press_delay, now) {
             self.pointer.pos = Some(pos);
             self.pointer.secondary_pressed = true;
         }
         self.scroll_delta = Vec2::ZERO;
+        self.scroll_fling = Vec2::ZERO;
         self.zoom_factor = 1.0;
+        let mut scroll_ended = false;
         let suppress_mouse = self.pointer.from_touch
             || raw
                 .events
@@ -465,7 +475,7 @@ impl InputState {
                             self.pointer.primary_down = *pressed;
                             if *pressed {
                                 self.pointer.primary_pressed = true;
-                                self.pointer.count_click(*pos);
+                                self.pointer.count_click(*pos, now);
                             } else {
                                 self.pointer.primary_released = true;
                             }
@@ -496,6 +506,7 @@ impl InputState {
                     }
                 }
                 Event::Scroll(delta) => self.scroll_delta += *delta,
+                Event::ScrollEnded => scroll_ended = true,
                 Event::Zoom(factor) => self.zoom_factor *= *factor,
                 Event::Key { modifiers, .. } | Event::Modifiers(modifiers) => {
                     self.modifiers = *modifiers;
@@ -512,6 +523,36 @@ impl InputState {
             }
         }
         self.events = raw.events;
+        self.sample_scroll(now, scroll_ended);
+    }
+
+    fn sample_scroll(&mut self, now: Instant, ended: bool) {
+        if self.scroll_delta != Vec2::ZERO {
+            self.scroll_samples.push_back((now, self.scroll_delta));
+        }
+        while self
+            .scroll_samples
+            .front()
+            .is_some_and(|(when, _)| now.duration_since(*when) > WHEEL_VELOCITY_WINDOW)
+        {
+            self.scroll_samples.pop_front();
+        }
+        if !ended {
+            return;
+        }
+        let samples = std::mem::take(&mut self.scroll_samples);
+        let (Some((first, _)), Some((last, _))) = (samples.front(), samples.back()) else {
+            return;
+        };
+        let elapsed = last.duration_since(*first).as_secs_f32();
+        if elapsed <= f32::EPSILON {
+            return;
+        }
+        let travelled = samples
+            .iter()
+            .skip(1)
+            .fold(Vec2::ZERO, |sum, (_, delta)| sum + *delta);
+        self.scroll_fling = travelled * elapsed.recip();
     }
 }
 
@@ -569,6 +610,7 @@ pub struct TouchState {
     fingers_moved: bool,
     fingers_since: Option<Instant>,
     finger_tap: Option<usize>,
+    now: Instant,
 }
 
 impl Default for TouchState {
@@ -599,6 +641,7 @@ impl Default for TouchState {
             fingers_moved: false,
             fingers_since: None,
             finger_tap: None,
+            now: Instant::now(),
         }
     }
 }
@@ -651,7 +694,7 @@ impl TouchState {
         if self.points.is_empty() {
             self.fingers = 0;
             self.fingers_moved = false;
-            self.fingers_since = Some(Instant::now());
+            self.fingers_since = Some(self.now);
         }
         self.points.insert(id, TouchPoint { id, pos, force });
         self.origins.insert(id, pos);
@@ -676,15 +719,15 @@ impl TouchState {
         self.direction = TouchDirection::Undecided;
         self.dragged = false;
         self.samples.clear();
-        self.samples.push_back((Instant::now(), pos));
+        self.samples.push_back((self.now, pos));
         self.velocity = Vec2::ZERO;
-        self.held_since = Some(Instant::now());
+        self.held_since = Some(self.now);
         self.long_pressed = false;
         pointer.pos = Some(pos);
         pointer.primary_down = true;
         pointer.primary_pressed = true;
         pointer.from_touch = true;
-        pointer.count_click(pos);
+        pointer.count_click(pos, self.now);
     }
 
     fn move_to(&mut self, id: TouchId, pos: Pos2, force: Option<f32>, pointer: &mut Pointer) {
@@ -752,7 +795,7 @@ impl TouchState {
             let quick = self
                 .fingers_since
                 .take()
-                .is_some_and(|since| since.elapsed() <= FINGER_TAP_TIME);
+                .is_some_and(|since| self.now.duration_since(since) <= FINGER_TAP_TIME);
             if !cancelled && quick && !self.fingers_moved && self.fingers >= 2 {
                 self.finger_tap = Some(self.fingers);
             }
@@ -852,7 +895,7 @@ impl TouchState {
     }
 
     fn sample(&mut self, pos: Pos2) {
-        let now = Instant::now();
+        let now = self.now;
         self.samples.push_back((now, pos));
         while self.samples.len() > 2
             && self.samples.front().is_some_and(|(when, _)| {
@@ -956,8 +999,7 @@ impl Pointer {
         self.motion = Vec2::ZERO;
     }
 
-    fn count_click(&mut self, pos: Pos2) {
-        let now = Instant::now();
+    fn count_click(&mut self, pos: Pos2, now: Instant) {
         let repeated = self.last_click.is_some_and(|(when, at)| {
             now.duration_since(when).as_secs_f32() <= MULTI_CLICK_DELAY
                 && at.distance(pos) <= MULTI_CLICK_DISTANCE

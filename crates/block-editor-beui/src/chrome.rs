@@ -6,7 +6,7 @@ use beui::reactive::{
     create_memo, create_signal, on_cleanup, provide_context, untrack, use_context, view,
 };
 use beui::styled::theme::BORDER_WIDTH;
-use beui::styled::{Scroll, Separator, Sheet, ToggleButton, use_theme};
+use beui::styled::{SHEET_STOPS, Scroll, Separator, Sheet, ToggleButton, use_theme};
 
 pub const SIDEBAR_WIDTH: f32 = 260.0;
 pub const NARROW_WIDTH: f32 = 640.0;
@@ -45,6 +45,17 @@ impl ChromeLayout {
 pub fn narrow_chrome() -> Memo<bool> {
     match use_context::<ChromeLayout>() {
         Some(layout) => layout.narrow,
+        None => create_memo(|| false),
+    }
+}
+
+pub fn sheet_open() -> Memo<bool> {
+    match use_context::<ChromeLayout>() {
+        Some(layout) => {
+            let offers = layout.offers_sheet();
+            let open = layout.open;
+            create_memo(move || offers.get() && open.get())
+        }
         None => create_memo(|| false),
     }
 }
@@ -95,7 +106,12 @@ pub(crate) fn ChromeRoot(#[prop(children)] content: Render<()>) -> NodeId {
             </Show>
             {content} @sizing=ItemSize::Percent(100.0)
             <Show condition={sheet.clone()}>
-                <Sheet extent={extent} open={sheet} on_close={move || close.set(false)}>
+                <Sheet
+                    extent={extent}
+                    open={sheet}
+                    rest={SHEET_STOPS[0]}
+                    on_close={move || close.set(false)}
+                >
                     <List spacing=0.0>
                         <ForEach keys={panels}>
                             {move |panel: NodeId| {
@@ -192,11 +208,14 @@ fn fold_into_sheet(layout: ChromeLayout, body: NodeId, folded: Memo<bool>) {
 pub fn Toolbar(
     #[prop(default = true)] shown: Prop<bool>,
     #[prop(default = BAND_SPACING)] spacing: Prop<f32>,
+    #[prop(default = false)] fit: Prop<bool>,
     #[prop(children)] children: Children<ListChild>,
 ) -> NodeId {
     let shown = create_memo(move || shown.get());
     let theme = use_theme();
-    let narrow = narrow_chrome();
+    let fit = create_memo(move || fit.get());
+    let squeezed = narrow_chrome();
+    let narrow = create_memo(clone!(squeezed fit -> move || squeezed.get() && !fit.get()));
     let roomy = create_memo(clone!(narrow -> move || !narrow.get()));
     let offers = match use_context::<ChromeLayout>() {
         Some(layout) => {
@@ -205,6 +224,9 @@ pub fn Toolbar(
         }
         None => create_memo(|| false),
     };
+    let fitted_toggle = create_memo(clone!(offers squeezed fit -> move || {
+        offers.get() && squeezed.get() && fit.get()
+    }));
     let row = view! {
         <List
             direction=Direction::Horizontal
@@ -225,6 +247,11 @@ pub fn Toolbar(
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                             <Portal @sizing=ItemSize::Percent(100.0) node={spread} />
+                            <Show condition={fitted_toggle}>
+                                <Frame padding_horizontal=BAND_PADDING_HORIZONTAL>
+                                    <SheetToggle />
+                                </Frame>
+                            </Show>
                         </List>
                     </Frame>
                 </Show>

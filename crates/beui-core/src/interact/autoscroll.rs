@@ -66,6 +66,7 @@ pub fn track(
             middle_pressed_this_frame: false,
             secondary_drag: input.secondary_drag.filter(|drag| !drag.started),
             scroll: Vec2::ZERO,
+            scroll_fling: Vec2::ZERO,
             ..input
         },
     };

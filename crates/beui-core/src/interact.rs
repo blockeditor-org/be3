@@ -13,6 +13,7 @@ use crate::document::Document;
 use crate::node::{InteractInput, NodeId, NodeMap, Rects};
 
 pub const WHEEL_LATCH_TIMEOUT: Duration = Duration::from_millis(500);
+const WHEEL_LATCH_SLOP: f32 = 2.0;
 pub const TOUCH_REACH: f32 = 12.0;
 
 #[derive(Clone, Copy)]
@@ -46,10 +47,11 @@ pub fn interact(
 ) {
     let modifiers = ctx.input(|input| input.modifiers);
     let wheel = ctx.input(|input| input.scroll_delta);
-    let wheel = if modifiers.shift && wheel.x == 0.0 {
-        vec2(wheel.y, 0.0)
+    let fling = ctx.input(|input| input.scroll_fling);
+    let (wheel, fling) = if modifiers.shift && wheel.x == 0.0 && fling.x == 0.0 {
+        (vec2(wheel.y, 0.0), vec2(fling.y, 0.0))
     } else {
-        wheel
+        (wheel, fling)
     };
     let touching =
         ctx.input(|input| input.touch.active() || input.touch.ended() || input.touch.cancelled());
@@ -72,7 +74,9 @@ pub fn interact(
         secondary_drag: ctx.input(|input| input.pointer.secondary_drag),
         middle_down: ctx.input(|input| input.pointer.middle_down),
         middle_pressed_this_frame: ctx.input(|input| input.pointer.middle_pressed()),
+        middle_released_this_frame: ctx.input(|input| input.pointer.middle_released()),
         scroll: wheel,
+        scroll_fling: fling,
         zoom: ctx.input(|input| input.zoom_factor * input.touch.pinch()),
         touch_pan: ctx.input(|input| input.touch.pinch_pan()),
         zoom_pos: ctx.input(|input| input.touch.pinch_center().or(input.pointer.interact_pos())),
@@ -122,16 +126,20 @@ pub fn interact(
     {
         doc.capture_pointer(captor);
     }
-    let wheel_target = (input.scroll != Vec2::ZERO)
+    let wheel = match input.scroll {
+        Vec2::ZERO => input.scroll_fling,
+        scroll => scroll,
+    };
+    let wheel_target = (wheel != Vec2::ZERO)
         .then(|| {
-            let now = Instant::now();
-            let target = latched_wheel_target(doc, rects, input.pointer_pos, input.scroll, now)
-                .or_else(|| {
+            let now = doc.now();
+            let target =
+                latched_wheel_target(doc, rects, input.pointer_pos, wheel, now).or_else(|| {
                     target(doc, rects, root, input.pointer_pos, &|element| {
-                        wants_wheel(element, input.scroll)
+                        wants_wheel(element, wheel)
                     })
                 });
-            doc.wheel_latch = target.map(|target| (target, now));
+            doc.wheel_latch = target.map(|target| (target, now, input.pointer_pos));
             target
         })
         .flatten();
@@ -231,8 +239,11 @@ pub fn interact(
         .enumerate()
         .map(|(level, _)| {
             floating[level + 1..].iter().any(|above| {
-                doc.node_rect(*above)
-                    .is_some_and(|rect| input.pointer_pos.is_some_and(|pos| rect.contains(pos)))
+                doc.node_rect(*above).is_some_and(|rect| {
+                    input
+                        .pointer_pos
+                        .is_some_and(|pos| rect.contains_half_open(pos))
+                })
             })
         })
         .collect();
@@ -404,7 +415,9 @@ fn without_pointer(input: InteractInput) -> InteractInput {
         secondary_drag: None,
         middle_down: false,
         middle_pressed_this_frame: false,
+        middle_released_this_frame: false,
         scroll: Vec2::ZERO,
+        scroll_fling: Vec2::ZERO,
         zoom: 1.0,
         touch_pan: Vec2::ZERO,
         zoom_pos: None,
@@ -422,6 +435,12 @@ fn without_pointer(input: InteractInput) -> InteractInput {
 
 fn captor(doc: &mut Document, rects: &Rects, id: NodeId, pos: Pos2) -> Option<NodeId> {
     let rect = rects.visible(&id)?;
+    let mut element = doc.arena.take(id);
+    let intercepts = rect.contains(pos) && element.intercepts(doc, pos, rect);
+    doc.arena.put_back(id, element);
+    if intercepts {
+        return Some(id);
+    }
     for child in doc.arena.get(id).children().into_iter().rev() {
         if let Some(found) = captor(doc, rects, child, pos) {
             return Some(found);
@@ -454,15 +473,19 @@ fn latched_wheel_target(
     wheel: Vec2,
     now: Instant,
 ) -> Option<NodeId> {
-    let (latched, last) = doc.wheel_latch?;
+    let (latched, last, at) = doc.wheel_latch?;
     let recent = now.saturating_duration_since(last) < WHEEL_LATCH_TIMEOUT;
+    let still = match (at, pointer) {
+        (Some(at), Some(pos)) => at.distance(pos) <= WHEEL_LATCH_SLOP,
+        (at, pos) => at == pos,
+    };
     let under = pointer.is_some_and(|pos| {
         rects
             .visible(&latched)
-            .is_some_and(|rect| rect.contains(pos))
+            .is_some_and(|rect| rect.contains_half_open(pos))
     });
     let still_wants = doc.arena.contains(latched) && wants_wheel(doc.arena.get(latched), wheel);
-    (recent && under && still_wants).then_some(latched)
+    (recent && still && under && still_wants).then_some(latched)
 }
 
 fn wants_gestures(element: &dyn crate::node::Element) -> bool {
@@ -501,7 +524,10 @@ fn deepest(
     pos: Pos2,
     wants: &dyn Fn(&dyn crate::node::Element) -> bool,
 ) -> Option<NodeId> {
-    if !rects.visible(&id).is_some_and(|rect| rect.contains(pos)) {
+    if !rects
+        .visible(&id)
+        .is_some_and(|rect| rect.contains_half_open(pos))
+    {
         return None;
     }
     let node = doc.arena.get(id);
@@ -556,7 +582,10 @@ impl<'a> Reach<'a> {
             return false;
         }
         let bounds = subtree_bounds(doc, self.rects, id);
-        probes.into_iter().flatten().any(|pos| bounds.contains(pos))
+        probes
+            .into_iter()
+            .flatten()
+            .any(|pos| bounds.contains_half_open(pos))
     }
 }
 
@@ -646,9 +675,11 @@ fn touch_shift(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Vec2 {
         if let Some((_, at)) = nearest {
             return at - pos;
         }
-        let covered = tops
-            .iter()
-            .any(|top| rects.get(top).is_some_and(|rect| rect.contains(pos)));
+        let covered = tops.iter().any(|top| {
+            rects
+                .get(top)
+                .is_some_and(|rect| rect.contains_half_open(pos))
+        });
         if layer != root && covered {
             return Vec2::ZERO;
         }
@@ -673,8 +704,8 @@ fn nearest_press(
     let node = doc.arena.get(id);
     if presses(node) {
         let at = Pos2::new(
-            pos.x.clamp(rect.left(), rect.right()),
-            pos.y.clamp(rect.top(), rect.bottom()),
+            pos.x.clamp(rect.left(), rect.right().next_down()),
+            pos.y.clamp(rect.top(), rect.bottom().next_down()),
         );
         let away = at.distance(pos);
         if away <= TOUCH_REACH && nearest.is_none_or(|(held, _)| away < held) {

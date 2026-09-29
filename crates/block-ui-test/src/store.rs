@@ -411,9 +411,7 @@ impl ContentStore {
                     .get_mut(&Uuid::from_bytes(*block_id))
                 {
                     info.named_by_hand = name.is_some();
-                    if name.is_some() {
-                        info.name.clone_from(name);
-                    }
+                    info.name.clone_from(name);
                 }
             }
             EditorMessage::WatchBlocks { queries, .. } => {

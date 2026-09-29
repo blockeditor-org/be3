@@ -832,6 +832,25 @@ impl DockState {
         true
     }
 
+    pub fn empty_panes(&self) -> Vec<LeafId> {
+        self.surfaces
+            .iter()
+            .flat_map(|surface| self.leaves(surface.id))
+            .filter(|leaf| self.entries(*leaf).is_empty())
+            .collect()
+    }
+
+    pub fn remove_empty_panes(&mut self) {
+        let main = self.main();
+        for leaf in self.empty_panes() {
+            if self.leaves(main) == [leaf] {
+                continue;
+            }
+            self.prune(leaf);
+        }
+        self.settle_focus();
+    }
+
     pub fn replace(&mut self, tab: TabId, with: TabId) -> bool {
         let Some((leaf, index)) = self.locate(Entry::Tab(tab)) else {
             return false;

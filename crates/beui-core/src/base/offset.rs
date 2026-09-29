@@ -17,6 +17,7 @@ pub struct ScrollPosition {
     pub offset: f32,
     pub content: f32,
     pub viewport: f32,
+    pub overscroll: f32,
 }
 
 impl ScrollPosition {
@@ -24,6 +25,7 @@ impl ScrollPosition {
         offset: 0.0,
         content: 0.0,
         viewport: 0.0,
+        overscroll: 0.0,
     };
 
     pub fn max_offset(&self) -> f32 {
@@ -169,6 +171,7 @@ impl OffsetNode {
             return changed;
         }
         let mut from = None;
+        let mut unplaced = false;
         for item in stale.nodes {
             let Some(&index) = self.extents.indices.get(&item) else {
                 continue;
@@ -177,12 +180,14 @@ impl OffsetNode {
             if self.extents.lengths[index] != length {
                 self.extents.lengths[index] = length;
                 from = Some(from.map_or(index, |from: usize| from.min(index)));
+            } else if doc.arena.unplaced(item) {
+                unplaced = true;
             }
         }
         if let Some(from) = from {
             self.extents.sum_from(from);
         }
-        from.is_some()
+        from.is_some() || unplaced
     }
 
     fn nodes(&self) -> Vec<NodeId> {
@@ -236,6 +241,7 @@ impl OffsetNode {
             offset: self.offset.clamp(0.0, (content - main).max(0.0)),
             content,
             viewport: main,
+            overscroll: self.overscroll,
         };
         self.offset = position.offset;
         position

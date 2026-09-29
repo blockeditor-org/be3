@@ -1,6 +1,6 @@
 use beui::{Pos2, Rect, Vec2, vec2};
 use block_plugin_api::{
-    BlockPick, BlockTypeDescriptor, ChildRect, EditorCapabilities, EditorInstanceId,
+    BlockPick, BlockTypeDescriptor, ChildMode, ChildRect, EditorCapabilities, EditorInstanceId,
     EditorManifest, EditorRegion, FrameChrome, FrameSpec, InteractionMode, PluginManifest,
     ResizeMode, ViewChange,
 };
@@ -84,6 +84,7 @@ fn child_capabilities(editors: &EditorAccess<'_>, block_id: Uuid) -> EditorCapab
         rotation: capabilities.allow_rotation,
         preserve_aspect_ratio: capabilities.preserve_aspect_ratio,
         pan_and_zoom: capabilities.supports_pan_and_zoom,
+        max_zoom: capabilities.max_zoom,
     }
 }
 
@@ -654,8 +655,9 @@ impl PluginEditor {
             );
             collect_view_changes(child.child, viewport, views);
         } else if available {
+            let mut ui = ui.passive(child.mode == ChildMode::Passive);
             action = embedded_editor_ui(
-                ui,
+                &mut ui,
                 editors,
                 child.block_id,
                 child.rect,
@@ -853,6 +855,7 @@ impl PluginEditor {
             allow_rotation: capabilities.rotation,
             preserve_aspect_ratio: capabilities.preserve_aspect_ratio,
             supports_pan_and_zoom: capabilities.pan_and_zoom,
+            max_zoom: capabilities.max_zoom,
         }
     }
 

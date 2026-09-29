@@ -110,14 +110,17 @@ done > "$scratch/sizes"
 
 plugins=""
 excluded=""
+package_name() {
+    sed -n 's/^name[[:space:]]*=[[:space:]]*"\\(.*\\)"/\\1/p' "$1" | head -n 1
+}
 for manifest in crates/editors/*/Cargo.toml; do
-    name="$(basename "$(dirname "$manifest")")"
+    name="$(package_name "$manifest")"
     plugins="$plugins -p $name"
     excluded="$excluded --exclude $name"
 done
 games=""
-for directory in crates/tabletop_games/rules/*/; do
-    games="$games -p $(basename "$directory")"
+for manifest in crates/tabletop-games/rules/*/Cargo.toml; do
+    games="$games -p $(package_name "$manifest")"
 done
 
 plan() {

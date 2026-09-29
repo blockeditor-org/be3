@@ -531,14 +531,17 @@ impl ApplicationHandler<UserEvent> for Runner {
                     force: touch.force.map(touch_force),
                 });
             }
-            WindowEvent::MouseWheel { delta, .. } => {
+            WindowEvent::MouseWheel { delta, phase, .. } => {
                 let delta = match delta {
                     MouseScrollDelta::LineDelta(x, y) => vec2(x * LINE_HEIGHT, y * LINE_HEIGHT),
-                    MouseScrollDelta::PixelDelta(position) => {
-                        vec2(position.x as f32, position.y as f32)
-                    }
+                    MouseScrollDelta::PixelDelta(position) => self.logical(position).to_vec2(),
                 };
-                self.push(Event::Scroll(delta));
+                if delta != Vec2::ZERO {
+                    self.push(Event::Scroll(delta));
+                }
+                if cfg!(target_os = "linux") && phase == winit::event::TouchPhase::Ended {
+                    self.push(Event::ScrollEnded);
+                }
             }
             WindowEvent::PinchGesture { delta, .. } => {
                 self.push(Event::Zoom(1.0 + delta as f32));

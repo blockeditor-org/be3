@@ -19,7 +19,7 @@ web-sys = { version = "0.3", optional = true, features = ["HtmlCanvasElement"] }
 beui-components-unstyled = { path = "../beui-components-unstyled" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-view = { path = "../beui-view" }
-beui_macros = { path = "../beui_macros" }
+beui_macros = { path = "../beui-macros" }
 pollster = "0.4"
 
 [lints]

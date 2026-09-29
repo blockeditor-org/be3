@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Lays out the app as it runs: the executable under cargo's name, --file beside
-# it as it is (PDFium), and each plugin's manifest renamed <id>.plugin.json with
+# it as it is, and each plugin's manifest renamed <id>.plugin.json with
 # the module it names and its .cwasm, and --data, the plugin's read-only data
 # (plugin_data), under data/<id>/. For the web bundle, --tree copies in what
 # wasm-bindgen wrote and --index writes plugins.json. --compiled-only leaves out

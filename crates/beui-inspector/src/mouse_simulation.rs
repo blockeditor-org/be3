@@ -29,7 +29,7 @@ const IBEAM_HEIGHT: f32 = 18.0;
 const IBEAM_SERIF: f32 = 3.5;
 const IBEAM_WIDTH: f32 = 1.5;
 const TAP_TIME: Duration = Duration::from_millis(300);
-const DOUBLE_TAP_TIME: Duration = Duration::from_millis(350);
+pub const DOUBLE_TAP_TIME: Duration = Duration::from_millis(250);
 const MIDDLE_HOLD: Duration = Duration::from_millis(180);
 pub const SCROLL_TICK: f32 = 22.0;
 pub const WHEEL_LINE: f32 = 40.0;
@@ -55,6 +55,15 @@ enum Role {
     Keyboard,
     Key(KeyId),
     Ignored,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Left {
+    Up,
+    Tapped(Instant),
+    Armed { locked: bool, held: Vec2 },
+    Dragging { locked: bool },
+    Locked,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -95,10 +104,9 @@ pub struct MouseSimulation {
     middle: Middle,
     middle_travel: f32,
     scroll: Vec2,
-    dragging: bool,
-    armed: Option<Vec2>,
+    left: Left,
     scrolling: bool,
-    last_tap: Option<Instant>,
+    now: Instant,
     keyboard_open: bool,
     keyboard: Keyboard,
     painted: Rect,
@@ -120,10 +128,9 @@ impl Default for MouseSimulation {
             middle: Middle::Up,
             middle_travel: 0.0,
             scroll: Vec2::ZERO,
-            dragging: false,
-            armed: None,
+            left: Left::Up,
             scrolling: false,
-            last_tap: None,
+            now: Instant::now(),
             keyboard_open: false,
             keyboard: Keyboard::default(),
             painted: Rect::NOTHING,
@@ -132,6 +139,10 @@ impl Default for MouseSimulation {
 }
 
 impl MouseSimulation {
+    fn now(&self) -> Instant {
+        self.now
+    }
+
     fn is_enabled(&self) -> bool {
         self.enabled
     }
@@ -216,23 +227,41 @@ impl MouseSimulation {
         self.holders = [None; BUTTONS.len()];
         self.middle = Middle::Up;
         self.middle_travel = 0.0;
-        self.dragging = false;
-        self.armed = None;
+        self.left = Left::Up;
         self.scrolling = false;
-        self.last_tap = None;
         self.keyboard.clear();
     }
 
     fn settle(&mut self) -> Option<Duration> {
-        let Middle::Pending(since) = self.middle else {
-            return None;
+        let now = self.now();
+        let left = match self.left {
+            Left::Tapped(at) => {
+                let elapsed = now.saturating_duration_since(at);
+                if elapsed >= DOUBLE_TAP_TIME {
+                    self.left = Left::Up;
+                    None
+                } else {
+                    Some(DOUBLE_TAP_TIME - elapsed)
+                }
+            }
+            _ => None,
         };
-        let elapsed = since.elapsed();
-        if elapsed >= MIDDLE_HOLD {
-            self.middle = Middle::Held;
-            return None;
+        let middle = match self.middle {
+            Middle::Pending(since) => {
+                let elapsed = now.saturating_duration_since(since);
+                if elapsed >= MIDDLE_HOLD {
+                    self.middle = Middle::Held;
+                    None
+                } else {
+                    Some(MIDDLE_HOLD - elapsed)
+                }
+            }
+            _ => None,
+        };
+        match (left, middle) {
+            (Some(left), Some(middle)) => Some(left.min(middle)),
+            (left, middle) => left.or(middle),
         }
-        Some(MIDDLE_HOLD - elapsed)
     }
 
     fn flush(&mut self, out: &mut Vec<Event>) {
@@ -282,7 +311,7 @@ impl MouseSimulation {
 
     fn held(&self, index: usize) -> bool {
         match index {
-            0 => self.holders[0].is_some() || self.dragging,
+            0 => self.holders[0].is_some() || self.left != Left::Up,
             1 => self.middle == Middle::Held,
             _ => self.holders[index].is_some(),
         }
@@ -302,7 +331,7 @@ impl MouseSimulation {
         match role {
             Role::Button(1) => {
                 self.holders[1] = Some(id);
-                self.middle = Middle::Pending(Instant::now());
+                self.middle = Middle::Pending(self.now());
                 self.middle_travel = 0.0;
             }
             Role::Button(index) => self.holders[index] = Some(id),
@@ -314,14 +343,31 @@ impl MouseSimulation {
             Role::Trackpad => {
                 if self.trackpad_fingers() > 0 {
                     self.scrolling = true;
-                    self.dragging = false;
-                    self.armed = None;
-                } else if self
-                    .last_tap
-                    .take()
-                    .is_some_and(|at| at.elapsed() <= DOUBLE_TAP_TIME)
-                {
-                    self.armed = Some(Vec2::ZERO);
+                    self.left = match self.left {
+                        Left::Armed { locked: true, .. } | Left::Dragging { locked: true } => {
+                            Left::Locked
+                        }
+                        Left::Locked => Left::Locked,
+                        _ => Left::Up,
+                    };
+                } else {
+                    let now = self.now();
+                    self.left = match self.left {
+                        Left::Tapped(at)
+                            if now.saturating_duration_since(at) >= DOUBLE_TAP_TIME =>
+                        {
+                            Left::Up
+                        }
+                        Left::Tapped(_) => Left::Armed {
+                            locked: false,
+                            held: Vec2::ZERO,
+                        },
+                        Left::Locked => Left::Armed {
+                            locked: true,
+                            held: Vec2::ZERO,
+                        },
+                        other => other,
+                    };
                 }
             }
             Role::Ignored => {}
@@ -332,7 +378,7 @@ impl MouseSimulation {
                 role,
                 origin: pos,
                 last: pos,
-                started: Instant::now(),
+                started: self.now(),
                 moved: false,
                 travel: 0.0,
             },
@@ -359,14 +405,18 @@ impl MouseSimulation {
             Role::Trackpad => {
                 if self.scrolling {
                     self.scroll += delta * count.recip();
-                } else if let Some(held) = self.armed {
+                } else if let Left::Armed { locked, held } = self.left {
                     match moved {
                         true => {
-                            self.armed = None;
-                            self.dragging = true;
+                            self.left = Left::Dragging { locked };
                             self.move_cursor(held + delta);
                         }
-                        false => self.armed = Some(held + delta),
+                        false => {
+                            self.left = Left::Armed {
+                                locked,
+                                held: held + delta,
+                            }
+                        }
                     }
                 } else {
                     self.move_cursor(delta);
@@ -394,7 +444,9 @@ impl MouseSimulation {
             return;
         };
         let (_, finger) = self.fingers.remove(index);
-        let quick = !cancelled && !finger.moved && finger.started.elapsed() <= TAP_TIME;
+        let quick = !cancelled
+            && !finger.moved
+            && self.now().saturating_duration_since(finger.started) <= TAP_TIME;
         let tapped = quick && finger.travel < TAP_TRAVEL * self.scale;
         match finger.role {
             Role::Button(1) => {
@@ -411,17 +463,17 @@ impl MouseSimulation {
                 if self.trackpad_fingers() > 0 {
                     return;
                 }
-                let armed = self.armed.take().is_some();
-                if self.scrolling {
-                    self.scrolling = false;
-                } else if self.dragging {
-                    self.dragging = false;
-                } else if armed && quick {
-                    self.clicks.push(0);
-                } else if tapped {
-                    self.clicks.push(0);
-                    self.last_tap = Some(Instant::now());
+                if std::mem::take(&mut self.scrolling) {
+                    return;
                 }
+                self.left = match (self.left, tapped) {
+                    (Left::Up, true) => Left::Tapped(self.now()),
+                    (Left::Armed { locked: false, .. }, true) => Left::Locked,
+                    (Left::Armed { locked: true, .. }, false) => Left::Locked,
+                    (Left::Dragging { locked: true }, _) => Left::Locked,
+                    (Left::Locked, _) => Left::Locked,
+                    _ => Left::Up,
+                };
             }
             Role::Keyboard | Role::Ignored => {}
         }
@@ -469,6 +521,10 @@ impl MouseSimulation {
             return Role::Trackpad;
         }
         Role::Ignored
+    }
+
+    pub fn left_held(&self) -> bool {
+        self.emitted[0]
     }
 
     pub fn cursor(&self) -> Pos2 {
@@ -673,7 +729,8 @@ impl InputSimulation for MouseSimulation {
         self.enable(enabled);
     }
 
-    fn translate(&mut self, raw: RawInput) -> (RawInput, Option<Duration>) {
+    fn translate(&mut self, raw: RawInput, now: Instant) -> (RawInput, Option<Duration>) {
+        self.now = now;
         self.translated(raw)
     }
 
@@ -694,6 +751,10 @@ impl InputSimulation for MouseSimulation {
     }
 
     fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
 }

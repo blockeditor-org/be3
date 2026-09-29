@@ -77,6 +77,7 @@ pub struct HeadlessPlugin {
 
 impl HeadlessPlugin {
     pub fn new(id: &str, name: &str, version: &str) -> Self {
+        crate::fonts::use_fonts(beui::FontLibrary::bundled());
         Self {
             core: Core::new(id, name, version),
             access: HashMap::new(),

@@ -10,5 +10,8 @@ freetype = "0.7"
 harfbuzz_rs = "2"
 unicode-script = "0.5"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+libloading = "0.8"
+
 [lints]
 workspace = true

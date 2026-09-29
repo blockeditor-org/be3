@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 54;
+pub const PROTOCOL_VERSION: u16 = 55;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -348,6 +348,8 @@ pub struct EditorCapabilities {
     pub rotation: bool,
     pub preserve_aspect_ratio: bool,
     pub pan_and_zoom: bool,
+    #[serde(default)]
+    pub max_zoom: Option<u32>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1271,6 +1273,7 @@ pub struct VersionCommit {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HostRequest {
     PickFile(FileFilter),
+    SaveFile(SavedFile),
     PickBlock(BlockFilter),
     PasteImage,
     Fetch(String),
@@ -1281,6 +1284,7 @@ pub enum HostRequest {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HostReply {
     FilePicked(FilePick),
+    FileSaved(FileSave),
     BlockPicked(BlockPick),
     ImagePasted(ClipboardImage),
     Fetched(FetchResult),
@@ -1310,6 +1314,20 @@ pub enum BlockPick {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FilePick {
     Chosen { name: String, data: Vec<u8> },
+    Cancelled,
+    Failed(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedFile {
+    pub name: String,
+    pub mime_type: String,
+    pub data: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FileSave {
+    Saved,
     Cancelled,
     Failed(String),
 }
@@ -1382,6 +1400,8 @@ pub enum Message {
     HelloAccepted(HelloAccepted),
     HelloRejected(ProtocolError),
     Theme(Theme),
+    Fonts(Fonts),
+    MissingCharacters(Vec<char>),
     Screens(ScreenSet),
     Layout(ScreenLayout),
     RegionSizes(Vec<RegionSize>),
@@ -1428,6 +1448,7 @@ impl Message {
             Self::HelloAccepted(_)
             | Self::HelloRejected(_)
             | Self::Theme(_)
+            | Self::Fonts(_)
             | Self::Screens(_)
             | Self::Input(_)
             | Self::DrawFrame
@@ -1438,6 +1459,7 @@ impl Message {
             | Self::Acknowledged { .. }
             | Self::ShutdownAcknowledged
             | Self::Layout(_)
+            | Self::MissingCharacters(_)
             | Self::RegionSizes(_)
             | Self::Frames(_)
             | Self::FrameNeeded
@@ -1545,6 +1567,39 @@ pub struct Theme {
     pub dark: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FontRole {
+    Text,
+    Monospace,
+    Fallback,
+    Icons,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FontFace {
+    pub role: FontRole,
+    pub index: u32,
+    #[serde(with = "serde_bytes")]
+    pub data: Vec<u8>,
+}
+
+impl fmt::Debug for FontFace {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FontFace")
+            .field("role", &self.role)
+            .field("index", &self.index)
+            .field("bytes", &self.data.len())
+            .finish()
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Fonts {
+    pub replace: bool,
+    pub faces: Vec<FontFace>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PluginIdentity {
     pub id: String,
@@ -1625,6 +1680,7 @@ pub enum InputEvent {
         y: f32,
         unit: WheelUnit,
     },
+    WheelEnded,
     Zoom {
         factor: f32,
     },
@@ -2039,6 +2095,14 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             .as_ref()
             .map_or(Ok(()), |presented| collection(presented.damage.len())),
         Message::RegionSizes(value) => collection(value.len()),
+        Message::Fonts(value) => {
+            collection(value.faces.len())?;
+            for face in &value.faces {
+                blob(&face.data)?;
+            }
+            Ok(())
+        }
+        Message::MissingCharacters(value) => collection(value.len()),
         Message::Editor(value) => validate_editor(value),
         Message::BlockTypes(value) => {
             collection(value.len())?;
@@ -2250,6 +2314,11 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
             collection(filter.mime_types.len())?;
             strings(filter.extensions.iter().chain(&filter.mime_types))
         }
+        HostRequest::SaveFile(file) => {
+            string(&file.name)?;
+            string(&file.mime_type)?;
+            blob(&file.data)
+        }
         HostRequest::PickBlock(filter) => {
             string(&filter.name)?;
             collection(filter.block_types.len())?;
@@ -2276,12 +2345,14 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
             strings(files)
         }
         HostReply::FilePicked(FilePick::Failed(message))
+        | HostReply::FileSaved(FileSave::Failed(message))
         | HostReply::BlockPicked(BlockPick::Failed(message))
         | HostReply::ImagePasted(ClipboardImage::Failed(message))
         | HostReply::Fetched(FetchResult::Failed(message))
         | HostReply::DataRead(FetchResult::Failed(message))
         | HostReply::DataListed(DataListing::Failed(message)) => string(message),
         HostReply::FilePicked(FilePick::Cancelled)
+        | HostReply::FileSaved(FileSave::Saved | FileSave::Cancelled)
         | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)
         | HostReply::ImagePasted(ClipboardImage::Empty) => Ok(()),
     }

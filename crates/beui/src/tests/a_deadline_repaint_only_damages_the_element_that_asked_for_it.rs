@@ -25,11 +25,7 @@ fn a_deadline_repaint_only_damages_the_element_that_asked_for_it() {
     harness.frame(Vec::new());
     let settled = paints.get();
 
-    harness
-        .document
-        .paint_cache
-        .get_mut()
-        .expire_deadlines(Instant::now());
+    harness.advance(Duration::from_secs(1));
     let damage = harness
         .frame(Vec::new())
         .damage()

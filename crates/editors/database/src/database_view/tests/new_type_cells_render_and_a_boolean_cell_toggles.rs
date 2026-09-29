@@ -22,7 +22,6 @@ fn new_type_cells_render_and_a_boolean_cell_toggles() {
         .harness
         .click(&format!("database-view.cell.0.{boolean_id}"));
     fixture.run();
-    fixture.run();
 
     assert_eq!(
         fixture.database().rows[0].value(boolean_id),

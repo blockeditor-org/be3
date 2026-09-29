@@ -1,6 +1,7 @@
 use std::sync::mpsc::Receiver;
 
 mod file_picker;
+mod file_saver;
 pub(crate) mod http;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
@@ -8,6 +9,7 @@ mod native;
 mod web;
 
 pub(crate) use file_picker::{FileFilter, FilePicker};
+pub(crate) use file_saver::{FileSaver, SavedFile};
 #[cfg(all(test, not(target_arch = "wasm32")))]
 pub(crate) use native::start_embedded_server_at;
 #[cfg(not(target_arch = "wasm32"))]

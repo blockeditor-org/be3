@@ -9,7 +9,8 @@ accesskit = "0.24.1"
 beui-components-unstyled = { path = "../beui-components-unstyled" }
 beui-core = { path = "../beui-core" }
 beui-view = { path = "../beui-view" }
-beui_macros = { path = "../beui_macros" }
+beui_macros = { path = "../beui-macros" }
+emojis = "0.9"
 reactive = { path = "../reactive" }
 text-editor-core = { path = "../text-editor-core" }
 

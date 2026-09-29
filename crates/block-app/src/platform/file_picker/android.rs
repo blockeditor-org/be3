@@ -57,7 +57,7 @@ fn start(filter: &FileFilter) -> Result<(), String> {
     }
 }
 
-fn main_activity<'local>(
+pub(crate) fn main_activity<'local>(
     env: &mut Env<'local>,
     activity: &JObject<'local>,
 ) -> Result<JClass<'local>, JniError> {

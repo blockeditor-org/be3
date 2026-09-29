@@ -6,13 +6,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::graph::BlockParent;
 use block_plugin_api::{
-    AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockLocation, BlockPick,
-    ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
-    DataListing, EditorRegion, FetchResult, FilePick, HostReply, HostRequest, Occluder,
+    AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockPick, ChildId,
+    ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage, DataListing,
+    EditorRegion, FetchResult, FilePick, FileSave, HostReply, HostRequest, Occluder,
     PerformanceMeasurement, Size, ViewChange, WebViewCommand, WebViewEvent,
 };
-pub use block_plugin_api::{BlockFilter, FileFilter};
+pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};
 use uuid::Uuid;
@@ -88,23 +89,6 @@ pub struct ArtifactState {
     pub summary: String,
     pub error: Option<String>,
     pub regenerating: bool,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum BlockSource {
-    Root,
-    Orphaned,
-    Block(Uuid),
-}
-
-impl BlockSource {
-    fn encode(self) -> BlockLocation {
-        match self {
-            Self::Root => BlockLocation::Root,
-            Self::Orphaned => BlockLocation::Detached,
-            Self::Block(id) => BlockLocation::Block(id.into_bytes()),
-        }
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -340,6 +324,7 @@ impl Pushed {
 pub struct EditorHost {
     waker: Waker,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
+    changes: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
@@ -429,6 +414,15 @@ impl EditorHost {
     fn push(&self, pushed: Pushed) {
         let revision = &self.pushed[pushed as usize];
         revision.set(revision.get() + 1);
+        self.changed();
+    }
+
+    pub fn changes(&self) -> u64 {
+        self.changes.get() + self.graph.deferred()
+    }
+
+    fn changed(&self) {
+        self.changes.set(self.changes.get() + 1);
     }
 
     pub fn performance(&self, group: impl Into<String>) -> PerformanceReporter {
@@ -623,7 +617,7 @@ impl EditorHost {
         &self,
         block_id: Uuid,
         block_type: Uuid,
-        source: BlockSource,
+        source: BlockParent,
         is_reference: bool,
     ) {
         self.block_commands.borrow_mut().push((
@@ -640,7 +634,7 @@ impl EditorHost {
         &self,
         block_id: Uuid,
         block_type: Uuid,
-        source: BlockSource,
+        source: BlockParent,
         destination: Uuid,
         is_reference: bool,
     ) {
@@ -739,6 +733,11 @@ impl EditorHost {
             .entry(block)
             .or_default()
             .push(update);
+        self.changed();
+    }
+
+    pub fn updated_content(&self) -> Vec<Option<Uuid>> {
+        self.content_updates.borrow().keys().copied().collect()
     }
 
     pub(crate) fn take_content_updates(&self, block: Option<Uuid>) -> Vec<ContentUpdate> {
@@ -929,6 +928,7 @@ impl EditorHost {
 
     pub(crate) fn set_files(&self, drop: Option<FileDrop>) {
         *self.files.borrow_mut() = drop;
+        self.changed();
     }
 
     pub fn accept_drag(&self, accepted: bool) {
@@ -949,6 +949,17 @@ impl EditorHost {
     pub fn take_pick(&self, request: u64) -> Option<FilePick> {
         match self.take_reply(request)? {
             HostReply::FilePicked(pick) => Some(pick),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
+    pub fn save_file(&self, file: SavedFile) -> u64 {
+        self.ask(HostRequest::SaveFile(file))
+    }
+
+    pub fn take_save(&self, request: u64) -> Option<FileSave> {
+        match self.take_reply(request)? {
+            HostReply::FileSaved(save) => Some(save),
             reply => self.mismatched(request, reply),
         }
     }
@@ -1136,7 +1147,9 @@ impl EditorHost {
     }
 
     pub fn set_chrome_shown(&self, chrome: bool) {
-        self.chrome.set(Some(chrome));
+        if self.chrome.replace(Some(chrome)) != Some(chrome) {
+            self.changed();
+        }
     }
 
     pub fn copy_text(&self, text: impl Into<String>) {
@@ -1299,10 +1312,12 @@ impl EditorHost {
 
     pub fn set_editable(&self, editable: bool) {
         self.editable.set(editable);
+        self.changed();
     }
 
     pub fn set_view(&self, view: Rect, scale: f32) {
         self.view.set(Some(View { rect: view, scale }));
+        self.changed();
     }
 
     pub fn report_content(&self, rect: Rect) {
@@ -1319,6 +1334,7 @@ impl EditorHost {
 
     pub fn set_drag(&self, drag: Option<BlockDrag>) {
         self.drag.set(drag);
+        self.changed();
     }
 
     pub fn take_drag_accepted(&self) -> Option<bool> {
@@ -1355,6 +1371,8 @@ impl EditorHost {
         for status in statuses {
             current.insert(status.child, status);
         }
+        drop(current);
+        self.changed();
     }
 
     pub fn retain_child_statuses(&self, live: &[ChildId]) {
@@ -1365,6 +1383,7 @@ impl EditorHost {
 
     pub fn set_presenting(&self, presenting: bool) {
         self.presenting.set(presenting);
+        self.changed();
     }
 
     pub fn take_child_view_changes(&self, child: ChildId) -> Vec<ViewChange> {
@@ -1380,6 +1399,7 @@ impl EditorHost {
             .entry(child)
             .or_default()
             .push(change);
+        self.changed();
     }
 
     pub(crate) fn take_present_requests(&self) -> Vec<bool> {
@@ -1435,6 +1455,31 @@ impl FilePicker {
             FilePick::Cancelled => None,
             FilePick::Failed(error) => Some(Err(error)),
         }
+    }
+}
+
+#[derive(Default)]
+pub struct FileSaver {
+    request: Option<u64>,
+}
+
+impl FileSaver {
+    pub fn save(&mut self, host: &EditorHost, file: SavedFile) {
+        self.request = Some(host.save_file(file));
+    }
+
+    pub fn is_saving(&self) -> bool {
+        self.request.is_some()
+    }
+
+    pub fn poll(&mut self, host: &EditorHost) -> Option<Result<bool, String>> {
+        let save = host.take_save(self.request?)?;
+        self.request = None;
+        Some(match save {
+            FileSave::Saved => Ok(true),
+            FileSave::Cancelled => Ok(false),
+            FileSave::Failed(error) => Err(error),
+        })
     }
 }
 

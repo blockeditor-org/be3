@@ -7,7 +7,7 @@ license.workspace = true
 [dependencies]
 accesskit = "0.24.1"
 beui-core = { path = "../beui-core" }
-beui_macros = { path = "../beui_macros" }
+beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
 
 [lints]

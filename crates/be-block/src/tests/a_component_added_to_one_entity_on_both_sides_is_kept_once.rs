@@ -2,7 +2,6 @@ use super::*;
 use crate::canvas::{CanvasComponent, CanvasContent, InfiniteCanvasOperation};
 
 #[test]
-#[ignore = "a canvas component is an object per insert, so the same schema added on both sides shows up twice"]
 fn a_component_added_to_one_entity_on_both_sides_is_kept_once() {
     let (schema, name, size) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     let original = rectangle();
