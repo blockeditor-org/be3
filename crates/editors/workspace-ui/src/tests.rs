@@ -10,6 +10,7 @@ use crate::app::WorkspaceUiApp;
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
 mod a_narrow_workspace_folds_files_into_the_pane_beside_it;
+mod a_shown_block_is_remembered_in_the_recents;
 mod a_shown_block_is_reported_as_focused;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod closing_the_only_tab_leaves_the_blank_workspace;

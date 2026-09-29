@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::{BlockContent, FileTreeContent};
+use block_editor_beui::be_block::{BlockContent, FileTreeContent, WorkspaceUiContent};
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -14,7 +14,7 @@ use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_beui::root_settings::RootSetting;
 use block_editor_beui::{
     AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
-    Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed,
+    ContentProjection, Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -48,6 +48,7 @@ pub(crate) struct Workspace {
     files: ReadSignal<Option<Uuid>>,
     set_files: WriteSignal<Option<Uuid>>,
     file_tree: RefCell<RootSetting<FileTreeContent>>,
+    recents: Rc<ContentProjection<WorkspaceUiContent>>,
     handles: RefCell<HashMap<Uuid, BlockList>>,
     block_types: RefCell<HashMap<Uuid, Uuid>>,
     opened_via: RefCell<HashMap<Uuid, Uuid>>,
@@ -68,6 +69,7 @@ impl Workspace {
         let (error, set_error) = create_signal(None);
         let (files, set_files) = create_signal(None);
         let (routes, set_routes) = create_signal(0);
+        let recents = editor.block_content::<WorkspaceUiContent>();
         let workspace = Rc::new(Self {
             editor,
             layout,
@@ -85,6 +87,7 @@ impl Workspace {
             files,
             set_files,
             file_tree: RefCell::new(RootSetting::default()),
+            recents,
             handles: RefCell::new(HashMap::new()),
             block_types: RefCell::new(HashMap::new()),
             opened_via: RefCell::new(HashMap::new()),
@@ -237,11 +240,24 @@ impl Workspace {
             let block_type = self.block_types.borrow().get(&id).copied()?;
             Some((id, block_type))
         });
+        if let Some((id, block_type)) = focused {
+            untrack(|| self.remember(id, block_type));
+        }
         self.host().report_focus(FocusedBlock {
             block_id: focused.map(|(id, _)| id),
             block_type: focused.map_or_else(Uuid::nil, |(_, block_type)| block_type),
             via: focused.map_or_else(Vec::new, |(id, _)| self.via_chain(id)),
         });
+    }
+
+    fn remember(&self, id: Uuid, block_type: Uuid) {
+        let visit = self
+            .recents
+            .read(|content| content.root().visit(id, block_type))
+            .flatten();
+        if let Some(edit) = visit {
+            self.recents.operate(edit);
+        }
     }
 
     fn watch_artifacts(&self) {

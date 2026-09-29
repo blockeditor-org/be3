@@ -110,6 +110,7 @@ mod undoing_a_wire_keeps_the_part_someone_else_drew_onto_it;
 mod undoing_an_event_removal_restores_it_with_its_id;
 mod unpinning_a_component_removes_it_from_every_folder;
 mod video_clips_attach_ripple_and_refuse_cycles;
+mod visiting_a_block_puts_it_first_in_the_recents_once;
 mod wires_drawn_on_each_side_that_meet_join_into_one;
 
 fn header(name: &str) -> ImageHeader {
