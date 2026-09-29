@@ -11,6 +11,7 @@ mod expanding_a_folder_shows_its_children_without_more_input;
 mod exporting_a_text_block_saves_it_as_a_markdown_file;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
 mod the_inspect_dialog_stays_on_a_narrow_screen;
+mod the_phone_files_header_opens_the_app_menu;
 
 struct Fixture {
     test: BeuiTest<FileTreeApp>,

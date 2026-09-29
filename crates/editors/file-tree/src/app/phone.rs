@@ -4,13 +4,13 @@ use std::rc::Rc;
 
 use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceUiContent};
 use block_editor_beui::beui::icons::{
-    ICON_ADD, ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE,
+    ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE,
     ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_FILE_DOWNLOAD, ICON_HISTORY, ICON_INFO, ICON_LINK_OFF,
     ICON_MORE_VERT, ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_SEARCH, ICON_SEARCH_OFF,
     ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, BackHandler, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, NodeRef,
+    Align, BackHandler, ClickCallback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, NodeRef,
     ReadSignal, Show, Spacer, Text, WriteSignal, clone, component, create_memo, create_signal,
     view,
 };
@@ -143,6 +143,7 @@ pub(crate) fn PhoneFiles(
     });
     let rising = clone!(level set_level -> move || set_level.set(level.get_untracked().up()));
     let rows_editor = editor.clone();
+    let menu = clone!(editor -> move || editor.host().show_app_menu(editor.block_id()));
     let rows_tree = Rc::clone(&tree);
     let rows_level = set_level.clone();
     let rows_acting = set_acting.clone();
@@ -152,7 +153,7 @@ pub(crate) fn PhoneFiles(
     view! {
         <BackHandler enabled={nested} on_back={rising}>
             <List spacing=0.0>
-                <Header level={header_level} set_level={header_set} query set_query />
+                <Header level={header_level} set_level={header_set} query set_query on_menu={menu} />
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&page}>
                     <List spacing=0.0>
                         <Show condition={searching}>
@@ -220,6 +221,7 @@ fn Header(
     set_level: WriteSignal<Level>,
     query: ReadSignal<String>,
     set_query: WriteSignal<String>,
+    on_menu: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
     let top = create_memo(clone!(level -> move || level.get() == Level::Root));
@@ -244,9 +246,21 @@ fn Header(
         <Frame color={theme.background.clone()} padding_horizontal=PADDING padding_vertical=PADDING>
             <List spacing=PADDING>
                 <Show condition={top}>
-                    <Frame padding_horizontal=PADDING padding_vertical=4.0>
-                        <Title content="Files" />
-                    </Frame>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                        <Frame
+                            @sizing=ItemSize::Percent(100.0)
+                            padding_horizontal=PADDING
+                            padding_vertical=4.0
+                        >
+                            <Title content="Files" />
+                        </Frame>
+                        <IconButton
+                            @test_id={"file-tree.app-menu"}
+                            glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
+                            label="Account and settings"
+                            on_click={move || on_menu.call()}
+                        />
+                    </List>
                 </Show>
                 <Show condition={inside}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
