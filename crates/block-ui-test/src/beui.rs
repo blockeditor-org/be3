@@ -9,9 +9,9 @@ use block_editor_beui::{
     ShownPresence, ViewChange, WebViewCommand,
 };
 use block_plugin_api::{
-    BarAction, BlockTypeDescriptor, ChildId, ChildRect, EditorMessage, FrameChrome,
-    FrameReport, HelloAccepted, InputBatch, Message, PROTOCOL_VERSION, ScreenId, ScreenRequest,
-    ScreenSet, SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
+    BarAction, BlockTypeDescriptor, ChildId, ChildRect, EditorMessage, FrameChrome, FrameReport,
+    HelloAccepted, InputBatch, Message, PROTOCOL_VERSION, ScreenId, ScreenRequest, ScreenSet,
+    SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};

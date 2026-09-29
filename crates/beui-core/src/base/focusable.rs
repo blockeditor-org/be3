@@ -150,7 +150,9 @@ impl Document {
             return;
         }
         if self.arena.get_as::<FocusableNode>(focusable).press_focus != press_focus {
-            self.arena.get_mut_as::<FocusableNode>(focusable).press_focus = press_focus;
+            self.arena
+                .get_mut_as::<FocusableNode>(focusable)
+                .press_focus = press_focus;
         }
     }
 

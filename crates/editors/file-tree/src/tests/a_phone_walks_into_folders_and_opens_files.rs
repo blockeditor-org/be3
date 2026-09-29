@@ -34,7 +34,10 @@ fn a_phone_walks_into_folders_and_opens_files() {
             .contains(&BlockQuery::References(folder)),
         "tapping a folder asks for what is in it"
     );
-    assert!(fixture.opened().is_empty(), "a folder is walked into, not opened");
+    assert!(
+        fixture.opened().is_empty(),
+        "a folder is walked into, not opened"
+    );
     let mut roadmap = BlockInfo::new(inside, text_type, BlockParent::Block(folder));
     roadmap.name = Some("Roadmap".to_owned());
     fixture
@@ -42,7 +45,9 @@ fn a_phone_walks_into_folders_and_opens_files() {
         .set_blocks(BlockQuery::References(folder), vec![roadmap]);
     fixture.settle();
     assert!(fixture.test.shown("file-tree.back"));
-    fixture.test.snapshot("a_phone_shows_a_folder_it_walked_into");
+    fixture
+        .test
+        .snapshot("a_phone_shows_a_folder_it_walked_into");
 
     fixture.test.click(&format!("file-tree.{inside}.open"));
     fixture.settle();

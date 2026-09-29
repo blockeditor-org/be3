@@ -169,38 +169,38 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                             </Frame>
                         </Show>
                         <Show condition={wide}>
-                        <Tree
-                            @sizing=ItemSize::Percent(100.0)
-                            @node_ref={&tree_ref}
-                            keys={keys}
-                            item={item}
-                            selected={focused}
-                            ancestors={move |key: RowKey| ancestors(&key)}
-                            spacing=2.0
-                            padding=PADDING
-                            row_test_id={move |key: RowKey| row_test_id(&key)}
-                            reveal_test_id={"file-tree.reveal".to_owned()}
-                            outline={outline}
-                            on_select={open}
-                            on_expand={expand}
-                            on_reveal={reveal}
-                            on_drag_start={start}
-                        >
-                            {move |face: TreeRowFace<RowKey>| {
-                                let row = tree.row(face.key.clone());
-                                view! {
-                                    <TreeRow
-                                        editor={editor.clone()}
-                                        tree={Rc::clone(&tree)}
-                                        picker={picker.clone()}
-                                        exporter={Rc::clone(&exporter)}
-                                        inspect={inspect.clone()}
-                                        row={row}
-                                        face={face}
-                                    />
-                                }
-                            }}
-                        </Tree>
+                            <Tree
+                                @sizing=ItemSize::Percent(100.0)
+                                @node_ref={&tree_ref}
+                                keys={keys}
+                                item={item}
+                                selected={focused}
+                                ancestors={move |key: RowKey| ancestors(&key)}
+                                spacing=2.0
+                                padding=PADDING
+                                row_test_id={move |key: RowKey| row_test_id(&key)}
+                                reveal_test_id={"file-tree.reveal".to_owned()}
+                                outline={outline}
+                                on_select={open}
+                                on_expand={expand}
+                                on_reveal={reveal}
+                                on_drag_start={start}
+                            >
+                                {move |face: TreeRowFace<RowKey>| {
+                                    let row = tree.row(face.key.clone());
+                                    view! {
+                                        <TreeRow
+                                            editor={editor.clone()}
+                                            tree={Rc::clone(&tree)}
+                                            picker={picker.clone()}
+                                            exporter={Rc::clone(&exporter)}
+                                            inspect={inspect.clone()}
+                                            row={row}
+                                            face={face}
+                                        />
+                                    }
+                                }}
+                            </Tree>
                         </Show>
                     </List>
                 </Frame>
@@ -634,7 +634,13 @@ impl Picker {
         self.request(editor, parent, excluded, true);
     }
 
-    fn request(&self, editor: &Editor, parent: Option<Uuid>, excluded: HashSet<Uuid>, placed: bool) {
+    fn request(
+        &self,
+        editor: &Editor,
+        parent: Option<Uuid>,
+        excluded: HashSet<Uuid>,
+        placed: bool,
+    ) {
         self.set_error.set(None);
         self.target.set(parent);
         let place = parent.map_or(BlockParent::Root, BlockParent::Block);

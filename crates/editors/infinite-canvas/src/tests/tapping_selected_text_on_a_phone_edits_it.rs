@@ -22,7 +22,10 @@ fn tapping_selected_text_on_a_phone_edits_it() {
     };
 
     tap(&mut editor);
-    assert!(!editor.shown("infinite-canvas.text"), "the first tap selects");
+    assert!(
+        !editor.shown("infinite-canvas.text"),
+        "the first tap selects"
+    );
 
     tap(&mut editor);
     assert!(

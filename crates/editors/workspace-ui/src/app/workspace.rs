@@ -399,7 +399,10 @@ impl Workspace {
     }
 
     fn visit(&self, tab: TabId) {
-        if self.order.with_untracked(|order| order.first() == Some(&tab)) {
+        if self
+            .order
+            .with_untracked(|order| order.first() == Some(&tab))
+        {
             return;
         }
         self.set_order.update(|order| {
@@ -475,7 +478,8 @@ impl Workspace {
         };
         let still_open = tabs.values().any(|item| item.id == closed.id);
         self.set_tabs.set(tabs);
-        self.set_order.update(|order| order.retain(|other| *other != tab));
+        self.set_order
+            .update(|order| order.retain(|other| *other != tab));
         if self.page.get_untracked() == PhonePage::Tab(tab) {
             let next = self
                 .order
@@ -810,29 +814,29 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                     <PhoneShell @sizing=ItemSize::Percent(100.0) workspace={shell} />
                 </Show>
                 <Show condition={desktop}>
-                <DockArea
-                    @sizing=ItemSize::Percent(100.0)
-                    state={layout}
-                    title={title}
-                    closable={Func::new(|tab: TabId| tab != FILES)}
-                    on_change={move |next: DockState| changing.changed(next)}
-                    on_close={move |tab: TabId| closing.close(tab)}
-                    empty={move || view! {
-                        <EmptyPanel />
-                    }}
-                >
-                    {move |tab: TabId| {
-                        let workspace = Rc::clone(&content);
-                        match tab {
-                            FILES => view! {
-                                <FilesPanel workspace={workspace} />
-                            },
-                            tab => view! {
-                                <BlockPanel workspace={workspace} tab={tab} phone=false />
-                            },
-                        }
-                    }}
-                </DockArea>
+                    <DockArea
+                        @sizing=ItemSize::Percent(100.0)
+                        state={layout}
+                        title={title}
+                        closable={Func::new(|tab: TabId| tab != FILES)}
+                        on_change={move |next: DockState| changing.changed(next)}
+                        on_close={move |tab: TabId| closing.close(tab)}
+                        empty={move || view! {
+                            <EmptyPanel />
+                        }}
+                    >
+                        {move |tab: TabId| {
+                            let workspace = Rc::clone(&content);
+                            match tab {
+                                FILES => view! {
+                                    <FilesPanel workspace={workspace} />
+                                },
+                                tab => view! {
+                                    <BlockPanel workspace={workspace} tab={tab} phone=false />
+                                },
+                            }
+                        }}
+                    </DockArea>
                 </Show>
             </List>
         </Frame>

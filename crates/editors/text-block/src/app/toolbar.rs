@@ -112,7 +112,10 @@ pub(crate) fn FormatBar(state: Shared) -> NodeId {
                     <Separator />
                     <Frame padding_vertical=FORMAT_PADDING>
                         <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
+                            <Scroll
+                                @sizing=ItemSize::Percent(100.0)
+                                direction=Direction::Horizontal
+                            >
                                 <Frame padding_horizontal=FORMAT_PADDING>
                                     <List spacing=0.0>
                                         <Show condition={markdown.clone()} then={controls} />
@@ -144,16 +147,36 @@ pub(crate) fn FormatBar(state: Shared) -> NodeId {
 #[component]
 fn PhoneMarkdownControls(state: Shared) -> NodeId {
     let buttons: Vec<(&str, &str, &str, MarkdownCommand)> = vec![
-        (ICON_TITLE, "Heading", "text.format.heading", MarkdownCommand::Heading(2)),
-        (ICON_FORMAT_BOLD, "Bold", "text.format.bold", MarkdownCommand::Bold),
-        (ICON_FORMAT_ITALIC, "Italic", "text.format.italic", MarkdownCommand::Italic),
+        (
+            ICON_TITLE,
+            "Heading",
+            "text.format.heading",
+            MarkdownCommand::Heading(2),
+        ),
+        (
+            ICON_FORMAT_BOLD,
+            "Bold",
+            "text.format.bold",
+            MarkdownCommand::Bold,
+        ),
+        (
+            ICON_FORMAT_ITALIC,
+            "Italic",
+            "text.format.italic",
+            MarkdownCommand::Italic,
+        ),
         (
             ICON_FORMAT_LIST_BULLETED,
             "Bulleted list",
             "text.format.bulleted-list",
             MarkdownCommand::BulletedList,
         ),
-        (ICON_CHECKLIST, "Checklist", "text.format.checklist", MarkdownCommand::Checklist),
+        (
+            ICON_CHECKLIST,
+            "Checklist",
+            "text.format.checklist",
+            MarkdownCommand::Checklist,
+        ),
         (ICON_LINK, "Link", "text.format.link", MarkdownCommand::Link),
         (
             ICON_FORMAT_STRIKETHROUGH,
@@ -161,7 +184,12 @@ fn PhoneMarkdownControls(state: Shared) -> NodeId {
             "text.format.strikethrough",
             MarkdownCommand::Strikethrough,
         ),
-        (ICON_CODE, "Inline code", "text.format.inline-code", MarkdownCommand::InlineCode),
+        (
+            ICON_CODE,
+            "Inline code",
+            "text.format.inline-code",
+            MarkdownCommand::InlineCode,
+        ),
         (
             ICON_FORMAT_LIST_NUMBERED,
             "Numbered list",

@@ -1,3 +1,4 @@
+use be_graph::BlockParent;
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Portal, Show, Spacer, Text, clone,
     component, create_memo, view,
@@ -8,7 +9,6 @@ use beui::styled::{
     Separator, Spinner, Tabs, TextInput, Title, ToggleButton, use_theme,
 };
 use beui::unstyled::{self, ButtonHandle, ChoiceOption, narrower_than};
-use be_graph::BlockParent;
 use beui::{NodeId, TextAlign};
 use uuid::Uuid;
 

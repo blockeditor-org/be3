@@ -149,7 +149,9 @@ pub fn ModalSheet(
             scrim=SCRIM
             on_dismiss={move || dismiss.call()}
         >
-            <ModalSheetBody open rest stops fit on_close={move || on_close.call()}>{children}</ModalSheetBody>
+            <ModalSheetBody open rest stops fit on_close={move || on_close.call()}>
+                {children}
+            </ModalSheetBody>
         </Overlay>
     }
 }

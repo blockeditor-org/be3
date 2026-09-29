@@ -31,21 +31,21 @@ pub fn BottomDock(
                 <List align=Align::Center spacing=0.0>
                     <Frame children={above} />
                     <Frame
-                    color={theme.surface_raised.clone()}
-                    outline={theme.border.clone()}
-                    outline_width=BORDER_WIDTH
-                    outline_visible=true
-                    radius=DOCK_RADIUS
-                    padding_horizontal=DOCK_PADDING
-                    padding_vertical=DOCK_PADDING
-                    @test_id={name}
-                >
-                    <List
-                        direction=Direction::Horizontal
-                        align=Align::Center
-                        spacing=DOCK_SPACING
-                        children={children}
-                    />
+                        color={theme.surface_raised.clone()}
+                        outline={theme.border.clone()}
+                        outline_width=BORDER_WIDTH
+                        outline_visible=true
+                        radius=DOCK_RADIUS
+                        padding_horizontal=DOCK_PADDING
+                        padding_vertical=DOCK_PADDING
+                        @test_id={name}
+                    >
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=DOCK_SPACING
+                            children={children}
+                        />
                     </Frame>
                 </List>
             </Frame>

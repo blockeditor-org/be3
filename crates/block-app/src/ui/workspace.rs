@@ -217,7 +217,10 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Show condition={saved}>
-                                <Icon glyph={ICON_CHECK.to_owned()} color={theme.text_muted.clone()} />
+                                <Icon
+                                    glyph={ICON_CHECK.to_owned()}
+                                    color={theme.text_muted.clone()}
+                                />
                             </Show>
                             <Show condition={saving}>
                                 <Spinner width=24.0 label="Submitting changes" />

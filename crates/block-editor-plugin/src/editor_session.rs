@@ -1,10 +1,10 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::{
-    ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect, ChildStatus,
-    CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
-    FrameReport, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS, Message,
-    Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange, ViewportMetrics,
-    WebViewEvent,
+    ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
+    ChildStatus, CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion,
+    FrameChrome, FrameReport, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
+    Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange,
+    ViewportMetrics, WebViewEvent,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -469,7 +469,10 @@ impl EditorSession {
             messages.push(Message::Editor(EditorMessage::LeaveFrame { instance }));
         }
         for action in self.host.take_bar_actions() {
-            messages.push(Message::Editor(EditorMessage::BarAction { instance, action }));
+            messages.push(Message::Editor(EditorMessage::BarAction {
+                instance,
+                action,
+            }));
         }
         for shown in self.host.take_shown_presence() {
             let Some(block) = shown.block.or(self.own_block) else {

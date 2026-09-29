@@ -19,9 +19,12 @@ impl BeuiApp for ActionApp {
 fn Tidy(editor: Editor) -> NodeId {
     let _ = editor;
     let (tidied, set_tidied) = create_signal(String::from("messy"));
-    bar_item("Tidy up", ICON_AUTO_FIX_HIGH, create_memo(|| false), move || {
-        set_tidied.set("tidy".to_owned())
-    });
+    bar_item(
+        "Tidy up",
+        ICON_AUTO_FIX_HIGH,
+        create_memo(|| false),
+        move || set_tidied.set("tidy".to_owned()),
+    );
     view! {
         <Text string={tidied} @test_id={"tidy.state"} />
     }
@@ -62,7 +65,11 @@ fn the_phone_bar_hands_back_and_switch_to_the_workspace() {
     assert!(test.shown("editor.more.rename"));
     test.click("editor.more.item.0");
     test.run();
-    assert_eq!(text(&test, "tidy.state"), "tidy", "the editor's own item runs");
+    assert_eq!(
+        text(&test, "tidy.state"),
+        "tidy",
+        "the editor's own item runs"
+    );
 
     test.click("editor.more");
     test.run();

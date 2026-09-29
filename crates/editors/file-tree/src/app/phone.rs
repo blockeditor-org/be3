@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceUiContent};
+use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE,
     ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_FILE_DOWNLOAD, ICON_HISTORY, ICON_INFO, ICON_LINK_OFF,
@@ -10,16 +11,15 @@ use block_editor_beui::beui::icons::{
     ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, BackHandler, ClickCallback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, NodeRef,
-    ReadSignal, Show, Spacer, Text, WriteSignal, clone, component, create_memo, create_signal,
-    view,
+    Align, BackHandler, ClickCallback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo,
+    NodeRef, ReadSignal, Show, Spacer, Text, WriteSignal, clone, component, create_memo,
+    create_signal, view,
 };
 use block_editor_beui::beui::styled::theme::{CARD_RADIUS, FONT_BODY, RADIUS};
 use block_editor_beui::beui::styled::{
     ActionRow, Button, ButtonVariant, Caption, Heading, Icon, IconButton, IconSized, ListRow,
     ModalSheet, Scroll, TextInput, Title, use_theme,
 };
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::root_settings::RootSetting;
 use block_editor_beui::{
@@ -153,7 +153,13 @@ pub(crate) fn PhoneFiles(
     view! {
         <BackHandler enabled={nested} on_back={rising}>
             <List spacing=0.0>
-                <Header level={header_level} set_level={header_set} query set_query on_menu={menu} />
+                <Header
+                    level={header_level}
+                    set_level={header_set}
+                    query
+                    set_query
+                    on_menu={menu}
+                />
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&page}>
                     <List spacing=0.0>
                         <Show condition={searching}>
@@ -200,16 +206,7 @@ pub(crate) fn PhoneFiles(
                         on_click={creating}
                     />
                 </BottomDock>
-                <RowActions
-                    editor
-                    tree
-                    picker
-                    exporter
-                    inspect
-                    acting
-                    set_acting
-                    set_level
-                />
+                <RowActions editor tree picker exporter inspect acting set_acting set_level />
             </List>
         </BackHandler>
     }
@@ -510,7 +507,11 @@ fn LevelRows(
                 </Frame>
             </Show>
             <Show condition={empty}>
-                <Frame padding_horizontal=PADDING padding_vertical=24.0 @test_id={"file-tree.empty"}>
+                <Frame
+                    padding_horizontal=PADDING
+                    padding_vertical=24.0
+                    @test_id={"file-tree.empty"}
+                >
                     <Caption content={empty_text} wrap=true />
                 </Frame>
             </Show>
@@ -559,8 +560,10 @@ fn PhoneRow(
     let open_id = format!("file-tree.{id}.open");
     let inside_id = format!("file-tree.{id}.inside");
     let more_id = format!("file-tree.{id}.more");
-    let name = create_memo(clone!(row -> move || row.get().map(|row| row.label).unwrap_or_default()));
-    let glyph = create_memo(clone!(row -> move || row.get().map(|row| row.glyph).unwrap_or_default()));
+    let name =
+        create_memo(clone!(row -> move || row.get().map(|row| row.label).unwrap_or_default()));
+    let glyph =
+        create_memo(clone!(row -> move || row.get().map(|row| row.glyph).unwrap_or_default()));
     let types = editor.clone();
     let detail = create_memo(clone!(row -> move || {
         let Some(row) = row.get() else {
@@ -618,13 +621,13 @@ fn PhoneRow(
     let muted_icon = theme.text_muted.clone();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-            <ListRow
-                @sizing=ItemSize::Percent(100.0)
-                @test_id={open_id}
-                on_click={tapped}
-            >
+            <ListRow @sizing=ItemSize::Percent(100.0) @test_id={open_id} on_click={tapped}>
                 <Frame padding_vertical=6.0>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=ROW_INNER_SPACING>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=ROW_INNER_SPACING
+                    >
                         <Frame
                             width=TILE_SIDE
                             height=TILE_SIDE
@@ -633,7 +636,11 @@ fn PhoneRow(
                         >
                             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                                 <Spacer @sizing=ItemSize::Percent(50.0) />
-                                <IconSized glyph font_size=TILE_GLYPH color={theme.accent.clone()} />
+                                <IconSized
+                                    glyph
+                                    font_size=TILE_GLYPH
+                                    color={theme.accent.clone()}
+                                />
                                 <Spacer @sizing=ItemSize::Percent(50.0) />
                             </List>
                         </Frame>
@@ -708,7 +715,8 @@ fn RowActions(
     let undeletable = off(|row| row.can_delete);
     let uninspectable = off(|row| row.inspection.is_some());
     let unexportable = off(|row| row.access.can_view() && exportable(row.block_type));
-    let name = create_memo(clone!(row -> move || row.get().map(|row| row.label).unwrap_or_default()));
+    let name =
+        create_memo(clone!(row -> move || row.get().map(|row| row.label).unwrap_or_default()));
     let delete_label = create_memo(clone!(row -> move || {
         match row.get().is_some_and(|row| row.is_reference) {
             true => "Remove link".to_owned(),

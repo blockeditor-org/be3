@@ -4,16 +4,15 @@ use std::rc::Rc;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::{
-    Align, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, clone, component,
-    create_effect, create_memo, create_signal, view,
+    Align, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, clone, component, create_effect,
+    create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{Caption, Heading};
 use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{
-    ArtifactState, BarAction, ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor,
-    TopBar,
+    ArtifactState, BarAction, ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, TopBar,
 };
 use uuid::Uuid;
 

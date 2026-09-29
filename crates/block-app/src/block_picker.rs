@@ -470,15 +470,14 @@ impl BlockPicker {
     }
 }
 
-fn places(
-    registry: &EditorRegistry,
-    place: BlockParent,
-    excluded: &HashSet<Uuid>,
-) -> Vec<Place> {
+fn places(registry: &EditorRegistry, place: BlockParent, excluded: &HashSet<Uuid>) -> Vec<Place> {
     let folder = registry
         .templates()
         .iter()
-        .find(|entry| entry.target.block_type == <be_block::FolderContent as be_block::BlockContent>::CONTENT_TYPE)
+        .find(|entry| {
+            entry.target.block_type
+                == <be_block::FolderContent as be_block::BlockContent>::CONTENT_TYPE
+        })
         .map(|entry| entry.icon.to_owned())
         .unwrap_or_default();
     let mut folders: Vec<Place> = crate::be::nodes()
@@ -489,17 +488,13 @@ fn places(
             block.content_type == <be_block::FolderContent as be_block::BlockContent>::CONTENT_TYPE
                 || place == BlockParent::Block(block.id)
         })
-        .filter(|block| {
-            !excluded.contains(&block.id) || place == BlockParent::Block(block.id)
-        })
+        .filter(|block| !excluded.contains(&block.id) || place == BlockParent::Block(block.id))
         .map(|block| {
             let label = BlockLabel::for_node(registry, &block);
             Place {
                 parent: BlockParent::Block(block.id),
                 name: label.name,
-                icon: label
-                    .icon
-                    .map_or_else(|| folder.clone(), str::to_owned),
+                icon: label.icon.map_or_else(|| folder.clone(), str::to_owned),
             }
         })
         .collect();

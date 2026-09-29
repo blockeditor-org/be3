@@ -40,5 +40,9 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
 
     editor.click("editor.more");
     editor.run();
-    assert!(editor.label("editor.more.item.1").ends_with("Find and replace"));
+    assert!(
+        editor
+            .label("editor.more.item.1")
+            .ends_with("Find and replace")
+    );
 }

@@ -477,7 +477,11 @@ fn PhoneBar(
                     label="Back to files"
                     on_click={back}
                 />
-                <ListRow @sizing=ItemSize::Percent(100.0) @test_id={"editor.switch"} on_click={switch}>
+                <ListRow
+                    @sizing=ItemSize::Percent(100.0)
+                    @test_id={"editor.switch"}
+                    on_click={switch}
+                >
                     <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
                         <Icon glyph color={theme.accent.clone()} />
                         <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
@@ -489,7 +493,10 @@ fn PhoneBar(
                             />
                             <Caption content={kind} ellipsis=true />
                         </List>
-                        <Icon glyph={ICON_EXPAND_MORE.to_owned()} color={theme.text_muted.clone()} />
+                        <Icon
+                            glyph={ICON_EXPAND_MORE.to_owned()}
+                            color={theme.text_muted.clone()}
+                        />
                     </List>
                 </ListRow>
                 <OpenFiles count={open_files} on_click={counted} />
@@ -506,7 +513,14 @@ fn PhoneBar(
                 stops={MORE_STOPS.to_vec()}
                 on_close={move || closing.set(false)}
             >
-                <MoreSheet editor watched state closable on_exit={move || on_exit.call()} set_more />
+                <MoreSheet
+                    editor
+                    watched
+                    state
+                    closable
+                    on_exit={move || on_exit.call()}
+                    set_more
+                />
             </ModalSheet>
         </List>
     }

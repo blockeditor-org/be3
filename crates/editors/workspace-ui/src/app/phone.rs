@@ -7,7 +7,8 @@ use block_editor_beui::beui::icons::{
     ICON_LINK_OFF, ICON_NOTE_ADD, ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, BackHandler, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, Text, clone, component, create_effect, create_memo, create_signal, view,
+    Align, BackHandler, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, Text,
+    clone, component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::theme::{CARD_RADIUS, FONT_BODY};
 use block_editor_beui::beui::styled::{
@@ -45,7 +46,11 @@ pub(crate) fn PhoneShell(workspace: Rc<Workspace>) -> NodeId {
                             <FilesPanel @sizing=ItemSize::Percent(100.0) workspace={workspace} />
                         },
                         PhonePage::Tab(tab) => view! {
-                            <PhoneBlock @sizing=ItemSize::Percent(100.0) workspace={workspace} tab />
+                            <PhoneBlock
+                                @sizing=ItemSize::Percent(100.0)
+                                workspace={workspace}
+                                tab
+                            />
                         },
                     }
                 }}
@@ -438,7 +443,12 @@ fn DetailsBody(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
 }
 
 #[component]
-fn RelatedBlocks(workspace: Rc<Workspace>, title: String, refs: Memo<Refs>, named: String) -> NodeId {
+fn RelatedBlocks(
+    workspace: Rc<Workspace>,
+    title: String,
+    refs: Memo<Refs>,
+    named: String,
+) -> NodeId {
     let ids = create_memo(clone!(refs -> move || {
         refs.with(|refs| refs.list.iter().map(|info| info.id).collect::<Vec<Uuid>>())
     }));
@@ -467,7 +477,11 @@ fn RelatedBlocks(workspace: Rc<Workspace>, title: String, refs: Memo<Refs>, name
 }
 
 #[component]
-fn RelatedRow(workspace: Rc<Workspace>, reference: Memo<Option<BlockInfo>>, named: String) -> NodeId {
+fn RelatedRow(
+    workspace: Rc<Workspace>,
+    reference: Memo<Option<BlockInfo>>,
+    named: String,
+) -> NodeId {
     let naming = Rc::clone(&workspace);
     let label = create_memo(clone!(reference -> move || {
         let types = naming.types();
@@ -500,4 +514,3 @@ fn RelatedRow(workspace: Rc<Workspace>, reference: Memo<Option<BlockInfo>>, name
         <ActionRow @test_id={named} label={name} glyph on_click={opening} />
     }
 }
-

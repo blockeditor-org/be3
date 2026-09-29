@@ -15,9 +15,15 @@ fn a_placing_picker_offers_the_top_level_first() {
     );
     assert_eq!(offered[0].name, "Top level");
 
-    let offered = places(&registry, BlockParent::Block(folder), &HashSet::from([folder]));
+    let offered = places(
+        &registry,
+        BlockParent::Block(folder),
+        &HashSet::from([folder]),
+    );
     assert!(
-        offered.iter().all(|place| place.parent != BlockParent::Detached),
+        offered
+            .iter()
+            .all(|place| place.parent != BlockParent::Detached),
         "nothing is ever created straight into Recently deleted"
     );
 }

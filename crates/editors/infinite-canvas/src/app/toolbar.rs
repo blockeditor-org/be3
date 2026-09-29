@@ -237,14 +237,34 @@ pub(crate) fn phone_items(state: &Rc<CanvasState>) {
     command("Cut", ICON_CONTENT_CUT, &empty, CanvasCommand::Cut);
     command("Copy", ICON_CONTENT_COPY, &empty, CanvasCommand::Copy);
     command("Paste", ICON_CONTENT_PASTE, &never, CanvasCommand::Paste);
-    command("Duplicate", ICON_LIBRARY_ADD, &empty, CanvasCommand::Duplicate);
+    command(
+        "Duplicate",
+        ICON_LIBRARY_ADD,
+        &empty,
+        CanvasCommand::Duplicate,
+    );
     command("Delete", ICON_DELETE, &empty, CanvasCommand::Delete);
     command("Group", ICON_GROUP_WORK, &grouped, CanvasCommand::Group);
-    command("Ungroup", ICON_WORKSPACES, &ungrouped, CanvasCommand::Ungroup);
+    command(
+        "Ungroup",
+        ICON_WORKSPACES,
+        &ungrouped,
+        CanvasCommand::Ungroup,
+    );
     command("Lock", ICON_LOCK, &lockable, CanvasCommand::Lock);
     command("Unlock", ICON_LOCK_OPEN, &unlockable, CanvasCommand::Unlock);
-    command("Select all", ICON_SELECT_ALL, &never, CanvasCommand::SelectAll);
-    command("Invert selection", ICON_DESELECT, &never, CanvasCommand::InvertSelection);
+    command(
+        "Select all",
+        ICON_SELECT_ALL,
+        &never,
+        CanvasCommand::SelectAll,
+    );
+    command(
+        "Invert selection",
+        ICON_DESELECT,
+        &never,
+        CanvasCommand::InvertSelection,
+    );
     bar_item(
         "Fit selection",
         ICON_FILTER_CENTER_FOCUS,

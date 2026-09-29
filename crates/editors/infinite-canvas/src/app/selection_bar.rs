@@ -58,7 +58,8 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>, phone: bool) -> NodeId {
     let embedded = create_memo(clone!(state -> move || embedded_block(&state).is_some()));
     let picking = Rc::clone(&state);
     let duplicate = clone!(state -> move || state.run(CanvasCommand::Duplicate));
-    let front = clone!(state -> move || state.run(CanvasCommand::Reorder(CanvasLayerMove::BringToFront)));
+    let front =
+        clone!(state -> move || state.run(CanvasCommand::Reorder(CanvasLayerMove::BringToFront)));
     let delete = clone!(state -> move || state.run(CanvasCommand::Delete));
     let open = clone!(state -> move || {
         if let Some(block) = embedded_block(&state) {

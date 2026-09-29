@@ -116,7 +116,7 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
     }
     let narrow = narrower_than(NARROW_WIDTH);
     let lone = create_memo(clone!(state -> move || {
-        narrow.get() && state.with(|state| only_the_workspace(state))
+        narrow.get() && state.with(only_the_workspace)
     }));
     let docked = create_memo(clone!(lone -> move || !lone.get()));
     let status = view.status.clone();
@@ -131,56 +131,56 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
             </Show>
             <Show condition={docked}>
                 <DockArea
-            @sizing=ItemSize::Percent(100.0)
-            state={state}
-            title={title}
-            closable={Func::new(|tab: TabId| tab != WORKSPACE)}
-            on_change={move |next: DockState| set_state.set(next)}
-            on_close={|tab: TabId| {
-                if let Some(tool) = Tool::of(tab) {
-                    tool.close();
-                }
-            }}
-        >
-            {move |tab: TabId| {
-                let view = view.clone();
-                let debug = view.debug.clone();
-                match Tool::of(tab) {
-                    None => view! {
-                        <HostSurface id=SurfaceId::Main />
-                    },
-                    Some(Tool::Debug(DebugWindow::Client)) => {
-                        let client = create_memo(move || debug.get().client);
-                        view! {
-                            <ClientPanel client />
+                    @sizing=ItemSize::Percent(100.0)
+                    state={state}
+                    title={title}
+                    closable={Func::new(|tab: TabId| tab != WORKSPACE)}
+                    on_change={move |next: DockState| set_state.set(next)}
+                    on_close={|tab: TabId| {
+                        if let Some(tool) = Tool::of(tab) {
+                            tool.close();
                         }
-                    }
-                    Some(Tool::Debug(DebugWindow::Performance)) => {
-                        let performance = create_memo(move || debug.get().performance);
-                        view! {
-                            <PerformancePanel performance />
+                    }}
+                >
+                    {move |tab: TabId| {
+                        let view = view.clone();
+                        let debug = view.debug.clone();
+                        match Tool::of(tab) {
+                            None => view! {
+                                <HostSurface id=SurfaceId::Main />
+                            },
+                            Some(Tool::Debug(DebugWindow::Client)) => {
+                                let client = create_memo(move || debug.get().client);
+                                view! {
+                                    <ClientPanel client />
+                                }
+                            }
+                            Some(Tool::Debug(DebugWindow::Performance)) => {
+                                let performance = create_memo(move || debug.get().performance);
+                                view! {
+                                    <PerformancePanel performance />
+                                }
+                            }
+                            Some(Tool::Debug(DebugWindow::Plugins)) => {
+                                let plugins = create_memo(move || debug.get().plugins);
+                                view! {
+                                    <PluginsPanel plugins />
+                                }
+                            }
+                            Some(Tool::Debug(DebugWindow::Version)) => {
+                                let version = create_memo(move || debug.get().version);
+                                view! {
+                                    <VersionPanel version />
+                                }
+                            }
+                            Some(Tool::Invite) => view! {
+                                <InvitePanel view />
+                            },
+                            Some(Tool::About) => view! {
+                                <AboutPanel />
+                            },
                         }
-                    }
-                    Some(Tool::Debug(DebugWindow::Plugins)) => {
-                        let plugins = create_memo(move || debug.get().plugins);
-                        view! {
-                            <PluginsPanel plugins />
-                        }
-                    }
-                    Some(Tool::Debug(DebugWindow::Version)) => {
-                        let version = create_memo(move || debug.get().version);
-                        view! {
-                            <VersionPanel version />
-                        }
-                    }
-                    Some(Tool::Invite) => view! {
-                        <InvitePanel view />
-                    },
-                    Some(Tool::About) => view! {
-                        <AboutPanel />
-                    },
-                }
-            }}
+                    }}
                 </DockArea>
             </Show>
         </List>

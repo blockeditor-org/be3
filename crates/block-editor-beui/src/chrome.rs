@@ -1,3 +1,4 @@
+use crate::beui_frame::bar_item;
 use beui::NodeId;
 use beui::icons::ICON_TUNE;
 use beui::reactive::{
@@ -7,7 +8,6 @@ use beui::reactive::{
 };
 use beui::styled::theme::BORDER_WIDTH;
 pub use beui::styled::theme::NARROW_WIDTH;
-use crate::beui_frame::bar_item;
 use beui::styled::{SHEET_STOPS, Scroll, Separator, Sheet, ToggleButton, use_theme};
 
 pub const SIDEBAR_WIDTH: f32 = 260.0;

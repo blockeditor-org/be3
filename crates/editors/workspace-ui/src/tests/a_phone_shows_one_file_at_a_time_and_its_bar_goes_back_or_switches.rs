@@ -42,10 +42,16 @@ fn a_phone_shows_one_file_at_a_time_and_its_bar_goes_back_or_switches() {
     show(&mut fixture, second, None);
     bar(&mut fixture, second, BarAction::Switch);
     assert!(fixture.test.shown("workspace.switcher.files"));
-    fixture.test.snapshot("a_phone_lists_its_open_files_to_switch_between");
+    fixture
+        .test
+        .snapshot("a_phone_lists_its_open_files_to_switch_between");
     fixture.test.click("workspace.switcher.tab.2");
     fixture.settle();
-    assert_eq!(fixture.shown(), vec![first], "choosing a card shows that file");
+    assert_eq!(
+        fixture.shown(),
+        vec![first],
+        "choosing a card shows that file"
+    );
     assert_eq!(fixture.focused(), Some(first));
 
     bar(&mut fixture, first, BarAction::Switch);
@@ -63,5 +69,7 @@ fn a_phone_shows_one_file_at_a_time_and_its_bar_goes_back_or_switches() {
 
     bar(&mut fixture, second, BarAction::Details);
     assert!(fixture.test.shown("workspace.details.rename"));
-    fixture.test.snapshot("a_phone_shows_a_files_details_in_a_sheet");
+    fixture
+        .test
+        .snapshot("a_phone_shows_a_files_details_in_a_sheet");
 }

@@ -1237,7 +1237,10 @@ pub(crate) fn take_bar_actions(
     plugin_id: &str,
     instance: EditorInstanceId,
 ) -> Vec<block_plugin_api::BarAction> {
-    with(plugin_id, |runtime| runtime.instances.take_bar_actions(instance)).unwrap_or_default()
+    with(plugin_id, |runtime| {
+        runtime.instances.take_bar_actions(instance)
+    })
+    .unwrap_or_default()
 }
 
 pub(crate) fn aspect_ratio(plugin_id: &str, instance: EditorInstanceId) -> Option<f32> {
