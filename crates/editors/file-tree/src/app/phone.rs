@@ -22,10 +22,7 @@ use block_editor_beui::beui::styled::{
 };
 use block_editor_beui::beui::unstyled::{Edge, Floating};
 use block_editor_beui::block_ui::BlockTypes;
-use block_editor_beui::{
-    BarAction, BlockParent, BlockQuery, ChildTarget, Editor, OpenFiles, open_files,
-    watch_block_label,
-};
+use block_editor_beui::{BlockParent, BlockQuery, ChildTarget, Editor, watch_block_label};
 use uuid::Uuid;
 
 use super::export::{Exporter, exportable};
@@ -145,7 +142,6 @@ pub(crate) fn PhoneFiles(
     let rising = clone!(level set_level -> move || set_level.set(level.get_untracked().up()));
     let rows_editor = editor.clone();
     let menu = clone!(editor -> move || editor.host().show_app_menu(editor.block_id()));
-    let switch = clone!(editor -> move || editor.host().bar_action(BarAction::Switch));
     let rows_tree = Rc::clone(&tree);
     let rows_level = set_level.clone();
     let rows_acting = set_acting.clone();
@@ -161,7 +157,6 @@ pub(crate) fn PhoneFiles(
                     query
                     set_query
                     on_menu={menu}
-                    on_switch={switch}
                 />
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&page}>
                     <List spacing=0.0>
@@ -224,11 +219,8 @@ fn Header(
     query: ReadSignal<String>,
     set_query: WriteSignal<String>,
     on_menu: ClickCallback,
-    on_switch: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
-    let count = open_files();
-    let has_files = create_memo(clone!(count -> move || count.get() > 0));
     let top = create_memo(clone!(level -> move || level.get() == Level::Root));
     let inside = create_memo(clone!(top -> move || !top.get()));
     let titled = top.clone();
@@ -273,13 +265,6 @@ fn Header(
                             <Caption content={path} ellipsis=true />
                             <Heading content={name} />
                         </List>
-                    </Show>
-                    <Show condition={has_files}>
-                        <OpenFiles
-                            count={count}
-                            on_click={move || on_switch.call()}
-                            id={"file-tree.files".to_owned()}
-                        />
                     </Show>
                     <Show condition={top}>
                         <IconButton

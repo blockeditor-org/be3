@@ -3,20 +3,16 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_ADD, ICON_CLOSE, ICON_DELETE, ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_FOLDER_OPEN,
-    ICON_LINK_OFF, ICON_NOTE_ADD, ICON_SHARE,
+    ICON_DELETE, ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_LINK_OFF, ICON_NOTE_ADD, ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, Text, clone, component,
+    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, clone, component,
     create_effect, create_memo, create_signal, view,
 };
-use block_editor_beui::beui::styled::theme::{CARD_RADIUS, FONT_BODY};
 use block_editor_beui::beui::styled::{
-    ActionRow, Button, ButtonVariant, Caption, Heading, Icon, IconButton, ListRow, ModalSheet,
-    SHEET_STOPS, Scroll, use_theme,
+    ActionRow, Caption, Heading, Icon, ModalSheet, SHEET_STOPS, Scroll, use_theme,
 };
 use block_editor_beui::beui::unstyled::TabId;
-use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{BlockInfo, BlockParent};
 use uuid::Uuid;
 
@@ -26,196 +22,12 @@ use super::tab::TabItem;
 use super::workspace::{PhoneSheet, Workspace};
 
 const SHEET_PADDING: f32 = 12.0;
-const CARD_SPACING: f32 = 10.0;
-const CARD_HEIGHT: f32 = 104.0;
-const CARD_PADDING: f32 = 6.0;
 const SECTION_PADDING: f32 = 8.0;
 
 #[component]
 pub(crate) fn PhoneSheets(workspace: Rc<Workspace>) -> NodeId {
-    let switcher = Rc::clone(&workspace);
     view! {
-        <List spacing=0.0>
-            <SwitcherSheet workspace={switcher} />
-            <DetailsSheet workspace={workspace} />
-        </List>
-    }
-}
-
-#[component]
-fn SwitcherSheet(workspace: Rc<Workspace>) -> NodeId {
-    let sheet = workspace.sheet.clone();
-    let open = create_memo(move || sheet.get() == PhoneSheet::Switcher);
-    let listing = Rc::clone(&workspace);
-    let tabs = create_memo(move || listing.open_tabs());
-    let rows = create_memo(clone!(tabs -> move || {
-        (0..tabs.get().len().div_ceil(2)).collect::<Vec<usize>>()
-    }));
-    let none = create_memo(clone!(tabs -> move || tabs.get().is_empty()));
-    let closing = Rc::clone(&workspace);
-    let browsing = Rc::clone(&workspace);
-    let creating = Rc::clone(&workspace);
-    let cards = Rc::clone(&workspace);
-    view! {
-        <ModalSheet
-            open={open}
-            rest={SHEET_STOPS[2]}
-            on_close={move || closing.dismiss_sheet(PhoneSheet::Switcher)}
-        >
-            <List spacing=0.0>
-                <Frame padding_horizontal=SHEET_PADDING>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Heading @sizing=ItemSize::Percent(100.0) content="Open files" />
-                        <Button
-                            @test_id={"workspace.switcher.new"}
-                            label="New"
-                            glyph={ICON_ADD.to_owned()}
-                            variant=ButtonVariant::Ghost
-                            on_click={move || creating.new_file_beside_page()}
-                        />
-                    </List>
-                </Frame>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
-                        <List spacing=CARD_SPACING>
-                            <Show condition={none}>
-                                <Caption content="No files are open." />
-                            </Show>
-                            <ForEach keys={rows}>
-                                {move |row: usize| {
-                                    let workspace = Rc::clone(&cards);
-                                    let tabs = tabs.clone();
-                                    view! {
-                                        <SwitcherRow workspace tabs row />
-                                    }
-                                }}
-                            </ForEach>
-                        </List>
-                    </Frame>
-                </Scroll>
-                <Frame padding_horizontal=SECTION_PADDING padding_vertical=SECTION_PADDING>
-                    <ActionRow
-                        @test_id={"workspace.switcher.files"}
-                        label="Browse all files"
-                        glyph={ICON_FOLDER_OPEN.to_owned()}
-                        on_click={move || browsing.go_files()}
-                    />
-                </Frame>
-            </List>
-        </ModalSheet>
-    }
-}
-
-#[component]
-fn SwitcherRow(workspace: Rc<Workspace>, tabs: Memo<Vec<TabId>>, row: usize) -> NodeId {
-    let left = create_memo(clone!(tabs -> move || tabs.get().get(row * 2).copied()));
-    let right = create_memo(clone!(tabs -> move || tabs.get().get(row * 2 + 1).copied()));
-    let second = Rc::clone(&workspace);
-    view! {
-        <List direction=Direction::Horizontal spacing=CARD_SPACING>
-            <SwitcherSlot @sizing=ItemSize::Percent(50.0) workspace tab={left} />
-            <SwitcherSlot @sizing=ItemSize::Percent(50.0) workspace={second} tab={right} />
-        </List>
-    }
-}
-
-#[component]
-fn SwitcherSlot(workspace: Rc<Workspace>, tab: Memo<Option<TabId>>) -> NodeId {
-    view! {
-        <List spacing=0.0>
-            <Dynamic value={tab}>
-                {move |tab: Option<TabId>| {
-                    let workspace = Rc::clone(&workspace);
-                    match tab {
-                        Some(tab) => view! {
-                            <SwitcherCard workspace tab />
-                        },
-                        None => view! {
-                            <Frame height=CARD_HEIGHT />
-                        },
-                    }
-                }}
-            </Dynamic>
-        </List>
-    }
-}
-
-#[component]
-fn SwitcherCard(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
-    let theme = use_theme();
-    let naming = Rc::clone(&workspace);
-    let label = create_memo(move || {
-        naming
-            .tab(tab)
-            .map(|item| naming.label(item.id, item.block_type))
-    });
-    let name = create_memo(clone!(label -> move || {
-        label.get().map(|label| label.name).unwrap_or_default()
-    }));
-    let glyph = create_memo(clone!(label -> move || {
-        label
-            .get()
-            .and_then(|label| label.icon)
-            .unwrap_or_default()
-            .to_owned()
-    }));
-    let typing = Rc::clone(&workspace);
-    let kind = create_memo(move || {
-        let types = typing.types();
-        typing
-            .tab(tab)
-            .and_then(|item| types.display_name(item.block_type).map(str::to_owned))
-            .unwrap_or_default()
-    });
-    let shown = Rc::clone(&workspace);
-    let current = create_memo(move || shown.shown_tab() == Some(tab));
-    let outline = create_memo(clone!(theme current -> move || match current.get() {
-        true => theme.accent.get(),
-        false => theme.border.get(),
-    }));
-    let showing = Rc::clone(&workspace);
-    let closing = Rc::clone(&workspace);
-    let id = tab.value();
-    view! {
-        <Frame
-            height=CARD_HEIGHT
-            radius=CARD_RADIUS
-            color={theme.surface_raised.clone()}
-            outline={outline}
-            outline_width=1.5
-            outline_visible=true
-            padding_horizontal=CARD_PADDING
-            padding_vertical=CARD_PADDING
-        >
-            <List direction=Direction::Horizontal spacing=0.0>
-                <ListRow
-                    @sizing=ItemSize::Percent(100.0)
-                    @test_id={format!("workspace.switcher.tab.{id}")}
-                    on_click={move || showing.show_tab(tab)}
-                >
-                    <Frame padding_vertical=CARD_PADDING>
-                        <List spacing=6.0>
-                            <List direction=Direction::Horizontal spacing=0.0>
-                                <Icon glyph color={theme.accent.clone()} />
-                            </List>
-                            <Text
-                                string={name}
-                                font_size=FONT_BODY
-                                color={theme.text.clone()}
-                                ellipsis=true
-                            />
-                            <Caption content={kind} ellipsis=true />
-                        </List>
-                    </Frame>
-                </ListRow>
-                <IconButton
-                    @test_id={format!("workspace.switcher.close.{id}")}
-                    glyph={ICON_CLOSE.to_owned()}
-                    label="Close file"
-                    on_click={move || closing.close_tab(tab)}
-                />
-            </List>
-        </Frame>
+        <DetailsSheet workspace={workspace} />
     }
 }
 
@@ -224,7 +36,7 @@ fn DetailsSheet(workspace: Rc<Workspace>) -> NodeId {
     let sheet = workspace.sheet.clone();
     let shown = create_memo(clone!(sheet -> move || match sheet.get() {
         PhoneSheet::Details(tab) => Some(tab),
-        PhoneSheet::Closed | PhoneSheet::Switcher => None,
+        PhoneSheet::Closed => None,
     }));
     let open = create_memo(clone!(shown -> move || shown.get().is_some()));
     let closing = Rc::clone(&workspace);

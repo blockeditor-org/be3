@@ -27,8 +27,7 @@ fn a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill() {
     );
     editor.snapshot("a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill");
 
-    editor.click("editor.more");
-    editor.run();
+    editor.set_more(true);
     assert!(editor.label("editor.more.item.4").ends_with("Delete"));
     let handle = editor.rect_of("sheet.handle").center();
     editor.drag(handle, handle - Vec2::new(0.0, 400.0));
