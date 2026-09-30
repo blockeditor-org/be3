@@ -172,12 +172,11 @@ way for the test to fail.
 - The exception is a painting you did not expect to change: if your change should not have
   touched it, find out why it changed.
   ./scripts/buck run //crates/paint-snapshot:changed-example says, for every painting in
-  snapshots/ that differs from HEAD, which frame changed and what moved in it.
-  ./scripts/buck run //crates/paint-snapshot:changed-images-example writes the same paintings
-  into target/changed-paintings as PNGs - a before, an after and a changes image for every
-  frame that differs, where magenta marks every pixel that differs - and prints which is
-  which. Both take a revision to compare against in place of HEAD, and changed-images-example
-  a folder to write to after it.
+  snapshots/ that differs from HEAD, which frame changed and what moved in it. With
+  -- --images it also writes them into target/changed-paintings as PNGs - a before, an after
+  and a changes image for every frame that differs, where magenta marks every pixel that
+  differs - and prints which is which. --base compares against another revision, and
+  --images takes a folder to write to in place of target/changed-paintings.
 
 A beui document that is not an editor - beui's demo, say - is painted the same way through
 block_ui_test::DocumentTest, which drives the document itself with only the fonts beui
