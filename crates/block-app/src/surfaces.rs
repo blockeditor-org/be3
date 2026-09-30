@@ -13,7 +13,7 @@ use beui::{Align, Color32, Drawing, NodeId, Rect, Region, TextAlign, Vec2};
 use crate::host::{self, HostCommand, HostItem, PlacedItem, SurfaceOutput, Ui};
 use crate::plugin_host::{Blit, PluginDrawing};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum SurfaceId {
     Main,
     Presenting,
@@ -113,7 +113,10 @@ pub(crate) fn handle(id: SurfaceId) -> SurfaceHandle {
 }
 
 fn ids() -> Vec<SurfaceId> {
-    HANDLES.with(|handles| handles.borrow().keys().copied().collect())
+    let mut ids: Vec<SurfaceId> =
+        HANDLES.with(|handles| handles.borrow().keys().copied().collect());
+    ids.sort();
+    ids
 }
 
 pub(crate) fn keep_panes(panes: &[u64]) {
@@ -222,7 +225,7 @@ pub(crate) fn commit() {
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn shown_blits() -> Vec<Blit> {
-    SurfaceId::ALL
+    ids()
         .into_iter()
         .flat_map(|id| with_state(id, |state| state.blits.clone()))
         .collect()
