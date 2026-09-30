@@ -693,6 +693,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     changed.notify_all();
     crate::host::wake();
     let mut unsealed_since: Option<Instant> = None;
+    let mut flushes = Vec::new();
     loop {
         let woken = match unsealed_since {
             Some(since) => {
@@ -714,7 +715,16 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             }
             Woken::Disconnected => return Outcome::Lost,
             Woken::Command(command) => {
-                apply(&peer, &mut sessions, shared, open, &mut versions, command).await
+                apply(
+                    &peer,
+                    &mut sessions,
+                    shared,
+                    open,
+                    &mut versions,
+                    &mut flushes,
+                    command,
+                )
+                .await
             }
             Woken::Event(event) => {
                 match event {
@@ -760,6 +770,11 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             })
             .await;
         moved |= version_revisions(shared) != before;
+        if events.is_empty() {
+            for done in flushes.drain(..) {
+                let _ = done.send(());
+            }
+        }
         changed.notify_all();
         if moved {
             crate::host::wake();
@@ -845,6 +860,7 @@ async fn apply(
     shared: &Arc<Mutex<Shared>>,
     open: &mut HashMap<Uuid, Uuid>,
     versions: &mut Versions,
+    flushes: &mut Vec<std::sync::mpsc::Sender<()>>,
     command: Command,
 ) -> bool {
     match command {
@@ -1041,7 +1057,7 @@ async fn apply(
         Command::Flush(done) => {
             seal_all(sessions, shared).await;
             publish(sessions, shared);
-            let _ = done.send(());
+            flushes.push(done);
             true
         }
     }

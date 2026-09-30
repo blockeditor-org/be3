@@ -227,6 +227,12 @@ where
                             }
                         }
                     };
+                    while let Ok(notification) = outbound.try_recv() {
+                        sink.send(Message::Binary(
+                            encode(&notification).map_err(|_| ServerError::Corrupt)?,
+                        ))
+                        .await?;
+                    }
                     sink.send(Message::Binary(
                         encode(&response).map_err(|_| ServerError::Corrupt)?,
                     ))
