@@ -1,14 +1,14 @@
 use beui::reactive::{
-    ForEach, Frame, Func, List, ReadSignal, Show, Spacer, WriteSignal, build, clone, component,
-    create_memo, create_signal, view,
+    BackHandler, ForEach, Frame, Func, List, Memo, ReadSignal, Show, Spacer, WriteSignal, build,
+    clone, component, create_memo, create_signal, view,
 };
 use beui::styled::DocumentTheme;
 use beui::styled::theme::use_theme;
 use beui::styled::{
-    Body, Button, ButtonVariant, Caption, DockArea, Heading, ListRow, Paragraph, Scroll, Separator,
-    Title,
+    Body, Button, ButtonVariant, Caption, Checkbox, DockArea, Heading, ListRow, Paragraph, Scroll,
+    Separator, Title,
 };
-use beui::unstyled::{Container, DockState, Side, TabId, narrower_than};
+use beui::unstyled::{Container, DockMode, DockState, Side, TabId, narrower_than};
 use beui::{Align, Color32, Context, Direction, Document, ItemSize, NodeId, Rect, Vec2, pos2};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -185,6 +185,14 @@ fn open(state: &mut DockState, tab: TabId) {
         }
         (None, None) => state.push_to_focused(tab),
     }
+    state.show(tab);
+}
+
+fn close(state: &mut DockState, tab: TabId) {
+    state.remove(tab);
+    *state = settled(state.clone());
+    let next = state.recent_tabs().first().copied().unwrap_or(FILES);
+    state.show(next);
 }
 
 #[component]
@@ -192,18 +200,22 @@ fn DockShell() -> NodeId {
     let theme = use_theme();
     let (papers, set_papers) = create_signal(papers());
     let (state, set_state) = create_signal(starting_state());
-    let title = Func::new(clone!(papers -> move |tab: TabId| match tab {
-        FILES => "Files".to_owned(),
-        tab => papers.with(|papers| {
-            papers
-                .iter()
-                .find(|paper| paper.tab == tab)
-                .map_or_else(|| "Untitled".to_owned(), |paper| paper.title.clone())
-        }),
+    let (mobile, set_mobile) = create_signal(false);
+    let mode = create_memo(clone!(mobile -> move || match mobile.get() {
+        true => DockMode::Stacked,
+        false => DockMode::Tiled,
     }));
+    let shown = create_memo(clone!(state -> move || state.with(DockState::stacked_tab)));
+    let away = create_memo(clone!(mobile shown -> move || {
+        mobile.get() && shown.get().is_some_and(|tab| tab != FILES)
+    }));
+    let title = Func::new(clone!(papers -> move |tab: TabId| tab_title(&papers, tab)));
     let content_papers = papers.clone();
     let content_state = set_state.clone();
     let toolbar_state = set_state.clone();
+    let bar_state = set_state.clone();
+    let back_state = set_state.clone();
+    let bar_papers = papers.clone();
     view! {
         <Frame
             color={theme.background.clone()}
@@ -215,46 +227,62 @@ fn DockShell() -> NodeId {
                     {move |_: ReadSignal<Vec2>| {
                         let set_papers = set_papers.clone();
                         let set_state = toolbar_state.clone();
+                        let mobile = mobile.clone();
+                        let set_mobile = set_mobile.clone();
                         view! {
-                            <DockToolbar set_papers set_state />
+                            <DockToolbar set_papers set_state mobile set_mobile />
                         }
                     }}
                 </Container>
                 <Separator />
-                <DockArea
+                <Show condition={away.clone()}>
+                    <StackBar shown={shown} papers={bar_papers} set_state={bar_state} />
+                </Show>
+                <BackHandler
                     @sizing=ItemSize::Percent(100.0)
-                    state={state}
-                    title={title}
-                    closable={Func::new(|tab: TabId| tab != FILES)}
-                    on_change={move |next: DockState| set_state.set(settled(next))}
-                    on_close={move |_: TabId| {}}
-                    empty={move || view! {
-                        <EmptyPanel />
-                    }}
+                    enabled={away}
+                    on_back={move || back_state.update(|state| state.show(FILES))}
                 >
-                    {move |tab: TabId| {
-                        let papers = content_papers.clone();
-                        let set_state = content_state.clone();
-                        match tab {
-                            FILES => view! {
-                                <FilesPanel papers set_state />
-                            },
-                            SWATCH => view! {
-                                <SwatchPanel />
-                            },
-                            tab => view! {
-                                <PaperPanel tab papers />
-                            },
-                        }
-                    }}
-                </DockArea>
+                    <DockArea
+                        state={state}
+                        mode={mode}
+                        title={title}
+                        closable={Func::new(|tab: TabId| tab != FILES)}
+                        on_change={move |next: DockState| set_state.set(settled(next))}
+                        on_close={move |_: TabId| {}}
+                        empty={move || view! {
+                            <EmptyPanel />
+                        }}
+                    >
+                        {move |tab: TabId| {
+                            let papers = content_papers.clone();
+                            let set_state = content_state.clone();
+                            match tab {
+                                FILES => view! {
+                                    <FilesPanel papers set_state />
+                                },
+                                SWATCH => view! {
+                                    <SwatchPanel />
+                                },
+                                tab => view! {
+                                    <PaperPanel tab papers />
+                                },
+                            }
+                        }}
+                    </DockArea>
+                </BackHandler>
             </List>
         </Frame>
     }
 }
 
 #[component]
-fn DockToolbar(set_papers: WriteSignal<Vec<Paper>>, set_state: WriteSignal<DockState>) -> NodeId {
+fn DockToolbar(
+    set_papers: WriteSignal<Vec<Paper>>,
+    set_state: WriteSignal<DockState>,
+    mobile: ReadSignal<bool>,
+    set_mobile: WriteSignal<bool>,
+) -> NodeId {
     let (next, set_next) = create_signal(NEXT_TAB);
     let added = set_state.clone();
     let reset = set_state.clone();
@@ -275,6 +303,11 @@ fn DockToolbar(set_papers: WriteSignal<Vec<Paper>>, set_state: WriteSignal<DockS
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
+                <Checkbox
+                    label="Mobile"
+                    checked={mobile}
+                    on_change={move |on: bool| set_mobile.set(on)}
+                />
                 <Button
                     label="New paper"
                     variant=ButtonVariant::Primary
@@ -298,6 +331,38 @@ fn DockToolbar(set_papers: WriteSignal<Vec<Paper>>, set_state: WriteSignal<DockS
                     on_click={move || reset.set(settled(starting_state()))}
                 />
             </List>
+        </List>
+    }
+}
+
+#[component]
+fn StackBar(
+    shown: Memo<Option<TabId>>,
+    papers: ReadSignal<Vec<Paper>>,
+    set_state: WriteSignal<DockState>,
+) -> NodeId {
+    let title = create_memo(clone!(shown -> move || {
+        shown.get().map_or_else(String::new, |tab| tab_title(&papers, tab))
+    }));
+    let back = set_state.clone();
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
+            <Button
+                label="Files"
+                variant=ButtonVariant::Secondary
+                on_click={move || back.update(|state| state.show(FILES))}
+            />
+            <Heading content={title} />
+            <Spacer @sizing=ItemSize::Percent(100.0) />
+            <Button
+                label="Close"
+                variant=ButtonVariant::Secondary
+                on_click={move || {
+                    if let Some(tab) = shown.get_untracked() {
+                        set_state.update(|state| close(state, tab));
+                    }
+                }}
+            />
         </List>
     }
 }
@@ -392,6 +457,13 @@ fn PaperPanel(tab: TabId, papers: ReadSignal<Vec<Paper>>) -> NodeId {
                 </Show>
             </List>
         </Frame>
+    }
+}
+
+fn tab_title(papers: &ReadSignal<Vec<Paper>>, tab: TabId) -> String {
+    match tab {
+        FILES => "Files".to_owned(),
+        tab => title_of(papers, tab),
     }
 }
 
