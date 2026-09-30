@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::ops::Range;
 use std::rc::Rc;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 
@@ -150,6 +151,29 @@ pub struct GalleyLine {
 }
 
 impl GalleyLine {
+    fn split_clusters(mut self, text: &str) -> Self {
+        let mut cursors = Vec::with_capacity(self.cursors.len());
+        for pair in self.cursors.windows(2) {
+            let ((start, left), (end, right)) = (pair[0], pair[1]);
+            cursors.push((start, left));
+            let inside: Vec<usize> = text
+                .get(start..end)
+                .into_iter()
+                .flat_map(|cluster| cluster.grapheme_indices(true))
+                .map(|(offset, _)| start + offset)
+                .filter(|at| *at > start)
+                .collect();
+            let parts = inside.len() + 1;
+            for (step, at) in inside.into_iter().enumerate() {
+                let share = (step + 1) as f32 / parts as f32;
+                cursors.push((at, left + (right - left) * share));
+            }
+        }
+        cursors.extend(self.cursors.last().copied());
+        self.cursors = cursors;
+        self
+    }
+
     fn x(&self, index: usize) -> f32 {
         let mut x = 0.0;
         for (at, candidate) in &self.cursors {
@@ -172,6 +196,10 @@ impl Galley {
         glyphs: Vec<Glyph>,
         lines: Vec<GalleyLine>,
     ) -> Self {
+        let lines = lines
+            .into_iter()
+            .map(|line| line.split_clusters(text))
+            .collect();
         Self {
             inner: Rc::new(GalleyData {
                 text: text.into(),

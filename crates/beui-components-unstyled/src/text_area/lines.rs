@@ -306,6 +306,7 @@ fn RowText(
         }
         let row = model.get();
         let colors = cx.colors.get();
+        cx.state.cursors().get();
         let mut marks: Vec<TextMark> = row
             .code
             .iter()
@@ -335,6 +336,7 @@ fn RowText(
         let row = model.get();
         let colors = cx.colors.get();
         let focused = cx.focused.get();
+        cx.state.cursors().get();
         let contains = |byte: usize| byte >= row.start && byte <= row.end;
         let mut carets = Vec::new();
         let touch = cx.state.touch_mode().get();
