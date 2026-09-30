@@ -10,6 +10,8 @@ all-arch = ["wasmtime/all-arch"]
 [dependencies]
 block-gpu-abi = { path = "../block-gpu-abi" }
 block-gpu-host = { path = "../block-gpu-host" }
+bytes = "1"
+tokio = { version = "1", default-features = false }
 wasmtime = { version = "48", default-features = false, features = ["cache", "cranelift", "gc", "gc-drc", "parallel-compilation", "runtime", "std", "threads"] }
 wasmtime-wasi = { version = "48", default-features = false, features = ["p1"] }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }

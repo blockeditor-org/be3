@@ -1,16 +1,20 @@
 use std::{path::Path, sync::Arc, time::Instant};
 
-use wasmtime::{Linker, Module, Store, TypedFunc};
+use wasmtime::{Linker, Module, Store, Trap, TypedFunc, WasmBacktrace};
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
 use wasmtime_wasi::{FsPerms, I32Exit, WasiCtxBuilder, p1};
 
 use crate::{
-    Host, gpu, precompile::test_module, shared_memory, state::State, threads, transport, wake,
+    Host, gpu, precompile::test_module, shared_memory, state::State, stderr::Tee, threads,
+    transport, wake,
 };
 
 const START: &str = "_start";
 const LISTING_CAPACITY: usize = 1 << 20;
 const CARRIED: [&str; 2] = ["--ignored", "--include-ignored"];
+const PANICKED: &str = " panicked at ";
+const ABORT: &str = "abort";
+const BACKTRACE_NOTE: &str = "note: run with `RUST_BACKTRACE=1`";
 
 impl Host {
     pub fn run_tests(
@@ -21,7 +25,7 @@ impl Host {
         precompiled: Option<&Path>,
     ) -> Result<i32, String> {
         let module = test_module(&self.engine, wasm, precompiled)?;
-        match self.run_instance(&module, arguments, root, None) {
+        match self.run_instance(&module, arguments, root, None, &Tee::default()) {
             Ok(0) => return Ok(0),
             Ok(_) => {}
             Err(failure) => eprintln!("{failure}"),
@@ -41,12 +45,13 @@ impl Host {
             let mut single = vec![arguments[0].clone(), name.clone(), "--exact".to_owned()];
             single.extend(carried.iter().map(|argument| (*argument).clone()));
             single.extend(["--test-threads=1".to_owned(), "--nocapture".to_owned()]);
-            match self.run_instance(&module, &single, root, None) {
+            let stderr = Tee::default();
+            match self.run_instance(&module, &single, root, None, &stderr) {
                 Ok(0) => {}
-                Ok(_) => failed.push(name),
+                Ok(code) => failed.push((name, why(&stderr, &format!("exit {code}")))),
                 Err(failure) => {
                     eprintln!("{failure}");
-                    failed.push(name);
+                    failed.push((name, why(&stderr, &failure)));
                 }
             }
         }
@@ -54,8 +59,11 @@ impl Host {
             true => eprintln!("every test passed on its own, but not in one run together"),
             false => {
                 eprintln!("{} tests failed:", failed.len());
-                for name in &failed {
+                for (name, why) in &failed {
                     eprintln!("    {name}");
+                    for line in why.lines() {
+                        eprintln!("        {line}");
+                    }
                 }
             }
         }
@@ -77,7 +85,13 @@ impl Host {
             .collect();
         listing.extend(["--list", "--format", "terse"].map(str::to_owned));
         let output = MemoryOutputPipe::new(LISTING_CAPACITY);
-        let code = self.run_instance(module, &listing, root, Some(output.clone()))?;
+        let code = self.run_instance(
+            module,
+            &listing,
+            root,
+            Some(output.clone()),
+            &Tee::default(),
+        )?;
         if code != 0 {
             return Err(format!("the tests could not be listed: exit {code}"));
         }
@@ -94,6 +108,7 @@ impl Host {
         arguments: &[String],
         root: &Path,
         stdout: Option<MemoryOutputPipe>,
+        stderr: &Tee,
     ) -> Result<i32, String> {
         let memory = shared_memory(&self.engine, module)?;
         let directory = root
@@ -102,6 +117,7 @@ impl Host {
         let mut builder = WasiCtxBuilder::new();
         builder
             .inherit_stdio()
+            .stderr(stderr.clone())
             .inherit_env()
             .args(arguments)
             .preopened_dir(root, directory, FsPerms::ReadWrite)
@@ -160,8 +176,39 @@ impl Host {
             Ok(()) => Ok(0),
             Err(error) => match error.downcast_ref::<I32Exit>() {
                 Some(exit) => Ok(exit.0),
+                None if aborted(&error) => Err("the tests aborted".to_owned()),
                 None => Err(format!("the tests trapped: {error:?}")),
             },
         }
+    }
+}
+
+fn aborted(error: &wasmtime::Error) -> bool {
+    error.downcast_ref::<Trap>() == Some(&Trap::UnreachableCodeReached)
+        && error
+            .downcast_ref::<WasmBacktrace>()
+            .and_then(|backtrace| backtrace.frames().first())
+            .and_then(|frame| frame.func_name())
+            == Some(ABORT)
+}
+
+fn why(stderr: &Tee, failure: &str) -> String {
+    let written = stderr.contents();
+    let panic = written
+        .lines()
+        .position(|line| line.contains(PANICKED))
+        .map(|start| {
+            written
+                .lines()
+                .skip(start)
+                .filter(|line| !line.starts_with(BACKTRACE_NOTE))
+                .collect::<Vec<_>>()
+                .join("\n")
+        });
+    match panic {
+        Some(panic) => panic,
+        None => format!("{}\n{failure}", written.trim_end())
+            .trim_start()
+            .to_owned(),
     }
 }

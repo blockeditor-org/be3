@@ -1251,6 +1251,8 @@ dependencies = [
  "block-gpu-abi",
  "block-gpu-host",
  "block-plugin-api",
+ "bytes",
+ "tokio",
  "wasmtime",
  "wasmtime-wasi",
  "wgpu",

@@ -215,7 +215,7 @@ While working on one editor, run its tests alone:
 
 The first compares, the second accepts. A panic aborts a wasm guest, so a failing test ends
 its binary's run; the runner then lists the tests and runs each in an instance of its own, and
-reports every one that failed. A single test is a filter handed through to the
+reports every one that failed, each with its panic message, at the end of the output. A single test is a filter handed through to the
 test binary: ./scripts/buck test //crates/editors/checklist:test -- --test-arg some_test_name.
 
 Cranelift compiles each test module once, as an action of its own, and leaves the machine
