@@ -901,6 +901,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-demo-snapshots"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "beui_macros",
+ "block-ui-test",
+ "text-editor-core",
+]
+
+[[package]]
 name = "beui-font-browser"
 version = "0.1.0"
 dependencies = [

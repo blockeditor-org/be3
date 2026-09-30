@@ -1346,6 +1346,18 @@ pub(crate) fn open_demo_page(harness: &mut Harness, title: &str) {
     const REVEAL_STEP: f32 = 120.0;
     const CATALOG_X: f32 = 40.0;
     let test_id = format!("demo.catalog.{title}");
+    let listed = |harness: &Harness| {
+        harness
+            .document()
+            .find_test_id(&test_id)
+            .is_some_and(|row| harness.document().node_rect(row).is_some())
+    };
+    if !listed(harness)
+        && let Some(back) = harness.document().find_test_id("dock.back")
+    {
+        harness.click(harness.center(back));
+        harness.frame(Vec::new());
+    }
     for _ in 0..REVEAL_TICKS {
         let row = harness
             .document()

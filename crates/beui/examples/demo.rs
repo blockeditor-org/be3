@@ -9,7 +9,7 @@ use beui::reactive::{
     Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, ClickCallback, ForEach,
     Frame, Func, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer, Text,
     VirtualList, WriteSignal, build, clone, create_memo, create_selector, create_signal,
-    focus_ring, view, with_document,
+    focus_ring, provide_context, use_context, view, with_document,
 };
 use beui::styled::DocumentTheme;
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
@@ -23,9 +23,9 @@ use beui::styled::{
     TreeRowFace, use_theme,
 };
 use beui::unstyled::{
-    ChoiceOption, DateTimeParts, DockMode, DockState, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle,
-    PanZoomView, PopoverHandle, Side, SliderScale, TabId, TextAreaState, TreeItem, dock_actions,
-    narrower_than,
+    ChoiceOption, Container, DateTimeParts, DockMode, DockState, MAX_SCALE, MIN_SCALE, PanZoom,
+    PanZoomHandle, PanZoomView, PopoverHandle, Side, SliderScale, TabId, TextAreaState, TreeItem,
+    dock_actions, narrower_than,
 };
 use beui::{Color32, Context, Direction, Document, ItemSize, NodeId, Rect, TextAlign, unstyled};
 use beui_macros::component;
@@ -202,12 +202,24 @@ struct DemoApp {
     document: Document,
 }
 
+#[derive(Clone, Copy)]
+struct Today(Date);
+
 impl DemoApp {
     fn new() -> Self {
+        Self::on(Date::today())
+    }
+
+    fn on(today: Date) -> Self {
         Self {
-            document: build(|| {
+            document: build(move || {
+                provide_context(Today(today));
                 view! {
-                    <DemoShell />
+                    <Container>
+                        {move |_| view! {
+                            <DemoShell />
+                        }}
+                    </Container>
                 }
             }),
         }
@@ -331,7 +343,11 @@ fn DemoShell() -> NodeId {
                                 <CatalogPanel set_state />
                             },
                             Some(page) => view! {
-                                <PagePanel page />
+                                <Container>
+                                    {move |_| view! {
+                                        <PagePanel page />
+                                    }}
+                                </Container>
                             },
                         }
                     }}
@@ -979,7 +995,7 @@ fn ChoicesPage() -> NodeId {
 
 #[component]
 fn PickersPage() -> NodeId {
-    let today = Date::today();
+    let today = use_context::<Today>().map_or_else(Date::today, |Today(today)| today);
     let (day, set_day) = create_signal(Some(DateTime::new(today, Time::MIDNIGHT)));
     let (alarm, set_alarm) = create_signal(Some(DateTime::new(today, Time::new(7, 30))));
     let (meeting, set_meeting) = create_signal(None::<DateTime>);
@@ -1022,6 +1038,7 @@ fn PickersPage() -> NodeId {
                             value={day}
                             parts=DateTimeParts::Date
                             label="Day"
+                            today={Some(today)}
                             on_change={move |next| set_day.set(next)}
                         />
                         <Caption content={day_text} />
@@ -1032,6 +1049,7 @@ fn PickersPage() -> NodeId {
                             parts=DateTimeParts::Time
                             hour_cycle=HourCycle::H12
                             label="Alarm"
+                            today={Some(today)}
                             on_change={move |next| set_alarm.set(next)}
                         />
                         <Caption content={alarm_text} />
@@ -1040,6 +1058,7 @@ fn PickersPage() -> NodeId {
                         <DateTimeField
                             value={meeting}
                             label="Meeting"
+                            today={Some(today)}
                             clearable=true
                             step_minutes=30
                             on_change={move |next| set_meeting.set(next)}
@@ -1052,6 +1071,7 @@ fn PickersPage() -> NodeId {
                             selected={booked}
                             min={Some(today)}
                             max={Some(today.add_days(60))}
+                            today={Some(today)}
                             on_change={move |date| set_booked.set(Some(date))}
                         />
                         <Caption content={booked_text} />

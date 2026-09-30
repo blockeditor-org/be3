@@ -1,0 +1,16 @@
+[package]
+name = "beui-demo-snapshots"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+beui = { path = "../beui", default-features = false }
+beui_macros = { path = "../beui-macros" }
+block-ui-test = { path = "../block-ui-test" }
+text-editor-core = { path = "../text-editor-core" }
+
+[lints]
+workspace = true

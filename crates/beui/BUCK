@@ -13,9 +13,12 @@ cargo_example("demo", srcs = beui_srcs)
 cargo_example("survey", srcs = beui_srcs)
 
 # The demo for crates/beui-web-demo, which shows it in a browser drawn with DOM
-# elements.
+# elements, and for crates/beui-demo-snapshots, which paints its pages.
 export_file(
     name = "demo.rs",
     src = "examples/demo.rs",
-    visibility = ["//crates/beui-web-demo:"],
+    visibility = [
+        "//crates/beui-demo-snapshots:",
+        "//crates/beui-web-demo:",
+    ],
 )
