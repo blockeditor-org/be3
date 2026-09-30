@@ -165,15 +165,22 @@ way for the test to fail.
   at all.
 - ./scripts/buck run //crates/paint-snapshot:rasterize-example -- snapshots/<crate>.<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
-  to write. It is for a person looking at a painting on the machine that made it; the review
-  that matters still happens in a Paint review block.
+  to write.
 - Regenerating them is cheap and mechanical - a change to beui's renderer rewrites every one - so
   you do not need to review or explain changed paintings. They show up on the pull request,
   and a person reviews them there before merging. Leave the images alone.
 - The exception is a painting you did not expect to change: if your change should not have
   touched it, restore the committed file and run the tests without UPDATE_SNAPSHOTS - git restore
   snapshots/ && ./scripts/buck run //:verify -- --check --plugin-tests - and the failure says which frame
-  changed and what moved in it, which is what you needed rather than the image.
+  changed and what moved in it.
+- When that is not enough to tell what happened, look at the images. With the changed
+  paintings in snapshots/ (./scripts/buck run //:verify writes them back if you restored
+  them), put the committed ones in a folder outside the checkout and compare the two:
+  mkdir -p /tmp/paint/before && git archive HEAD snapshots | tar -x -C /tmp/paint/before --strip-components=1 &&
+  ./scripts/buck run //crates/paint-snapshot:preview-example -- /tmp/paint/before "$PWD/snapshots" /tmp/paint/previews
+  It is what CI shows on a pull request: for every frame that differs it writes a before, an
+  after and a changes PNG, where magenta marks every pixel that differs, and
+  /tmp/paint/previews/comment.md says which painting and frame each PNG is.
 
 A beui document that is not an editor - beui's demo, say - is painted the same way through
 block_ui_test::DocumentTest, which drives the document itself with only the fonts beui
