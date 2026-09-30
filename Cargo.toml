@@ -19,6 +19,7 @@ members = [
     "crates/beui-font-browser",
     "crates/beui-renderer-dom",
     "crates/beui-web-demo",
+    "crates/beui-demo",
     "crates/beui-adapter-winit",
     "crates/beui-components-styled",
     "crates/beui-components-unstyled",
