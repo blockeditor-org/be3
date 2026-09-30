@@ -16,12 +16,8 @@ fn a_build_names_the_app_and_the_launcher_by_their_hashes() {
     assert_eq!(build.launcher.size, 2);
     assert!(Build::parse(b"{\"commit\": \"abc\"}").is_err());
     assert_eq!(
-        Slot::PullRequest(12).manifest_url("abc"),
-        "https://be3-ci.b-cdn.net/android/pr-12/abc.json"
-    );
-    assert_eq!(
-        Slot::Main.latest_url(),
-        "https://be3-ci.b-cdn.net/android/main/build.json"
+        Slot::PullRequest(12).manifest_url(),
+        "https://be3-ci.b-cdn.net/android/pr-12/build.json"
     );
     assert_eq!(
         Slot::Main.object_url("aa"),

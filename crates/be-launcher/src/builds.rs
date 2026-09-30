@@ -22,11 +22,7 @@ impl Slot {
         }
     }
 
-    pub(crate) fn manifest_url(self, commit: &str) -> String {
-        format!("{STORE}/{}/{commit}.json", self.name())
-    }
-
-    pub(crate) fn latest_url(self) -> String {
+    pub(crate) fn manifest_url(self) -> String {
         format!("{STORE}/{}/build.json", self.name())
     }
 

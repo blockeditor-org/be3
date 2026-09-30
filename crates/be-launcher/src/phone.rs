@@ -183,20 +183,20 @@ impl Phone {
                     Ok,
                 )
                 .and_then(|wanted| {
-                    let build = fetch_build(slot, &wanted)?;
+                    let build = fetch_build(slot)?;
                     Ok(Found { wanted, build })
                 });
             tasks::Event::Phone(Event::Fetched(slot, found))
         });
     }
 
-    pub(crate) fn run(&self, slot: Slot, commit: String, fresh: bool) {
+    pub(crate) fn run(&self, slot: Slot, fresh: bool) {
         if !self.begin(slot, Package::App, fresh) {
             return;
         }
         self.tasks.background(move |tasks| {
             let files = android::files(tasks);
-            let result = fetch_build(slot, &commit).and_then(|build| {
+            let result = fetch_build(slot).and_then(|build| {
                 let build = build.ok_or_else(|| "be3-ci has no Android build of it".to_owned())?;
                 let current = builds::installed(&files.join(INSTALLED))
                     .is_some_and(|installed| installed.hash == build.app.hash);
@@ -220,13 +220,13 @@ impl Phone {
         });
     }
 
-    pub(crate) fn install(&self, slot: Slot, commit: String) {
+    pub(crate) fn install(&self, slot: Slot) {
         if !self.begin(slot, Package::Launcher, false) {
             return;
         }
         self.tasks.background(move |tasks| {
             let files = android::files(tasks);
-            let result = fetch_build(slot, &commit).and_then(|build| {
+            let result = fetch_build(slot).and_then(|build| {
                 let build = build.ok_or_else(|| "be3-ci has no Android build of it".to_owned())?;
                 let mut progress = progress(tasks, slot);
                 builds::fetch_apk(
@@ -395,12 +395,10 @@ fn progress(tasks: &Tasks, slot: Slot) -> impl FnMut(u64, u64) + '_ {
     }
 }
 
-fn fetch_build(slot: Slot, commit: &str) -> Result<Option<Build>, String> {
-    let document = match android::get(&slot.manifest_url(commit))? {
-        Some(document) => Some(document),
-        None => android::get(&slot.latest_url())?,
-    };
-    document.map(|document| Build::parse(&document)).transpose()
+fn fetch_build(slot: Slot) -> Result<Option<Build>, String> {
+    android::get(&slot.manifest_url())?
+        .map(|document| Build::parse(&document))
+        .transpose()
 }
 
 fn short(sha: &str) -> &str {
@@ -424,16 +422,11 @@ pub(crate) fn Actions(
     let build = phone.build(slot, &initial.head_sha);
     let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
     let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(&build)));
-    let run = clone!(phone pull_request -> move || {
-        phone.run(slot, pull_request.get_untracked().head_sha, false);
-    });
-    let pick = clone!(phone pull_request -> move |path: Vec<usize>| {
-        let head = pull_request.get_untracked().head_sha;
-        match path.as_slice() {
-            [0] => phone.run(slot, head, true),
-            [1] => phone.install(slot, head),
-            _ => {}
-        }
+    let run = clone!(phone -> move || phone.run(slot, false));
+    let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
+        [0] => phone.run(slot, true),
+        [1] => phone.install(slot),
+        _ => {}
     });
     view! {
         <SplitButton
@@ -485,24 +478,11 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
     let build = phone.main_build();
     let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
     let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(&build)));
-    let wanted = clone!(build -> move || match build.get_untracked() {
-        Loaded::Ready(found) => Some(found.wanted),
-        _ => None,
-    });
-    let run = clone!(phone wanted -> move || {
-        if let Some(commit) = wanted() {
-            phone.run(Slot::Main, commit, false);
-        }
-    });
-    let pick = clone!(phone wanted -> move |path: Vec<usize>| {
-        let Some(commit) = wanted() else {
-            return;
-        };
-        match path.as_slice() {
-            [0] => phone.run(Slot::Main, commit, true),
-            [1] => phone.install(Slot::Main, commit),
-            _ => {}
-        }
+    let run = clone!(phone -> move || phone.run(Slot::Main, false));
+    let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
+        [0] => phone.run(Slot::Main, true),
+        [1] => phone.install(Slot::Main),
+        _ => {}
     });
     let current = create_memo(clone!(phone -> move || phone.holds(Slot::Main)));
     let summary = create_memo(clone!(current build -> move || {
