@@ -87,6 +87,10 @@ impl Element for EmbedNode {
         self.punch
     }
 
+    fn unplaced(&mut self, _doc: &mut Document) {
+        self.state.placement.set(None);
+    }
+
     fn interact(
         &mut self,
         _doc: &mut Document,

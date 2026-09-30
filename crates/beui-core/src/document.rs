@@ -621,7 +621,7 @@ impl Document {
             .collect();
         self.release_portal(id, &borrowed);
         for child in held {
-            self.forget_placement(child);
+            self.release_forgotten(child);
         }
         for child in children {
             if borrowed.contains(&child) {
@@ -1387,6 +1387,15 @@ impl Document {
         }
         for child in self.placed_children.remove(&id).unwrap_or_default() {
             self.drop_placement(child, out, dropped);
+        }
+    }
+
+    fn release_forgotten(&mut self, id: NodeId) {
+        let rects = Rc::clone(&self.rects);
+        let mut dropped = Vec::new();
+        self.drop_placement(id, &rects, &mut dropped);
+        for node in dropped {
+            self.release_placement(node);
         }
     }
 
