@@ -15,10 +15,30 @@
                 font-family: system-ui, sans-serif;
             }
 
-            canvas {
+            #block {
+                position: relative;
+                z-index: 1;
                 display: block;
                 width: 100%;
                 height: 100%;
+            }
+
+            /*
+                What plugins draw is shown by canvases their workers draw into,
+                kept here behind the app, which leaves a hole wherever one shows.
+            */
+            #plugins {
+                position: fixed;
+                inset: 0;
+                overflow: hidden;
+                pointer-events: none;
+            }
+
+            #plugins canvas {
+                position: absolute;
+                left: 0;
+                top: 0;
+                transform-origin: 0 0;
             }
 
             #status {
@@ -63,6 +83,7 @@
         </script>
     </head>
     <body>
+        <div id="plugins"></div>
         <canvas id="block"></canvas>
         <div id="status"><div class="detail">Loading Block…</div></div>
 

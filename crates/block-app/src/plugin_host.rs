@@ -17,6 +17,7 @@ mod instances;
 mod pieces;
 mod presenter;
 mod runtime;
+#[cfg(not(target_arch = "wasm32"))]
 mod surface;
 #[cfg(not(target_arch = "wasm32"))]
 mod wasm;
@@ -26,6 +27,8 @@ mod web_view;
 
 pub(crate) use instances::EditorView;
 pub(crate) use presenter::{Blit, PluginDrawing};
+#[cfg(target_arch = "wasm32")]
+pub(crate) use runtime::place_screens;
 pub(crate) use runtime::{
     artifact, artifact_draft, aspect_ratio, block_picked, close, commit_creation, cover_frame,
     creation, creation_ready, editor_ui, flush, frame_child, frame_rects, hold, install,

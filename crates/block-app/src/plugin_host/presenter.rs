@@ -7,9 +7,12 @@ use std::{
 use beui::{DrawAt, Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{ScreenId, ScreenLayout, ScreenPlacement, SurfaceRect};
 
-use super::backend::{Availability, Frame};
+use super::backend::{Availability, Frame, ShownFrame};
 
+#[cfg(not(target_arch = "wasm32"))]
 use super::surface::{Presenter as PlatformPresenter, presenter as build_presenter};
+#[cfg(target_arch = "wasm32")]
+use super::web::presenter::{Presenter as PlatformPresenter, presenter as build_presenter};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum PresenterState {
@@ -43,7 +46,6 @@ pub(super) trait SurfacePresenter {
     fn replace(
         &mut self,
         device: &wgpu::Device,
-        pipeline: &BlitPipeline,
         surface: u32,
         frame: &Self::Frame,
     ) -> Result<(), String>;
@@ -55,48 +57,29 @@ pub(super) trait SurfacePresenter {
         frame: &Self::Frame,
     ) -> Result<(), String>;
 
-    fn texture(&self, surface: u32) -> Option<&wgpu::BindGroup>;
+    fn paint(
+        &self,
+        pass: &mut wgpu::RenderPass<'_>,
+        surface: u32,
+        regions: &wgpu::BindGroup,
+        offset: u32,
+    );
 
     fn release(&mut self, surface: u32);
 }
 
 pub(super) const MAX_SURFACES: u32 = 8;
 const MAX_PENDING_FRAMES: usize = 8;
-const REGION_BYTES: u64 = 64;
+pub(super) const REGION_BYTES: u64 = 64;
 
-pub(super) struct BlitPipeline {
-    pub(super) pipeline: wgpu::RenderPipeline,
-    pub(super) texture_layout: wgpu::BindGroupLayout,
-    pub(super) regions_layout: wgpu::BindGroupLayout,
-    pub(super) sampler: wgpu::Sampler,
+pub(super) struct RegionLayout {
+    pub(super) layout: wgpu::BindGroupLayout,
     stride: u32,
 }
 
-impl BlitPipeline {
-    pub(super) fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("blit.wgsl"));
-        let texture_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("hosted plugin surface layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        });
-        let regions_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+impl RegionLayout {
+    pub(super) fn new(device: &wgpu::Device) -> Self {
+        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("hosted plugin region layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
@@ -109,76 +92,11 @@ impl BlitPipeline {
                 count: None,
             }],
         });
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("hosted plugin surface pipeline layout"),
-            bind_group_layouts: &[Some(&texture_layout), Some(&regions_layout)],
-            immediate_size: 0,
-        });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("hosted plugin surface pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("blit_vertex"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            primitive: Default::default(),
-            depth_stencil: None,
-            multisample: Default::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("blit_fragment"),
-                compilation_options: wgpu::PipelineCompilationOptions {
-                    constants: &[("decode_srgb", f64::from(u8::from(target_format.is_srgb())))],
-                    ..Default::default()
-                },
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: target_format,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
         let stride = device
             .limits()
             .min_uniform_buffer_offset_alignment
             .max(REGION_BYTES as u32);
-        Self {
-            pipeline,
-            texture_layout,
-            regions_layout,
-            sampler: device.create_sampler(&wgpu::SamplerDescriptor {
-                label: Some("hosted plugin surface sampler"),
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
-                ..Default::default()
-            }),
-            stride,
-        }
-    }
-
-    pub(super) fn texture_group(
-        &self,
-        device: &wgpu::Device,
-        view: &wgpu::TextureView,
-    ) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("hosted plugin surface bind group"),
-            layout: &self.texture_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
-                },
-            ],
-        })
+        Self { layout, stride }
     }
 }
 
@@ -305,8 +223,8 @@ impl Shared {
         let Some(frame) = frame else {
             return;
         };
-        self.damage = match (self.frames.is_empty(), self.damage.take(), &frame.damage) {
-            (true, _, damage) => damage.clone(),
+        self.damage = match (self.frames.is_empty(), self.damage.take(), frame.damage()) {
+            (true, _, damage) => damage.map(<[SurfaceRect]>::to_vec),
             (false, Some(mut held), Some(damage)) => {
                 held.extend_from_slice(damage);
                 Some(held)
@@ -334,6 +252,7 @@ pub(crate) struct Blit {
     pub(super) quad: Quad,
     pub(super) source: Rect,
     pub(super) drawn: Option<(u32, u32)>,
+    pub(super) placed: Option<[u32; 4]>,
 }
 
 impl PartialEq for Blit {
@@ -344,6 +263,7 @@ impl PartialEq for Blit {
             && self.quad == other.quad
             && self.source == other.source
             && self.drawn == other.drawn
+            && self.placed == other.placed
     }
 }
 
@@ -458,13 +378,13 @@ impl beui::Draw for PluginDrawing {
                 let capacity = needed.next_power_of_two();
                 let buffer = device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("plugin surface regions"),
-                    size: u64::from(presenter.pipeline.stride) * capacity as u64,
+                    size: u64::from(presenter.regions.stride) * capacity as u64,
                     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                     mapped_at_creation: false,
                 });
                 let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("plugin surface regions"),
-                    layout: &presenter.pipeline.regions_layout,
+                    layout: &presenter.regions.layout,
                     entries: &[wgpu::BindGroupEntry {
                         binding: 0,
                         resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
@@ -517,7 +437,7 @@ impl beui::Draw for PluginDrawing {
                         .set(PresenterState::Unsupported(UNSUPPORTED.to_owned())),
                 }
                 placed.push(region.map(|region| {
-                    let offset = presenter.pipeline.stride * index as u32;
+                    let offset = presenter.regions.stride * index as u32;
                     queue.write_buffer(
                         &regions.buffer,
                         u64::from(offset),
@@ -544,13 +464,9 @@ impl beui::Draw for PluginDrawing {
             };
             let placed = self.placed.borrow();
             for (blit, offset) in self.blits.iter().zip(placed.iter()) {
-                let (Some(offset), Some(texture)) = (offset, platform.texture(blit.surface)) else {
-                    continue;
-                };
-                pass.set_pipeline(&presenter.pipeline.pipeline);
-                pass.set_bind_group(0, texture, &[]);
-                pass.set_bind_group(1, &regions.group, &[*offset]);
-                pass.draw(0..6, 0..1);
+                if let Some(offset) = offset {
+                    platform.paint(pass, blit.surface, &regions.group, *offset);
+                }
             }
         });
     }
@@ -561,7 +477,7 @@ thread_local! {
 }
 
 struct Presenter {
-    pipeline: BlitPipeline,
+    regions: RegionLayout,
     platform: Option<PlatformPresenter>,
 }
 
@@ -569,12 +485,12 @@ pub(super) fn install(setup: &beui::Setup) -> Availability {
     let gpu = setup
         .get::<beui::GpuSetup>()
         .expect("beui's runner provides the GPU it draws with");
-    let pipeline = BlitPipeline::new(&gpu.device, gpu.format);
-    let platform = build_presenter(&gpu.device, &gpu.queue);
+    let regions = RegionLayout::new(&gpu.device);
+    let platform = build_presenter(&gpu.device, &gpu.queue, &regions, gpu.format);
     let availability = Availability(platform.as_ref().map(|_| ()).map_err(Clone::clone));
     PRESENTER.with(|presenter| {
         *presenter.borrow_mut() = Some(Presenter {
-            pipeline,
+            regions,
             platform: platform.ok(),
         });
     });
@@ -602,7 +518,7 @@ impl Presenter {
         frame: &Frame,
     ) -> Result<(), String> {
         match &mut self.platform {
-            Some(presenter) => presenter.replace(device, &self.pipeline, surface, frame),
+            Some(presenter) => presenter.replace(device, surface, frame),
             None => Err(UNSUPPORTED.to_owned()),
         }
     }

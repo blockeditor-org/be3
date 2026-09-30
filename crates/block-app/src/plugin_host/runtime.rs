@@ -20,7 +20,7 @@ use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, EditorBlock,
     EditorSlot, HostChild, HostChildStatus, InstanceRole, PreviewPresentation, PreviewSlot,
     RuntimeStatus, SurfaceStatus,
-    backend::{Availability, Backend, Platform},
+    backend::{Availability, Backend, Platform, ShownFrame},
     input,
     instances::{Focus, FrameOverlay, Instances, OpenRequest, Placement},
     presenter::{self, Blit, MAX_SURFACES, PresenterState, PresenterStatus, Quad, Shared},
@@ -167,8 +167,7 @@ impl Runtime {
         let mut instances = Instances::default();
         instances.allow_network(plugin.network.clone());
         instances.set_plugin_id(plugin.identity.id.clone());
-        let mut session = session();
-        session.start(host::milliseconds());
+        let session = session();
         Self {
             plugin: plugin.clone(),
             backend,
@@ -203,7 +202,6 @@ impl Runtime {
         let plugin = self.plugin.clone();
         self.stop();
         self.session = session();
-        self.session.start(self.milliseconds());
         self.queued.clear();
         self.error = None;
         self.status = PresenterStatus::waiting();
@@ -308,6 +306,9 @@ impl Runtime {
         }
         let now = self.milliseconds();
         let received = self.backend.receive();
+        if *self.session.state() == SessionState::Idle && self.backend.ready() {
+            self.session.start(now);
+        }
         let mut forwarded = Vec::with_capacity(received.len());
         for message in received {
             match message.is_session() {
@@ -326,7 +327,7 @@ impl Runtime {
         }
         self.apply(forwarded);
         if let Some(mut frame) = self.backend.received_frame() {
-            frame.damage = self.presents.damage_through(frame.presents);
+            frame.set_damage(self.presents.damage_through(frame.presents()));
             self.shared.borrow_mut().publish(&self.layout, Some(frame));
         }
     }
@@ -452,6 +453,10 @@ impl Runtime {
             },
             source,
             drawn,
+            placed: self
+                .layout
+                .placement(screen)
+                .map(|placement| [placement.x, placement.y, placement.width, placement.height]),
         }
     }
 
@@ -473,6 +478,23 @@ impl Runtime {
             (None, PresenterState::Waiting) => self.backend.state().to_owned(),
         }
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn place_screens(blits: &[Blit], scale: f32, background: beui::Color32) {
+    super::web::set_background(background);
+    let mut placed = HashMap::<u32, Vec<super::web::Placement>>::new();
+    for (order, blit) in blits.iter().enumerate() {
+        if let Some(placement) = super::web::placement(blit, order, scale) {
+            placed.entry(blit.surface).or_default().push(placement);
+        }
+    }
+    HOST.with(|host| {
+        for runtime in host.borrow_mut().runtimes.values_mut() {
+            let placements = placed.remove(&runtime.surface).unwrap_or_default();
+            runtime.backend.place(placements);
+        }
+    });
 }
 
 pub(crate) fn install(setup: &beui::Setup) {

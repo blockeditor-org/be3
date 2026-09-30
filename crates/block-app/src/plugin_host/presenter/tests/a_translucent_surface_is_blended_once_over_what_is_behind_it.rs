@@ -1,4 +1,5 @@
 use super::*;
+use crate::plugin_host::surface::BlitPipeline;
 
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 const SIZE: u32 = 64;
@@ -18,7 +19,8 @@ fn a_translucent_surface_is_blended_once_over_what_is_behind_it() {
         ..Default::default()
     }))
     .expect("the adapter did not provide a device");
-    let blit = BlitPipeline::new(&device, FORMAT);
+    let regions = RegionLayout::new(&device);
+    let blit = BlitPipeline::new(&device, &regions, FORMAT);
 
     let usage = wgpu::TextureUsages::TEXTURE_BINDING
         | wgpu::TextureUsages::RENDER_ATTACHMENT
@@ -74,7 +76,7 @@ fn a_translucent_surface_is_blended_once_over_what_is_behind_it() {
     queue.write_buffer(&buffer, 0, bytemuck::cast_slice(&region));
     let region_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("region"),
-        layout: &blit.regions_layout,
+        layout: &regions.layout,
         entries: &[wgpu::BindGroupEntry {
             binding: 0,
             resource: buffer.as_entire_binding(),
