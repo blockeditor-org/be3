@@ -9,6 +9,7 @@ accesskit = "0.24.1"
 geometry = { path = "../geometry" }
 reactive = { path = "../reactive" }
 thumbhash = "0.1"
+unicode-segmentation = "1.13"
 
 [lints]
 workspace = true
