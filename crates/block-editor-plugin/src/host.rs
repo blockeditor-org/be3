@@ -12,7 +12,8 @@ use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand, BlockPick,
     ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
     DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostReply, HostRequest, Occluder,
-    PaneId, PaneLayout, PaneTree, PerformanceMeasurement, Size, ViewChange, WebViewCommand, WebViewEvent,
+    PaneId, PaneLayout, PaneTree, PerformanceMeasurement, Size, ViewChange, WebViewCommand,
+    WebViewEvent,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;

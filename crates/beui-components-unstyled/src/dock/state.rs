@@ -1562,6 +1562,7 @@ impl DockState {
     ) -> GroupId {
         let group = GroupId(self.mint());
         let root = Node::Leaf(self.new_leaf(Vec::new()));
+        self.invalidate();
         self.groups.push(Group {
             id: group,
             root,
@@ -1637,6 +1638,7 @@ impl DockState {
             .and_then(|focus| self.active_entry(focus))
             .and_then(Entry::tab);
         let nested = self.nested_groups(tree);
+        self.invalidate();
         self.groups.retain(|group| !nested.contains(&group.id));
         let emptied = Node::Leaf(self.new_leaf(Vec::new()));
         if let Some(root) = self.root_mut(tree) {
@@ -1709,6 +1711,7 @@ impl DockState {
                         DockTreeEntry::Group(inner) => {
                             let root = self.build(inner);
                             let group = GroupId(self.mint());
+                            self.invalidate();
                             self.groups.push(Group {
                                 id: group,
                                 root,

@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 61;
+pub const PROTOCOL_VERSION: u16 = 62;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -945,7 +945,7 @@ pub enum EditorMessage {
     },
     Panes {
         instance: EditorInstanceId,
-        layout: PaneLayout,
+        layout: Option<PaneLayout>,
     },
     ShowPane {
         instance: EditorInstanceId,
@@ -2401,7 +2401,11 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(())
         }
         EditorMessage::CopyText { text: value, .. } => text(value),
-        EditorMessage::Panes { layout, .. } => {
+        EditorMessage::Panes { layout: None, .. } => Ok(()),
+        EditorMessage::Panes {
+            layout: Some(layout),
+            ..
+        } => {
             collection(layout.panes.len())?;
             collection(layout.tree.items.len())?;
             strings(layout.panes.iter().map(|pane| &pane.title))

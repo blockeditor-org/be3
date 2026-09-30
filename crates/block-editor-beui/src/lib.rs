@@ -26,8 +26,8 @@ pub use chrome::{
     NARROW_WIDTH, SIDEBAR_WIDTH, Side, Sidebar, Toolbar, narrow_chrome, sheet_control, sheet_open,
 };
 pub use dock::BottomDock;
-pub use editor_dock::EditorDock;
 pub use editor::{Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, fit_content};
+pub use editor_dock::EditorDock;
 pub use file_chooser::{FileChooser, content_file_creation};
 pub use instance::BeuiPlugin;
 pub use related_content::RelatedContent;

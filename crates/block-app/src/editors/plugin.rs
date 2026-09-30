@@ -1,8 +1,8 @@
 use beui::{Pos2, Rect, Vec2, vec2};
 use block_plugin_api::{
     BlockPick, BlockTypeDescriptor, ChildMode, ChildRect, EditorCapabilities, EditorInstanceId,
-    EditorManifest, EditorRegion, FrameChrome, FrameSpec, InteractionMode, PaneId, PaneLayout, PaneTree, PluginManifest,
-    ResizeMode, ViewChange,
+    EditorManifest, EditorRegion, FrameChrome, FrameSpec, InteractionMode, PaneId, PaneLayout,
+    PaneTree, PluginManifest, ResizeMode, ViewChange,
 };
 use std::sync::{
     Arc,

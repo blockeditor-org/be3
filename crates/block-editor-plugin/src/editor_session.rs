@@ -3,8 +3,8 @@ use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion,
     FrameChrome, FrameReport, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
-    Message, Occluder, PaneId, PaneLayout, PaneTree, RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange,
-    ViewportMetrics, WebViewEvent,
+    Message, Occluder, PaneId, PaneLayout, PaneTree, RegionSize, ScreenPlacement, ScreenRequest,
+    Size, ViewChange, ViewportMetrics, WebViewEvent,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -136,10 +136,8 @@ impl EditorSession {
             arrangement: self.arrangement,
             ..layout
         });
-        if let Some(layout) = layout
-            && self.sent_panes.as_ref() != Some(&layout)
-        {
-            self.sent_panes = Some(layout.clone());
+        if self.sent_panes != layout {
+            self.sent_panes = layout.clone();
             messages.push(Message::Editor(EditorMessage::Panes { instance, layout }));
         }
         for pane in self.host.take_shown_panes() {

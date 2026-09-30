@@ -6,8 +6,8 @@ use block_plugin_api::{
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
     CreationOutcome, CursorIcon, DataListing, EditorInstanceId, EditorMessage, EditorRegion,
     FetchResult, FilePick, FileSave, FrameReport, FrameSpec, HostReply, HostRequest, Message,
-    Occluder, PaneId, PaneLayout, PaneTree, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout,
-    ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
+    Occluder, PaneId, PaneLayout, PaneTree, PerformanceMeasurement, RegenerationOutcome,
+    RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -1950,7 +1950,7 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry.panes = Some(layout);
+                entry.panes = layout;
                 true
             }
             EditorMessage::ShowPane { instance, pane } => {

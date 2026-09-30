@@ -69,7 +69,7 @@ fn a_layout_the_host_rearranged_comes_back_as_the_editors_own() {
         .outbound()
         .into_iter()
         .find_map(|message| match message {
-            Message::Editor(EditorMessage::Panes { layout, .. }) => Some(layout),
+            Message::Editor(EditorMessage::Panes { layout, .. }) => layout,
             _ => None,
         })
         .expect("the editor answers the arrangement it was given");

@@ -50,7 +50,7 @@ fn a_docked_editor_hands_its_tabs_to_the_host_as_panes() {
         .outbound()
         .into_iter()
         .find_map(|message| match message {
-            Message::Editor(EditorMessage::Panes { layout, .. }) => Some(layout),
+            Message::Editor(EditorMessage::Panes { layout, .. }) => layout,
             _ => None,
         })
         .expect("a docked editor describes its panes to the host");

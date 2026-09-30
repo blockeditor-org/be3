@@ -35,7 +35,7 @@ fn pane_messages_round_trip() {
     for message in [
         Message::Editor(EditorMessage::Panes {
             instance: EditorInstanceId(2),
-            layout: PaneLayout {
+            layout: Some(PaneLayout {
                 panes: vec![PaneInfo {
                     pane: PaneId(1),
                     title: "Files".into(),
@@ -43,7 +43,11 @@ fn pane_messages_round_trip() {
                 }],
                 tree: tree.clone(),
                 arrangement: 3,
-            },
+            }),
+        }),
+        Message::Editor(EditorMessage::Panes {
+            instance: EditorInstanceId(2),
+            layout: None,
         }),
         Message::Editor(EditorMessage::ShowPane {
             instance: EditorInstanceId(2),

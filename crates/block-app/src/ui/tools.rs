@@ -2,14 +2,12 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui::reactive::{
-    Func, ItemSize, List, Memo, Show, clone, component, component_rect, create_effect,
-    create_memo, create_signal, on_cleanup, untrack, view,
+    Func, ItemSize, List, Memo, Show, clone, component, component_rect, create_effect, create_memo,
+    create_signal, on_cleanup, untrack, view,
 };
 use beui::styled::DockArea;
 use beui::styled::theme::NARROW_WIDTH;
-use beui::unstyled::{
-    DockState, DockTree, DockTreeEntry, GroupId, TabId, Tree, narrower_than,
-};
+use beui::unstyled::{DockState, DockTree, DockTreeEntry, GroupId, TabId, Tree, narrower_than};
 use beui::{NodeId, Rect, pos2, vec2};
 use beui_plugin_input::panes::{dock_tree_with, pane_tree_with};
 use block_plugin_api::{PaneId, PaneLayout, PaneTree};

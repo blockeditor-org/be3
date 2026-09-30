@@ -23,4 +23,8 @@ fn the_workspace_tab_becomes_a_pinned_group_of_the_plugins_panes() {
         vec![WORKSPACE],
         "without panes the workspace is one tab again"
     );
+    assert!(
+        only_the_workspace(&state),
+        "so a phone shows the workspace's own surface without the dock around it"
+    );
 }
