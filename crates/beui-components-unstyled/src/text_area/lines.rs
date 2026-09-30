@@ -126,7 +126,12 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
         }
     }));
     let gutter = create_memo(clone!(cx -> move || Some(cx.gutter.get())));
-    let padding = create_memo(clone!(cx -> move || cx.padding.get().x));
+    let padding = create_memo(clone!(cx -> move || (cx.padding.get().x - CODE_OUTSET.x).max(0.0)));
+    let inset = create_memo(clone!(cx -> move || cx.padding.get().x.min(CODE_OUTSET.x)));
+    let code = create_memo(clone!(cx model -> move || match model.get().code_block {
+        true => cx.colors.get().code_background,
+        false => Color32::TRANSPARENT,
+    }));
     let block = create_memo(clone!(model -> move || model.get().block));
     let renders = cx.block.is_some();
     let has_block = create_memo(clone!(block -> move || renders && block.get().is_some()));
@@ -144,22 +149,24 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
                     <Gutter cx={gutter_cx} model={gutter_model} />
                 </Frame>
                 <Frame @sizing=ItemSize::Percent(100.0) padding_horizontal={padding}>
-                    <List spacing=0.0>
-                        <RowText cx model text wrap=true />
-                        <Show condition={has_block}>
-                            {move || {
-                                let (index, size) = block.get_untracked().unwrap_or_default();
-                                let render = block_cx
-                                    .block
-                                    .clone()
-                                    .expect("a block is only shown when the area was given one");
-                                let node = block_node.clone();
-                                view! {
-                                    <BlockSlot @node_ref=&node render index size />
-                                }
-                            }}
-                        </Show>
-                    </List>
+                    <Frame color={code} padding_horizontal={inset}>
+                        <List spacing=0.0>
+                            <RowText cx model text wrap=true />
+                            <Show condition={has_block}>
+                                {move || {
+                                    let (index, size) = block.get_untracked().unwrap_or_default();
+                                    let render = block_cx
+                                        .block
+                                        .clone()
+                                        .expect("a block is only shown when the area was given one");
+                                    let node = block_node.clone();
+                                    view! {
+                                        <BlockSlot @node_ref=&node render index size />
+                                    }
+                                }}
+                            </Show>
+                        </List>
+                    </Frame>
                 </Frame>
             </List>
         </Frame>

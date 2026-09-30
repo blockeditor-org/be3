@@ -43,6 +43,7 @@ pub(super) struct Instances {
     sent_block_types: bool,
     network: Vec<String>,
     plugin_id: String,
+    resized: bool,
 }
 
 struct Connection {
@@ -718,10 +719,18 @@ impl Instances {
                 frame_revoked: HashSet::new(),
             }
         });
-        screen.request.metrics = viewport_metrics(size, visible, scale_factor);
+        let metrics = viewport_metrics(size, visible, scale_factor);
+        if screen.request.metrics != metrics || screen.request.frame != frame {
+            self.resized = true;
+        }
+        screen.request.metrics = metrics;
         screen.request.frame = frame;
         screen.last_seen = pass;
         screen.request.screen
+    }
+
+    pub(super) fn take_resized(&mut self) -> bool {
+        std::mem::take(&mut self.resized)
     }
 
     pub(super) fn hold(&mut self, instance: EditorInstanceId, region: EditorRegion) {

@@ -8,7 +8,9 @@ use crate::app::TextApp;
 use crate::app::embeds::{image_embed_directive, parse_embeds};
 
 mod a_phone_formats_from_a_bar_above_the_keyboard;
+mod a_tap_near_the_bottom_places_the_caret_while_the_format_bar_opens;
 mod classifies_markdown_image;
+mod code_is_painted_on_its_background;
 mod clicking_into_the_text_shows_the_format_bar_without_a_keyboard_button;
 mod foreign_workspace_url_is_not_an_embed;
 mod image_embed_directive_uses_markdown_image;
