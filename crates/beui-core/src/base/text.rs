@@ -57,6 +57,15 @@ impl Default for Rich {
     }
 }
 
+struct Shaped {
+    strut: Galley,
+    content: String,
+    spans: Vec<TextSpan>,
+    options: RichOptions,
+    sizes: Vec<Vec2>,
+    layout: Rc<RichLayout>,
+}
+
 pub struct TextItemNode {
     child: Option<NodeId>,
     at: Option<usize>,
@@ -82,6 +91,7 @@ pub struct TextNode {
     rich: Option<Box<Rich>>,
     items: ChildList<NodeId>,
     placed: Rc<RefCell<Option<Placed>>>,
+    shaped: RefCell<Option<Shaped>>,
 }
 
 impl ChildHost for TextNode {
@@ -131,7 +141,7 @@ impl TextNode {
         painter: &Painter,
         rich: &Rich,
         available_width: f32,
-    ) -> RichLayout {
+    ) -> Rc<RichLayout> {
         let inline = self.inline_items(doc);
         let sizes: Vec<Vec2> = inline
             .iter()
@@ -142,11 +152,36 @@ impl TextNode {
             padding: rich.padding,
             style: self.style(),
         };
+        let strut = painter.layout_text(String::new(), options.style.font, TextLayout::DEFAULT);
+        if let Some(shaped) = self.shaped.borrow().as_ref()
+            && shaped.strut == strut
+            && shaped.options == options
+            && shaped.sizes == sizes
+            && shaped.content == self.content
+            && shaped.spans == rich.spans
+        {
+            return Rc::clone(&shaped.layout);
+        }
         let size_of = |index: usize| sizes.get(index).copied().unwrap_or(Vec2::ZERO);
         let mut shaper = |text: &str, font: FontId| {
             painter.layout_text(text.to_owned(), font, TextLayout::DEFAULT)
         };
-        RichLayout::new(&self.content, &rich.spans, &size_of, options, &mut shaper)
+        let layout = Rc::new(RichLayout::new(
+            &self.content,
+            &rich.spans,
+            &size_of,
+            options,
+            &mut shaper,
+        ));
+        *self.shaped.borrow_mut() = Some(Shaped {
+            strut,
+            content: self.content.clone(),
+            spans: rich.spans.clone(),
+            options,
+            sizes,
+            layout: Rc::clone(&layout),
+        });
+        layout
     }
 
     fn place_rich(
@@ -157,7 +192,7 @@ impl TextNode {
         rect: Rect,
         out: &Rects,
     ) {
-        let layout = Rc::new(self.rich_layout(doc, painter, rich, rect.width()));
+        let layout = self.rich_layout(doc, painter, rich, rect.width());
         let origin = painter.pixel_grid().snap_pos(rect.min);
         let inline = self.inline_items(doc);
         for (index, placed) in layout.inline_rects() {
@@ -506,6 +541,7 @@ impl Document {
             rich: None,
             items: ChildList::default(),
             placed: Rc::new(RefCell::new(None)),
+            shaped: RefCell::new(None),
         })
     }
 
@@ -749,6 +785,22 @@ impl Document {
             .get_or_insert_with(Box::default);
         rich.carets = carets;
         rich.since.set(now);
+    }
+
+    pub fn text_marks(&self, text: NodeId) -> &[TextMark] {
+        self.arena
+            .get_as::<TextNode>(text)
+            .rich
+            .as_ref()
+            .map_or(&[], |rich| rich.marks.as_slice())
+    }
+
+    pub fn text_carets(&self, text: NodeId) -> &[TextCaret] {
+        self.arena
+            .get_as::<TextNode>(text)
+            .rich
+            .as_ref()
+            .map_or(&[], |rich| rich.carets.as_slice())
     }
 
     pub fn text_geometry(&self, text: NodeId) -> TextGeometry {
