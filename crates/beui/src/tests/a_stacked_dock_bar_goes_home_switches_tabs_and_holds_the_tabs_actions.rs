@@ -53,7 +53,10 @@ fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
     harness.settle();
 
     assert!(laid_out(&harness, "content.3"));
-    assert!(laid_out(&harness, "dock.back"), "a tab away from home can go back");
+    assert!(
+        laid_out(&harness, "dock.back"),
+        "a tab away from home can go back"
+    );
     let action = harness.rect(harness.find("action.3"));
     let content = harness.rect(harness.find("content.3"));
     assert!(
@@ -64,7 +67,10 @@ fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
     tap(&mut harness, "dock.back");
     assert!(laid_out(&harness, "content.1"), "back shows the home tab");
     assert!(!laid_out(&harness, "content.3"));
-    assert!(!laid_out(&harness, "dock.back"), "home has nowhere to go back to");
+    assert!(
+        !laid_out(&harness, "dock.back"),
+        "home has nowhere to go back to"
+    );
     assert!(
         !laid_out(&harness, "action.3"),
         "a hidden tab's actions leave the bar with it"

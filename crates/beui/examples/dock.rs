@@ -189,7 +189,6 @@ fn open(state: &mut DockState, tab: TabId) {
     state.show(tab);
 }
 
-
 #[component]
 fn DockShell() -> NodeId {
     let theme = use_theme();

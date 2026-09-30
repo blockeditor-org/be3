@@ -47,11 +47,17 @@ fn the_parent_opens_the_phone_more_sheet_and_hears_when_it_closes() {
     let mut test = BeuiTest::<ActionApp>::new(Editor::new(host, block))
         .with_size(Vec2::new(390.0, 800.0))
         .on_phone();
-    assert!(!test.shown("editor.name"), "a phone draws no bar of its own");
+    assert!(
+        !test.shown("editor.name"),
+        "a phone draws no bar of its own"
+    );
     assert!(!test.shown("editor.more.rename"));
 
     test.set_more(true);
-    assert!(test.shown("editor.more.rename"), "the parent opens the sheet");
+    assert!(
+        test.shown("editor.more.rename"),
+        "the parent opens the sheet"
+    );
     test.click("editor.more.item.0");
     test.run();
     assert_eq!(
@@ -59,7 +65,10 @@ fn the_parent_opens_the_phone_more_sheet_and_hears_when_it_closes() {
         "tidy",
         "the editor's own item runs"
     );
-    assert!(!test.shown("editor.more.rename"), "running an item closes the sheet");
+    assert!(
+        !test.shown("editor.more.rename"),
+        "running an item closes the sheet"
+    );
     assert_eq!(test.take_bar_actions(), [BarAction::CloseMore]);
 
     test.set_more(false);

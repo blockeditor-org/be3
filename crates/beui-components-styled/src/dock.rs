@@ -7,12 +7,11 @@ use crate::context_menu::ContextMenu;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::text::{Body, IconSized};
 use crate::theme::{CARD_RADIUS, FONT_BODY, RADIUS, use_theme};
-use stack::DockStackBar;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockDragged, DockGripHandle, DockMode, DockPanelHandle, DockPreviewHandle, DockSplitterHandle,
-    DockStackHandle, DockState, DockTabHandle, DockWindowHandle, Entry, MenuItem, SPLITTER_THICKNESS, TabId,
-    sidebar_size,
+    DockStackHandle, DockState, DockTabHandle, DockWindowHandle, Entry, MenuItem,
+    SPLITTER_THICKNESS, TabId, sidebar_size,
 };
 use beui_core::base::{Align, Direction, ItemSize};
 use beui_core::color::Color32;
@@ -22,6 +21,7 @@ use beui_view::reactive::{
     Callback, ClickCallback, ClickCatcher, Frame, Func, List, Memo, Prop, ReadSignal, RenderFn,
     Show, Text, clone, create_memo, focus_ring,
 };
+use stack::DockStackBar;
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
 const TAB_HEIGHT: f32 = 33.0;

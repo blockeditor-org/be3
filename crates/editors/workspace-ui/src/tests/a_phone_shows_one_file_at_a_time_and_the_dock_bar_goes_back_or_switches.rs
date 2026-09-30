@@ -84,7 +84,10 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
         "the dock bar's more button opens the block's own sheet"
     );
     bar(&mut fixture, second, BarAction::CloseMore);
-    assert_eq!(top_bar(&fixture, second), Some(TopBar::Phone { more: false }));
+    assert_eq!(
+        top_bar(&fixture, second),
+        Some(TopBar::Phone { more: false })
+    );
 
     bar(&mut fixture, second, BarAction::Details);
     assert!(fixture.test.shown("workspace.details.rename"));

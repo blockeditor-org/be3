@@ -3,16 +3,14 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_DELETE, ICON_DRIVE_FILE_RENAME_OUTLINE,
-    ICON_LINK_OFF, ICON_NOTE_ADD, ICON_SHARE,
+    ICON_DELETE, ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_LINK_OFF, ICON_NOTE_ADD, ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::{
     Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, clone, component,
     create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
-    ActionRow, Caption, Heading, Icon, ModalSheet,
-    SHEET_STOPS, Scroll, use_theme,
+    ActionRow, Caption, Heading, Icon, ModalSheet, SHEET_STOPS, Scroll, use_theme,
 };
 use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::{BlockInfo, BlockParent};

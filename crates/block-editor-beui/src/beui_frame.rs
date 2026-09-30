@@ -8,12 +8,10 @@ use beui::icons::{
 };
 use beui::reactive::{
     ClickCallback, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, WriteSignal, clone,
-    component, create_effect, create_memo, create_signal,
-    focus_takes_text, on_cleanup, on_finger_tap, on_shortcut, provide_context, use_context, view,
+    component, create_effect, create_memo, create_signal, focus_takes_text, on_cleanup,
+    on_finger_tap, on_shortcut, provide_context, use_context, view,
 };
-use beui::styled::{
-    ActionRow, Button, ButtonVariant, IconButton, ModalSheet, Scroll, TextInput,
-};
+use beui::styled::{ActionRow, Button, ButtonVariant, IconButton, ModalSheet, Scroll, TextInput};
 use beui::{Context, Document, Key, KeyPress};
 use block_plugin_api::BarAction;
 use block_ui::{BlockLabel, BlockTypes};

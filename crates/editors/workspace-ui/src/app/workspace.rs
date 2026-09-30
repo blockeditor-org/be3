@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::{
-    Align, Frame, Func, ItemSize, List, NodeRef, ReadSignal, Show, Spacer,
-    WriteSignal, clone, component, create_effect, create_memo, create_signal, untrack, view,
+    Align, Frame, Func, ItemSize, List, NodeRef, ReadSignal, Show, Spacer, WriteSignal, clone,
+    component, create_effect, create_memo, create_signal, untrack, view,
 };
 use block_editor_beui::beui::styled::{Caption, DockArea, Heading, use_theme};
 use block_editor_beui::beui::unstyled::{
@@ -17,8 +17,8 @@ use block_editor_beui::beui::unstyled::{
 };
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState,
-    ChildTarget, Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
+    AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
+    Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;

@@ -66,7 +66,11 @@ pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>)
                         on_click={move || opening.set(true)}
                     >
                         <Frame padding_horizontal=TITLE_PADDING>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=TITLE_SPACING
+                            >
                                 <Text
                                     @sizing=ItemSize::Percent(100.0)
                                     string={title}
@@ -128,7 +132,15 @@ fn DockSwitcher(
                                 let closable = closable.call(tab);
                                 let set_open = set_open.clone();
                                 view! {
-                                    <DockSwitcherRow tab shown titles show close closable set_open />
+                                    <DockSwitcherRow
+                                        tab
+                                        shown
+                                        titles
+                                        show
+                                        close
+                                        closable
+                                        set_open
+                                    />
                                 }
                             }}
                         </ForEach>
@@ -179,12 +191,7 @@ fn DockSwitcherRow(
                     show.call(tab);
                 }}
             >
-                <Text
-                    string={title}
-                    font_size=FONT_BODY
-                    color={theme.text.clone()}
-                    ellipsis=true
-                />
+                <Text string={title} font_size=FONT_BODY color={theme.text.clone()} ellipsis=true />
             </ListRow>
             <Show condition={closable}>
                 <IconButton

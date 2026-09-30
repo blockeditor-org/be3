@@ -34,7 +34,10 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
     let bar = harness.rect(harness.find("dock.switch"));
     assert_eq!(
         harness.rect(third),
-        Rect::from_min_max(pos2(0.0, harness.rect(third).top()), pos2(WIDE_VIEWPORT.x, WIDE_VIEWPORT.y)),
+        Rect::from_min_max(
+            pos2(0.0, harness.rect(third).top()),
+            pos2(WIDE_VIEWPORT.x, WIDE_VIEWPORT.y)
+        ),
         "the focused tab fills the dock below its bar"
     );
     assert!(harness.rect(third).top() >= bar.bottom());

@@ -917,7 +917,10 @@ fn DockStack(dock: Handle) -> NodeId {
         home.get().is_some_and(|home| shown.get().is_some_and(|shown| shown != home))
     }));
     let going = dock.clone();
-    let bar = dock.stack.clone().map(|stack| stack.call(stack_handle(&dock, shown, away.clone())));
+    let bar = dock
+        .stack
+        .clone()
+        .map(|stack| stack.call(stack_handle(&dock, shown, away.clone())));
     let barred = create_memo(clone!(occupied -> move || bar.is_some() && occupied.get()));
     let empty = dock.empty.clone();
     view! {
