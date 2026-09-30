@@ -19,6 +19,7 @@ mod an_open_menu_is_withheld_from_the_block_under_it;
 mod closing_the_only_tab_leaves_the_blank_workspace;
 mod crossing_the_phone_width_keeps_the_block_on_show;
 mod the_back_gesture_on_a_phone_leaves_a_file_for_the_files;
+mod widening_the_phone_with_its_switcher_open_keeps_the_workspace;
 
 const MAX_TAB: u64 = 64;
 const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_7431);

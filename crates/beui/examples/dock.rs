@@ -1,4 +1,4 @@
-use beui::icons::ICON_EDIT;
+use beui::icons::{ICON_DESCRIPTION, ICON_EDIT, ICON_FOLDER, ICON_PALETTE};
 use beui::reactive::{
     ForEach, Frame, Func, List, ReadSignal, Show, Spacer, WriteSignal, build, clone, component,
     create_memo, create_signal, view,
@@ -228,6 +228,11 @@ fn DockShell() -> NodeId {
                     mode={mode}
                     home={Some(FILES)}
                     title={title}
+                    icon={Func::new(|tab: TabId| match tab {
+                        FILES => ICON_FOLDER.to_owned(),
+                        SWATCH => ICON_PALETTE.to_owned(),
+                        _ => ICON_DESCRIPTION.to_owned(),
+                    })}
                     closable={Func::new(|tab: TabId| tab != FILES)}
                     on_change={move |next: DockState| set_state.set(settled(next))}
                     on_close={move |_: TabId| {}}

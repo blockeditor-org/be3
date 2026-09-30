@@ -11,6 +11,18 @@ fn laid_out(harness: &Harness, test_id: &str) -> bool {
         .is_some()
 }
 
+fn count(harness: &Harness) -> String {
+    let document = harness.document();
+    let mut pending = vec![harness.find("dock.switch")];
+    while let Some(node) = pending.pop() {
+        if document.node_kind(node) == "text" {
+            return document.text(node).to_owned();
+        }
+        pending.extend(document.children(node));
+    }
+    String::new()
+}
+
 fn tap(harness: &mut Harness, test_id: &str) {
     let at = harness.center(harness.find(test_id));
     harness.click(at);
@@ -53,10 +65,8 @@ fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
     harness.settle();
 
     assert!(laid_out(&harness, "content.3"));
-    assert!(
-        laid_out(&harness, "dock.back"),
-        "a tab away from home can go back"
-    );
+    assert!(laid_out(&harness, "dock.back"), "a tab away from home can go back");
+    assert_eq!(count(&harness), "2", "the count leaves out the home tab");
     let action = harness.rect(harness.find("action.3"));
     let content = harness.rect(harness.find("content.3"));
     assert!(
@@ -67,10 +77,7 @@ fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
     tap(&mut harness, "dock.back");
     assert!(laid_out(&harness, "content.1"), "back shows the home tab");
     assert!(!laid_out(&harness, "content.3"));
-    assert!(
-        !laid_out(&harness, "dock.back"),
-        "home has nowhere to go back to"
-    );
+    assert!(!laid_out(&harness, "dock.back"), "home has nowhere to go back to");
     assert!(
         !laid_out(&harness, "action.3"),
         "a hidden tab's actions leave the bar with it"
@@ -92,6 +99,7 @@ fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
     tap(&mut harness, "dock.switch");
     tap(&mut harness, "dock.switcher.close.2");
     assert_eq!(*closed.borrow(), vec![TabId::new(2)]);
+    assert_eq!(count(&harness), "1");
     assert!(
         laid_out(&harness, "content.1"),
         "closing the tab on show goes back to the one shown before it"

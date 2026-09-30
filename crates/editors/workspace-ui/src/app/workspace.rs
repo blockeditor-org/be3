@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::ICON_FOLDER;
 use block_editor_beui::beui::reactive::{
     Align, Frame, Func, ItemSize, List, NodeRef, ReadSignal, Show, Spacer, WriteSignal, clone,
     component, create_effect, create_memo, create_signal, untrack, view,
@@ -801,6 +802,15 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                 .unwrap_or_else(|| "Untitled".to_owned())
         }),
     });
+    let naming = Rc::clone(&workspace);
+    let icon = Func::new(move |tab: TabId| match tab {
+        FILES => ICON_FOLDER.to_owned(),
+        tab => naming
+            .tab(tab)
+            .and_then(|item| naming.label(item.id, item.block_type).icon)
+            .unwrap_or_default()
+            .to_owned(),
+    });
     let changing = Rc::clone(&workspace);
     let closing = Rc::clone(&workspace);
     let content = Rc::clone(&workspace);
@@ -817,6 +827,7 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                     mode={mode}
                     home={Some(FILES)}
                     title={title}
+                    icon={icon}
                     closable={Func::new(|tab: TabId| tab != FILES)}
                     on_change={move |next: DockState| changing.changed(next)}
                     on_close={move |tab: TabId| closing.close(tab)}

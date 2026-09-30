@@ -46,6 +46,7 @@ pub fn DockArea(
     on_change: Callback<DockState>,
     on_close: Callback<TabId>,
     title: Func<TabId, String>,
+    icon: Option<Func<TabId, String>>,
     closable: Option<Func<TabId, bool>>,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] home: Prop<Option<TabId>>,
@@ -53,6 +54,7 @@ pub fn DockArea(
     #[prop(children)] content: RenderFn<TabId>,
 ) -> NodeId {
     let closable = closable.unwrap_or_else(|| Func::new(|_| true));
+    let icon = icon.unwrap_or_else(|| Func::new(|_| String::new()));
     let empty = empty.unwrap_or_else(|| {
         RenderFn::new(|()| {
             view! {
@@ -69,6 +71,7 @@ pub fn DockArea(
             on_change={move |state: DockState| on_change.call(state)}
             on_close={move |tab: TabId| on_close.call(tab)}
             title
+            icon
             content
             empty={move || empty.call(())}
             stack={clone!(closable -> move |handle: DockStackHandle| {
@@ -105,10 +108,10 @@ pub fn DockArea(
                 <DockDropHighlight />
             }}
             preview={move |handle: DockPreviewHandle| {
-                let DockPreviewHandle { dragged, title } = handle;
+                let DockPreviewHandle { dragged, title, icon } = handle;
                 let grouped = !matches!(dragged, DockDragged::Entry(Entry::Tab(_)));
                 view! {
-                    <DockDragPreview title grouped />
+                    <DockDragPreview title icon grouped />
                 }
             }}
         />
@@ -120,6 +123,7 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
     let DockTabHandle {
         entry,
         title,
+        icon,
         tabs,
         has_next,
         selected,
@@ -185,6 +189,7 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
             >
                 <DockTabChrome
                     title
+                    icon
                     grouped
                     vertical
                     selected
@@ -204,6 +209,7 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
 #[component]
 fn DockTabChrome(
     title: Prop<String>,
+    icon: Memo<String>,
     grouped: bool,
     vertical: bool,
     selected: Memo<bool>,
@@ -229,6 +235,8 @@ fn DockTabChrome(
         false => theme.text_muted.get(),
     }));
     let glyph = label.clone();
+    let pictured = create_memo(clone!(icon -> move || !grouped && !icon.get().is_empty()));
+    let icon_color = label.clone();
     let title_size = match vertical {
         true => ItemSize::Percent(100.0),
         false => ItemSize::Intrinsic,
@@ -247,6 +255,9 @@ fn DockTabChrome(
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
                     <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={glyph} />
+                </Show>
+                <Show condition={pictured}>
+                    <IconSized glyph={icon} font_size=GROUP_GLYPH color={icon_color} />
                 </Show>
                 <Text
                     string={title}
@@ -558,11 +569,13 @@ fn DockDropHighlight() -> NodeId {
 }
 
 #[component]
-fn DockDragPreview(title: Prop<String>, grouped: bool) -> NodeId {
+fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> NodeId {
     let theme = use_theme();
     let fill = create_memo(
         clone!(theme -> move || translucent(theme.surface_raised.get(), PREVIEW_ALPHA)),
     );
+    let pictured = create_memo(clone!(icon -> move || !grouped && !icon.get().is_empty()));
+    let pictured_color = theme.text.clone();
     view! {
         <Frame
             color={fill}
@@ -580,6 +593,9 @@ fn DockDragPreview(title: Prop<String>, grouped: bool) -> NodeId {
                         font_size=GROUP_GLYPH
                         color={theme.text.clone()}
                     />
+                </Show>
+                <Show condition={pictured}>
+                    <IconSized glyph={icon} font_size=GROUP_GLYPH color={pictured_color} />
                 </Show>
                 <Body content={title} />
             </List>
