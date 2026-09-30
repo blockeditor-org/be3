@@ -2,72 +2,59 @@ use beui::NodeId;
 use beui::icons::{
     ICON_ADD_BOX, ICON_CHECKLIST, ICON_CODE, ICON_DATA_ARRAY, ICON_FIND_REPLACE, ICON_FORMAT_BOLD,
     ICON_FORMAT_ITALIC, ICON_FORMAT_LIST_BULLETED, ICON_FORMAT_LIST_NUMBERED,
-    ICON_FORMAT_STRIKETHROUGH, ICON_IMAGE, ICON_KEYBOARD_HIDE, ICON_LINK, ICON_TITLE,
+    ICON_FORMAT_STRIKETHROUGH, ICON_IMAGE, ICON_KEYBOARD_HIDE, ICON_LINK, ICON_SETTINGS,
+    ICON_TITLE,
 };
 use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, clone, component, create_memo, view,
-    with_document,
+    Align, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, clone, component,
+    create_memo, create_signal, view, with_document,
 };
-use beui::styled::{
-    Body, Button, ButtonVariant, IconButton, MenuButton, NumberInput, Select, Separator,
-    ToggleButton, use_theme,
-};
-use beui::unstyled::{ChoiceOption, MenuItem, Scroll};
+use beui::styled::{Body, Dialog, IconButton, NumberInput, Select, Separator, Switch, use_theme};
+use beui::unstyled::{ChoiceOption, Scroll};
 use block_editor_beui::BlockParent;
-use block_editor_beui::{BlockFilter, Toolbar, bar_item, block_ui::BlockLabel, phone_layout};
+use block_editor_beui::{BlockFilter, bar_item, block_ui::BlockLabel};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
 use super::state::Shared;
 
 const TOOLBAR_SPACING: f32 = 6.0;
+const SETTINGS_SPACING: f32 = 10.0;
 const SELECT_WIDTH: f32 = 120.0;
 const NUMBER_WIDTH: f32 = 70.0;
 const FORMAT_PADDING: f32 = 6.0;
 
 #[component]
-pub(crate) fn EditorToolbar(state: Shared) -> NodeId {
+pub(crate) fn EditorMenu(state: Shared) -> NodeId {
+    let (settings, set_settings) = create_signal(false);
+    bar_items(&state, set_settings.clone());
     let hex = state.hex_view.clone();
     let text_view = create_memo(clone!(hex -> move || !hex.get()));
-    let hex_view = create_memo(clone!(hex -> move || hex.get()));
-    let toggle = state.clone();
-    let hex_label = create_memo(clone!(hex -> move || match hex.get() {
-        true => "Switch to text view".to_owned(),
-        false => "Switch to hex view".to_owned(),
-    }));
-    let hex_state = state.clone();
-    let phone = phone_layout();
-    let wide = create_memo(clone!(phone -> move || !phone.get()));
-    phone_items(&state);
+    let hex_view = create_memo(move || hex.get());
+    let text_state = state.clone();
     view! {
-        <Toolbar shown={wide}>
-            <ToggleButton
-                glyph=ICON_DATA_ARRAY
-                icon_only=true
-                label={hex_label}
-                pressed={hex}
-                @test_id={"text.hex-view"}
-                on_change={move |_| toggle.toggle_hex_view()}
-            />
-            <Show condition={hex_view}>
-                {move || view! {
-                    <HexControls state={hex_state.clone()} />
-                }}
-            </Show>
-            <Show condition={text_view}>
-                {move || view! {
-                    <TextControls @sizing=ItemSize::Percent(100.0) state={state.clone()} />
-                }}
-            </Show>
-        </Toolbar>
+        <Dialog open={settings} title="Text settings" on_dismiss={move || set_settings.set(false)}>
+            <List spacing=SETTINGS_SPACING>
+                <Show condition={text_view}>
+                    {move || view! {
+                        <TextSettings state={text_state.clone()} />
+                    }}
+                </Show>
+                <Show condition={hex_view}>
+                    {move || view! {
+                        <HexSettings state={state.clone()} />
+                    }}
+                </Show>
+            </List>
+        </Dialog>
     }
 }
 
-fn phone_items(state: &Shared) {
+fn bar_items(state: &Shared, set_settings: WriteSignal<bool>) {
     let never = create_memo(|| false);
     let hex = state.hex_view.clone();
     let in_hex = create_memo(move || hex.get());
     bar_item(
-        "Switch between text and hex",
+        "Toggle hex view",
         ICON_DATA_ARRAY,
         never.clone(),
         clone!(state -> move || state.toggle_hex_view()),
@@ -84,15 +71,19 @@ fn phone_items(state: &Shared) {
         in_hex,
         clone!(state -> move || pick_block(&state)),
     );
+    bar_item("Text settings", ICON_SETTINGS, never, move || {
+        set_settings.set(true)
+    });
 }
 
 #[component]
 pub(crate) fn FormatBar(state: Shared) -> NodeId {
     let theme = use_theme();
-    let phone = phone_layout();
     let typing = state.typing.clone();
     let hex = state.hex_view.clone();
-    let shown = create_memo(move || phone.get() && typing.get() && !hex.get());
+    let shown = create_memo(move || typing.get() && !hex.get());
+    let touch = state.text.touch_mode();
+    let keyboard = create_memo(move || touch.get());
     let content = state.text.content();
     let markdown = create_memo(clone!(state -> move || {
         content.get();
@@ -101,11 +92,12 @@ pub(crate) fn FormatBar(state: Shared) -> NodeId {
     let controls = move || {
         let state = state.clone();
         view! {
-            <PhoneMarkdownControls state />
+            <MarkdownControls state />
         }
     };
     let bar = move || {
         let controls = controls.clone();
+        let keyboard = keyboard.clone();
         view! {
             <Frame color={theme.surface.clone()}>
                 <List spacing=0.0>
@@ -122,15 +114,17 @@ pub(crate) fn FormatBar(state: Shared) -> NodeId {
                                     </List>
                                 </Frame>
                             </Scroll>
-                            <Frame padding_horizontal=FORMAT_PADDING>
-                                <IconButton
-                                    glyph=ICON_KEYBOARD_HIDE
-                                    label="Done"
-                                    press_focus=false
-                                    @test_id={"text.format.done"}
-                                    on_click={|| with_document(|document| document.update_focus(None))}
-                                />
-                            </Frame>
+                            <Show condition={keyboard}>
+                                <Frame padding_horizontal=FORMAT_PADDING>
+                                    <IconButton
+                                        glyph=ICON_KEYBOARD_HIDE
+                                        label="Done"
+                                        press_focus=false
+                                        @test_id={"text.format.done"}
+                                        on_click={|| with_document(|document| document.update_focus(None))}
+                                    />
+                                </Frame>
+                            </Show>
                         </List>
                     </Frame>
                 </List>
@@ -145,7 +139,7 @@ pub(crate) fn FormatBar(state: Shared) -> NodeId {
 }
 
 #[component]
-fn PhoneMarkdownControls(state: Shared) -> NodeId {
+fn MarkdownControls(state: Shared) -> NodeId {
     let buttons: Vec<(&str, &str, &str, MarkdownCommand)> = vec![
         (
             ICON_TITLE,
@@ -196,6 +190,12 @@ fn PhoneMarkdownControls(state: Shared) -> NodeId {
             "text.format.numbered-list",
             MarkdownCommand::NumberedList,
         ),
+        (
+            ICON_IMAGE,
+            "Image",
+            "text.format.image",
+            MarkdownCommand::Image,
+        ),
     ];
     let count = buttons.len();
     view! {
@@ -220,24 +220,26 @@ fn PhoneMarkdownControls(state: Shared) -> NodeId {
 }
 
 #[component]
-fn HexControls(state: Shared) -> NodeId {
+fn HexSettings(state: Shared) -> NodeId {
     let insert = state.hex_insert_mode.clone();
     view! {
-        <ToggleButton
-            label="Insert"
-            pressed={insert}
-            @test_id={"text.hex-insert"}
-            on_change={move |pressed: bool| {
-                state.set_hex_insert_mode.set(pressed);
-                state.hex_pending_nibble.set(None);
-            }}
-        />
+        <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
+            <Body @sizing=ItemSize::Percent(100.0) content="Insert instead of overwriting" />
+            <Switch
+                label="Insert instead of overwriting"
+                on={insert}
+                @test_id={"text.hex-insert"}
+                on_change={move |pressed: bool| {
+                    state.set_hex_insert_mode.set(pressed);
+                    state.hex_pending_nibble.set(None);
+                }}
+            />
+        </List>
     }
 }
 
 #[component]
-fn TextControls(state: Shared) -> NodeId {
-    let theme = use_theme();
+fn TextSettings(state: Shared) -> NodeId {
     let content = state.text.content();
     let language = create_memo(clone!(state content -> move || {
         content.get();
@@ -265,18 +267,13 @@ fn TextControls(state: Shared) -> NodeId {
         TextIndentation::Spaces { width } => f64::from(width),
         TextIndentation::Tabs => 2.0,
     }));
-    let markdown = create_memo(clone!(language -> move || {
-        language.get() == TextLanguage::Markdown
-    }));
     let language_state = state.clone();
     let indentation_state = state.clone();
-    let width_state = state.clone();
-    let markdown_state = state.clone();
-    let insert_state = state.clone();
+    let width_state = state;
     view! {
-        <Scroll direction=Direction::Horizontal focus_color={theme.accent.clone()}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
-                <Body content="Language:" />
+        <List spacing=SETTINGS_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
+                <Body @sizing=ItemSize::Percent(100.0) content="Language" />
                 <Frame width=SELECT_WIDTH>
                     <Select
                         label="Language"
@@ -299,7 +296,9 @@ fn TextControls(state: Shared) -> NodeId {
                         }}
                     />
                 </Frame>
-                <Body content="Indentation:" />
+            </List>
+            <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
+                <Body @sizing=ItemSize::Percent(100.0) content="Indentation" />
                 <Frame width=SELECT_WIDTH>
                     <Select
                         label="Indentation"
@@ -318,8 +317,15 @@ fn TextControls(state: Shared) -> NodeId {
                         }}
                     />
                 </Frame>
-                <Show condition={spaces}>
-                    {move || view! {
+            </List>
+            <Show condition={spaces}>
+                {move || view! {
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=SETTINGS_SPACING
+                    >
+                        <Body @sizing=ItemSize::Percent(100.0) content="Indentation width" />
                         <Frame width=NUMBER_WIDTH>
                             <NumberInput
                                 label="Indentation width"
@@ -335,121 +341,9 @@ fn TextControls(state: Shared) -> NodeId {
                                 })}
                             />
                         </Frame>
-                    }}
-                </Show>
-                <Show condition={markdown}>
-                    {move || view! {
-                        <MarkdownControls state={markdown_state.clone()} />
-                    }}
-                </Show>
-                <Button
-                    label="Insert"
-                    variant=ButtonVariant::Secondary
-                    @test_id={"text.insert-block"}
-                    on_click={move || pick_block(&insert_state)}
-                />
-                <IconButton
-                    glyph=ICON_FIND_REPLACE
-                    label="Find and replace"
-                    @test_id={"text.find-replace"}
-                    on_click={clone!(state -> move || state.text.open_find(true))}
-                />
-            </List>
-        </Scroll>
-    }
-}
-
-#[component]
-fn MarkdownControls(state: Shared) -> NodeId {
-    let theme = use_theme();
-    let heading_state = state.clone();
-    view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
-            <MarkdownButton
-                state={state.clone()}
-                glyph=ICON_FORMAT_BOLD
-                label="Bold"
-                id="text.bold"
-                command=MarkdownCommand::Bold
-            />
-            <MarkdownButton
-                state={state.clone()}
-                glyph=ICON_FORMAT_ITALIC
-                label="Italic"
-                id="text.italic"
-                command=MarkdownCommand::Italic
-            />
-            <MarkdownButton
-                state={state.clone()}
-                glyph=ICON_FORMAT_STRIKETHROUGH
-                label="Strikethrough"
-                id="text.strikethrough"
-                command=MarkdownCommand::Strikethrough
-            />
-            <MarkdownButton
-                state={state.clone()}
-                glyph=ICON_CODE
-                label="Inline code"
-                id="text.inline-code"
-                command=MarkdownCommand::InlineCode
-            />
-            <MenuButton
-                glyph=ICON_TITLE
-                icon_only=true
-                label="Heading"
-                @test_id={"text.heading"}
-                items={view! {
-                    <ForEach keys={(1..=6_usize).collect::<Vec<usize>>()}>
-                        {move |level: usize| view! {
-                            <MenuItem label={format!("Heading {level}")} />
-                        }}
-                    </ForEach>
+                    </List>
                 }}
-                on_select={move |path: Vec<usize>| {
-                    let Some(index) = path.first() else {
-                        return;
-                    };
-                    heading_state.text.execute(EditorCommand::Markdown(MarkdownCommand::Heading(
-                        *index as u8 + 1,
-                    )));
-                }}
-            />
-            <MarkdownButton
-                state={state.clone()}
-                glyph=ICON_FORMAT_LIST_BULLETED
-                label="Bulleted list"
-                id="text.bulleted-list"
-                command=MarkdownCommand::BulletedList
-            />
-            <MarkdownButton
-                state={state.clone()}
-                glyph=ICON_FORMAT_LIST_NUMBERED
-                label="Numbered list"
-                id="text.numbered-list"
-                command=MarkdownCommand::NumberedList
-            />
-            <MarkdownButton
-                state={state.clone()}
-                glyph=ICON_CHECKLIST
-                label="Checklist"
-                id="text.checklist"
-                command=MarkdownCommand::Checklist
-            />
-            <MarkdownButton
-                state={state.clone()}
-                glyph=ICON_LINK
-                label="Link"
-                id="text.link"
-                command=MarkdownCommand::Link
-            />
-            <MarkdownButton
-                state={state}
-                glyph=ICON_IMAGE
-                label="Image"
-                id="text.image"
-                command=MarkdownCommand::Image
-            />
-            <Frame width=1.0 height=18.0 color={theme.border.clone()} />
+            </Show>
         </List>
     }
 }

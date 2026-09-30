@@ -1622,9 +1622,10 @@ impl Document {
         }
         for _ in 0..LAYOUT_PASSES {
             self.lay_out_pass(ctx, rect);
+            let overlays_moved = self.relay_moved_overlays();
             let unsettled = self.root.is_some_and(|root| self.arena.unplaced(root));
             if !std::mem::take(&mut self.spaces_moved) {
-                if unsettled {
+                if unsettled || overlays_moved {
                     continue;
                 }
                 break;

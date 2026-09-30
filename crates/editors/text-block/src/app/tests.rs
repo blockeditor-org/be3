@@ -9,6 +9,7 @@ use crate::app::embeds::{image_embed_directive, parse_embeds};
 
 mod a_phone_formats_from_a_bar_above_the_keyboard;
 mod classifies_markdown_image;
+mod clicking_into_the_text_shows_the_format_bar_without_a_keyboard_button;
 mod foreign_workspace_url_is_not_an_embed;
 mod image_embed_directive_uses_markdown_image;
 mod image_embed_directive_uses_plain_url;

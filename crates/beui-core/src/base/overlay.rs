@@ -61,6 +61,7 @@ pub struct OverlayNode {
     dim: Color32,
     open: bool,
     anchor: OverlayAnchor,
+    anchored: Option<Rect>,
     placement: Placement,
     traps_focus: bool,
     light: bool,
@@ -77,6 +78,7 @@ impl OverlayNode {
             dim: Color32::TRANSPARENT,
             open: false,
             anchor,
+            anchored: None,
             placement,
             traps_focus: true,
             light: false,
@@ -205,11 +207,13 @@ impl Element for OverlayNode {
         let viewport = doc.viewport_rect();
         crate::layout::layout(doc, painter, self.scrim, viewport, out);
         let content_size = crate::layout::measure(doc, painter, content, viewport.size());
+        let anchored = match &self.anchor {
+            OverlayAnchor::Node(node) => node.try_get().and_then(|id| out.get(&id)),
+            OverlayAnchor::Point(_) => None,
+        };
+        self.anchored = anchored;
         let anchor_rect = match &self.anchor {
-            OverlayAnchor::Node(node) => node
-                .try_get()
-                .and_then(|id| out.get(&id))
-                .unwrap_or(viewport),
+            OverlayAnchor::Node(_) => anchored.unwrap_or(viewport),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
         };
         let rect = resolve_rect(viewport, anchor_rect, self.placement, content_size);
@@ -281,6 +285,34 @@ impl Element for OverlayNode {
 }
 
 impl Document {
+    pub(crate) fn relay_moved_overlays(&mut self) -> bool {
+        let rects = Rc::clone(&self.rects);
+        let moved: Vec<NodeId> = self
+            .overlay_stack
+            .iter()
+            .chain(self.passive_overlays.iter())
+            .copied()
+            .filter(|overlay| {
+                if !self.contains(*overlay) {
+                    return false;
+                }
+                let node = self.arena.get_as::<OverlayNode>(*overlay);
+                let OverlayAnchor::Node(anchor) = &node.anchor else {
+                    return false;
+                };
+                node.open
+                    && anchor
+                        .try_get()
+                        .and_then(|id| rects.get(&id))
+                        .is_some_and(|rect| node.anchored != Some(rect))
+            })
+            .collect();
+        for overlay in &moved {
+            self.arena.invalidate_node(*overlay);
+        }
+        !moved.is_empty()
+    }
+
     pub fn create_overlay(&mut self, anchor: OverlayAnchor, placement: Placement) -> NodeId {
         let overlay_cell: Rc<Cell<Option<NodeId>>> = Rc::new(Cell::new(None));
         let press_cell = overlay_cell.clone();

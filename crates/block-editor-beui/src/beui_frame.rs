@@ -15,10 +15,11 @@ use beui::reactive::{
 };
 use beui::styled::theme::{FONT_BODY, FONT_SMALL};
 use beui::styled::{
-    ActionRow, Button, ButtonVariant, Caption, Icon, IconButton, ListRow, ModalSheet, Scroll,
-    TextInput, use_theme,
+    ActionRow, Button, ButtonVariant, Caption, Icon, IconButton, ListRow, MenuButton, ModalSheet,
+    Scroll, TextInput, use_theme,
 };
 use beui::unstyled;
+use beui::unstyled::MenuItem;
 use beui::{Context, Document, Key, KeyPress};
 use block_plugin_api::BarAction;
 use block_ui::{BlockLabel, BlockTypes};
@@ -411,6 +412,12 @@ fn DesktopBar(
     let changed = Rc::clone(&typed);
     let blurred = Rc::clone(&typed);
     let shared = editor.clone();
+    let items = use_context::<BarItems>().map(|items| items.items);
+    let offered = create_memo(move || {
+        items
+            .as_ref()
+            .is_some_and(|items| items.with(|items| !items.is_empty()))
+    });
     view! {
         <Toolbar shown={shown} spacing=BAR_SPACING fit=true>
             <IconButton
@@ -460,6 +467,9 @@ fn DesktopBar(
                 disabled={share_off}
                 on_click={move || shared.host().share_block(shared.block_id())}
             />
+            <Show condition={offered}>
+                <MoreMenu />
+            </Show>
             <Show condition={closable}>
                 <Button
                     label="Close"
@@ -469,6 +479,59 @@ fn DesktopBar(
                 />
             </Show>
         </Toolbar>
+    }
+}
+
+#[component]
+fn MoreMenu() -> NodeId {
+    let Some(BarItems { items, .. }) = use_context::<BarItems>() else {
+        return view! {
+            <List spacing=0.0 />
+        };
+    };
+    let keys = create_memo(clone!(items -> move || {
+        items.with(|items| items.iter().map(|(key, _)| *key).collect::<Vec<u64>>())
+    }));
+    let listed = items.clone();
+    let chosen = move |path: Vec<usize>| {
+        let Some(index) = path.first().copied() else {
+            return;
+        };
+        let run =
+            items.with_untracked(|items| items.get(index).map(|(_, item)| Rc::clone(&item.run)));
+        if let Some(run) = run {
+            run();
+        }
+    };
+    view! {
+        <MenuButton
+            label="More"
+            glyph={ICON_MORE_VERT.to_owned()}
+            icon_only=true
+            arrow=false
+            @test_id={"editor.menu"}
+            items={view! {
+                <ForEach keys={keys}>
+                    {move |key: u64| {
+                        let item = listed.with_untracked(|items| {
+                            items
+                                .iter()
+                                .find(|(other, _)| *other == key)
+                                .map(|(_, item)| item.clone())
+                        });
+                        match item {
+                            Some(BarItem { label, disabled, .. }) => view! {
+                                <MenuItem label disabled />
+                            },
+                            None => view! {
+                                <MenuItem label="" disabled=true />
+                            },
+                        }
+                    }}
+                </ForEach>
+            }}
+            on_select={chosen}
+        />
     }
 }
 
