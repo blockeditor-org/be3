@@ -2,6 +2,7 @@ mod gpu;
 mod harness;
 mod precompile;
 mod state;
+mod stderr;
 mod threads;
 mod transport;
 mod wake;

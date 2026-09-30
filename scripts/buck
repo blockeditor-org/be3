@@ -44,13 +44,31 @@ retrying() {
     return $status
 }
 
+quietly() {
+    local live=0 width=80
+    if [[ -t 1 ]]; then
+        live=1
+        width="$(tput cols 2> /dev/null || echo 80)"
+    fi
+    "$@" 2>&1 | awk -v live="$live" -v width="$width" -f "$internal/quiet.awk"
+    return "${PIPESTATUS[0]}"
+}
+
 # buck2 runs every test locally, whatever its executor says, until it is told
 # otherwise. This tells it to send the ones it calls compatible: a test that
 # runs from the project root with project-relative paths, which is every Rust
 # test and none of the plugin tests. guides/buck2.md says why those stay here.
+#
+# Outside CI, and unless BE3_VERBOSE is set, its output is cut down by
+# quiet.awk to the failures, with buck2's progress kept on one line at a
+# terminal.
 if [[ "$command" == 'test' ]]; then
     shift
-    retrying "$buck2" test --unstable-allow-compatible-tests-on-re "$@"
+    if [[ -n "${BE3_VERBOSE:-}" || (-n "${CI:-}" && "${CI:-}" != false) ]]; then
+        retrying "$buck2" test --unstable-allow-compatible-tests-on-re "$@"
+        exit
+    fi
+    retrying quietly "$buck2" test --unstable-allow-compatible-tests-on-re "$@"
     exit
 fi
 
