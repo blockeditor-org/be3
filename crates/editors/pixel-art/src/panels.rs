@@ -123,7 +123,7 @@ pub(crate) fn TopBar(tools: Rc<Tools>, size: Memo<(u16, u16)>, shown: ReadSignal
             />
             <Checkbox label="Grid" checked={grid} on_change={toggle_grid} />
             <Show condition={failed}>
-                <Caption content={reason} color={theme.danger.clone()} />
+                <Caption content={reason.clone()} color={theme.danger.clone()} />
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton

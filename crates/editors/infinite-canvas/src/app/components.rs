@@ -166,18 +166,20 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
         <List spacing=6.0>
             <Caption content={named} />
             <Show condition={partial.clone()}>
-                <List spacing=6.0>
-                    <Caption content={coverage} />
-                    <List direction=Direction::Horizontal spacing=4.0>
-                        <Button
-                            label="Add to all"
-                            variant=ButtonVariant::Secondary
-                            @test_id={add_id}
-                            on_click={add_all}
-                        />
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                {move || clone!(add_all add_id coverage -> view! {
+                    <List spacing=6.0>
+                        <Caption content={coverage} />
+                        <List direction=Direction::Horizontal spacing=4.0>
+                            <Button
+                                label="Add to all"
+                                variant=ButtonVariant::Secondary
+                                @test_id={add_id}
+                                on_click={add_all}
+                            />
+                            <Spacer @sizing=ItemSize::Percent(100.0) />
+                        </List>
                     </List>
-                </List>
+                })}
             </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                 <Button
@@ -195,13 +197,13 @@ fn ComponentRow(state: Rc<CanvasState>, schema_id: Uuid) -> NodeId {
             </List>
             <Show condition={whole}>
                 <DatabaseValueEditor
-                    fields={fields}
-                    values={values}
-                    labels={labels}
-                    disabled={read_only}
-                    prefix={prefix}
-                    on_change={changed}
-                    on_pick={picked}
+                    fields={fields.clone()}
+                    values={values.clone()}
+                    labels={labels.clone()}
+                    disabled={read_only.clone()}
+                    prefix={prefix.clone()}
+                    on_change={changed.clone()}
+                    on_pick={picked.clone()}
                 />
             </Show>
             <Separator />

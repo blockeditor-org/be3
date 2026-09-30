@@ -118,16 +118,18 @@ fn Inspector(state: Rc<CanvasState>) -> NodeId {
                 <Caption content="Select an object to edit its appearance." wrap=true />
             </Show>
             <Show condition={chosen.clone()}>
-                <List spacing=SPACING>
-                    <Show condition={styled}>
-                        <AppearanceSection state={appearance} />
-                    </Show>
-                    <TransformSection state={transform} />
-                    <ArrangeSection state={arrange} />
-                    <ArtboardSection state={artboard} />
-                    <BlockSection state={block} />
-                    <CanvasComponents state={components} />
-                </List>
+                {move || clone!(appearance arrange artboard block components styled transform -> view! {
+                    <List spacing=SPACING>
+                        <Show condition={styled}>
+                            <AppearanceSection state={appearance.clone()} />
+                        </Show>
+                        <TransformSection state={transform} />
+                        <ArrangeSection state={arrange} />
+                        <ArtboardSection state={artboard} />
+                        <BlockSection state={block} />
+                        <CanvasComponents state={components} />
+                    </List>
+                })}
             </Show>
             <LayersSection state={layers} />
             <Show condition={roomy}>
@@ -174,23 +176,29 @@ fn ArtboardSection(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Accordion title="Artboard" open={open} on_toggle={move |open| set_open.set(open)}>
-                    <List spacing=6.0>
-                        <TextInput
-                            label="Name"
-                            value={name}
-                            disabled={locked}
-                            @test_id={"infinite-canvas.artboard.name"}
-                            on_change={renamed}
-                        />
-                        <Show condition={first}>
-                            <Caption
-                                content="The first artboard is what other editors show when they embed this canvas."
-                                wrap=true
+                {move || clone!(first locked name renamed set_open -> view! {
+                    <Accordion
+                        title="Artboard"
+                        open={open.clone()}
+                        on_toggle={move |open| set_open.set(open)}
+                    >
+                        <List spacing=6.0>
+                            <TextInput
+                                label="Name"
+                                value={name}
+                                disabled={locked}
+                                @test_id={"infinite-canvas.artboard.name"}
+                                on_change={renamed}
                             />
-                        </Show>
-                    </List>
-                </Accordion>
+                            <Show condition={first}>
+                                <Caption
+                                    content="The first artboard is what other editors show when they embed this canvas."
+                                    wrap=true
+                                />
+                            </Show>
+                        </List>
+                    </Accordion>
+                })}
             </Show>
         </List>
     }
@@ -243,7 +251,7 @@ fn TransformSection(state: Rc<CanvasState>) -> NodeId {
                     />
                 </Show>
                 <Show condition={single}>
-                    <TransformFields state={fields} />
+                    <TransformFields state={fields.clone()} />
                 </Show>
             </List>
         </Accordion>
@@ -401,20 +409,26 @@ fn BlockSection(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Accordion title="Block" open={open} on_toggle={move |open| set_open.set(open)}>
-                    <List spacing=6.0>
-                        <Button
-                            label={label}
-                            variant=ButtonVariant::Secondary
-                            disabled={unavailable}
-                            @test_id={"infinite-canvas.block-mode"}
-                            on_click={toggled}
-                        />
-                        <Show condition={direct}>
-                            <EditorScale state={scaled} />
-                        </Show>
-                    </List>
-                </Accordion>
+                {move || clone!(direct label scaled set_open toggled unavailable -> view! {
+                    <Accordion
+                        title="Block"
+                        open={open.clone()}
+                        on_toggle={move |open| set_open.set(open)}
+                    >
+                        <List spacing=6.0>
+                            <Button
+                                label={label}
+                                variant=ButtonVariant::Secondary
+                                disabled={unavailable}
+                                @test_id={"infinite-canvas.block-mode"}
+                                on_click={toggled}
+                            />
+                            <Show condition={direct}>
+                                <EditorScale state={scaled.clone()} />
+                            </Show>
+                        </List>
+                    </Accordion>
+                })}
             </Show>
         </List>
     }
@@ -650,15 +664,17 @@ fn ForegroundRow(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <List spacing=6.0>
-                    <Caption content="Color" />
-                    <ColorInput
-                        label="Custom color"
-                        value={custom}
-                        @test_id={"infinite-canvas.color"}
-                        on_change={typed}
-                    />
-                </List>
+                {move || clone!(custom typed -> view! {
+                    <List spacing=6.0>
+                        <Caption content="Color" />
+                        <ColorInput
+                            label="Custom color"
+                            value={custom}
+                            @test_id={"infinite-canvas.color"}
+                            on_change={typed}
+                        />
+                    </List>
+                })}
             </Show>
         </List>
     }
@@ -716,17 +732,19 @@ fn LineWidthRow(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <List spacing=4.0>
-                    <MixedLabel label="Line width" mixed={mixed} />
-                    <Slider
-                        label="Line width"
-                        min=0.5
-                        max=20.0
-                        value={width}
-                        @test_id={"infinite-canvas.line-width"}
-                        on_change={changed}
-                    />
-                </List>
+                {move || clone!(changed mixed width -> view! {
+                    <List spacing=4.0>
+                        <MixedLabel label="Line width" mixed={mixed} />
+                        <Slider
+                            label="Line width"
+                            min=0.5
+                            max=20.0
+                            value={width}
+                            @test_id={"infinite-canvas.line-width"}
+                            on_change={changed}
+                        />
+                    </List>
+                })}
             </Show>
         </List>
     }
@@ -785,28 +803,30 @@ fn LineOptions(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <List spacing=6.0>
-                    <Separator />
-                    <Caption content="Line" />
-                    <Checkbox
-                        label="Dashed"
-                        checked={dashed}
-                        @test_id={"infinite-canvas.dashed"}
-                        on_change={dash}
-                    />
-                    <Checkbox
-                        label="Start arrow"
-                        checked={start}
-                        @test_id={"infinite-canvas.arrow-start"}
-                        on_change={arrow_start}
-                    />
-                    <Checkbox
-                        label="End arrow"
-                        checked={end}
-                        @test_id={"infinite-canvas.arrow-end"}
-                        on_change={arrow_end}
-                    />
-                </List>
+                {move || clone!(arrow_end arrow_start dash dashed end start -> view! {
+                    <List spacing=6.0>
+                        <Separator />
+                        <Caption content="Line" />
+                        <Checkbox
+                            label="Dashed"
+                            checked={dashed}
+                            @test_id={"infinite-canvas.dashed"}
+                            on_change={dash}
+                        />
+                        <Checkbox
+                            label="Start arrow"
+                            checked={start}
+                            @test_id={"infinite-canvas.arrow-start"}
+                            on_change={arrow_start}
+                        />
+                        <Checkbox
+                            label="End arrow"
+                            checked={end}
+                            @test_id={"infinite-canvas.arrow-end"}
+                            on_change={arrow_end}
+                        />
+                    </List>
+                })}
             </Show>
         </List>
     }
@@ -871,56 +891,63 @@ fn RectangleOptions(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <List spacing=6.0>
-                    <Separator />
-                    <Caption content="Rectangle" />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
-                        <ToggleButton
-                            label="No fill"
-                            glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
-                            pressed={none}
-                            @test_id={"infinite-canvas.fill.none"}
-                            on_change={clearing}
-                        />
-                        <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
-                            {move |index: usize| {
-                                let (name, color) = PRESETS[index];
-                                let state = Rc::clone(&picking);
-                                let value = create_memo(clone!(fill -> move || match fill.get() {
-                                    CommonValue::Uniform(Some(color)) => CommonValue::Uniform(color),
-                                    CommonValue::Uniform(None) | CommonValue::None => {
-                                        CommonValue::None
+                {move || clone!(clearing corner custom fill mixed none picking rounded typed -> view! {
+                    <List spacing=6.0>
+                        <Separator />
+                        <Caption content="Rectangle" />
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=4.0
+                            wrap=true
+                        >
+                            <ToggleButton
+                                label="No fill"
+                                glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
+                                pressed={none}
+                                @test_id={"infinite-canvas.fill.none"}
+                                on_change={clearing}
+                            />
+                            <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
+                                {move |index: usize| {
+                                    let (name, color) = PRESETS[index];
+                                    let state = Rc::clone(&picking);
+                                    let value = create_memo(clone!(fill -> move || match fill.get() {
+                                        CommonValue::Uniform(Some(color)) => CommonValue::Uniform(color),
+                                        CommonValue::Uniform(None) | CommonValue::None => {
+                                            CommonValue::None
+                                        }
+                                        CommonValue::Mixed => CommonValue::Mixed,
+                                    }));
+                                    view! {
+                                        <Swatch
+                                            kind="fill"
+                                            name
+                                            color
+                                            value
+                                            on_pick={move |color| set_fill(&state, Some(color))}
+                                        />
                                     }
-                                    CommonValue::Mixed => CommonValue::Mixed,
-                                }));
-                                view! {
-                                    <Swatch
-                                        kind="fill"
-                                        name
-                                        color
-                                        value
-                                        on_pick={move |color| set_fill(&state, Some(color))}
-                                    />
-                                }
-                            }}
-                        </ForEach>
+                                }}
+                            </ForEach>
+                        </List>
+                        <ColorInput
+                            label="Fill color"
+                            value={custom}
+                            @test_id={"infinite-canvas.fill"}
+                            on_change={typed}
+                        />
+                        <MixedLabel label="Corner radius" mixed={mixed} />
+                        <Slider
+                            label="Corner radius"
+                            min=0.0
+                            max=100.0
+                            value={corner}
+                            @test_id={"infinite-canvas.corner-radius"}
+                            on_change={rounded}
+                        />
                     </List>
-                    <ColorInput
-                        label="Fill color"
-                        value={custom}
-                        @test_id={"infinite-canvas.fill"}
-                        on_change={typed}
-                    />
-                    <MixedLabel label="Corner radius" mixed={mixed} />
-                    <Slider
-                        label="Corner radius"
-                        min=0.0
-                        max=100.0
-                        value={corner}
-                        @test_id={"infinite-canvas.corner-radius"}
-                        on_change={rounded}
-                    />
-                </List>
+                })}
             </Show>
         </List>
     }
@@ -1050,77 +1077,84 @@ fn TextOptions(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <List spacing=6.0>
-                    <Separator />
-                    <Caption content="Text" />
-                    <Show condition={single}>
-                        <TextContent state={editing} />
-                    </Show>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                        <Caption content="Font size" />
-                        <NumberInput
-                            @sizing=ItemSize::Percent(100.0)
-                            label="Font size"
-                            min=4.0
-                            max=256.0
-                            value={font_size}
-                            @test_id={"infinite-canvas.font-size"}
-                            on_change={sized}
+                {move || clone!(aligning alignment bold editing font_size line_height single sized spaced weighted wrap wrapped -> view! {
+                    <List spacing=6.0>
+                        <Separator />
+                        <Caption content="Text" />
+                        <Show condition={single}>
+                            <TextContent state={editing.clone()} />
+                        </Show>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                            <Caption content="Font size" />
+                            <NumberInput
+                                @sizing=ItemSize::Percent(100.0)
+                                label="Font size"
+                                min=4.0
+                                max=256.0
+                                value={font_size}
+                                @test_id={"infinite-canvas.font-size"}
+                                on_change={sized}
+                            />
+                        </List>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                            <Caption content="Line height" />
+                            <NumberInput
+                                @sizing=ItemSize::Percent(100.0)
+                                label="Line height"
+                                min=0.5
+                                max=4.0
+                                value={line_height}
+                                drag={NumberDrag::Linear { speed: 0.05 }}
+                                @test_id={"infinite-canvas.line-height"}
+                                on_change={spaced}
+                            />
+                        </List>
+                        <Checkbox
+                            label="Bold"
+                            checked={bold}
+                            @test_id={"infinite-canvas.bold"}
+                            on_change={weighted}
+                        />
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=4.0
+                            wrap=true
+                        >
+                            <ForEach keys={(0..ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}>
+                                {move |index: usize| {
+                                    let (label, wanted) = ALIGN_OPTIONS[index];
+                                    let state = Rc::clone(&aligning);
+                                    let pressed = create_memo(clone!(alignment -> move || {
+                                        alignment.get() == CommonValue::Uniform(wanted)
+                                    }));
+                                    view! {
+                                        <ToggleButton
+                                            label={label}
+                                            pressed={pressed}
+                                            @test_id={format!("infinite-canvas.align-text.{label}")}
+                                            on_change={move |_: bool| {
+                                                state.update_selected_text(move |style| {
+                                                    style.alignment = wanted;
+                                                });
+                                            }}
+                                        />
+                                    }
+                                }}
+                            </ForEach>
+                        </List>
+                        <Checkbox
+                            label="Wrap text"
+                            checked={wrap}
+                            @test_id={"infinite-canvas.wrap"}
+                            on_change={wrapped}
+                        />
+                        <Caption
+                            content="Resize to wrap; hold Alt while resizing to scale text."
+                            wrap=true
                         />
                     </List>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                        <Caption content="Line height" />
-                        <NumberInput
-                            @sizing=ItemSize::Percent(100.0)
-                            label="Line height"
-                            min=0.5
-                            max=4.0
-                            value={line_height}
-                            drag={NumberDrag::Linear { speed: 0.05 }}
-                            @test_id={"infinite-canvas.line-height"}
-                            on_change={spaced}
-                        />
-                    </List>
-                    <Checkbox
-                        label="Bold"
-                        checked={bold}
-                        @test_id={"infinite-canvas.bold"}
-                        on_change={weighted}
-                    />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
-                        <ForEach keys={(0..ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}>
-                            {move |index: usize| {
-                                let (label, wanted) = ALIGN_OPTIONS[index];
-                                let state = Rc::clone(&aligning);
-                                let pressed = create_memo(clone!(alignment -> move || {
-                                    alignment.get() == CommonValue::Uniform(wanted)
-                                }));
-                                view! {
-                                    <ToggleButton
-                                        label={label}
-                                        pressed={pressed}
-                                        @test_id={format!("infinite-canvas.align-text.{label}")}
-                                        on_change={move |_: bool| {
-                                            state.update_selected_text(move |style| {
-                                                style.alignment = wanted;
-                                            });
-                                        }}
-                                    />
-                                }
-                            }}
-                        </ForEach>
-                    </List>
-                    <Checkbox
-                        label="Wrap text"
-                        checked={wrap}
-                        @test_id={"infinite-canvas.wrap"}
-                        on_change={wrapped}
-                    />
-                    <Caption
-                        content="Resize to wrap; hold Alt while resizing to scale text."
-                        wrap=true
-                    />
-                </List>
+                })}
             </Show>
         </List>
     }

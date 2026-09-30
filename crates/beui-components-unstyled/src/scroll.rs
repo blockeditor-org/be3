@@ -22,8 +22,8 @@ use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, Children, ClickCatcher, Focusable, Frame, List, ListChild, Memo, Offset, Prop,
-    ReadSignal, Render, RenderFn, Show, Timer, clone, component_accessibility, create_memo,
-    create_signal, create_timer, focus_ring, on_cleanup, set_component_state, untrack,
+    ReadSignal, Render, RenderFn, ShowKeepAlive, Timer, clone, component_accessibility,
+    create_memo, create_signal, create_timer, focus_ring, on_cleanup, set_component_state, untrack,
     with_document,
 };
 
@@ -447,7 +447,7 @@ fn Scrolling(
                     >
                         <List direction={content_axis} spacing=0.0>
                             {node} @sizing=ItemSize::Percent(100.0)
-                            <Show condition={marked.clone()}>
+                            <ShowKeepAlive condition={marked.clone()}>
                                 <Overlay
                                     anchor
                                     placement=Placement::Around
@@ -457,7 +457,7 @@ fn Scrolling(
                                 >
                                     {marker.call(marker_axis)}
                                 </Overlay>
-                            </Show>
+                            </ShowKeepAlive>
                         </List>
                     </Frame>
                 </ClickCatcher>

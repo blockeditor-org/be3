@@ -545,7 +545,11 @@ fn PickerPanel(
                     <Button label=now_label variant=ButtonVariant::Secondary on_click={now} />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Show condition=clearable>
-                        <Button label="Clear" variant=ButtonVariant::Ghost on_click={clear} />
+                        <Button
+                            label="Clear"
+                            variant=ButtonVariant::Ghost
+                            on_click={clear.clone()}
+                        />
                     </Show>
                 </List>
             </List>
@@ -605,43 +609,51 @@ fn PanelBody(
     view! {
         <List spacing=PANEL_SPACING>
             <Show condition={shape == PanelLayout::Beside}>
-                <List direction=Direction::Horizontal spacing=PANEL_SPACING>
-                    <CalendarPane pieces={beside_pieces.clone()} width={beside} />
-                    <TimePane
-                        @sizing=ItemSize::Percent(100.0)
-                        pieces={beside_pieces}
-                        columns=1
-                        height=TIME_LIST_HEIGHT
-                    />
-                </List>
+                {move || clone!(beside_pieces beside -> view! {
+                    <List direction=Direction::Horizontal spacing=PANEL_SPACING>
+                        <CalendarPane pieces={beside_pieces.clone()} width={beside} />
+                        <TimePane
+                            @sizing=ItemSize::Percent(100.0)
+                            pieces={beside_pieces}
+                            columns=1
+                            height=TIME_LIST_HEIGHT
+                        />
+                    </List>
+                })}
             </Show>
             <Show condition={shape == PanelLayout::Date}>
-                <Centred>
-                    <CalendarPane pieces={date_pieces} width={alone} />
-                </Centred>
+                {move || clone!(date_pieces alone -> view! {
+                    <Centred>
+                        <CalendarPane pieces={date_pieces} width={alone} />
+                    </Centred>
+                })}
             </Show>
             <Show condition={shape == PanelLayout::Time}>
-                <TimePane pieces={time_pieces} columns height=TIME_GRID_HEIGHT />
+                <TimePane pieces={time_pieces.clone()} columns height=TIME_GRID_HEIGHT />
             </Show>
             <Show condition={shape == PanelLayout::Paged}>
-                <List spacing=PANEL_SPACING>
-                    <Tabs
-                        options={view! {
-                            <ChoiceOption label="Date" />
-                            <ChoiceOption label="Time" />
-                        }}
-                        selected={tab}
-                        on_change={move |chosen: usize| set_tab.set(chosen)}
-                    />
-                    <Show condition={dates}>
-                        <Centred>
-                            <CalendarPane pieces={tab_dates} width={tab_alone} />
-                        </Centred>
-                    </Show>
-                    <Show condition={times}>
-                        <TimePane pieces={tab_times} columns height=TIME_GRID_HEIGHT />
-                    </Show>
-                </List>
+                {move || clone!(tab set_tab dates times tab_dates tab_alone tab_times -> view! {
+                    <List spacing=PANEL_SPACING>
+                        <Tabs
+                            options={view! {
+                                <ChoiceOption label="Date" />
+                                <ChoiceOption label="Time" />
+                            }}
+                            selected={tab}
+                            on_change={move |chosen: usize| set_tab.set(chosen)}
+                        />
+                        <Show condition={dates}>
+                            {move || clone!(tab_dates tab_alone -> view! {
+                                <Centred>
+                                    <CalendarPane pieces={tab_dates} width={tab_alone} />
+                                </Centred>
+                            })}
+                        </Show>
+                        <Show condition={times}>
+                            <TimePane pieces={tab_times.clone()} columns height=TIME_GRID_HEIGHT />
+                        </Show>
+                    </List>
+                })}
             </Show>
         </List>
     }

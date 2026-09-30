@@ -88,13 +88,13 @@ fn ActionRowFace(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Show condition={has_glyph}>
-                    <Icon glyph color={icon_color} />
+                    <Icon glyph={glyph.clone()} color={icon_color.clone()} />
                 </Show>
                 <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
                     <Text string={label} font_size=FONT_BODY color={text_color} ellipsis=true />
                     <Show condition={has_detail}>
                         <Text
-                            string={detail}
+                            string={detail.clone()}
                             font_size=FONT_SMALL
                             color={theme.text_muted.clone()}
                             ellipsis=true

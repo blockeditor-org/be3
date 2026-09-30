@@ -155,52 +155,56 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                         <Show condition={narrow}>
                             <PhoneFiles
                                 @sizing=ItemSize::Percent(100.0)
-                                editor={phone_editor}
-                                tree={phone_tree}
-                                picker={phone_picker}
-                                exporter={phone_exporter}
-                                inspect={phone_inspect}
-                                covered
+                                editor={phone_editor.clone()}
+                                tree={phone_tree.clone()}
+                                picker={phone_picker.clone()}
+                                exporter={phone_exporter.clone()}
+                                inspect={phone_inspect.clone()}
+                                covered={covered.clone()}
                             />
                         </Show>
                         <Show condition={failed}>
-                            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                                <Caption content={reason} color={theme.danger.clone()} />
-                            </Frame>
+                            {move || clone!(reason theme -> view! {
+                                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                                    <Caption content={reason} color={theme.danger.clone()} />
+                                </Frame>
+                            })}
                         </Show>
                         <Show condition={wide}>
-                            <Tree
-                                @sizing=ItemSize::Percent(100.0)
-                                @node_ref={&tree_ref}
-                                keys={keys}
-                                item={item}
-                                selected={focused}
-                                ancestors={move |key: RowKey| ancestors(&key)}
-                                spacing=2.0
-                                padding=PADDING
-                                row_test_id={move |key: RowKey| row_test_id(&key)}
-                                reveal_test_id={"file-tree.reveal".to_owned()}
-                                outline={outline}
-                                on_select={open}
-                                on_expand={expand}
-                                on_reveal={reveal}
-                                on_drag_start={start}
-                            >
-                                {move |face: TreeRowFace<RowKey>| {
-                                    let row = tree.row(face.key.clone());
-                                    view! {
-                                        <TreeRow
-                                            editor={editor.clone()}
-                                            tree={Rc::clone(&tree)}
-                                            picker={picker.clone()}
-                                            exporter={Rc::clone(&exporter)}
-                                            inspect={inspect.clone()}
-                                            row={row}
-                                            face={face}
-                                        />
-                                    }
-                                }}
-                            </Tree>
+                            {move || clone!(editor exporter inspect picker tree -> view! {
+                                <Tree
+                                    @sizing=ItemSize::Percent(100.0)
+                                    @node_ref={&tree_ref}
+                                    keys={keys.clone()}
+                                    item={item.clone()}
+                                    selected={focused.clone()}
+                                    ancestors={move |key: RowKey| ancestors(&key)}
+                                    spacing=2.0
+                                    padding=PADDING
+                                    row_test_id={move |key: RowKey| row_test_id(&key)}
+                                    reveal_test_id={"file-tree.reveal".to_owned()}
+                                    outline={outline.clone()}
+                                    on_select={open.clone()}
+                                    on_expand={expand.clone()}
+                                    on_reveal={reveal.clone()}
+                                    on_drag_start={start.clone()}
+                                >
+                                    {move |face: TreeRowFace<RowKey>| {
+                                        let row = tree.row(face.key.clone());
+                                        view! {
+                                            <TreeRow
+                                                editor={editor.clone()}
+                                                tree={Rc::clone(&tree)}
+                                                picker={picker.clone()}
+                                                exporter={Rc::clone(&exporter)}
+                                                inspect={inspect.clone()}
+                                                row={row}
+                                                face={face}
+                                            />
+                                        }
+                                    }}
+                                </Tree>
+                            })}
                         </Show>
                     </List>
                 </Frame>
@@ -414,25 +418,37 @@ fn TreeRow(
         <ContextMenu child_size=ItemSize::Percent(100.0) items={items} on_select={chose}>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Show condition={has_glyph}>
-                    <IconSized glyph={glyph} font_size=FONT_SMALL color={glyph_color} />
+                    <IconSized
+                        glyph={glyph.clone()}
+                        font_size=FONT_SMALL
+                        color={glyph_color.clone()}
+                    />
                 </Show>
                 <Body @sizing=ItemSize::Percent(100.0) content={label} color={color} />
                 <Show condition={generated}>
-                    <Tooltip label="Generated from another block">
-                        <IconSized
-                            glyph={ICON_AUTO_AWESOME.to_owned()}
-                            font_size=FONT_SMALL
-                            color={generated_color}
-                        />
-                    </Tooltip>
+                    {move || clone!(generated_color -> view! {
+                        <Tooltip label="Generated from another block">
+                            <IconSized
+                                glyph={ICON_AUTO_AWESOME.to_owned()}
+                                font_size=FONT_SMALL
+                                color={generated_color}
+                            />
+                        </Tooltip>
+                    })}
                 </Show>
                 <Show condition={restricted}>
-                    <Tooltip label={access_label}>
-                        <IconSized glyph={access} font_size=FONT_SMALL color={access_color} />
-                    </Tooltip>
+                    {move || clone!(access access_color -> view! {
+                        <Tooltip label={access_label.clone()}>
+                            <IconSized glyph={access} font_size=FONT_SMALL color={access_color} />
+                        </Tooltip>
+                    })}
                 </Show>
                 <Show condition={can_add}>
-                    <AddChild shown={hovered} named={named} on_click={add_child} />
+                    <AddChild
+                        shown={hovered.clone()}
+                        named={named.clone()}
+                        on_click={add_child.clone()}
+                    />
                 </Show>
             </List>
         </ContextMenu>
@@ -449,16 +465,18 @@ fn AddChild(
         <Frame width=ADD_WIDTH>
             <List spacing=0.0>
                 <Show condition={shown}>
-                    <unstyled::Button
-                        @test_id={named}
-                        tab_stop=false
-                        capture_presses=true
-                        accessibility={add_child_accessibility()}
-                        on_click={move || on_click.call()}
-                        content={move |button: ButtonHandle| view! {
-                            <AddChildFace handle={button} />
-                        }}
-                    />
+                    {move || clone!(on_click -> view! {
+                        <unstyled::Button
+                            @test_id={named.clone()}
+                            tab_stop=false
+                            capture_presses=true
+                            accessibility={add_child_accessibility()}
+                            on_click={move || on_click.call()}
+                            content={move |button: ButtonHandle| view! {
+                                <AddChildFace handle={button} />
+                            }}
+                        />
+                    })}
                 </Show>
             </List>
         </Frame>

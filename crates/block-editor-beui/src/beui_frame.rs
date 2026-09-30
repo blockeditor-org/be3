@@ -448,12 +448,14 @@ fn DesktopBar(
                 <MoreMenu />
             </Show>
             <Show condition={closable}>
-                <Button
-                    label="Close"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || on_exit.call()}
-                    @test_id={"editor.close"}
-                />
+                {move || clone!(on_exit -> view! {
+                    <Button
+                        label="Close"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || on_exit.call()}
+                        @test_id={"editor.close"}
+                    />
+                })}
             </Show>
         </Toolbar>
     }
@@ -678,7 +680,7 @@ fn MoreSheet(
                             @test_id={"editor.more.close"}
                             label="Close"
                             glyph={ICON_CLOSE.to_owned()}
-                            on_click={leave}
+                            on_click={leave.clone()}
                         />
                     </Show>
                 </List>

@@ -158,7 +158,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                 </ForEach>
             </List>
             <Show condition={ended}>
-                <Result table />
+                <Result table={table.clone()} />
             </Show>
         </List>
     }
@@ -275,10 +275,10 @@ fn Result(table: Memo<Table>) -> NodeId {
         <List spacing=2.0 align=Align::Center @test_id={"game.result"}>
             <Show condition={scored}>
                 <Text
-                    string={score}
+                    string={score.clone()}
                     font_size=SCORE_SIZE
                     bold=true
-                    color={text}
+                    color={text.clone()}
                     align=TextAlign::Center
                 />
             </Show>

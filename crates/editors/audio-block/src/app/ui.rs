@@ -87,7 +87,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
                         />
                         <Show condition={failed}>
                             <Caption
-                                content={reason}
+                                content={reason.clone()}
                                 align=TextAlign::Center
                                 color={theme.danger.clone()}
                             />
@@ -135,7 +135,7 @@ fn AudioPanel(editor: Editor) -> NodeId {
                 on_click={replace}
             />
             <Show condition={failed}>
-                <Caption content={reason} color={theme.danger.clone()} />
+                <Caption content={reason.clone()} color={theme.danger.clone()} />
             </Show>
         </List>
     }

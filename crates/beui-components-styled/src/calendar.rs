@@ -113,12 +113,14 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0 />
                 <Show condition={month_shown}>
-                    <HeaderToggle
-                        label={month_label}
-                        choose="choose a month"
-                        open={months_open}
-                        on_click={move || show_months.call(())}
-                    />
+                    {move || clone!(month_label months_open show_months -> view! {
+                        <HeaderToggle
+                            label={month_label}
+                            choose="choose a month"
+                            open={months_open}
+                            on_click={move || show_months.call(())}
+                        />
+                    })}
                 </Show>
                 <HeaderToggle
                     label={year_label}

@@ -190,37 +190,45 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                 @test_id={"checkout.repository"}
                             />
                             <Show condition={has_note}>
-                                <Caption content={note} wrap=true @test_id={"checkout.note"} />
+                                <Caption
+                                    content={note.clone()}
+                                    wrap=true
+                                    @test_id={"checkout.note"}
+                                />
                             </Show>
                         </List>
                         <Show condition={behind}>
-                            <Card>
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=10.0
-                                >
-                                    <Body
-                                        @sizing=ItemSize::Percent(100.0)
-                                        content="The branch has moved on since this checkout's base."
-                                    />
-                                    <Button
-                                        label="Bring changes in"
-                                        variant=ButtonVariant::Primary
-                                        disabled={blocked.clone()}
-                                        @test_id={"checkout.update"}
-                                        on_click={move || updating.version(VersionCommand::Update)}
-                                    />
-                                </List>
-                            </Card>
+                            {move || clone!(blocked updating -> view! {
+                                <Card>
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=10.0
+                                    >
+                                        <Body
+                                            @sizing=ItemSize::Percent(100.0)
+                                            content="The branch has moved on since this checkout's base."
+                                        />
+                                        <Button
+                                            label="Bring changes in"
+                                            variant=ButtonVariant::Primary
+                                            disabled={blocked.clone()}
+                                            @test_id={"checkout.update"}
+                                            on_click={move || updating.version(VersionCommand::Update)}
+                                        />
+                                    </List>
+                                </Card>
+                            })}
                         </Show>
                         <Show condition={conflicted}>
-                            <Card>
-                                <List spacing=12.0>
-                                    <Heading content="Conflicts" />
-                                    <ForEach keys={conflicts} view={conflict_rows} />
-                                </List>
-                            </Card>
+                            {move || clone!(conflict_rows conflicts -> view! {
+                                <Card>
+                                    <List spacing=12.0>
+                                        <Heading content="Conflicts" />
+                                        <ForEach keys={conflicts} view={conflict_rows} />
+                                    </List>
+                                </Card>
+                            })}
                         </Show>
                         <Card>
                             <List spacing=10.0>

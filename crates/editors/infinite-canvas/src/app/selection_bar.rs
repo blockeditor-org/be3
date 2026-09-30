@@ -68,24 +68,26 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <Show condition={colored}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
-                        <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
-                            {move |index: usize| {
-                                let (name, color) = PRESETS[index];
-                                let state = Rc::clone(&picking);
-                                let value = value.clone();
-                                view! {
-                                    <Swatch
-                                        kind="color"
-                                        name
-                                        color
-                                        value
-                                        on_pick={move |color| set_foreground(&state, color)}
-                                    />
-                                }
-                            }}
-                        </ForEach>
-                    </List>
+                    {move || clone!(picking value -> view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
+                            <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
+                                {move |index: usize| {
+                                    let (name, color) = PRESETS[index];
+                                    let state = Rc::clone(&picking);
+                                    let value = value.clone();
+                                    view! {
+                                        <Swatch
+                                            kind="color"
+                                            name
+                                            color
+                                            value
+                                            on_pick={move |color| set_foreground(&state, color)}
+                                        />
+                                    }
+                                }}
+                            </ForEach>
+                        </List>
+                    })}
                 </Show>
                 <IconButton
                     glyph={ICON_FLIP_TO_FRONT.to_owned()}
@@ -106,7 +108,7 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
                         glyph={ICON_OPEN_IN_NEW.to_owned()}
                         label="Open"
                         @test_id={"infinite-canvas.open"}
-                        on_click={open}
+                        on_click={open.clone()}
                     />
                 </Show>
                 <Show condition={narrow}>
@@ -114,7 +116,7 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
                         glyph={ICON_TUNE.to_owned()}
                         label="Inspector"
                         @test_id={"infinite-canvas.inspect"}
-                        on_click={tune}
+                        on_click={tune.clone()}
                     />
                 </Show>
             </List>

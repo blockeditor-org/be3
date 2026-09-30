@@ -60,18 +60,20 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                 <Sidebar @sizing=ItemSize::Percent(100.0) model={sidebar.clone()} />
             </Show>
             <Show condition={reading}>
-                <BackHandler @sizing=ItemSize::Percent(100.0) on_back={gesture.clone()}>
-                    <List spacing=0.0>
-                        <Frame padding_horizontal=8.0 padding_vertical=4.0>
-                            <IconButton
-                                glyph=ICON_ARROW_BACK
-                                label="Back to the pull requests"
-                                on_click={back.clone()}
-                            />
-                        </Frame>
-                        <Detail @sizing=ItemSize::Percent(100.0) model={model.clone()} />
-                    </List>
-                </BackHandler>
+                {move || clone!(back model -> view! {
+                    <BackHandler @sizing=ItemSize::Percent(100.0) on_back={gesture.clone()}>
+                        <List spacing=0.0>
+                            <Frame padding_horizontal=8.0 padding_vertical=4.0>
+                                <IconButton
+                                    glyph=ICON_ARROW_BACK
+                                    label="Back to the pull requests"
+                                    on_click={back.clone()}
+                                />
+                            </Frame>
+                            <Detail @sizing=ItemSize::Percent(100.0) model={model.clone()} />
+                        </List>
+                    </BackHandler>
+                })}
             </Show>
             <ImageViewer model={viewer} />
         </List>
@@ -191,14 +193,14 @@ fn Sidebar(model: Model) -> NodeId {
                     </Show>
                     <Show condition={failed}>
                         <Text
-                            string={error}
+                            string={error.clone()}
                             font_size=FONT_BODY
                             color={theme.danger.clone()}
                             wrap=true
                         />
                     </Show>
                     <Show condition={empty}>
-                        <Caption content={empty_text} />
+                        <Caption content={empty_text.clone()} />
                     </Show>
                 </List>
             </Frame>
@@ -265,7 +267,7 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                     <Text string={title} font_size=FONT_BODY color={theme.text.clone()} wrap=true />
                     <Caption content={details} />
                     <Show condition={has_tags}>
-                        <Labels labels checked_out />
+                        <Labels labels={labels.clone()} checked_out={checked_out.clone()} />
                     </Show>
                 </List>
             </List>

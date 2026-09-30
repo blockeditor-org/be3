@@ -222,7 +222,7 @@ fn ArtifactSettingsDialog(view: AppViewStore) -> NodeId {
                     <HostSurface id=SurfaceId::ArtifactSettings />
                 </Frame>
                 <Show condition={has_summary}>
-                    <Caption content={summary_text} />
+                    <Caption content={summary_text.clone()} />
                 </Show>
                 <List direction=Direction::Horizontal spacing=8.0>
                     <Button

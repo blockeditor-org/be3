@@ -201,47 +201,51 @@ pub fn NumberInput(
     view! {
         <List spacing=0.0>
             <Show condition={idle}>
-                <Focusable
-                    tab_stop
-                    focused={refocus}
-                    on_focus_change={button_focus}
-                    on_activate={open.clone()}
-                >
-                    <ClickCatcher
-                        cursor={cursor}
-                        capture_presses=true
-                        on_press={pressed}
-                        on_drag={dragged}
-                        on_click={clicked}
-                        on_hover_change={move |is_hovered: bool| set_hovered.set(is_hovered)}
-                        on_active_change={move |is_active: bool| set_active.set(is_active)}
+                {move || clone!(face tab_stop cursor refocus button_focus pressed dragged clicked set_hovered set_active face_text face_placeholder hovered active focused face_off -> view! {
+                    <Focusable
+                        tab_stop
+                        focused={refocus}
+                        on_focus_change={button_focus}
+                        on_activate={open.clone()}
                     >
-                        <NumberFace
-                            shown_text={face.clone()}
-                            text={face_text}
-                            placeholder={face_placeholder}
-                            hovered={hovered}
-                            active={active}
-                            focused={focused}
-                            disabled={face_off}
-                        />
-                    </ClickCatcher>
-                </Focusable>
+                        <ClickCatcher
+                            cursor={cursor}
+                            capture_presses=true
+                            on_press={pressed}
+                            on_drag={dragged}
+                            on_click={clicked}
+                            on_hover_change={move |is_hovered: bool| set_hovered.set(is_hovered)}
+                            on_active_change={move |is_active: bool| set_active.set(is_active)}
+                        >
+                            <NumberFace
+                                shown_text={face.clone()}
+                                text={face_text}
+                                placeholder={face_placeholder}
+                                hovered={hovered}
+                                active={active}
+                                focused={focused}
+                                disabled={face_off}
+                            />
+                        </ClickCatcher>
+                    </Focusable>
+                })}
             </Show>
             <Show condition={editing.clone()}>
-                <TextInput
-                    @node_ref=&field
-                    value={text}
-                    label={label}
-                    placeholder={placeholder}
-                    disabled={disabled}
-                    focused={editing}
-                    select_on_focus=true
-                    on_change={edited}
-                    on_submit={submitted}
-                    on_focus_change={focus_changed}
-                    on_key_override={escaped}
-                />
+                {move || clone!(text label placeholder disabled editing edited submitted focus_changed escaped -> view! {
+                    <TextInput
+                        @node_ref=&field
+                        value={text}
+                        label={label}
+                        placeholder={placeholder}
+                        disabled={disabled}
+                        focused={editing}
+                        select_on_focus=true
+                        on_change={edited}
+                        on_submit={submitted}
+                        on_focus_change={focus_changed}
+                        on_key_override={escaped}
+                    />
+                })}
             </Show>
         </List>
     }

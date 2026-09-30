@@ -128,7 +128,7 @@ fn MainFace(
         <HalfFace fill focused padding=LABEL_PADDING_HORIZONTAL>
             <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                 <Show condition={has_glyph}>
-                    <Icon glyph color={icon_ink} />
+                    <Icon glyph={glyph.clone()} color={icon_ink.clone()} />
                 </Show>
                 <Text string={label} font_size=FONT_BODY color={ink} align=TextAlign::Center />
             </List>

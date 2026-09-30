@@ -112,20 +112,26 @@ pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info
                         <Caption content="Loading…" />
                     </Show>
                     <Show condition={described}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Caption content="Generated from" />
-                            <Button
-                                @test_id={"workspace.artifact.source"}
-                                label={source_name}
-                                variant=ButtonVariant::Ghost
-                                on_click={move || {
-                                    if let Some(source) = open_source.get_untracked() {
-                                        opened.open(source, None);
-                                    }
-                                }}
-                            />
-                            <Caption content={summary} />
-                        </List>
+                        {move || clone!(open_source opened source_name summary -> view! {
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=SPACING
+                            >
+                                <Caption content="Generated from" />
+                                <Button
+                                    @test_id={"workspace.artifact.source"}
+                                    label={source_name}
+                                    variant=ButtonVariant::Ghost
+                                    on_click={move || {
+                                        if let Some(source) = open_source.get_untracked() {
+                                            opened.open(source, None);
+                                        }
+                                    }}
+                                />
+                                <Caption content={summary} />
+                            </List>
+                        })}
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Show condition={running}>
@@ -154,7 +160,7 @@ pub(crate) fn ArtifactBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info
                     />
                 </List>
                 <Show condition={failed}>
-                    <Caption content={failure} color={theme.danger.clone()} />
+                    <Caption content={failure.clone()} color={theme.danger.clone()} />
                 </Show>
             </List>
         </Frame>

@@ -115,16 +115,21 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Show condition={panel_shown}>
-                <Sidebar
-                    @sizing=ItemSize::Fixed(SIDEBAR_WIDTH)
-                    editor={panel.0}
-                    selected={panel.1}
-                    set_selected={panel.2}
-                    set_open={panel.3}
-                />
+                {move || {
+                    let (editor, selected, set_selected, set_open) = panel.clone();
+                    view! {
+                        <Sidebar
+                            @sizing=ItemSize::Fixed(SIDEBAR_WIDTH)
+                            editor
+                            selected
+                            set_selected
+                            set_open
+                        />
+                    }
+                }}
             </Show>
             <Show condition={rail_shown}>
-                <Rail @sizing=ItemSize::Fixed(RAIL_WIDTH) set_open={rail_open} />
+                <Rail @sizing=ItemSize::Fixed(RAIL_WIDTH) set_open={rail_open.clone()} />
             </Show>
             <Stage
                 @sizing=ItemSize::Percent(100.0)

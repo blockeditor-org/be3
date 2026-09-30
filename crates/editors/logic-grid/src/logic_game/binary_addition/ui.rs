@@ -139,16 +139,18 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                     <Button
                         label="Next"
                         variant=ButtonVariant::Primary
-                        disabled={blocked}
+                        disabled={blocked.clone()}
                         @test_id={"quiz.next"}
-                        on_click={forward}
+                        on_click={forward.clone()}
                     />
                 </Show>
                 <Show condition={done}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                        <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={success.clone()} />
-                        <Caption content="Every problem is correct." color={success} />
-                    </List>
+                    {move || clone!(success -> view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                            <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} color={success.clone()} />
+                            <Caption content="Every problem is correct." color={success} />
+                        </List>
+                    })}
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>

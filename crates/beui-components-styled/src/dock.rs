@@ -254,10 +254,14 @@ fn DockTabChrome(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
-                    <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={glyph} />
+                    <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={glyph.clone()} />
                 </Show>
                 <Show condition={pictured}>
-                    <IconSized glyph={icon} font_size=GROUP_GLYPH color={icon_color} />
+                    <IconSized
+                        glyph={icon.clone()}
+                        font_size=GROUP_GLYPH
+                        color={icon_color.clone()}
+                    />
                 </Show>
                 <Text
                     string={title}
@@ -267,15 +271,17 @@ fn DockTabChrome(
                     @sizing={title_size}
                 />
                 <Show condition={closable}>
-                    <IconButton
-                        @test_id={close_test_id}
-                        glyph=ICON_CLOSE
-                        label="Close tab"
-                        size=IconButtonSize::Compact
-                        variant=ButtonVariant::Ghost
-                        capture_presses=true
-                        on_click={move || close.call()}
-                    />
+                    {move || clone!(close -> view! {
+                        <IconButton
+                            @test_id={close_test_id.clone()}
+                            glyph=ICON_CLOSE
+                            label="Close tab"
+                            size=IconButtonSize::Compact
+                            variant=ButtonVariant::Ghost
+                            capture_presses=true
+                            on_click={move || close.call()}
+                        />
+                    })}
                 </Show>
             </List>
         </Frame>
@@ -301,19 +307,21 @@ fn DockPanelFace(handle: DockPanelHandle, closable: Func<TabId, bool>) -> NodeId
     view! {
         <List spacing=0.0>
             <Show condition={bar.is_some()}>
-                <DockChrome
-                    vertical
-                    focused
-                    grip={grip.unwrap_or_else(|| unreachable!())}
-                    tabs={bar}
-                    sidebar_width
-                    sidebar_splitter
-                    title=String::new()
-                    closable
-                    close={move || close.call()}
-                    body
-                    @sizing=ItemSize::Percent(100.0)
-                />
+                {move || clone!(close -> view! {
+                    <DockChrome
+                        vertical
+                        focused={focused.clone()}
+                        grip={grip.unwrap_or_else(|| unreachable!())}
+                        tabs={bar}
+                        sidebar_width={sidebar_width.clone()}
+                        sidebar_splitter
+                        title=String::new()
+                        closable={closable.clone()}
+                        close={move || close.call()}
+                        body
+                        @sizing=ItemSize::Percent(100.0)
+                    />
+                })}
             </Show>
             <Show condition={bar.is_none()}>
                 <Frame color={theme.surface.clone()} @sizing=ItemSize::Percent(100.0)>{body}</Frame>
@@ -394,20 +402,30 @@ fn DockChrome(
         >
             <List direction spacing=0.0>
                 <Show condition={vertical}>
-                    <DockSideBar
-                        grip
-                        tabs
-                        title={side_title}
-                        closable={side_closable}
-                        close={move || side_close.call()}
-                        @sizing={sidebar}
-                    />
+                    {move || clone!(side_close -> view! {
+                        <DockSideBar
+                            grip
+                            tabs
+                            title={side_title.clone()}
+                            closable={side_closable.clone()}
+                            close={move || side_close.call()}
+                            @sizing={sidebar.clone()}
+                        />
+                    })}
                 </Show>
                 <Show condition={sidebar_splitter.is_some()}>
                     {sidebar_splitter.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Fixed(SPLITTER_THICKNESS)
                 </Show>
                 <Show condition={!vertical}>
-                    <DockTitleBar grip tabs title closable close={move || close.call()} />
+                    {move || clone!(close -> view! {
+                        <DockTitleBar
+                            grip
+                            tabs
+                            title={title.clone()}
+                            closable={closable.clone()}
+                            close={move || close.call()}
+                        />
+                    })}
                 </Show>
                 {body} @sizing=ItemSize::Percent(100.0)
             </List>
@@ -438,7 +456,7 @@ fn DockTitleBar(
                     {tabs.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Percent(100.0)
                 </Show>
                 <Show condition={titled}>
-                    <Body content={title} @sizing=ItemSize::Percent(100.0) />
+                    <Body content={title.clone()} @sizing=ItemSize::Percent(100.0) />
                 </Show>
                 <DockClose closable close={move || close.call()} />
             </List>
@@ -473,7 +491,7 @@ fn DockSideBar(
                     {tabs.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Percent(100.0)
                 </Show>
                 <Show condition={titled}>
-                    <Body content={title} />
+                    <Body content={title.clone()} />
                 </Show>
             </List>
         </Frame>
@@ -595,7 +613,11 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> No
                     />
                 </Show>
                 <Show condition={pictured}>
-                    <IconSized glyph={icon} font_size=GROUP_GLYPH color={pictured_color} />
+                    <IconSized
+                        glyph={icon.clone()}
+                        font_size=GROUP_GLYPH
+                        color={pictured_color.clone()}
+                    />
                 </Show>
                 <Body content={title} />
             </List>

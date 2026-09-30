@@ -211,10 +211,14 @@ fn Notice(
     view! {
         <List spacing=4.0>
             <Show condition={shown}>
-                <Body content={note} color={color} @test_id={"paint_review.notice"} />
+                <Body
+                    content={note.clone()}
+                    color={color.clone()}
+                    @test_id={"paint_review.notice"}
+                />
             </Show>
             <Show condition={telling}>
-                <Caption content={progress} color={theme.text_muted.clone()} />
+                <Caption content={progress.clone()} color={theme.text_muted.clone()} />
             </Show>
         </List>
     }

@@ -342,7 +342,7 @@ fn SegmentView(
                 on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
             >
                 <List direction=Direction::Horizontal spacing=0.0>
-                    <Show condition=shown>{move || literal.call(text)}</Show>
+                    <Show condition=shown>{move || literal.call(text.clone())}</Show>
                     {content}
                 </List>
             </ClickCatcher>

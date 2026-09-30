@@ -8,7 +8,7 @@ use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Callback, Child, List, Memo, NodeRef, Prop, ReadSignal, Render, Show, clone,
+    Callback, Child, List, Memo, NodeRef, Prop, ReadSignal, Render, ShowKeepAlive, clone,
     component_accessibility, create_effect, create_memo, create_signal, set_component_state,
 };
 
@@ -158,7 +158,9 @@ pub fn Popover(
             >
                 <PopoverSurface label>
                     <List spacing=0.0>
-                        <Show condition={built}>{move || content.call(handle)}</Show>
+                        <ShowKeepAlive condition={built}>
+                            {move || content.call(handle)}
+                        </ShowKeepAlive>
                     </List>
                 </PopoverSurface>
             </Overlay>

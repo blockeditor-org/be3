@@ -107,9 +107,9 @@ pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
                 <Show condition={readable}>
                     <Checkbox
                         label="Rename with the grid"
-                        checked={renamed}
+                        checked={renamed.clone()}
                         @test_id={"logic-grid.rename-with-source"}
-                        on_change={rename}
+                        on_change={rename.clone()}
                     />
                 </Show>
                 <Show condition={unreadable}>

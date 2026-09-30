@@ -819,7 +819,7 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
         <Frame @node_ref={&surface} color={theme.background.clone()}>
             <List spacing=0.0>
                 <Show condition={failed}>
-                    <Caption content={reason} color={theme.danger.clone()} />
+                    <Caption content={reason.clone()} color={theme.danger.clone()} />
                 </Show>
                 <DockArea
                     @sizing=ItemSize::Percent(100.0)

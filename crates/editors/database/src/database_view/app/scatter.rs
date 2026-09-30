@@ -42,7 +42,11 @@ pub fn Scatter(data: Data) -> NodeId {
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    <Plot @sizing=ItemSize::Percent(100.0) data={data} axes={axes} />
+                    <Plot
+                        @sizing=ItemSize::Percent(100.0)
+                        data={data.clone()}
+                        axes={axes.clone()}
+                    />
                 </Show>
             </List>
         </Frame>

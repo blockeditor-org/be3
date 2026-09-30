@@ -89,11 +89,11 @@ pub(crate) fn ReviewToolbar(review: Rc<Review>, shown: Prop<bool>) -> NodeId {
                 }}
             />
             <Show condition={comparable}>
-                <ViewChoice review={choices} />
+                <ViewChoice review={choices.clone()} />
             </Show>
             <ZoomControls review={zooms} />
             <Show condition={failed}>
-                <Caption content={reason} color={theme.danger.clone()} />
+                <Caption content={reason.clone()} color={theme.danger.clone()} />
             </Show>
         </Toolbar>
     }
@@ -305,17 +305,19 @@ pub(crate) fn FrameControls(review: Rc<Review>, count: Memo<usize>) -> NodeId {
                 </Dynamic>
                 <Caption content={position} color={theme.text_muted.clone()} />
                 <Show condition={differs}>
-                    <Button
-                        label="Changed frame"
-                        glyph={ICON_DIFFERENCE.to_owned()}
-                        variant=ButtonVariant::Secondary
-                        @test_id={"paint_review.frame.changed"}
-                        on_click={move || {
-                            if let Some(frame) = jump_frame.get_untracked() {
-                                jump.seek(frame);
-                            }
-                        }}
-                    />
+                    {move || clone!(jump jump_frame -> view! {
+                        <Button
+                            label="Changed frame"
+                            glyph={ICON_DIFFERENCE.to_owned()}
+                            variant=ButtonVariant::Secondary
+                            @test_id={"paint_review.frame.changed"}
+                            on_click={move || {
+                                if let Some(frame) = jump_frame.get_untracked() {
+                                    jump.seek(frame);
+                                }
+                            }}
+                        />
+                    })}
                 </Show>
             </List>
         </Frame>

@@ -111,10 +111,14 @@ fn ToggleButtonFace(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                     <Show condition={has_glyph}>
-                        <Icon glyph={glyph_text} color={icon_color} />
+                        <Icon glyph={glyph_text.clone()} color={icon_color.clone()} />
                     </Show>
                     <Show condition={named}>
-                        <Text string={label_text} font_size=FONT_BODY color={text_color} />
+                        <Text
+                            string={label_text.clone()}
+                            font_size=FONT_BODY
+                            color={text_color.clone()}
+                        />
                     </Show>
                 </List>
             </Frame>

@@ -34,7 +34,7 @@ pub(crate) fn PaintingList(review: Rc<Review>) -> NodeId {
     view! {
         <List spacing=8.0>
             <Show condition={waiting}>
-                <Caption content="Opening the review" color={opening} />
+                <Caption content="Opening the review" color={opening.clone()} />
             </Show>
             <ForEach keys={Status::ALL.to_vec()}>
                 {move |status: Status| {
@@ -46,10 +46,13 @@ pub(crate) fn PaintingList(review: Rc<Review>) -> NodeId {
                 }}
             </ForEach>
             <Show condition={searching}>
-                <Caption content={format!("Looking at the {BRANCH} branch")} color={looking} />
+                <Caption
+                    content={format!("Looking at the {BRANCH} branch")}
+                    color={looking.clone()}
+                />
             </Show>
             <Show condition={barren}>
-                <Caption content={nothing} color={theme.text_muted.clone()} />
+                <Caption content={nothing.clone()} color={theme.text_muted.clone()} />
             </Show>
         </List>
     }

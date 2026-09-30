@@ -192,12 +192,14 @@ fn DetailsBody(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                         on_click={move || sharing(Action::Share)}
                     />
                     <Show condition={unlinkable}>
-                        <ActionRow
-                            @test_id={"workspace.details.unlink"}
-                            label="Unlink"
-                            glyph={ICON_LINK_OFF.to_owned()}
-                            on_click={move || unlinking(Action::Unlink)}
-                        />
+                        {move || clone!(unlinking -> view! {
+                            <ActionRow
+                                @test_id={"workspace.details.unlink"}
+                                label="Unlink"
+                                glyph={ICON_LINK_OFF.to_owned()}
+                                on_click={move || unlinking(Action::Unlink)}
+                            />
+                        })}
                     </Show>
                     <ActionRow
                         @test_id={"workspace.details.delete"}
@@ -239,9 +241,11 @@ fn RelatedBlocks(
     view! {
         <List spacing=0.0>
             <Show condition={some}>
-                <Frame padding_horizontal=SHEET_PADDING padding_vertical=SECTION_PADDING>
-                    <Caption content={title} />
-                </Frame>
+                {move || clone!(title -> view! {
+                    <Frame padding_horizontal=SHEET_PADDING padding_vertical=SECTION_PADDING>
+                        <Caption content={title} />
+                    </Frame>
+                })}
             </Show>
             <ForEach keys={ids}>
                 {move |id: Uuid| {

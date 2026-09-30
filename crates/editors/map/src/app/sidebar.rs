@@ -81,20 +81,22 @@ pub(crate) fn MapSidebar(state: Rc<MapState>) -> NodeId {
             <RegionInspector state={region} />
             <Separator />
             <Show condition={listing}>
-                <PointList state={list} />
+                <PointList state={list.clone()} />
             </Show>
             <Show condition={chosen}>
-                <PointDetails state={details} selected={selected} />
+                <PointDetails state={details.clone()} selected={selected.clone()} />
             </Show>
             <Show condition={failed}>
-                <List spacing=4.0>
-                    <Caption content={reason} color={theme.danger.clone()} />
-                    <Button
-                        label="Dismiss"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || dismiss.dismiss_import_error()}
-                    />
-                </List>
+                {move || clone!(dismiss reason theme -> view! {
+                    <List spacing=4.0>
+                        <Caption content={reason} color={theme.danger.clone()} />
+                        <Button
+                            label="Dismiss"
+                            variant=ButtonVariant::Secondary
+                            on_click={move || dismiss.dismiss_import_error()}
+                        />
+                    </List>
+                })}
             </Show>
         </List>
     }
@@ -123,28 +125,30 @@ fn RegionInspector(state: Rc<MapState>) -> NodeId {
                 }}
             />
             <Show condition={loose}>
-                <Caption content="Previews show the whole world." color={loose_color} />
+                <Caption content="Previews show the whole world." color={loose_color.clone()} />
             </Show>
             <Show condition={fixed}>
-                <List spacing=6.0>
-                    <RegionEdges state={Rc::clone(&state)} />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                        <Button
-                            label="Use current view"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"map.capture-region"}
-                            on_click={move || {
-                                let region = Some(captured.visible_region.get_untracked());
-                                captured.record(Map::set_preview_region(region));
-                            }}
-                        />
-                        <Button
-                            label="Zoom to region"
-                            variant=ButtonVariant::Secondary
-                            on_click={move || zoomed.request_fit()}
-                        />
+                {move || clone!(captured state zoomed -> view! {
+                    <List spacing=6.0>
+                        <RegionEdges state={Rc::clone(&state)} />
+                        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                            <Button
+                                label="Use current view"
+                                variant=ButtonVariant::Secondary
+                                @test_id={"map.capture-region"}
+                                on_click={move || {
+                                    let region = Some(captured.visible_region.get_untracked());
+                                    captured.record(Map::set_preview_region(region));
+                                }}
+                            />
+                            <Button
+                                label="Zoom to region"
+                                variant=ButtonVariant::Secondary
+                                on_click={move || zoomed.request_fit()}
+                            />
+                        </List>
                     </List>
-                </List>
+                })}
             </Show>
         </List>
     }
@@ -293,7 +297,7 @@ fn PointList(state: Rc<MapState>) -> NodeId {
             <Show condition={empty}>
                 <Caption
                     content="Add blocks with the + button, by dragging them in from Files, or by pasting an image."
-                    color={hint}
+                    color={hint.clone()}
                 />
             </Show>
             <Show condition={any}>

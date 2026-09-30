@@ -111,7 +111,7 @@ fn DatabaseValueRow(
         <List spacing=SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Show condition={headings}>
-                    <Caption content={heading} />
+                    <Caption content={heading.clone()} />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Show condition={set}>
@@ -119,7 +119,7 @@ fn DatabaseValueRow(
                         glyph={ICON_CLEAR.to_owned()}
                         label="Clear"
                         @test_id={format!("{id}.clear")}
-                        on_click={clear}
+                        on_click={clear.clone()}
                     />
                 </Show>
             </List>

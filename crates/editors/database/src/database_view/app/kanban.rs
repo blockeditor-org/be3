@@ -53,21 +53,27 @@ pub fn Kanban(data: Data) -> NodeId {
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
-                        <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                            <List direction=Direction::Horizontal spacing=COLUMN_SPACING>
-                                <ForEach keys={columns}>
-                                    {move |column: ColumnKey| {
-                                        let data = data.clone();
-                                        let status = status.clone();
-                                        view! {
-                                            <Column data={data} status={status} column={column} />
-                                        }
-                                    }}
-                                </ForEach>
-                            </List>
-                        </Frame>
-                    </Scroll>
+                    {move || clone!(columns data status -> view! {
+                        <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
+                            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                                <List direction=Direction::Horizontal spacing=COLUMN_SPACING>
+                                    <ForEach keys={columns}>
+                                        {move |column: ColumnKey| {
+                                            let data = data.clone();
+                                            let status = status.clone();
+                                            view! {
+                                                <Column
+                                                    data={data}
+                                                    status={status}
+                                                    column={column}
+                                                />
+                                            }
+                                        }}
+                                    </ForEach>
+                                </List>
+                            </Frame>
+                        </Scroll>
+                    })}
                 </Show>
             </List>
         </Frame>

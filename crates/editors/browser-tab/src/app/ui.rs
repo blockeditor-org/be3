@@ -93,7 +93,7 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                         <Show condition={failed}>
                             <Caption
-                                content={reason}
+                                content={reason.clone()}
                                 color={theme.danger.clone()}
                                 @test_id={"browser.error"}
                             />

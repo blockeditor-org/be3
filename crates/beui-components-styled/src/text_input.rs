@@ -136,22 +136,26 @@ fn TextInputFrame(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     <Show condition={marked}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Frame width=PADDING_HORIZONTAL />
-                            <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
-                        </List>
+                        {move || clone!(glyph theme -> view! {
+                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                                <Frame width=PADDING_HORIZONTAL />
+                                <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
+                            </List>
+                        })}
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
-                        <Frame padding_horizontal=CLEAR_PADDING>
-                            <IconButton
-                                glyph={ICON_CLOSE.to_owned()}
-                                label="Clear"
-                                size=IconButtonSize::Compact
-                                press_focus=false
-                                on_click={move || on_clear.call()}
-                            />
-                        </Frame>
+                        {move || clone!(on_clear -> view! {
+                            <Frame padding_horizontal=CLEAR_PADDING>
+                                <IconButton
+                                    glyph={ICON_CLOSE.to_owned()}
+                                    label="Clear"
+                                    size=IconButtonSize::Compact
+                                    press_focus=false
+                                    on_click={move || on_clear.call()}
+                                />
+                            </Frame>
+                        })}
                     </Show>
                 </List>
             </Frame>

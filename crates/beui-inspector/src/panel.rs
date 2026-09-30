@@ -21,7 +21,7 @@ use beui_core::icons::ICON_CLOSE;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Show,
-    Spacer, WriteSignal, clone, component, create_memo, create_signal, view,
+    ShowKeepAlive, Spacer, WriteSignal, clone, component, create_memo, create_signal, view,
 };
 
 use super::tree::{Entry, Key};
@@ -273,14 +273,16 @@ pub fn build(state: &Rc<State>) -> Panel {
                                         content={count_text}
                                         align=TextAlign::End
                                     />
-                                    <Show condition={header_tree_visible}>
+                                    <ShowKeepAlive condition={header_tree_visible}>
                                         <PickToggle state={pick_state} picking />
-                                    </Show>
+                                    </ShowKeepAlive>
                                     <Show condition={create_memo(move || !compact.get())}>
-                                        <CloseButton
-                                            @test_id={"inspector.close"}
-                                            state={close_state}
-                                        />
+                                        {move || clone!(close_state -> view! {
+                                            <CloseButton
+                                                @test_id={"inspector.close"}
+                                                state={close_state}
+                                            />
+                                        })}
                                     </Show>
                                 </List>
                                 <Tabs
@@ -303,7 +305,7 @@ pub fn build(state: &Rc<State>) -> Panel {
                         <Separator />
                         <Frame @sizing=ItemSize::Percent(100.0)>
                             <List spacing=0.0>
-                                <Show condition={body_tree_visible}>
+                                <ShowKeepAlive condition={body_tree_visible}>
                                     <Tree
                                         @sizing=ItemSize::Percent(100.0)
                                         @node_ref=&tree_ref
@@ -333,8 +335,8 @@ pub fn build(state: &Rc<State>) -> Panel {
                                             />
                                         }}
                                     </Tree>
-                                </Show>
-                                <Show condition={body_performance_visible}>
+                                </ShowKeepAlive>
+                                <ShowKeepAlive condition={body_performance_visible}>
                                     <PerformancePanel
                                         @sizing=ItemSize::Percent(100.0)
                                         @test_id={"inspector.performance"}
@@ -342,38 +344,38 @@ pub fn build(state: &Rc<State>) -> Panel {
                                         renderer={renderer.clone()}
                                         state={performance_state.clone()}
                                     />
-                                </Show>
-                                <Show condition={body_simulation_visible}>
+                                </ShowKeepAlive>
+                                <ShowKeepAlive condition={body_simulation_visible}>
                                     <SimulationPanel
                                         @sizing=ItemSize::Percent(100.0)
                                         state={simulation_state.clone()}
                                         responsive={responsive.clone()}
                                     />
-                                </Show>
+                                </ShowKeepAlive>
                             </List>
                         </Frame>
                         <Separator />
                         <Frame padding_horizontal=FOOTER_PADDING padding_vertical=FOOTER_PADDING>
                             <List spacing=0.0>
-                                <Show condition={footer_tree_visible}>
+                                <ShowKeepAlive condition={footer_tree_visible}>
                                     <List spacing=FOOTER_SPACING>
                                         <Code content={selection_text} />
                                         <Code content={bounds_text} color={THEME.text_muted} />
                                     </List>
-                                </Show>
-                                <Show condition={footer_performance_visible}>
+                                </ShowKeepAlive>
+                                <ShowKeepAlive condition={footer_performance_visible}>
                                     <Button
                                         label="Reset samples"
                                         variant=ButtonVariant::Secondary
                                         on_click={move || reset_state.reset_performance()}
                                     />
-                                </Show>
-                                <Show condition={footer_simulation_visible}>
+                                </ShowKeepAlive>
+                                <ShowKeepAlive condition={footer_simulation_visible}>
                                     <Code
                                         content={native_pixel_ratio_text}
                                         color={THEME.text_muted}
                                     />
-                                </Show>
+                                </ShowKeepAlive>
                             </List>
                         </Frame>
                     </List>

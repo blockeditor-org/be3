@@ -375,11 +375,13 @@ fn DemoToolbar(
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={wide}>
-                <Checkbox
-                    label="Mobile"
-                    checked={mobile}
-                    on_change={move |on: bool| set_mobile.set(on)}
-                />
+                {move || clone!(set_mobile -> view! {
+                    <Checkbox
+                        label="Mobile"
+                        checked={mobile.clone()}
+                        on_change={move |on: bool| set_mobile.set(on)}
+                    />
+                })}
             </Show>
             <LabelledSwitch
                 label="E-ink"

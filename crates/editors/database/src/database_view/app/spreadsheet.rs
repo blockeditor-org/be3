@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use block_editor_beui::be_block::database::{DatabaseColor, DatabaseValue};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::be_block::database_view::{DatabaseView, DatabaseViewSort, SortDirection};
@@ -33,7 +35,7 @@ pub fn Spreadsheet(data: Data) -> NodeId {
     }));
     let empty = create_memo(clone!(fields -> move || fields.with(Vec::is_empty)));
     let filled = create_memo(clone!(empty -> move || !empty.get()));
-    let keyboard = keyboard(&data, display.clone());
+    let keyboard = Rc::new(keyboard(&data, display.clone()));
     let rows_data = data.clone();
     let header_data = data.clone();
     let theme = use_theme();
@@ -48,11 +50,11 @@ pub fn Spreadsheet(data: Data) -> NodeId {
                 <Show condition={filled}>
                     <Grid
                         @sizing=ItemSize::Percent(100.0)
-                        data={rows_data}
-                        header={header_data}
-                        display={display}
-                        keys={keys}
-                        on_key={keyboard}
+                        data={rows_data.clone()}
+                        header={header_data.clone()}
+                        display={display.clone()}
+                        keys={keys.clone()}
+                        on_key={clone!(keyboard -> move |press: KeyPress| keyboard(press))}
                     />
                 </Show>
             </List>
@@ -183,7 +185,7 @@ fn HeaderCell(
                         <Body content={label} color={theme.text.clone()} />
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                         <Show condition={marked}>
-                            <Icon glyph={glyph} color={theme.text_muted.clone()} />
+                            <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
                         </Show>
                     </List>
                 </Frame>
@@ -346,13 +348,13 @@ fn Cell(
                 <Frame padding_horizontal=CELL_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=CELL_PADDING>
                         <Show condition={boolean}>
-                            <Icon glyph={check_glyph} color={glyph_color} />
+                            <Icon glyph={check_glyph.clone()} color={glyph_color.clone()} />
                         </Show>
                         <Show condition={colored}>
                             <Frame
                                 @sizing=ItemSize::Fixed(SWATCH_WIDTH)
                                 height=SWATCH_HEIGHT
-                                color={swatch}
+                                color={swatch.clone()}
                                 outline={theme.border.clone()}
                                 outline_width=BORDER
                                 outline_visible=true
