@@ -7,9 +7,10 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::ICON_FOLDER;
 use block_editor_beui::beui::reactive::{
-    Align, BackHandler, Frame, Func, ItemSize, List, NodeRef, ReadSignal, Show, Spacer,
-    WriteSignal, clone, component, create_effect, create_memo, create_signal, untrack, view,
+    Align, Frame, Func, ItemSize, List, NodeRef, ReadSignal, Show, Spacer, WriteSignal, clone,
+    component, create_effect, create_memo, create_signal, untrack, view,
 };
 use block_editor_beui::beui::styled::{Caption, DockArea, Heading, use_theme};
 use block_editor_beui::beui::unstyled::{
@@ -17,8 +18,8 @@ use block_editor_beui::beui::unstyled::{
 };
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BarAction, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState,
-    ChildTarget, Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
+    AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
+    Editor, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -40,7 +41,6 @@ type Tabs = HashMap<TabId, TabItem>;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PhoneSheet {
     Closed,
-    Switcher,
     Details(TabId),
 }
 
@@ -471,36 +471,6 @@ impl Workspace {
         self.active.set(Some(item.id));
     }
 
-    pub(crate) fn open_count(&self) -> usize {
-        self.tabs.with(HashMap::len)
-    }
-
-    pub(crate) fn open_tabs(&self) -> Vec<TabId> {
-        let tabs = self.tabs.get();
-        self.layout
-            .with(DockState::recent_tabs)
-            .into_iter()
-            .filter(|tab| tabs.contains_key(tab))
-            .collect()
-    }
-
-    pub(crate) fn shown_tab(&self) -> Option<TabId> {
-        self.layout
-            .with(DockState::stacked_tab)
-            .filter(|tab| *tab != FILES)
-    }
-
-    pub(crate) fn show_tab(&self, tab: TabId) {
-        let mut layout = self.layout.get_untracked();
-        layout.show(tab);
-        self.set_layout.set(layout);
-        self.set_sheet.set(PhoneSheet::Closed);
-    }
-
-    pub(crate) fn go_files(&self) {
-        self.show_tab(FILES);
-    }
-
     pub(crate) fn set_sheet(&self, sheet: PhoneSheet) {
         self.set_sheet.set(sheet);
     }
@@ -509,18 +479,6 @@ impl Workspace {
         if self.sheet.get_untracked() == sheet {
             self.set_sheet.set(PhoneSheet::Closed);
         }
-    }
-
-    pub(crate) fn close_tab(&self, tab: TabId) {
-        let mut layout = self.layout.get_untracked();
-        let shown = layout.stacked_tab() == Some(tab);
-        layout.remove(tab);
-        let mut layout = settled(layout);
-        if shown && let Some(next) = layout.recent_tabs().first().copied() {
-            layout.show(next);
-        }
-        self.set_layout.set(layout);
-        self.close(tab);
     }
 
     fn tab_showing(&self, id: Uuid) -> Option<TabId> {
@@ -622,14 +580,6 @@ impl Workspace {
             || BlockLabel::new(types.as_ref(), block_type, None, false),
             |info| info.label(types.as_ref()),
         )
-    }
-
-    pub(crate) fn new_file_beside_page(self: &Rc<Self>) {
-        let shown = untrack(|| self.shown_tab()).and_then(|tab| self.tab(tab).map(|item| item.id));
-        match shown {
-            Some(id) => self.new_file_near(id),
-            None => self.create_in(BlockParent::Root),
-        }
     }
 
     pub(crate) fn new_file_near(self: &Rc<Self>, id: Uuid) {
@@ -835,9 +785,6 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
         true => DockMode::Stacked,
         false => DockMode::Tiled,
     }));
-    let in_file = Rc::clone(&workspace);
-    let leaves = create_memo(move || phone.get() && in_file.shown_tab().is_some());
-    let leaving = Rc::clone(&workspace);
     let sheets = Rc::clone(&workspace);
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
@@ -855,6 +802,15 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                 .unwrap_or_else(|| "Untitled".to_owned())
         }),
     });
+    let naming = Rc::clone(&workspace);
+    let icon = Func::new(move |tab: TabId| match tab {
+        FILES => ICON_FOLDER.to_owned(),
+        tab => naming
+            .tab(tab)
+            .and_then(|item| naming.label(item.id, item.block_type).icon)
+            .unwrap_or_default()
+            .to_owned(),
+    });
     let changing = Rc::clone(&workspace);
     let closing = Rc::clone(&workspace);
     let content = Rc::clone(&workspace);
@@ -865,35 +821,32 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                 <Show condition={failed}>
                     <Caption content={reason} color={theme.danger.clone()} />
                 </Show>
-                <BackHandler
+                <DockArea
                     @sizing=ItemSize::Percent(100.0)
-                    enabled={leaves}
-                    on_back={move || leaving.go_files()}
+                    state={layout}
+                    mode={mode}
+                    home={Some(FILES)}
+                    title={title}
+                    icon={icon}
+                    closable={Func::new(|tab: TabId| tab != FILES)}
+                    on_change={move |next: DockState| changing.changed(next)}
+                    on_close={move |tab: TabId| closing.close(tab)}
+                    empty={move || view! {
+                        <EmptyPanel />
+                    }}
                 >
-                    <DockArea
-                        state={layout}
-                        mode={mode}
-                        title={title}
-                        closable={Func::new(|tab: TabId| tab != FILES)}
-                        on_change={move |next: DockState| changing.changed(next)}
-                        on_close={move |tab: TabId| closing.close(tab)}
-                        empty={move || view! {
-                            <EmptyPanel />
-                        }}
-                    >
-                        {move |tab: TabId| {
-                            let workspace = Rc::clone(&content);
-                            match tab {
-                                FILES => view! {
-                                    <FilesPanel workspace={workspace} />
-                                },
-                                tab => view! {
-                                    <BlockPanel workspace={workspace} tab={tab} />
-                                },
-                            }
-                        }}
-                    </DockArea>
-                </BackHandler>
+                    {move |tab: TabId| {
+                        let workspace = Rc::clone(&content);
+                        match tab {
+                            FILES => view! {
+                                <FilesPanel workspace={workspace} />
+                            },
+                            tab => view! {
+                                <BlockPanel workspace={workspace} tab={tab} />
+                            },
+                        }
+                    }}
+                </DockArea>
                 <PhoneSheets workspace={sheets} />
             </List>
         </Frame>
@@ -903,14 +856,10 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
 #[component]
 pub(crate) fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
     let phone = workspace.phone.clone();
-    let counting = Rc::clone(&workspace);
     let top_bar = create_memo(move || match phone.get() {
-        true => TopBar::PhoneHidden {
-            open_files: u32::try_from(counting.open_count()).unwrap_or(u32::MAX),
-        },
+        true => TopBar::Phone { more: false },
         false => TopBar::Hidden,
     });
-    let switching = Rc::clone(&workspace);
     let files = workspace.files.clone();
     let target = create_memo(move || {
         files
@@ -925,10 +874,6 @@ pub(crate) fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
             mode=ChildMode::Live
             own_frame=true
             top_bar={top_bar}
-            on_bar={move |action: BarAction| match action {
-                BarAction::Switch => switching.set_sheet(PhoneSheet::Switcher),
-                BarAction::Back | BarAction::Details => {}
-            }}
             @test_id={"workspace.files"}
         >
             {move |handle: ChildBlockHandle| view! {

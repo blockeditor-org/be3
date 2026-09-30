@@ -58,34 +58,27 @@ pub enum TopBar {
     Hidden,
     Shown,
     Phone {
-        open_files: u32,
-    },
-    PhoneHidden {
-        open_files: u32,
+        more: bool,
     },
 }
 
 impl TopBar {
     pub fn shown(self) -> bool {
-        !matches!(self, Self::Hidden | Self::PhoneHidden { .. })
+        matches!(self, Self::Shown)
     }
 
     pub fn phone(self) -> bool {
-        matches!(self, Self::Phone { .. } | Self::PhoneHidden { .. })
+        matches!(self, Self::Phone { .. })
     }
 
-    pub fn open_files(self) -> u32 {
-        match self {
-            Self::Phone { open_files } | Self::PhoneHidden { open_files } => open_files,
-            Self::Hidden | Self::Shown => 0,
-        }
+    pub fn more(self) -> bool {
+        matches!(self, Self::Phone { more: true })
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BarAction {
-    Back,
-    Switch,
+    CloseMore,
     Details,
 }
 

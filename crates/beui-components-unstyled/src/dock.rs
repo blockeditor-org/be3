@@ -27,13 +27,14 @@ use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
+use beui_view::components::back::BackHandler;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, Canvas, CanvasItem, ClickCallback, ClickCatcher, Dynamic, Focusable, ForEach, Frame,
     Func, IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext, Show,
     WriteSignal, clone, component_accessibility, component_rect, component_size, create_effect,
     create_memo, create_signal, create_timer, node_scope, on_cleanup, on_shortcut, owner_scope,
-    set_component_state, try_with_document, with_document,
+    provide_context, set_component_state, try_with_document, use_context, with_document,
 };
 
 pub use state::{
@@ -69,6 +70,7 @@ pub struct DockTabHandle {
     pub floating: bool,
     pub vertical: bool,
     pub title: Memo<String>,
+    pub icon: Memo<String>,
     pub tabs: Memo<Vec<TabId>>,
     pub has_next: Memo<bool>,
     pub selected: Memo<bool>,
@@ -92,6 +94,7 @@ pub enum DockDragged {
 pub struct DockPreviewHandle {
     pub dragged: DockDragged,
     pub title: Memo<String>,
+    pub icon: Memo<String>,
 }
 
 pub struct DockPanelHandle {
@@ -122,6 +125,43 @@ pub struct DockGripHandle {
     pub vertical: bool,
     pub focused: Memo<bool>,
     pub toggle_vertical: ClickCallback,
+}
+
+pub struct DockStackHandle {
+    pub shown: Memo<Option<TabId>>,
+    pub title: Memo<String>,
+    pub icon: Memo<String>,
+    pub home: Memo<Option<TabId>>,
+    pub away: Memo<bool>,
+    pub tabs: Memo<Vec<TabId>>,
+    pub actions: Memo<Option<NodeId>>,
+    pub titles: Func<TabId, String>,
+    pub icons: Func<TabId, String>,
+    pub back: ClickCallback,
+    pub show: Func<TabId, ()>,
+    pub close: Func<TabId, ()>,
+}
+
+#[derive(Clone)]
+struct DockTabActions {
+    tab: TabId,
+    set_actions: WriteSignal<HashMap<TabId, NodeId>>,
+}
+
+pub fn dock_actions(actions: NodeId) {
+    let Some(DockTabActions { tab, set_actions }) = use_context::<DockTabActions>() else {
+        return;
+    };
+    set_actions.update(|all| {
+        all.insert(tab, actions);
+    });
+    on_cleanup(move || {
+        set_actions.update(|all| {
+            if all.get(&tab) == Some(&actions) {
+                all.remove(&tab);
+            }
+        });
+    });
 }
 
 pub struct DockWindowHandle {
@@ -159,6 +199,10 @@ struct State {
     drag: ReadSignal<Option<Drag>>,
     set_drag: WriteSignal<Option<Drag>>,
     title: Func<TabId, String>,
+    icon: Func<TabId, String>,
+    home: Memo<Option<TabId>>,
+    actions: ReadSignal<HashMap<TabId, NodeId>>,
+    set_actions: WriteSignal<HashMap<TabId, NodeId>>,
     thickness: f32,
     group_inset: f32,
     rect: ReadSignal<Rect>,
@@ -176,6 +220,7 @@ struct State {
     window: RenderFn<DockWindowHandle>,
     highlight: RenderFn<()>,
     preview: RenderFn<DockPreviewHandle>,
+    stack: Option<RenderFn<DockStackHandle>>,
 }
 
 type Handle = Rc<State>;
@@ -196,6 +241,29 @@ impl State {
         self.title.call(tab)
     }
 
+    fn icon(&self, tab: TabId) -> String {
+        self.icon.call(tab)
+    }
+
+    fn entry_icon(&self, entry: Entry) -> String {
+        match entry {
+            Entry::Tab(tab) => self.icon(tab),
+            Entry::Group(_) => String::new(),
+        }
+    }
+
+    fn dragged_icon(&self, dragged: DockDragged) -> String {
+        match dragged {
+            DockDragged::Entry(entry) => self.entry_icon(entry),
+            DockDragged::Pane(leaf) => {
+                match self.state.with(|state| state.entries(leaf)).as_slice() {
+                    [entry] => self.entry_icon(*entry),
+                    _ => String::new(),
+                }
+            }
+        }
+    }
+
     fn entry_title(&self, entry: Entry) -> String {
         match entry {
             Entry::Tab(tab) => self.title(tab),
@@ -211,7 +279,11 @@ impl State {
             return *panel;
         }
         let scope = with_document(|document| node_scope(document, self.owner.clone()));
-        let panel = scope.context().run(|| self.content.call(tab));
+        let set_actions = self.set_actions.clone();
+        let panel = scope.context().run(|| {
+            provide_context(DockTabActions { tab, set_actions });
+            self.content.call(tab)
+        });
         with_document(|document| document.register_node_scope(panel, scope));
         self.panels.borrow_mut().insert(tab, panel);
         panel
@@ -303,6 +375,21 @@ impl State {
             state.remove(tab);
         });
         self.on_close.call(tab);
+    }
+
+    fn close_stacked(&self, tab: TabId) {
+        self.edit(|state| {
+            let shown = state.stacked_tab() == Some(tab);
+            state.remove(tab);
+            if let Some(next) = state.recent_tabs().first().copied().filter(|_| shown) {
+                state.show(next);
+            }
+        });
+        self.on_close.call(tab);
+    }
+
+    fn show(&self, tab: TabId) {
+        self.edit(|state| state.show(tab));
     }
 
     fn close_entry(&self, entry: Entry) {
@@ -719,7 +806,9 @@ pub fn Dock(
     on_change: Callback<DockState>,
     on_close: Callback<TabId>,
     title: Func<TabId, String>,
+    icon: Option<Func<TabId, String>>,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
+    #[prop(default = None)] home: Prop<Option<TabId>>,
     #[prop(default = SPLITTER_THICKNESS)] splitter_thickness: f32,
     #[prop(default = 0.0)] group_inset: f32,
     tab: RenderFn<DockTabHandle>,
@@ -731,8 +820,10 @@ pub fn Dock(
     window: Option<RenderFn<DockWindowHandle>>,
     highlight: Option<RenderFn<()>>,
     preview: Option<RenderFn<DockPreviewHandle>>,
+    stack: Option<RenderFn<DockStackHandle>>,
 ) -> NodeId {
     let (current, set_current) = create_signal(state.peek());
+    let (actions, set_actions) = create_signal(HashMap::new());
     create_effect(clone!(set_current -> move || set_current.set(state.get())));
     let (drag, set_drag) = create_signal(None);
     let dock: Handle = Rc::new(State {
@@ -746,6 +837,11 @@ pub fn Dock(
         drag,
         set_drag,
         title,
+        icon: icon.unwrap_or_else(|| Func::new(|_| String::new())),
+        home: create_memo(move || home.get()),
+        actions,
+        set_actions,
+        stack,
         thickness: splitter_thickness,
         group_inset,
         rect: component_rect(),
@@ -845,17 +941,95 @@ fn DockStack(dock: Handle) -> NodeId {
         set_panel.set(shown.get().map(|tab| dock.panel(tab)));
     }));
     let vacant = create_memo(clone!(shown -> move || shown.get().is_none()));
-    let occupied = create_memo(move || shown.get().is_some());
+    let occupied = create_memo(clone!(shown -> move || shown.get().is_some()));
+    let home = dock.home.clone();
+    let away = create_memo(clone!(shown home -> move || {
+        home.get().is_some_and(|home| shown.get().is_some_and(|shown| shown != home))
+    }));
+    let going = dock.clone();
+    let bar = dock
+        .stack
+        .clone()
+        .map(|stack| stack.call(stack_handle(&dock, shown, away.clone())));
+    on_cleanup(move || {
+        if let Some(bar) = bar {
+            try_with_document(|document| document.remove_node(bar));
+        }
+    });
+    let barred = create_memo(clone!(occupied -> move || bar.is_some() && occupied.get()));
     let empty = dock.empty.clone();
     view! {
-        <List spacing=0.0>
-            <Show condition={vacant}>
-                {empty.call(())} @sizing=ItemSize::Percent(100.0)
-            </Show>
-            <Show condition={occupied}>
-                <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
-            </Show>
-        </List>
+        <BackHandler
+            enabled={away}
+            on_back={move || {
+                if let Some(home) = going.home.get_untracked() {
+                    going.show(home);
+                }
+            }}
+        >
+            <List spacing=0.0>
+                <Show condition={barred}>
+                    <Portal node={bar} />
+                </Show>
+                <Show condition={vacant}>
+                    {empty.call(())} @sizing=ItemSize::Percent(100.0)
+                </Show>
+                <Show condition={occupied}>
+                    <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
+                </Show>
+            </List>
+        </BackHandler>
+    }
+}
+
+fn stack_handle(dock: &Handle, shown: Memo<Option<TabId>>, away: Memo<bool>) -> DockStackHandle {
+    let titled = dock.clone();
+    let title = create_memo(clone!(shown -> move || {
+        shown.get().map(|tab| titled.title(tab)).unwrap_or_default()
+    }));
+    let pictured = dock.clone();
+    let icon = create_memo(clone!(shown -> move || {
+        shown.get().map(|tab| pictured.icon(tab)).unwrap_or_default()
+    }));
+    let state = dock.state.clone();
+    let home = dock.home.clone();
+    let tabs = create_memo(clone!(home -> move || {
+        let home = home.get();
+        state.with(|state| {
+            state
+                .recent_tabs()
+                .into_iter()
+                .filter(|tab| Some(*tab) != home)
+                .collect::<Vec<_>>()
+        })
+    }));
+    let actions = dock.actions.clone();
+    let slot = create_memo(clone!(shown -> move || {
+        let shown = shown.get()?;
+        actions.with(|actions| actions.get(&shown).copied())
+    }));
+    let titles = dock.clone();
+    let icons = dock.clone();
+    let back = dock.clone();
+    let show = dock.clone();
+    let close = dock.clone();
+    DockStackHandle {
+        shown,
+        title,
+        icon,
+        home,
+        away,
+        tabs,
+        actions: slot,
+        titles: Func::new(move |tab| titles.title(tab)),
+        icons: Func::new(move |tab| icons.icon(tab)),
+        back: ClickCallback::new(move || {
+            if let Some(home) = back.home.get_untracked() {
+                back.show(home);
+            }
+        }),
+        show: Func::new(move |tab| show.show(tab)),
+        close: Func::new(move |tab| close.close_stacked(tab)),
     }
 }
 
@@ -1190,6 +1364,8 @@ fn DockPaneGrip(dock: Handle, leaf: LeafId, vertical: bool, focused: Memo<bool>)
     });
     let named = dock.clone();
     let title = create_memo(move || named.dragged_title(DockDragged::Pane(leaf)));
+    let pictured = dock.clone();
+    let icon = create_memo(move || pictured.dragged_icon(DockDragged::Pane(leaf)));
     let preview = dock.preview.clone();
     let carried = dock.clone();
     view! {
@@ -1200,6 +1376,7 @@ fn DockPaneGrip(dock: Handle, leaf: LeafId, vertical: bool, focused: Memo<bool>)
             preview={move |dragged: DockDragged| preview.call(DockPreviewHandle {
                 dragged,
                 title: title.clone(),
+                icon: icon.clone(),
             })}
             on_drag_change={move |dragging: bool| match dragging {
                 true => carried.begin_drag(DockDragged::Pane(leaf)),
@@ -1353,6 +1530,7 @@ fn DockTabView(
     } = handle;
     let state = dock.state.clone();
     let title = create_memo(clone!(dock -> move || dock.entry_title(entry)));
+    let icon = create_memo(clone!(dock -> move || dock.entry_icon(entry)));
     let tabs = create_memo(clone!(state -> move || state.with(|state| state.entry_tabs(entry))));
     let has_next = create_memo(clone!(state -> move || {
         state.with(|state| {
@@ -1405,6 +1583,7 @@ fn DockTabView(
         floating,
         vertical,
         title: title.clone(),
+        icon: icon.clone(),
         tabs,
         has_next,
         selected,
@@ -1431,6 +1610,7 @@ fn DockTabView(
             preview={move |dragged: DockDragged| preview.call(DockPreviewHandle {
                 dragged,
                 title: title.clone(),
+                icon: icon.clone(),
             })}
             on_drag_change={move |dragging: bool| match dragging {
                 true => carried.begin_drag(DockDragged::Entry(entry)),

@@ -326,16 +326,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.with_bar(closable, TopBar::Shown)
     }
 
-    pub fn with_phone_bar(self, open_files: u32) -> Self {
-        self.with_bar(false, TopBar::Phone { open_files })
-    }
-
     pub fn on_phone(self) -> Self {
-        self.on_phone_with_files(0)
-    }
-
-    pub fn on_phone_with_files(self, open_files: u32) -> Self {
-        self.with_bar(false, TopBar::PhoneHidden { open_files })
+        self.with_bar(false, TopBar::Phone { more: false })
     }
 
     fn with_bar(mut self, closable: bool, top_bar: TopBar) -> Self {
@@ -352,6 +344,16 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.place();
         self.run();
         self
+    }
+
+    pub fn set_more(&mut self, more: bool) {
+        let frame = self
+            .frame
+            .as_mut()
+            .expect("only an editor's frame has a bar");
+        frame.top_bar = TopBar::Phone { more };
+        self.place();
+        self.run();
     }
 
     pub fn set_chrome(&mut self, drawn: bool) {

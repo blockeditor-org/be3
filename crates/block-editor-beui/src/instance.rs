@@ -11,7 +11,7 @@ use block_editor_plugin::{
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect, wgpu};
-use block_plugin_api::{CursorIcon, ImeInput, InputEvent, PointerButton, TopBar, WheelUnit};
+use block_plugin_api::{CursorIcon, ImeInput, InputEvent, PointerButton, WheelUnit};
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar};
@@ -422,12 +422,8 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 let bar = FrameBar {
                     shown: drawn && (spec.top_bar.shown() || spec.content.is_some()),
                     closable: spec.content.is_some(),
-                    phone: match spec.top_bar {
-                        TopBar::Phone { open_files } => Some(open_files),
-                        TopBar::Hidden | TopBar::Shown | TopBar::PhoneHidden { .. } => None,
-                    },
                     on_phone: spec.top_bar.phone(),
-                    open_files: spec.top_bar.open_files(),
+                    more: spec.top_bar.more(),
                 };
                 let editor = views.editor.clone();
                 beui::reactive::with_reactive_scope(chrome.document_mut(), || {

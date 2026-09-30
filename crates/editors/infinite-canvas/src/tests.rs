@@ -108,7 +108,7 @@ fn open_sized(
         false => BeuiTest::new(editor),
     };
     let test = match size {
-        Some(size) => test.with_size(size).with_phone_bar(1),
+        Some(size) => test.with_size(size).on_phone(),
         None => test,
     };
     let mut harness = test.in_viewport();

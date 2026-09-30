@@ -31,11 +31,16 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
         .document()
         .find_test_id("content.3")
         .expect("the stacked dock shows the focused tab");
+    let bar = harness.rect(harness.find("dock.switch"));
     assert_eq!(
         harness.rect(third),
-        Rect::from_min_size(Pos2::ZERO, WIDE_VIEWPORT),
-        "the focused tab fills the whole dock"
+        Rect::from_min_max(
+            pos2(0.0, harness.rect(third).top()),
+            pos2(WIDE_VIEWPORT.x, WIDE_VIEWPORT.y)
+        ),
+        "the focused tab fills the dock below its bar"
     );
+    assert!(harness.rect(third).top() >= bar.bottom());
     assert!(
         harness.document().find_test_id("content.1").is_none(),
         "the pane beside it is not drawn"

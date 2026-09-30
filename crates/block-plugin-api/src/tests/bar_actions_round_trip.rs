@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn bar_actions_round_trip() {
-    for action in [BarAction::Back, BarAction::Switch, BarAction::Details] {
+    for action in [BarAction::CloseMore, BarAction::Details] {
         for message in [
             Message::Editor(EditorMessage::BarAction {
                 instance: EditorInstanceId(3),

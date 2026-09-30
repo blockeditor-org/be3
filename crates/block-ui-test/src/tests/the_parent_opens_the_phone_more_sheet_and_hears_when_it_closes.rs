@@ -40,29 +40,24 @@ fn text(test: &BeuiTest<ActionApp>, id: &str) -> String {
 }
 
 #[test]
-fn the_phone_bar_hands_back_and_switch_to_the_workspace() {
+fn the_parent_opens_the_phone_more_sheet_and_hears_when_it_closes() {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
     let mut test = BeuiTest::<ActionApp>::new(Editor::new(host, block))
         .with_size(Vec2::new(390.0, 800.0))
-        .with_phone_bar(3);
-    assert!(!test.shown("editor.name"), "a phone bar has no name field");
-
-    test.click("editor.back");
-    test.run();
-    test.click("editor.switch");
-    test.run();
-    test.click("editor.files");
-    test.run();
-    assert_eq!(
-        test.take_bar_actions(),
-        [BarAction::Back, BarAction::Switch, BarAction::Switch]
+        .on_phone();
+    assert!(
+        !test.shown("editor.name"),
+        "a phone draws no bar of its own"
     );
+    assert!(!test.shown("editor.more.rename"));
 
-    test.click("editor.more");
-    test.run();
-    assert!(test.shown("editor.more.rename"));
+    test.set_more(true);
+    assert!(
+        test.shown("editor.more.rename"),
+        "the parent opens the sheet"
+    );
     test.click("editor.more.item.0");
     test.run();
     assert_eq!(
@@ -70,16 +65,25 @@ fn the_phone_bar_hands_back_and_switch_to_the_workspace() {
         "tidy",
         "the editor's own item runs"
     );
+    assert!(
+        !test.shown("editor.more.rename"),
+        "running an item closes the sheet"
+    );
+    assert_eq!(test.take_bar_actions(), [BarAction::CloseMore]);
 
-    test.click("editor.more");
-    test.run();
+    test.set_more(false);
+    test.set_more(true);
     test.click("editor.more.rename");
     test.run();
     assert_eq!(test.take_block_commands(), [(block, BlockCommand::Rename)]);
+    assert_eq!(test.take_bar_actions(), [BarAction::CloseMore]);
 
-    test.click("editor.more");
-    test.run();
+    test.set_more(false);
+    test.set_more(true);
     test.click("editor.more.details");
     test.run();
-    assert_eq!(test.take_bar_actions(), [BarAction::Details]);
+    assert_eq!(
+        test.take_bar_actions(),
+        [BarAction::CloseMore, BarAction::Details]
+    );
 }
