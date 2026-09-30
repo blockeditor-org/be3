@@ -83,6 +83,7 @@ mod a_picture_scaled_down_never_grows_past_its_own_pixels;
 mod a_picture_shows_its_thumbhash_until_the_image_arrives;
 mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
+mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
 mod a_portal_shows_a_subtree_it_does_not_own;
 mod a_quick_flick_on_the_simulated_trackpad_moves_the_cursor_without_clicking;
 mod a_quick_tap_with_several_fingers_is_a_finger_tap;
@@ -365,10 +366,9 @@ mod the_caret_of_a_text_input_paints_two_points_wide;
 mod the_click_that_ends_autoscroll_presses_nothing;
 mod the_color_areas_thumb_shows_a_grab_cursor;
 mod the_components_tab_lists_components_instead_of_base_nodes;
-mod the_demo_body_scrolls_rather_than_spilling_off_a_small_window;
-mod the_demo_catalog_survives_switching_tabs;
-mod the_dock_demo_leaves_a_pane_saying_nothing_is_open;
-mod the_dock_demo_opens_a_paper_from_the_files_it_lists;
+mod the_demo_leaves_a_pane_saying_nothing_is_open;
+mod the_demo_opens_every_page_from_its_catalog;
+mod the_demo_pages_scroll_rather_than_spilling_off_a_small_window;
 mod the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it;
 mod the_frame_output_reports_the_region_whose_shapes_changed;
 mod the_innermost_drop_target_that_accepts_the_payload_takes_the_drop;
@@ -1339,6 +1339,33 @@ pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::S
     );
     harness.frame(Vec::new());
     unstyled::dock_state(harness.document(), dock).windows()[0]
+}
+
+pub(crate) fn open_demo_page(harness: &mut Harness, title: &str) {
+    const REVEAL_TICKS: usize = 40;
+    const REVEAL_STEP: f32 = 120.0;
+    const CATALOG_X: f32 = 40.0;
+    let test_id = format!("demo.catalog.{title}");
+    for _ in 0..REVEAL_TICKS {
+        let row = harness
+            .document()
+            .find_test_id(&test_id)
+            .unwrap_or_else(|| panic!("the catalog lists {title}"));
+        let bottom = harness.viewport.y;
+        match harness.document().node_rect(row) {
+            Some(rect) if rect.bottom() <= bottom => {
+                harness.click(rect.center());
+                harness.frame(Vec::new());
+                return;
+            }
+            _ => harness.scroll(
+                pos2(CATALOG_X, bottom / 2.0),
+                Vec2::new(0.0, -REVEAL_STEP),
+                Modifiers::NONE,
+            ),
+        }
+    }
+    panic!("the catalog never scrolled {title} into view");
 }
 
 pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Option<NodeId> {
