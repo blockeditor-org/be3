@@ -14,6 +14,7 @@ pub fn Overlay(
     #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
     #[prop(default = true)] traps_focus: Prop<bool>,
     #[prop(default = false)] light: Prop<bool>,
+    trigger: Option<NodeRef>,
     #[prop(default = OverlayMode::Modal)] mode: Prop<OverlayMode>,
     open: Prop<bool>,
     on_dismiss: ClickCallback,
@@ -25,6 +26,7 @@ pub fn Overlay(
         if let Some(content) = content {
             document.set_overlay_content(overlay, content);
         }
+        document.set_overlay_trigger(overlay, trigger);
         if !on_dismiss.is_empty() {
             document.set_overlay_on_dismiss(overlay, move || on_dismiss.call());
         }

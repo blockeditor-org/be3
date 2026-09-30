@@ -191,6 +191,7 @@ pub fn interact(
             ..input
         },
     };
+    let engaged_before = doc.engaged.clone();
     let reach = Reach::new(doc, rects, &input);
     doc.interact_pass += 1;
     let mut pool = doc.take_interact_pool();
@@ -273,6 +274,7 @@ pub fn interact(
         );
     }
     doc.put_back_interact_pool(pool);
+    disengage_unreached(doc, engaged_before);
     autoscroll::show_cursor(doc, ctx);
 
     if pointer
@@ -660,6 +662,18 @@ fn interact_node(
     }
     children.clear();
     pool.push(children);
+}
+
+fn disengage_unreached(doc: &mut Document, engaged: Vec<NodeId>) {
+    let pass = doc.interact_pass;
+    for id in engaged {
+        if !doc.arena.contains(id) || doc.interacted.get(&id) == Some(&pass) {
+            continue;
+        }
+        let mut element = doc.arena.take(id);
+        element.disengage(doc);
+        doc.arena.put_back(id, element);
+    }
 }
 
 fn touch_shift(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Vec2 {

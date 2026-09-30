@@ -133,6 +133,7 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
                 <DockArea
                     @sizing=ItemSize::Percent(100.0)
                     state={state}
+                    inset=false
                     title={title}
                     closable={Func::new(|tab: TabId| tab != WORKSPACE)}
                     on_change={move |next: DockState| set_state.set(next)}

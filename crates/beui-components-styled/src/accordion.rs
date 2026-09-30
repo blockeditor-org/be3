@@ -2,21 +2,22 @@ use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
-use crate::theme::{FONT_HEADING, FONT_SMALL, RADIUS, ThemeStore, use_theme};
+use crate::text::IconSized;
+use crate::theme::{FONT_HEADING, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::DisclosureHandle;
 use beui_core::base::TextAlign;
 use beui_core::document::Document;
+use beui_core::icons::{ICON_EXPAND_LESS, ICON_EXPAND_MORE};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Align, Callback, Child, Direction, Frame, ItemSize, List, Memo, Prop, Text, clone, create_memo,
     focus_ring,
 };
 
-const SPACING: f32 = 10.0;
-const MARKER_WIDTH: f32 = 12.0;
-const PADDING_HORIZONTAL: f32 = 6.0;
-const PADDING_VERTICAL: f32 = 4.0;
+const SPACING: f32 = 8.0;
+const PADDING_HORIZONTAL: f32 = 8.0;
+const PADDING_VERTICAL: f32 = 6.0;
 
 #[component]
 pub fn Accordion(
@@ -35,7 +36,7 @@ pub fn Accordion(
             }}
             open
         >
-            {children}
+            <Frame padding_horizontal=PADDING_HORIZONTAL>{children}</Frame>
         </unstyled::Disclosure>
     }
 }
@@ -65,15 +66,6 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
             padding_vertical=PADDING_VERTICAL
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Frame width=MARKER_WIDTH>
-                    <Text
-                        string={marker_glyph}
-                        font_size=FONT_SMALL
-                        color={marker_color}
-                        monospace=true
-                        align=TextAlign::Center
-                    />
-                </Frame>
                 <Text
                     @sizing=ItemSize::Percent(100.0)
                     string={title}
@@ -81,6 +73,7 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
                     color={title_color}
                     align=TextAlign::Start
                 />
+                <IconSized glyph={marker_glyph} font_size=FONT_HEADING color={marker_color} />
             </List>
         </Frame>
     }
@@ -91,7 +84,11 @@ pub fn accordion_open(document: &Document, accordion: NodeId) -> bool {
 }
 
 fn glyph(open: bool) -> &'static str {
-    if open { "-" } else { "+" }
+    if open {
+        ICON_EXPAND_LESS
+    } else {
+        ICON_EXPAND_MORE
+    }
 }
 
 fn header_fill(theme: &ThemeStore, hovered: bool) -> Color32 {

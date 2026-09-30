@@ -12,7 +12,7 @@ use beui::{Align, Direction, ItemSize, NodeId, vec2};
 use crate::clients::{ClientSignals, Clients, Command, LAUNCHER, tab_of, window_of};
 use crate::state::WindowId;
 
-const SHELL_PADDING: f32 = 8.0;
+const DOCK_INSET: f32 = 8.0;
 const PANEL_PADDING: f32 = 14.0;
 const SPACING: f32 = 8.0;
 
@@ -27,17 +27,10 @@ pub fn Workspace(clients: Clients) -> NodeId {
     let area = clients.clone();
     create_effect(move || {
         let size = rect.get().size();
-        area.set_area(vec2(
-            size.x - 2.0 * SHELL_PADDING,
-            size.y - 2.0 * SHELL_PADDING,
-        ));
+        area.set_area(vec2(size.x - 2.0 * DOCK_INSET, size.y - 2.0 * DOCK_INSET));
     });
     view! {
-        <Frame
-            color={theme.background.clone()}
-            padding_horizontal=SHELL_PADDING
-            padding_vertical=SHELL_PADDING
-        >
+        <Frame color={theme.background.clone()}>
             <DockArea
                 state
                 title
