@@ -614,7 +614,15 @@ impl Document {
         let element = self.arena.get(id);
         let borrowed = element.borrowed();
         let children = element.children();
+        let held: Vec<NodeId> = borrowed
+            .iter()
+            .copied()
+            .filter(|child| self.portal_holders.get(child) == Some(&id))
+            .collect();
         self.release_portal(id, &borrowed);
+        for child in held {
+            self.forget_placement(child);
+        }
         for child in children {
             if borrowed.contains(&child) {
                 continue;
