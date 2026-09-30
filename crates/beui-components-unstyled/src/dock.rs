@@ -255,10 +255,12 @@ impl State {
     fn dragged_icon(&self, dragged: DockDragged) -> String {
         match dragged {
             DockDragged::Entry(entry) => self.entry_icon(entry),
-            DockDragged::Pane(leaf) => match self.state.with(|state| state.entries(leaf)).as_slice() {
-                [entry] => self.entry_icon(*entry),
-                _ => String::new(),
-            },
+            DockDragged::Pane(leaf) => {
+                match self.state.with(|state| state.entries(leaf)).as_slice() {
+                    [entry] => self.entry_icon(*entry),
+                    _ => String::new(),
+                }
+            }
         }
     }
 
@@ -945,7 +947,10 @@ fn DockStack(dock: Handle) -> NodeId {
         home.get().is_some_and(|home| shown.get().is_some_and(|shown| shown != home))
     }));
     let going = dock.clone();
-    let bar = dock.stack.clone().map(|stack| stack.call(stack_handle(&dock, shown, away.clone())));
+    let bar = dock
+        .stack
+        .clone()
+        .map(|stack| stack.call(stack_handle(&dock, shown, away.clone())));
     on_cleanup(move || {
         if let Some(bar) = bar {
             try_with_document(|document| document.remove_node(bar));

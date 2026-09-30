@@ -100,7 +100,11 @@ pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>)
                         />
                     </Show>
                     <Frame @sizing=ItemSize::Percent(100.0) padding_horizontal=TITLE_PADDING>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=TITLE_SPACING
+                        >
                             <Show condition={pictured}>
                                 <Icon glyph={icon} color={theme.accent.clone()} />
                             </Show>
