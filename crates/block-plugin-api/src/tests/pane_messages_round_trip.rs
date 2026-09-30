@@ -39,6 +39,7 @@ fn pane_messages_round_trip() {
                 panes: vec![PaneInfo {
                     pane: PaneId(1),
                     title: "Files".into(),
+                    icon: "folder".into(),
                     closable: false,
                 }],
                 tree: tree.clone(),

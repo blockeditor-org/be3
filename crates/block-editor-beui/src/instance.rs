@@ -342,6 +342,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
                 .map(|tab| PaneInfo {
                     pane: pane_of(*tab),
                     title: link.title.call(*tab),
+                    icon: link.icon.call(*tab),
                     closable: link.closable.call(*tab),
                 })
                 .collect()

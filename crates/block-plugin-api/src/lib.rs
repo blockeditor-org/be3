@@ -448,6 +448,7 @@ pub struct PaneTree {
 pub struct PaneInfo {
     pub pane: PaneId,
     pub title: String,
+    pub icon: String,
     pub closable: bool,
 }
 
@@ -2408,7 +2409,8 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         } => {
             collection(layout.panes.len())?;
             collection(layout.tree.items.len())?;
-            strings(layout.panes.iter().map(|pane| &pane.title))
+            strings(layout.panes.iter().map(|pane| &pane.title))?;
+            strings(layout.panes.iter().map(|pane| &pane.icon))
         }
         EditorMessage::PanesArranged { tree, detached, .. } => {
             collection(tree.items.len())?;

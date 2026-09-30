@@ -321,6 +321,11 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
         (None, Some(pane)) => titled(pane).map(|info| info.title).unwrap_or_default(),
         (None, None) => named.get().workspace,
     });
+    let pictured = info.clone();
+    let icon = Func::new(move |tab: TabId| match tab_pane(tab) {
+        Some(pane) => pictured(pane).map(|info| info.icon).unwrap_or_default(),
+        None => String::new(),
+    });
     let grouped = docked.clone();
     let group_title = Func::new(move |group: GroupId| {
         (grouped.group.get() == Some(group)).then(|| status.get().workspace)
@@ -339,6 +344,7 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
                     @sizing=ItemSize::Percent(100.0)
                     state={state}
                     title={title}
+                    icon={icon}
                     group_title={group_title}
                     closable={closable}
                     on_change={move |next: DockState| set_state.set(next)}

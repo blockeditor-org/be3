@@ -19,6 +19,7 @@ fn layout(panes: &[u64], arrangement: u64) -> PaneLayout {
             .map(|pane| PaneInfo {
                 pane: PaneId(*pane),
                 title: format!("Pane {pane}"),
+                icon: String::new(),
                 closable: true,
             })
             .collect(),
