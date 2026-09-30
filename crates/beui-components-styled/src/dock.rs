@@ -37,6 +37,7 @@ const FOCUS_RING_WIDTH: f32 = 2.0;
 pub const CHROME_BORDER: f32 = 2.0;
 const GROUP_GLYPH: f32 = 16.0;
 const GROUP_INSET: f32 = 6.0;
+const DOCK_INSET: f32 = 8.0;
 const DROP_ALPHA: u8 = 64;
 const PREVIEW_ALPHA: u8 = 235;
 
@@ -51,9 +52,15 @@ pub fn DockArea(
     closable: Option<Func<TabId, bool>>,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] home: Prop<Option<TabId>>,
+    #[prop(default = true)] inset: Prop<bool>,
     empty: Option<RenderFn<()>>,
     #[prop(children)] content: RenderFn<TabId>,
 ) -> NodeId {
+    let mode = create_memo(move || mode.get());
+    let padding = create_memo(clone!(mode -> move || match (inset.get(), mode.get()) {
+        (true, DockMode::Tiled) => DOCK_INSET,
+        (false, _) | (_, DockMode::Stacked) => 0.0,
+    }));
     let closable = closable.unwrap_or_else(|| Func::new(|_| true));
     let group_title = group_title.unwrap_or_else(|| Func::new(|_| None));
     let icon = icon.unwrap_or_else(|| Func::new(|_| String::new()));
@@ -70,6 +77,7 @@ pub fn DockArea(
             group_title
             mode
             home
+            inset={padding}
             group_inset=GROUP_INSET
             on_change={move |state: DockState| on_change.call(state)}
             on_close={move |tab: TabId| on_close.call(tab)}

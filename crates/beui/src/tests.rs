@@ -1319,6 +1319,7 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
             <styled::DockArea
                 @node_ref=&built
                 state={state}
+                inset=false
                 title={Func::new(|tab: unstyled::TabId| format!("Tab {}", tab.value()))}
                 on_change={move |next: unstyled::DockState| set_state.set(next)}
                 on_close={move |_: unstyled::TabId| {}}
@@ -1519,6 +1520,7 @@ fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
     );
     counts
 }
+mod a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back;
 mod a_change_inside_a_fixed_size_frame_lays_out_only_that_frame;
 mod a_clean_panel_is_not_laid_out_again_when_the_one_beside_it_changes;
 mod a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes;
@@ -1528,8 +1530,10 @@ mod a_panel_taken_out_of_its_list_gives_up_its_rectangle_and_damages_it;
 mod a_scroll_only_re_measures_the_row_that_changed;
 mod accordion_headers_are_keyboard_operable_and_skip_collapsed_content;
 mod activation_requires_a_matching_release_and_escape_cancels_it;
+mod arrow_keys_walk_a_tree_after_its_chevron_is_clicked_and_enter_selects;
 mod clicking_a_button_focuses_it_without_a_ring_until_a_key_is_pressed;
 mod clicking_a_choice_keeps_keyboard_focus_on_the_selected_option;
+mod clicking_a_popover_trigger_again_closes_it;
 mod copy_and_cut_export_only_selected_text_and_cut_can_be_undone;
 mod dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection;
 mod empty_choices_and_invalid_selection_do_not_break_tab_navigation;
@@ -1545,6 +1549,7 @@ mod list_rows_and_pressables_activate_from_the_keyboard;
 mod listbox_navigation_reveals_options_inside_a_tall_scroll_item;
 mod listbox_typeahead_matches_prefixes_and_cycles_repeated_letters;
 mod losing_window_focus_cancels_a_held_activation_key;
+mod moving_off_a_context_menu_item_clears_its_highlight;
 mod performance_measurements_report_what_the_frame_reused;
 mod radio_groups_select_with_space_and_arrows_without_leaving_the_group;
 mod resizing_scaling_and_replacing_the_root_invalidate_the_cache;
@@ -1557,6 +1562,7 @@ mod tabs_have_one_tab_stop_and_wrap_with_arrow_keys;
 mod text_laid_out_to_an_alignment_indents_each_line_to_it;
 mod text_that_does_not_fit_ends_in_an_ellipsis;
 mod the_edge_two_rows_share_hovers_only_the_lower_one;
+mod the_emoji_menu_opens_below_the_caret_on_a_line_it_opened_on_before;
 mod the_menu_of_a_selectable_text_copies_what_is_selected;
 mod unchanged_input_reuses_layout_and_paint;
 

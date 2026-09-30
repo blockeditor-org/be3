@@ -165,16 +165,18 @@ way for the test to fail.
   at all.
 - ./scripts/buck run //crates/paint-snapshot:rasterize-example -- snapshots/<crate>.<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
-  to write. It is for a person looking at a painting on the machine that made it; the review
-  that matters still happens in a Paint review block.
-- Regenerating them is cheap and mechanical - a change to beui's renderer rewrites every one - so a
-  changed painting is not by itself a failure to explain, and there is nothing in it for you
-  to look at. Say in your handoff which paintings changed and why, and leave the images
-  alone.
-- The exception is a painting you cannot account for: if you do not know why one changed,
-  restore the committed file and run the tests without UPDATE_SNAPSHOTS - git restore
-  snapshots/ && ./scripts/buck run //:verify -- --check --plugin-tests - and the failure says which frame
-  changed and what moved in it, which is what you needed rather than the image.
+  to write.
+- Regenerating them is cheap and mechanical - a change to beui's renderer rewrites every one - so
+  you do not need to review or explain changed paintings. They show up on the pull request,
+  and a person reviews them there before merging. Leave the images alone.
+- The exception is a painting you did not expect to change: if your change should not have
+  touched it, find out why it changed.
+  ./scripts/buck run //crates/paint-snapshot:changed-example says, for every painting in
+  snapshots/ that differs from HEAD, which frame changed and what moved in it. With
+  -- --images it also writes them into target/changed-paintings as PNGs - a before, an after
+  and a changes image for every frame that differs, where magenta marks every pixel that
+  differs - and prints which is which. --base compares against another revision, and
+  --images takes a folder to write to in place of target/changed-paintings.
 
 A beui document that is not an editor - beui's demo, say - is painted the same way through
 block_ui_test::DocumentTest, which drives the document itself with only the fonts beui
@@ -215,7 +217,7 @@ While working on one editor, run its tests alone:
 
 The first compares, the second accepts. A panic aborts a wasm guest, so a failing test ends
 its binary's run; the runner then lists the tests and runs each in an instance of its own, and
-reports every one that failed. A single test is a filter handed through to the
+reports every one that failed, each with its panic message, at the end of the output. A single test is a filter handed through to the
 test binary: ./scripts/buck test //crates/editors/checklist:test -- --test-arg some_test_name.
 
 Cranelift compiles each test module once, as an action of its own, and leaves the machine

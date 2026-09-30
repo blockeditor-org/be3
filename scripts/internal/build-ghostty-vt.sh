@@ -51,6 +51,49 @@ if [[ -z "$triple" ]]; then
     exit 1
 fi
 
+# ziglang.org is one small server that asks automation to download Zig from
+# the community mirrors it lists instead
+# (https://ziglang.org/download/community-mirrors/), in a random order so that
+# no one mirror takes all of it. Downloaded from ziglang.org, the tarball alone
+# took minutes, on every worker that built this without a cached archive. The
+# list changes from month to month, so it is read afresh, and the copy here is
+# only for when ziglang.org cannot be reached for it. The mirrors are not
+# trusted: ziglang.org asks for each tarball's minisign signature to be checked,
+# and the sha256 pinned above, from its own index, is the stricter form of the
+# same check, since it accepts exactly one file.
+zig_mirror_list='https://ziglang.org/download/community-mirrors.txt'
+zig_mirrors_fallback='https://pkg.hexops.org/zig
+https://zigmirror.hryx.net/zig
+https://zig.linus.dev/zig
+https://zig.squirl.dev
+https://zig.mirror.mschae23.de/zig
+https://ziglang.freetls.fastly.net
+https://zig.tilok.dev
+https://zig-mirror.tsimnet.eu/zig
+https://zig.karearl.com/zig
+https://pkg.earth/zig
+https://fs.liujiacai.net/zigbuilds
+https://zigmirror.com
+https://zig.chainsafe.dev
+https://zig.savalione.com
+https://zig.bcr.ist
+https://zig.vortan.dev/zig
+https://pkg.alexrp.com/zig'
+
+zig_mirrors() {
+    local list
+    if list="$(curl --fail --silent --location --proto '=https' --proto-redir '=https' \
+        --max-time 15 "$zig_mirror_list")" && [[ -n "$list" ]]; then
+        printf '%s\n' "$list" | grep '^https://[^[:space:]]*$' || printf '%s\n' "$zig_mirrors_fallback"
+    else
+        printf '%s\n' "$zig_mirrors_fallback"
+    fi
+}
+
+shuffle_lines() {
+    awk -v seed="$RANDOM" 'BEGIN { srand(seed) } { print rand() "\t" $0 }' | sort -n | cut -f2-
+}
+
 # Leaves the zig to build with in $zig: the one on PATH if it is the pinned
 # release, and otherwise that release, downloaded once into target/tools. Only
 # the platforms Zig ships a tarball for are fetched; anywhere else, saying what
@@ -97,14 +140,19 @@ ensure_zig() {
 
     assert_command curl 'Install curl, or install Zig yourself from https://ziglang.org/download.'
     assert_command tar 'Install tar, or install Zig yourself from https://ziglang.org/download.'
-    local url="https://ziglang.org/download/$zig_version/$name.tar.xz"
-    local archive="$tools/$name.tar.xz"
-    echo "Downloading Zig $zig_version from $url..." >&2
+    local file="$name.tar.xz"
+    local archive="$tools/$file"
     mkdir -p "$tools"
     # The extraction is into a directory named after the release, so an
     # interrupted one leaves nothing that a later run would take for complete.
     rm -rf "$directory" "$archive"
-    download_verified "$url" "$archive" "$sha256"
+    local mirrors=() mirror
+    while read -r mirror; do
+        mirrors+=("$mirror/$file?source=be3")
+    done < <(zig_mirrors | shuffle_lines)
+    echo "Downloading Zig $zig_version from a community mirror..." >&2
+    download_verified_from_mirrors "https://ziglang.org/download/$zig_version/$file" \
+        "$archive" "$sha256" "${mirrors[@]}"
     tar -xJf "$archive" -C "$tools"
     rm "$archive"
     if [[ ! -x "$zig" ]]; then
