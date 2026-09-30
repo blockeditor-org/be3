@@ -291,6 +291,14 @@ impl Element for ClickCatcherNode {
             || self.secondary_dragged.is_some()
     }
 
+    fn disengage(&mut self, _doc: &mut Document) {
+        self.hover_pos = None;
+        if self.hovered {
+            self.hovered = false;
+            self.on_hover_change.call(false);
+        }
+    }
+
     fn captures(&mut self, _doc: &mut Document, pos: Pos2, rect: Rect) -> bool {
         (self.capture_presses && rect.contains_half_open(pos)) || self.capture_at.call(pos)
     }

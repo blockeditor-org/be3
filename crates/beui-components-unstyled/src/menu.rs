@@ -224,10 +224,15 @@ fn MenuRow(
         let (row, state, item) = (row.clone(), state.clone(), item);
         move |handle: ButtonHandle| {
             let hovered = handle.hovered.clone();
+            let mut was_hovered = false;
             create_effect(move || {
-                if hovered.get() {
-                    hover_row(&state, index);
+                let hovering = hovered.get();
+                match (was_hovered, hovering) {
+                    (_, true) => hover_row(&state, index),
+                    (true, false) => leave_row(&state, index),
+                    (false, false) => {}
                 }
+                was_hovered = hovering;
             });
             row.call(MenuRowHandle {
                 label: item.label.clone().into_prop(),
@@ -375,6 +380,17 @@ fn hover_row(state: &State, index: usize) {
         return;
     }
     focus_row(state, index);
+}
+
+fn leave_row(state: &State, index: usize) {
+    let open = state
+        .rows
+        .borrow()
+        .get(index)
+        .is_some_and(|row| row.submenu.open.get_untracked());
+    if !open && state.focus.get_untracked() == Focus::Row(index) {
+        state.set_focus.set(Focus::Root);
+    }
 }
 
 fn focus_row(state: &State, index: usize) {

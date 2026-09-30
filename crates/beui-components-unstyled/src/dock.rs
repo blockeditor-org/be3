@@ -811,6 +811,7 @@ pub fn Dock(
     #[prop(default = None)] home: Prop<Option<TabId>>,
     #[prop(default = SPLITTER_THICKNESS)] splitter_thickness: f32,
     #[prop(default = 0.0)] group_inset: f32,
+    #[prop(default = 0.0)] inset: Prop<f32>,
     tab: RenderFn<DockTabHandle>,
     #[prop(children)] content: RenderFn<TabId>,
     empty: Option<RenderFn<()>>,
@@ -915,19 +916,27 @@ pub fn Dock(
     let mode = create_memo(move || mode.get());
     view! {
         <List spacing=0.0>
-            <Dynamic value={mode}>
-                {move |mode: DockMode| {
-                    let dock = dock.clone();
-                    match mode {
-                        DockMode::Tiled => view! {
-                            <DockTiles dock @sizing=ItemSize::Percent(100.0) />
-                        },
-                        DockMode::Stacked => view! {
-                            <DockStack dock @sizing=ItemSize::Percent(100.0) />
-                        },
-                    }
-                }}
-            </Dynamic>
+            <Frame
+                @sizing=ItemSize::Percent(100.0)
+                padding_horizontal={inset.clone()}
+                padding_vertical={inset}
+            >
+                <List spacing=0.0>
+                    <Dynamic value={mode}>
+                        {move |mode: DockMode| {
+                            let dock = dock.clone();
+                            match mode {
+                                DockMode::Tiled => view! {
+                                    <DockTiles dock @sizing=ItemSize::Percent(100.0) />
+                                },
+                                DockMode::Stacked => view! {
+                                    <DockStack dock @sizing=ItemSize::Percent(100.0) />
+                                },
+                            }
+                        }}
+                    </Dynamic>
+                </List>
+            </Frame>
         </List>
     }
 }

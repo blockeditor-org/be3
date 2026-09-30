@@ -394,6 +394,7 @@ fn RowText(
     let item_model = model.clone();
     let anchor = cx.anchor;
     let anchor_position = create_memo(clone!(anchor_at -> move || anchor_at.get()));
+    let anchor_node = create_memo(clone!(anchored -> move || anchored.get().then_some(anchor)));
     view! {
         <Text
             @node_ref=&node
@@ -418,11 +419,11 @@ fn RowText(
                 }}
             </ForEach>
             <Show condition={anchored}>
-                {move || view! {
-                    <TextItem at={anchor_position.clone()}>
-                        <Portal node={Some(anchor)} />
+                {move || clone!(anchor_position anchor_node -> view! {
+                    <TextItem at={anchor_position}>
+                        <Portal node={anchor_node} />
                     </TextItem>
-                }}
+                })}
             </Show>
         </Text>
     }

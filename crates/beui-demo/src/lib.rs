@@ -35,7 +35,6 @@ use text_editor_core::{EditorCommand, MarkdownCommand, TextBuffer, TextLanguage}
 const CATALOG: TabId = TabId::new(1);
 const PAGE_SHARE: f32 = 0.76;
 const SHELL_PADDING: f32 = 10.0;
-const SHELL_SPACING: f32 = 10.0;
 const TOOLBAR_SPACING: f32 = 8.0;
 const CATALOG_PADDING: f32 = 4.0;
 const CATALOG_SPACING: f32 = 10.0;
@@ -315,13 +314,11 @@ fn DemoShell() -> NodeId {
     let catalog_state = set_state.clone();
     let toolbar_state = set_state.clone();
     view! {
-        <Frame
-            color={theme.background.clone()}
-            padding_horizontal=SHELL_PADDING
-            padding_vertical=SHELL_PADDING
-        >
-            <List spacing=SHELL_SPACING>
-                <DemoToolbar set_state=toolbar_state mobile set_mobile />
+        <Frame color={theme.background.clone()}>
+            <List spacing=0.0>
+                <Frame padding_horizontal=SHELL_PADDING padding_vertical=SHELL_PADDING>
+                    <DemoToolbar set_state=toolbar_state mobile set_mobile />
+                </Frame>
                 <Separator />
                 <DockArea
                     @sizing=ItemSize::Percent(100.0)
@@ -1615,7 +1612,7 @@ fn TreePage() -> NodeId {
         <ScrollPage>
             <Section title="Tree">
                 <Caption
-                    content="Arrow keys walk the tree; a chevron or an arrow key opens and closes a folder"
+                    content="Arrow keys walk the tree and Enter selects; a chevron or an arrow key opens and closes a folder"
                     wrap=true
                 />
                 <Tree

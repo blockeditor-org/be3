@@ -147,6 +147,7 @@ pub fn Popover(
                 anchor=&anchor
                 placement
                 light=true
+                trigger={trigger_ref.clone()}
                 open={open.clone()}
                 on_dismiss={clone!(open set_open -> move || {
                     let was_open = open.get_untracked();

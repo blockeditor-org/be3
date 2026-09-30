@@ -626,7 +626,8 @@ first time it opens, that traps Tab, closes on Escape, a press outside or its
 handle's `close`, and gives the focus back to the trigger when it closes. It
 dims nothing, so it is a `light` overlay: the pointer goes on hovering the
 document around it, and a press outside closes it and then lands on whatever
-was pressed. What
+was pressed - except a press on its own trigger, the overlay's `trigger`, which
+is left to the trigger so a second click closes it rather than reopening it. What
 it holds decides where the focus lands when it opens, by binding a `focused`
 prop to the handle's `open`, as the calendar, the time list and the color area
 all take.
@@ -735,7 +736,10 @@ where a pointer has to land to select it is the face's business, because a
 face that draws a chevron of its own outside the name wants pressing the
 chevron, the indent beside it and the name to mean three different things. The
 handle carries `select`, `toggle` and `hover` for the face to call from
-wherever it decides they belong.
+wherever it decides they belong. The arrow keys, Home, End and typing move the
+keyboard between rows without selecting them, and Enter or Space selects the
+row it is on; `selection_follows_focus` makes every move select, as the beui
+inspector does. `toggle` puts the keyboard on its row too.
 
 `styled::Tree` is the face that split was made for, and the one app code
 reaches for. It draws the indent, a chevron that is a button of its own -
@@ -801,8 +805,10 @@ body instead of a panel; `empty_panes` finds them and `remove_empty_panes`
 gives their room back, which is how the workspace keeps an empty pane beside
 Files that says nothing is open rather than a tab that says so.
 
+Tiled, `DockArea` keeps its panes inset from its own edges; `inset=false` lets
+them reach the edges, for a dock that already sits inside a pane of another.
 `mode=DockMode::Stacked` draws the same state as one screen: the focused tab
-fills the dock with no tab bars, splitters or windows, and everything else in
+fills the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
 the state is kept, so switching back to `DockMode::Tiled` restores the layout.
 The dock draws the stacked screen's bar itself: the tab's icon and title, a
 square counting the open tabs other than home, which opens a sheet of cards to

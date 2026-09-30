@@ -93,6 +93,8 @@ pub trait Element: Any {
         false
     }
 
+    fn disengage(&mut self, _doc: &mut Document) {}
+
     fn captures(&mut self, _doc: &mut Document, _pos: Pos2, _rect: Rect) -> bool {
         false
     }
