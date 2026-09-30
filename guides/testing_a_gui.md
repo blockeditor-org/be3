@@ -29,7 +29,10 @@ it an icon, or moving it to a sidebar then leaves the tests alone.
 named node was laid out at, which is what block-ui-test clicks. Name them
 `<editor>.<what it does>`, and where there are many of a kind, key them by whatever the
 block itself keys them by (`checklist.item.{id}.done`, where `id` is the item's `ObjectId`,
-the same id the edit names), never by the order they happen to be drawn in.
+the same id the edit names), never by the order they happen to be drawn in. An id names one node in the tree:
+a copy hidden by a Show, a panel a dock is not showing, or a closed overlay does not count, and
+two nodes in the tree with the same id fail the test that asks for it, so a control drawn in two
+places (a toolbar and a dock, say) gives each copy its own id.
 
 3. Write the test
 
@@ -118,8 +121,9 @@ the pan, zoom and fit the editor asks for, fitting the content until the first o
 arrives. An editor that is not in a viewport is told nothing about a view and fills its
 region, which is what an editor without that capability does anyway.
 
-The region is 800 by 600 points at a scale factor of 1; with_scale_factor(2.0) draws it the
-way a high-density screen does.
+The region is 800 by 600 points at a scale factor of 1; with_size(Vec2::new(390.0, 800.0))
+places it the size of a phone, and with_scale_factor(2.0) draws it the way a high-density
+screen does.
 
 4. Snapshots of the painting
 

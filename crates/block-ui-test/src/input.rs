@@ -1,5 +1,7 @@
 use beui::{Event, Vec2};
-use beui_plugin_input::{pointer_button, protocol_key, protocol_modifiers, touch_phase};
+use beui_plugin_input::{
+    back_phase, pointer_button, protocol_key, protocol_modifiers, touch_phase,
+};
 use block_plugin_api::{ImeInput, InputEvent, Modifiers, WheelUnit};
 
 #[derive(Default)]
@@ -66,6 +68,7 @@ impl Input {
                     unit: WheelUnit::Pixels,
                 });
             }
+            Event::ScrollEnded => output.push(InputEvent::WheelEnded),
             Event::Zoom(factor) => output.push(InputEvent::Zoom { factor }),
             Event::Touch {
                 id,
@@ -105,6 +108,7 @@ impl Input {
                 beui::ImeEvent::Disabled => ImeInput::Disabled,
             })),
             Event::Focus(focused) => output.push(InputEvent::Focus(focused)),
+            Event::Back(gesture) => output.push(InputEvent::Back(back_phase(gesture))),
             _ => {}
         }
     }

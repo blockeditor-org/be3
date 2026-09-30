@@ -1,4 +1,5 @@
-use block_plugin_api::{ScreenLayout, ScreenPlacement};
+use block_plugin_api::{ScreenLayout, ScreenPlacement, SurfaceRect};
+use std::collections::VecDeque;
 use std::time::Duration;
 
 use crate::plugin::PaintTarget;
@@ -7,7 +8,10 @@ use crate::screens::Screens;
 pub(crate) struct Panes {
     generation: Option<u64>,
     format: wgpu::TextureFormat,
+    presented: VecDeque<u64>,
 }
+
+const REMEMBERED_PRESENTS: usize = 4;
 
 pub(crate) struct Ran {
     pub(crate) changed: bool,
@@ -20,6 +24,7 @@ impl Panes {
         Self {
             format,
             generation: None,
+            presented: VecDeque::new(),
         }
     }
 
@@ -45,20 +50,28 @@ impl Panes {
     }
 
     pub(crate) fn paint(
-        &self,
+        &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         view: &wgpu::TextureView,
         layout: &ScreenLayout,
         screens: &mut Screens,
         ran: Ran,
-    ) {
-        clear(device, queue, view);
+        age: u32,
+    ) -> Vec<SurfaceRect> {
+        let kept = age > 0 && self.presented.get(age as usize - 1) == Some(&layout.generation);
+        let age = if kept { age } else { 0 };
+        if age == 0 {
+            clear(device, queue, view);
+        }
+        self.presented.push_front(layout.generation);
+        self.presented.truncate(REMEMBERED_PRESENTS);
+        let mut damage = Vec::new();
         for placement in ran.placed {
             let Some(session) = screens.session(placement.instance) else {
                 continue;
             };
-            session.paint(&PaintTarget {
+            damage.extend(session.paint(&PaintTarget {
                 device,
                 queue,
                 view,
@@ -66,7 +79,17 @@ impl Panes {
                 width: layout.width,
                 height: layout.height,
                 placement,
-            });
+                age,
+            }));
+        }
+        match age {
+            0 => vec![SurfaceRect {
+                x: 0,
+                y: 0,
+                width: layout.width,
+                height: layout.height,
+            }],
+            _ => damage,
         }
     }
 }

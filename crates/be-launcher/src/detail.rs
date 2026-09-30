@@ -6,8 +6,8 @@ use beui::reactive::{
 };
 use beui::styled::theme::{CARD_RADIUS, FONT_BODY, FONT_HEADING, FONT_SMALL, FONT_TITLE};
 use beui::styled::{
-    Body, Button, ButtonVariant, Caption, Code, Icon, IconButton, Link, Scroll, Separator, Spinner,
-    use_theme,
+    Body, Button, ButtonVariant, Caption, Code, Icon, IconButton, Link, Scroll, SelectableText,
+    Separator, Spinner, use_theme,
 };
 use beui::unstyled;
 
@@ -152,80 +152,82 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let refresh =
         clone!(model pull_request -> move || model.refresh_timeline(&pull_request.get_untracked()));
     view! {
-        <List spacing=0.0>
-            <Frame padding_horizontal=PADDING padding_vertical=4.0>
-                <List spacing=SPACING>
-                    <Text
-                        string={title}
-                        font_size=FONT_TITLE
-                        color={theme.text.clone()}
-                        wrap=true
-                    />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                        <StateBadge state />
-                        <Caption @sizing=ItemSize::Percent(100.0) content={summary} wrap=true />
-                    </List>
-                    <Show condition={tagged}>
-                        <Labels labels checked_out />
-                    </Show>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Actions
-                            model={actions.clone()}
-                            pull_request={pull_request.clone()}
-                            timeline={timeline.clone()}
-                        />
-                        <Button
-                            label="Open on GitHub"
-                            glyph=ICON_OPEN_IN_NEW
-                            variant=ButtonVariant::Ghost
-                            on_click={open}
-                        />
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                        <IconButton
-                            glyph=ICON_REFRESH
-                            label="Reload the conversation"
-                            on_click={refresh}
-                        />
-                    </List>
-                    <Notes
-                        model={notes.clone()}
-                        pull_request={noted.clone()}
-                        timeline={notes_timeline.clone()}
-                    />
-                    <Separator />
-                    <Show condition={loading}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Spinner width=20.0 label="Loading the conversation" />
-                            <Caption content="Loading the conversation" />
-                        </List>
-                    </Show>
-                    <Show condition={failed}>
+        <SelectableText child_size=ItemSize::Percent(100.0)>
+            <List spacing=0.0>
+                <Frame padding_horizontal=PADDING padding_vertical=4.0>
+                    <List spacing=SPACING>
                         <Text
-                            string={error}
-                            font_size=FONT_BODY
-                            color={theme.danger.clone()}
+                            string={title}
+                            font_size=FONT_TITLE
+                            color={theme.text.clone()}
                             wrap=true
                         />
-                    </Show>
-                </List>
-            </Frame>
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding_horizontal=PADDING>
-                    <List spacing=0.0>
-                        <Spacer @sizing=ItemSize::Fixed(8.0) />
-                        <ForEach keys>
-                            {move |index: usize| {
-                                let entry = create_memo(clone!(entries -> move || entries.get().get(index).cloned()));
-                                view! {
-                                    <TimelineEntry model={model.clone()} entry />
-                                }
-                            }}
-                        </ForEach>
-                        <Spacer @sizing=ItemSize::Fixed(PADDING) />
+                        <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                            <StateBadge state />
+                            <Caption @sizing=ItemSize::Percent(100.0) content={summary} wrap=true />
+                        </List>
+                        <Show condition={tagged}>
+                            <Labels labels checked_out />
+                        </Show>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <Actions
+                                model={actions.clone()}
+                                pull_request={pull_request.clone()}
+                                timeline={timeline.clone()}
+                            />
+                            <Button
+                                label="Open on GitHub"
+                                glyph=ICON_OPEN_IN_NEW
+                                variant=ButtonVariant::Ghost
+                                on_click={open}
+                            />
+                            <Spacer @sizing=ItemSize::Percent(100.0) />
+                            <IconButton
+                                glyph=ICON_REFRESH
+                                label="Reload the conversation"
+                                on_click={refresh}
+                            />
+                        </List>
+                        <Notes
+                            model={notes.clone()}
+                            pull_request={noted.clone()}
+                            timeline={notes_timeline.clone()}
+                        />
+                        <Separator />
+                        <Show condition={loading}>
+                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                                <Spinner width=20.0 label="Loading the conversation" />
+                                <Caption content="Loading the conversation" />
+                            </List>
+                        </Show>
+                        <Show condition={failed}>
+                            <Text
+                                string={error}
+                                font_size=FONT_BODY
+                                color={theme.danger.clone()}
+                                wrap=true
+                            />
+                        </Show>
                     </List>
                 </Frame>
-            </Scroll>
-        </List>
+                <Scroll @sizing=ItemSize::Percent(100.0)>
+                    <Frame padding_horizontal=PADDING>
+                        <List spacing=0.0>
+                            <Spacer @sizing=ItemSize::Fixed(8.0) />
+                            <ForEach keys>
+                                {move |index: usize| {
+                                    let entry = create_memo(clone!(entries -> move || entries.get().get(index).cloned()));
+                                    view! {
+                                        <TimelineEntry model={model.clone()} entry />
+                                    }
+                                }}
+                            </ForEach>
+                            <Spacer @sizing=ItemSize::Fixed(PADDING) />
+                        </List>
+                    </Frame>
+                </Scroll>
+            </List>
+        </SelectableText>
     }
 }
 

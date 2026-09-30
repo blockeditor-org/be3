@@ -32,6 +32,8 @@ pub(crate) enum PickerAction {
     Create,
     CancelCreation,
     DismissError,
+    Name(String),
+    Place(BlockParent),
 }
 
 #[derive(Clone, Debug)]
@@ -77,6 +79,21 @@ pub(crate) struct ChooseView {
     pub(crate) sections: Vec<TileSection>,
     pub(crate) links: Vec<LinkRow>,
     pub(crate) empty: String,
+    pub(crate) placing: Option<Placing>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Placing {
+    pub(crate) name: String,
+    pub(crate) place: BlockParent,
+    pub(crate) places: Vec<Place>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Place {
+    pub(crate) parent: BlockParent,
+    pub(crate) name: String,
+    pub(crate) icon: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -158,6 +175,8 @@ pub struct BlockPickerResult {
     pub id: Uuid,
     pub block_type: Uuid,
     pub linked: bool,
+    pub placed: bool,
+    pub into: Option<Uuid>,
 }
 
 pub struct BlockPicker {
@@ -170,6 +189,8 @@ pub struct BlockPicker {
     allowed: HashSet<Uuid>,
     pending_block: Option<PendingBlock>,
     error: Option<String>,
+    place: Option<BlockParent>,
+    name: String,
 }
 
 impl Default for BlockPicker {
@@ -184,6 +205,8 @@ impl Default for BlockPicker {
             allowed: HashSet::new(),
             pending_block: None,
             error: None,
+            place: None,
+            name: String::new(),
         }
     }
 }
@@ -205,6 +228,11 @@ impl BlockPicker {
     ) {
         self.allowed = allowed.into_iter().collect();
         self.open_on_tab(excluded, PickerTab::Templates);
+    }
+
+    pub fn place_at(&mut self, place: BlockParent) {
+        self.place = Some(place);
+        self.name.clear();
     }
 
     fn open_on_tab(&mut self, excluded: impl IntoIterator<Item = Uuid>, tab: PickerTab) {
@@ -237,11 +265,13 @@ impl BlockPicker {
                 PickerAction::Link(id) => {
                     self.open = false;
                     if let Some(block) = crate::be::node(id) {
-                        editors.ensure(block.id, block.content_type);
+                        editors.ensure(block.id, block.content_type, None);
                         result = Some(BlockPickerResult {
                             id: block.id,
                             block_type: block.content_type,
                             linked: true,
+                            placed: false,
+                            into: None,
                         });
                     }
                 }
@@ -252,6 +282,16 @@ impl BlockPicker {
                 }
                 PickerAction::CancelCreation => self.pending_block = None,
                 PickerAction::DismissError => self.error = None,
+                PickerAction::Name(name) => {
+                    if self.open {
+                        self.name = name;
+                    }
+                }
+                PickerAction::Place(place) => {
+                    if self.place.is_some() {
+                        self.place = Some(place);
+                    }
+                }
             }
         }
         if result.is_none() {
@@ -306,6 +346,11 @@ impl BlockPicker {
                         true => "No blocks are available to link.".to_owned(),
                         false => "No matching blocks.".to_owned(),
                     },
+                    placing: self.place.map(|place| Placing {
+                        name: self.name.clone(),
+                        place,
+                        places: places(registry, place, &self.excluded),
+                    }),
                 }
             }),
             create: self.pending_block.as_ref().map(|pending| {
@@ -371,11 +416,14 @@ impl BlockPicker {
         match pending.creation.create() {
             Ok(Some(id)) => {
                 surfaces::set_height(surface, None);
+                let name = Some(self.name.trim().to_owned()).filter(|name| !name.is_empty());
                 Some(Self::finish_creation(
                     editors,
                     id,
                     pending.target.block_type,
                     parent,
+                    name,
+                    self.place,
                 ))
             }
             Ok(None) => {
@@ -395,16 +443,69 @@ impl BlockPicker {
         id: Uuid,
         declared: Uuid,
         parent: BlockParent,
+        name: Option<String>,
+        place: Option<BlockParent>,
     ) -> BlockPickerResult {
         let block_type = crate::be::node(id).map_or(declared, |node| node.content_type);
+        let into = match place {
+            Some(BlockParent::Block(container)) => Some(container),
+            Some(BlockParent::Root | BlockParent::Detached) | None => None,
+        };
+        let parent = match place {
+            Some(BlockParent::Root) => BlockParent::Root,
+            Some(BlockParent::Block(_) | BlockParent::Detached) | None => parent,
+        };
         crate::be::set_parent(id, parent);
-        editors.ensure(id, block_type);
+        if let Some(name) = name {
+            crate::be::name_when_created(id, name);
+        }
+        editors.ensure(id, block_type, None);
         BlockPickerResult {
             id,
             block_type,
             linked: false,
+            placed: place.is_some(),
+            into,
         }
     }
+}
+
+fn places(registry: &EditorRegistry, place: BlockParent, excluded: &HashSet<Uuid>) -> Vec<Place> {
+    let folder = registry
+        .templates()
+        .iter()
+        .find(|entry| {
+            entry.target.block_type
+                == <be_block::FolderContent as be_block::BlockContent>::CONTENT_TYPE
+        })
+        .map(|entry| entry.icon.to_owned())
+        .unwrap_or_default();
+    let mut folders: Vec<Place> = crate::be::nodes()
+        .into_iter()
+        .filter(|block| block.access.can_edit())
+        .filter(|block| block.parent != BlockParent::Detached)
+        .filter(|block| {
+            block.content_type == <be_block::FolderContent as be_block::BlockContent>::CONTENT_TYPE
+                || place == BlockParent::Block(block.id)
+        })
+        .filter(|block| !excluded.contains(&block.id) || place == BlockParent::Block(block.id))
+        .map(|block| {
+            let label = BlockLabel::for_node(registry, &block);
+            Place {
+                parent: BlockParent::Block(block.id),
+                name: label.name,
+                icon: label.icon.map_or_else(|| folder.clone(), str::to_owned),
+            }
+        })
+        .collect();
+    folders.sort_by(|a, b| a.name.cmp(&b.name));
+    std::iter::once(Place {
+        parent: BlockParent::Root,
+        name: "Top level".to_owned(),
+        icon: folder,
+    })
+    .chain(folders)
+    .collect()
 }
 
 fn offered(

@@ -34,12 +34,14 @@ mod a_calendar_update_writes_only_the_fields_that_changed;
 mod a_canvas_entity_removed_on_one_side_and_moved_on_the_other_stays_removed;
 mod a_cell_set_while_someone_clears_the_last_one_in_its_row_is_kept;
 mod a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope;
+mod a_client_uses_the_profile_it_picked_and_profiles_follow_their_blocks;
 mod a_component_added_to_one_entity_on_both_sides_is_kept_once;
 mod a_component_moved_on_both_sides_conflicts_and_keeps_ours;
 mod a_component_removed_on_one_side_and_turned_on_the_other_stays_removed;
 mod a_counter_reset_undoes_back_to_its_count;
 mod a_database_and_its_views_reference_what_they_link_to;
 mod a_database_grows_rows_to_fill_a_cell_and_drops_trailing_empty_ones;
+mod a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it;
 mod a_folder_lists_each_block_once_and_follows_its_children;
 mod a_language_changed_on_both_sides_counts_a_conflict;
 mod a_logic_grid_edit_keeps_its_wires_normalized_and_follows_its_children;
@@ -110,6 +112,7 @@ mod undoing_a_wire_keeps_the_part_someone_else_drew_onto_it;
 mod undoing_an_event_removal_restores_it_with_its_id;
 mod unpinning_a_component_removes_it_from_every_folder;
 mod video_clips_attach_ripple_and_refuse_cycles;
+mod visiting_a_block_puts_it_first_in_the_recents_once;
 mod wires_drawn_on_each_side_that_meet_join_into_one;
 
 fn header(name: &str) -> ImageHeader {
@@ -119,6 +122,7 @@ fn header(name: &str) -> ImageHeader {
         width: 640,
         height: 480,
         failure: None,
+        thumbhash: None,
     }
 }
 

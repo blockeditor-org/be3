@@ -1,5 +1,6 @@
 pub mod apk;
 pub mod clippy;
+pub mod compile_fail;
 pub mod generate;
 pub mod resolve;
 pub mod rust_project;

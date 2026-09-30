@@ -1,3 +1,4 @@
+use beui::styled::DocumentTheme;
 use std::cell::RefCell;
 use std::process::{Child, Command as Process, Stdio};
 use std::rc::Rc;
@@ -424,10 +425,13 @@ impl Compositor {
 
 impl App for Compositor {
     fn setup(&mut self, setup: &Setup) {
+        let gpu = setup
+            .get::<beui::GpuSetup>()
+            .expect("beui's runner provides the GPU it draws with");
         self.start(
-            setup.device.clone(),
-            setup.queue.clone(),
-            setup.format,
+            gpu.device.clone(),
+            gpu.queue.clone(),
+            gpu.format,
             setup.waker.clone(),
         );
     }

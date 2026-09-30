@@ -11,6 +11,7 @@ Guides:
 - guides/buck2.md
 - guides/pan_and_zoom.md
 - guides/reactive.md
+- guides/running_on_android.md
 - guides/running_the_app.md
 - guides/running_the_web_app.md
 - guides/testing_a_gui.md
@@ -24,7 +25,7 @@ Verification:
 - `./scripts/buck run //:verify`: The full check. It applies every autofix, accepts new and changed snapshots, and runs all lints and tests. CI does the same on a pull request and pushes whatever it changes to the pull request's branch as a commit. Use a 10 minute timeout in the tool call arguments so it is less likely to convert itself to a background task.
   - A plugin's own tests are compiled to wasm and run through the plugin host on this machine, because they read and write the accepted paintings in `snapshots/`; `./scripts/buck run //:verify -- --plugin-tests` runs them. `block-editor-plugin` and `block-editor-beui` are in that run too, because the guest half of the plugin framework only exists on wasm. For faster feedback on one editor, run `./scripts/buck test //crates/editors/checklist:test`, adding `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings.
   - It will autofix formatting, clippy fixable rules, and it will autofix to enforce project-specific rules: It will delete all code comments & doc comments, it will structure test folders & files to the project's one test per file standard, it will automatically move+rename mod.rs files to be in the parent folder named after the folder instead, and it will format the bodies of `view!` macro calls (rustfmt cannot, because the body is not Rust syntax).
-- `./scripts/buck run //crates/block-app:android`: run this for changes that affect features specific to Android. It builds the APK and signs it into `target/android/block-app.apk`; `-- --install` installs it with adb and starts it.
+- `./scripts/buck run //crates/block-app:android`: run this for changes that affect features specific to Android. It builds the APK and signs it into `target/android/block-app.apk`; `-- --install` installs it with adb and starts it. See guides/running_on_android.md.
 - `./scripts/buck build //crates/block-app:web`: run this for changes that affect features specific to web. `./scripts/buck run //crates/block-app:web-serve` serves it, with be-server behind it, on http://127.0.0.1:8080.
 - `./scripts/buck run //crates/block-app:smoke`: run this for changes that could affect native startup or runtime integration. It performs a bounded automated launch in a virtual display with isolated data.
 
@@ -36,7 +37,6 @@ Do:
 - If you find yourself polling waiting for a command to finish, run `./scripts/nopoll` in the foreground
 
 Do not:
-- Do not use worktrees. If using subagents, run them sequentially rather than in parallel.
 - Do not create routines. Do not subscribe to PRs. Do not set check-in timers.
 
 Design principles:
@@ -48,16 +48,18 @@ Design principles:
   - guides and markdown files are for agents to read to help them understand the codebase and implement features. not every tiny change deserves a mention in a guide. when adding something to a guide, consider if a summary written from scratch would include the feature. if it wouldn't, don't add it to the guide. information that is only helpful to humans also doesn't belong in a guide. that can go in a PR description and/or handoff message.
   - every agent immediately, automatically reads AGENTS.md when it starts up. do not duplicate information that is already in AGENTS.md in other files.
   - do not edit any file named 'README.md'. if one is out of date, you may say so in your handoff message.
+  - everything in the repo is in scope for editing for any task. for example, if you find a bug or missing feature in beui, fix it at the source rather than working around it. if you find a guide out of date or inaccurate, update it.
 - beui:
   - beui is a retained-mode ui that you interact with using a solidjs-like reactive framework.
   - beui layout is O(n) or better on the number of nodes in the tree.
   - beui is a reactive framework; we should push changes, not poll for changes.
+  - code that reads the time uses the frame clock (`ctx.now()` or `timer::now()`), not `Instant::now()`, so tests can advance it without sleeping.
 - block-app plugins:
   - the plugin protocol is framework-independent. we theoretically could use it with different GUI frameworks without modifying the plugin protocol.
   - the plugin protocol passes textures without them leaving the GPU.
 - gui:
   - we use an icon library for icons. if one is not available, then do not use icons. do not use unicode for icons.
-  - a scroll view reaches the edges of the area it fills; its padding goes inside it, around the scrolled content, so content is not cut off short of the edge or inset beside the scrollbar.
+  - a scroll view reaches the edges of the area it fills; its padding goes inside it, around the scrolled content, so content is not cut off short of the edge and there is no padding right of the scrollbar / left of the scroll area.
 
 In your handoff message:
 - If any, mention any small issues you encountered or small things you noticed that could make the code / application better.

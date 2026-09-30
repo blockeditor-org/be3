@@ -27,7 +27,7 @@ impl Harness {
             Vec::new(),
         );
         let client = TestClient::connect(app.server());
-        let context = Context::new();
+        let context = beui::context();
         context.set_test_ids_published(true);
         Self {
             app,
@@ -50,7 +50,7 @@ impl Harness {
             Waker::new(|| {}),
         );
         let client = TestClient::connect(app.server());
-        let context = Context::new();
+        let context = beui::context();
         context.set_test_ids_published(true);
         let harness = Self {
             app,
@@ -112,19 +112,21 @@ impl Harness {
 
     fn click(&mut self, test_id: &str) {
         let center = self.rect(test_id).center();
-        self.frame(vec![Event::PointerMoved(center)]);
-        self.frame(vec![Event::PointerButton {
-            pos: center,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers: beui::Modifiers::NONE,
-        }]);
-        self.frame(vec![Event::PointerButton {
-            pos: center,
-            button: PointerButton::Primary,
-            pressed: false,
-            modifiers: beui::Modifiers::NONE,
-        }]);
+        self.frame(vec![
+            Event::PointerMoved(center),
+            Event::PointerButton {
+                pos: center,
+                button: PointerButton::Primary,
+                pressed: true,
+                modifiers: beui::Modifiers::NONE,
+            },
+            Event::PointerButton {
+                pos: center,
+                button: PointerButton::Primary,
+                pressed: false,
+                modifiers: beui::Modifiers::NONE,
+            },
+        ]);
         self.settle();
     }
 

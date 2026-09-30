@@ -1,8 +1,12 @@
 #[cfg(target_os = "android")]
 use beui::icons::ICON_ARROW_BACK;
 use beui::icons::{
-    ICON_CALL_SPLIT, ICON_CANCEL, ICON_DRAFT, ICON_MERGE, ICON_REFRESH, ICON_SEARCH,
+    ICON_CALL_SPLIT, ICON_CANCEL, ICON_DRAFT, ICON_FRAME_INSPECT, ICON_MERGE, ICON_REFRESH,
+    ICON_SEARCH,
 };
+#[cfg(target_os = "android")]
+use beui::reactive::BackHandler;
+use beui::reactive::with_document;
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, Text, clone,
     component, create_memo, view,
@@ -14,18 +18,18 @@ use beui::styled::{
     Caption, Heading, Icon, IconButton, ListRow, Scroll, Spinner, Tabs, TextInput, use_theme,
 };
 use beui::unstyled::ChoiceOption;
-use beui::{Color32, NodeId};
+use beui::{Color32, Document, NodeId};
 
 #[cfg(target_os = "android")]
 use crate::detail::Detail;
 use crate::github::{Filter, Label, PullRequest, State};
 use crate::model::{Loaded, Model};
 #[cfg(target_os = "android")]
-use crate::phone::{LauncherMenu, MainNotes};
+use crate::phone::MainActions;
 use crate::time::{now, relative};
 use crate::viewer::ImageViewer;
 #[cfg(not(target_os = "android"))]
-use crate::workspace::Workspace;
+use crate::workspace::{MainActions, Workspace};
 
 #[cfg(not(target_os = "android"))]
 const SIDEBAR_WIDTH: f32 = 380.0;
@@ -39,7 +43,7 @@ pub(crate) const MERGED: Color32 = Color32::from_rgb(163, 113, 247);
 #[cfg(not(target_os = "android"))]
 const CURRENT: &str = "checked out";
 #[cfg(target_os = "android")]
-const CURRENT: &str = "downloaded";
+const CURRENT: &str = "installed";
 
 #[cfg(target_os = "android")]
 #[component]
@@ -47,6 +51,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
     let listing = create_memo(clone!(model -> move || model.selected.with(Option::is_none)));
     let reading = create_memo(clone!(listing -> move || !listing.get()));
     let back = clone!(model -> move || model.deselect());
+    let gesture = back.clone();
     let sidebar = model.clone();
     let viewer = model.clone();
     view! {
@@ -55,16 +60,18 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                 <Sidebar @sizing=ItemSize::Percent(100.0) model={sidebar.clone()} />
             </Show>
             <Show condition={reading}>
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                    <Frame padding_horizontal=8.0 padding_vertical=4.0>
-                        <IconButton
-                            glyph=ICON_ARROW_BACK
-                            label="Back to the pull requests"
-                            on_click={back}
-                        />
-                    </Frame>
-                    <Detail @sizing=ItemSize::Percent(100.0) model={model.clone()} />
-                </List>
+                <BackHandler @sizing=ItemSize::Percent(100.0) on_back={gesture.clone()}>
+                    <List spacing=0.0>
+                        <Frame padding_horizontal=8.0 padding_vertical=4.0>
+                            <IconButton
+                                glyph=ICON_ARROW_BACK
+                                label="Back to the pull requests"
+                                on_click={back.clone()}
+                            />
+                        </Frame>
+                        <Detail @sizing=ItemSize::Percent(100.0) model={model.clone()} />
+                    </List>
+                </BackHandler>
             </Show>
             <ImageViewer model={viewer} />
         </List>
@@ -140,8 +147,7 @@ fn Sidebar(model: Model) -> NodeId {
     });
     let set_query = model.set_query.clone();
     let query = model.query.clone();
-    let menu = model.clone();
-    let status = model.clone();
+    let main = model.clone();
     view! {
         <List spacing=0.0>
             <Frame padding_horizontal=PADDING padding_vertical=PADDING>
@@ -151,14 +157,14 @@ fn Sidebar(model: Model) -> NodeId {
                             <Heading content="Pull requests" />
                             <Caption content={repository} />
                         </List>
-                        <Show condition={cfg!(target_os = "android")}>
-                            <Menu model={menu.clone()} />
-                        </Show>
+                        <IconButton
+                            glyph=ICON_FRAME_INSPECT
+                            label="Open the inspector"
+                            on_click={|| with_document(Document::open_inspector)}
+                        />
                         <IconButton glyph=ICON_REFRESH label="Refresh" on_click={refresh} />
                     </List>
-                    <Show condition={cfg!(target_os = "android")}>
-                        <Status model={status.clone()} />
-                    </Show>
+                    <MainActions model={main} />
                     <Tabs
                         options={view! {
                             <ChoiceOption label="Open" />
@@ -213,40 +219,6 @@ fn Sidebar(model: Model) -> NodeId {
                 </Frame>
             </Scroll>
         </List>
-    }
-}
-
-#[cfg(target_os = "android")]
-#[component]
-fn Menu(model: Model) -> NodeId {
-    view! {
-        <LauncherMenu model />
-    }
-}
-
-#[cfg(not(target_os = "android"))]
-#[component]
-fn Menu(model: Model) -> NodeId {
-    let _ = model;
-    view! {
-        <List spacing=0.0 />
-    }
-}
-
-#[cfg(target_os = "android")]
-#[component]
-fn Status(model: Model) -> NodeId {
-    view! {
-        <MainNotes model />
-    }
-}
-
-#[cfg(not(target_os = "android"))]
-#[component]
-fn Status(model: Model) -> NodeId {
-    let _ = model;
-    view! {
-        <List spacing=0.0 />
     }
 }
 

@@ -1,3 +1,4 @@
+use beui::Repainting;
 use std::error::Error;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -5,8 +6,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use beui::{
-    App as _, Context, Event, FrameOutput, PointerButton, Pos2, RawInput, Repaint, TouchId,
-    TouchPhase, Waker, vec2,
+    App as _, Context, Event, FrameOutput, PointerButton, Pos2, RawInput, TouchId, TouchPhase,
+    Waker, vec2,
 };
 use smithay::backend::allocator::gbm::GbmDevice;
 use smithay::backend::drm::{DrmDevice, DrmDeviceFd, DrmEvent};
@@ -106,7 +107,7 @@ pub fn run(launches: Vec<String>) -> Result<(), Box<dyn Error>> {
     compositor.start(device, queue, FORMAT, Waker::new(move || ping.ping()));
     let gpu = compositor.gpu().ok_or("the compositor has no GPU")?;
     let arrow = Rc::new(gpu.rgba(arrow::WIDTH, arrow::HEIGHT, &arrow::pixels()));
-    let context = Context::new();
+    let context = beui::system_context();
     let mut session = Session {
         seat,
         active: true,
@@ -205,13 +206,7 @@ impl Session {
         }
         if output.changed {
             let clear = self.compositor.clear_color();
-            let repaint = match output.damage() {
-                Some(region) => Repaint::Region {
-                    region,
-                    background: clear,
-                },
-                None => Repaint::Everything,
-            };
+            let repaint = output.repaint(clear);
             for output in &mut self.outputs {
                 output.screen.damage(repaint);
             }

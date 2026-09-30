@@ -7,7 +7,7 @@ use beui::reactive::{
 };
 use beui::styled::theme::FONT_BODY;
 use beui::styled::{
-    Button, ButtonVariant, Caption, Code, Icon, IconButton, MenuButton, Scroll, Spinner, Tabs,
+    Button, ButtonVariant, Caption, Code, Icon, IconButton, Scroll, Spinner, SplitButton, Tabs,
     TextInput, use_theme,
 };
 use beui::unstyled::{ChoiceOption, MenuItem};
@@ -22,7 +22,7 @@ use crate::view::PADDING;
 
 const SPACING: f32 = 8.0;
 const TARGET_ROW: f32 = 44.0;
-const HEAD_CHARACTERS: usize = 48;
+const MAIN: &str = "main";
 
 #[component]
 pub(crate) fn Workspace(model: Model) -> NodeId {
@@ -35,11 +35,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
         if summary.is_empty() {
             "Reading the checkout".to_owned()
         } else {
-            let mut shown: String = summary.chars().take(HEAD_CHARACTERS).collect();
-            if shown.len() < summary.len() {
-                shown.push_str("...");
-            }
-            format!("Checked out {shown}")
+            format!("Checked out {summary}")
         }
     }));
     let running = model.running.clone();
@@ -70,7 +66,12 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                         selected={tab}
                         on_change={show}
                     />
-                    <Caption @sizing=ItemSize::Percent(100.0) content={head} align=TextAlign::End />
+                    <Caption
+                        @sizing=ItemSize::Percent(100.0)
+                        content={head}
+                        align=TextAlign::End
+                        ellipsis=true
+                    />
                     <Show condition={running.clone()}>
                         <Spinner width=18.0 label="A command is running" />
                     </Show>
@@ -295,37 +296,29 @@ pub(crate) fn Actions(
         _ => model.show_tab(Tab::Targets),
     });
     let busy_run = busy.clone();
-    let busy_pick = busy.clone();
     let run_label = create_memo(clone!(model -> move || {
         let common = COMMON.get(model.common.get()).unwrap_or(&COMMON[0]);
         format!("Check out and run {}", common.title)
     }));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=1.0>
-                <Button
-                    label={run_label}
-                    glyph=ICON_PLAY_ARROW
-                    variant=ButtonVariant::Primary
-                    disabled={busy_run}
-                    on_click={check_out_and_run}
-                />
-                <MenuButton
-                    label="Pick what to run"
-                    variant=ButtonVariant::Primary
-                    icon_only=true
-                    disabled={busy_pick}
-                    items={view! {
-                        <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
-                            {|index: usize| view! {
-                                <MenuItem label={format!("Run {}", COMMON[index].title)} />
-                            }}
-                        </ForEach>
-                        <MenuItem label="All targets" />
-                    }}
-                    on_select={pick}
-                />
-            </List>
+            <SplitButton
+                label={run_label}
+                glyph=ICON_PLAY_ARROW
+                variant=ButtonVariant::Primary
+                menu_label="Pick what to run"
+                disabled={busy_run}
+                items={view! {
+                    <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
+                        {|index: usize| view! {
+                            <MenuItem label={format!("Run {}", COMMON[index].title)} />
+                        }}
+                    </ForEach>
+                    <MenuItem label="All targets" />
+                }}
+                on_click={check_out_and_run}
+                on_select={pick}
+            />
             <Button
                 label="Check out"
                 glyph=ICON_DOWNLOAD
@@ -367,5 +360,38 @@ pub(crate) fn Notes(
                 </Show>
             </List>
         </Show>
+    }
+}
+
+#[component]
+pub(crate) fn MainActions(model: Model) -> NodeId {
+    let busy = model.running.clone();
+    let run = clone!(model -> move || model.switch(MAIN, Some(model.common.get_untracked())));
+    let pick = clone!(model -> move |path: Vec<usize>| match path.as_slice() {
+        [index] if *index < COMMON.len() => model.switch(MAIN, Some(*index)),
+        _ => model.switch(MAIN, None),
+    });
+    let run_label = create_memo(clone!(model -> move || {
+        let common = COMMON.get(model.common.get()).unwrap_or(&COMMON[0]);
+        format!("Run {} on main", common.title)
+    }));
+    view! {
+        <SplitButton
+            label={run_label}
+            glyph=ICON_PLAY_ARROW
+            variant=ButtonVariant::Secondary
+            menu_label="Pick what to run on main"
+            disabled={busy}
+            items={view! {
+                <ForEach keys={(0..COMMON.len()).collect::<Vec<_>>()}>
+                    {|index: usize| view! {
+                        <MenuItem label={format!("Run {}", COMMON[index].title)} />
+                    }}
+                </ForEach>
+                <MenuItem label="Check out main" />
+            }}
+            on_click={run}
+            on_select={pick}
+        />
     }
 }

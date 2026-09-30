@@ -45,18 +45,14 @@ fn visibility(graph: &BlockGraph, identity: Identity) -> Visibility {
     Visibility::of(graph, identity.account, identity.role)
 }
 
-fn effective_access(graph: &BlockGraph, identity: Identity, block: Uuid) -> Access {
-    visibility(graph, identity).access(graph, block)
-}
-
-fn require_edit(graph: &BlockGraph, identity: Identity, block: Uuid) -> Result<(), ServerError> {
+fn require_edit(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
     if graph.get(block).is_none() {
         return Err(ServerError::Refused(
             ErrorCode::BlockNotFound,
             format!("block {block} does not exist"),
         ));
     }
-    if effective_access(graph, identity, block).can_edit() {
+    if seen.access(graph, block).can_edit() {
         return Ok(());
     }
     Err(ServerError::Refused(
@@ -95,7 +91,7 @@ impl ServerStore {
     ) -> Result<BlockSummary, ServerError> {
         self.with_graph(identity.workspace, move |graph, database| {
             if let BlockParent::Block(target) = parent {
-                require_edit(graph, identity, target)?;
+                require_edit(graph, &visibility(graph, identity), target)?;
             }
             let mut node = BlockNode::new(content_type, identity.account, parent);
             node.metadata.clone_from(&metadata);
@@ -127,7 +123,7 @@ impl ServerStore {
         metadata: Vec<u8>,
     ) -> Result<BlockSummary, ServerError> {
         self.with_graph(identity.workspace, move |graph, database| {
-            require_edit(graph, identity, block)?;
+            require_edit(graph, &visibility(graph, identity), block)?;
             database.execute(
                 "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE workspace_id = ?1 AND id = ?2",
                 params![identity.workspace.to_string(), block.to_string(), metadata],
@@ -234,7 +230,7 @@ impl ServerStore {
             }
         }
         self.with_graph(identity.workspace, move |graph, database| {
-            require_edit(graph, identity, block)?;
+            require_edit(graph, &visibility(graph, identity), block)?;
             let current = graph.head(block);
             if current != expected {
                 return Ok(PublishOutcome::Rejected(current));
@@ -324,7 +320,7 @@ impl ServerStore {
             }
         }
         self.with_graph(identity.workspace, move |graph, database| {
-            require_edit(graph, identity, block)?;
+            require_edit(graph, &visibility(graph, identity), block)?;
             let transaction = database.unchecked_transaction()?;
             let workspace = identity.workspace.to_string();
             let mut fresh = Vec::new();
@@ -354,9 +350,10 @@ impl ServerStore {
         parent: BlockParent,
     ) -> Result<(), ServerError> {
         self.with_graph(identity.workspace, move |graph, database| {
-            require_edit(graph, identity, block)?;
+            let seen = visibility(graph, identity);
+            require_edit(graph, &seen, block)?;
             if let BlockParent::Block(target) = parent {
-                require_edit(graph, identity, target)?;
+                require_edit(graph, &seen, target)?;
             }
             graph.set_parent(block, parent)?;
             graph.touch(block)?;
@@ -416,7 +413,7 @@ impl ServerStore {
         block: Uuid,
     ) -> Result<Vec<HistoryEntry>, ServerError> {
         self.with_graph(identity.workspace, move |graph, database| {
-            if !effective_access(graph, identity, block).can_view() {
+            if !visibility(graph, identity).access(graph, block).can_view() {
                 return Err(ServerError::Refused(
                     ErrorCode::PermissionDenied,
                     format!("block {block} is not readable by this account"),
@@ -434,7 +431,7 @@ impl ServerStore {
         drop: Vec<CommitId>,
     ) -> Result<usize, ServerError> {
         self.with_graph(identity.workspace, move |graph, database| {
-            require_edit(graph, identity, block)?;
+            require_edit(graph, &visibility(graph, identity), block)?;
             let head = graph.head(block);
             let transaction = database.unchecked_transaction()?;
             let mut refs = self.object_refs();
@@ -466,12 +463,13 @@ impl ServerStore {
     pub async fn collect_detached(&self, identity: Identity) -> Result<Collected, ServerError> {
         self.with_graph(identity.workspace, move |graph, database| {
             let detached = graph.detached();
+            let seen = visibility(graph, identity);
             let transaction = database.unchecked_transaction()?;
             let mut refs = self.object_refs();
             let mut freed = 0;
             let mut removed = Vec::new();
             for block in detached {
-                if !effective_access(graph, identity, block).can_edit() {
+                if !seen.access(graph, block).can_edit() {
                     continue;
                 }
                 for commit in read_history(&transaction, identity.workspace, block)? {
@@ -528,7 +526,7 @@ impl ServerStore {
         access: Access,
     ) -> Result<(), ServerError> {
         self.with_graph(identity.workspace, move |graph, database| {
-            require_edit(graph, identity, block)?;
+            require_edit(graph, &visibility(graph, identity), block)?;
             graph.grant(block, account, access)?;
             graph.touch(block)?;
             let workspace = identity.workspace.to_string();
@@ -564,7 +562,7 @@ impl ServerStore {
         block: Uuid,
     ) -> Result<Vec<AccessEntry>, ServerError> {
         self.with_graph(identity.workspace, move |graph, database| {
-            require_edit(graph, identity, block)?;
+            require_edit(graph, &visibility(graph, identity), block)?;
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
             let mut entries = Vec::new();
             let mut statement = database.prepare(

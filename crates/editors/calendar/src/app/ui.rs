@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use block_editor_beui::be_block::{Calendar, CalendarContent};
+use block_editor_beui::beui::datetime::DateTime;
 use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE, ICON_SAVE,
 };
@@ -9,11 +10,12 @@ use block_editor_beui::beui::reactive::{
     component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Button, ButtonVariant, Caption, Dialog, IconButton, Tabs, TextInput, use_theme,
+    Body, Button, ButtonVariant, Caption, DateTimeField, Dialog, IconButton, Tabs, TextInput,
+    use_theme,
 };
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{DateTimeRow, Editor, Toolbar};
+use block_editor_beui::{Editor, Toolbar};
 
 use super::model::{
     CalendarView, EventForm, FormAction, Shown, today_days_since_epoch, week_start,
@@ -233,20 +235,19 @@ fn EventDialog(
         form.with(|form| form.as_ref().map(|form| form.title.clone()).unwrap_or_default())
     }));
     let start = create_memo(clone!(form -> move || {
-        form.with(|form| form.as_ref().map(|form| form.start)).unwrap_or_else(|| {
-            EventForm::new_at(today_days_since_epoch(), 9).start
-        })
+        form.with(|form| form.as_ref().map(|form| form.start))
     }));
-    let end = create_memo(clone!(form -> move || {
-        form.with(|form| form.as_ref().map(|form| form.end)).unwrap_or_else(|| {
-            EventForm::new_at(today_days_since_epoch(), 9).end
-        })
+    let end =
+        create_memo(clone!(form -> move || form.with(|form| form.as_ref().map(|form| form.end))));
+    let backwards = create_memo(clone!(form -> move || {
+        form.with(|form| form.as_ref().is_some_and(|form| form.end < form.start))
     }));
     let editing = create_memo(clone!(form -> move || {
         form.with(|form| form.as_ref().is_some_and(|form| form.editing_id.is_some()))
     }));
-    let blank = create_memo(clone!(form read_only -> move || {
+    let blank = create_memo(clone!(form read_only backwards -> move || {
         read_only.get()
+            || backwards.get()
             || form.with(|form| {
                 form.as_ref().is_none_or(|form| form.title.trim().is_empty())
             })
@@ -259,17 +260,17 @@ fn EventDialog(
             }
         });
     });
-    let edit_start = clone!(set_form -> move |fields| {
+    let edit_start = clone!(set_form -> move |picked: Option<DateTime>| {
         set_form.update(|form| {
-            if let Some(form) = form {
-                form.start = fields;
+            if let (Some(form), Some(picked)) = (form, picked) {
+                form.move_start(picked);
             }
         });
     });
-    let edit_end = clone!(set_form -> move |fields| {
+    let edit_end = clone!(set_form -> move |picked: Option<DateTime>| {
         set_form.update(|form| {
-            if let Some(form) = form {
-                form.end = fields;
+            if let (Some(form), Some(picked)) = (form, picked) {
+                form.end = picked;
             }
         });
     });
@@ -299,10 +300,25 @@ fn EventDialog(
                     @test_id={"calendar.form.title"}
                     on_change={edit_title}
                 />
-                <Caption content="Start" />
-                <DateTimeRow value={start} disabled={read_only.clone()} on_change={edit_start} />
-                <Caption content="End" />
-                <DateTimeRow value={end} disabled={read_only} on_change={edit_end} />
+                <Caption content="Starts" />
+                <DateTimeField
+                    value={start}
+                    label="Starts"
+                    disabled={read_only.clone()}
+                    @test_id={"calendar.form.start"}
+                    on_change={edit_start}
+                />
+                <Caption content="Ends" />
+                <DateTimeField
+                    value={end}
+                    label="Ends"
+                    disabled={read_only}
+                    @test_id={"calendar.form.end"}
+                    on_change={edit_end}
+                />
+                <Show condition={backwards}>
+                    <Caption content="The event ends before it starts." />
+                </Show>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Button
                         glyph={ICON_SAVE.to_owned()}

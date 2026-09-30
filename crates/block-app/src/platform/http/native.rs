@@ -1,5 +1,7 @@
 use std::{io::Read, sync::mpsc, thread, time::Duration};
 
+use crate::host::waking_channel;
+
 const TIMEOUT: Duration = Duration::from_secs(30);
 
 pub(crate) struct Fetch {
@@ -8,16 +10,16 @@ pub(crate) struct Fetch {
 
 impl Fetch {
     pub(crate) fn get(url: String, headers: Vec<(&'static str, String)>) -> Self {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = waking_channel();
         thread::spawn(move || {
             let _ = sender.send(run(&url, &headers));
         });
         Self { receiver }
     }
 
-    pub(crate) fn refused(reason: String) -> Self {
-        let (sender, receiver) = mpsc::channel();
-        let _ = sender.send(Err(reason));
+    pub(crate) fn answered(result: Result<Vec<u8>, String>) -> Self {
+        let (sender, receiver) = waking_channel();
+        let _ = sender.send(result);
         Self { receiver }
     }
 

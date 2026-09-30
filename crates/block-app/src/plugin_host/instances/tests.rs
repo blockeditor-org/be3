@@ -23,6 +23,7 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
     let role = InstanceRole::Editor(EditorBlock {
         id: block,
         block_type,
+        view_block: None,
     });
     instances.report(
         INSTANCE,
@@ -51,12 +52,15 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
 }
 
 mod a_block_is_named_after_its_content_until_someone_names_it;
+mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;
 mod a_frame_childs_chrome_is_withheld_from_the_editor_it_covers;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
 mod a_plugin_is_told_when_the_pointer_leaves_it;
 mod a_plugin_reaches_only_the_hosts_its_manifest_names;
+mod a_plugin_seeds_only_blocks_it_holds;
+mod a_press_on_a_passive_child_reaches_the_editor_holding_it;
 mod a_press_under_a_dialog_is_withheld_from_the_plugin;
 mod after_the_first_snapshot_an_editor_is_sent_operations;
 mod an_editor_can_read_and_edit_a_block_it_watches;
@@ -64,6 +68,8 @@ mod an_editor_is_only_sent_messages_its_plugin_session_accepts;
 mod an_instance_inside_a_checkout_speaks_in_its_local_ids;
 mod an_instance_the_plugin_never_opened_is_not_closed;
 mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
+mod clearing_a_name_names_the_block_after_its_content_at_once;
 mod f6_moves_the_focus_to_the_next_plugin;
 mod input_is_withheld_from_screens_the_plugin_no_longer_has;
+mod the_back_gesture_goes_to_the_screen_that_handles_it;
 mod the_view_a_screen_is_given_carries_the_scale_it_is_shown_at;

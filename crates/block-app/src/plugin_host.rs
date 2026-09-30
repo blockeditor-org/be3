@@ -10,6 +10,7 @@ use uuid::Uuid;
 mod audio;
 mod backend;
 mod clipboard;
+mod fonts;
 pub(crate) mod graph;
 mod input;
 mod instances;
@@ -26,13 +27,13 @@ mod web_view;
 pub(crate) use instances::EditorView;
 pub(crate) use presenter::{Blit, PluginDrawing};
 pub(crate) use runtime::{
-    arrange_panes, artifact, artifact_draft, aspect_ratio, block_picked, close, close_pane,
-    commit_creation, cover_frame, creation, creation_ready, editor_ui, flush, frame_child,
-    frame_rects, hold, install, intrinsic_size, kill, panes, poll, present, presenting, preview,
-    regenerate_artifact, region_size, replace_child, report_child_views, report_children, resized,
+    arrange_panes, artifact, artifact_draft, aspect_ratio, block_picked, close, close_pane, commit_creation, cover_frame, panes, take_shown_panes,
+    creation, creation_ready, editor_ui, flush, frame_child, frame_rects, hold, install,
+    intrinsic_size, kill, poll, present, presenting, preview, regenerate_artifact, region_size,
+    replace_child, report_child_bars, report_child_views, report_children, resized,
     revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible, show_block,
-    take_artifact_outcome, take_artifact_watch, take_block_pick, take_created, take_focus_report,
-    take_leaving, take_shown_panes, take_view_changes,
+    take_artifact_outcome, take_artifact_watch, take_bar_actions, take_block_pick, take_created,
+    take_focus_report, take_leaving, take_view_changes,
 };
 #[cfg(all(
     feature = "web-view",
@@ -52,9 +53,10 @@ pub(crate) struct HostChild {
     pub(crate) child: ChildId,
     pub(crate) frame_owner: bool,
     pub(crate) own_frame: bool,
-    pub(crate) top_bar: bool,
+    pub(crate) top_bar: block_plugin_api::TopBar,
     pub(crate) block_id: Uuid,
     pub(crate) block_type: Uuid,
+    pub(crate) view_block: Option<Uuid>,
     pub(crate) rect: Rect,
     pub(crate) clip: Rect,
     pub(crate) layer: ChildLayer,
@@ -102,6 +104,7 @@ pub(crate) struct BlockPickRequest {
     pub(crate) block_types: Vec<Uuid>,
     pub(crate) excluded: Vec<Uuid>,
     pub(crate) templates: bool,
+    pub(crate) place: Option<be_graph::BlockParent>,
 }
 
 pub(crate) struct RuntimeStatus {
@@ -204,6 +207,7 @@ pub(crate) struct EditorSlot<'a> {
 pub(crate) struct EditorBlock {
     pub(crate) id: Uuid,
     pub(crate) block_type: Uuid,
+    pub(crate) view_block: Option<Uuid>,
 }
 
 #[derive(Clone, Copy)]

@@ -1,6 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     hash::Hash,
     rc::Rc,
 };
@@ -11,21 +11,43 @@ use reactive::{KeyedStore, ReadSignal, WriteSignal, batch, create_signal, on_cle
 
 use crate::{EditorHost, host::ContentUpdate};
 
-struct Watcher<C> {
-    key: Option<Touched>,
-    run: Rc<dyn Fn(&C)>,
+type Run<C> = Rc<dyn Fn(&C)>;
+
+struct Watchers<C> {
+    unkeyed: Vec<(u64, Run<C>)>,
+    keyed: HashMap<Touched, Vec<(u64, Run<C>)>>,
 }
 
-impl<C> Clone for Watcher<C> {
-    fn clone(&self) -> Self {
+impl<C> Watchers<C> {
+    fn new() -> Self {
         Self {
-            key: self.key,
-            run: Rc::clone(&self.run),
+            unkeyed: Vec::new(),
+            keyed: HashMap::new(),
         }
     }
-}
 
-type Watchers<C> = Rc<RefCell<Vec<(u64, Watcher<C>)>>>;
+    fn held(&mut self, key: Option<Touched>) -> Option<&mut Vec<(u64, Run<C>)>> {
+        match key {
+            Some(key) => self.keyed.get_mut(&key),
+            None => Some(&mut self.unkeyed),
+        }
+    }
+
+    fn touched_by(&self, touched: &[Touched]) -> Vec<Run<C>> {
+        let mut runs: Vec<Run<C>> = self.unkeyed.iter().map(|(_, run)| Rc::clone(run)).collect();
+        if touched.contains(&Touched::Everything) {
+            runs.extend(self.keyed.values().flatten().map(|(_, run)| Rc::clone(run)));
+            return runs;
+        }
+        let keys: HashSet<&Touched> = touched.iter().collect();
+        for key in keys {
+            if let Some(held) = self.keyed.get(key) {
+                runs.extend(held.iter().map(|(_, run)| Rc::clone(run)));
+            }
+        }
+        runs
+    }
+}
 
 pub struct ContentProjection<C: LiveEdit> {
     host: EditorHost,
@@ -35,13 +57,15 @@ pub struct ContentProjection<C: LiveEdit> {
     pending: RefCell<VecDeque<C::Op>>,
     acknowledged: Cell<u64>,
     loaded: Cell<bool>,
-    watchers: Watchers<C>,
+    resyncing: Cell<bool>,
+    watchers: Rc<RefCell<Watchers<C>>>,
     next_watcher: Cell<u64>,
     touched: RefCell<Vec<Touched>>,
     revision: Cell<u64>,
     announced: ReadSignal<u64>,
     announce: WriteSignal<u64>,
     loaded_signals: RefCell<Vec<WriteSignal<bool>>>,
+    due: RefCell<Option<Rc<dyn Fn()>>>,
 }
 
 impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
@@ -55,14 +79,20 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
             pending: RefCell::new(VecDeque::new()),
             acknowledged: Cell::new(0),
             loaded: Cell::new(false),
-            watchers: Rc::new(RefCell::new(Vec::new())),
+            resyncing: Cell::new(false),
+            watchers: Rc::new(RefCell::new(Watchers::new())),
             next_watcher: Cell::new(0),
             touched: RefCell::new(Vec::new()),
             revision: Cell::new(0),
             announced,
             announce,
             loaded_signals: RefCell::new(Vec::new()),
+            due: RefCell::new(None),
         }
+    }
+
+    pub fn on_due(&self, due: impl Fn() + 'static) {
+        *self.due.borrow_mut() = Some(Rc::new(due));
     }
 
     pub fn content_type(&self) -> uuid::Uuid {
@@ -81,13 +111,13 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
 
     pub fn revision(&self) -> Option<u64> {
         self.announced.get();
-        self.adopt();
+        self.adopt_lazily();
         self.loaded.get().then(|| self.revision.get())
     }
 
     pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
         self.announced.get();
-        self.adopt();
+        self.adopt_lazily();
         self.loaded.get().then(|| read(&self.visible.borrow()))
     }
 
@@ -110,21 +140,32 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
         T: Clone + PartialEq + 'static,
     {
         let (read, write) = create_signal(project(&self.visible.borrow()));
-        self.register(Watcher {
-            key,
-            run: Rc::new(move |content| write.set(project(content))),
-        });
+        self.register(key, Rc::new(move |content| write.set(project(content))));
         read
     }
 
-    fn register(&self, watcher: Watcher<C>) {
+    fn register(&self, key: Option<Touched>, run: Run<C>) {
         let id = self.next_watcher.get();
         self.next_watcher.set(id + 1);
-        self.watchers.borrow_mut().push((id, watcher));
+        {
+            let mut watchers = self.watchers.borrow_mut();
+            match key {
+                Some(key) => watchers.keyed.entry(key).or_default().push((id, run)),
+                None => watchers.unkeyed.push((id, run)),
+            }
+        }
         let watchers = Rc::downgrade(&self.watchers);
         on_cleanup(move || {
-            if let Some(watchers) = watchers.upgrade() {
-                watchers.borrow_mut().retain(|(held, _)| *held != id);
+            let Some(watchers) = watchers.upgrade() else {
+                return;
+            };
+            let mut watchers = watchers.borrow_mut();
+            let empty = watchers.held(key).is_some_and(|held| {
+                held.retain(|(held, _)| *held != id);
+                held.is_empty()
+            });
+            if let (Some(key), true) = (key, empty) {
+                watchers.keyed.remove(&key);
             }
         });
     }
@@ -140,10 +181,7 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
         let store: KeyedStore<K, V> = KeyedStore::new();
         project(&self.visible.borrow(), &store);
         let target = store.clone();
-        self.register(Watcher {
-            key: None,
-            run: Rc::new(move |content| project(content, &target)),
-        });
+        self.register(None, Rc::new(move |content| project(content, &target)));
         store
     }
 
@@ -151,6 +189,10 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
         if !self.host.editable() {
             return;
         }
+        self.operate_anyway(operation);
+    }
+
+    pub fn operate_anyway(&self, operation: C::Op) {
         self.visible
             .borrow_mut()
             .apply_touching(&operation, &mut self.touched.borrow_mut());
@@ -173,21 +215,23 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
         if touched.is_empty() {
             return;
         }
-        let everything = touched.contains(&Touched::Everything);
-        let keys: HashSet<Touched> = touched.into_iter().collect();
-        let watchers: Vec<Watcher<C>> = self
-            .watchers
-            .borrow()
-            .iter()
-            .map(|(_, watcher)| watcher)
-            .filter(|watcher| everything || watcher.key.is_none_or(|key| keys.contains(&key)))
-            .cloned()
-            .collect();
+        let runs = self.watchers.borrow().touched_by(&touched);
         batch(|| {
-            for watcher in watchers {
-                (watcher.run)(&self.visible.borrow());
+            for run in runs {
+                run(&self.visible.borrow());
             }
         });
+    }
+
+    fn adopt_lazily(&self) {
+        self.adopt();
+        if self.touched.borrow().is_empty() {
+            return;
+        }
+        let due = self.due.borrow().clone();
+        if let Some(due) = due {
+            due();
+        }
     }
 
     fn adopt(&self) {
@@ -209,6 +253,7 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
                         }
                     }
                     *self.confirmed.borrow_mut() = confirmed;
+                    self.resyncing.set(false);
                     if !self.loaded.replace(true) {
                         for loaded in self.loaded_signals.borrow_mut().drain(..) {
                             loaded.set(true);
@@ -217,14 +262,15 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
                     self.rebuild();
                 }
                 ContentUpdate::Operations(operations) => {
-                    if !self.loaded.get() {
+                    if !self.loaded.get() || self.resyncing.get() {
                         continue;
                     }
                     let mut rebuild = false;
                     for (bytes, mine) in operations {
                         let Ok(operation) = C::decode_operation(&bytes) else {
-                            rebuild = true;
-                            continue;
+                            self.resyncing.set(true);
+                            self.host.request_content_resend(self.block);
+                            break;
                         };
                         self.confirmed.borrow_mut().apply(&operation);
                         let mut pending = self.pending.borrow_mut();

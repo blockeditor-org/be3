@@ -82,78 +82,6 @@ fn sorted_files(directory: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(found)
 }
 
-fn unzip(archive: &Path, into: &Path) -> Result<(), String> {
-    let file =
-        std::fs::File::open(archive).map_err(|error| format!("{}: {error}", archive.display()))?;
-    ZipArchive::new(file)
-        .and_then(|mut zip| zip.extract(into))
-        .map_err(|error| format!("{}: {error}", archive.display()))
-}
-
-fn manifest_package(manifest: &Path) -> Result<String, String> {
-    let text = crate::read(&manifest.to_string_lossy())?;
-    let start = text
-        .find("package=\"")
-        .ok_or_else(|| format!("{} names no package", manifest.display()))?
-        + "package=\"".len();
-    let end = text[start..]
-        .find('"')
-        .ok_or_else(|| format!("{} has an unterminated package", manifest.display()))?;
-    Ok(text[start..start + end].to_owned())
-}
-
-struct JavaLibraries {
-    jars: Vec<PathBuf>,
-    resources: Vec<PathBuf>,
-    packages: Vec<String>,
-}
-
-fn java_libraries(
-    directory: &Path,
-    build_tools: &Path,
-    scratch: &Path,
-) -> Result<JavaLibraries, String> {
-    let mut libraries = JavaLibraries {
-        jars: Vec::new(),
-        resources: Vec::new(),
-        packages: Vec::new(),
-    };
-    for (index, path) in sorted_files(directory)?.into_iter().enumerate() {
-        match path.extension().and_then(|extension| extension.to_str()) {
-            Some("jar") => libraries.jars.push(path),
-            Some("aar") => {
-                let unpacked = scratch.join(format!("aar/{index}"));
-                unzip(&path, &unpacked)?;
-                let classes = unpacked.join("classes.jar");
-                if classes.exists() {
-                    libraries.jars.push(classes);
-                }
-                let bundled = unpacked.join("libs");
-                if bundled.is_dir() {
-                    libraries.jars.extend(
-                        sorted_files(&bundled)?.into_iter().filter(|jar| {
-                            jar.extension().is_some_and(|extension| extension == "jar")
-                        }),
-                    );
-                }
-                libraries
-                    .packages
-                    .push(manifest_package(&unpacked.join("AndroidManifest.xml"))?);
-                let resources = unpacked.join("res");
-                if resources.is_dir() {
-                    let compiled = scratch.join(format!("res/{index}.zip"));
-                    compile_resources(build_tools, &resources, &compiled)?;
-                    libraries.resources.push(compiled);
-                }
-            }
-            _ => return Err(format!("{}: not a .jar or .aar", path.display())),
-        }
-    }
-    libraries.packages.sort();
-    libraries.packages.dedup();
-    Ok(libraries)
-}
-
 fn compile_resources(build_tools: &Path, resources: &Path, out: &Path) -> Result<(), String> {
     if let Some(parent) = out.parent() {
         std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
@@ -205,15 +133,7 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
     let manifest_path = scratch.join("AndroidManifest.xml");
     std::fs::write(&manifest_path, manifest).map_err(|error| error.to_string())?;
 
-    let libraries = match options.get("java-libraries") {
-        Ok(directory) => java_libraries(Path::new(directory), build_tools, &scratch)?,
-        Err(_) => JavaLibraries {
-            jars: Vec::new(),
-            resources: Vec::new(),
-            packages: Vec::new(),
-        },
-    };
-    let mut resources = libraries.resources.clone();
+    let mut resources = Vec::new();
     if let Ok(directory) = options.get("resources") {
         let compiled = scratch.join("res/app.zip");
         compile_resources(build_tools, Path::new(directory), &compiled)?;
@@ -233,10 +153,6 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
     if !options.java.is_empty() {
         link.arg("--java").arg(&generated);
     }
-    if !libraries.packages.is_empty() {
-        link.arg("--extra-packages")
-            .arg(libraries.packages.join(":"));
-    }
     crate::status(
         link.arg("--manifest")
             .arg(&manifest_path)
@@ -254,14 +170,21 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
 
     let mut dexes = Vec::new();
     if !options.java.is_empty() {
-        let mut sources: Vec<PathBuf> = options.java.iter().map(PathBuf::from).collect();
+        let mut sources = Vec::new();
+        for source in &options.java {
+            let source = PathBuf::from(source);
+            if source.is_dir() {
+                sources.extend(sorted_files(&source)?.into_iter().filter(|path| {
+                    path.extension()
+                        .is_some_and(|extension| extension == "java")
+                }));
+            } else {
+                sources.push(source);
+            }
+        }
         if generated.is_dir() {
             sources.extend(sorted_files(&generated)?);
         }
-        let classpath = std::env::join_paths(
-            std::iter::once(android_jar.clone()).chain(libraries.jars.iter().cloned()),
-        )
-        .map_err(|error| error.to_string())?;
         let classes = scratch.join("classes");
         crate::status(
             Command::new(jdk.join("bin/javac"))
@@ -274,7 +197,7 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
                     "11",
                     "-classpath",
                 ])
-                .arg(&classpath)
+                .arg(&android_jar)
                 .arg("-d")
                 .arg(&classes)
                 .args(&sources),
@@ -302,8 +225,7 @@ pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
                 .arg(&android_jar)
                 .arg("--output")
                 .arg(&dexed)
-                .args(&compiled)
-                .args(&libraries.jars),
+                .args(&compiled),
         )?;
         dexes = sorted_files(&dexed)?;
     }

@@ -1,8 +1,8 @@
-use super::{CANVAS, Canvas, WATER, square};
+use super::{CANVAS, Canvas, WATER, Window, square};
 
 #[test]
 fn fill_clamps_spans_beyond_the_canvas() {
-    let mut canvas = Canvas::new();
+    let mut canvas = Canvas::new(Window::WHOLE);
     let inside = square(10.0, 20.0);
     let left = CANVAS as f32 + 10.0;
     let right = CANVAS as f32 + 20.0;

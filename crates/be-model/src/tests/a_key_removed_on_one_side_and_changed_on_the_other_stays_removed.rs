@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore = "a merge keeps an object or map entry one side deleted when the other side edited it, instead of taking the delete and counting a conflict"]
 fn a_key_removed_on_one_side_and_changed_on_the_other_stays_removed() {
     let base = sheet(&[(1, "one")]);
     let removed = put(&base, &[(1, None)]);

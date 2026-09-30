@@ -6,13 +6,15 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::graph::BlockParent;
+use block_plugin_api::TopBar;
 use block_plugin_api::{
-    AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BlockCommand, BlockLocation, BlockPick,
+    AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand, BlockPick,
     ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
-    EditorRegion, FetchResult, FilePick, HostReply, HostRequest, Occluder, PaneId, PaneLayout,
-    PaneTree, PerformanceMeasurement, Size, ViewChange, WebViewCommand, WebViewEvent,
+    DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostReply, HostRequest, Occluder,
+    PaneId, PaneLayout, PaneTree, PerformanceMeasurement, Size, ViewChange, WebViewCommand, WebViewEvent,
 };
-pub use block_plugin_api::{BlockFilter, FileFilter};
+pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};
 use uuid::Uuid;
@@ -90,28 +92,12 @@ pub struct ArtifactState {
     pub regenerating: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum BlockSource {
-    Root,
-    Orphaned,
-    Block(Uuid),
-}
-
-impl BlockSource {
-    fn encode(self) -> BlockLocation {
-        match self {
-            Self::Root => BlockLocation::Root,
-            Self::Orphaned => BlockLocation::Detached,
-            Self::Block(id) => BlockLocation::Block(id.into_bytes()),
-        }
-    }
-}
-
 #[derive(Clone, Copy)]
 pub struct PickedBlock {
     pub id: Uuid,
     pub block_type: Uuid,
     pub linked: bool,
+    pub placed: bool,
 }
 
 #[derive(Clone, Default, PartialEq)]
@@ -344,6 +330,7 @@ pub struct EditorHost {
     pane_events: Rc<RefCell<Vec<PaneEvent>>>,
     shown_panes: Rc<RefCell<Vec<PaneId>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
+    changes: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
     shows: Rc<RefCell<Vec<ShowRequest>>>,
     focused: Rc<RefCell<FocusedBlock>>,
@@ -368,6 +355,7 @@ pub struct EditorHost {
     editable: Rc<Cell<bool>>,
     block_type: Rc<Cell<Option<Uuid>>>,
     client_id: Rc<Cell<Uuid>>,
+    view_block: Rc<Cell<Option<Uuid>>>,
     view: Rc<Cell<Option<View>>>,
     view_changes: Rc<RefCell<Vec<ViewChange>>>,
     creation_ready: Rc<Cell<bool>>,
@@ -386,6 +374,8 @@ pub struct EditorHost {
     presenting: Rc<Cell<bool>>,
     present_requests: Rc<RefCell<Vec<bool>>>,
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
+    child_bars: Rc<RefCell<HashMap<ChildId, Vec<BarAction>>>>,
+    bar_actions: Rc<RefCell<Vec<BarAction>>>,
     chrome: Rc<Cell<Option<bool>>>,
     content: Rc<Cell<Option<Rect>>>,
     copied: Rc<RefCell<Vec<String>>>,
@@ -394,6 +384,7 @@ pub struct EditorHost {
     next_frame: Rc<Cell<Option<Duration>>>,
     content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ContentUpdate>>>>,
     content_operations: Rc<RefCell<Vec<ContentOperation>>>,
+    resend_requests: Rc<RefCell<Vec<Option<Uuid>>>>,
     watched_content: Rc<RefCell<std::collections::BTreeMap<Uuid, Uuid>>>,
     seeded: Rc<RefCell<Vec<SeededContent>>>,
     shown: Rc<RefCell<Vec<ShownPresence>>>,
@@ -432,6 +423,15 @@ impl EditorHost {
     fn push(&self, pushed: Pushed) {
         let revision = &self.pushed[pushed as usize];
         revision.set(revision.get() + 1);
+        self.changed();
+    }
+
+    pub fn changes(&self) -> u64 {
+        self.changes.get() + self.graph.deferred()
+    }
+
+    fn changed(&self) {
+        self.changes.set(self.changes.get() + 1);
     }
 
     pub fn performance(&self, group: impl Into<String>) -> PerformanceReporter {
@@ -607,6 +607,12 @@ impl EditorHost {
             .push((block_id, BlockCommand::Share));
     }
 
+    pub fn show_app_menu(&self, block_id: Uuid) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::AppMenu));
+    }
+
     pub fn rename_block(&self, block_id: Uuid) {
         self.block_commands
             .borrow_mut()
@@ -626,7 +632,7 @@ impl EditorHost {
         &self,
         block_id: Uuid,
         block_type: Uuid,
-        source: BlockSource,
+        source: BlockParent,
         is_reference: bool,
     ) {
         self.block_commands.borrow_mut().push((
@@ -643,7 +649,7 @@ impl EditorHost {
         &self,
         block_id: Uuid,
         block_type: Uuid,
-        source: BlockSource,
+        source: BlockParent,
         destination: Uuid,
         is_reference: bool,
     ) {
@@ -742,6 +748,11 @@ impl EditorHost {
             .entry(block)
             .or_default()
             .push(update);
+        self.changed();
+    }
+
+    pub fn updated_content(&self) -> Vec<Option<Uuid>> {
+        self.content_updates.borrow().keys().copied().collect()
     }
 
     pub(crate) fn take_content_updates(&self, block: Option<Uuid>) -> Vec<ContentUpdate> {
@@ -780,6 +791,19 @@ impl EditorHost {
 
     pub(crate) fn take_all_content_operations(&self) -> Vec<(Option<Uuid>, Vec<u8>)> {
         std::mem::take(&mut self.content_operations.borrow_mut())
+    }
+
+    pub(crate) fn request_content_resend(&self, block: Option<Uuid>) {
+        let mut requests = self.resend_requests.borrow_mut();
+        if !requests.contains(&block) {
+            requests.push(block);
+        }
+        drop(requests);
+        self.waker.wake();
+    }
+
+    pub(crate) fn take_content_resend_requests(&self) -> Vec<Option<Uuid>> {
+        std::mem::take(&mut self.resend_requests.borrow_mut())
     }
 
     pub fn watch_content(&self, block: Uuid, content_type: Uuid) {
@@ -875,6 +899,14 @@ impl EditorHost {
         self.client_id.get()
     }
 
+    pub fn view_block(&self) -> Option<Uuid> {
+        self.view_block.get()
+    }
+
+    pub fn set_view_block(&self, view_block: Option<Uuid>) {
+        self.view_block.set(view_block);
+    }
+
     pub fn view(&self) -> Option<Rect> {
         let origin = self.region.get().origin;
         self.view.get().map(|view| view.rect.translate(origin))
@@ -919,6 +951,7 @@ impl EditorHost {
 
     pub(crate) fn set_files(&self, drop: Option<FileDrop>) {
         *self.files.borrow_mut() = drop;
+        self.changed();
     }
 
     pub fn accept_drag(&self, accepted: bool) {
@@ -939,6 +972,17 @@ impl EditorHost {
     pub fn take_pick(&self, request: u64) -> Option<FilePick> {
         match self.take_reply(request)? {
             HostReply::FilePicked(pick) => Some(pick),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
+    pub fn save_file(&self, file: SavedFile) -> u64 {
+        self.ask(HostRequest::SaveFile(file))
+    }
+
+    pub fn take_save(&self, request: u64) -> Option<FileSave> {
+        match self.take_reply(request)? {
+            HostReply::FileSaved(save) => Some(save),
             reply => self.mismatched(request, reply),
         }
     }
@@ -997,6 +1041,28 @@ impl EditorHost {
     pub fn take_fetch(&self, request: u64) -> Option<FetchResult> {
         match self.take_reply(request)? {
             HostReply::Fetched(result) => Some(result),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
+    pub fn list_data(&self) -> u64 {
+        self.ask(HostRequest::ListData)
+    }
+
+    pub fn take_data_listing(&self, request: u64) -> Option<DataListing> {
+        match self.take_reply(request)? {
+            HostReply::DataListed(listing) => Some(listing),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
+    pub fn read_data(&self, path: impl Into<String>) -> u64 {
+        self.ask(HostRequest::ReadData(path.into()))
+    }
+
+    pub fn take_data(&self, request: u64) -> Option<FetchResult> {
+        match self.take_reply(request)? {
+            HostReply::DataRead(result) => Some(result),
             reply => self.mismatched(request, reply),
         }
     }
@@ -1104,7 +1170,9 @@ impl EditorHost {
     }
 
     pub fn set_chrome_shown(&self, chrome: bool) {
-        self.chrome.set(Some(chrome));
+        if self.chrome.replace(Some(chrome)) != Some(chrome) {
+            self.changed();
+        }
     }
 
     pub fn copy_text(&self, text: impl Into<String>) {
@@ -1129,6 +1197,15 @@ impl EditorHost {
 
     pub fn take_leave_frame(&self) -> bool {
         self.leaving.take()
+    }
+
+    pub fn bar_action(&self, action: BarAction) {
+        self.bar_actions.borrow_mut().push(action);
+        self.changed();
+    }
+
+    pub fn take_bar_actions(&self) -> Vec<BarAction> {
+        std::mem::take(&mut self.bar_actions.borrow_mut())
     }
 
     pub fn presenting(&self) -> bool {
@@ -1156,12 +1233,13 @@ impl EditorHost {
         &self,
         block_id: Uuid,
         block_type: Uuid,
+        view_block: Option<Uuid>,
         rect: Rect,
         clip: Rect,
         mode: ChildMode,
         layer: ChildLayer,
         own_frame: bool,
-        top_bar: bool,
+        top_bar: TopBar,
         rotation: f32,
         opacity: f32,
         intrinsic: Option<Vec2>,
@@ -1174,6 +1252,7 @@ impl EditorHost {
             child,
             block_id: block_id.into_bytes(),
             block_type: block_type.into_bytes(),
+            view_block: view_block.map(Uuid::into_bytes),
             rect: child_rect(rect.translate(-state.origin)),
             clip: child_rect(clip.translate(-state.origin)),
             own_frame,
@@ -1301,10 +1380,12 @@ impl EditorHost {
 
     pub fn set_editable(&self, editable: bool) {
         self.editable.set(editable);
+        self.changed();
     }
 
     pub fn set_view(&self, view: Rect, scale: f32) {
         self.view.set(Some(View { rect: view, scale }));
+        self.changed();
     }
 
     pub fn report_content(&self, rect: Rect) {
@@ -1321,6 +1402,7 @@ impl EditorHost {
 
     pub fn set_drag(&self, drag: Option<BlockDrag>) {
         self.drag.set(drag);
+        self.changed();
     }
 
     pub fn take_drag_accepted(&self) -> Option<bool> {
@@ -1357,6 +1439,8 @@ impl EditorHost {
         for status in statuses {
             current.insert(status.child, status);
         }
+        drop(current);
+        self.changed();
     }
 
     pub fn retain_child_statuses(&self, live: &[ChildId]) {
@@ -1367,6 +1451,7 @@ impl EditorHost {
 
     pub fn set_presenting(&self, presenting: bool) {
         self.presenting.set(presenting);
+        self.changed();
     }
 
     pub fn take_child_view_changes(&self, child: ChildId) -> Vec<ViewChange> {
@@ -1376,12 +1461,29 @@ impl EditorHost {
             .unwrap_or_default()
     }
 
+    pub fn take_child_bar_actions(&self, child: ChildId) -> Vec<BarAction> {
+        self.child_bars
+            .borrow_mut()
+            .remove(&child)
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn push_child_bar_action(&self, child: ChildId, action: BarAction) {
+        self.child_bars
+            .borrow_mut()
+            .entry(child)
+            .or_default()
+            .push(action);
+        self.changed();
+    }
+
     pub(crate) fn push_child_view_change(&self, child: ChildId, change: ViewChange) {
         self.child_views
             .borrow_mut()
             .entry(child)
             .or_default()
             .push(change);
+        self.changed();
     }
 
     pub(crate) fn take_present_requests(&self) -> Vec<bool> {
@@ -1437,6 +1539,31 @@ impl FilePicker {
             FilePick::Cancelled => None,
             FilePick::Failed(error) => Some(Err(error)),
         }
+    }
+}
+
+#[derive(Default)]
+pub struct FileSaver {
+    request: Option<u64>,
+}
+
+impl FileSaver {
+    pub fn save(&mut self, host: &EditorHost, file: SavedFile) {
+        self.request = Some(host.save_file(file));
+    }
+
+    pub fn is_saving(&self) -> bool {
+        self.request.is_some()
+    }
+
+    pub fn poll(&mut self, host: &EditorHost) -> Option<Result<bool, String>> {
+        let save = host.take_save(self.request?)?;
+        self.request = None;
+        Some(match save {
+            FileSave::Saved => Ok(true),
+            FileSave::Cancelled => Ok(false),
+            FileSave::Failed(error) => Err(error),
+        })
     }
 }
 
@@ -1518,10 +1645,12 @@ impl BlockPicker {
                 block_id,
                 block_type,
                 linked,
+                placed,
             } => Some(Ok(PickedBlock {
                 id: Uuid::from_bytes(block_id),
                 block_type: Uuid::from_bytes(block_type),
                 linked,
+                placed,
             })),
             BlockPick::Cancelled => None,
             BlockPick::Failed(error) => Some(Err(error)),

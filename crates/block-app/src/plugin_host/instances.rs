@@ -4,15 +4,14 @@ use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
-    CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FetchResult,
-    FilePick, FrameReport, FrameSpec, HostReply, HostRequest, Message, Occluder, PaneId,
-    PaneLayout, PaneTree, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId,
-    ScreenLayout, ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
+    CreationOutcome, CursorIcon, DataListing, EditorInstanceId, EditorMessage, EditorRegion,
+    FetchResult, FilePick, FileSave, FrameReport, FrameSpec, HostReply, HostRequest, Message,
+    Occluder, PaneId, PaneLayout, PaneTree, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout,
+    ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
 };
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
-    time::Duration,
 };
 use uuid::Uuid;
 
@@ -23,13 +22,13 @@ use super::{
     pieces,
 };
 use crate::{
+    editors::plugin::discovery,
     host::{self, Target},
     performance,
-    platform::{FileFilter, FilePicker, http::Fetch},
+    platform::{FileFilter, FilePicker, FileSaver, SavedFile, http::Fetch},
     plugin_host::web_view::WebViewHost,
 };
 
-const FETCH_POLL_INTERVAL: Duration = Duration::from_millis(100);
 const REFUSED: &str = "this plugin's manifest does not allow it to reach";
 
 #[derive(Default)]
@@ -43,6 +42,7 @@ pub(super) struct Instances {
     block_types: Option<Arc<Vec<BlockTypeDescriptor>>>,
     sent_block_types: bool,
     network: Vec<String>,
+    plugin_id: String,
 }
 
 struct Connection {
@@ -79,6 +79,7 @@ struct Instance {
     view: Option<EditorView>,
     reported_view: Option<EditorView>,
     view_changes: Vec<ViewChange>,
+    bar_actions: Vec<block_plugin_api::BarAction>,
     presenting: bool,
     reported_presenting: bool,
     grabbed: bool,
@@ -105,7 +106,7 @@ struct ContentLink {
     origin: u64,
     sent: Option<u64>,
     peers_sent: Option<u64>,
-    named: Option<u64>,
+    described: Option<u64>,
 }
 
 impl ContentLink {
@@ -116,19 +117,19 @@ impl ContentLink {
             origin: crate::be::next_origin(),
             sent: None,
             peers_sent: None,
-            named: None,
+            described: None,
         }
     }
 
-    fn name(&mut self, block: Uuid) {
+    fn describe(&mut self, block: Uuid) {
         let Some(content) = crate::be::content(block) else {
             return;
         };
-        if self.named == Some(content.revision) || !crate::be::access(block).can_edit() {
+        if self.described == Some(content.revision) || !crate::be::access(block).can_edit() {
             return;
         }
-        self.named = Some(content.revision);
-        crate::be::name_implicitly(block, crate::be::name_of(&content));
+        self.described = Some(content.revision);
+        crate::be::describe_implicitly(block, crate::be::describe_of(&content).unwrap_or_default());
     }
 
     fn content_message(&mut self, instance: EditorInstanceId, block: Uuid) -> Option<Message> {
@@ -250,6 +251,7 @@ impl Instance {
             view: None,
             reported_view: None,
             view_changes: Vec::new(),
+            bar_actions: Vec::new(),
             presenting: false,
             reported_presenting: false,
             grabbed: false,
@@ -268,12 +270,19 @@ impl Instance {
             shown_panes: Vec::new(),
             version_sent: None,
             content: match role {
-                InstanceRole::Editor(block) => crate::be::is_known(block.block_type)
-                    .then(|| ContentLink::new(block.block_type)),
+                InstanceRole::Editor(block) => own_content_type(block).map(ContentLink::new),
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
             },
         }
     }
+}
+
+fn own_content_type(block: EditorBlock) -> Option<Uuid> {
+    if crate::be::is_known(block.block_type) {
+        return Some(block.block_type);
+    }
+    (block.view_block == Some(block.id))
+        .then_some(<be_block::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE)
 }
 
 impl Instance {
@@ -370,10 +379,10 @@ impl Instance {
 
     fn name_content(&mut self) {
         if let (Some(block), Some(link)) = (self.role.block(), self.content.as_mut()) {
-            link.name(block.id);
+            link.describe(block.id);
         }
         for (block, link) in &mut self.watched {
-            link.name(*block);
+            link.describe(*block);
         }
     }
 }
@@ -385,8 +394,11 @@ struct Pending {
 
 enum Work {
     Pick(FilePicker),
+    Save(FileSaver),
     Fetch(Fetch),
     Paste(ClipboardImage),
+    ListData(Fetch),
+    ReadData(Fetch),
 }
 
 impl Work {
@@ -401,18 +413,31 @@ impl Work {
                 None if picker.is_open() => return None,
                 None => FilePick::Cancelled,
             })),
+            Self::Save(saver) => Some(HostReply::FileSaved(match saver.poll()? {
+                Ok(true) => FileSave::Saved,
+                Ok(false) => FileSave::Cancelled,
+                Err(error) => FileSave::Failed(error),
+            })),
             Self::Fetch(fetch) => match fetch.poll() {
                 Some(Ok(body)) => Some(HostReply::Fetched(FetchResult::Body(body))),
                 Some(Err(error)) => Some(HostReply::Fetched(FetchResult::Failed(error))),
-                None => {
-                    host::request_repaint_after(FETCH_POLL_INTERVAL);
-                    None
-                }
+                None => None,
             },
             Self::Paste(image) => Some(HostReply::ImagePasted(std::mem::replace(
                 image,
                 ClipboardImage::Empty,
             ))),
+            Self::ListData(fetch) => Some(HostReply::DataListed(match fetch.poll()? {
+                Ok(index) => match serde_json::from_slice(&index) {
+                    Ok(files) => DataListing::Files(files),
+                    Err(error) => DataListing::Failed(format!("the data index is {error}")),
+                },
+                Err(error) => DataListing::Failed(error),
+            })),
+            Self::ReadData(fetch) => Some(HostReply::DataRead(match fetch.poll()? {
+                Ok(body) => FetchResult::Body(body),
+                Err(error) => FetchResult::Failed(error),
+            })),
         }
     }
 }
@@ -780,6 +805,16 @@ impl Instances {
         })]
     }
 
+    pub(super) fn take_bar_actions(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Vec<block_plugin_api::BarAction> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.bar_actions))
+            .unwrap_or_default()
+    }
+
     pub(super) fn take_view_changes(&mut self, instance: EditorInstanceId) -> Vec<ViewChange> {
         self.entries
             .get_mut(&instance)
@@ -874,6 +909,10 @@ impl Instances {
         self.network = hosts;
     }
 
+    pub(super) fn set_plugin_id(&mut self, plugin_id: String) {
+        self.plugin_id = plugin_id;
+    }
+
     pub(super) fn reopen(&mut self) {
         self.sent_block_types = false;
         self.announced.clear();
@@ -936,6 +975,7 @@ impl Instances {
                         instance,
                         block_id: block.id.into_bytes(),
                         block_type: block.block_type.into_bytes(),
+                        view_block: block.view_block.map(Uuid::into_bytes),
                         account_id,
                         workspace_id,
                         client_id,
@@ -1241,6 +1281,7 @@ impl Instances {
                 top_bar: child.top_bar,
                 block_id: Uuid::from_bytes(child.block_id),
                 block_type: Uuid::from_bytes(child.block_type),
+                view_block: child.view_block.map(Uuid::from_bytes),
                 rect: child_rect,
                 clip: child_clip,
                 layer: child.layer,
@@ -1288,6 +1329,7 @@ impl Instances {
                 matches!(child.mode, ChildMode::Active | ChildMode::Live)
                     && !child.own_frame
                     && !screen.frame_revoked.contains(&child.child)
+                    && !screen.revoked.contains(&child.child)
                     && !child.rect.is_empty()
             })
             .map(|child| Uuid::from_bytes(child.block_id))
@@ -1585,6 +1627,25 @@ impl Instances {
             .collect()
     }
 
+    pub(super) fn child_bar_actions(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        actions: Vec<(ChildId, block_plugin_api::BarAction)>,
+    ) -> Vec<Message> {
+        actions
+            .into_iter()
+            .map(|(child, action)| {
+                Message::Editor(EditorMessage::ChildBar {
+                    instance,
+                    region,
+                    child,
+                    action,
+                })
+            })
+            .collect()
+    }
+
     pub(super) fn replace_child(
         &mut self,
         instance: EditorInstanceId,
@@ -1828,10 +1889,11 @@ impl Instances {
         let fetch = match &request {
             HostRequest::Fetch(url) => Some(match allowed(url, &self.network) {
                 true => Fetch::get(url.clone(), Vec::new()),
-                false => Fetch::refused(format!("{REFUSED} {url}")),
+                false => Fetch::answered(Err(format!("{REFUSED} {url}"))),
             }),
             _ => None,
         };
+        let plugin_id = &self.plugin_id;
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
         };
@@ -1841,11 +1903,22 @@ impl Instances {
                 picker.open(&host_filter(filter));
                 Work::Pick(picker)
             }
+            HostRequest::SaveFile(file) => {
+                let mut saver = FileSaver::default();
+                saver.save(SavedFile {
+                    name: file.name,
+                    mime_type: file.mime_type,
+                    data: file.data,
+                });
+                Work::Save(saver)
+            }
             HostRequest::PasteImage => Work::Paste(super::clipboard::read_clipboard_image()),
             HostRequest::Fetch(_) => match fetch {
                 Some(fetch) => Work::Fetch(fetch),
                 None => return false,
             },
+            HostRequest::ListData => Work::ListData(discovery::data_listing(plugin_id)),
+            HostRequest::ReadData(path) => Work::ReadData(discovery::data(plugin_id, &path)),
             HostRequest::PickBlock(filter) => {
                 entry.block_picks.push(BlockPickRequest {
                     request_id,
@@ -1856,6 +1929,13 @@ impl Instances {
                         .collect(),
                     excluded: filter.excluded.into_iter().map(Uuid::from_bytes).collect(),
                     templates: filter.templates,
+                    place: filter.place.and_then(|place| match place {
+                        block_plugin_api::BlockLocation::Root => Some(be_graph::BlockParent::Root),
+                        block_plugin_api::BlockLocation::Block(id) => {
+                            Some(be_graph::BlockParent::Block(Uuid::from_bytes(id)))
+                        }
+                        block_plugin_api::BlockLocation::Detached => None,
+                    }),
                 });
                 return true;
             }
@@ -1979,6 +2059,17 @@ impl Instances {
             EditorMessage::WatchContent { instance, blocks } => {
                 self.watch_content(instance, blocks)
             }
+            EditorMessage::ResendContent { instance, block_id } => {
+                let Some(link) = self
+                    .entries
+                    .get_mut(&instance)
+                    .and_then(|entry| entry.link_mut(Uuid::from_bytes(block_id)))
+                else {
+                    return false;
+                };
+                link.sent = None;
+                true
+            }
             EditorMessage::VersionControl {
                 instance,
                 block_id,
@@ -2046,6 +2137,7 @@ impl Instances {
                         data: artifact.data,
                     }),
                     local_id: None,
+                    derived: be_block::DerivedMetadata::default(),
                 };
                 crate::be::create(
                     block,
@@ -2102,14 +2194,18 @@ impl Instances {
                 false
             }
             EditorMessage::SeedContent {
+                instance,
                 block_id,
                 content_type,
                 bytes,
-                ..
             } => {
                 let block = Uuid::from_bytes(block_id);
                 let content_type = Uuid::from_bytes(content_type);
-                if crate::be::is_known(content_type) {
+                let holds = self
+                    .entries
+                    .get(&instance)
+                    .is_some_and(|entry| entry.holds(block));
+                if holds && crate::be::is_known(content_type) {
                     crate::be::seed(block, content_type, bytes);
                 }
                 false
@@ -2294,6 +2390,13 @@ impl Instances {
                     return false;
                 };
                 entry.leaving = true;
+                true
+            }
+            EditorMessage::BarAction { instance, action } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.bar_actions.push(action);
                 true
             }
             EditorMessage::ChangeView { instance, change } => {

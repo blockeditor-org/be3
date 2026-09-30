@@ -17,14 +17,18 @@ pub struct Slide {
 
 impl Presentation {
     fn anchor_at(&self, index: usize, skipping: Option<ObjectId>) -> Anchor {
-        let before: Vec<ObjectId> = self
+        let others: Vec<ObjectId> = self
             .slides
             .iter()
             .map(|slide| slide.id)
             .filter(|id| Some(*id) != skipping)
-            .take(index)
             .collect();
-        before.last().map_or(Anchor::Start, |id| Anchor::After(*id))
+        if index >= others.len() {
+            return Anchor::End;
+        }
+        index
+            .checked_sub(1)
+            .map_or(Anchor::Start, |previous| Anchor::After(others[previous]))
     }
 
     pub fn insert(&self, slide: ObjectId, index: usize, block: Uuid) -> Edit {

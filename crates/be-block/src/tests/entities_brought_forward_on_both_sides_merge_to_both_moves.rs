@@ -2,7 +2,6 @@ use super::*;
 use crate::canvas::{CanvasContent, CanvasLayerMove, InfiniteCanvasOperation};
 
 #[test]
-#[ignore = "two reorders of one list conflict in the list merge and one side's move is dropped without counting a conflict"]
 fn entities_brought_forward_on_both_sides_merge_to_both_moves() {
     let entities = [rectangle(), rectangle(), rectangle(), rectangle()];
     let mut base = CanvasContent::default();

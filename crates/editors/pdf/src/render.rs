@@ -5,15 +5,9 @@ use std::{
 
 use block_editor_beui::beui::{Image, Pos2, Vec2};
 
-#[cfg(not(target_arch = "wasm32"))]
 mod pdfium;
-#[cfg(target_arch = "wasm32")]
-mod unsupported;
 
-#[cfg(not(target_arch = "wasm32"))]
 pub(crate) use pdfium::spawn_render_job;
-#[cfg(target_arch = "wasm32")]
-pub(crate) use unsupported::spawn_render_job;
 
 pub(crate) const DETAIL_MAX_DIM: f32 = 4096.0;
 pub(crate) const MIN_SCALE: f32 = 0.01;
@@ -29,7 +23,6 @@ pub(crate) struct RenderedTile {
 }
 
 #[derive(Clone, Copy)]
-#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub(crate) enum RenderTarget {
     FullPage {
         max_width: f32,

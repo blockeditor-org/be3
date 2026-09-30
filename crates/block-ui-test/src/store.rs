@@ -380,6 +380,7 @@ impl ContentStore {
                     references: Vec::new(),
                     access: block_plugin_api::AccessLevel::Edit,
                     artifact: artifact.clone(),
+                    thumbhash: None,
                 });
                 {
                     let mut inner = self.0.borrow_mut();
@@ -410,9 +411,7 @@ impl ContentStore {
                     .get_mut(&Uuid::from_bytes(*block_id))
                 {
                     info.named_by_hand = name.is_some();
-                    if name.is_some() {
-                        info.name.clone_from(name);
-                    }
+                    info.name.clone_from(name);
                 }
             }
             EditorMessage::WatchBlocks { queries, .. } => {

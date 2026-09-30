@@ -8,7 +8,7 @@ use beui::reactive::{
     Text, Viewport, WriteSignal, component, create_memo, create_signal, view,
 };
 use beui::styled::{Button, ButtonVariant, Caption, Heading, Icon, Spinner, use_theme};
-use beui::{Align, Color32, Drawing, NodeId, Rect, TextAlign, Vec2};
+use beui::{Align, Color32, Drawing, NodeId, Rect, Region, TextAlign, Vec2};
 
 use crate::host::{self, HostCommand, HostItem, PlacedItem, SurfaceOutput, Ui};
 use crate::plugin_host::{Blit, PluginDrawing};
@@ -168,9 +168,12 @@ pub(crate) fn set_height(id: SurfaceId, height: Option<f32>) {
 pub(crate) fn commit() {
     for id in ids() {
         let handle = handle(id);
-        let (output, used, origin, height, placement, changed) = with_state(id, |state| {
+        let (output, used, origin, height, placement, changed, damage) = with_state(id, |state| {
             let output = std::mem::take(&mut state.output);
-            let changed = output.blits != state.blits || output.blits.iter().any(Blit::pending);
+            let kept = output.blits == state.blits;
+            let pending = output.blits.iter().any(Blit::pending);
+            let changed = !kept || pending;
+            let damage = (kept && pending).then(|| redrawn(&output.blits)).flatten();
             state.blits.clone_from(&output.blits);
             let used = std::mem::take(&mut state.used);
             (
@@ -180,20 +183,29 @@ pub(crate) fn commit() {
                 state.height,
                 state.placement,
                 changed,
+                damage,
             )
         });
         handle.set_shown.set(used);
         handle.set_height.set(height);
         let size = placement.map_or(Vec2::ZERO, |(rect, _)| rect.size());
         handle.set_size.set(size);
-        if changed {
-            let drawing = match output.blits.is_empty() {
-                true => None,
-                false => Some(Drawing::new(PluginDrawing::new(output.blits))),
-            };
-            handle.set_drawing.set(drawing);
-        }
         let origin = origin.map_or(beui::Pos2::ZERO, |rect| rect.min);
+        if changed {
+            match (damage, handle.drawing.get_untracked()) {
+                (Some(damage), Some(held)) => {
+                    if !damage.is_empty() {
+                        handle
+                            .set_drawing
+                            .set(Some(held.redrawn(local(&damage, origin))));
+                    }
+                }
+                _ => handle.set_drawing.set(match output.blits.is_empty() {
+                    true => None,
+                    false => Some(beui::drawing(PluginDrawing::new(output.blits))),
+                }),
+            }
+        }
         handle
             .items
             .reconcile_owned(output.items.into_iter().map(|(key, placed)| {
@@ -208,7 +220,26 @@ pub(crate) fn commit() {
     }
 }
 
-pub(crate) fn read_placements() {
+fn redrawn(blits: &[Blit]) -> Option<Vec<Rect>> {
+    let mut damage = Vec::new();
+    for blit in blits {
+        damage.extend(blit.damage()?);
+    }
+    Some(damage)
+}
+
+fn local(damage: &[Rect], origin: beui::Pos2) -> Region {
+    let scale = host::screen_scale();
+    damage.iter().fold(Region::default(), |region, rect| {
+        region.union(Region::from(
+            rect.scaled(scale.recip())
+                .translate(beui::Pos2::ZERO - origin),
+        ))
+    })
+}
+
+pub(crate) fn read_placements() -> bool {
+    let mut moved = false;
     let headless = HEADLESS.with(Cell::get);
     for id in ids() {
         let placement = headless
@@ -223,13 +254,16 @@ pub(crate) fn read_placements() {
             });
         let shown = handle(id).shown.get_untracked();
         with_state(id, |state| {
-            state.placement = if shown || id == SurfaceId::Main {
+            let next = if shown || id == SurfaceId::Main {
                 placement
             } else {
                 None
             };
+            moved |= state.placement != next;
+            state.placement = next;
         });
     }
+    moved
 }
 
 #[component]

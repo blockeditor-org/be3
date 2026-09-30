@@ -49,8 +49,6 @@ def _android_apk_impl(ctx: AnalysisContext) -> list[Provider]:
     )
     for source in ctx.attrs.java:
         command.add(cmd_args(source, format = "--java={}"))
-    if ctx.attrs.java_libraries:
-        command.add(cmd_args(ctx.attrs.java_libraries, format = "--java-libraries={}"))
     if ctx.attrs.resources:
         command.add(cmd_args(ctx.attrs.resources, format = "--resources={}"))
     if ctx.attrs.assets:
@@ -62,8 +60,7 @@ android_apk = rule(
     attrs = {
         "application_id": attrs.string(),
         "assets": attrs.option(attrs.dep(), default = None),
-        "java": attrs.list(attrs.source(), default = []),
-        "java_libraries": attrs.option(attrs.source(allow_directory = True), default = None),
+        "java": attrs.list(attrs.source(allow_directory = True), default = []),
         "label": attrs.string(),
         "library": attrs.transition_dep(cfg = android_transition),
         "manifest": attrs.source(),
@@ -81,53 +78,6 @@ android_apk = rule(
     },
     cfg = android_transition,
     impl = _android_apk_impl,
-)
-
-_build = """
-set -eu
-out="$1" library="$2" cxx="$3" assets="$4"
-mkdir -p "$out/assets"
-cp "$library" "$out/libblock_app_lib.so"
-cp "$cxx" "$out/libc++_shared.so"
-for file in "$assets"/*; do
-    name="$(basename "$file")"
-    case "$name" in
-        *.wasm) [ -e "${file%.wasm}.cwasm" ] && continue ;;
-    esac
-    cp "$file" "$out/assets/$name"
-done
-"""
-
-# The app as the launcher on Android (crates/be-launcher) downloads and runs
-# it, without an APK: the library and libc++_shared.so, and assets/ as the APK
-# holds it, less each module a .cwasm stands in for, since discovery on
-# Android reads the .wasm only when there is no .cwasm.
-def _android_build_impl(ctx: AnalysisContext) -> list[Provider]:
-    out = ctx.actions.declare_output(ctx.label.name, dir = True)
-    library = ctx.attrs.library[DefaultInfo].sub_targets["cdylib"][DefaultInfo].default_outputs[0]
-    ctx.actions.run(
-        cmd_args(
-            "sh",
-            "-c",
-            _build,
-            "sh",
-            out.as_output(),
-            library,
-            cmd_args(ctx.attrs._ndk, format = "{}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"),
-            ctx.attrs.assets[DefaultInfo].default_outputs[0],
-        ),
-        category = "android_build",
-    )
-    return [DefaultInfo(default_output = out)]
-
-android_build = rule(
-    attrs = {
-        "assets": attrs.dep(),
-        "library": attrs.transition_dep(cfg = android_transition),
-        "_ndk": attrs.default_only(attrs.source(default = "root//buck/tools:android-ndk")),
-    },
-    cfg = android_transition,
-    impl = _android_build_impl,
 )
 
 _sign = """

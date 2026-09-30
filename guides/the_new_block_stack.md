@@ -280,17 +280,24 @@ impl Root for Calendar {
 pub type CalendarContent = Document<Calendar>;
 ```
 
-A field is one of five things. A `Count` is a counter whose concurrent changes
+A field is one of seven things. A `Count` is a counter whose concurrent changes
 add up. A `Grid<T>` is a dense block of fixed-size cells addressed by
 coordinates, for pixel data: its bounds are part of its value, so a resize moves
 the bounds and keeps every cell at its coordinates, `paint` sets cells and
 `reshape` sets the bounds. A `List<T>` holds objects of a `Model` type `T`. A `Map<K, V>` holds
 values by key, each key its own register: two people setting different keys
 both keep theirs, which is how a database row holds a cell per schema field.
+`Latest<T>` and `LatestMap<K, V>` are last-write-wins: every write carries a
+`Stamp` (a time and the writing client), a write only replaces an older stamp,
+and a merge keeps the later stamp per key, so they never conflict and never
+undo. `next(time, origin)` stamps a write past the one it replaces, so a client
+with a slow clock still overwrites what it last read. View state uses them.
 Anything else that is `Serialize + DeserializeOwned + Clone + PartialEq +
 Default` is a register: it is set as a whole, and setting it on both sides of an
 offline merge is a conflict. `Root` names the content type and, optionally, the
-block's name and the blocks it references.
+block's name and the blocks it references. Fields are stored by position, so a
+new field goes at the end of its struct: `Document::from_bytes` fills in the
+fields an older document lacks.
 
 `be-model` stores a document as a table of objects with ids, not as a tree of
 values, and every algorithm is written once against that table:
@@ -307,21 +314,32 @@ values, and every algorithm is written once against that table:
   `Calendar::update`, which only writes the fields that changed.
 - **Live editing.** Edits address objects by id and anchor inserts to a sibling,
   so they mean the same thing whatever the sequencer put before them: there is
-  nothing to rebase.
+  nothing to rebase. The tree remembers where each removed or moved-away object
+  was, so an insert anchored after it lands where it was. Anything two peers may
+  create at once for the same purpose (a database row past the end, a canvas
+  component for a schema, a logic game solution) takes an id derived from what
+  it is for, so the second insert is refused and its edits land on the first.
 - **Offline merge.** `Document::merge` matches objects by id across the three
   versions and merges each field on its own: registers take whichever side
   changed, counts add both sides, lists merge their order the way `merge_slices`
-  merges lines, and an object that moved on one side and was edited on the other
-  keeps both. Deleting an object that the other side edited, or that the other
-  side put something into, keeps it and counts a conflict rather than losing the
-  edit.
+  merges lines once the items either side moved are taken out and put back after
+  the sibling they followed on that side, and an object that moved on one side
+  and was edited on the other keeps both. You delete what you saw: deleting an
+  object (or map key) the other side edited deletes it and counts a conflict.
+  What the other side moved or inserted into a removed container, which the
+  deleting side never saw there, survives: a moved object goes back to the list
+  it came from (or the first sibling container), a new one brings its container
+  back, and either counts a conflict.
 - **Undo.** `Document::step` records, for each change, the change that undoes it
   and the one that redoes it, both taken against the state before the edit. A
   register's undo is conditional (`Change::SetIf`, and `Change::PutIf` for a map
   key): it only puts the old value back if nobody has changed it since, which is how undo leaves other
-  people's edits alone. A removed object is put back with everything under it,
-  after the sibling it followed. Consecutive sets of the same fields absorb into
-  one step.
+  people's edits alone. A move's undo (`Change::MoveIf`) only moves the object
+  back if it is still where the move put it. A removed object is put back with
+  everything under it, after the sibling it followed. `Change::RemoveIf` removes
+  an object only if it still holds what the remover expected, for cleanups like
+  a database dropping a row it emptied. Consecutive sets of the same fields
+  absorb into one step.
 - **Grids.** A paint is a list of cells, each optionally conditional on what the
   cell held, so a paint's undo repaints only the cells nobody has painted since,
   and a burst of paints into one grid undoes as one stroke. An offline merge
@@ -349,8 +367,11 @@ canvas and pixel art work the same way: the editor speaks in an operation enum
 as a command, and `edit_for` on the content turns a command into an edit
 against the content as it is now. The logic grid computes that by applying the
 command to the grid it reads back and writing the fields that differ, so its
-components merge field by field and its wires, stored as a set of segments,
-merge segment by segment and are normalized when read. The canvas keeps its
+components merge field by field and its wires, stored as a set of unit-length
+segments and a set of wire ends, merge segment by segment, so a cut, an
+extension and a branch made at once all survive; they are joined back into
+wires, split at the stored ends, when read. Two components given the same id at
+once are both kept, the later one read with a fresh id. The canvas keeps its
 layering as the order of its entity list, so bringing an entity to the front is
 a move. Pixel art keeps its pixels in a `Grid`. The database schema shows the other direction: its fields and enum
 options are objects, and their ids are the ids a database's cells and enum values
@@ -488,19 +509,27 @@ otherwise show a state older than the one on screen; the worker settles the
 change when the server has answered, and refreshes the block from the server
 once nothing is pending.
 
-### Names
+### Names and derived metadata
 
 A block's name lives in its metadata (`be_block::BlockMetadata`: `name`,
-`named_by_hand` and, for a dynamic artifact, the `ArtifactSource` it was made
-from), which the peer seals with the content key before the server stores it
-(`Peer::seal_metadata`). `be::set_name` names a block by hand, and clearing it
-hands the name back to the content, which renames the block the next time an
-editor sees a revision. `be::name_implicitly` is the automatic name:
-whenever an instance that may edit a block is sent a new revision of it, the
-host derives `BlockContent::name` from the content and writes it, unless the
+`named_by_hand`, `derived` and, for a dynamic artifact, the `ArtifactSource` it
+was made from), which the peer seals with the content key before the server
+stores it (`Peer::seal_metadata`). `be::set_name` names a block by hand, and
+clearing it hands the name back to the content, which renames the block the
+next time an editor sees a revision. `be::describe_implicitly` is the automatic
+name: whenever an instance that may edit a block is sent a new revision of it,
+the host derives `BlockContent::name` from the content and writes it, unless the
 name was set by hand. The file tree, the block picker and the top bar read the
 name out of the mirror, so a block nobody has open keeps the name it was last
 given.
+
+`DerivedMetadata` is written the same way, from
+`BlockContent::derived_metadata`, and is for what a block's content says about
+itself that others want before the content has loaded. An image's is its
+thumbhash and exact size, which the image editor records in the header when it
+decodes the image; it reaches plugins as `BlockInfo::thumbhash`, and a beui
+`Picture` given it as a `beui::Thumbhash` lays out at the image's size and
+paints the blurred placeholder until the image arrives.
 
 ### Content on the plugin protocol
 
@@ -631,6 +660,33 @@ within 750 ms of the last one may be absorbed into it, and `be::undo` and
 Plugins reach it with `BlockCommand::Undo` and `BlockCommand::Redo`, and watch
 whether either is possible with `EditorMessage::WatchHistory`, which the host
 answers with `HistoryStates` whenever they change.
+
+### Profiles and view state
+
+What a person has open is blocks too, one generic type for all of it:
+`EditorView { editor, content, state }` names the editor that draws it, the
+block it shows (none for the file tree or the workspace itself), and a
+`LatestMap` of opaque `ViewState { bytes, refs }` the editor owns. `refs` are the
+blocks an entry points at; `references()` is `content` plus every entry's refs,
+and a deleted or replaced child is blanked or repointed in place, so the bytes
+can index into `refs`.
+
+A profile is an `EditorView` of the workspace editor. Each account has its own
+settings block (the top-level `Settings` block it authored); its `profiles` lists
+every profile, and `Settings::profile(client)` is the one this client uses. The
+host opens the shell on that profile, creating one named after the device when
+the client has none, and reopens the shell when it changes. The workspace keeps
+its dock layout and recents in the profile's state; every tab, and the file tree,
+is an `EditorView` child of the profile that the layout references, and closing
+a tab detaches its view.
+
+An editor learns its view block from `Open { view_block }`, which a parent sets
+with `ChildTarget::viewed_by(view)`. `editor.view_state(key)` and
+`editor.set_view_state(key, state)` read and write it; writes skip the block's
+editability, since view state is the viewer's own. An editor on no content (the
+file tree, the workspace) is opened on its own view block, and the host links
+that block's content as an `EditorView`. `be_block::profile::VIEW_EDITORS` lists
+the editor ids that are not content types.
 
 ### What to keep true
 

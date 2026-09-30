@@ -1,8 +1,8 @@
-use super::{CANVAS, Canvas, LAND, square};
+use super::{CANVAS, Canvas, LAND, Window, square};
 
 #[test]
 fn fill_carves_holes_with_even_odd_rule() {
-    let mut canvas = Canvas::new();
+    let mut canvas = Canvas::new(Window::WHOLE);
     let color = [10, 20, 30, 255];
     canvas.fill(&[square(100.0, 900.0), square(400.0, 600.0)], color);
 

@@ -1,10 +1,10 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::{
-    ArtifactDescription, ChildId, ChildPlacement, ChildPlacements, ChildRect, ChildStatus,
-    CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
-    FrameReport, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS, Message,
-    Occluder, PaneId, PaneLayout, PaneTree, RegionSize, ScreenPlacement, ScreenRequest, Size,
-    ViewChange, ViewportMetrics, WebViewEvent,
+    ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
+    ChildStatus, CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion,
+    FrameChrome, FrameReport, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
+    Message, Occluder, PaneId, PaneLayout, PaneTree, RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange,
+    ViewportMetrics, WebViewEvent,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -162,6 +162,10 @@ impl EditorSession {
 
     pub(crate) fn set_audio(&self, status: block_plugin_api::AudioStatus) {
         self.host.set_audio(status);
+    }
+
+    pub(crate) fn set_view_block(&self, view_block: Option<Uuid>) {
+        self.host.set_view_block(view_block);
     }
 
     pub(crate) fn set_client_id(&self, client_id: Uuid) {
@@ -424,6 +428,15 @@ impl EditorSession {
                 operation,
             }));
         }
+        for block in self.host.take_content_resend_requests() {
+            let Some(block) = block.or(self.own_block) else {
+                continue;
+            };
+            messages.push(Message::Editor(EditorMessage::ResendContent {
+                instance,
+                block_id: block.into_bytes(),
+            }));
+        }
         if let Some(watched) = self.host.take_content_watch() {
             messages.push(Message::Editor(EditorMessage::WatchContent {
                 instance,
@@ -504,6 +517,12 @@ impl EditorSession {
         }
         if self.host.take_leave_frame() {
             messages.push(Message::Editor(EditorMessage::LeaveFrame { instance }));
+        }
+        for action in self.host.take_bar_actions() {
+            messages.push(Message::Editor(EditorMessage::BarAction {
+                instance,
+                action,
+            }));
         }
         for shown in self.host.take_shown_presence() {
             let Some(block) = shown.block.or(self.own_block) else {
@@ -736,6 +755,10 @@ impl EditorSession {
         self.host.push_child_view_change(child, change);
     }
 
+    pub(crate) fn child_bar_action(&self, child: ChildId, action: BarAction) {
+        self.host.push_child_bar_action(child, action);
+    }
+
     pub(crate) fn set_child_statuses(&self, statuses: Vec<ChildStatus>) {
         self.host.set_child_statuses(statuses);
     }
@@ -863,7 +886,7 @@ impl EditorSession {
         }
         let screen = self.placement(region).map(|placement| placement.screen);
         let content = frame.content.unwrap_or(host);
-        self.used(region, host);
+        self.used(region, content);
         let reported = |rect: Rect| plugin_rect(rect, origin);
         let reported_content = self
             .host
@@ -884,14 +907,15 @@ impl EditorSession {
                 content: reported(reported_content),
                 painted: frame.painted.iter().map(|rect| reported(*rect)).collect(),
                 floating: frame.floating.iter().map(|rect| reported(*rect)).collect(),
+                handles_back: frame.handles_back,
             });
         }
         frame
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub fn paint(&mut self, target: &PaintTarget<'_>) {
-        self.app.paint(target);
+    pub fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<block_plugin_api::SurfaceRect> {
+        self.app.paint(target)
     }
 
     pub(crate) fn input(&mut self, region: EditorRegion, event: &InputEvent) {

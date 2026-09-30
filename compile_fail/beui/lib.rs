@@ -1,0 +1,7 @@
+mod a_frame_takes_one_child;
+mod a_render_block_takes_one_child;
+mod a_render_closure_returns_one_child;
+mod a_show_is_not_a_frame_child;
+mod a_show_needs_a_child;
+mod a_test_id_names_a_node;
+mod a_value_child_has_no_node_ref;

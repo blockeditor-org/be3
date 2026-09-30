@@ -1,4 +1,5 @@
 use beui::reactive::{Frame, List, build, create_signal, view};
+use beui::styled::DocumentTheme;
 use beui::styled::{Body, TextInput, use_theme};
 use beui::{App, Color32, Context, Document, Rect};
 

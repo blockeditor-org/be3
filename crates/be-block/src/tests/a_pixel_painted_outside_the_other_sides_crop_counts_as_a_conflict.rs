@@ -4,7 +4,6 @@ use crate::pixel_art::{
 };
 
 #[test]
-#[ignore = "a merge drops a pixel painted outside the other side's crop without counting a conflict"]
 fn a_pixel_painted_outside_the_other_sides_crop_counts_as_a_conflict() {
     let blank = PixelArtContent::default();
     let base = edited(

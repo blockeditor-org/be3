@@ -8,6 +8,7 @@ use uuid::Uuid;
 mod field;
 mod grid;
 mod history;
+mod latest;
 mod merge;
 mod tree;
 
@@ -15,6 +16,7 @@ pub use be_model_derive::Model;
 pub use field::{Count, Field, FieldRef, Item, List, Map, Register};
 pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
+pub use latest::{Latest, LatestMap, Stamp, Stamped};
 pub use tree::Tree;
 
 #[derive(
@@ -71,6 +73,7 @@ pub enum Value {
     List(Vec<ObjectId>),
     Map(BTreeMap<Vec<u8>, Vec<u8>>),
     Grid(Cells),
+    Latest(BTreeMap<Vec<u8>, Stamped>),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -144,16 +147,39 @@ pub enum Change {
     Remove {
         object: ObjectId,
     },
+    RemoveIf {
+        object: ObjectId,
+        expected: Vec<Value>,
+    },
     Move {
         object: ObjectId,
         place: Place,
         anchor: Anchor,
+    },
+    MoveIf {
+        object: ObjectId,
+        expected: Place,
+        place: Place,
+        anchor: Anchor,
+    },
+    Stamp {
+        object: ObjectId,
+        field: u16,
+        key: Vec<u8>,
+        stamped: Stamped,
     },
 }
 
 impl Change {
     pub fn remove(object: ObjectId) -> Self {
         Self::Remove { object }
+    }
+
+    pub fn remove_if_blank<M: Model>(object: ObjectId) -> Self {
+        Self::RemoveIf {
+            object,
+            expected: M::blank(),
+        }
     }
 }
 
@@ -178,6 +204,8 @@ pub trait Model: Sized {
     fn read(tree: &Tree, id: ObjectId) -> Self;
 
     fn write(&self, id: ObjectId, parent: Option<Place>, out: &mut Vec<(ObjectId, Object)>);
+
+    fn upgrade(tree: &mut Tree, id: ObjectId);
 }
 
 #[derive(Debug)]
@@ -266,7 +294,9 @@ impl<R: Model> Document<R> {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Malformed> {
-        Tree::decode(bytes).map(Self::from_tree)
+        let mut tree = Tree::decode(bytes)?;
+        R::upgrade(&mut tree, ObjectId::ROOT);
+        Ok(Self::from_tree(tree))
     }
 
     pub fn merge(base: &Self, ours: &Self, theirs: &Self) -> (Self, usize) {

@@ -51,6 +51,14 @@ the receiver reads as a zoom of its own. Consecutive moves from one touch
 coalesce to their latest position and pressure. Consecutive zoom gestures
 coalesce by multiplying their factors.
 
+A back gesture - the system's back button or swipe, or a Back key - is an
+input event of its own, carrying its phase: started from an edge, its
+progress, cancelled, or invoked. It is not sent to the screen with the focus.
+Each frame report says whether the instance has something to go back from on
+that screen, and the host sends the gesture to the last screen it drew whose
+report said so, unless the host's own interface takes it first. With no such
+screen the gesture is left to the platform.
+
 A screen's input goes out at the start of the host frame that received it,
 before the host lays anything out, and it is routed against where the screen
 sat and what covered it the last time the screen was drawn. The host has that
@@ -254,6 +262,14 @@ outstanding together. The host refuses a URL that is not https, or whose host
 name is not one the plugin's manifest names, and reports the refusal as an
 ordinary failure rather than as a protocol error.
 
+An editor instance may read the files its plugin was staged with, which are
+read-only data the build lays out beside the app rather than anything a
+workspace holds: a plugin has no file system of its own on any platform. It
+may ask for the list of those files, answered with every path relative to its
+data, and for one file by that path, answered with its bytes or with why they
+could not be read. A plugin reaches only its own data; a path that is not a
+plain relative path is refused as an ordinary failure.
+
 An editor instance may ask the host for a web view, which is a window of the
 operating system's own laid over the app rather than anything a plugin could
 draw: it opens one at a URL, says each frame where inside its own screen it
@@ -394,6 +410,21 @@ and sidebars over its own part of it, which is how the workspace's own
 interface draws a pane of files beside the block being edited. The two are
 exclusive: a child that owns a frame of its own never takes the frame it was
 placed in.
+
+A child that owns a frame of its own may also be given the framework's top bar
+over it, and the placement says which: the plain bar, or the one a phone
+shows, which carries how many files the parent has open. The phone bar's back
+button, title and file count do nothing inside the child: the instance reports
+which of them was pressed, and the host hands that to the instance that placed
+the child, which decides what going back, switching file or showing the file's
+details means.
+
+A block pick may name a place for what it makes: the top level or a block. The
+host then asks for a name and lets the user choose the place as well, and
+creates the block there under that name; its answer says so, and the plugin
+only opens what it was given. A block chosen from the ones that already exist
+is never placed by the host, and the plugin places it as it would without a
+place.
 
 The host answers with a status per child: whether the block could be opened
 at all, the size and shape its editor asks for, whether the pointer is over

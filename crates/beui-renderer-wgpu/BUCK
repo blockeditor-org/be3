@@ -1,0 +1,16 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+renderer_srcs = glob(["src/**/*.rs", "src/**/*.wgsl"])
+
+cargo_library(srcs = renderer_srcs)
+
+# The renderer's tests draw through a real graphics adapter. On a worker that is
+# lavapipe, Mesa's software Vulkan, from buck/sysroot's Vulkan set - the same
+# device CI's runners gave them when they ran there.
+cargo_test(
+    env = {
+        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+    },
+    srcs = renderer_srcs,
+)

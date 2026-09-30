@@ -1,114 +1,169 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use beui::NodeId;
-use beui::icons::{ICON_MORE_VERT, ICON_PLAY_ARROW, ICON_SYSTEM_UPDATE};
+use beui::icons::ICON_PLAY_ARROW;
 use beui::reactive::{
-    Align, Direction, List, Memo, ReadSignal, Show, Text, WriteSignal, clone, component,
+    Align, Direction, ItemSize, List, Memo, ReadSignal, Show, Text, WriteSignal, clone, component,
     create_memo, create_signal, view,
 };
 use beui::styled::theme::FONT_BODY;
-use beui::styled::{Button, ButtonVariant, Caption, MenuButton, Spinner, use_theme};
+use beui::styled::{ButtonVariant, Caption, Spinner, SplitButton, use_theme};
 use beui::unstyled::MenuItem;
 
 use crate::android;
-use crate::builds::{self, Build, Downloaded, Slot};
+use crate::builds::{self, Build, Installed, Object, Slot};
 use crate::github::{Entry, PullRequest};
 use crate::model::{Cache, Loaded, Model};
 use crate::tasks::{self, Tasks};
 
-const BUILD: &str = "build";
-const DATA: &str = "data";
+const APP: &str = "app.apk";
 const LAUNCHER: &str = "launcher.apk";
+const INSTALLED: &str = "installed.json";
+const LAUNCHER_RECORD: &str = "launcher.json";
 const PROGRESS_STEP: u64 = 1 << 20;
 const MEGABYTE: f64 = 1_000_000.0;
 const SHORT_SHA: usize = 7;
 
 pub(crate) enum Event {
-    Found(Option<Downloaded>),
-    Fetched(Slot, Result<Option<Build>, String>),
+    Found(Option<Installed>, Own),
+    Fetched(Slot, Result<Found, String>),
     Progress(Slot, u64, u64),
-    Synced(Slot, Result<(), String>, Option<Downloaded>),
-    Confirming,
-    Installed(Result<(), String>),
+    Downloaded(Slot, Result<Downloaded, String>),
+    Committed(Result<(), String>),
+    Finished(Result<(), String>),
+}
+
+pub(crate) enum Downloaded {
+    Current,
+    App { commit: String, app: Object },
+    Launcher,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Found {
+    pub(crate) wanted: String,
+    pub(crate) build: Option<Build>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Own {
+    pub(crate) hash: String,
+    pub(crate) record: Option<Installed>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Package {
+    App,
+    Launcher,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Stage {
     Downloading { done: u64, total: u64 },
+    Removing,
     Installing,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Work {
     pub(crate) slot: Slot,
+    pub(crate) package: Package,
     pub(crate) stage: Stage,
+    pub(crate) fresh: bool,
 }
 
 #[derive(Clone)]
 pub(crate) struct Phone {
     tasks: Tasks,
-    shell: Rc<String>,
-    builds: Cache<Slot, Option<Build>>,
-    downloaded: ReadSignal<Option<Downloaded>>,
-    set_downloaded: WriteSignal<Option<Downloaded>>,
+    builds: Cache<Slot, Found>,
+    own: ReadSignal<Option<Own>>,
+    set_own: WriteSignal<Option<Own>>,
+    installed: ReadSignal<Option<Installed>>,
+    set_installed: WriteSignal<Option<Installed>>,
     work: ReadSignal<Option<Work>>,
     set_work: WriteSignal<Option<Work>>,
     problem: ReadSignal<Option<(Slot, String)>>,
     set_problem: WriteSignal<Option<(Slot, String)>>,
+    pending: Rc<RefCell<Option<Installed>>>,
 }
 
 impl Phone {
-    pub(crate) fn new(tasks: Tasks, shell: String) -> Self {
+    pub(crate) fn new(tasks: Tasks) -> Self {
         android::remember(tasks.clone());
-        let (downloaded, set_downloaded) = create_signal(None);
+        let (installed, set_installed) = create_signal(None);
+        let (own, set_own) = create_signal(None);
         let (work, set_work) = create_signal(None);
         let (problem, set_problem) = create_signal(None);
         Self {
             tasks,
-            shell: Rc::new(shell),
             builds: Rc::new(RefCell::new(HashMap::new())),
-            downloaded,
-            set_downloaded,
+            own,
+            set_own,
+            installed,
+            set_installed,
             work,
             set_work,
             problem,
             set_problem,
+            pending: Rc::default(),
         }
     }
 
     pub(crate) fn start(&self) {
         self.tasks.background(|tasks| {
-            let directory = android::files(tasks).join(BUILD);
-            tasks::Event::Phone(Event::Found(builds::downloaded(&directory)))
+            let files = android::files(tasks);
+            let installed =
+                builds::installed(&files.join(INSTALLED)).filter(|_| android::installed());
+            let hash = android::apk()
+                .and_then(|apk| builds::hash_file(&apk))
+                .unwrap_or_default();
+            let record = builds::installed(&files.join(LAUNCHER_RECORD))
+                .filter(|record| !hash.is_empty() && record.hash == hash);
+            tasks::Event::Phone(Event::Found(installed, Own { hash, record }))
         });
     }
 
     pub(crate) fn holds(&self, slot: Slot) -> bool {
-        self.downloaded.with(|downloaded| {
-            downloaded
+        self.installed.with(|installed| {
+            installed
                 .as_ref()
-                .is_some_and(|downloaded| downloaded.slot == slot)
+                .is_some_and(|installed| installed.slot == slot)
         })
     }
 
-    pub(crate) fn runs_here(&self, build: &Build) -> bool {
-        build.shell == *self.shell
-    }
-
-    pub(crate) fn build(&self, slot: Slot, commit: &str) -> ReadSignal<Loaded<Option<Build>>> {
+    pub(crate) fn build(&self, slot: Slot, commit: &str) -> ReadSignal<Loaded<Found>> {
         if let Some((read, _)) = self.builds.borrow().get(&slot) {
             return read.clone();
         }
         let (read, write) = create_signal(Loaded::Loading);
         self.builds.borrow_mut().insert(slot, (read.clone(), write));
-        self.fetch(slot, commit.to_owned());
+        self.fetch(slot, Some(commit.to_owned()));
+        read
+    }
+
+    pub(crate) fn main_build(&self) -> ReadSignal<Loaded<Found>> {
+        if let Some((read, _)) = self.builds.borrow().get(&Slot::Main) {
+            return read.clone();
+        }
+        let (read, write) = create_signal(Loaded::Loading);
+        self.builds
+            .borrow_mut()
+            .insert(Slot::Main, (read.clone(), write));
+        self.fetch(Slot::Main, None);
         read
     }
 
     pub(crate) fn refresh(&self, slot: Slot, commit: &str) {
+        self.refetch(slot, Some(commit.to_owned()));
+    }
+
+    pub(crate) fn refresh_main(&self) {
+        self.refetch(Slot::Main, None);
+    }
+
+    fn refetch(&self, slot: Slot, commit: Option<String>) {
         let write = self
             .builds
             .borrow()
@@ -116,91 +171,148 @@ impl Phone {
             .map(|(_, write)| write.clone());
         if let Some(write) = write {
             write.set(Loaded::Loading);
-            self.fetch(slot, commit.to_owned());
+            self.fetch(slot, commit);
         }
     }
 
-    fn fetch(&self, slot: Slot, commit: String) {
-        self.tasks.background(move |_| {
-            tasks::Event::Phone(Event::Fetched(slot, fetch_build(slot, &commit)))
+    fn fetch(&self, slot: Slot, commit: Option<String>) {
+        self.tasks.background(move |tasks| {
+            let found = commit
+                .map_or_else(
+                    || tasks.github().and_then(|github| github.branch_head("main")),
+                    Ok,
+                )
+                .and_then(|wanted| {
+                    let build = fetch_build(slot)?;
+                    Ok(Found { wanted, build })
+                });
+            tasks::Event::Phone(Event::Fetched(slot, found))
         });
     }
 
-    pub(crate) fn run(&self, slot: Slot, commit: String, fresh: bool) {
-        if self.work.with(Option::is_some) {
+    pub(crate) fn run(&self, slot: Slot, fresh: bool) {
+        if !self.begin(slot, Package::App, fresh) {
             return;
         }
-        self.set_problem.set(None);
-        self.set_work.set(Some(Work {
-            slot,
-            stage: Stage::Downloading { done: 0, total: 0 },
-        }));
-        let shell = self.shell.to_string();
         self.tasks.background(move |tasks| {
-            android::stop();
             let files = android::files(tasks);
-            let result = fetch_build(slot, &commit).and_then(|build| {
+            let result = fetch_build(slot).and_then(|build| {
                 let build = build.ok_or_else(|| "be3-ci has no Android build of it".to_owned())?;
-                if build.shell != shell {
-                    return Err(
-                        "This build changes the app's Java, so it runs only in the launcher built with it."
-                            .to_owned(),
-                    );
+                let current = builds::installed(&files.join(INSTALLED))
+                    .is_some_and(|installed| installed.hash == build.app.hash);
+                if current && !fresh && android::installed() {
+                    return Ok(Downloaded::Current);
                 }
-                let mut reported = 0;
-                let mut progress = |done: u64, total: u64| {
-                    if done == total || done >= reported + PROGRESS_STEP {
-                        reported = done;
-                        tasks.send(tasks::Event::Phone(Event::Progress(slot, done, total)));
-                    }
-                };
-                builds::sync(
-                    &files.join(BUILD),
+                let mut progress = progress(tasks, slot);
+                builds::fetch_apk(
+                    &files.join(APP),
                     slot,
-                    &build,
+                    &build.app,
                     &mut android::Http,
                     &mut progress,
                 )?;
-                if fresh {
-                    remove_data(&files.join(DATA))?;
-                }
-                Ok(())
+                Ok(Downloaded::App {
+                    commit: build.commit,
+                    app: build.app,
+                })
             });
-            let downloaded = builds::downloaded(&files.join(BUILD));
-            tasks::Event::Phone(Event::Synced(slot, result, downloaded))
+            tasks::Event::Phone(Event::Downloaded(slot, result))
         });
     }
 
-    pub(crate) fn install(&self, slot: Slot, commit: String) {
-        if self.work.with(Option::is_some) {
+    pub(crate) fn install(&self, slot: Slot) {
+        if !self.begin(slot, Package::Launcher, false) {
             return;
         }
+        self.tasks.background(move |tasks| {
+            let files = android::files(tasks);
+            let result = fetch_build(slot).and_then(|build| {
+                let build = build.ok_or_else(|| "be3-ci has no Android build of it".to_owned())?;
+                let mut progress = progress(tasks, slot);
+                builds::fetch_apk(
+                    &files.join(LAUNCHER),
+                    slot,
+                    &build.launcher,
+                    &mut android::Http,
+                    &mut progress,
+                )?;
+                let record = Installed {
+                    slot,
+                    commit: build.commit,
+                    hash: build.launcher.hash,
+                };
+                builds::remember(&files.join(LAUNCHER_RECORD), Some(&record))?;
+                Ok(Downloaded::Launcher)
+            });
+            tasks::Event::Phone(Event::Downloaded(slot, result))
+        });
+    }
+
+    fn begin(&self, slot: Slot, package: Package, fresh: bool) -> bool {
+        if self.work.with(Option::is_some) {
+            return false;
+        }
+        self.pending.replace(None);
         self.set_problem.set(None);
         self.set_work.set(Some(Work {
             slot,
-            stage: Stage::Installing,
+            package,
+            stage: Stage::Downloading { done: 0, total: 0 },
+            fresh,
         }));
-        self.tasks.background(move |tasks| {
-            let apk = android::files(tasks).join(LAUNCHER);
-            let result = fetch_build(slot, &commit).and_then(|build| {
-                let build = build.ok_or_else(|| "be3-ci has no Android build of it".to_owned())?;
-                builds::fetch_launcher(&apk, slot, &build, &mut android::Http)?;
-                android::install(&apk)
-            });
-            match result {
-                Ok(()) => tasks::Event::Phone(Event::Confirming),
-                Err(error) => tasks::Event::Phone(Event::Installed(Err(error))),
+        true
+    }
+
+    fn stage(&self, stage: Stage) {
+        self.set_work.update(|work| {
+            if let Some(work) = work {
+                work.stage = stage;
             }
         });
     }
 
-    pub(crate) fn stop(&self) {
-        android::stop();
+    fn fail(&self, error: String) {
+        self.pending.replace(None);
+        let slot = self.work.get_untracked().map(|work| work.slot);
+        self.set_work.set(None);
+        if let Some(slot) = slot {
+            self.set_problem.set(Some((slot, error)));
+        }
+    }
+
+    fn open(&self) {
+        let slot = self.work.get_untracked().map(|work| work.slot);
+        self.set_work.set(None);
+        if let (Err(error), Some(slot)) = (android::open(), slot) {
+            self.set_problem.set(Some((slot, error)));
+        }
+    }
+
+    fn install_apk(&self, name: &'static str) {
+        self.stage(Stage::Installing);
+        self.tasks.background(move |tasks| {
+            let apk = android::files(tasks).join(name);
+            tasks::Event::Phone(Event::Committed(android::install(&apk)))
+        });
+    }
+
+    fn remove_app(&self) {
+        self.stage(Stage::Removing);
+        self.tasks
+            .background(|_| tasks::Event::Phone(Event::Committed(android::uninstall())));
+    }
+
+    fn forget(&self) -> Result<(), String> {
+        self.set_installed.set(None);
+        builds::remember(&android::files(&self.tasks).join(INSTALLED), None)
     }
 
     pub(crate) fn receive(&self, event: Event) {
         match event {
-            Event::Found(downloaded) => self.set_downloaded.set(downloaded),
+            Event::Found(installed, own) => {
+                self.set_installed.set(installed);
+                self.set_own.set(Some(own));
+            }
             Event::Fetched(slot, build) => {
                 let write = self
                     .builds
@@ -215,63 +327,78 @@ impl Phone {
                 }
             }
             Event::Progress(slot, done, total) => {
-                if let Some(Work {
-                    stage: Stage::Downloading { .. },
-                    ..
-                }) = self.work.get_untracked()
-                {
-                    self.set_work.set(Some(Work {
-                        slot,
-                        stage: Stage::Downloading { done, total },
-                    }));
-                }
-            }
-            Event::Synced(slot, result, downloaded) => {
-                self.set_work.set(None);
-                self.set_downloaded.set(downloaded);
-                match result {
-                    Ok(()) => {
-                        let files = android::files(&self.tasks);
-                        if let Err(error) = android::launch(&files.join(BUILD), &files.join(DATA)) {
-                            self.set_problem.set(Some((slot, error)));
-                        }
+                self.set_work.update(|work| {
+                    if let Some(work) = work
+                        && work.slot == slot
+                        && matches!(work.stage, Stage::Downloading { .. })
+                    {
+                        work.stage = Stage::Downloading { done, total };
                     }
-                    Err(error) => self.set_problem.set(Some((slot, error))),
-                }
+                });
             }
-            Event::Confirming => {}
-            Event::Installed(result) => {
-                let slot = self.work.get_untracked().map(|work| work.slot);
-                self.set_work.set(None);
-                if let (Err(error), Some(slot)) = (result, slot) {
-                    self.set_problem.set(Some((slot, error)));
+            Event::Downloaded(slot, result) => match result {
+                Err(error) => self.fail(error),
+                Ok(Downloaded::Current) => self.open(),
+                Ok(Downloaded::App { commit, app }) => {
+                    self.pending.replace(Some(Installed {
+                        slot,
+                        commit,
+                        hash: app.hash,
+                    }));
+                    let fresh = self
+                        .work
+                        .with(|work| work.as_ref().is_some_and(|work| work.fresh));
+                    if let Err(error) = self.forget() {
+                        self.fail(error);
+                    } else if fresh {
+                        self.remove_app();
+                    } else {
+                        self.install_apk(APP);
+                    }
+                }
+                Ok(Downloaded::Launcher) => self.install_apk(LAUNCHER),
+            },
+            Event::Committed(Ok(())) => {}
+            Event::Committed(Err(error)) | Event::Finished(Err(error)) => self.fail(error),
+            Event::Finished(Ok(())) => {
+                let Some(work) = self.work.get_untracked() else {
+                    return;
+                };
+                match (work.package, work.stage) {
+                    (Package::App, Stage::Removing) => self.install_apk(APP),
+                    (Package::App, Stage::Installing) => {
+                        let installed = self.pending.borrow_mut().take();
+                        if let Some(installed) = installed {
+                            let record = android::files(&self.tasks).join(INSTALLED);
+                            if let Err(error) = builds::remember(&record, Some(&installed)) {
+                                self.fail(error);
+                                return;
+                            }
+                            self.set_installed.set(Some(installed));
+                        }
+                        self.open();
+                    }
+                    _ => self.set_work.set(None),
                 }
             }
         }
     }
 }
 
-fn fetch_build(slot: Slot, commit: &str) -> Result<Option<Build>, String> {
-    match android::get(&slot.manifest_url(commit))? {
-        Some(document) => Build::parse(&document).map(Some),
-        None => Ok(None),
-    }
-}
-
-fn remove_data(data: &std::path::Path) -> Result<(), String> {
-    match std::fs::remove_dir_all(data) {
-        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
-            Err(format!("Could not clear the build's data: {error}"))
+fn progress(tasks: &Tasks, slot: Slot) -> impl FnMut(u64, u64) + '_ {
+    let mut reported = 0;
+    move |done: u64, total: u64| {
+        if done == total || done >= reported + PROGRESS_STEP {
+            reported = done;
+            tasks.send(tasks::Event::Phone(Event::Progress(slot, done, total)));
         }
-        _ => Ok(()),
     }
 }
 
-fn now_key() -> String {
-    let minutes = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_secs() / 60);
-    format!("t{minutes}")
+fn fetch_build(slot: Slot) -> Result<Option<Build>, String> {
+    android::get(&slot.manifest_url())?
+        .map(|document| Build::parse(&document))
+        .transpose()
 }
 
 fn short(sha: &str) -> &str {
@@ -293,55 +420,28 @@ pub(crate) fn Actions(
     let initial = pull_request.get_untracked();
     let slot = Slot::PullRequest(initial.number);
     let build = phone.build(slot, &initial.head_sha);
-    let runnable = create_memo(clone!(build phone -> move || match build.get() {
-        Loaded::Ready(Some(build)) => Some(phone.runs_here(&build)),
-        _ => None,
-    }));
     let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
-    let disabled =
-        create_memo(clone!(runnable busy -> move || busy.get() || runnable.get().is_none()));
-    let menu_disabled = busy.clone();
-    let label = create_memo(clone!(runnable -> move || match runnable.get() {
-        Some(false) => "Install its launcher",
-        _ => "Run",
-    }.to_owned()));
-    let glyph = create_memo(clone!(runnable -> move || match runnable.get() {
-        Some(false) => ICON_SYSTEM_UPDATE,
-        _ => ICON_PLAY_ARROW,
-    }.to_owned()));
-    let primary = clone!(phone pull_request runnable -> move || {
-        let head = pull_request.get_untracked().head_sha;
-        match runnable.get_untracked() {
-            Some(true) => phone.run(slot, head, false),
-            Some(false) => phone.install(slot, head),
-            None => {}
-        }
-    });
-    let pick = clone!(phone pull_request -> move |path: Vec<usize>| {
-        let head = pull_request.get_untracked().head_sha;
-        match path.as_slice() {
-            [0] => phone.run(slot, head, true),
-            [1] => phone.install(slot, head),
-            [2] => phone.stop(),
-            _ => {}
-        }
+    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(&build)));
+    let run = clone!(phone -> move || phone.run(slot, false));
+    let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
+        [0] => phone.run(slot, true),
+        [1] => phone.install(slot),
+        _ => {}
     });
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=1.0>
-            <Button label glyph variant=ButtonVariant::Primary disabled on_click={primary} />
-            <MenuButton
-                label="More ways to run it"
-                variant=ButtonVariant::Primary
-                icon_only=true
-                disabled={menu_disabled}
-                items={view! {
-                    <MenuItem label="Run with fresh data" />
-                    <MenuItem label="Install its launcher" />
-                    <MenuItem label="Stop the running build" />
-                }}
-                on_select={pick}
-            />
-        </List>
+        <SplitButton
+            label="Run"
+            glyph=ICON_PLAY_ARROW
+            variant=ButtonVariant::Primary
+            menu_label="More ways to run it"
+            disabled
+            items={view! {
+                <MenuItem label="Run with fresh data" />
+                <MenuItem label="Install its launcher" />
+            }}
+            on_click={run}
+            on_select={pick}
+        />
     }
 }
 
@@ -356,32 +456,12 @@ pub(crate) fn Notes(
     let initial = pull_request.get_untracked();
     let slot = Slot::PullRequest(initial.number);
     let build = phone.build(slot, &initial.head_sha);
-    let status = create_memo(clone!(build phone pull_request -> move || {
-        let pull_request = pull_request.get();
+    let status = create_memo(clone!(build pull_request -> move || {
         match build.get() {
-            Loaded::Loading => "Looking for its Android build".to_owned(),
-            Loaded::Failed(error) => error,
-            Loaded::Ready(None) if !pull_request.same_repository => {
+            Loaded::Ready(Found { build: None, .. }) if !pull_request.get().same_repository => {
                 "It comes from a fork, so CI does not publish an Android build of it.".to_owned()
             }
-            Loaded::Ready(None) => {
-                "CI has not published an Android build of it yet.".to_owned()
-            }
-            Loaded::Ready(Some(build)) => {
-                let mut status = if build.commit == pull_request.head_sha {
-                    format!("The Android build of {} is {}.", short(&build.commit), megabytes(build.size()))
-                } else {
-                    format!(
-                        "CI has not published {} yet, so this runs {}.",
-                        short(&pull_request.head_sha),
-                        short(&build.commit)
-                    )
-                };
-                if !phone.runs_here(&build) {
-                    status.push_str(" It changes the app's Java, so it runs only in the launcher built with it.");
-                }
-                status
-            }
+            found => describe(found, "Looking for its Android build", "it"),
         }
     }));
     view! {
@@ -393,39 +473,103 @@ pub(crate) fn Notes(
 }
 
 #[component]
-pub(crate) fn LauncherMenu(model: Model) -> NodeId {
+pub(crate) fn MainActions(model: Model) -> NodeId {
     let phone = model.phone.clone();
+    let build = phone.main_build();
     let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
-    let pick = move |path: Vec<usize>| match path.as_slice() {
-        [0] => phone.run(Slot::Main, now_key(), false),
-        [1] => phone.run(Slot::Main, now_key(), true),
-        [2] => phone.install(Slot::Main, now_key()),
-        [3] => phone.stop(),
+    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(&build)));
+    let run = clone!(phone -> move || phone.run(Slot::Main, false));
+    let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
+        [0] => phone.run(Slot::Main, true),
+        [1] => phone.install(Slot::Main),
         _ => {}
-    };
+    });
+    let current = create_memo(clone!(phone -> move || phone.holds(Slot::Main)));
+    let summary = create_memo(clone!(current build -> move || {
+        let described = describe(build.get(), "Looking for main's Android build", "main");
+        if current.get() {
+            format!("main is installed. {described}")
+        } else {
+            described
+        }
+    }));
+    let launcher = create_memo(clone!(phone build -> move || {
+        let main = match build.get() {
+            Loaded::Ready(Found { build: Some(build), .. }) => Some(build),
+            _ => None,
+        };
+        match phone.own.get() {
+            None => "Looking at which launcher this is".to_owned(),
+            Some(Own { record: Some(record), .. }) => {
+                format!("This launcher is {} at {}.", slot_name(record.slot), short(&record.commit))
+            }
+            Some(Own { hash, .. }) => match main {
+                Some(main) if !hash.is_empty() && main.launcher.hash == hash => {
+                    format!("This launcher is main at {}.", short(&main.commit))
+                }
+                _ if hash.is_empty() => "Android did not say where this launcher is installed.".to_owned(),
+                _ => format!("This launcher, {}, is not a build be3-ci has published.", short(&hash)),
+            },
+        }
+    }));
     view! {
-        <MenuButton
-            label="Main and the launcher"
-            glyph=ICON_MORE_VERT
-            variant=ButtonVariant::Ghost
-            icon_only=true
-            arrow=false
-            disabled={busy}
-            items={view! {
-                <MenuItem label="Run main" />
-                <MenuItem label="Run main with fresh data" />
-                <MenuItem label="Install main's launcher" />
-                <MenuItem label="Stop the running build" />
-            }}
-            on_select={pick}
-        />
+        <List spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Caption @sizing=ItemSize::Percent(100.0) content={summary} wrap=true />
+                <SplitButton
+                    label="Run main"
+                    glyph=ICON_PLAY_ARROW
+                    variant=ButtonVariant::Secondary
+                    menu_label="More ways to run main"
+                    disabled
+                    items={view! {
+                        <MenuItem label="Run main with fresh data" />
+                        <MenuItem label="Install main's launcher" />
+                    }}
+                    on_click={run}
+                    on_select={pick}
+                />
+            </List>
+            <Caption content={launcher} wrap=true />
+            <SlotNotes model slot={Slot::Main} />
+        </List>
     }
 }
 
-#[component]
-pub(crate) fn MainNotes(model: Model) -> NodeId {
-    view! {
-        <SlotNotes model slot={Slot::Main} />
+fn published(build: &ReadSignal<Loaded<Found>>) -> bool {
+    matches!(build.get(), Loaded::Ready(Found { build: Some(_), .. }))
+}
+
+fn describe(found: Loaded<Found>, loading: &str, subject: &str) -> String {
+    match found {
+        Loaded::Loading => loading.to_owned(),
+        Loaded::Failed(error) => error,
+        Loaded::Ready(Found { build: None, .. }) => {
+            format!("CI has not published an Android build of {subject} yet.")
+        }
+        Loaded::Ready(Found {
+            wanted,
+            build: Some(build),
+        }) if build.commit == wanted => format!(
+            "The Android build of {} is {}.",
+            short(&build.commit),
+            megabytes(build.app.size)
+        ),
+        Loaded::Ready(Found {
+            wanted,
+            build: Some(build),
+        }) => format!(
+            "CI has not published {} yet, so this runs {}.",
+            short(&wanted),
+            short(&build.commit)
+        ),
+    }
+}
+
+fn slot_name(slot: Slot) -> String {
+    match slot {
+        Slot::PullRequest(number) => format!("#{number}"),
+        Slot::Main => "main".to_owned(),
     }
 }
 
@@ -437,11 +581,15 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
         work.as_ref().is_some_and(|work| work.slot == slot)
     })));
     let progress = create_memo(clone!(phone -> move || match phone.work.get() {
-        Some(Work { stage: Stage::Downloading { total: 0, .. }, .. }) => "Getting the build ready".to_owned(),
+        Some(Work { stage: Stage::Downloading { total: 0, .. }, .. }) => "Looking for the build".to_owned(),
         Some(Work { stage: Stage::Downloading { done, total }, .. }) => {
             format!("Downloading {} of {}", megabytes(done), megabytes(total))
         }
-        Some(Work { stage: Stage::Installing, .. }) => "Installing the launcher".to_owned(),
+        Some(Work { stage: Stage::Removing, .. }) => "Removing the app and its data".to_owned(),
+        Some(Work { stage: Stage::Installing, package: Package::App, .. }) => "Installing the app".to_owned(),
+        Some(Work { stage: Stage::Installing, package: Package::Launcher, .. }) => {
+            "Installing the launcher".to_owned()
+        }
         None => String::new(),
     }));
     let problem = create_memo(clone!(phone -> move || match phone.problem.get() {

@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore = "an extension replaces the drawn segment with a longer one, so the undo finds nothing of its own to remove"]
 fn undoing_a_wire_keeps_the_part_someone_else_drew_onto_it() {
     let mut content = LogicGridContent::default();
 

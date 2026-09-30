@@ -1,0 +1,943 @@
+use block_editor_beui::be_block::profile::RECENTS;
+use block_editor_beui::be_block::{
+    BlockContent, EditorView, EditorViewContent, FILES_EDITOR, Recents, ViewState,
+};
+use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
+
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::ICON_FOLDER;
+use block_editor_beui::beui::reactive::{
+    Align, Frame, Func, ItemSize, List, Memo, NodeRef, ReadSignal, Spacer, WriteSignal, clone,
+    component, create_effect, create_memo, create_signal, untrack, view,
+};
+use block_editor_beui::beui::styled::{Caption, Heading, use_theme};
+use block_editor_beui::beui::unstyled::{
+    Container, DockMode, DockState, LeafId, Side, TabId, narrower_than,
+};
+use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
+use block_editor_beui::{
+    AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
+    Editor, EditorDock, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
+};
+use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
+use uuid::Uuid;
+
+use super::panel::BlockPanel;
+use super::phone::PhoneSheets;
+use super::saved::{self, LAYOUT};
+use super::tab::TabItem;
+
+pub(crate) const FILES: TabId = TabId::new(1);
+const FIRST_BLOCK_TAB: u64 = 2;
+const FILES_SHARE: f32 = 0.22;
+const MAX_OPENED_VIA_HOPS: usize = 64;
+const PANEL_PADDING: f32 = 14.0;
+const PANEL_SPACING: f32 = 6.0;
+
+type Tabs = HashMap<TabId, TabItem>;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PhoneSheet {
+    Closed,
+    Details(TabId),
+}
+
+pub(crate) struct Workspace {
+    editor: Editor,
+    layout: ReadSignal<DockState>,
+    set_layout: WriteSignal<DockState>,
+    tabs: ReadSignal<Tabs>,
+    set_tabs: WriteSignal<Tabs>,
+    views: ReadSignal<HashMap<TabId, Uuid>>,
+    set_views: WriteSignal<HashMap<TabId, Uuid>>,
+    restored: Cell<bool>,
+    titles: ReadSignal<HashMap<TabId, String>>,
+    set_titles: WriteSignal<HashMap<TabId, String>>,
+    simulated: ReadSignal<HashMap<Uuid, AccessLevel>>,
+    set_simulated: WriteSignal<HashMap<Uuid, AccessLevel>>,
+    debugged: ReadSignal<HashSet<Uuid>>,
+    set_debugged: WriteSignal<HashSet<Uuid>>,
+    error: ReadSignal<Option<String>>,
+    set_error: WriteSignal<Option<String>>,
+    files: ReadSignal<Option<Uuid>>,
+    set_files: WriteSignal<Option<Uuid>>,
+    handles: RefCell<HashMap<Uuid, BlockList>>,
+    block_types: RefCell<HashMap<Uuid, Uuid>>,
+    opened_via: RefCell<HashMap<Uuid, Uuid>>,
+    routes: ReadSignal<u64>,
+    set_routes: WriteSignal<u64>,
+    next_tab: Cell<u64>,
+    active: Cell<Option<Uuid>>,
+    pub(crate) phone: ReadSignal<bool>,
+    set_phone: WriteSignal<bool>,
+    pub(crate) sheet: ReadSignal<PhoneSheet>,
+    set_sheet: WriteSignal<PhoneSheet>,
+}
+
+impl Workspace {
+    fn new(editor: Editor) -> Rc<Self> {
+        let (layout, set_layout) = create_signal(starting_layout());
+        let (tabs, set_tabs) = create_signal(Tabs::new());
+        let (views, set_views) = create_signal(HashMap::new());
+        let (titles, set_titles) = create_signal(HashMap::new());
+        let (simulated, set_simulated) = create_signal(HashMap::new());
+        let (debugged, set_debugged) = create_signal(HashSet::new());
+        let (error, set_error) = create_signal(None);
+        let (files, set_files) = create_signal(None);
+        let (routes, set_routes) = create_signal(0);
+        let (phone, set_phone) = create_signal(false);
+        let (sheet, set_sheet) = create_signal(PhoneSheet::Closed);
+        let workspace = Rc::new(Self {
+            editor,
+            layout,
+            set_layout,
+            tabs,
+            set_tabs,
+            views,
+            set_views,
+            restored: Cell::new(false),
+            titles,
+            set_titles,
+            simulated,
+            set_simulated,
+            debugged,
+            set_debugged,
+            error,
+            set_error,
+            files,
+            set_files,
+            handles: RefCell::new(HashMap::new()),
+            block_types: RefCell::new(HashMap::new()),
+            opened_via: RefCell::new(HashMap::new()),
+            routes,
+            set_routes,
+            next_tab: Cell::new(FIRST_BLOCK_TAB),
+            active: Cell::new(None),
+            phone,
+            set_phone,
+            sheet,
+            set_sheet,
+        });
+        let shows = workspace.editor.pushed(Pushed::Shows);
+        let showing = Rc::downgrade(&workspace);
+        create_effect(move || {
+            shows.get();
+            if let Some(workspace) = showing.upgrade() {
+                untrack(|| workspace.show_requested());
+            }
+        });
+        let restoring = Rc::downgrade(&workspace);
+        create_effect(move || {
+            if let Some(workspace) = restoring.upgrade() {
+                workspace.restore();
+            }
+        });
+        let saving = Rc::downgrade(&workspace);
+        create_effect(move || {
+            if let Some(workspace) = saving.upgrade() {
+                workspace.save();
+            }
+        });
+        let titling = Rc::downgrade(&workspace);
+        create_effect(move || {
+            if let Some(workspace) = titling.upgrade() {
+                workspace.refresh_titles();
+            }
+        });
+        let focusing = Rc::downgrade(&workspace);
+        create_effect(move || {
+            if let Some(workspace) = focusing.upgrade() {
+                workspace.report_focus();
+            }
+        });
+        let watching = Rc::downgrade(&workspace);
+        create_effect(move || {
+            if let Some(workspace) = watching.upgrade() {
+                workspace.watch_artifacts();
+            }
+        });
+        workspace
+    }
+
+    pub(crate) fn editor(&self) -> &Editor {
+        &self.editor
+    }
+
+    pub(crate) fn host(&self) -> &EditorHost {
+        self.editor.host()
+    }
+
+    pub(crate) fn blocks(&self) -> Blocks {
+        self.editor.blocks()
+    }
+
+    pub(crate) fn info(&self, id: Uuid) -> Option<BlockInfo> {
+        let mut handles = self.handles.borrow_mut();
+        let list = handles
+            .entry(id)
+            .or_insert_with(|| self.blocks().watch(BlockQuery::Block(id)));
+        list.read()
+            .into_iter()
+            .next()
+            .or_else(|| self.blocks().info(id))
+    }
+
+    pub(crate) fn debug_data(&self, id: Uuid) -> Option<String> {
+        let info = self.info(id)?;
+        let parent = match info.parent {
+            BlockParent::Root => "root".to_owned(),
+            BlockParent::Detached => "detached".to_owned(),
+            BlockParent::Block(parent) => parent.to_string(),
+        };
+        let data = serde_json::json!({
+            "id": info.id.to_string(),
+            "type": info.block_type.to_string(),
+            "author": info.author.to_string(),
+            "parent": parent,
+            "name": info.name,
+            "named_by_hand": info.named_by_hand,
+            "references": info.references.iter().map(Uuid::to_string).collect::<Vec<_>>(),
+            "access": info.access.label(),
+            "artifact_source": info.artifact.as_ref().map(|artifact| artifact.source_type.to_string()),
+        });
+        serde_json::to_string(&data).ok()
+    }
+
+    pub(crate) fn types(&self) -> Rc<BlockCatalog> {
+        self.editor.block_types()
+    }
+
+    pub(crate) fn tab(&self, tab: TabId) -> Option<TabItem> {
+        self.tabs.with(|tabs| tabs.get(&tab).copied())
+    }
+
+    pub(crate) fn simulated(&self, id: Uuid) -> Option<AccessLevel> {
+        self.simulated.with(|simulated| simulated.get(&id).copied())
+    }
+
+    pub(crate) fn is_debugged(&self, id: Uuid) -> bool {
+        self.debugged.with(|debugged| debugged.contains(&id))
+    }
+
+    fn show_requested(&self) {
+        for request in self.host().take_show_requests() {
+            self.open(
+                TabItem {
+                    id: request.block_id,
+                    block_type: request.block_type,
+                },
+                request.via,
+            );
+        }
+    }
+
+    pub(crate) fn view_of(&self, tab: TabId) -> Option<Uuid> {
+        self.views.with(|views| views.get(&tab).copied())
+    }
+
+    fn create_view(&self, editor: Uuid, content: Option<Uuid>) -> Option<Uuid> {
+        let profile = self.editor.view_block()?;
+        Some(self.blocks().create_with(
+            EditorViewContent::CONTENT_TYPE,
+            Some(EditorView::document(editor, content).encode()),
+            BlockParent::Block(profile),
+            None,
+            None,
+        ))
+    }
+
+    fn restore(&self) {
+        if self.restored.get() {
+            return;
+        }
+        let Some(view) = self.editor.view_content() else {
+            return;
+        };
+        let Some(layout) = view.read(|held| held.root().state(LAYOUT).cloned()) else {
+            return;
+        };
+        self.restored.set(true);
+        untrack(|| self.adopt(layout.as_ref().and_then(saved::restore)));
+    }
+
+    fn adopt(&self, restored: Option<saved::Restored>) {
+        let mut files = None;
+        if let Some(restored) = restored {
+            files = restored.files;
+            let mut dock = restored.dock;
+            let mut tabs = Tabs::new();
+            let mut views = HashMap::new();
+            for (tab, (item, view)) in restored.tabs {
+                self.record_type(item.id, item.block_type);
+                tabs.insert(tab, item);
+                views.insert(tab, view);
+            }
+            for tab in dock.all_tabs() {
+                if tab != FILES && !tabs.contains_key(&tab) {
+                    dock.remove(tab);
+                }
+            }
+            if !dock.contains(FILES) {
+                dock = starting_layout_with(dock);
+            }
+            let mut next = restored
+                .next_tab
+                .max(FIRST_BLOCK_TAB)
+                .max(tabs.keys().map(|tab| tab.value() + 1).max().unwrap_or(0));
+            let opened = self.tabs.get_untracked();
+            let mut opened_views = self.views.get_untracked();
+            for (tab, item) in opened {
+                let moved = TabId::new(next);
+                next += 1;
+                tabs.insert(moved, item);
+                if let Some(view) = opened_views.remove(&tab) {
+                    views.insert(moved, view);
+                }
+                place_tab(&mut dock, moved);
+            }
+            self.next_tab.set(next);
+            self.set_tabs.set(tabs);
+            self.set_views.set(views);
+            self.set_layout.set(settled(dock));
+        }
+        let files = files.or_else(|| self.create_view(FILES_EDITOR, None));
+        self.set_files.set(files);
+    }
+
+    fn save(&self) {
+        let layout = self.layout.get();
+        let tabs = self.tabs.get();
+        let views = self.views.get();
+        let files = self.files.get();
+        if !self.restored.get() {
+            return;
+        }
+        let state = saved::save(&layout, self.next_tab.get(), files, &tabs, &views);
+        untrack(|| self.editor.set_view_state(LAYOUT, Some(&state)));
+    }
+
+    fn refresh_titles(&self) {
+        let types = self.types();
+        let titles = self.tabs.with(|tabs| {
+            tabs.iter()
+                .map(|(tab, item)| {
+                    let label = self.info(item.id).map_or_else(
+                        || BlockLabel::new(types.as_ref(), item.block_type, None, false),
+                        |info| info.label(types.as_ref()),
+                    );
+                    (*tab, label.name)
+                })
+                .collect()
+        });
+        self.set_titles.set(titles);
+    }
+
+    fn report_focus(&self) {
+        let shown = match self.phone.get() {
+            true => self.layout.with(DockState::stacked_tab),
+            false => self.layout.with(DockState::focused_tab),
+        };
+        let current = shown
+            .and_then(|tab| self.tabs.with(|tabs| tabs.get(&tab).copied()))
+            .map(|item| item.id);
+        self.routes.get();
+        let active = current.or_else(|| self.active.get());
+        self.active.set(active);
+        let focused = active.and_then(|id| {
+            let block_type = self.block_types.borrow().get(&id).copied()?;
+            Some((id, block_type))
+        });
+        if let Some((id, block_type)) = focused {
+            untrack(|| self.remember(id, block_type));
+        }
+        self.host().report_focus(FocusedBlock {
+            block_id: focused.map(|(id, _)| id),
+            block_type: focused.map_or_else(Uuid::nil, |(_, block_type)| block_type),
+            via: focused.map_or_else(Vec::new, |(id, _)| self.via_chain(id)),
+        });
+    }
+
+    fn remember(&self, id: Uuid, block_type: Uuid) {
+        let recents: Recents = self
+            .editor
+            .view_state(RECENTS)
+            .and_then(|state| state.value())
+            .unwrap_or_default();
+        if let Some(visited) = recents.visit(id, block_type) {
+            self.editor
+                .set_view_state(RECENTS, Some(&ViewState::new(&visited, Vec::new())));
+        }
+    }
+
+    fn watch_artifacts(&self) {
+        let watched = self.tabs.with(|tabs| {
+            tabs.values()
+                .map(|item| item.id)
+                .filter(|id| self.info(*id).is_some_and(|info| info.is_artifact()))
+                .collect::<Vec<_>>()
+        });
+        self.host().watch_artifacts(watched);
+    }
+
+    fn via_chain(&self, id: Uuid) -> Vec<Uuid> {
+        let opened_via = self.opened_via.borrow();
+        let mut via = Vec::new();
+        let mut visited = HashSet::new();
+        visited.insert(id);
+        let mut current = id;
+        while let Some(&container) = opened_via.get(&current) {
+            if via.len() >= MAX_OPENED_VIA_HOPS || !visited.insert(container) {
+                break;
+            }
+            via.push(container);
+            current = container;
+        }
+        via
+    }
+
+    fn record_via(&self, id: Uuid, via: Option<Uuid>) {
+        let previous = {
+            let mut opened_via = self.opened_via.borrow_mut();
+            match via {
+                Some(container) => opened_via.insert(id, container),
+                None => opened_via.remove(&id),
+            }
+        };
+        if previous != via {
+            self.rerouted();
+        }
+    }
+
+    pub(crate) fn forget_container(&self, id: Uuid) {
+        if self.opened_via.borrow_mut().remove(&id).is_some() {
+            self.rerouted();
+        }
+    }
+
+    fn rerouted(&self) {
+        self.set_routes.update(|routes| *routes += 1);
+    }
+
+    pub(crate) fn container_of(&self, id: Uuid) -> Option<Uuid> {
+        self.opened_via.borrow().get(&id).copied()
+    }
+
+    pub(crate) fn record_type(&self, id: Uuid, block_type: Uuid) {
+        let previous = self.block_types.borrow_mut().insert(id, block_type);
+        if previous != Some(block_type) {
+            self.rerouted();
+        }
+    }
+
+    pub(crate) fn known_type(&self, id: Uuid) -> Option<Uuid> {
+        let known = self.block_types.borrow().get(&id).copied();
+        known.or_else(|| self.info(id).map(|info| info.block_type))
+    }
+
+    pub(crate) fn record_reference_types(&self, reference: &BlockInfo) {
+        self.record_type(reference.id, reference.block_type);
+        if let BlockParent::Block(parent) = reference.parent
+            && let Some(parent) = self.blocks().info(parent)
+        {
+            self.record_type(parent.id, parent.block_type);
+        }
+    }
+
+    pub(crate) fn open(&self, item: TabItem, via: Option<Uuid>) {
+        self.record_via(item.id, via);
+        self.record_type(item.id, item.block_type);
+        if let Some(tab) = self.tab_showing(item.id) {
+            let mut layout = self.layout.get_untracked();
+            layout.show(tab);
+            self.set_layout.set(layout);
+            self.editor.show_pane(tab);
+            self.active.set(Some(item.id));
+            return;
+        }
+        let tab = TabId::new(self.next_tab.get());
+        self.next_tab.set(self.next_tab.get() + 1);
+        if let Some(view) = self.create_view(item.block_type, Some(item.id)) {
+            self.set_views.update(|views| {
+                views.insert(tab, view);
+            });
+        }
+        let mut tabs = self.tabs.get_untracked();
+        tabs.insert(tab, item);
+        self.set_tabs.set(tabs);
+        let mut layout = self.layout.get_untracked();
+        place_tab(&mut layout, tab);
+        self.set_layout.set(settled(layout));
+        self.editor.show_pane(tab);
+        self.active.set(Some(item.id));
+    }
+
+    pub(crate) fn set_sheet(&self, sheet: PhoneSheet) {
+        self.set_sheet.set(sheet);
+    }
+
+    pub(crate) fn dismiss_sheet(&self, sheet: PhoneSheet) {
+        if self.sheet.get_untracked() == sheet {
+            self.set_sheet.set(PhoneSheet::Closed);
+        }
+    }
+
+    fn tab_showing(&self, id: Uuid) -> Option<TabId> {
+        self.tabs.with_untracked(|tabs| {
+            tabs.iter()
+                .find(|(_, item)| item.id == id)
+                .map(|(tab, _)| *tab)
+        })
+    }
+
+    fn close(&self, tab: TabId) {
+        let mut tabs = self.tabs.get_untracked();
+        let Some(closed) = tabs.remove(&tab) else {
+            return;
+        };
+        let still_open = tabs.values().any(|item| item.id == closed.id);
+        let mut views = self.views.get_untracked();
+        if let Some(view) = views.remove(&tab) {
+            self.set_views.set(views);
+            self.blocks().set_parent(view, BlockParent::Detached);
+        }
+        self.set_tabs.set(tabs);
+        if !still_open {
+            self.forget(closed.id);
+        }
+    }
+
+    fn forget(&self, id: Uuid) {
+        self.handles.borrow_mut().remove(&id);
+        self.opened_via.borrow_mut().remove(&id);
+        let mut simulated = self.simulated.get_untracked();
+        simulated.remove(&id);
+        self.set_simulated.set(simulated);
+        let mut debugged = self.debugged.get_untracked();
+        debugged.remove(&id);
+        self.set_debugged.set(debugged);
+        if self.active.get() == Some(id) {
+            self.active.set(None);
+            self.rerouted();
+        }
+        self.host().close_editor(id);
+    }
+
+    fn changed(&self, next: DockState) {
+        self.set_layout.set(settled(next));
+    }
+
+    fn set_phone(&self, phone: bool) {
+        self.set_sheet.set(PhoneSheet::Closed);
+        self.set_phone.set(phone);
+    }
+
+    pub(crate) fn can_edit(&self, id: Uuid) -> bool {
+        self.info(id).is_none_or(|info| info.access.can_edit())
+    }
+
+    pub(crate) fn ceiling(&self, id: Uuid) -> AccessLevel {
+        let Some(info) = self.info(id) else {
+            return AccessLevel::Edit;
+        };
+        match info.is_artifact() {
+            true => info.access.min(AccessLevel::View),
+            false => info.access,
+        }
+    }
+
+    pub(crate) fn access(&self, id: Uuid) -> AccessLevel {
+        let ceiling = self.ceiling(id);
+        match self.simulated(id) {
+            Some(AccessLevel::None) => AccessLevel::None.min(ceiling),
+            Some(AccessLevel::KnowExists) => AccessLevel::KnowExists.min(ceiling),
+            Some(AccessLevel::View) => AccessLevel::View.min(ceiling),
+            Some(AccessLevel::Edit) | None => ceiling,
+        }
+    }
+
+    pub(crate) fn simulate(&self, id: Uuid, level: AccessLevel) {
+        let mut debugged = self.debugged.get_untracked();
+        debugged.remove(&id);
+        self.set_debugged.set(debugged);
+        let mut simulated = self.simulated.get_untracked();
+        simulated.insert(id, level);
+        self.set_simulated.set(simulated);
+        self.host().simulate_access(id, level);
+    }
+
+    pub(crate) fn debug(&self, id: Uuid, debugging: bool) {
+        let mut debugged = self.debugged.get_untracked();
+        match debugging {
+            true => debugged.insert(id),
+            false => debugged.remove(&id),
+        };
+        self.set_debugged.set(debugged);
+    }
+
+    pub(crate) fn label(&self, id: Uuid, block_type: Uuid) -> BlockLabel {
+        let types = self.types();
+        self.info(id).map_or_else(
+            || BlockLabel::new(types.as_ref(), block_type, None, false),
+            |info| info.label(types.as_ref()),
+        )
+    }
+
+    pub(crate) fn new_file_near(self: &Rc<Self>, id: Uuid) {
+        let holds_children = self
+            .known_type(id)
+            .is_some_and(|block_type| self.types().child_edits(block_type).add)
+            && self.can_edit(id);
+        let parent = match holds_children {
+            true => BlockParent::Block(id),
+            false => self
+                .info(id)
+                .map_or(BlockParent::Root, |info| match info.parent {
+                    BlockParent::Detached => BlockParent::Root,
+                    parent => parent,
+                }),
+        };
+        self.create_in(parent);
+    }
+
+    pub(crate) fn create_in(self: &Rc<Self>, parent: BlockParent) {
+        self.set_sheet.set(PhoneSheet::Closed);
+        self.set_error.set(None);
+        let parent = match parent {
+            BlockParent::Detached => BlockParent::Root,
+            parent => parent,
+        };
+        let excluded = match parent {
+            BlockParent::Block(id) => vec![id.into_bytes()],
+            BlockParent::Root | BlockParent::Detached => Vec::new(),
+        };
+        let picking = Rc::downgrade(self);
+        self.editor.pick_block(
+            BlockFilter {
+                name: "Block".to_owned(),
+                block_types: Vec::new(),
+                excluded,
+                templates: false,
+                place: Some(parent.encode()),
+            },
+            move |picked: Result<PickedBlock, String>| {
+                let Some(workspace) = picking.upgrade() else {
+                    return;
+                };
+                let picked = match picked {
+                    Ok(picked) => picked,
+                    Err(error) => {
+                        workspace.set_error.set(Some(error));
+                        return;
+                    }
+                };
+                let container = match parent {
+                    BlockParent::Block(id) => Some(id),
+                    BlockParent::Root | BlockParent::Detached => None,
+                };
+                if !picked.placed {
+                    match container {
+                        Some(id) => workspace.host().place_block(
+                            picked.id,
+                            picked.block_type,
+                            id,
+                            picked.linked,
+                        ),
+                        None if !picked.linked => {
+                            workspace.blocks().set_parent(picked.id, BlockParent::Root);
+                        }
+                        None => {}
+                    }
+                }
+                workspace.open(
+                    TabItem {
+                        id: picked.id,
+                        block_type: picked.block_type,
+                    },
+                    container,
+                );
+            },
+        );
+    }
+
+    pub(crate) fn open_picker(self: &Rc<Self>, parent: Uuid) {
+        self.set_error.set(None);
+        let picking = Rc::downgrade(self);
+        self.editor.pick_block(
+            BlockFilter {
+                name: "Block".to_owned(),
+                block_types: Vec::new(),
+                excluded: vec![parent.into_bytes()],
+                templates: false,
+                place: None,
+            },
+            move |picked: Result<PickedBlock, String>| {
+                let Some(workspace) = picking.upgrade() else {
+                    return;
+                };
+                match picked {
+                    Ok(picked) => workspace.host().place_block(
+                        picked.id,
+                        picked.block_type,
+                        parent,
+                        picked.linked,
+                    ),
+                    Err(error) => workspace.set_error.set(Some(error)),
+                }
+            },
+        );
+    }
+}
+
+pub(crate) fn starting_layout() -> DockState {
+    let mut state = DockState::new([FILES]);
+    let files = state.leaves(state.main())[0];
+    state.split(files, Side::Right, 1.0 - FILES_SHARE, Vec::new());
+    state
+}
+
+fn starting_layout_with(previous: DockState) -> DockState {
+    let mut state = starting_layout();
+    for tab in previous.all_tabs() {
+        place_tab(&mut state, tab);
+    }
+    state
+}
+
+pub(crate) fn settled(mut state: DockState) -> DockState {
+    let open = state.all_tabs().into_iter().any(|tab| tab != FILES);
+    if open {
+        state.remove_empty_panes();
+        return state;
+    }
+    if !state.empty_panes().is_empty() {
+        return state;
+    }
+    if let Some(files) = files_only_leaf(&state) {
+        state.split(files, Side::Right, 1.0 - FILES_SHARE, Vec::new());
+    }
+    state
+}
+
+fn files_only_leaf(state: &DockState) -> Option<LeafId> {
+    state
+        .find(FILES)
+        .map(|position| position.leaf)
+        .filter(|leaf| state.entries(*leaf).len() == 1)
+}
+
+fn editor_leaf(state: &DockState) -> Option<LeafId> {
+    let exclusive = files_only_leaf(state);
+    state
+        .focused_leaf()
+        .filter(|leaf| Some(*leaf) != exclusive)
+        .or_else(|| {
+            state
+                .surfaces()
+                .into_iter()
+                .flat_map(|surface| state.leaves(surface))
+                .find(|leaf| Some(*leaf) != exclusive)
+        })
+}
+
+pub(crate) fn place_tab(state: &mut DockState, tab: TabId) {
+    let files = state.find(FILES).map(|position| position.leaf);
+    match (editor_leaf(state), files) {
+        (Some(leaf), _) => state.push(leaf, tab),
+        (None, Some(files)) => {
+            state.split(files, Side::Right, 1.0 - FILES_SHARE, vec![tab]);
+        }
+        (None, None) => state.push_to_focused(tab),
+    }
+    state.show(tab);
+}
+
+#[component]
+pub(crate) fn WorkspaceShell(editor: Editor) -> NodeId {
+    let workspace = Workspace::new(editor);
+    view! {
+        <Container>
+            {move |_| {
+                let workspace = Rc::clone(&workspace);
+                view! {
+                    <WorkspaceBody workspace={workspace} />
+                }
+            }}
+        </Container>
+    }
+}
+
+#[component]
+fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
+    let narrow = narrower_than(NARROW_WIDTH);
+    let sizing = Rc::downgrade(&workspace);
+    let was_narrow = Cell::new(false);
+    create_effect(move || {
+        let now = narrow.get();
+        let Some(workspace) = sizing.upgrade() else {
+            return;
+        };
+        if was_narrow.replace(now) != now {
+            untrack(|| workspace.set_phone(now));
+        }
+    });
+    let phone = workspace.phone.clone();
+    let mode = create_memo(clone!(phone -> move || match phone.get() {
+        true => DockMode::Stacked,
+        false => DockMode::Tiled,
+    }));
+    let sheets = Rc::clone(&workspace);
+    let surface = NodeRef::new();
+    workspace.editor().content(&surface);
+    let layout = workspace.layout.clone();
+    let titles = workspace.titles.clone();
+    let failure = workspace.error.clone();
+    let docked = workspace.host().panes_offered();
+    let failed = create_memo(clone!(failure phone -> move || {
+        (!docked || phone.get()) && failure.get().is_some()
+    }));
+    let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
+    let title = Func::new(move |tab: TabId| match tab {
+        FILES => "Files".to_owned(),
+        tab => titles.with(|titles| {
+            titles
+                .get(&tab)
+                .cloned()
+                .unwrap_or_else(|| "Untitled".to_owned())
+        }),
+    });
+    let naming = Rc::clone(&workspace);
+    let icon = Func::new(move |tab: TabId| match tab {
+        FILES => ICON_FOLDER.to_owned(),
+        tab => naming
+            .tab(tab)
+            .and_then(|item| naming.label(item.id, item.block_type).icon)
+            .unwrap_or_default()
+            .to_owned(),
+    });
+    let changing = Rc::clone(&workspace);
+    let closing = Rc::clone(&workspace);
+    let content = Rc::clone(&workspace);
+    let editor = workspace.editor().clone();
+    let theme = use_theme();
+    view! {
+        <Frame @node_ref={&surface} color={theme.background.clone()}>
+            <List spacing=0.0>
+                <Failure failed={failed} reason={reason} />
+                <EditorDock
+                    @sizing=ItemSize::Percent(100.0)
+                    editor={editor}
+                    state={layout}
+                    mode={mode}
+                    home={Some(FILES)}
+                    title={title}
+                    icon={icon}
+                    closable={Func::new(|tab: TabId| tab != FILES)}
+                    on_change={move |next: DockState| changing.changed(next)}
+                    on_close={move |tab: TabId| closing.close(tab)}
+                    empty={move || view! {
+                        <EmptyPanel />
+                    }}
+                >
+                    {move |tab: TabId| {
+                        let workspace = Rc::clone(&content);
+                        match tab {
+                            FILES => view! {
+                                <FilesPanel workspace={workspace} />
+                            },
+                            tab => view! {
+                                <BlockPanel workspace={workspace} tab={tab} />
+                            },
+                        }
+                    }}
+                </EditorDock>
+                <PhoneSheets workspace={sheets} />
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn Failure(failed: Memo<bool>, reason: Memo<String>) -> NodeId {
+    let theme = use_theme();
+    view! {
+        <Frame visible={failed}>
+            <Caption content={reason} color={theme.danger.clone()} />
+        </Frame>
+    }
+}
+
+#[component]
+pub(crate) fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
+    let phone = workspace.phone.clone();
+    let top_bar = create_memo(clone!(phone -> move || match phone.get() {
+        true => TopBar::Phone { more: false },
+        false => TopBar::Hidden,
+    }));
+    let failure = workspace.error.clone();
+    let docked = workspace.host().panes_offered();
+    let failed = create_memo(clone!(failure -> move || {
+        docked && !phone.get() && failure.get().is_some()
+    }));
+    let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
+    let files = workspace.files.clone();
+    let target = create_memo(move || {
+        files
+            .get()
+            .map(|id| ChildTarget::new(id, FILES_EDITOR).viewed_by(id))
+    });
+    let editor = workspace.editor().clone();
+    view! {
+        <List spacing=0.0>
+            <Failure failed={failed} reason={reason} />
+            <ChildBlock
+                @sizing=ItemSize::Percent(100.0)
+                editor={editor}
+                block={target}
+                mode=ChildMode::Live
+                own_frame=true
+                top_bar={top_bar}
+                @test_id={"workspace.files"}
+            >
+                {move |handle: ChildBlockHandle| view! {
+                    <PanelStatus state={handle.state} loading="Files are loading…" />
+                }}
+            </ChildBlock>
+        </List>
+    }
+}
+
+#[component]
+pub(crate) fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
+    let theme = use_theme();
+    let shown = create_memo(clone!(state -> move || {
+        state.with(|state| !state.available || state.error.is_some())
+    }));
+    let message = create_memo(clone!(state -> move || {
+        state.with(|state| match &state.error {
+            Some(error) => error.clone(),
+            None => loading.clone(),
+        })
+    }));
+    view! {
+        <Frame visible={shown} padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+            <List spacing=PANEL_SPACING>
+                <Caption content={message} color={theme.text_muted.clone()} />
+                <Spacer @sizing=ItemSize::Percent(100.0) />
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn EmptyPanel() -> NodeId {
+    view! {
+        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+            <List spacing=PANEL_SPACING align=Align::Center>
+                <Heading content="No file open" />
+                <Caption content="Open or create a file from Files to get started." />
+            </List>
+        </Frame>
+    }
+}

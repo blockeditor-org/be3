@@ -1,0 +1,94 @@
+use beui_core::color::Color32;
+use beui_core::font::FontId;
+use beui_core::geometry::{Pos2, Rect, pos2, vec2};
+use beui_core::painter::Painter;
+
+use beui_components_styled::Theme;
+use beui_components_styled::theme::{CHIP_RADIUS, FONT_SMALL};
+use beui_core::document::Document;
+use beui_core::node::NodeId;
+
+use super::tree;
+
+const HIGHLIGHT: Color32 = Color32::from_rgba_unmultiplied(82, 137, 255, 56);
+const HIGHLIGHT_MUTED: Color32 = Color32::from_rgba_unmultiplied(82, 137, 255, 24);
+const OUTLINE_WIDTH: f32 = 1.0;
+const FLASH_FILL: f32 = 48.0;
+const FLASH_OUTLINE: f32 = 220.0;
+const LABEL_PADDING: f32 = 4.0;
+const LABEL_GAP: f32 = 2.0;
+
+pub fn hit(target: &Document, pos: Pos2) -> Option<NodeId> {
+    let root = target.root()?;
+    deepest(target, root, pos)
+}
+
+fn deepest(target: &Document, id: NodeId, pos: Pos2) -> Option<NodeId> {
+    let rect = target.node_rect(id)?;
+    if !rect.contains(pos) {
+        return None;
+    }
+    target
+        .children(id)
+        .into_iter()
+        .rev()
+        .find_map(|child| deepest(target, child, pos))
+        .or(Some(id))
+}
+
+pub fn highlight(painter: &Painter, target: &Document, id: NodeId, strong: bool, scale: f32) {
+    let Some(rect) = target.node_rect(id).map(|rect| rect.scaled(scale)) else {
+        return;
+    };
+    let fill = if strong { HIGHLIGHT } else { HIGHLIGHT_MUTED };
+    painter.rect_filled(rect, 0.0, fill);
+    painter.rect_stroke(rect, 0.0, OUTLINE_WIDTH, Theme::DARK.accent);
+    if strong {
+        label(painter, rect, &tree::label(target, id));
+    }
+}
+
+pub fn flash(painter: &Painter, rect: Rect, color: Color32, remaining: f32) {
+    if !rect.is_positive() {
+        return;
+    }
+    painter.rect_filled(rect, 0.0, faded(color, remaining * FLASH_FILL));
+    flash_outline(painter, rect, color, remaining);
+}
+
+pub fn flash_outline(painter: &Painter, rect: Rect, color: Color32, remaining: f32) {
+    if !rect.is_positive() {
+        return;
+    }
+    painter.rect_stroke(
+        rect,
+        0.0,
+        OUTLINE_WIDTH,
+        faded(color, remaining * FLASH_OUTLINE),
+    );
+}
+
+fn faded(color: Color32, alpha: f32) -> Color32 {
+    let [red, green, blue, _] = color.to_array();
+    Color32::from_rgba_unmultiplied(red, green, blue, alpha.round().clamp(0.0, 255.0) as u8)
+}
+
+fn label(painter: &Painter, rect: Rect, text: &str) {
+    let galley = painter.layout(text, FontId::monospace(FONT_SMALL), f32::INFINITY);
+    let size = galley.size() + vec2(LABEL_PADDING, LABEL_PADDING) * 2.0;
+    let clip = painter.clip_rect();
+    let above = rect.top() - LABEL_GAP - size.y;
+    let top = if above >= clip.top() {
+        above
+    } else {
+        rect.top() + LABEL_GAP
+    };
+    let left = rect.left().min(clip.right() - size.x).max(clip.left());
+    let box_rect = Rect::from_min_size(pos2(left, top), size);
+    painter.rect_filled(box_rect, f32::from(CHIP_RADIUS), Theme::DARK.accent);
+    painter.galley(
+        box_rect.min + vec2(LABEL_PADDING, LABEL_PADDING),
+        galley,
+        Theme::DARK.on_accent,
+    );
+}

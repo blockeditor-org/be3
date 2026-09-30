@@ -1,64 +1,54 @@
-use std::cell::Cell;
-
 use beui::NodeId;
 use beui::reactive::{
-    Callback, Frame, Func, Memo, Prop, RenderFn, component, create_memo, on_cleanup, view,
+    Align, Child, Children, Direction, Frame, List, ListChild, NodeRef, Prop, clone, component,
+    create_memo, view,
 };
-use beui::styled::DockArea;
-use beui::unstyled::{DockState, TabId};
+use beui::styled::theme::BORDER_WIDTH;
+use beui::styled::use_theme;
+use beui::unstyled::{Edge, Floating};
 
-use crate::Editor;
+use crate::chrome::sheet_open;
 
-#[derive(Clone)]
-pub(crate) struct DockLink {
-    pub(crate) key: u64,
-    pub(crate) state: Memo<DockState>,
-    pub(crate) title: Func<TabId, String>,
-    pub(crate) closable: Func<TabId, bool>,
-    pub(crate) on_change: Callback<DockState>,
-    pub(crate) on_close: Callback<TabId>,
-    pub(crate) content: RenderFn<TabId>,
-}
-
-thread_local! {
-    static NEXT_LINK: Cell<u64> = const { Cell::new(1) };
-}
+const DOCK_MARGIN: f32 = 12.0;
+const DOCK_PADDING: f32 = 6.0;
+const DOCK_SPACING: f32 = 4.0;
+const DOCK_RADIUS: u8 = 16;
 
 #[component]
-pub fn EditorDock(
-    editor: Editor,
-    state: Prop<DockState>,
-    on_change: Callback<DockState>,
-    on_close: Callback<TabId>,
-    title: Func<TabId, String>,
-    closable: Option<Func<TabId, bool>>,
-    #[prop(children)] content: RenderFn<TabId>,
+pub fn BottomDock(
+    anchor: NodeRef,
+    #[prop(default = true)] open: Prop<bool>,
+    name: String,
+    above: Option<Child>,
+    #[prop(children)] children: Children<ListChild>,
 ) -> NodeId {
-    let closable = closable.unwrap_or_else(|| Func::new(|_| true));
-    if !editor.host().panes_offered() {
-        return view! {
-            <DockArea
-                state
-                title
-                closable
-                content
-                on_change={move |next: DockState| on_change.call(next)}
-                on_close={move |tab: TabId| on_close.call(tab)}
-            />
-        };
-    }
-    let key = NEXT_LINK.with(|next| next.replace(next.get() + 1));
-    editor.set_dock(DockLink {
-        key,
-        state: create_memo(move || state.get()),
-        title,
-        closable,
-        on_change,
-        on_close,
-        content,
-    });
-    on_cleanup(move || editor.forget_dock(key));
+    let sheet = sheet_open();
+    let open = create_memo(clone!(sheet -> move || open.get() && !sheet.get()));
+    let theme = use_theme();
     view! {
-        <Frame />
+        <Floating anchor={anchor} edge=Edge::Bottom open={open}>
+            <Frame padding_vertical=DOCK_MARGIN padding_horizontal=DOCK_MARGIN>
+                <List align=Align::Center spacing=0.0>
+                    <Frame children={above} />
+                    <Frame
+                        color={theme.surface_raised.clone()}
+                        outline={theme.border.clone()}
+                        outline_width=BORDER_WIDTH
+                        outline_visible=true
+                        radius=DOCK_RADIUS
+                        padding_horizontal=DOCK_PADDING
+                        padding_vertical=DOCK_PADDING
+                        @test_id={name}
+                    >
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=DOCK_SPACING
+                            children={children}
+                        />
+                    </Frame>
+                </List>
+            </Frame>
+        </Floating>
     }
 }

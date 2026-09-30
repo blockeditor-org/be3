@@ -48,6 +48,7 @@ pub struct DirectEditorCapabilities {
     pub allow_rotation: bool,
     pub preserve_aspect_ratio: bool,
     pub supports_pan_and_zoom: bool,
+    pub max_zoom: Option<u32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -83,6 +84,7 @@ pub enum DirectEditorViewportCommand {
 
 pub struct DirectEditorViewport {
     commands: Vec<DirectEditorViewportCommand>,
+    bar_actions: Vec<block_plugin_api::BarAction>,
     content_rect: Option<Rect>,
     scale: f32,
     gestures_read: bool,
@@ -92,6 +94,7 @@ impl DirectEditorViewport {
     pub fn new() -> Self {
         Self {
             commands: Vec::new(),
+            bar_actions: Vec::new(),
             content_rect: None,
             scale: 1.0,
             gestures_read: false,
@@ -123,6 +126,14 @@ impl DirectEditorViewport {
 
     pub fn drain(&mut self) -> impl Iterator<Item = DirectEditorViewportCommand> + '_ {
         self.commands.drain(..)
+    }
+
+    pub fn push_bar_action(&mut self, action: block_plugin_api::BarAction) {
+        self.bar_actions.push(action);
+    }
+
+    pub fn take_bar_actions(&mut self) -> Vec<block_plugin_api::BarAction> {
+        std::mem::take(&mut self.bar_actions)
     }
 
     pub fn content_rect(&self) -> Option<Rect> {
@@ -287,9 +298,10 @@ impl<'a> EditorAccess<'a> {
         self.editors.contains_key(&id)
     }
 
-    pub fn ensure(&mut self, id: Uuid, block_type: Uuid) {
+    pub fn ensure(&mut self, id: Uuid, block_type: Uuid, view_block: Option<Uuid>) {
         if !self.active.contains(&id) && !self.editors.contains_key(&id) {
-            self.editors.insert(id, self.registry.open(id, block_type));
+            self.editors
+                .insert(id, self.registry.open(id, block_type).viewed_by(view_block));
         }
     }
 
@@ -446,7 +458,7 @@ pub struct FrameSlot {
     pub clip: Rect,
     pub content: Option<Rect>,
     pub chrome: Chrome,
-    pub top_bar: bool,
+    pub top_bar: block_plugin_api::TopBar,
 }
 
 #[derive(Clone)]
@@ -454,7 +466,7 @@ struct TabFrame {
     frame: Rect,
     clip: Rect,
     stack: Vec<Uuid>,
-    top_bar: bool,
+    top_bar: block_plugin_api::TopBar,
 }
 
 thread_local! {
@@ -501,7 +513,7 @@ pub fn direct_editor_tab_ui(
         frame,
         clip,
         stack: stack.clone(),
-        top_bar: false,
+        top_bar: block_plugin_api::TopBar::Hidden,
     }));
     let slot = FrameSlot {
         frame,
@@ -511,7 +523,7 @@ pub fn direct_editor_tab_ui(
             Some(_) => Chrome::None,
             None => Chrome::Drawn,
         },
-        top_bar: false,
+        top_bar: block_plugin_api::TopBar::Hidden,
     };
     let (action, own_exit) = direct_editor_frame_ui(editor, ui, editors, &slot, None);
     let exit = own_exit || take_frame_exit();
@@ -532,7 +544,7 @@ pub fn own_frame_child_ui(
     ui: &mut Ui,
     editors: &mut EditorAccess<'_>,
     block_id: Uuid,
-    top_bar: bool,
+    top_bar: block_plugin_api::TopBar,
     frame: Rect,
     clip_rect: Rect,
     viewport: &mut DirectEditorViewport,
@@ -695,6 +707,11 @@ impl DirectEditorTabBands<'_, '_> {
         if owns_frame {
             self.exit |= self.editor.take_direct_editor_frame_exit();
         }
+        if !placed && let Some(outer) = self.outer.as_deref_mut() {
+            for bar in self.viewport.take_bar_actions() {
+                outer.push_bar_action(bar);
+            }
+        }
         action
     }
 
@@ -791,73 +808,84 @@ impl DirectEditorTabBands<'_, '_> {
             }
         }
 
+        let max_zoom = self
+            .capabilities
+            .max_zoom
+            .map_or(DIRECT_EDITOR_MAX_ZOOM, |zoom| zoom as f32);
         let commands: Vec<_> = self.viewport.drain().collect();
-        for command in commands {
-            match command {
-                DirectEditorViewportCommand::Pan(delta) => {
-                    self.viewport_state.pan += delta;
-                    if let Some(auto_fit) = &mut self.viewport_state.auto_fit {
-                        auto_fit.enabled = false;
-                    }
+        settle_viewport(
+            &mut self.viewport_state,
+            commands,
+            viewport_rect,
+            content_size,
+            max_zoom,
+        );
+        let state = self.viewport_state;
+        VIEWPORTS.with(|viewports| viewports.borrow_mut().insert(id, state));
+    }
+}
+
+fn settle_viewport(
+    state: &mut DirectEditorTabViewport,
+    commands: Vec<DirectEditorViewportCommand>,
+    viewport_rect: Rect,
+    content_size: Vec2,
+    max_zoom: f32,
+) {
+    let viewport_size = viewport_rect.size().max(Vec2::splat(1.0));
+    let before = *state;
+    for command in commands {
+        match command {
+            DirectEditorViewportCommand::Pan(delta) => {
+                state.pan += delta;
+                if let Some(auto_fit) = &mut state.auto_fit {
+                    auto_fit.enabled = false;
                 }
-                DirectEditorViewportCommand::Zoom { factor, anchor } => {
-                    let old_zoom = self.viewport_state.zoom;
-                    let new_zoom =
-                        (old_zoom * factor).clamp(DIRECT_EDITOR_MIN_ZOOM, DIRECT_EDITOR_MAX_ZOOM);
-                    if new_zoom != old_zoom {
-                        let anchor = anchor.unwrap_or_else(|| viewport_rect.center());
-                        self.viewport_state.pan = (anchor - viewport_rect.center())
-                            - ((anchor - viewport_rect.center()) - self.viewport_state.pan)
-                                * (new_zoom / old_zoom);
-                        self.viewport_state.zoom = new_zoom;
-                    }
-                    if let Some(auto_fit) = &mut self.viewport_state.auto_fit {
-                        auto_fit.enabled = false;
-                    }
+            }
+            DirectEditorViewportCommand::Zoom { factor, anchor } => {
+                let old_zoom = state.zoom;
+                let new_zoom = (old_zoom * factor).clamp(DIRECT_EDITOR_MIN_ZOOM, max_zoom);
+                if new_zoom != old_zoom {
+                    let anchor = anchor.unwrap_or_else(|| viewport_rect.center());
+                    state.pan = (anchor - viewport_rect.center())
+                        - ((anchor - viewport_rect.center()) - state.pan) * (new_zoom / old_zoom);
+                    state.zoom = new_zoom;
                 }
-                DirectEditorViewportCommand::Fit => {
-                    fit_direct_editor_viewport(
-                        &mut self.viewport_state,
-                        viewport_size,
-                        content_size,
-                    );
-                    if let Some(auto_fit) = &mut self.viewport_state.auto_fit {
-                        auto_fit.enabled = false;
-                    }
+                if let Some(auto_fit) = &mut state.auto_fit {
+                    auto_fit.enabled = false;
                 }
-                DirectEditorViewportCommand::AutoFit(target) => {
-                    let auto_fit = self.viewport_state.auto_fit.get_or_insert(AutoFitState {
+            }
+            DirectEditorViewportCommand::Fit => {
+                fit_direct_editor_viewport(state, viewport_size, content_size);
+                if let Some(auto_fit) = &mut state.auto_fit {
+                    auto_fit.enabled = false;
+                }
+            }
+            DirectEditorViewportCommand::AutoFit(target) => {
+                let auto_fit = state.auto_fit.get_or_insert(AutoFitState {
+                    target,
+                    enabled: true,
+                });
+                if auto_fit.target != target {
+                    *auto_fit = AutoFitState {
                         target,
                         enabled: true,
-                    });
-                    if auto_fit.target != target {
-                        *auto_fit = AutoFitState {
-                            target,
-                            enabled: true,
-                        };
-                    }
-                    if auto_fit.enabled {
-                        fit_direct_editor_viewport(
-                            &mut self.viewport_state,
-                            viewport_size,
-                            content_size,
-                        );
-                    }
+                    };
                 }
-                DirectEditorViewportCommand::ResumeAutoFit => {
-                    if let Some(auto_fit) = &mut self.viewport_state.auto_fit {
-                        auto_fit.enabled = true;
-                        fit_direct_editor_viewport(
-                            &mut self.viewport_state,
-                            viewport_size,
-                            content_size,
-                        );
-                    }
+                if auto_fit.enabled {
+                    fit_direct_editor_viewport(state, viewport_size, content_size);
+                }
+            }
+            DirectEditorViewportCommand::ResumeAutoFit => {
+                if let Some(auto_fit) = &mut state.auto_fit {
+                    auto_fit.enabled = true;
+                    fit_direct_editor_viewport(state, viewport_size, content_size);
                 }
             }
         }
-        let state = self.viewport_state;
-        VIEWPORTS.with(|viewports| viewports.borrow_mut().insert(id, state));
+    }
+    if *state != before {
+        host::request_repaint();
     }
 }
 
@@ -920,13 +948,13 @@ fn fit_direct_editor_viewport(
     viewport.pan = Vec2::ZERO;
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct AutoFitState {
     target: Uuid,
     enabled: bool,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct DirectEditorTabViewport {
     zoom: f32,
     pan: Vec2,

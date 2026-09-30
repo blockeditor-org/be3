@@ -1,0 +1,6 @@
+use super::*;
+
+mod a_color_round_trips_through_hsv;
+mod a_grey_keeps_the_hue_it_was_dragged_from;
+mod hex_accepts_the_short_and_long_forms_with_or_without_alpha;
+mod hsl_and_hsv_describe_the_same_color;

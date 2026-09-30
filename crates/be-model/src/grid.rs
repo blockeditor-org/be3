@@ -69,6 +69,10 @@ impl Cells {
         self.bounds
     }
 
+    pub(crate) fn emptied(&self) -> Self {
+        Self::blank(self.size, Bounds::default())
+    }
+
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
@@ -203,6 +207,14 @@ impl Cells {
                 mine
             };
             merged.set(x, y, &value);
+        }
+        let cropped_away = [ours, theirs].into_iter().any(|side| {
+            side.bounds.points().any(|(x, y)| {
+                !bounds.contains(x, y) && side.get_or_blank(x, y) != base.get_or_blank(x, y)
+            })
+        });
+        if cropped_away {
+            *conflicts += 1;
         }
         merged
     }

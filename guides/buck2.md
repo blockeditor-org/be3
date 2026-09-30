@@ -13,14 +13,16 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck run //:verify` | autofixes, lints, tests and plugin tests; `-- --check` writes nothing, `-- --lint`, `--tests`, `--plugin-tests` run one part |
 | `./scripts/buck test //crates/...` | the tests alone |
 | `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; add `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings |
+| `./scripts/buck test //crates/editors/checklist:test -- --test-arg adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
 | `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |
 | `./scripts/buck run //crates/block-app:smoke` | the app for ten seconds in a virtual display |
-| `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app, `be-server`, PDFium |
+| `./scripts/buck build //crates/block-app:dist --out DIR` | a platform's release: app and `be-server` |
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
 | `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's, signed on a worker with CI's key) |
 | `./scripts/buck run //crates/beui:demo-example` | a crate example; every example is `<name>-example` |
+| `./scripts/buck run //crates/beui-web-demo:web-serve` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 | `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
 
@@ -145,7 +147,7 @@ sysroot.
 
 ## Tests
 
-Most tests run on the workers, including beui's and be-compositor's, which draw
+Most tests run on the workers, including beui-renderer-wgpu's and be-compositor's, which draw
 through lavapipe from `buck/sysroot:amd64-test`. Two kinds stay local:
 
 - **Plugin tests** read and write the accepted paintings in `snapshots/`.
@@ -154,6 +156,14 @@ through lavapipe from `buck/sysroot:amd64-test`. Two kinds stay local:
   `plugin-test-runner`, the host `block-app` runs a plugin in, so they paint
   with the FreeType and HarfBuzz the plugin ships.
 - `block-plugin-api`'s test that walks `crates/editors`.
+
+`compile_fail/` holds code that must not compile: `compile_fail(name, deps)`
+in its `BUCK` makes `<name>/lib.rs` a crate and `:<name>-test`, which reads
+the crate's `[diag.json]` and passes when every line marked
+`//~ ERROR <part of the message>` has that error and no other line has one.
+It is rustc's check pass once for all the cases, with nothing linked. The
+crates sit outside `crates/` because `build //crates/...`, `//:check` and
+clippy would fail on them, and the autofixes would delete the markers.
 
 Arguments after `--` go to the test executor: `--env NAME=VALUE` sets a
 variable, `--test-arg NAME` runs one test. buck2 runs a binary's tests on
@@ -190,8 +200,8 @@ A native target depends on a wasm one through a transition in
 
 ## Shipping
 
-- `:app` stages the executable as `block-app`, PDFium, and every editor's
-  manifest (`<id>.plugin.json`), module and `.cwasm`, precompiled in an action
+- `:app` stages the executable as `block-app` and every editor's
+  manifest (`<id>.plugin.json`), data (`data/<id>/`), module and `.cwasm`, precompiled in an action
   per module for the platform the app is built for, by
   `//crates/plugin-test-runner:precompiler`, which is always the Linux x86_64
   build the workers can run.
@@ -205,13 +215,9 @@ A native target depends on a wasm one through a transition in
   that domain over https, which is how the app is deployed.
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
-  plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The app is a
-  GameActivity, so the APK also carries its AAR and the AppCompat closure it
-  needs, pinned as Maven downloads in `buck/android/BUCK`
-  (`maven_artifacts`); the tool links their resources beside
-  `crates/block-app/android/res`, generates each library's R class, and dexes
-  their jars with the app's Java. No manifests are merged, so a library's
-  own providers and components are not registered. `:android` signs it
+  plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The Java is
+  the app's own and beui's (`//crates/beui-adapter-android:android-java`), against the
+  platform alone: the APK carries no libraries. `:android` signs it
   locally with `target/android-debug.keystore`, made on first use.
   `:android-dist` signs on a worker with CI's keystore, which BuildBuddy keeps
   as the secret `ANDROID_DEBUG_KEYSTORE_BASE64` and passes only to actions on
@@ -220,13 +226,10 @@ A native target depends on a wasm one through a transition in
   After changing the secret, bump `key_version` in `crates/block-app/BUCK`.
   The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).
-- `crates/be-launcher` is an APK too. It runs, in block-app's own
-  `MainActivity`, the builds CI uploads to be3-ci: `:android-run`, the release
-  library and the plugins' `.cwasm`s (the `publish-android` job in ci.yml
-  says how they are stored). A build runs only in a launcher with its shell
-  hash (`:android-shell`, over block-app's Java, manifest and GameActivity's
-  AARs), so a change to those needs a new launcher, and a permission added to
-  block-app's manifest goes in the launcher's too.
+- `crates/be-launcher` is an APK too. It downloads and installs the APKs CI
+  uploads to be3-ci, `:android-dist` of block-app (`com.be3.block.ci`) and
+  of itself, and opens the app (the `publish-android` job in ci.yml says how
+  they are stored).
 - The macOS builds are an executable and its libraries; the `.app` bundle
   comes with distribution.
 

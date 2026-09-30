@@ -2,11 +2,14 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui::reactive::{
-    Func, Memo, clone, component, component_rect, create_effect, create_memo, create_signal,
-    on_cleanup, untrack, view,
+    Func, ItemSize, List, Memo, Show, clone, component, component_rect, create_effect,
+    create_memo, create_signal, on_cleanup, untrack, view,
 };
 use beui::styled::DockArea;
-use beui::unstyled::{DockState, DockTree, DockTreeEntry, GroupId, TabId, Tree};
+use beui::styled::theme::NARROW_WIDTH;
+use beui::unstyled::{
+    DockState, DockTree, DockTreeEntry, GroupId, TabId, Tree, narrower_than,
+};
 use beui::{NodeId, Rect, pos2, vec2};
 use beui_plugin_input::panes::{dock_tree_with, pane_tree_with};
 use block_plugin_api::{PaneId, PaneLayout, PaneTree};
@@ -299,6 +302,11 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
             });
         }));
     }
+    let narrow = narrower_than(NARROW_WIDTH);
+    let lone = create_memo(clone!(state -> move || {
+        narrow.get() && state.with(only_the_workspace)
+    }));
+    let tiled = create_memo(clone!(lone -> move || !lone.get()));
     let status = view.status.clone();
     let listed = panes.clone();
     let info = move |pane: PaneId| {
@@ -324,67 +332,83 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
         None => tab != WORKSPACE,
     });
     view! {
-        <DockArea
-            state={state}
-            title={title}
-            group_title={group_title}
-            closable={closable}
-            on_change={move |next: DockState| set_state.set(next)}
-            on_close={|tab: TabId| {
-                if let Some(tool) = Tool::of(tab) {
-                    tool.close();
-                }
-                if let Some(pane) = tab_pane(tab) {
-                    send(UiCommand::ClosePane(pane));
-                }
-            }}
-        >
-            {move |tab: TabId| {
-                let view = view.clone();
-                let debug = view.debug.clone();
-                if let Some(pane) = tab_pane(tab) {
-                    return view! {
-                        <HostSurface id=SurfaceId::Pane(pane.0) />
-                    };
-                }
-                match Tool::of(tab) {
-                    None => view! {
-                        <HostSurface id=SurfaceId::Main />
-                    },
-                    Some(Tool::Debug(DebugWindow::Client)) => {
-                        let client = create_memo(move || debug.get().client);
-                        view! {
-                            <ClientPanel client />
+        <List spacing=0.0>
+            <Show condition={lone}>
+                <HostSurface @sizing=ItemSize::Percent(100.0) id=SurfaceId::Main />
+            </Show>
+            <Show condition={tiled}>
+                <DockArea
+                    @sizing=ItemSize::Percent(100.0)
+                    state={state}
+                    title={title}
+                    group_title={group_title}
+                    closable={closable}
+                    on_change={move |next: DockState| set_state.set(next)}
+                    on_close={|tab: TabId| {
+                        if let Some(tool) = Tool::of(tab) {
+                            tool.close();
                         }
-                    }
-                    Some(Tool::Debug(DebugWindow::Performance)) => {
-                        let performance = create_memo(move || debug.get().performance);
-                        view! {
-                            <PerformancePanel performance />
+                        if let Some(pane) = tab_pane(tab) {
+                            send(UiCommand::ClosePane(pane));
                         }
-                    }
-                    Some(Tool::Debug(DebugWindow::Plugins)) => {
-                        let plugins = create_memo(move || debug.get().plugins);
-                        view! {
-                            <PluginsPanel plugins />
+                    }}
+                >
+                    {move |tab: TabId| {
+                        let view = view.clone();
+                        let debug = view.debug.clone();
+                        if let Some(pane) = tab_pane(tab) {
+                            return view! {
+                                <HostSurface id=SurfaceId::Pane(pane.0) />
+                            };
                         }
-                    }
-                    Some(Tool::Debug(DebugWindow::Version)) => {
-                        let version = create_memo(move || debug.get().version);
-                        view! {
-                            <VersionPanel version />
+                        match Tool::of(tab) {
+                            None => view! {
+                                <HostSurface id=SurfaceId::Main />
+                            },
+                            Some(Tool::Debug(DebugWindow::Client)) => {
+                                let client = create_memo(move || debug.get().client);
+                                view! {
+                                    <ClientPanel client />
+                                }
+                            }
+                            Some(Tool::Debug(DebugWindow::Performance)) => {
+                                let performance = create_memo(move || debug.get().performance);
+                                view! {
+                                    <PerformancePanel performance />
+                                }
+                            }
+                            Some(Tool::Debug(DebugWindow::Plugins)) => {
+                                let plugins = create_memo(move || debug.get().plugins);
+                                view! {
+                                    <PluginsPanel plugins />
+                                }
+                            }
+                            Some(Tool::Debug(DebugWindow::Version)) => {
+                                let version = create_memo(move || debug.get().version);
+                                view! {
+                                    <VersionPanel version />
+                                }
+                            }
+                            Some(Tool::Invite) => view! {
+                                <InvitePanel view />
+                            },
+                            Some(Tool::About) => view! {
+                                <AboutPanel />
+                            },
                         }
-                    }
-                    Some(Tool::Invite) => view! {
-                        <InvitePanel view />
-                    },
-                    Some(Tool::About) => view! {
-                        <AboutPanel />
-                    },
-                }
-            }}
-        </DockArea>
+                    }}
+                </DockArea>
+            </Show>
+        </List>
     }
+}
+
+fn only_the_workspace(state: &DockState) -> bool {
+    let leaves = state.leaves(state.main());
+    state.windows().is_empty()
+        && leaves.len() == 1
+        && state.entries(leaves[0]).len() == 1
+        && state.active_tab(leaves[0]) == Some(WORKSPACE)
 }
 
 #[cfg(test)]

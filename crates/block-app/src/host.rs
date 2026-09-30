@@ -1,7 +1,11 @@
+use beui::styled::DocumentTheme;
 use std::{
     cell::RefCell,
     collections::HashSet,
-    sync::OnceLock,
+    sync::{
+        OnceLock,
+        mpsc::{self, Receiver, SendError},
+    },
     time::{Duration, Instant},
 };
 
@@ -27,6 +31,27 @@ pub(crate) fn wake() {
     if let Some(waker) = WAKER.get() {
         waker.wake();
     }
+}
+
+pub(crate) struct WakingSender<T>(mpsc::Sender<T>);
+
+impl<T> Clone for WakingSender<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T> WakingSender<T> {
+    pub(crate) fn send(&self, value: T) -> Result<(), SendError<T>> {
+        let sent = self.0.send(value);
+        wake();
+        sent
+    }
+}
+
+pub(crate) fn waking_channel<T>() -> (WakingSender<T>, Receiver<T>) {
+    let (sender, receiver) = mpsc::channel();
+    (WakingSender(sender), receiver)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -93,12 +118,14 @@ struct Output {
     grab: Option<bool>,
     repaint: bool,
     repaint_after: Option<Duration>,
+    handles_back: bool,
 }
 
 struct Host {
     start: Instant,
     pass: u64,
     pixels_per_point: f32,
+    screen_scale: f32,
     dark: bool,
     input: Input,
     modal: bool,
@@ -106,6 +133,9 @@ struct Host {
     focus: Option<Target>,
     previous: Vec<Hit>,
     hits: Vec<Hit>,
+    document_back: bool,
+    previous_backs: Vec<Target>,
+    backs: Vec<Target>,
     keys_down: HashSet<Key>,
     files_hovering: bool,
     pointer: Option<Pos2>,
@@ -121,6 +151,7 @@ impl Default for Host {
             start: Instant::now(),
             pass: 0,
             pixels_per_point: 1.0,
+            screen_scale: 1.0,
             dark: true,
             input: Input::default(),
             modal: false,
@@ -128,6 +159,9 @@ impl Default for Host {
             focus: None,
             previous: Vec::new(),
             hits: Vec::new(),
+            document_back: false,
+            previous_backs: Vec::new(),
+            backs: Vec::new(),
             keys_down: HashSet::new(),
             files_hovering: false,
             pointer: None,
@@ -164,6 +198,13 @@ impl Host {
             .map(|hit| hit.target)
     }
 
+    fn back_target(&self) -> Option<Target> {
+        match self.document_back {
+            true => None,
+            false => self.previous_backs.last().copied(),
+        }
+    }
+
     fn focus_layer(&self) -> u8 {
         self.previous
             .iter()
@@ -191,8 +232,10 @@ struct Frame {
     touch_position: Option<Pos2>,
     floating: Vec<Rect>,
     modal: bool,
+    document_back: bool,
     dark: bool,
     pixels_per_point: f32,
+    screen_scale: f32,
 }
 
 impl Default for Frame {
@@ -212,14 +255,16 @@ impl Default for Frame {
             touch_position: None,
             floating: Vec::new(),
             modal: false,
+            document_back: false,
             dark: true,
             pixels_per_point: 1.0,
+            screen_scale: 1.0,
         }
     }
 }
 
 pub(crate) fn begin(context: &beui::Context, document: &Document) {
-    let mut frame = context.input(|input| {
+    let mut frame = context.screen_input(|input| {
         let touch = &input.touch;
         Frame {
             events: input.events.clone(),
@@ -243,18 +288,36 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
     });
     frame.floating = document.floating_rects();
     frame.modal = document.modal_open();
+    frame.document_back = document.handles_back();
     let [red, green, blue, _] = document.theme().background.to_array();
     frame.dark = u32::from(red) + u32::from(green) + u32::from(blue) < 384;
-    frame.pixels_per_point = context.pixels_per_point();
+    frame.screen_scale = context.screen_scale();
+    frame.pixels_per_point = context.pixels_per_point() * frame.screen_scale;
     start(frame);
 }
 
-fn start(frame: Frame) {
+fn start(mut frame: Frame) {
     with(|host| {
         host.dark = frame.dark;
         host.pass += 1;
         host.pixels_per_point = frame.pixels_per_point;
+        host.screen_scale = frame.screen_scale;
         host.modal = frame.modal;
+        host.document_back = frame.document_back;
+        if host.back_target().is_some() {
+            frame.events = frame
+                .events
+                .into_iter()
+                .filter_map(|event| match event {
+                    Event::Key {
+                        key: Key::BrowserBack,
+                        pressed,
+                        ..
+                    } => pressed.then_some(Event::Back(beui::BackGesture::Invoked)),
+                    event => Some(event),
+                })
+                .collect();
+        }
         host.floating = frame.floating;
         host.output = Output::default();
         let mut files_dropped = Vec::new();
@@ -313,11 +376,18 @@ fn start(frame: Frame) {
 fn finish() -> Output {
     with(|host| {
         host.previous = std::mem::take(&mut host.hits);
+        host.previous_backs = std::mem::take(&mut host.backs);
+        host.output.handles_back = !host.previous_backs.is_empty();
         if host.input.primary_released && !host.input.primary_down {
             host.drag = None;
         }
         std::mem::take(&mut host.output)
     })
+}
+
+#[cfg(test)]
+pub(crate) fn repaint_requested() -> bool {
+    with(|host| host.output.repaint)
 }
 
 #[cfg(test)]
@@ -356,6 +426,18 @@ pub(crate) fn keyboard_captured() -> bool {
 }
 
 pub(crate) fn filter_document_input(context: &beui::Context) {
+    if back_target().is_some() {
+        context.retain_events(|event| {
+            !matches!(
+                event,
+                Event::Back(_)
+                    | Event::Key {
+                        key: Key::BrowserBack,
+                        ..
+                    }
+            )
+        });
+    }
     if !keyboard_captured() {
         return;
     }
@@ -374,8 +456,12 @@ pub(crate) fn end(context: &beui::Context) {
     {
         context.set_cursor_icon(cursor);
     }
-    if output.ime.is_some() {
-        context.set_ime_area(output.ime);
+    if let Some(ime) = output.ime {
+        let scale = screen_scale();
+        context.set_ime_area(Some(ImeArea {
+            rect: ime.rect.scaled(scale),
+            cursor: ime.cursor.scaled(scale),
+        }));
     }
     if let Some(fullscreen) = output.fullscreen {
         context.set_fullscreen(fullscreen);
@@ -387,6 +473,9 @@ pub(crate) fn end(context: &beui::Context) {
         && with(|host| std::mem::replace(&mut host.grabbed, grab)) != grab
     {
         context.set_pointer_locked(grab);
+    }
+    if output.handles_back {
+        context.handle_back();
     }
     if output.repaint {
         context.request_repaint();
@@ -410,6 +499,10 @@ pub(crate) fn milliseconds() -> u64 {
 
 pub(crate) fn pixels_per_point() -> f32 {
     with(|host| host.pixels_per_point)
+}
+
+pub(crate) fn screen_scale() -> f32 {
+    with(|host| host.screen_scale)
 }
 
 pub(crate) fn dark() -> bool {
@@ -476,6 +569,14 @@ pub(crate) fn register(target: Target, rect: Rect, clip: Rect, layer: u8) {
             layer,
         });
     });
+}
+
+pub(crate) fn offer_back(target: Target) {
+    with(|host| host.backs.push(target));
+}
+
+pub(crate) fn back_target() -> Option<Target> {
+    with(|host| host.back_target())
 }
 
 pub(crate) fn reaches(target: Target, position: Pos2) -> bool {
@@ -608,6 +709,7 @@ pub(crate) struct Ui<'a> {
     rect: Rect,
     clip: Rect,
     layer: u8,
+    passive: bool,
 }
 
 impl<'a> Ui<'a> {
@@ -617,11 +719,24 @@ impl<'a> Ui<'a> {
             rect,
             clip,
             layer,
+            passive: false,
         }
     }
 
     pub(crate) fn register(&self, target: Target, rect: Rect) {
-        register(target, rect, self.clip, self.layer);
+        if !self.passive {
+            register(target, rect, self.clip, self.layer);
+        }
+    }
+
+    pub(crate) fn passive(&mut self, passive: bool) -> Ui<'_> {
+        Ui {
+            output: self.output,
+            rect: self.rect,
+            clip: self.clip,
+            layer: self.layer,
+            passive: self.passive || passive,
+        }
     }
 
     pub(crate) fn rect(&self) -> Rect {
@@ -638,6 +753,7 @@ impl<'a> Ui<'a> {
             rect,
             clip: clip.intersect(self.clip),
             layer: self.layer,
+            passive: self.passive,
         }
     }
 

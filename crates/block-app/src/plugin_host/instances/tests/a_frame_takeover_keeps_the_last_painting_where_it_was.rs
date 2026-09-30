@@ -7,6 +7,7 @@ fn resize(instances: &mut Instances, rect: Rect) {
     let role = InstanceRole::Editor(EditorBlock {
         id: Uuid::nil(),
         block_type: Uuid::nil(),
+        view_block: None,
     });
     instances.report(
         INSTANCE,

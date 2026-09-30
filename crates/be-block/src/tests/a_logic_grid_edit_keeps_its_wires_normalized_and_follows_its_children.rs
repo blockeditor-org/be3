@@ -55,7 +55,7 @@ fn a_logic_grid_edit_keeps_its_wires_normalized_and_follows_its_children() {
         ],
     );
     assert_eq!(content.root().grid().wires(), [wire((0, 0), (8, 0))]);
-    assert_eq!(content.root().wires.len(), 1);
+    assert_eq!(content.root().wires.len(), 8);
     assert_eq!(content.root().references(), [compiled]);
 
     run(

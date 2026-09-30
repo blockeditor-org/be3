@@ -215,6 +215,18 @@ impl GitHub {
         ))
     }
 
+    #[cfg(target_os = "android")]
+    pub(crate) fn branch_head(&self, branch: &str) -> Result<String, String> {
+        let described = self.api(&format!(
+            "repos/{}/branches/{branch}",
+            self.repository.full_name()
+        ))?;
+        described["commit"]["sha"]
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| format!("GitHub did not say which commit {branch} is on"))
+    }
+
     fn api(&self, path: &str) -> Result<Value, String> {
         let body = download(&format!("{API}/{path}"), self.token.as_deref())
             .map_err(|error| self.explain(error))?;

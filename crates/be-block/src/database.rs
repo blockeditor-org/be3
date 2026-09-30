@@ -6,6 +6,8 @@ use uuid::Uuid;
 
 use crate::{ChildChange, Root};
 
+const ROWS: Uuid = Uuid::from_u128(0x7a1c_52e0_9b4d_4f36_8d2a_6c1e_0f93_b5d7);
+
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct DatabaseColor {
     pub red: u8,
@@ -71,7 +73,7 @@ impl Database {
                         .enumerate()
                         .rev()
                         .take_while(|(index, item)| empty_after(*index, item))
-                        .map(|(_, item)| Change::remove(item.id)),
+                        .map(|(_, item)| Change::remove_if_blank::<DatabaseRow>(item.id)),
                 );
             }
             return changes.into_iter().collect();
@@ -80,17 +82,26 @@ impl Database {
             return Edit::default();
         };
         let mut changes = Vec::new();
-        for _ in self.rows.len()..row {
-            let (_, change) =
-                Self::ROWS.insert(ObjectId::ROOT, Anchor::End, &DatabaseRow::default());
-            changes.push(change);
+        let mut last = self.rows.last_id();
+        for index in self.rows.len()..=row {
+            let id = self.row_id(index);
+            let anchor = last.map_or(Anchor::Start, Anchor::After);
+            changes.push(Self::ROWS.insert_as(id, ObjectId::ROOT, anchor, &DatabaseRow::default()));
+            last = Some(id);
         }
-        let filled = DatabaseRow {
-            values: [(field, value)].into_iter().collect(),
-        };
-        let (_, change) = Self::ROWS.insert(ObjectId::ROOT, Anchor::End, &filled);
-        changes.push(change);
+        if let Some(id) = last {
+            changes.push(DatabaseRow::VALUES.put(id, &field, Some(&value)));
+        }
         changes.into_iter().collect()
+    }
+
+    fn row_id(&self, index: usize) -> ObjectId {
+        let id = ObjectId::from_uuid(Uuid::from_u128(ROWS.as_u128().wrapping_add(index as u128)));
+        if self.rows.get(id).is_some() {
+            ObjectId::new()
+        } else {
+            id
+        }
     }
 
     pub fn block_references(&self) -> impl Iterator<Item = Uuid> + '_ {

@@ -206,6 +206,7 @@ pub fn value_block_filter(field_name: &str, request: DatabaseBlockPickRequest) -
             .collect(),
         excluded: Vec::new(),
         templates: false,
+        place: None,
     }
 }
 

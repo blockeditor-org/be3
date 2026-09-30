@@ -75,10 +75,12 @@ impl Screens {
                 self.surface = accepted.surface;
                 self.panes = accepted.panes;
             }
+            Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::Editor(EditorMessage::Open {
                 instance,
                 block_id,
                 block_type,
+                view_block,
                 account_id,
                 workspace_id,
                 client_id,
@@ -89,6 +91,7 @@ impl Screens {
                 let session = self.open(*instance, Uuid::from_bytes(*block_type));
                 session.offer_panes(panes);
                 session.set_block_types(block_types);
+                session.set_view_block(view_block.map(Uuid::from_bytes));
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
                 session.set_workspace_id(Uuid::from_bytes(*workspace_id));
@@ -321,6 +324,16 @@ impl Screens {
                     session.child_view_change(*child, *change);
                 }
             }
+            Message::Editor(EditorMessage::ChildBar {
+                instance,
+                child,
+                action,
+                ..
+            }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.child_bar_action(*child, *action);
+                }
+            }
             Message::Editor(EditorMessage::ReplaceChild {
                 instance,
                 request_id,
@@ -486,7 +499,7 @@ impl Screens {
     }
 
     pub(crate) fn outbound(&mut self) -> Vec<Message> {
-        let mut messages = Vec::new();
+        let mut messages = Vec::from_iter(crate::fonts::take_missing());
         for session in self.sessions.values_mut() {
             messages.extend(session.outbound());
         }

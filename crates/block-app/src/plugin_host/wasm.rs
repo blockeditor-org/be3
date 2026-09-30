@@ -64,6 +64,7 @@ struct Worker {
     stepping: bool,
     target: Option<Target>,
     presented: bool,
+    presents: u64,
 }
 
 pub(super) struct Wasm {
@@ -119,6 +120,7 @@ impl super::backend::Backend for Wasm {
                     stepping: false,
                     target: None,
                     presented: false,
+                    presents: 0,
                 })
             }
             Err(error) => self.error = Some(format!("the plugin worker could not start: {error}")),
@@ -195,6 +197,8 @@ impl super::backend::Backend for Wasm {
         Some(SurfaceFrame {
             texture: target.texture.clone(),
             generation: target.generation,
+            presents: worker.presents,
+            damage: None,
         })
     }
 
@@ -225,6 +229,7 @@ impl Worker {
         if let Some(target) = produced.presented {
             self.target = Some(target);
             self.presented = true;
+            self.presents += 1;
         }
     }
 }

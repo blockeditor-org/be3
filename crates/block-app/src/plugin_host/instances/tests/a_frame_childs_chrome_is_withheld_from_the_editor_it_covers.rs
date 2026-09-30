@@ -15,6 +15,7 @@ fn active_child(instances: &mut Instances) {
             child: CHILD,
             block_id: [0; 16],
             block_type: [0; 16],
+            view_block: None,
             rect: ChildRect {
                 x: 0.0,
                 y: 0.0,
@@ -28,7 +29,7 @@ fn active_child(instances: &mut Instances) {
                 height: 100.0,
             },
             own_frame: false,
-            top_bar: false,
+            top_bar: block_plugin_api::TopBar::Hidden,
             corner_radius: 0.0,
             layer: ChildLayer::Below,
             mode: ChildMode::Active,

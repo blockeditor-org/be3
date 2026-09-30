@@ -1,5 +1,7 @@
 use std::cell::Cell;
 use std::collections::HashMap;
+#[cfg(target_arch = "wasm32")]
+use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::time::Duration;
@@ -11,7 +13,7 @@ use block_editor_plugin::{
     Region,
 };
 #[cfg(target_arch = "wasm32")]
-use block_editor_plugin::{PaintTarget, wgpu};
+use block_editor_plugin::{PaintTarget, SurfaceRect, wgpu};
 use block_plugin_api::{CursorIcon, ImeInput, InputEvent, PointerButton, WheelUnit};
 use block_plugin_api::{PaneId, PaneInfo, PaneLayout};
 use uuid::Uuid;
@@ -39,7 +41,7 @@ pub(crate) struct BeuiInstance<A: BeuiApp> {
     panes: HashMap<PaneId, beui::Document>,
     detached: Vec<TabId>,
     #[cfg(target_arch = "wasm32")]
-    renderer: Option<beui::Renderer>,
+    renderers: HashMap<EditorRegion, beui::Renderer>,
 }
 
 struct BeuiRegion {
@@ -50,18 +52,86 @@ struct BeuiRegion {
     emulated_touch: bool,
     chrome: Option<BeuiFrame>,
     output: Option<beui::FrameOutput>,
+    frame: beui::Rect,
+    look: Option<(Option<beui::Filter>, f32)>,
+    pending: Option<Damage>,
+    #[cfg(target_arch = "wasm32")]
+    history: VecDeque<Option<Damage>>,
+}
+
+#[cfg(target_arch = "wasm32")]
+const REMEMBERED_PAINTS: usize = 4;
+
+#[derive(Clone, Copy)]
+enum Damage {
+    Region(beui::Region),
+    Everything,
+}
+
+impl Damage {
+    fn union(self, other: Option<Self>) -> Self {
+        match (self, other) {
+            (Self::Region(region), Some(Self::Region(added))) => Self::Region(region.union(added)),
+            (damage, None) => damage,
+            _ => Self::Everything,
+        }
+    }
+}
+
+impl BeuiRegion {
+    fn note_output(&mut self, output: &beui::FrameOutput, frame: beui::Rect) {
+        let look = (output.filter(), output.pixels_per_point());
+        let moved = self.frame != frame || self.look != Some(look);
+        self.frame = frame;
+        self.look = Some(look);
+        let damage = match output.damaged() {
+            _ if moved => Damage::Everything,
+            Some(region) => Damage::Region(region),
+            None if output.changed => Damage::Everything,
+            None => return,
+        };
+        self.pending = Some(damage.union(self.pending));
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn take_repaint(&mut self, age: u32) -> Option<Damage> {
+        let painted = self.pending.take();
+        let history = age
+            .checked_sub(1)
+            .map(|older| older as usize)
+            .filter(|older| *older <= self.history.len());
+        let repaint = match history {
+            Some(older) => self
+                .history
+                .iter()
+                .take(older)
+                .fold(painted, |repaint, damage| match (repaint, damage) {
+                    (None, damage) => *damage,
+                    (Some(repaint), damage) => Some(repaint.union(*damage)),
+                }),
+            None => Some(Damage::Everything),
+        };
+        self.history.push_front(painted);
+        self.history.truncate(REMEMBERED_PAINTS);
+        repaint
+    }
 }
 
 impl BeuiRegion {
     fn new() -> Self {
         Self {
-            context: beui::Context::new(),
+            context: crate::fonts::context(),
             events: Vec::new(),
             modifiers: beui::Modifiers::NONE,
             pointer: beui::Pos2::ZERO,
             emulated_touch: false,
             chrome: None,
             output: None,
+            frame: beui::Rect::NOTHING,
+            look: None,
+            pending: None,
+            #[cfg(target_arch = "wasm32")]
+            history: VecDeque::new(),
         }
     }
 
@@ -106,13 +176,18 @@ impl<A: BeuiApp> Views<A> {
         editor.end_frame(document);
     }
 
-    fn creation(&mut self, context: &beui::Context, rect: beui::Rect) {
+    fn creation(&mut self, context: &beui::Context, rect: beui::Rect) -> Option<beui::Rect> {
         let (Some(creation), Some(dialog)) = (self.creation.as_ref(), self.dialog.as_mut()) else {
-            return;
+            return None;
         };
         let creation = creation.clone();
         beui::reactive::with_reactive_scope(dialog, move || creation.begin_frame());
         dialog.show(context, rect);
+        let measured = dialog.measure_root(context, beui::vec2(rect.width(), f32::INFINITY))?;
+        measured
+            .y
+            .is_finite()
+            .then(|| beui::Rect::from_min_size(rect.min, beui::vec2(rect.width(), measured.y)))
     }
 
     fn artifact_settings(
@@ -202,11 +277,11 @@ impl<A: BeuiApp> BeuiInstance<A> {
             panes: HashMap::new(),
             detached: Vec::new(),
             #[cfg(target_arch = "wasm32")]
-            renderer: None,
+            renderers: HashMap::new(),
         }
     }
 
-    fn dock(&self) -> Option<Rc<crate::dock::DockLink>> {
+    fn dock(&self) -> Option<Rc<crate::editor_dock::DockLink>> {
         self.views.editor.as_ref().and_then(Editor::dock)
     }
 
@@ -479,7 +554,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         let mut painted = Vec::new();
         let mut floating = Vec::new();
         let output = context.run(beui::RawInput { events }, |context| match region.region {
-            EditorRegion::Frame if views.creating => views.creation(context, frame),
+            EditorRegion::Frame if views.creating => content = views.creation(context, frame),
             EditorRegion::Frame => {
                 let chrome = state
                     .chrome
@@ -487,8 +562,10 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                     .expect("the frame chrome was just built");
                 let set_bar = chrome.set_bar();
                 let bar = FrameBar {
-                    shown: drawn && (spec.top_bar || spec.content.is_some()),
+                    shown: drawn && (spec.top_bar.shown() || spec.content.is_some()),
                     closable: spec.content.is_some(),
+                    on_phone: spec.top_bar.phone(),
+                    more: spec.top_bar.more(),
                 };
                 let editor = views.editor.clone();
                 beui::reactive::with_reactive_scope(chrome.document_mut(), || {
@@ -563,7 +640,9 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 rect: area.rect.scaled(unscale),
                 cursor: area.cursor.scaled(unscale),
             }),
+            handles_back: output.handles_back,
         };
+        state.note_output(&output, frame);
         state.output = Some(output);
         let locked = self
             .regions
@@ -580,51 +659,84 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn paint(&mut self, target: &PaintTarget<'_>) {
-        let Some(output) = self
-            .regions
-            .get(&target.placement.region)
-            .and_then(|region| region.output.as_ref())
-        else {
-            return;
+    fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
+        let Some(state) = self.regions.get_mut(&target.placement.region) else {
+            return Vec::new();
         };
+        let damage = state.take_repaint(target.age);
+        let (Some(output), Some(damage)) = (state.output.as_ref(), damage) else {
+            return Vec::new();
+        };
+        let repaint = match (target.age, damage) {
+            (0, _) => beui::Repaint::Everything,
+            (_, Damage::Everything) => beui::Repaint::Region {
+                region: beui::Region::from(state.frame),
+                background: beui::Color32::TRANSPARENT,
+            },
+            (_, Damage::Region(region)) => beui::Repaint::Region {
+                region: region.clipped(state.frame),
+                background: beui::Color32::TRANSPARENT,
+            },
+        };
+        if let beui::Repaint::Region { region, .. } = repaint
+            && region.is_empty()
+        {
+            return Vec::new();
+        }
         let renderer = self
-            .renderer
-            .get_or_insert_with(|| beui::Renderer::new(target.device, target.format));
+            .renderers
+            .entry(target.placement.region)
+            .or_insert_with(|| beui::Renderer::new(target.device, target.format));
+        let (x, y, width, height) = target.scissor();
+        renderer.set_bounds(Some([x, y, width, height]));
         let screen = beui::vec2(target.width as f32, target.height as f32);
-        let _ = renderer.prepare(
+        let prepared = renderer.prepare(
             target.device,
             target.queue,
             output,
             screen,
             output.pixels_per_point(),
-            beui::Repaint::Everything,
+            repaint,
         );
+        if matches!(repaint, beui::Repaint::Region { .. })
+            && matches!(prepared, beui::Repaint::Everything)
+        {
+            renderer.prepare(
+                target.device,
+                target.queue,
+                output,
+                screen,
+                output.pixels_per_point(),
+                beui::Repaint::Region {
+                    region: beui::Region::from(state.frame),
+                    background: beui::Color32::TRANSPARENT,
+                },
+            );
+        }
         let mut encoder = target
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("plugin beui pane"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: target.view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            let (x, y, width, height) = target.scissor();
-            pass.set_scissor_rect(x, y, width, height);
-            renderer.paint(&mut pass);
-        }
+        renderer.render(
+            target.device,
+            target.queue,
+            &mut encoder,
+            target.view,
+            (target.width, target.height),
+            wgpu::LoadOp::Load,
+        );
         target.queue.submit([encoder.finish()]);
+        match renderer.scissors() {
+            Some(scissors) => scissors
+                .iter()
+                .map(|[x, y, width, height]| SurfaceRect {
+                    x: *x,
+                    y: *y,
+                    width: *width,
+                    height: *height,
+                })
+                .collect(),
+            None => target.whole(),
+        }
     }
 
     fn input(&mut self, region: &Region, event: &InputEvent) {
@@ -741,6 +853,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 };
                 state.events.push(beui::Event::Modifiers(state.modifiers));
             }
+            InputEvent::WheelEnded => state.events.push(beui::Event::ScrollEnded),
             InputEvent::Zoom { factor } => {
                 state.events.push(beui::Event::Zoom(*factor));
             }
@@ -760,6 +873,9 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 ImeInput::Disabled => beui::ImeEvent::Disabled,
             })),
             InputEvent::Focus(_) => {}
+            InputEvent::Back(phase) => state
+                .events
+                .push(beui::Event::Back(beui_plugin_input::beui_back(*phase))),
         }
     }
 }

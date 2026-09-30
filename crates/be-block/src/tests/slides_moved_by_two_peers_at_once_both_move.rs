@@ -2,7 +2,6 @@ use super::*;
 use crate::presentation::PresentationContent;
 
 #[test]
-#[ignore = "a move to an index anchors after the slide that was there, and lands in the middle when someone moved that slide"]
 fn slides_moved_by_two_peers_at_once_both_move() {
     let (first, second, third) = (ObjectId::new(), ObjectId::new(), ObjectId::new());
     let mut base = PresentationContent::default();

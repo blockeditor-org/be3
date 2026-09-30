@@ -11,7 +11,7 @@ fn frame_screens_and_reports_round_trip() {
             width: 300.0,
             height: 200.0,
         }),
-        top_bar: true,
+        top_bar: TopBar::Phone { more: true },
     });
     let screens = Message::Screens(ScreenSet {
         request_id: 3,
@@ -42,6 +42,7 @@ fn frame_screens_and_reports_round_trip() {
             width: 120.0,
             height: 90.0,
         }],
+        handles_back: true,
     }]);
     assert_eq!(
         decode_frame(&encode_frame(&frames).unwrap()).unwrap(),

@@ -6,87 +6,45 @@ license.workspace = true
 
 [features]
 default = ["window"]
-render = ["dep:bytemuck", "dep:wgpu", "wgpu/std", "wgpu/wgsl"]
-window = [
-    "render",
-    "dep:accesskit_winit",
-    "dep:arboard",
-    "dep:jni",
-    "dep:ndk-context",
-    "dep:pollster",
-    "dep:winit",
-    "wgpu/default",
-]
+render = ["dep:beui-renderer-wgpu"]
+window = ["render", "dep:beui-adapter-android", "dep:beui-adapter-winit"]
 web = [
     "render",
-    "dep:js-sys",
+    "beui-renderer-wgpu/web",
+    "dep:beui-adapter-web",
     "dep:wasm-bindgen",
-    "dep:wasm-bindgen-futures",
     "dep:web-sys",
-    "wgpu/webgpu",
-    "wgpu/webgl",
 ]
+dom = ["dep:beui-adapter-web", "dep:beui-font-browser", "dep:beui-renderer-dom"]
 
 [dependencies]
-beui_macros = { path = "../beui_macros" }
 accesskit = "0.24.1"
-accesskit_winit = { version = "0.33.2", features = ["accesskit_android"], optional = true }
-bytemuck = { version = "1", features = ["derive"], optional = true }
-freetype = "0.7"
-harfbuzz_rs = "2"
-pollster = { version = "0.4", optional = true }
-geometry = { path = "../geometry" }
+beui-components-styled = { path = "../beui-components-styled" }
+beui-components-unstyled = { path = "../beui-components-unstyled" }
+beui-core = { path = "../beui-core" }
+beui-font-freetype = { path = "../beui-font-freetype" }
+beui-inspector = { path = "../beui-inspector" }
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu", optional = true }
+beui-view = { path = "../beui-view" }
+beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
-text-editor-core = { path = "../text-editor-core" }
-unicode-script = "0.5"
-wgpu = { version = "29", default-features = false, optional = true }
-winit = { version = "0.30", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
-jni = { version = "0.22", optional = true }
-ndk-context = { version = "0.1", optional = true }
+beui-adapter-android = { path = "../beui-adapter-android", optional = true }
+
+[target.'cfg(not(any(target_os = "android", target_arch = "wasm32")))'.dependencies]
+beui-adapter-winit = { path = "../beui-adapter-winit", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-js-sys = { version = "0.3", optional = true }
+beui-adapter-web = { path = "../beui-adapter-web", optional = true }
+beui-font-browser = { path = "../beui-font-browser", optional = true }
+beui-renderer-dom = { path = "../beui-renderer-dom", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
-wasm-bindgen-futures = { version = "0.4", optional = true }
-web-sys = { version = "0.3", optional = true, features = [
-    "AddEventListenerOptions",
-    "Blob",
-    "Clipboard",
-    "ClipboardEvent",
-    "CompositionEvent",
-    "CssStyleDeclaration",
-    "DataTransfer",
-    "Document",
-    "DomRect",
-    "DragEvent",
-    "Element",
-    "Event",
-    "EventTarget",
-    "File",
-    "FileList",
-    "FocusEvent",
-    "HtmlCanvasElement",
-    "HtmlElement",
-    "HtmlTextAreaElement",
-    "InputEvent",
-    "KeyboardEvent",
-    "MouseEvent",
-    "Navigator",
-    "PointerEvent",
-    "ResizeObserver",
-    "ResizeObserverEntry",
-    "Touch",
-    "TouchEvent",
-    "TouchList",
-    "WheelEvent",
-    "Window",
-    "console",
-] }
+web-sys = { version = "0.3", optional = true, features = ["HtmlCanvasElement", "HtmlElement"] }
 
-[target.'cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))'.dependencies]
-arboard = { version = "3.6", default-features = false, optional = true }
+[dev-dependencies]
+text-editor-core = { path = "../text-editor-core" }
+wgpu = { version = "29", default-features = false }
 
 [lints]
 workspace = true

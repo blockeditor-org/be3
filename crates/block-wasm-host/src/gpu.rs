@@ -315,6 +315,13 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
     )?;
     wrap(
         linker,
+        "surface_age",
+        |mut caller: Caller<'_, State>, surface: u32| -> u32 {
+            caller.data_mut().with_gpu(|gpu| gpu.surface_age(surface))
+        },
+    )?;
+    wrap(
+        linker,
         "surface_present",
         |mut caller: Caller<'_, State>, surface: u32| {
             caller

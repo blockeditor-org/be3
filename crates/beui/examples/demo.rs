@@ -1,25 +1,29 @@
-use beui::icons::{ICON_BUG_REPORT, ICON_GRID_VIEW};
+use beui::datetime::{Date, DateTime, HourCycle, Time};
+use beui::icons::{ICON_BUG_REPORT, ICON_GRID_VIEW, ICON_PLAY_ARROW};
 use beui::reactive::{
     Align, Callback, Canvas, CanvasItem, CanvasView, ForEach, Frame, Keyed, List, Memo, ReadSignal,
     Selector, Show, Spacer, Text, VirtualList, WriteSignal, build, clone, create_memo,
-    create_selector, create_signal, view, with_document,
+    create_selector, create_signal, focus_ring, view, with_document,
 };
+use beui::styled::DocumentTheme;
 use beui::styled::theme::{CARD_RADIUS, NARROW_WIDTH, RADIUS};
 use beui::styled::{
-    Accordion, Body, Button, ButtonVariant, Caption, Card, Checkbox, ContextMenu, Display, Heading,
-    IconButton, Link, Listbox, NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs,
-    Scroll, Select, Separator, Shortcut, Slider, Stack, Switch, TextArea, TextInput, Title,
-    ToggleButton, Tree, TreeRowFace, use_theme,
+    Accordion, Body, Button, ButtonVariant, Calendar, Caption, Card, Checkbox, ColorInput,
+    ColorPicker, ContextMenu, DateTimeField, Display, Heading, IconButton, Link, Listbox,
+    NumberInput, Paragraph, Progress, RadioGroup, ResponsiveTabs, Scroll, Select, Separator,
+    Shortcut, Slider, SplitButton, Stack, Switch, TextArea, TextInput, Title, ToggleButton, Tree,
+    TreeRowFace, use_theme,
 };
 use beui::unstyled::{
-    ChoiceOption, Container, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
-    SliderScale, TextAreaState, TreeItem, narrower_than, shorter_than,
+    ChoiceOption, Container, DateTimeParts, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle,
+    PanZoomView, SliderScale, TextAreaState, TreeItem, narrower_than, shorter_than,
 };
 use beui::{Color32, Context, Direction, Document, ItemSize, NodeId, Rect, TextAlign, unstyled};
 use beui_macros::component;
 use std::sync::Arc;
 use text_editor_core::{EditorCommand, MarkdownCommand, TextBuffer, TextLanguage};
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     beui::run("beui demo", DemoApp::new())
 }
@@ -209,7 +213,7 @@ fn ScrollRowFace(
             outline={theme.accent.clone()}
             outline_width=2.0
             radius=RADIUS
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
             padding_horizontal=ROW_PADDING_HORIZONTAL
             padding_vertical={vertical}
         >
@@ -588,7 +592,7 @@ fn CanvasBoard(
         <Frame
             outline={theme.accent.clone()}
             outline_width=2.0
-            outline_visible={focused}
+            outline_visible={focus_ring(focused)}
             radius=RADIUS
         >
             <Canvas view>
@@ -657,6 +661,7 @@ fn ControlPanels(rows: Rows) -> NodeId {
                     <ChoiceOption label="Choices" />
                     <ChoiceOption label="Menus" />
                     <ChoiceOption label="Tree" />
+                    <ChoiceOption label="Pickers" />
                 }}
                 selected=0
                 breakpoint=TABS_NARROW_WIDTH
@@ -688,6 +693,9 @@ fn ControlPanels(rows: Rows) -> NodeId {
                 </Show>
                 <Show condition={tab.memo(7)}>
                     <TreeControls />
+                </Show>
+                <Show condition={tab.memo(8)}>
+                    <PickerControls />
                 </Show>
             </List>
         </List>
@@ -890,6 +898,105 @@ fn NameControls() -> NodeId {
     }
 }
 
+#[component]
+fn PickerControls() -> NodeId {
+    let today = Date::today();
+    let (day, set_day) = create_signal(Some(DateTime::new(today, Time::MIDNIGHT)));
+    let (alarm, set_alarm) = create_signal(Some(DateTime::new(today, Time::new(7, 30))));
+    let (meeting, set_meeting) = create_signal(None::<DateTime>);
+    let (booked, set_booked) = create_signal(None::<Date>);
+    let (paint, set_paint) = create_signal(Color32::from_rgb(0x3E, 0x63, 0xDD));
+    let (preview, set_preview) = create_signal(None::<Color32>);
+    let (accent, set_accent) =
+        create_signal(Color32::from_rgba_unmultiplied(0xF7, 0x6B, 0x15, 0xC0));
+    let day_text = create_memo(clone!(day -> move || match day.get() {
+        Some(day) => format!("{} was chosen", day.date.label()),
+        None => "No day chosen".to_owned(),
+    }));
+    let alarm_text = create_memo(clone!(alarm -> move || match alarm.get() {
+        Some(alarm) => format!("The alarm rings at {}", alarm.time.format(HourCycle::H12)),
+        None => "No alarm".to_owned(),
+    }));
+    let meeting_text = create_memo(clone!(meeting -> move || match meeting.get() {
+        Some(meeting) => format!(
+            "Meeting on {} at {}",
+            meeting.date.label(),
+            meeting.time.format(HourCycle::H24)
+        ),
+        None => "No meeting yet: type one in or pick it".to_owned(),
+    }));
+    let booked_text = create_memo(clone!(booked -> move || match booked.get() {
+        Some(booked) => format!("Booked for {}", booked.label()),
+        None => "Bookings open for the next 60 days".to_owned(),
+    }));
+    let shown_paint =
+        create_memo(clone!(paint preview -> move || preview.get().unwrap_or(paint.get())));
+    let paint_text = create_memo(clone!(shown_paint -> move || {
+        format!("Painting in {}", beui::format_hex(shown_paint.get(), false))
+    }));
+    view! {
+        <Stack spacing=24.0 breakpoint=CARD_NARROW_WIDTH>
+            <List @sizing=ItemSize::Percent(50.0) spacing=8.0>
+                <Caption content="Date" />
+                <DateTimeField
+                    value={day}
+                    parts=DateTimeParts::Date
+                    label="Day"
+                    on_change={move |next| set_day.set(next)}
+                />
+                <Caption content={day_text} />
+                <Separator />
+                <Caption content="Time, on a 12-hour clock" />
+                <DateTimeField
+                    value={alarm}
+                    parts=DateTimeParts::Time
+                    hour_cycle=HourCycle::H12
+                    label="Alarm"
+                    on_change={move |next| set_alarm.set(next)}
+                />
+                <Caption content={alarm_text} />
+                <Separator />
+                <Caption content="Date and time, which can be cleared" />
+                <DateTimeField
+                    value={meeting}
+                    label="Meeting"
+                    clearable=true
+                    step_minutes=30
+                    on_change={move |next| set_meeting.set(next)}
+                />
+                <Caption content={meeting_text} />
+                <Separator />
+                <Caption content="A calendar limited to the next 60 days" />
+                <Calendar
+                    selected={booked}
+                    min={Some(today)}
+                    max={Some(today.add_days(60))}
+                    on_change={move |date| set_booked.set(Some(date))}
+                />
+                <Caption content={booked_text} />
+            </List>
+            <List @sizing=ItemSize::Percent(50.0) spacing=8.0>
+                <Caption content="Color input: click the swatch to pick" />
+                <ColorInput
+                    value={accent}
+                    label="Accent"
+                    on_change={move |color| set_accent.set(color)}
+                />
+                <Separator />
+                <Caption content="Color picker" />
+                <ColorPicker
+                    value={paint}
+                    alpha=false
+                    on_change={move |color| set_paint.set(color)}
+                    on_preview={move |color| set_preview.set(color)}
+                />
+                <Frame height=28.0 color={shown_paint} radius=RADIUS />
+                <Caption content={paint_text} />
+            </List>
+        </Stack>
+    }
+}
+
 fn greeting_label(name: &str) -> String {
     if name.is_empty() {
         "Nobody yet".to_owned()
@@ -1068,6 +1175,8 @@ const FRUITS: [&str; 6] = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"
 fn MenuControls() -> NodeId {
     let (fruit_status_text, set_fruit_status_text) = create_signal("Apple selected".to_string());
     let (menu_status_text, set_menu_status_text) = create_signal("Nothing chosen yet".to_string());
+    let (run_status, set_run_status) = create_signal("Not running".to_owned());
+    let (save_status, set_save_status) = create_signal("Not saved".to_owned());
 
     let (copied, set_copied) = create_signal(false);
     let nothing_copied = create_memo(move || !copied.get());
@@ -1104,6 +1213,39 @@ fn MenuControls() -> NodeId {
                     }}
                 />
                 <Caption content={fruit_status_text} />
+                <Caption content="Split buttons" />
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
+                    <SplitButton
+                        label="Run the app"
+                        glyph={ICON_PLAY_ARROW.to_owned()}
+                        variant=ButtonVariant::Primary
+                        menu_label="More ways to run it"
+                        items={view! {
+                            <unstyled::MenuItem label="Run with fresh data" />
+                            <unstyled::MenuItem label="Run on the web" />
+                        }}
+                        on_click={clone!(set_run_status -> move || set_run_status.set("Running the app".to_owned()))}
+                        on_select={move |path: Vec<usize>| {
+                            let how = match path.as_slice() {
+                                [0] => "with fresh data",
+                                _ => "on the web",
+                            };
+                            set_run_status.set(format!("Running the app {how}"));
+                        }}
+                    />
+                    <SplitButton
+                        label="Save"
+                        variant=ButtonVariant::Secondary
+                        menu_label="More ways to save"
+                        items={view! {
+                            <unstyled::MenuItem label="Save as a copy" />
+                        }}
+                        on_click={clone!(set_save_status -> move || set_save_status.set("Saved".to_owned()))}
+                        on_select={move |_: Vec<usize>| set_save_status.set("Saved a copy".to_owned())}
+                    />
+                </List>
+                <Caption content={run_status} />
+                <Caption content={save_status} />
             </List>
             <List @sizing=ItemSize::Percent(50.0) spacing=8.0>
                 <ContextMenu

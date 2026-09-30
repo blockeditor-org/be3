@@ -76,7 +76,7 @@ impl Pages {
     ) {
         let mut pane = self.pane.borrow_mut();
         let mut shown = self.shown.get_untracked();
-        if let Some(facts) = pane.poll(Some(performance)) {
+        if let Some(facts) = pane.poll(performance) {
             shown.page_count = Some(facts.page_count);
             if self.page.get_untracked() >= facts.page_count {
                 self.set_page.set(facts.page_index);
@@ -94,7 +94,7 @@ impl Pages {
             viewport.visible,
             viewport.pixels_per_point,
             waker,
-            Some(performance),
+            performance,
             || block.read(|pdf| pdf.data().to_vec()),
         );
         shown.tiles = pane.tiles();

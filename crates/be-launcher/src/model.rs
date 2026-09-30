@@ -274,6 +274,8 @@ impl Model {
     pub(crate) fn refresh_list(&self) {
         self.set_listing.set(Loaded::Loading);
         self.tasks.list(self.filter.get_untracked());
+        #[cfg(target_os = "android")]
+        self.phone.refresh_main();
     }
 
     pub(crate) fn select(&self, number: u64) {
@@ -404,10 +406,15 @@ impl Model {
 
     #[cfg(not(target_os = "android"))]
     pub(crate) fn check_out(&self, pull_request: &PullRequest, then_run: Option<usize>) {
+        self.switch(&pull_request.branch, then_run);
+    }
+
+    #[cfg(not(target_os = "android"))]
+    pub(crate) fn switch(&self, branch: &str, then_run: Option<usize>) {
         if self.running.get_untracked() {
             return;
         }
-        let mut args = vec![pull_request.branch.clone()];
+        let mut args = vec![branch.to_owned()];
         if let Some(common) =
             then_run.and_then(|index| COMMON.get(index).map(|common| (index, common)))
         {

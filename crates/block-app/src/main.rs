@@ -16,7 +16,8 @@ mod share;
 mod surfaces;
 mod ui;
 
-use std::{collections::HashMap, error::Error, time::Duration};
+use beui::styled::DocumentTheme;
+use std::{collections::HashMap, error::Error};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::{io, path::PathBuf};
@@ -24,7 +25,7 @@ use std::{io, path::PathBuf};
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
 use be_block::metadata::MAX_NAME_BYTES;
-use be_block::{BlockContent, FileTreeContent, UiSettingsContent, WorkspaceUiContent};
+use be_block::{BlockContent, UiSettingsContent, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
@@ -35,7 +36,7 @@ use editors::{
     ArtifactSession, ArtifactStatus, BlockLabel, EditorAccess, EditorAction, EditorRegistry,
     PluginEditor, SidebarDragSource, direct_editor_tab_ui,
 };
-use root_settings::{RootSetting, RootSettings};
+use root_settings::RootSettings;
 use share::ShareDialog;
 use surfaces::SurfaceId;
 use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
@@ -108,15 +109,11 @@ pub fn accessibility_tree() -> Option<String> {
 
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
-fn android_main(app: winit::platform::android::activity::AndroidApp) {
+fn android_main(app: beui::AndroidApp) {
     editors::plugin::discovery::load(&app);
     panic_guard::install();
-    let storage_root = match platform::launched() {
-        Some(launched) => Some(launched.data().to_path_buf()),
-        None => app.internal_data_path(),
-    };
-    let mut options = run_options();
-    options.android_app = Some(app);
+    let storage_root = app.internal_data_path();
+    let options = run_options();
     let exit_code = match BlockApp::new(storage_root)
         .map_err(|error| error.to_string())
         .and_then(|block_app| {
@@ -164,7 +161,9 @@ impl beui::App for Shell {
             not(target_os = "android"),
             not(target_arch = "wasm32")
         ))]
-        plugin_host::install_web_view(setup.window.clone());
+        if let Some(window) = setup.get::<std::sync::Arc<beui::winit::window::Window>>() {
+            plugin_host::install_web_view(window.clone());
+        }
     }
 
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
@@ -183,7 +182,9 @@ impl beui::App for Shell {
         });
         host::filter_document_input(context);
         self.document.show(context, rect);
-        surfaces::read_placements();
+        if surfaces::read_placements() {
+            context.request_repaint();
+        }
         let commands = ui::take_commands();
         if !commands.is_empty() {
             for command in commands {
@@ -236,8 +237,6 @@ struct BlockApp {
     server_url: String,
     account: Account,
     root_settings: RootSettings,
-    file_tree: RootSetting<FileTreeContent>,
-    workspace_ui: RootSetting<WorkspaceUiContent>,
     shell: Option<Uuid>,
     shell_panes: Option<PaneLayout>,
     shown_pane: Option<(u64, PaneId)>,
@@ -263,6 +262,7 @@ struct BlockApp {
     rename: Option<RenameState>,
     share: ShareDialog,
     about_open: bool,
+    app_menu_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
     scheduled_account_switch: Option<Account>,
     allow_close: bool,
@@ -422,8 +422,6 @@ impl BlockApp {
             server_url,
             account,
             root_settings: RootSettings::default(),
-            file_tree: RootSetting::default(),
-            workspace_ui: RootSetting::default(),
             shell: None,
             shell_panes: None,
             shown_pane: None,
@@ -443,6 +441,7 @@ impl BlockApp {
             rename: None,
             share: ShareDialog::default(),
             about_open: false,
+            app_menu_open: false,
             pending_destructive_action: None,
             scheduled_account_switch: None,
             allow_close: false,
@@ -566,9 +565,6 @@ impl BlockApp {
             .as_ref()
             .and_then(|pending| pending.receiver.try_recv().ok());
         let Some(result) = result else {
-            if self.pending_account_request.is_some() {
-                host::request_repaint_after(Duration::from_millis(100));
-            }
             return;
         };
         let pending = self.pending_account_request.take().unwrap();
@@ -669,9 +665,6 @@ impl BlockApp {
             .as_ref()
             .and_then(|receiver| receiver.try_recv().ok());
         let Some(result) = result else {
-            if self.pending_workspace_request.is_some() {
-                host::request_repaint_after(Duration::from_millis(100));
-            }
             return;
         };
         self.pending_workspace_request = None;
@@ -756,13 +749,6 @@ impl BlockApp {
             .and_then(|reauth| reauth.pending.as_ref())
             .and_then(|receiver| receiver.try_recv().ok());
         let Some(result) = result else {
-            if self
-                .reauth
-                .as_ref()
-                .is_some_and(|reauth| reauth.pending.is_some())
-            {
-                host::request_repaint_after(Duration::from_millis(100));
-            }
             return;
         };
         let Some(mut reauth) = self.reauth.take() else {
@@ -824,8 +810,6 @@ impl BlockApp {
         self.dynamic_artifact_unlink = None;
         self.share = ShareDialog::default();
         self.root_settings = RootSettings::default();
-        self.file_tree = RootSetting::default();
-        self.workspace_ui = RootSetting::default();
         self.shell = None;
         self.shell_panes = None;
         self.ui_settings = None;
@@ -888,6 +872,7 @@ impl BlockApp {
         self.share = ShareDialog::default();
         debug::close_client_windows();
         self.about_open = false;
+        self.app_menu_open = false;
         self.pending_destructive_action = None;
         self.scheduled_account_switch = None;
         self.allow_close = false;
@@ -901,8 +886,6 @@ impl BlockApp {
         self.reauth = None;
         self.invite_open = false;
         self.root_settings = RootSettings::default();
-        self.file_tree = RootSetting::default();
-        self.workspace_ui = RootSetting::default();
         self.shell = None;
         self.shell_panes = None;
         self.ui_settings = None;
@@ -1173,12 +1156,18 @@ impl BlockApp {
     }
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
-        self.file_tree.ensure(self.client_id);
-        let id = self.workspace_ui.ensure(self.client_id)?;
-        self.block_types
-            .insert(id, WorkspaceUiContent::CONTENT_TYPE);
+        let id = self.root_settings.ensure_profile(self.client_id)?;
+        if let Some(previous) = self.shell.filter(|previous| *previous != id) {
+            self.shell = None;
+            let open: Vec<Uuid> = self.editors.keys().copied().collect();
+            for editor in open {
+                self.close_editor(editor);
+            }
+            self.block_types.remove(&previous);
+        }
+        self.block_types.insert(id, WORKSPACE_EDITOR);
         if !self.editors.contains_key(&id) {
-            let editor = self.registry.open(id, WorkspaceUiContent::CONTENT_TYPE);
+            let editor = self.registry.open(id, WORKSPACE_EDITOR).viewed_by(Some(id));
             self.editors.insert(id, editor);
         }
         self.shell = Some(id);
@@ -1479,6 +1468,7 @@ impl BlockApp {
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
+            BlockCommand::AppMenu => self.app_menu_open = true,
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }
@@ -1715,6 +1705,10 @@ impl BlockApp {
             }
             UiCommand::ReauthClose => self.close_reauth(),
             UiCommand::OpenSettings => self.open_settings(),
+            UiCommand::SwitchProfile(profile) => {
+                self.root_settings.use_profile(self.client_id, profile);
+            }
+            UiCommand::NewProfile => self.root_settings.new_profile(self.client_id),
             UiCommand::OpenInspector => self.inspector_requested = Some(true),
             UiCommand::InviteMember => self.invite_open = true,
             UiCommand::SwitchWorkspace => {
@@ -1731,6 +1725,7 @@ impl BlockApp {
                 }
             }
             UiCommand::About(open) => self.about_open = open,
+            UiCommand::AppMenu(open) => self.app_menu_open = open,
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
                     && !email.trim().is_empty()
@@ -1863,6 +1858,12 @@ impl BlockApp {
                 workspace: workspace_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
                 accounts,
+                profiles: self
+                    .root_settings
+                    .profiles(self.client_id)
+                    .into_iter()
+                    .map(|(id, name, current)| ui::ProfileRow { id, name, current })
+                    .collect(),
             },
             invite: self.invite_open.then(|| ui::InviteView {
                 workspace: workspace_name,
@@ -1871,6 +1872,7 @@ impl BlockApp {
                 sent: self.invite_sent,
             }),
             about: self.about_open,
+            app_menu: self.app_menu_open,
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             rename: self.rename.as_ref().map(|rename| ui::RenameView {
                 id: rename.id,

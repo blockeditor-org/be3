@@ -22,12 +22,17 @@ impl Message {
                         BlockIdRole::Existing,
                         &mut child.block_id,
                     );
+                    if let Some(view_block) = &mut child.view_block {
+                        visit(placements.instance, BlockIdRole::Existing, view_block);
+                    }
                 }
             }
             Self::Hello(_)
             | Self::HelloAccepted(_)
             | Self::HelloRejected(_)
             | Self::Theme(_)
+            | Self::Fonts(_)
+            | Self::MissingCharacters(_)
             | Self::Screens(_)
             | Self::Layout(_)
             | Self::RegionSizes(_)
@@ -51,10 +56,18 @@ impl EditorMessage {
         let instance = self.instance();
         let mut existing = |id: &mut [u8; 16]| visit(instance, BlockIdRole::Existing, id);
         match self {
-            Self::Open { block_id, .. }
-            | Self::Content { block_id, .. }
+            Self::Open {
+                block_id,
+                view_block,
+                ..
+            } => {
+                existing(block_id);
+                view_block.iter_mut().for_each(existing);
+            }
+            Self::Content { block_id, .. }
             | Self::ContentOperations { block_id, .. }
             | Self::Operate { block_id, .. }
+            | Self::ResendContent { block_id, .. }
             | Self::SeedContent { block_id, .. }
             | Self::ReplaceContent { block_id, .. }
             | Self::ShowPresence { block_id, .. }
@@ -100,19 +113,33 @@ impl EditorMessage {
                     | BlockCommand::Redo
                     | BlockCommand::Artifact { .. }
                     | BlockCommand::SimulateAccess { .. }
-                    | BlockCommand::CloseEditor => {}
+                    | BlockCommand::CloseEditor
+                    | BlockCommand::AppMenu => {}
                 }
             }
             Self::Request { request, .. } => match request {
-                HostRequest::PickBlock(filter) => filter.excluded.iter_mut().for_each(existing),
-                HostRequest::PickFile(_) | HostRequest::PasteImage | HostRequest::Fetch(_) => {}
+                HostRequest::PickBlock(filter) => {
+                    filter.excluded.iter_mut().for_each(&mut existing);
+                    if let Some(place) = &mut filter.place {
+                        location(place, &mut existing);
+                    }
+                }
+                HostRequest::PickFile(_)
+                | HostRequest::SaveFile(_)
+                | HostRequest::PasteImage
+                | HostRequest::Fetch(_)
+                | HostRequest::ListData
+                | HostRequest::ReadData(_) => {}
             },
             Self::Replied { reply, .. } => match reply {
                 HostReply::BlockPicked(BlockPick::Chosen { block_id, .. }) => existing(block_id),
                 HostReply::BlockPicked(BlockPick::Cancelled | BlockPick::Failed(_))
                 | HostReply::FilePicked(_)
+                | HostReply::FileSaved(_)
                 | HostReply::ImagePasted(_)
-                | HostReply::Fetched(_) => {}
+                | HostReply::Fetched(_)
+                | HostReply::DataListed(_)
+                | HostReply::DataRead(_) => {}
             },
             Self::CreationBlock { outcome, .. } => match outcome {
                 CreationOutcome::Created(block_id) => existing(block_id),
@@ -191,6 +218,7 @@ impl EditorMessage {
             | Self::PresentingChanged { .. }
             | Self::Resized { .. }
             | Self::LeaveFrame { .. }
+            | Self::BarAction { .. }
             | Self::Close { .. }
             | Self::DragLeft { .. }
             | Self::FileDrop { .. }
@@ -213,6 +241,7 @@ impl EditorMessage {
             | Self::Presence { .. }
             | Self::ChildReplaced { .. }
             | Self::ChildView { .. }
+            | Self::ChildBar { .. }
             | Self::CopyText { .. }
             | Self::PasteText { .. }
             | Self::AspectRatio { .. }

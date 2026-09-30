@@ -58,13 +58,9 @@ be-vcs = { path = "../be-vcs" }
 beui = { path = "../beui", default-features = false, features = ["render"] }
 block-plugin-api = { path = "../block-plugin-api" }
 beui-plugin-input = { path = "../beui-plugin-input" }
-block-ui = { path = "../block-ui" }
 bytemuck = { version = "1.24.0", features = ["derive"] }
-game-host = { path = "../tabletop_games/host" }
-flate2 = "1"
 futures-util = "0.3"
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "pnm", "tga", "tiff", "webp"] }
-logicgame = { path = "../logicgame" }
 reactive = { path = "../reactive" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -84,7 +80,6 @@ be-server = { path = "../be-server" }
 beui = { path = "../beui", features = ["window"] }
 block-wasm-host = { path = "../block-wasm-host" }
 directories-next = "2"
-winit = "0.30"
 rusqlite = { version = "0.32", features = ["bundled"] }
 tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "time"] }
 ureq = { version = "2", features = ["gzip"] }
@@ -98,22 +93,30 @@ rodio = "0.20"
 # and the browser sandbox has neither.
 [target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 arboard = "3.6"
-# The native file dialog. Android and the browser reach their own pickers
-# instead, from platform/file_picker.rs.
-rfd = "0.15"
+winit = "0.30"
 wry = { version = "0.55.1", optional = true }
 
 # The plugin side of the protocol, for the tests that check the host only sends
 # a plugin's session messages it accepts. Nothing in the app links it.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 block-editor-plugin = { path = "../block-editor-plugin" }
+pollster = "0.4"
+
+# The native file dialog. Android and the browser reach their own pickers
+# instead, from platform/file_picker.rs, and Linux asks xdg-desktop-portal and
+# then zenity itself, so it can say when neither is there.
+[target.'cfg(all(not(target_os = "android"), not(target_os = "linux"), not(target_arch = "wasm32")))'.dependencies]
+rfd = "0.15"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd = { version = "0.11", default-features = false, features = ["async-std"] }
+pollster = "0.4"
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
 libc = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
 libc = "0.2"
-winit = { version = "0.30.13", features = ["android-game-activity"] }
 # Used by the version-switching debug window to build the ContentResolver /
 # Intent calls that download and install a GitHub Actions build.
 jni = "0.22"
@@ -137,6 +140,7 @@ web-sys = { version = "0.3", features = [
     "File",
     "FileList",
     "Headers",
+    "HtmlAnchorElement",
     "HtmlAudioElement",
     "HtmlElement",
     "HtmlInputElement",

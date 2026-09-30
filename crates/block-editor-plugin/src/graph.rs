@@ -91,6 +91,7 @@ pub struct BlockInfo {
     pub references: Vec<Uuid>,
     pub access: AccessLevel,
     pub artifact: Option<ArtifactSource>,
+    pub thumbhash: Option<be_block::Thumbhash>,
 }
 
 impl BlockInfo {
@@ -105,6 +106,7 @@ impl BlockInfo {
             references: Vec::new(),
             access: AccessLevel::Edit,
             artifact: None,
+            thumbhash: None,
         }
     }
 
@@ -138,6 +140,14 @@ impl BlockInfo {
                     source_type: artifact.source_type.into_bytes(),
                     data: artifact.data.clone(),
                 }),
+            thumbhash: self
+                .thumbhash
+                .as_ref()
+                .map(|thumbhash| block_plugin_api::Thumbhash {
+                    hash: thumbhash.hash.clone(),
+                    width: thumbhash.width,
+                    height: thumbhash.height,
+                }),
         }
     }
 
@@ -154,6 +164,11 @@ impl BlockInfo {
             artifact: info.artifact.map(|artifact| ArtifactSource {
                 source_type: Uuid::from_bytes(artifact.source_type),
                 data: artifact.data,
+            }),
+            thumbhash: info.thumbhash.map(|thumbhash| be_block::Thumbhash {
+                hash: thumbhash.hash,
+                width: thumbhash.width,
+                height: thumbhash.height,
             }),
         }
     }
@@ -187,6 +202,7 @@ pub(crate) struct GraphState {
     revision: ReadSignal<u64>,
     set_revision: WriteSignal<u64>,
     dirty: Cell<bool>,
+    deferred: Cell<u64>,
     ready: RefCell<Option<Rc<dyn Fn() -> bool>>>,
     commands: RefCell<Vec<GraphCommand>>,
 }
@@ -202,6 +218,7 @@ impl Default for GraphState {
             revision,
             set_revision,
             dirty: Cell::default(),
+            deferred: Cell::default(),
             ready: RefCell::default(),
             commands: RefCell::default(),
         }
@@ -217,8 +234,15 @@ impl GraphState {
         let ready = self.ready.borrow().clone();
         match ready.is_none_or(|ready| ready()) {
             true => self.set_revision.update(|revision| *revision += 1),
-            false => self.dirty.set(true),
+            false => {
+                self.dirty.set(true);
+                self.deferred.set(self.deferred.get() + 1);
+            }
         }
+    }
+
+    pub(crate) fn deferred(&self) -> u64 {
+        self.deferred.get()
     }
 
     pub(crate) fn flush(&self) {

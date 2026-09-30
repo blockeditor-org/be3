@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore = "a merge keeps an object or map entry one side deleted when the other side edited it, instead of taking the delete and counting a conflict"]
 fn a_column_removed_on_one_side_stays_removed_when_the_other_moves_a_card_into_it() {
     let base = board();
     let (_, done, write) = ids(&base);

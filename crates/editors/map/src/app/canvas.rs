@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use block_editor_beui::be_block::map::MapPoint;
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, Child, ClickCatcher, Focusable, ForEach, Frame, ItemSize, List, Memo, Text,
-    clone, component, create_memo, create_selector, view,
+    Canvas, CanvasItem, Child, ClickCatcher, Focusable, ForEach, Frame, ItemSize, List, Memo,
+    NodeRef, clone, component, create_effect, create_memo, create_selector, untrack, view,
 };
 use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::beui::{
@@ -11,76 +11,83 @@ use block_editor_beui::beui::{
 };
 use uuid::Uuid;
 
+use crate::geo::MapView;
 use crate::points::{self, Marker};
-use crate::raster::TILE_PIXELS;
+use crate::tiles::TileId;
 
+use super::labels::{self, MapLabel};
 use super::state::MapState;
-use super::tiles::{self, Placed, Tile};
+use super::tiles::{self, Tile};
 
 pub(crate) const REGION_COLOR: Color32 = Color32::from_rgb(245, 180, 60);
 const ATTRIBUTION: &str = "© OpenStreetMap contributors";
 const HALO: Color32 = Color32::from_rgba_unmultiplied(255, 255, 255, 200);
 const ATTRIBUTION_HEIGHT: f32 = 16.0;
-const LABEL_WIDTH: f32 = 140.0;
-const LABEL_HEIGHT: f32 = 16.0;
-const LABEL_MARGIN: f32 = 40.0;
 
 #[component]
 pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
     let placed = Rc::clone(&state);
     let revision = state.revision.clone();
-    let world = create_memo(clone!(placed revision -> move || {
-        let _ = revision.get();
-        placed.world_rect()
+    let sized = state.editor().world();
+    let laid_out = state.editor().placed();
+    let world = create_memo(clone!(placed sized laid_out -> move || {
+        placed.displayed_region.with(|_| ());
+        sized.with(|_| ());
+        laid_out.with(|_| ());
+        placed.anchor.with(|_| ());
+        placed.view()
     }));
-    let clipped = Rc::clone(&state);
-    let clip = create_memo(clone!(clipped revision -> move || {
-        let _ = revision.get();
-        clipped.content_rect()
+    let viewed = Rc::clone(&state);
+    let camera = create_memo(move || viewed.camera());
+    let scale =
+        create_memo(clone!(camera -> move || camera.get().map_or(1.0, |camera| camera.scale)));
+    let seen = Rc::clone(&state);
+    let visible = create_memo(clone!(sized -> move || {
+        sized.with(|_| ());
+        seen.visible()
     }));
-    let covering =
-        create_memo(clone!(world clip -> move || tiles::covering(world.get(), clip.get())));
+    let covered = Rc::clone(&state);
+    let covering = create_memo(clone!(world visible scale -> move || {
+        let (world, visible, scale) = (world.get(), visible.get(), scale.get());
+        match covered.sized() {
+            true => tiles::covering(world, visible, scale),
+            false => Vec::new(),
+        }
+    }));
+    let used = Rc::clone(&state);
+    create_effect(clone!(covering -> move || {
+        let shown = covering.get();
+        untrack(|| used.use_tiles(&shown));
+    }));
 
     let labelled = Rc::clone(&state);
-    let labels = create_memo(clone!(covering world clip revision labelled -> move || {
+    let measures = Rc::new(labels::Measures::default());
+    let candidates = create_memo(clone!(covering world revision -> move || {
         let _ = revision.get();
-        let (world, clip) = (world.get(), clip.get());
         let held = labelled.tiles();
-        let mut placed = Vec::new();
-        for tile in covering.get() {
-            let Some(super::state::TileState::Ready { labels, .. }) = held.get(&tile.id) else {
-                continue;
-            };
-            let rect = tiles::tile_rect(world, tile);
-            for (index, label) in labels.iter().enumerate() {
-                let at = Pos2::new(
-                    rect.left() + label.position[0] * rect.width() / TILE_PIXELS as f32,
-                    rect.top() + label.position[1] * rect.height() / TILE_PIXELS as f32,
-                );
-                if !clip.expand(LABEL_MARGIN).contains(at) {
-                    continue;
-                }
-                placed.push(PlacedLabel {
-                    tile: tile.id,
-                    index,
-                    at,
-                    text: label.text.clone(),
-                    size: label.font_size,
-                    color: Color32::from_rgb(label.color[0], label.color[1], label.color[2]),
-                });
-            }
-        }
-        placed
+        let sources = labels::sources(&held, &covering.get());
+        Rc::new(labels::candidates(&held, &sources, world.get(), &measures))
     }));
+    let decluttered = create_memo(clone!(candidates scale -> move || {
+        Rc::new(labels::declutter(&candidates.get(), scale.get()))
+    }));
+    let shown_labels = create_memo(clone!(decluttered visible scale -> move || {
+        labels::shown(&decluttered.get(), visible.get(), scale.get())
+    }));
+    let label_keys = create_memo(clone!(shown_labels -> move || {
+        shown_labels.with(|shown| shown.iter().map(labels::Label::key).collect::<Vec<_>>())
+    }));
+    let by_key = create_memo(
+        clone!(shown_labels -> move || shown_labels.with(|shown| labels::by_key(shown))),
+    );
 
     let region = Rc::clone(&state);
-    let outline = create_memo(clone!(region revision world -> move || {
-        let _ = revision.get();
-        let _ = world.get();
+    let outline = create_memo(clone!(region world -> move || {
+        let view = world.get();
         region
             .preview_region
             .get()
-            .map(|preview| region.view().region_rect(preview))
+            .map(|preview| view.region_rect(preview))
     }));
     let has_region = create_memo(clone!(outline -> move || outline.get().is_some()));
     let region_rect = create_memo(clone!(outline -> move || outline.get().unwrap_or(Rect::ZERO)));
@@ -91,29 +98,53 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
     }));
     let selection = create_selector(clone!(state -> move || state.selected.get()));
 
-    let view = state.editor().canvas();
     let theme = use_theme();
     let markers = Rc::clone(&state);
     let interaction = Rc::clone(&state);
+    let tile_scale = scale.clone();
+    let marker_scale = scale.clone();
+    let marker_world = world.clone();
+    let underlay_scale = scale.clone();
+    let underlay_world = world.clone();
+    let underlaid = Rc::clone(&state);
+    let content = NodeRef::new();
+    state.editor().content(&content);
 
     view! {
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
-                <MapSurface state={interaction} @sizing=ItemSize::Percent(100.0)>
-                    <Canvas view={view} @test_id={"map.canvas"}>
-                        <ForEach keys={covering}>
-                            {move |tile: Placed| {
-                                let state = Rc::clone(&placed);
-                                let world = world.clone();
+                <MapSurface
+                    state={interaction}
+                    @sizing=ItemSize::Percent(100.0)
+                    @node_ref={&content}
+                >
+                    <Canvas view={camera} @test_id={"map.canvas"}>
+                        <ForEach keys={covering.clone()}>
+                            {move |tile: TileId| {
+                                let state = Rc::clone(&underlaid);
+                                let world = underlay_world.clone();
+                                let scale = underlay_scale.clone();
                                 view! {
-                                    <Tile state tile world />
+                                    <Tile state tile world scale underlay=true />
                                 }
                             }}
                         </ForEach>
-                        <ForEach keys={labels}>
-                            {move |label: PlacedLabel| {
+                        <ForEach keys={covering}>
+                            {move |tile: TileId| {
+                                let state = Rc::clone(&placed);
+                                let world = world.clone();
+                                let scale = tile_scale.clone();
                                 view! {
-                                    <MapLabel label />
+                                    <Tile state tile world scale />
+                                }
+                            }}
+                        </ForEach>
+                        <ForEach keys={label_keys}>
+                            {move |key: labels::LabelKey| {
+                                let shown = by_key.clone();
+                                let scale = scale.clone();
+                                view! {
+                                    <MapLabel key shown scale />
                                 }
                             }}
                         </ForEach>
@@ -122,8 +153,10 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
                             {move |id: Uuid| {
                                 let state = Rc::clone(&markers);
                                 let selected = selection.memo(Some(id));
+                                let world = marker_world.clone();
+                                let scale = marker_scale.clone();
                                 view! {
-                                    <PointMarker state id selected />
+                                    <PointMarker state id selected world scale />
                                 }
                             }}
                         </ForEach>
@@ -131,48 +164,6 @@ pub(crate) fn MapCanvas(state: Rc<MapState>) -> NodeId {
                 </MapSurface>
                 <Attribution />
             </List>
-        </Frame>
-    }
-}
-
-#[derive(Clone, PartialEq)]
-pub(crate) struct PlacedLabel {
-    tile: crate::tiles::TileId,
-    index: usize,
-    at: Pos2,
-    text: String,
-    size: f32,
-    color: Color32,
-}
-
-impl std::hash::Hash for PlacedLabel {
-    fn hash<H: std::hash::Hasher>(&self, hasher: &mut H) {
-        self.tile.hash(hasher);
-        self.index.hash(hasher);
-    }
-}
-
-impl Eq for PlacedLabel {}
-
-#[component]
-fn MapLabel(label: PlacedLabel) -> CanvasItem {
-    view! {
-        <CanvasItem
-            x={label.at.x - LABEL_WIDTH / 2.0}
-            y={label.at.y - LABEL_HEIGHT / 2.0}
-            width=LABEL_WIDTH
-            height=LABEL_HEIGHT
-        >
-            <TileName text={label.text} size={label.size} color={label.color} />
-        </CanvasItem>
-    }
-}
-
-#[component]
-fn TileName(text: String, size: f32, color: Color32) -> NodeId {
-    view! {
-        <Frame color=HALO radius=2 padding_horizontal=2.0>
-            <Text string={text} font_size={size} align=TextAlign::Center color={color} wrap=false />
         </Frame>
     }
 }
@@ -191,18 +182,22 @@ fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> CanvasItem {
 }
 
 #[component]
-fn PointMarker(state: Rc<MapState>, id: Uuid, selected: Memo<bool>) -> CanvasItem {
+fn PointMarker(
+    state: Rc<MapState>,
+    id: Uuid,
+    selected: Memo<bool>,
+    world: Memo<MapView>,
+    scale: Memo<f32>,
+) -> CanvasItem {
     let held = Rc::clone(&state);
     let point = create_memo(clone!(held -> move || {
         held.points.get().into_iter().find(|point| point.id == id)
     }));
-    let placed = Rc::clone(&state);
-    let revision = state.revision.clone();
-    let tip = create_memo(clone!(point placed revision -> move || {
-        let _ = revision.get();
+    let tip = create_memo(clone!(point world -> move || {
+        let view = world.get();
         point
             .get()
-            .map(|point: MapPoint| placed.view().position(point.position))
+            .map(|point: MapPoint| view.position(point.position))
             .unwrap_or(Pos2::ZERO)
     }));
     let color = create_memo(clone!(point -> move || {
@@ -219,7 +214,7 @@ fn PointMarker(state: Rc<MapState>, id: Uuid, selected: Memo<bool>) -> CanvasIte
         }
     }));
     view! {
-        <Marker tip={tip} color={color} selected={selected} label={label} />
+        <Marker tip={tip} scale={scale} color={color} selected={selected} label={label} />
     }
 }
 

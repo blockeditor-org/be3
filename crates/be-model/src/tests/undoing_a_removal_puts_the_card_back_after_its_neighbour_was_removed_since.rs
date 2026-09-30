@@ -1,7 +1,6 @@
 use super::*;
 
 #[test]
-#[ignore = "a removal's undo anchors after the card that preceded it, and falls to the end when that card is gone"]
 fn undoing_a_removal_puts_the_card_back_after_its_neighbour_was_removed_since() {
     let document = board();
     let (todo, _, write) = ids(&document);

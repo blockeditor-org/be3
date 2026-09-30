@@ -1,0 +1,315 @@
+use accesskit::{Node as AccessNode, NodeId as AccessNodeId};
+
+use beui_core::accessibility::AccessibilityView;
+use beui_core::document::Document;
+use beui_core::node::NodeId;
+
+use super::State;
+
+const AUTO_EXPAND_DEPTH: usize = 3;
+const COMPONENT_AUTO_EXPAND_DEPTH: usize = 8;
+const DETAIL_LIMIT: usize = 24;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Key {
+    Node(NodeId),
+    Component(NodeId, usize),
+    AccessKit(NodeId),
+}
+
+impl Key {
+    pub fn node(self) -> NodeId {
+        match self {
+            Key::Node(id) | Key::Component(id, _) | Key::AccessKit(id) => id,
+        }
+    }
+
+    pub fn test_id(self) -> String {
+        match self {
+            Key::Node(id) => format!("inspector.row.node.{}", id.index()),
+            Key::Component(id, level) => {
+                format!("inspector.row.component.{}.{level}", id.index())
+            }
+            Key::AccessKit(id) => format!("inspector.row.accesskit.{}", id.index()),
+        }
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub struct Entry {
+    pub key: Key,
+    pub depth: usize,
+    pub kind: String,
+    pub expandable: bool,
+    pub expanded: bool,
+    pub detail: String,
+    pub size: String,
+}
+
+pub fn collect(target: &Document, state: &State) -> Vec<Entry> {
+    let mut entries = Vec::new();
+    if let Some(root) = target.root() {
+        visit(target, state, Key::Node(root), 0, &mut entries);
+    }
+    entries
+}
+
+pub fn collect_components(target: &Document, state: &State) -> Vec<Entry> {
+    let mut entries = Vec::new();
+    for key in component_roots(target) {
+        visit(target, state, key, 0, &mut entries);
+    }
+    entries
+}
+
+pub fn component_count(target: &Document) -> usize {
+    fn count(target: &Document, id: NodeId) -> usize {
+        target.component_names(id).len()
+            + target
+                .children(id)
+                .into_iter()
+                .map(|child| count(target, child))
+                .sum::<usize>()
+    }
+    target.root().map_or(0, |root| count(target, root))
+}
+
+pub fn component_path(target: &Document, id: NodeId) -> Vec<Key> {
+    path(target, id)
+        .into_iter()
+        .flat_map(|key| {
+            let node = key.node();
+            (0..target.component_names(node).len()).map(move |level| Key::Component(node, level))
+        })
+        .collect()
+}
+
+fn component_roots(target: &Document) -> Vec<Key> {
+    match target.root() {
+        Some(root) if target.component_names(root).is_empty() => components_below(target, root),
+        Some(root) => vec![Key::Component(root, 0)],
+        None => Vec::new(),
+    }
+}
+
+fn components_below(target: &Document, id: NodeId) -> Vec<Key> {
+    let mut found = Vec::new();
+    for child in target.children(id) {
+        match target.component_names(child).is_empty() {
+            true => found.extend(components_below(target, child)),
+            false => found.push(Key::Component(child, 0)),
+        }
+    }
+    found
+}
+
+pub fn collect_accesskit(target: &Document, state: &State) -> Vec<Entry> {
+    let Some(nodes) = target.accessibility_view() else {
+        return Vec::new();
+    };
+    let mut entries = Vec::new();
+    visit_accesskit(target, state, &nodes, nodes.root(), 0, &mut entries);
+    entries
+}
+
+pub fn accesskit_count(target: &Document) -> usize {
+    target.accessibility_view().map_or(0, |nodes| nodes.len())
+}
+
+pub fn accesskit_path(target: &Document, id: NodeId) -> Vec<Key> {
+    let Some(nodes) = target.accessibility_view() else {
+        return Vec::new();
+    };
+    let mut path = Vec::new();
+    descend_accesskit(target, &nodes, nodes.root(), id, &mut path);
+    path
+}
+
+fn descend_accesskit(
+    target: &Document,
+    nodes: &AccessibilityView<'_>,
+    access_id: AccessNodeId,
+    id: NodeId,
+    path: &mut Vec<Key>,
+) -> bool {
+    let Some(node_id) = target.local_node_id(access_id) else {
+        return false;
+    };
+    path.push(Key::AccessKit(node_id));
+    if node_id == id {
+        return true;
+    }
+    if let Some(node) = nodes.get(&access_id) {
+        for child in node.children() {
+            if descend_accesskit(target, nodes, *child, id, path) {
+                return true;
+            }
+        }
+    }
+    path.pop();
+    false
+}
+
+fn visit_accesskit(
+    target: &Document,
+    state: &State,
+    nodes: &AccessibilityView<'_>,
+    access_id: AccessNodeId,
+    depth: usize,
+    entries: &mut Vec<Entry>,
+) {
+    let Some(node) = nodes.get(&access_id) else {
+        return;
+    };
+    let Some(id) = target.local_node_id(access_id) else {
+        return;
+    };
+    let key = Key::AccessKit(id);
+    let expandable = !node.children().is_empty();
+    let expanded = expandable && state.expanded(key, depth < AUTO_EXPAND_DEPTH);
+    entries.push(Entry {
+        key,
+        depth,
+        kind: format!("{:?}", node.role()),
+        expandable,
+        expanded,
+        detail: accesskit_detail(node),
+        size: accesskit_size(node),
+    });
+    if expanded {
+        for child in node.children() {
+            visit_accesskit(target, state, nodes, *child, depth + 1, entries);
+        }
+    }
+}
+
+fn visit(target: &Document, state: &State, key: Key, depth: usize, entries: &mut Vec<Entry>) {
+    let children = children(target, key);
+    let expandable = !children.is_empty();
+    let expanded = expandable && state.expanded(key, auto_expand(key, depth));
+    entries.push(Entry {
+        key,
+        depth,
+        kind: kind(target, key).to_owned(),
+        expandable,
+        expanded,
+        detail: detail(target, key),
+        size: size(target, key.node()),
+    });
+    if expanded {
+        for child in children {
+            visit(target, state, child, depth + 1, entries);
+        }
+    }
+}
+
+pub fn path(target: &Document, id: NodeId) -> Vec<Key> {
+    let mut path = Vec::new();
+    if let Some(root) = target.root() {
+        descend(target, Key::Node(root), id, &mut path);
+    }
+    path
+}
+
+fn descend(target: &Document, key: Key, id: NodeId, path: &mut Vec<Key>) -> bool {
+    path.push(key);
+    if key == Key::Node(id) {
+        return true;
+    }
+    for child in children(target, key) {
+        if descend(target, child, id, path) {
+            return true;
+        }
+    }
+    path.pop();
+    false
+}
+
+pub fn count(target: &Document, id: NodeId) -> usize {
+    1 + target
+        .children(id)
+        .into_iter()
+        .map(|child| count(target, child))
+        .sum::<usize>()
+}
+
+pub fn label(target: &Document, id: NodeId) -> String {
+    match target.node_detail(id) {
+        Some(detail) => format!("{} {}", target.node_kind(id), trim(&detail)),
+        None => target.node_kind(id).to_owned(),
+    }
+}
+
+fn children(target: &Document, key: Key) -> Vec<Key> {
+    match key {
+        Key::AccessKit(_) => Vec::new(),
+        Key::Node(id) => target.children(id).into_iter().map(Key::Node).collect(),
+        Key::Component(id, level) if level + 1 < target.component_names(id).len() => {
+            vec![Key::Component(id, level + 1)]
+        }
+        Key::Component(id, _) => components_below(target, id),
+    }
+}
+
+fn kind(target: &Document, key: Key) -> &'static str {
+    match key {
+        Key::Node(id) => target.node_kind(id),
+        Key::Component(id, level) => component_name(target, id, level),
+        Key::AccessKit(_) => unreachable!(),
+    }
+}
+
+pub fn component_name(target: &Document, id: NodeId, level: usize) -> &'static str {
+    let names = target.component_names(id);
+    names[names.len() - 1 - level]
+}
+
+fn auto_expand(key: Key, depth: usize) -> bool {
+    match key {
+        Key::Component(..) => depth < COMPONENT_AUTO_EXPAND_DEPTH,
+        Key::Node(_) | Key::AccessKit(_) => depth < AUTO_EXPAND_DEPTH,
+    }
+}
+
+fn detail(target: &Document, key: Key) -> String {
+    let detail = match key {
+        Key::Node(id) => target.node_detail(id),
+        Key::Component(id, level) => {
+            let innermost = level + 1 == target.component_names(id).len();
+            innermost.then(|| target.node_kind(id).to_owned())
+        }
+        Key::AccessKit(_) => unreachable!(),
+    };
+    detail.map(|detail| trim(&detail)).unwrap_or_default()
+}
+
+fn accesskit_detail(node: &AccessNode) -> String {
+    node.label()
+        .or_else(|| node.value())
+        .or_else(|| node.description())
+        .map(trim)
+        .unwrap_or_default()
+}
+
+fn accesskit_size(node: &AccessNode) -> String {
+    match node.bounds() {
+        Some(bounds) => format!("{} x {}", bounds.width().round(), bounds.height().round()),
+        None => String::new(),
+    }
+}
+
+fn size(target: &Document, id: NodeId) -> String {
+    match target.node_rect(id) {
+        Some(rect) => format!("{} x {}", rect.width().round(), rect.height().round()),
+        None => String::new(),
+    }
+}
+
+fn trim(detail: &str) -> String {
+    let detail = detail.replace(['\n', '\t'], " ");
+    if detail.chars().count() <= DETAIL_LIMIT {
+        return detail;
+    }
+    let kept: String = detail.chars().take(DETAIL_LIMIT).collect();
+    format!("{kept}...")
+}

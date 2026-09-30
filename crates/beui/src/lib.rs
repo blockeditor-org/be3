@@ -1,72 +1,133 @@
 extern crate self as beui;
 
-mod accessibility;
-#[cfg(any(feature = "window", feature = "web"))]
-mod app;
-mod base;
-mod color;
-mod context;
-mod damage;
-mod document;
-mod draw;
-mod drawing;
-mod filter;
-mod flash;
-mod font;
-use ::geometry;
-pub mod icons;
-mod image;
-mod input;
-mod inspector;
-mod interact;
-mod layout;
-mod mouse_simulation;
-mod node;
-mod page;
-mod paint;
-mod painter;
-mod performance;
-mod pixel_grid;
-pub mod reactive;
-#[cfg(feature = "render")]
-mod renderer;
-mod screen_reader;
-pub mod styled;
-mod timer;
-pub mod unstyled;
+#[cfg(all(feature = "window", not(target_os = "android")))]
+use std::error::Error;
 
 pub use accesskit;
-#[cfg(any(feature = "window", feature = "web"))]
-pub use app::{App, OpenDevice, RunOptions, SafeArea, Setup, Waker};
-#[cfg(feature = "web")]
-pub use app::{accessibility_tree, run_web};
-#[cfg(feature = "window")]
-pub use app::{run, run_with, set_safe_area};
-pub use base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition, TextAlign, focus_within};
-pub use color::Color32;
-pub use context::{Context, FrameOutput};
-pub use document::Document;
-pub use draw::{Quad, Quads, Turn, quads, quads_within};
-pub use drawing::Drawing;
-#[cfg(feature = "render")]
-pub use drawing::{Draw, DrawAt};
-pub use filter::{ColorVision, Filter, MAX_BLUR};
-pub use font::{
-    FontFamily, FontId, FontSources, Galley, Glyph, GlyphId, GlyphImage, ICONS_FONT, TextLayout,
-    line_height,
+pub use beui_components_styled as styled;
+pub use beui_components_unstyled as unstyled;
+pub use beui_components_unstyled::datetime;
+pub use beui_core::app::{App, Setup, Waker};
+pub use beui_core::base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition, focus_within};
+pub use beui_core::color::{Color32, Hsva, format_hex, parse_hex};
+pub use beui_core::context::{Context, FrameOutput, InputSimulation, Moved, RendererInfo};
+pub use beui_core::damage::Region;
+pub use beui_core::document::{
+    Document, OverRepaint, Tools, detect_over_repaint, take_over_repaints, verify_paint,
 };
-pub use geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
-pub use image::{Image, ImageFit, ImageId};
-pub use input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, InputState, Key, KeyPress, Modifiers,
-    PointerButton, PointerPress, RawInput, ScrollGesture, SecondaryDrag, TouchId, TouchPhase,
-    TouchPoint, TouchState, ZoomGesture,
+pub use beui_core::draw::{Quad, Quads, Turn, quads};
+pub use beui_core::drawing::Drawing;
+pub use beui_core::filter::{ColorVision, Filter, MAX_BLUR};
+pub use beui_core::font::{
+    FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,
+    TextAlign, TextLayout, line_height,
 };
-pub use node::{ClickHandler, Handler, NodeId};
-pub use page::{Page, PageShape};
-pub use painter::{Painter, Shape};
-pub use performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
+pub use beui_core::geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
+pub use beui_core::icons;
+pub use beui_core::image::{Image, ImageFit, ImageId, Thumbhash};
+pub use beui_core::input::{
+    AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DroppedFile, Event, ImeArea, ImeEvent,
+    InputState, Key, KeyPress, Modifiers, PointerButton, PointerPress, RawInput, ScrollGesture,
+    SecondaryDrag, TouchId, TouchPhase, TouchPoint, TouchState, ZoomGesture,
+};
+pub use beui_core::node::{ClickHandler, Handler, NodeId};
+pub use beui_core::page::{Page, PageShape};
+pub use beui_core::painter::{Painter, Shape};
+pub use beui_core::performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
+#[cfg(not(target_arch = "wasm32"))]
+pub use beui_font_freetype::system::SystemFonts;
+pub use beui_font_freetype::{
+    FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT,
+};
+pub use beui_inspector::install as install_inspector;
 #[cfg(feature = "render")]
-pub use renderer::{Renderer, RendererInfo, Repaint, clear_color};
-#[cfg(feature = "window")]
-pub use winit;
+pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice};
+#[cfg(feature = "render")]
+pub use beui_renderer_wgpu::{
+    Draw, DrawAt, Renderer, Repaint, Repainting, clear_color, drawing, renderer_info,
+};
+pub use beui_view::{child_type, value_child_type};
+
+#[cfg(all(feature = "window", target_os = "android"))]
+pub use beui_adapter_android::{AndroidApp, RunOptions};
+#[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
+pub use beui_adapter_web::{RunOptions, accessibility_tree};
+#[cfg(all(feature = "window", not(target_os = "android")))]
+pub use beui_adapter_winit::{RunOptions, winit};
+#[cfg(all(feature = "dom", target_arch = "wasm32"))]
+pub use dom::run_dom;
+#[cfg(all(feature = "web", target_arch = "wasm32"))]
+pub use web::run_web;
+
+#[cfg(all(feature = "dom", target_arch = "wasm32"))]
+mod dom;
+#[cfg(all(feature = "web", target_arch = "wasm32"))]
+mod web;
+
+pub mod reactive {
+    pub use beui_components_unstyled::Button;
+    pub use beui_view::reactive::*;
+
+    use beui_core::document::Document;
+    use beui_core::node::NodeId;
+
+    pub fn build(f: impl FnOnce() -> NodeId) -> Document {
+        let mut document = beui_view::reactive::build(f);
+        beui_inspector::install(&mut document);
+        document
+    }
+}
+
+pub fn context() -> Context {
+    Context::new(FreetypeFonts::default())
+}
+
+pub fn system_fonts() -> FontLibrary {
+    let fonts = FontLibrary::bundled();
+    #[cfg(not(target_arch = "wasm32"))]
+    let fonts = fonts.with_fallback(beui_font_freetype::system::fallback());
+    fonts
+}
+
+pub fn system_context() -> Context {
+    Context::new(FreetypeFonts::new(system_fonts()))
+}
+
+#[cfg(all(feature = "window", not(target_os = "android")))]
+pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
+    run_with(RunOptions::new(title), app)
+}
+
+#[cfg(all(feature = "window", not(target_os = "android")))]
+pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
+    beui_adapter_winit::run_with(options, system_context(), app)
+}
+
+#[cfg(all(feature = "window", target_os = "android"))]
+pub fn run(
+    title: impl Into<String>,
+    app: impl App + 'static,
+) -> Result<(), Box<dyn std::error::Error>> {
+    run_with(RunOptions::new(title), app)
+}
+
+#[cfg(all(feature = "window", target_os = "android"))]
+pub fn run_with(
+    options: RunOptions,
+    app: impl App + 'static,
+) -> Result<(), Box<dyn std::error::Error>> {
+    beui_adapter_android::run_with(options, system_context(), app)
+}
+
+#[cfg(test)]
+use beui_core::{
+    accessibility, base, color, context, damage, draw, drawing, filter, flash, font, geometry,
+    image, input, interact, node, painter, screen_simulation,
+};
+#[cfg(test)]
+use beui_inspector::{self as inspector, mouse_simulation};
+#[cfg(test)]
+use beui_renderer_wgpu as renderer;
+
+#[cfg(test)]
+mod tests;

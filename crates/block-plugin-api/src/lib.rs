@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 53;
+pub const PROTOCOL_VERSION: u16 = 61;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
@@ -49,7 +49,37 @@ pub enum FrameChrome {
 pub struct FrameSpec {
     pub chrome: FrameChrome,
     pub content: Option<ChildRect>,
-    pub top_bar: bool,
+    pub top_bar: TopBar,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TopBar {
+    #[default]
+    Hidden,
+    Shown,
+    Phone {
+        more: bool,
+    },
+}
+
+impl TopBar {
+    pub fn shown(self) -> bool {
+        matches!(self, Self::Shown)
+    }
+
+    pub fn phone(self) -> bool {
+        matches!(self, Self::Phone { .. })
+    }
+
+    pub fn more(self) -> bool {
+        matches!(self, Self::Phone { more: true })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BarAction {
+    CloseMore,
+    Details,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -58,6 +88,7 @@ pub struct FrameReport {
     pub content: ChildRect,
     pub painted: Vec<ChildRect>,
     pub floating: Vec<ChildRect>,
+    pub handles_back: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -208,10 +239,11 @@ pub struct ChildPlacement {
     pub child: ChildId,
     pub block_id: [u8; 16],
     pub block_type: [u8; 16],
+    pub view_block: Option<[u8; 16]>,
     pub rect: ChildRect,
     pub clip: ChildRect,
     pub own_frame: bool,
-    pub top_bar: bool,
+    pub top_bar: TopBar,
     pub corner_radius: f32,
     pub layer: ChildLayer,
     pub mode: ChildMode,
@@ -347,6 +379,8 @@ pub struct EditorCapabilities {
     pub rotation: bool,
     pub preserve_aspect_ratio: bool,
     pub pan_and_zoom: bool,
+    #[serde(default)]
+    pub max_zoom: Option<u32>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -548,6 +582,7 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         block_id: [u8; 16],
         block_type: [u8; 16],
+        view_block: Option<[u8; 16]>,
         account_id: [u8; 16],
         workspace_id: [u8; 16],
         client_id: [u8; 16],
@@ -580,6 +615,10 @@ pub enum EditorMessage {
     WatchContent {
         instance: EditorInstanceId,
         blocks: Vec<WatchedContent>,
+    },
+    ResendContent {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
     },
     SeedContent {
         instance: EditorInstanceId,
@@ -633,6 +672,10 @@ pub enum EditorMessage {
     },
     LeaveFrame {
         instance: EditorInstanceId,
+    },
+    BarAction {
+        instance: EditorInstanceId,
+        action: BarAction,
     },
     Close {
         instance: EditorInstanceId,
@@ -845,6 +888,12 @@ pub enum EditorMessage {
         child: ChildId,
         change: ViewChange,
     },
+    ChildBar {
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        child: ChildId,
+        action: BarAction,
+    },
     CopyText {
         instance: EditorInstanceId,
         text: String,
@@ -934,6 +983,7 @@ impl EditorMessage {
             | Self::ContentOperations { instance, .. }
             | Self::Operate { instance, .. }
             | Self::WatchContent { instance, .. }
+            | Self::ResendContent { instance, .. }
             | Self::SeedContent { instance, .. }
             | Self::ReplaceContent { instance, .. }
             | Self::ShowPresence { instance, .. }
@@ -944,6 +994,7 @@ impl EditorMessage {
             | Self::PresentingChanged { instance, .. }
             | Self::Resized { instance, .. }
             | Self::LeaveFrame { instance, .. }
+            | Self::BarAction { instance, .. }
             | Self::Close { instance, .. }
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
@@ -984,6 +1035,7 @@ impl EditorMessage {
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
             | Self::ChildView { instance, .. }
+            | Self::ChildBar { instance, .. }
             | Self::CopyText { instance, .. }
             | Self::PasteText { instance }
             | Self::AspectRatio { instance, .. }
@@ -1110,6 +1162,14 @@ pub struct BlockInfo {
     pub references: Vec<[u8; 16]>,
     pub access: AccessLevel,
     pub artifact: Option<ArtifactSource>,
+    pub thumbhash: Option<Thumbhash>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Thumbhash {
+    pub hash: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -1221,6 +1281,7 @@ pub enum BlockCommand {
         parent: [u8; 16],
         linked: bool,
     },
+    AppMenu,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1302,17 +1363,23 @@ pub struct VersionCommit {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HostRequest {
     PickFile(FileFilter),
+    SaveFile(SavedFile),
     PickBlock(BlockFilter),
     PasteImage,
     Fetch(String),
+    ListData,
+    ReadData(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HostReply {
     FilePicked(FilePick),
+    FileSaved(FileSave),
     BlockPicked(BlockPick),
     ImagePasted(ClipboardImage),
     Fetched(FetchResult),
+    DataListed(DataListing),
+    DataRead(FetchResult),
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1321,6 +1388,7 @@ pub struct BlockFilter {
     pub block_types: Vec<[u8; 16]>,
     pub excluded: Vec<[u8; 16]>,
     pub templates: bool,
+    pub place: Option<BlockLocation>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1329,6 +1397,7 @@ pub enum BlockPick {
         block_id: [u8; 16],
         block_type: [u8; 16],
         linked: bool,
+        placed: bool,
     },
     Cancelled,
     Failed(String),
@@ -1342,8 +1411,28 @@ pub enum FilePick {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedFile {
+    pub name: String,
+    pub mime_type: String,
+    pub data: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FileSave {
+    Saved,
+    Cancelled,
+    Failed(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FetchResult {
     Body(Vec<u8>),
+    Failed(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DataListing {
+    Files(Vec<String>),
     Failed(String),
 }
 
@@ -1403,6 +1492,8 @@ pub enum Message {
     HelloAccepted(HelloAccepted),
     HelloRejected(ProtocolError),
     Theme(Theme),
+    Fonts(Fonts),
+    MissingCharacters(Vec<char>),
     Screens(ScreenSet),
     Layout(ScreenLayout),
     RegionSizes(Vec<RegionSize>),
@@ -1449,6 +1540,7 @@ impl Message {
             Self::HelloAccepted(_)
             | Self::HelloRejected(_)
             | Self::Theme(_)
+            | Self::Fonts(_)
             | Self::Screens(_)
             | Self::Input(_)
             | Self::DrawFrame
@@ -1459,6 +1551,7 @@ impl Message {
             | Self::Acknowledged { .. }
             | Self::ShutdownAcknowledged
             | Self::Layout(_)
+            | Self::MissingCharacters(_)
             | Self::RegionSizes(_)
             | Self::Frames(_)
             | Self::FrameNeeded
@@ -1501,6 +1594,7 @@ impl EditorMessage {
             | Self::HistoryStates { .. }
             | Self::ReplaceChild { .. }
             | Self::ChildView { .. }
+            | Self::ChildBar { .. }
             | Self::Blocks { .. }
             | Self::PanesArranged { .. }
             | Self::ClosePane { .. }
@@ -1515,6 +1609,7 @@ impl EditorMessage {
             | Self::ChangeView { .. }
             | Self::Present { .. }
             | Self::LeaveFrame { .. }
+            | Self::BarAction { .. }
             | Self::GrabCursor { .. }
             | Self::WebView { .. }
             | Self::WebViewCommand { .. }
@@ -1534,6 +1629,7 @@ impl EditorMessage {
             | Self::IntrinsicSize { .. }
             | Self::Operate { .. }
             | Self::WatchContent { .. }
+            | Self::ResendContent { .. }
             | Self::SeedContent { .. }
             | Self::ReplaceContent { .. }
             | Self::ShowPresence { .. }
@@ -1568,6 +1664,39 @@ pub struct HelloAccepted {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Theme {
     pub dark: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FontRole {
+    Text,
+    Monospace,
+    Fallback,
+    Icons,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FontFace {
+    pub role: FontRole,
+    pub index: u32,
+    #[serde(with = "serde_bytes")]
+    pub data: Vec<u8>,
+}
+
+impl fmt::Debug for FontFace {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FontFace")
+            .field("role", &self.role)
+            .field("index", &self.index)
+            .field("bytes", &self.data.len())
+            .finish()
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Fonts {
+    pub replace: bool,
+    pub faces: Vec<FontFace>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1650,6 +1779,7 @@ pub enum InputEvent {
         y: f32,
         unit: WheelUnit,
     },
+    WheelEnded,
     Zoom {
         factor: f32,
     },
@@ -1671,6 +1801,22 @@ pub enum InputEvent {
     Ime(ImeInput),
     Modifiers(Modifiers),
     Focus(bool),
+    Back(BackPhase),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum BackPhase {
+    Started { edge: BackEdge },
+    Progressed(f32),
+    Cancelled,
+    Invoked,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BackEdge {
+    None,
+    Left,
+    Right,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1949,6 +2095,21 @@ pub struct Modifiers {
 pub struct FrameReady {
     pub generation: u64,
     pub repaint_after_micros: Option<u64>,
+    pub presented: Option<PresentedFrame>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PresentedFrame {
+    pub sequence: u64,
+    pub damage: Vec<SurfaceRect>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SurfaceRect {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2044,7 +2205,19 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             Ok(())
         }
         Message::Layout(value) => collection(value.screens.len()),
+        Message::FrameReady(value) => value
+            .presented
+            .as_ref()
+            .map_or(Ok(()), |presented| collection(presented.damage.len())),
         Message::RegionSizes(value) => collection(value.len()),
+        Message::Fonts(value) => {
+            collection(value.faces.len())?;
+            for face in &value.faces {
+                blob(&face.data)?;
+            }
+            Ok(())
+        }
+        Message::MissingCharacters(value) => collection(value.len()),
         Message::Editor(value) => validate_editor(value),
         Message::BlockTypes(value) => {
             collection(value.len())?;
@@ -2265,13 +2438,19 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
             collection(filter.mime_types.len())?;
             strings(filter.extensions.iter().chain(&filter.mime_types))
         }
+        HostRequest::SaveFile(file) => {
+            string(&file.name)?;
+            string(&file.mime_type)?;
+            blob(&file.data)
+        }
         HostRequest::PickBlock(filter) => {
             string(&filter.name)?;
             collection(filter.block_types.len())?;
             collection(filter.excluded.len())
         }
-        HostRequest::PasteImage => Ok(()),
+        HostRequest::PasteImage | HostRequest::ListData => Ok(()),
         HostRequest::Fetch(url) => string(url),
+        HostRequest::ReadData(path) => string(path),
     }
 }
 
@@ -2283,12 +2462,21 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         HostReply::ImagePasted(ClipboardImage::Pasted { name, data }) => {
             string(name).and_then(|()| blob(data))
         }
-        HostReply::Fetched(FetchResult::Body(body)) => blob(body),
+        HostReply::Fetched(FetchResult::Body(body))
+        | HostReply::DataRead(FetchResult::Body(body)) => blob(body),
+        HostReply::DataListed(DataListing::Files(files)) => {
+            collection(files.len())?;
+            strings(files)
+        }
         HostReply::FilePicked(FilePick::Failed(message))
+        | HostReply::FileSaved(FileSave::Failed(message))
         | HostReply::BlockPicked(BlockPick::Failed(message))
         | HostReply::ImagePasted(ClipboardImage::Failed(message))
-        | HostReply::Fetched(FetchResult::Failed(message)) => string(message),
+        | HostReply::Fetched(FetchResult::Failed(message))
+        | HostReply::DataRead(FetchResult::Failed(message))
+        | HostReply::DataListed(DataListing::Failed(message)) => string(message),
         HostReply::FilePicked(FilePick::Cancelled)
+        | HostReply::FileSaved(FileSave::Saved | FileSave::Cancelled)
         | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)
         | HostReply::ImagePasted(ClipboardImage::Empty) => Ok(()),
     }

@@ -46,9 +46,7 @@ impl Fixture {
     }
 
     fn settle(&mut self) {
-        for _ in 0..3 {
-            self.run();
-        }
+        self.run();
     }
 
     fn database(&self) -> Database {
@@ -102,9 +100,7 @@ fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
         DatabaseContent::new(&Database::with_schema(schema)),
     );
     harness.hold(Some(schema), schema_content);
-    for _ in 0..6 {
-        harness.run();
-    }
+    harness.run();
     Fixture {
         harness,
         schema,

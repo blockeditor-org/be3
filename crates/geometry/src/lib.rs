@@ -271,6 +271,13 @@ impl Rect {
             && point.y <= self.max.y
     }
 
+    pub fn contains_half_open(&self, point: Pos2) -> bool {
+        point.x >= self.min.x
+            && point.x < self.max.x
+            && point.y >= self.min.y
+            && point.y < self.max.y
+    }
+
     pub fn contains_rect(&self, other: Self) -> bool {
         self.min.x <= other.min.x
             && self.min.y <= other.min.y
@@ -287,6 +294,13 @@ impl Rect {
 
     pub fn shrink(&self, amount: f32) -> Self {
         self.expand(-amount)
+    }
+
+    pub fn expand2(&self, amount: Vec2) -> Self {
+        Self {
+            min: self.min - amount,
+            max: self.max + amount,
+        }
     }
 
     pub fn union(&self, other: Self) -> Self {
@@ -373,6 +387,16 @@ impl Rotation {
             bounds = bounds.union(Rect::from_min_max(corner, corner));
         }
         bounds
+    }
+
+    pub fn translate(self, offset: Vec2) -> Self {
+        if !self.turns() {
+            return self;
+        }
+        Self {
+            pivot: self.pivot + offset,
+            angle: self.angle,
+        }
     }
 
     pub fn scaled(self, scale: f32) -> Self {

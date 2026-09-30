@@ -62,9 +62,10 @@ def _impl(ctx):
     out = actions.declare_output("generated", dir = True)
 
     # The builds buck2 stands in for, as cargo would be asked for them: the host
-    # (block-app with full, without the wasm-only crates), block-app for the web,
-    # the plugins (a plan of their own: they want a different wgpu), the games and
-    # the gpu shim, and the host again for each cross target. `cargo test` where
+    # (block-app with full, without the wasm-only crates), block-app and beui's
+    # DOM demo for the web, the plugins (a plan of their own: they want a
+    # different wgpu), the games and the gpu shim, and the host again for each
+    # cross target. `cargo test` where
     # there are tests, so the plan has the dev-dependencies. Every plan names its
     # target, so what cargo builds for the machine running the build - proc
     # macros, build scripts and what they depend on - is told apart from the
@@ -109,23 +110,26 @@ done > "$scratch/sizes"
 
 plugins=""
 excluded=""
+package_name() {
+    sed -n 's/^name[[:space:]]*=[[:space:]]*"\\(.*\\)"/\\1/p' "$1" | head -n 1
+}
 for manifest in crates/editors/*/Cargo.toml; do
-    name="$(basename "$(dirname "$manifest")")"
+    name="$(package_name "$manifest")"
     plugins="$plugins -p $name"
     excluded="$excluded --exclude $name"
 done
 games=""
-for directory in crates/tabletop_games/rules/*/; do
-    games="$games -p $(basename "$directory")"
+for manifest in crates/tabletop-games/rules/*/Cargo.toml; do
+    games="$games -p $(package_name "$manifest")"
 done
 
 plan() {
     RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" "$@" --unit-graph -Z unstable-options --locked
 }
 RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" metadata --all-features --format-version 1 --locked > "$scratch/metadata.json"
-host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-editor-beui --exclude block-gpu-shim"
+host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-editor-beui --exclude block-gpu-shim --exclude beui-web-demo"
 plan test --target x86_64-unknown-linux-gnu $host_packages --features block-app/full > "$scratch/host.json"
-plan build --target wasm32-wasip1-threads -p block-app --lib --features block-app/full > "$scratch/wasi.json"
+plan build --target wasm32-wasip1-threads -p block-app -p beui-web-demo --lib --features block-app/full > "$scratch/wasi.json"
 plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin -p block-editor-beui > "$scratch/wasi-guest.json"
 plan build --target wasm32-unknown-unknown $games -p block-gpu-shim > "$scratch/wasm32.json"
 plan test --target aarch64-linux-android $host_packages --features block-app/full > "$scratch/android-arm64.json"

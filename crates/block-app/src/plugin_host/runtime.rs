@@ -1,11 +1,16 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc, time::Duration};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, VecDeque},
+    rc::Rc,
+    time::Duration,
+};
 
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockCommand, BlockPick, DEFAULT_SURFACE_SIDE, EditorInstanceId,
-    EditorMessage, EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PaneId, PaneLayout,
-    PaneTree, PluginManifest, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat,
-    SurfaceSpec, Theme, ViewChange,
+    EditorMessage, EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PaneId, PaneLayout, PaneTree, PluginManifest,
+    PresentedFrame, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat,
+    SurfaceRect, SurfaceSpec, Theme, ViewChange,
 };
 use uuid::Uuid;
 
@@ -26,6 +31,7 @@ const CROWDED: &str = "Too many plugin runtimes are already presenting.";
 const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 const FRAME_TIMEOUT_SECONDS: f64 = 1.0;
+const REMEMBERED_PRESENTS: usize = 16;
 const SURFACE: SurfaceSpec = SurfaceSpec {
     format: SurfaceFormat::Rgba8Unorm,
     max_side: DEFAULT_SURFACE_SIDE,
@@ -119,6 +125,39 @@ pub(super) struct Runtime {
     paint_at: Option<f64>,
     requested_at: Option<f64>,
     theme: Theme,
+    fonts_sent: bool,
+    fallbacks: super::fonts::Fallbacks,
+    presents: Presents,
+}
+
+#[derive(Default)]
+struct Presents {
+    reported: VecDeque<PresentedFrame>,
+    shown: u64,
+}
+
+impl Presents {
+    fn report(&mut self, presented: PresentedFrame) {
+        if self.reported.len() == REMEMBERED_PRESENTS {
+            self.reported.pop_front();
+        }
+        self.reported.push_back(presented);
+    }
+
+    fn damage_through(&mut self, presents: u64) -> Option<Vec<SurfaceRect>> {
+        let since = std::mem::replace(&mut self.shown, presents);
+        let mut damage = Vec::new();
+        let mut found = 0;
+        for presented in &self.reported {
+            if presented.sequence > since && presented.sequence <= presents {
+                damage.extend_from_slice(&presented.damage);
+                found += 1;
+            }
+        }
+        self.reported
+            .retain(|presented| presented.sequence > presents);
+        (presents > since && found == presents - since).then_some(damage)
+    }
 }
 
 impl Runtime {
@@ -127,6 +166,7 @@ impl Runtime {
         backend.start(plugin);
         let mut instances = Instances::default();
         instances.allow_network(plugin.network.clone());
+        instances.set_plugin_id(plugin.identity.id.clone());
         let mut session = session();
         session.start(host::milliseconds());
         Self {
@@ -147,6 +187,9 @@ impl Runtime {
             paint_at: None,
             requested_at: None,
             theme: theme(),
+            fonts_sent: false,
+            fallbacks: super::fonts::Fallbacks::new(),
+            presents: Presents::default(),
         }
     }
 
@@ -170,6 +213,9 @@ impl Runtime {
         self.paint_at = None;
         self.requested_at = None;
         self.theme = theme();
+        self.fonts_sent = false;
+        self.fallbacks = super::fonts::Fallbacks::new();
+        self.presents = Presents::default();
         self.instances.reopen();
         self.backend.start(&plugin);
     }
@@ -184,6 +230,10 @@ impl Runtime {
         let drawing = self.session.granted_surface().is_some();
         let next = self.instances.next_screens(previous);
         let mut messages = Vec::new();
+        if !self.fonts_sent && *self.session.state() == SessionState::Running {
+            self.fonts_sent = true;
+            messages.push(Message::Fonts(super::fonts::bundled()));
+        }
         let theme = theme();
         if self.theme != theme {
             self.theme = theme;
@@ -275,7 +325,8 @@ impl Runtime {
             }
         }
         self.apply(forwarded);
-        if let Some(frame) = self.backend.received_frame() {
+        if let Some(mut frame) = self.backend.received_frame() {
+            frame.damage = self.presents.damage_through(frame.presents);
             self.shared.borrow_mut().publish(&self.layout, Some(frame));
         }
     }
@@ -300,9 +351,16 @@ impl Runtime {
                 }
                 Message::FrameReady(frame) => {
                     self.await_next_frame(frame.repaint_after_micros);
+                    if let Some(presented) = frame.presented {
+                        self.presents.report(presented);
+                    }
                     false
                 }
                 Message::RegionSizes(sizes) => self.instances.set_region_sizes(sizes),
+                Message::MissingCharacters(missing) => {
+                    answers.extend(self.fallbacks.answer(&missing).map(Message::Fonts));
+                    false
+                }
                 Message::Frames(reports) => self.instances.set_frame_reports(reports),
                 Message::Children(placements) => {
                     let (answered, changed) = self.instances.set_children(placements);
@@ -379,12 +437,19 @@ impl Runtime {
         drawn: Option<(u32, u32)>,
     ) -> Blit {
         self.presented = true;
+        let scale = host::screen_scale();
         Blit {
             surface: self.surface,
             status: self.status.clone(),
             shared: Rc::clone(&self.shared),
             screen,
-            quad,
+            quad: Quad {
+                rect: quad.rect.scaled(scale),
+                corners: quad
+                    .corners
+                    .map(|corner| pos2(corner.x * scale, corner.y * scale)),
+                opacity: quad.opacity,
+            },
             source,
             drawn,
         }
@@ -506,6 +571,11 @@ impl EditorPresentation {
         if self.floating.is_empty() {
             return;
         }
+        if let Some(target) = self.id {
+            for rect in &self.floating {
+                ui.register(target, *rect);
+            }
+        }
         let floating = self.floating.clone();
         self.blit(ui, &floating);
     }
@@ -559,6 +629,13 @@ pub(crate) fn editor_ui(ui: &mut Ui, slot: EditorSlot<'_>) -> EditorPresentation
         let target = Target { instance, region };
         let clip = ui.clip();
         ui.register(target, rect);
+        if runtime
+            .instances
+            .frame_report(instance)
+            .is_some_and(|report| region == EditorRegion::Frame && report.handles_back)
+        {
+            host::offer_back(target);
+        }
         let cropped = Quad::upright(rect).crop_to(clip);
         let visible = cropped
             .as_ref()
@@ -679,6 +756,23 @@ pub(crate) fn report_child_views(
         let messages = runtime
             .instances
             .child_view_changes(instance, region, changes);
+        runtime.send(messages);
+    });
+}
+
+pub(crate) fn report_child_bars(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    actions: Vec<(block_plugin_api::ChildId, block_plugin_api::BarAction)>,
+) {
+    if actions.is_empty() {
+        return;
+    }
+    with(plugin_id, |runtime| {
+        let messages = runtime
+            .instances
+            .child_bar_actions(instance, region, actions);
         runtime.send(messages);
     });
 }
@@ -833,6 +927,7 @@ pub(crate) fn preview(ui: &mut Ui, slot: PreviewSlot<'_>) -> PreviewPresentation
             InstanceRole::Editor(EditorBlock {
                 id: block_id,
                 block_type,
+                view_block: None,
             }),
             block_types,
             None,
@@ -1177,6 +1272,16 @@ pub(crate) fn resized(plugin_id: &str, instance: EditorInstanceId, size: Vec2) {
 pub(crate) fn take_view_changes(plugin_id: &str, instance: EditorInstanceId) -> Vec<ViewChange> {
     with(plugin_id, |runtime| {
         runtime.instances.take_view_changes(instance)
+    })
+    .unwrap_or_default()
+}
+
+pub(crate) fn take_bar_actions(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<block_plugin_api::BarAction> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_bar_actions(instance)
     })
     .unwrap_or_default()
 }

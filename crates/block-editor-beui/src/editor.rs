@@ -10,7 +10,8 @@ use beui::reactive::{
 };
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    ChildId, ChildLayer, ChildMode, EditorCapabilities, InteractionMode, ResizeMode, ViewChange,
+    BarAction, ChildId, ChildLayer, ChildMode, EditorCapabilities, InteractionMode, ResizeMode,
+    TopBar, ViewChange,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -127,11 +128,21 @@ pub struct Drag {
 pub struct ChildTarget {
     pub id: Uuid,
     pub block_type: Uuid,
+    pub view_block: Option<Uuid>,
 }
 
 impl ChildTarget {
     pub fn new(id: Uuid, block_type: Uuid) -> Self {
-        Self { id, block_type }
+        Self {
+            id,
+            block_type,
+            view_block: None,
+        }
+    }
+
+    pub fn viewed_by(mut self, view_block: Uuid) -> Self {
+        self.view_block = Some(view_block);
+        self
     }
 }
 
@@ -180,7 +191,7 @@ struct ChildRecord {
     mode: Prop<ChildMode>,
     layer: Prop<ChildLayer>,
     own_frame: Prop<bool>,
-    top_bar: Prop<bool>,
+    top_bar: Prop<TopBar>,
     rotation: Prop<f32>,
     opacity: Prop<f32>,
     intrinsic: Prop<Option<Vec2>>,
@@ -188,6 +199,7 @@ struct ChildRecord {
     read: ReadSignal<ChildState>,
     report: Callback<ChildState>,
     view_change: Callback<ViewChange>,
+    bar: Callback<BarAction>,
     child: Cell<Option<ChildId>>,
     zone: u64,
 }
@@ -266,6 +278,8 @@ pub(crate) fn defer_graph_changes(host: &EditorHost) {
     host.defer_graph_changes_unless(|| beui::reactive::try_with_document(|_| ()).is_some());
 }
 
+type Pump = Rc<dyn Fn()>;
+
 #[derive(Clone)]
 pub struct Editor(Rc<EditorState>);
 
@@ -301,14 +315,18 @@ struct EditorState {
     pending_reveal: Cell<Option<u64>>,
     replace: RefCell<Option<ReplaceChild>>,
     content: RefCell<Option<(NodeRef, u64)>>,
-    dock: RefCell<Option<Rc<crate::dock::DockLink>>>,
+    dock: RefCell<Option<Rc<crate::editor_dock::DockLink>>>,
     projections: RefCell<std::collections::HashMap<Option<Uuid>, Rc<dyn std::any::Any>>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
     pick: RefCell<Option<PendingPick>>,
-    pumps: RefCell<Vec<Rc<dyn Fn()>>>,
+    pumps: RefCell<std::collections::HashMap<Option<Uuid>, Pump>>,
+    due: Rc<RefCell<Vec<Option<Uuid>>>>,
+    seen: Cell<Option<(u64, f32)>>,
+    shown_rect: Cell<Option<Rect>>,
+    children_moved: Cell<bool>,
     web_view: Cell<Option<Option<Rect>>>,
     wakes: Rc<RefCell<Vec<Wake>>>,
     pushed: Mirror,
@@ -378,7 +396,11 @@ impl Editor {
             children: RefCell::new(Vec::new()),
             next_child: Cell::new(0),
             pick: RefCell::new(None),
-            pumps: RefCell::new(Vec::new()),
+            pumps: RefCell::default(),
+            due: Rc::default(),
+            seen: Cell::new(None),
+            shown_rect: Cell::new(None),
+            children_moved: Cell::new(false),
             web_view: Cell::new(None),
             wakes: Rc::default(),
             pushed,
@@ -433,6 +455,38 @@ impl Editor {
         self.projection(Some(block))
     }
 
+    pub fn view_block(&self) -> Option<Uuid> {
+        self.0.host.view_block()
+    }
+
+    pub fn view_content(&self) -> Option<Rc<ContentProjection<be_block::EditorViewContent>>> {
+        self.view_block()
+            .map(|block| self.content_of::<be_block::EditorViewContent>(block))
+    }
+
+    pub fn view_state(&self, key: &str) -> Option<be_block::ViewState> {
+        self.view_content()?
+            .read(|view| view.root().state(key).cloned())
+            .flatten()
+    }
+
+    pub fn set_view_state(&self, key: &str, state: Option<&be_block::ViewState>) {
+        let Some(view) = self.view_content() else {
+            return;
+        };
+        let client = self.0.host.client_id();
+        let now = be_block::editor_view::now_milliseconds();
+        let edit = untrack(|| {
+            view.read(|held| {
+                let root = held.root();
+                (root.state(key) != state).then(|| root.set_state(key, state, now, client))
+            })
+        });
+        if let Some(edit) = edit.flatten() {
+            view.operate_anyway(edit);
+        }
+    }
+
     pub fn related_content<C>(&self, block: Memo<Option<Uuid>>) -> Rc<crate::RelatedContent<C>>
     where
         C: be_block::LiveEdit + Clone + Default,
@@ -468,11 +522,18 @@ impl Editor {
             return source;
         }
         let source = Rc::new(ContentProjection::<C>::new(self.0.host.clone(), block));
+        let due = Rc::downgrade(&self.0.due);
+        source.on_due(move || {
+            if let Some(due) = due.upgrade() {
+                due.borrow_mut().push(block);
+            }
+        });
         let pumped = Rc::clone(&source);
         self.0
             .pumps
             .borrow_mut()
-            .push(Rc::new(move || pumped.pump()));
+            .insert(block, Rc::new(move || pumped.pump()));
+        self.0.due.borrow_mut().push(block);
         self.0
             .projections
             .borrow_mut()
@@ -624,12 +685,13 @@ impl Editor {
         mode: Prop<ChildMode>,
         layer: Prop<ChildLayer>,
         own_frame: Prop<bool>,
-        top_bar: Prop<bool>,
+        top_bar: Prop<TopBar>,
         rotation: Prop<f32>,
         opacity: Prop<f32>,
         intrinsic: Prop<Option<Vec2>>,
         report: Callback<ChildState>,
         view_change: Callback<ViewChange>,
+        bar: Callback<BarAction>,
     ) -> ReadSignal<ChildState> {
         let (state, set_state) = create_signal(ChildState::default());
         let key = self.0.next_child.get();
@@ -650,6 +712,7 @@ impl Editor {
                 read: state.clone(),
                 report,
                 view_change,
+                bar,
                 child: Cell::new(None),
                 zone: document_zone(),
             }),
@@ -699,7 +762,7 @@ impl Editor {
             .show_pane(beui_plugin_input::panes::pane_of(tab));
     }
 
-    pub(crate) fn set_dock(&self, link: crate::dock::DockLink) {
+    pub(crate) fn set_dock(&self, link: crate::editor_dock::DockLink) {
         *self.0.dock.borrow_mut() = Some(Rc::new(link));
         self.0.host.waker().wake();
     }
@@ -708,10 +771,11 @@ impl Editor {
         let mut dock = self.0.dock.borrow_mut();
         if dock.as_ref().is_some_and(|link| link.key == key) {
             *dock = None;
+            self.0.host.waker().wake();
         }
     }
 
-    pub(crate) fn dock(&self) -> Option<Rc<crate::dock::DockLink>> {
+    pub(crate) fn dock(&self) -> Option<Rc<crate::editor_dock::DockLink>> {
         self.0.dock.borrow().clone()
     }
 
@@ -856,41 +920,51 @@ impl Editor {
     }
 
     pub fn begin_frame(&self) {
-        self.0.host.flush_graph();
-        let pumps = self.0.pumps.borrow().clone();
-        for pump in pumps {
-            pump();
+        let ratio = self.ratio();
+        let seen = Some((self.0.host.changes(), ratio));
+        let pushed = self.0.seen.replace(seen) != seen;
+        if pushed {
+            self.0.host.flush_graph();
         }
-        self.0.pushed.sync(&self.0.host);
+        let mut due = std::mem::take(&mut *self.0.due.borrow_mut());
+        if pushed {
+            due.extend(self.0.host.updated_content());
+        }
+        self.pump(due);
         let wakes = self.0.wakes.borrow().clone();
         for (count, woken) in wakes {
             woken.set(count.load(Ordering::Acquire));
         }
-        let ratio = self.ratio();
-        self.0
-            .set_files
-            .set(self.0.host.files().map(|files| crate::FileDrop {
-                position: Pos2::new(files.position.x * ratio, files.position.y * ratio),
-                ..files
+        if pushed {
+            self.0.pushed.sync(&self.0.host);
+            self.0
+                .set_files
+                .set(self.0.host.files().map(|files| crate::FileDrop {
+                    position: Pos2::new(files.position.x * ratio, files.position.y * ratio),
+                    ..files
+                }));
+            self.0.set_chrome.set(self.0.host.chrome_shown());
+            self.0.set_editable.set(self.0.host.editable());
+            self.0.set_presenting.set(self.0.host.presenting());
+            self.0.set_drag.set(self.0.host.drag().map(|drag| Drag {
+                position: Pos2::new(drag.position.x * ratio, drag.position.y * ratio),
+                block_id: drag.block_id,
+                block_type: drag.block_type,
+                dropped: drag.dropped,
             }));
-        self.0.set_placed.set(self.0.content_rect.get());
-        let scale = self.view_scale();
-        let divisor = scale.max(f32::EPSILON);
-        self.0.set_canvas.set(self.view_canvas());
-        self.0.set_world.set(
-            self.view_rect()
-                .map(|rect| Vec2::new(rect.width() / divisor, rect.height() / divisor)),
-        );
-        self.0.set_scale.set(scale);
-        self.0.set_chrome.set(self.0.host.chrome_shown());
-        self.0.set_editable.set(self.0.host.editable());
-        self.0.set_presenting.set(self.0.host.presenting());
-        self.0.set_drag.set(self.0.host.drag().map(|drag| Drag {
-            position: Pos2::new(drag.position.x * ratio, drag.position.y * ratio),
-            block_id: drag.block_id,
-            block_type: drag.block_type,
-            dropped: drag.dropped,
-        }));
+        }
+        let rect = self.0.content_rect.get();
+        if pushed || self.0.shown_rect.replace(Some(rect)) != Some(rect) {
+            self.0.set_placed.set(rect);
+            let scale = self.view_scale();
+            let divisor = scale.max(f32::EPSILON);
+            self.0.set_canvas.set(self.view_canvas());
+            self.0.set_world.set(
+                self.view_rect()
+                    .map(|rect| Vec2::new(rect.width() / divisor, rect.height() / divisor)),
+            );
+            self.0.set_scale.set(scale);
+        }
         self.0
             .set_pixels_per_point
             .set(self.0.beui.get().pixels_per_point);
@@ -899,10 +973,37 @@ impl Editor {
             self.0.set_presence_visible.set(visible);
         }
         self.0.set_revealed.set(self.0.pending_reveal.take());
+        if pushed || self.0.children_moved.take() {
+            self.follow_children();
+        }
+        if pushed {
+            self.poll_pick();
+        }
+    }
+
+    fn pump(&self, blocks: Vec<Option<Uuid>>) {
+        let pumps: Vec<_> = {
+            let held = self.0.pumps.borrow();
+            let mut pumped = std::collections::HashSet::new();
+            blocks
+                .into_iter()
+                .filter(|block| pumped.insert(*block))
+                .filter_map(|block| held.get(&block).cloned())
+                .collect()
+        };
+        for pump in pumps {
+            pump();
+        }
+    }
+
+    fn follow_children(&self) {
         for record in self.records() {
             if let Some(child) = record.child.get() {
                 for change in self.0.host.take_child_view_changes(child) {
                     record.view_change.call(change);
+                }
+                for action in self.0.host.take_child_bar_actions(child) {
+                    record.bar.call(action);
                 }
             }
             let state = ChildState::of(&self.0.host, record.child.get());
@@ -912,7 +1013,6 @@ impl Editor {
             record.state.set(state.clone());
             record.report.call(state);
         }
-        self.poll_pick();
     }
 
     pub fn end_frame(&self, document: &Document) {
@@ -921,7 +1021,10 @@ impl Editor {
             if record.zone != 0 && record.zone != zone {
                 continue;
             }
-            record.child.set(self.place_child(document, &record));
+            let child = self.place_child(document, &record);
+            if record.child.replace(child) != child {
+                self.0.children_moved.set(true);
+            }
         }
         let unscale = self.ratio().recip();
         if let Some(rect) = self.0.web_view.get() {
@@ -964,6 +1067,7 @@ impl Editor {
         Some(self.0.host.place_child(
             target.id,
             target.block_type,
+            target.view_block,
             rect.scaled(unscale),
             placement.clip.scaled(unscale),
             record.mode.peek(),
@@ -987,6 +1091,7 @@ struct CreationState {
     template: String,
     maker: RefCell<Option<Maker>>,
     pushed: Mirror,
+    seen: Cell<Option<u64>>,
 }
 
 impl Creation {
@@ -1003,6 +1108,7 @@ impl Creation {
             host,
             template: template.into(),
             maker: RefCell::new(None),
+            seen: Cell::new(None),
         }))
     }
 
@@ -1051,20 +1157,27 @@ impl Creation {
     }
 
     pub fn begin_frame(&self) {
-        self.0.pushed.sync(&self.0.host);
+        let changes = Some(self.0.host.changes());
+        if self.0.seen.replace(changes) != changes {
+            self.0.pushed.sync(&self.0.host);
+        }
     }
 }
 
 impl crate::root_settings::SettingsGraph for Editor {
-    fn roots(&self) -> Option<Vec<(Uuid, Uuid)>> {
+    fn roots(&self) -> Option<Vec<(Uuid, Uuid, Uuid)>> {
         let mut roots = self.0.roots.borrow_mut();
         let list = roots.get_or_insert_with(|| self.blocks().watch(BlockQuery::Roots));
         list.is_loaded().then(|| {
             list.read()
                 .into_iter()
-                .map(|info| (info.id, info.block_type))
+                .map(|info| (info.id, info.block_type, info.author))
                 .collect()
         })
+    }
+
+    fn account(&self) -> Uuid {
+        self.0.host.account_id()
     }
 
     fn settings(&self, block: Uuid) -> Option<be_block::Settings> {

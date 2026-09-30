@@ -5,7 +5,7 @@ use std::{
 };
 
 use beui::{DrawAt, Pos2, Rect, Vec2, pos2, vec2};
-use block_plugin_api::{ScreenId, ScreenLayout};
+use block_plugin_api::{ScreenId, ScreenLayout, ScreenPlacement, SurfaceRect};
 
 use super::backend::{Availability, Frame};
 
@@ -135,7 +135,7 @@ impl BlitPipeline {
                 },
                 targets: &[Some(wgpu::ColorTargetState {
                     format: target_format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -296,6 +296,7 @@ impl Region {
 pub(super) struct Shared {
     pub(super) layout: ScreenLayout,
     pub(super) frames: Vec<Frame>,
+    damage: Option<Vec<SurfaceRect>>,
 }
 
 impl Shared {
@@ -304,10 +305,23 @@ impl Shared {
         let Some(frame) = frame else {
             return;
         };
+        self.damage = match (self.frames.is_empty(), self.damage.take(), &frame.damage) {
+            (true, _, damage) => damage.clone(),
+            (false, Some(mut held), Some(damage)) => {
+                held.extend_from_slice(damage);
+                Some(held)
+            }
+            _ => None,
+        };
         if self.frames.len() >= MAX_PENDING_FRAMES {
             self.frames.remove(0);
         }
         self.frames.push(frame);
+    }
+
+    fn take_frames(&mut self) -> Vec<Frame> {
+        self.damage = None;
+        std::mem::take(&mut self.frames)
     }
 }
 
@@ -337,6 +351,62 @@ impl Blit {
     pub(crate) fn pending(&self) -> bool {
         !self.shared.borrow().frames.is_empty()
     }
+
+    pub(crate) fn damage(&self) -> Option<Vec<Rect>> {
+        let shared = self.shared.borrow();
+        if shared.frames.is_empty() {
+            return Some(Vec::new());
+        }
+        let damage = shared.damage.as_ref()?;
+        let placement = shared.layout.placement(self.screen)?;
+        Some(
+            damage
+                .iter()
+                .filter_map(|rect| shown_damage(*rect, *placement, self.quad, self.source))
+                .collect(),
+        )
+    }
+}
+
+pub(super) fn shown_damage(
+    rect: SurfaceRect,
+    placement: ScreenPlacement,
+    quad: Quad,
+    source: Rect,
+) -> Option<Rect> {
+    if placement.width == 0 || placement.height == 0 || !source.is_positive() {
+        return None;
+    }
+    let (x, y) = (placement.x as f32, placement.y as f32);
+    let (width, height) = (placement.width as f32, placement.height as f32);
+    let changed = Rect::from_min_max(
+        pos2((rect.x as f32 - x) / width, (rect.y as f32 - y) / height),
+        pos2(
+            (rect.x as f32 + rect.width as f32 - x) / width,
+            (rect.y as f32 + rect.height as f32 - y) / height,
+        ),
+    )
+    .intersect(source);
+    if !changed.is_positive() {
+        return None;
+    }
+    let corners = quad.corners;
+    let horizontal = corners[1] - corners[0];
+    let vertical = corners[3] - corners[0];
+    let point = |u: f32, v: f32| {
+        corners[0]
+            + horizontal * ((u - source.min.x) / source.width())
+            + vertical * ((v - source.min.y) / source.height())
+    };
+    Some(
+        Rect::from_points(&[
+            point(changed.min.x, changed.min.y),
+            point(changed.max.x, changed.min.y),
+            point(changed.max.x, changed.max.y),
+            point(changed.min.x, changed.max.y),
+        ])
+        .expand(1.0),
+    )
 }
 
 struct Regions {
@@ -416,7 +486,7 @@ impl beui::Draw for PluginDrawing {
             for (index, blit) in self.blits.iter().enumerate() {
                 let (frames, region) = {
                     let mut shared = blit.shared.borrow_mut();
-                    let frames = std::mem::take(&mut shared.frames);
+                    let frames = shared.take_frames();
                     let region = shared.layout.placement(blit.screen).and_then(|placement| {
                         Region::of(&shared.layout, blit.screen, blit.quad, blit.source).filter(
                             |_| {
@@ -496,8 +566,11 @@ struct Presenter {
 }
 
 pub(super) fn install(setup: &beui::Setup) -> Availability {
-    let pipeline = BlitPipeline::new(&setup.device, setup.format);
-    let platform = build_presenter(&setup.device, &setup.queue);
+    let gpu = setup
+        .get::<beui::GpuSetup>()
+        .expect("beui's runner provides the GPU it draws with");
+    let pipeline = BlitPipeline::new(&gpu.device, gpu.format);
+    let platform = build_presenter(&gpu.device, &gpu.queue);
     let availability = Availability(platform.as_ref().map(|_| ()).map_err(Clone::clone));
     PRESENTER.with(|presenter| {
         *presenter.borrow_mut() = Some(Presenter {
@@ -543,3 +616,6 @@ impl Presenter {
 }
 
 const UNSUPPORTED: &str = "This build has no presenter for that plugin surface.";
+
+#[cfg(test)]
+mod tests;

@@ -14,7 +14,6 @@ fn selected_row_string_edit_updates_the_database() {
         .click(&format!("database-view.selected-item.field.{field_id}"));
     fixture.harness.text("alpha");
     fixture.run();
-    fixture.run();
 
     assert_eq!(
         fixture.database().rows[0].value(field_id),

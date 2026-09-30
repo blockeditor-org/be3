@@ -26,6 +26,8 @@ mod tests;
 
 #[cfg(not(target_os = "android"))]
 use std::error::Error;
+
+use beui::styled::DocumentTheme;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, channel};
 
@@ -66,11 +68,11 @@ impl LauncherApp {
     }
 
     #[cfg(target_os = "android")]
-    fn new(files: PathBuf, shell: String) -> Self {
+    fn new(files: PathBuf) -> Self {
         let (sender, events) = channel();
         let tasks = Tasks::new(files, sender);
         Self::with(tasks, events, move |tasks| {
-            Model::new(tasks.clone(), Phone::new(tasks, shell))
+            Model::new(tasks.clone(), Phone::new(tasks))
         })
     }
 

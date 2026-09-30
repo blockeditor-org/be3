@@ -2,7 +2,7 @@ load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
 load("@root//buck/tools:defs.bzl", "tool")
 
-# On Android the launcher is this library, loaded by GameActivity under
+# On Android the launcher is this library, loaded by LauncherActivity under
 # cargo's name for it.
 cargo_library(soname = "libbe_launcher.so")
 
@@ -11,25 +11,15 @@ cargo_test()
 # `./scripts/buck run //crates/be-launcher:launcher`
 cargo_binary(name = "launcher")
 
-# The launcher on Android runs the builds CI publishes to be3-ci rather than
-# building them. It runs one in block-app's own MainActivity, in a process of
-# its own, and knows which builds it can run by its shell hash, which it reads
-# from its assets.
-genrule(
-    name = "android-assets",
-    cmd = "mkdir -p $OUT && cp $(location //crates/block-app:android-shell) $OUT/shell",
-    out = "assets",
-)
-
-# As with the app, CI's APK has an id and label of its own, so that it
-# installs beside a local build rather than colliding with it.
+# The launcher on Android installs the APKs CI publishes to be3-ci: block-app's
+# CI build (`com.be3.block.ci`), and the launcher itself. As with the app,
+# CI's APK has an id and label of its own, so that it installs beside a local
+# build rather than colliding with it.
 [
     android_apk(
         name = name,
         application_id = application_id,
-        assets = ":android-assets",
-        java = glob(["android/java/**/*.java"]) + ["//crates/block-app:MainActivity.java"],
-        java_libraries = "//buck/android:game-activity",
+        java = glob(["android/java/**/*.java"]) + ["//crates/beui-adapter-android:android-java"],
         label = label,
         library = ":be-launcher",
         manifest = "android/AndroidManifest.xml",

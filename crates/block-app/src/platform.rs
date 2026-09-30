@@ -1,19 +1,15 @@
 use std::sync::mpsc::Receiver;
 
 mod file_picker;
+mod file_saver;
 pub(crate) mod http;
-#[cfg(target_os = "android")]
-mod launched;
 #[cfg(not(target_arch = "wasm32"))]
 mod native;
-#[cfg(target_os = "android")]
-mod safe_area;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
 pub(crate) use file_picker::{FileFilter, FilePicker};
-#[cfg(target_os = "android")]
-pub(crate) use launched::launched;
+pub(crate) use file_saver::{FileSaver, SavedFile};
 #[cfg(all(test, not(target_arch = "wasm32")))]
 pub(crate) use native::start_embedded_server_at;
 #[cfg(not(target_arch = "wasm32"))]

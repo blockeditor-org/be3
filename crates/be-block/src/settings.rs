@@ -2,7 +2,7 @@ use be_model::{Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{ChildChange, Root};
+use crate::{ChildChange, Root, WORKSPACE_EDITOR};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub enum ActivationCondition {
@@ -13,6 +13,7 @@ pub enum ActivationCondition {
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct Settings {
     pub entries: Map<(Uuid, ActivationCondition), Uuid>,
+    pub profiles: Map<Uuid, ()>,
 }
 
 impl Settings {
@@ -31,13 +32,43 @@ impl Settings {
             .put(ObjectId::ROOT, &(block_type, activation), Some(&block))
             .into()
     }
+
+    pub fn profile(&self, client: Uuid) -> Option<Uuid> {
+        self.entries
+            .get(&(WORKSPACE_EDITOR, ActivationCondition::Client(client)))
+            .copied()
+            .filter(|profile| self.profiles.contains_key(profile))
+    }
+
+    pub fn profiles(&self) -> Vec<Uuid> {
+        self.profiles.keys().copied().collect()
+    }
+
+    pub fn add_profile(client: Uuid, profile: Uuid) -> Edit {
+        std::iter::once(Self::PROFILES.put(ObjectId::ROOT, &profile, Some(&())))
+            .chain(Self::use_profile(client, profile).0)
+            .collect()
+    }
+
+    pub fn use_profile(client: Uuid, profile: Uuid) -> Edit {
+        Self::set_entry(
+            WORKSPACE_EDITOR,
+            ActivationCondition::Client(client),
+            profile,
+        )
+    }
 }
 
 impl Root for Settings {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7365_7474_696e_6773_2d62_6c6f_636b_3031);
 
     fn references(&self) -> Vec<Uuid> {
-        let mut references: Vec<Uuid> = self.entries.values().copied().collect();
+        let mut references: Vec<Uuid> = self
+            .entries
+            .values()
+            .chain(self.profiles.keys())
+            .copied()
+            .collect();
         references.sort_unstable();
         references.dedup();
         references
@@ -51,6 +82,11 @@ impl Root for Settings {
                     .iter()
                     .filter(|(_, block)| **block == old)
                     .map(|(key, _)| Self::ENTRIES.put(ObjectId::ROOT, key, None))
+                    .chain(
+                        self.profiles
+                            .contains_key(&old)
+                            .then(|| Self::PROFILES.put(ObjectId::ROOT, &old, None)),
+                    )
                     .collect(),
             ),
             ChildChange::Replace { old, new } => Some(
@@ -58,6 +94,16 @@ impl Root for Settings {
                     .iter()
                     .filter(|(_, block)| **block == old)
                     .map(|(key, _)| Self::ENTRIES.put(ObjectId::ROOT, key, Some(&new)))
+                    .chain(
+                        self.profiles
+                            .contains_key(&old)
+                            .then(|| Self::PROFILES.put(ObjectId::ROOT, &old, None)),
+                    )
+                    .chain(
+                        self.profiles
+                            .contains_key(&old)
+                            .then(|| Self::PROFILES.put(ObjectId::ROOT, &new, Some(&()))),
+                    )
                     .collect(),
             ),
         }

@@ -47,6 +47,10 @@ pub fn acquire_surface_texture(surface: u32) -> Result<wgpu::Texture, String> {
     ))
 }
 
+pub fn surface_age(surface: u32) -> u32 {
+    unsafe { imports::surface_age(surface) }
+}
+
 pub fn present_surface(surface: u32) {
     unsafe { imports::surface_present(surface) };
 }

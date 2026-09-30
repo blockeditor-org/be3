@@ -9,9 +9,9 @@ use block_editor_beui::{
     ShownPresence, ViewChange, WebViewCommand,
 };
 use block_plugin_api::{
-    BlockTypeDescriptor, ChildRect, EditorMessage, FrameChrome, FrameReport, HelloAccepted,
-    InputBatch, Message, PROTOCOL_VERSION, ScreenId, ScreenRequest, ScreenSet, SurfaceFormat,
-    SurfaceSpec, Theme, ViewportMetrics,
+    BarAction, BlockTypeDescriptor, ChildId, ChildRect, EditorMessage, FrameChrome, FrameReport,
+    HelloAccepted, InputBatch, Message, PROTOCOL_VERSION, ScreenId, ScreenRequest, ScreenSet,
+    SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
@@ -126,6 +126,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn open(kind: Kind, adopted: Adopted, data: Vec<u8>) -> Self {
+        beui::verify_paint(true);
         let host = match &adopted {
             Adopted::Editor(editor, _) | Adopted::Preview(editor) => editor.host().clone(),
             Adopted::Creation(creation) => creation.host().clone(),
@@ -158,6 +159,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                     instance: INSTANCE,
                     block_id: block.into_bytes(),
                     block_type: block_type.into_bytes(),
+                    view_block: host.view_block().map(Uuid::into_bytes),
                     account_id,
                     workspace_id,
                     client_id,
@@ -186,7 +188,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         let frame = matches!(kind, Kind::Frame(_)).then(|| block_plugin_api::FrameSpec {
             chrome: FrameChrome::Drawn,
             content: None,
-            top_bar: false,
+            top_bar: TopBar::Hidden,
         });
         let mut test = Self {
             plugin,
@@ -321,7 +323,15 @@ impl<A: BeuiApp> BeuiTest<A> {
             }));
     }
 
-    pub fn with_top_bar(mut self, closable: bool) -> Self {
+    pub fn with_top_bar(self, closable: bool) -> Self {
+        self.with_bar(closable, TopBar::Shown)
+    }
+
+    pub fn on_phone(self) -> Self {
+        self.with_bar(false, TopBar::Phone { more: false })
+    }
+
+    fn with_bar(mut self, closable: bool, top_bar: TopBar) -> Self {
         self.frame = Some(block_plugin_api::FrameSpec {
             chrome: FrameChrome::Drawn,
             content: closable.then_some(ChildRect {
@@ -330,11 +340,21 @@ impl<A: BeuiApp> BeuiTest<A> {
                 width: self.size.x,
                 height: self.size.y,
             }),
-            top_bar: true,
+            top_bar,
         });
         self.place();
         self.run();
         self
+    }
+
+    pub fn set_more(&mut self, more: bool) {
+        let frame = self
+            .frame
+            .as_mut()
+            .expect("only an editor's frame has a bar");
+        frame.top_bar = TopBar::Phone { more };
+        self.place();
+        self.run();
     }
 
     pub fn set_chrome(&mut self, drawn: bool) {
@@ -348,6 +368,15 @@ impl<A: BeuiApp> BeuiTest<A> {
         };
         self.place();
         self.run();
+    }
+
+    pub fn child_bar(&mut self, child: ChildId, action: BarAction) {
+        self.inbox.push(Message::Editor(EditorMessage::ChildBar {
+            instance: INSTANCE,
+            region: EditorRegion::Frame,
+            child,
+            action,
+        }));
     }
 
     pub fn set_view(&mut self, view: Rect, scale: f32) {
@@ -373,6 +402,17 @@ impl<A: BeuiApp> BeuiTest<A> {
             block_type: block_type.into_bytes(),
             dropped,
         }));
+    }
+
+    pub fn with_size(mut self, size: Vec2) -> Self {
+        self.set_size(size);
+        self
+    }
+
+    pub fn set_size(&mut self, size: Vec2) {
+        self.size = size;
+        self.place();
+        self.run();
     }
 
     pub fn with_scale_factor(mut self, scale_factor: f32) -> Self {
@@ -727,6 +767,19 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
+    pub fn take_bar_actions(&mut self) -> Vec<BarAction> {
+        self.take_where(|message| match message {
+            EditorMessage::BarAction { action, .. } => Some(*action),
+            _ => None,
+        })
+    }
+
+    pub fn has_requests(&self) -> bool {
+        self.sent
+            .iter()
+            .any(|message| matches!(message, EditorMessage::Request { .. }))
+    }
+
     pub fn take_requests(&mut self) -> Vec<(u64, HostRequest)> {
         self.take_where(|message| match message {
             EditorMessage::Request {
@@ -847,6 +900,16 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
     }
 
+    pub fn back(&mut self) {
+        self.push(Event::Back(beui::BackGesture::Invoked));
+    }
+
+    pub fn handles_back(&self) -> bool {
+        self.report
+            .as_ref()
+            .is_some_and(|report| report.handles_back)
+    }
+
     pub fn hover_at(&mut self, pos: Pos2) {
         self.push(Event::PointerMoved(pos));
     }
@@ -878,15 +941,24 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn hover(&mut self, test_id: &str) {
-        self.hover_at(self.rect_of(test_id).center());
+        self.hover_at(self.point_of(test_id));
+    }
+
+    pub fn point_of(&self, test_id: &str) -> Pos2 {
+        let rect = self.rect_of(test_id);
+        let shown = rect.intersect(self.rect());
+        match shown.is_positive() {
+            true => shown.center(),
+            false => rect.center(),
+        }
     }
 
     pub fn click(&mut self, test_id: &str) {
-        self.click_at(self.rect_of(test_id).center());
+        self.click_at(self.point_of(test_id));
     }
 
     pub fn double_click(&mut self, test_id: &str) {
-        self.double_click_at(self.rect_of(test_id).center());
+        self.double_click_at(self.point_of(test_id));
     }
 
     pub fn double_click_at(&mut self, pos: Pos2) {

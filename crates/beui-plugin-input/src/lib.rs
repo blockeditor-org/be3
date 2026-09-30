@@ -1,6 +1,6 @@
 pub mod panes;
 
-use block_plugin_api::{Key, Modifiers, PointerButton, TouchPhase};
+use block_plugin_api::{BackEdge, BackPhase, Key, Modifiers, PointerButton, TouchPhase};
 
 pub fn protocol_modifiers(modifiers: beui::Modifiers) -> Modifiers {
     Modifiers {
@@ -27,6 +27,36 @@ pub fn touch_phase(phase: beui::TouchPhase) -> TouchPhase {
         beui::TouchPhase::Move => TouchPhase::Move,
         beui::TouchPhase::End => TouchPhase::End,
         beui::TouchPhase::Cancel => TouchPhase::Cancel,
+    }
+}
+
+pub fn back_phase(gesture: beui::BackGesture) -> BackPhase {
+    match gesture {
+        beui::BackGesture::Started { edge } => BackPhase::Started {
+            edge: match edge {
+                beui::BackEdge::None => BackEdge::None,
+                beui::BackEdge::Left => BackEdge::Left,
+                beui::BackEdge::Right => BackEdge::Right,
+            },
+        },
+        beui::BackGesture::Progressed(progress) => BackPhase::Progressed(progress),
+        beui::BackGesture::Cancelled => BackPhase::Cancelled,
+        beui::BackGesture::Invoked => BackPhase::Invoked,
+    }
+}
+
+pub fn beui_back(phase: BackPhase) -> beui::BackGesture {
+    match phase {
+        BackPhase::Started { edge } => beui::BackGesture::Started {
+            edge: match edge {
+                BackEdge::None => beui::BackEdge::None,
+                BackEdge::Left => beui::BackEdge::Left,
+                BackEdge::Right => beui::BackEdge::Right,
+            },
+        },
+        BackPhase::Progressed(progress) => beui::BackGesture::Progressed(progress),
+        BackPhase::Cancelled => beui::BackGesture::Cancelled,
+        BackPhase::Invoked => beui::BackGesture::Invoked,
     }
 }
 

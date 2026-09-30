@@ -2,7 +2,6 @@ use super::*;
 use crate::presentation::PresentationContent;
 
 #[test]
-#[ignore = "two reorders of one list conflict in the list merge and one side's move is dropped without counting a conflict"]
 fn slides_moved_on_both_sides_merge_to_both_moves() {
     let (first, second, third) = (ObjectId::new(), ObjectId::new(), ObjectId::new());
     let mut base = PresentationContent::default();

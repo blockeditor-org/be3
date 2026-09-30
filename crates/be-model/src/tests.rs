@@ -1,5 +1,6 @@
 use crate::{
-    Anchor, Bounds, Change, Count, Document, Edit, Grid, List, Map, Model, ObjectId, Paint, Touched,
+    Anchor, Bounds, Change, Count, Document, Edit, Grid, Latest, LatestMap, List, Map, Model,
+    ObjectId, Paint, Stamp, Touched,
 };
 
 mod a_burst_of_sets_to_one_field_undoes_as_one_step;
@@ -18,6 +19,7 @@ mod a_field_changed_on_one_side_merges_to_that_change_from_either_side;
 mod a_grid_grown_the_same_way_on_both_sides_keeps_both_paints;
 mod a_grid_reshaped_differently_on_each_side_conflicts_and_keeps_ours;
 mod a_key_removed_on_one_side_and_changed_on_the_other_stays_removed;
+mod a_later_stamp_wins_whichever_order_the_writes_arrive_in;
 mod a_move_that_changes_nothing_has_no_step;
 mod a_node_cannot_move_inside_itself;
 mod a_paint_the_other_side_cropped_away_counts_as_a_conflict;
@@ -34,6 +36,8 @@ mod counts_merge_by_adding_both_sides;
 mod counts_saturate_instead_of_wrapping;
 mod grids_merge_cell_by_cell_and_keep_coordinates_across_a_resize;
 mod inserting_touches_the_list_and_everything_inserted;
+mod latest_map_keys_merge_to_their_later_write_and_a_later_removal_wins;
+mod latest_values_merge_to_the_later_write_without_a_conflict;
 mod map_entries_merge_key_by_key;
 mod merging_a_document_with_itself_changes_nothing;
 mod merging_a_move_on_one_side_with_an_edit_on_the_other_keeps_both;
@@ -233,4 +237,17 @@ fn painted(document: &Document<Picture>, cells: &[(i32, i32, u8)]) -> Document<P
 
 fn pixel(document: &Document<Picture>, x: i32, y: i32) -> Option<u8> {
     document.root().pixels.get(x, y).map(|[value]| value)
+}
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+struct View {
+    scroll: Latest<u32>,
+    state: LatestMap<String, u32>,
+}
+
+fn stamp(time: u64, origin: u128) -> Stamp {
+    Stamp {
+        time,
+        origin: uuid::Uuid::from_u128(origin),
+    }
 }

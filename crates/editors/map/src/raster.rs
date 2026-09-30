@@ -23,13 +23,35 @@ pub(crate) struct TileLabel {
     pub color: [u8; 3],
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Window {
+    pub factor: f32,
+    pub offset: [f32; 2],
+}
+
+impl Window {
+    #[cfg(test)]
+    pub(crate) const WHOLE: Self = Self {
+        factor: 1.0,
+        offset: [0.0, 0.0],
+    };
+
+    fn place(self, point: [f32; 2], extent: u32, size: usize) -> [f32; 2] {
+        let scale = size as f32 * self.factor / extent as f32;
+        [
+            point[0] * scale - self.offset[0] * size as f32,
+            point[1] * scale - self.offset[1] * size as f32,
+        ]
+    }
+}
+
 pub(crate) struct TileRaster {
     pub pixels: Vec<u8>,
     pub labels: Vec<TileLabel>,
 }
 
-pub(crate) fn rasterize(tile: &Tile, zoom: u8) -> TileRaster {
-    let mut canvas = Canvas::new();
+pub(crate) fn rasterize(tile: &Tile, zoom: u8, window: Window) -> TileRaster {
+    let mut canvas = Canvas::new(window);
     let line_scale = line_width_scale(zoom);
 
     fill_layer(&mut canvas, tile.layer("ocean"), |_, _| Some(WATER));
@@ -71,7 +93,7 @@ pub(crate) fn rasterize(tile: &Tile, zoom: u8) -> TileRaster {
 
     TileRaster {
         pixels: canvas.into_pixels(),
-        labels: labels(tile),
+        labels: labels(tile, window),
     }
 }
 
@@ -113,7 +135,10 @@ fn line_width_scale(zoom: u8) -> f32 {
         8..=9 => 0.45,
         10..=11 => 0.55,
         12..=13 => 0.75,
-        _ => 1.0,
+        14 => 1.0,
+        15 => 1.4,
+        16 => 2.0,
+        _ => 2.8,
     }
 }
 
@@ -155,7 +180,7 @@ fn streets(canvas: &mut Canvas, layer: Option<&Layer>, line_scale: f32) {
         .collect();
     styled.sort_by_key(|(rank, ..)| *rank);
     for (_, color, width, feature) in styled {
-        let paths = transformed(feature, layer.extent);
+        let paths = canvas.transformed(feature, layer.extent);
         canvas.stroke(&paths, width * SUPERSAMPLE as f32, color);
     }
 }
@@ -175,7 +200,7 @@ fn fill_layer(
         let Some(color) = style(layer, feature) else {
             continue;
         };
-        let paths = transformed(feature, layer.extent);
+        let paths = canvas.transformed(feature, layer.extent);
         canvas.fill(&paths, color);
     }
 }
@@ -195,25 +220,12 @@ fn stroke_layer(
         let Some((color, width)) = style(layer, feature) else {
             continue;
         };
-        let paths = transformed(feature, layer.extent);
+        let paths = canvas.transformed(feature, layer.extent);
         canvas.stroke(&paths, width * SUPERSAMPLE as f32, color);
     }
 }
 
-fn transformed(feature: &Feature, extent: u32) -> Vec<Vec<[f32; 2]>> {
-    let scale = CANVAS as f32 / extent as f32;
-    feature
-        .paths
-        .iter()
-        .map(|path| {
-            path.iter()
-                .map(|point| [point[0] * scale, point[1] * scale])
-                .collect()
-        })
-        .collect()
-}
-
-fn labels(tile: &Tile) -> Vec<TileLabel> {
+fn labels(tile: &Tile, window: Window) -> Vec<TileLabel> {
     let mut labels = Vec::new();
     if let Some(layer) = tile.layer("place_labels") {
         for feature in &layer.features {
@@ -229,6 +241,7 @@ fn labels(tile: &Tile) -> Vec<TileLabel> {
             };
             push_label(
                 &mut labels,
+                window,
                 layer,
                 feature,
                 name,
@@ -249,6 +262,7 @@ fn labels(tile: &Tile) -> Vec<TileLabel> {
             let font_size = if admin_level <= 2 { 13.0 } else { 11.0 };
             push_label(
                 &mut labels,
+                window,
                 layer,
                 feature,
                 name,
@@ -264,6 +278,7 @@ fn labels(tile: &Tile) -> Vec<TileLabel> {
 
 fn push_label(
     labels: &mut Vec<TileLabel>,
+    window: Window,
     layer: &Layer,
     feature: &Feature,
     name: &str,
@@ -277,8 +292,7 @@ fn push_label(
     let Some(point) = feature.paths.first().and_then(|path| path.first()) else {
         return;
     };
-    let scale = TILE_PIXELS as f32 / layer.extent as f32;
-    let position = [point[0] * scale, point[1] * scale];
+    let position = window.place(*point, layer.extent, TILE_PIXELS);
     let bounds = 0.0..TILE_PIXELS as f32;
     if !bounds.contains(&position[0]) || !bounds.contains(&position[1]) {
         return;
@@ -294,14 +308,28 @@ fn push_label(
 struct Canvas {
     pixels: Vec<[u8; 4]>,
     crossings: Vec<f32>,
+    window: Window,
 }
 
 impl Canvas {
-    fn new() -> Self {
+    fn new(window: Window) -> Self {
         Self {
             pixels: vec![LAND; CANVAS * CANVAS],
             crossings: Vec::new(),
+            window,
         }
+    }
+
+    fn transformed(&self, feature: &Feature, extent: u32) -> Vec<Vec<[f32; 2]>> {
+        feature
+            .paths
+            .iter()
+            .map(|path| {
+                path.iter()
+                    .map(|point| self.window.place(*point, extent, CANVAS))
+                    .collect()
+            })
+            .collect()
     }
 
     fn fill<P: AsRef<[[f32; 2]]>>(&mut self, paths: &[P], color: [u8; 4]) {
