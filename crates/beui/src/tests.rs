@@ -368,9 +368,6 @@ mod the_caret_of_a_text_input_paints_two_points_wide;
 mod the_click_that_ends_autoscroll_presses_nothing;
 mod the_color_areas_thumb_shows_a_grab_cursor;
 mod the_components_tab_lists_components_instead_of_base_nodes;
-mod the_demo_leaves_a_pane_saying_nothing_is_open;
-mod the_demo_opens_every_page_from_its_catalog;
-mod the_demo_pages_scroll_rather_than_spilling_off_a_small_window;
 mod the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it;
 mod the_frame_output_reports_the_region_whose_shapes_changed;
 mod the_innermost_drop_target_that_accepts_the_payload_takes_the_drop;
@@ -1341,45 +1338,6 @@ pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::S
     );
     harness.frame(Vec::new());
     unstyled::dock_state(harness.document(), dock).windows()[0]
-}
-
-pub(crate) fn open_demo_page(harness: &mut Harness, title: &str) {
-    const REVEAL_TICKS: usize = 40;
-    const REVEAL_STEP: f32 = 120.0;
-    const CATALOG_X: f32 = 40.0;
-    let test_id = format!("demo.catalog.{title}");
-    let listed = |harness: &Harness| {
-        harness
-            .document()
-            .find_test_id(&test_id)
-            .is_some_and(|row| harness.document().node_rect(row).is_some())
-    };
-    if !listed(harness)
-        && let Some(back) = harness.document().find_test_id("dock.back")
-    {
-        harness.click(harness.center(back));
-        harness.frame(Vec::new());
-    }
-    for _ in 0..REVEAL_TICKS {
-        let row = harness
-            .document()
-            .find_test_id(&test_id)
-            .unwrap_or_else(|| panic!("the catalog lists {title}"));
-        let bottom = harness.viewport.y;
-        match harness.document().node_rect(row) {
-            Some(rect) if rect.bottom() <= bottom => {
-                harness.click(rect.center());
-                harness.frame(Vec::new());
-                return;
-            }
-            _ => harness.scroll(
-                pos2(CATALOG_X, bottom / 2.0),
-                Vec2::new(0.0, -REVEAL_STEP),
-                Modifiers::NONE,
-            ),
-        }
-    }
-    panic!("the catalog never scrolled {title} into view");
 }
 
 pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Option<NodeId> {

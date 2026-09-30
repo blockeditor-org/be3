@@ -179,7 +179,7 @@ way for the test to fail.
 A beui document that is not an editor - beui's demo, say - is painted the same way through
 block_ui_test::DocumentTest, which drives the document itself with only the fonts beui
 carries, never the system's. Its tests are compiled to wasm with plugin_tests like an
-editor's; crates/beui-demo-snapshots paints every page of the demo that way.
+editor's; crates/beui-demo paints every page of the demo that way.
 
 A snapshot never holds the glyph atlas. Each glyph carries its own coverage image, keyed by
 what is in it, so where a glyph happened to land in the atlas cannot reach the file: text an

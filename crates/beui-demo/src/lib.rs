@@ -32,11 +32,6 @@ use beui_macros::component;
 use std::sync::Arc;
 use text_editor_core::{EditorCommand, MarkdownCommand, TextBuffer, TextLanguage};
 
-#[cfg(not(target_arch = "wasm32"))]
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    beui::run("beui demo", DemoApp::new())
-}
-
 const CATALOG: TabId = TabId::new(1);
 const PAGE_SHARE: f32 = 0.76;
 const SHELL_PADDING: f32 = 10.0;
@@ -198,19 +193,25 @@ impl Page {
     }
 }
 
-struct DemoApp {
-    document: Document,
+pub struct DemoApp {
+    pub document: Document,
 }
 
 #[derive(Clone, Copy)]
 struct Today(Date);
 
+impl Default for DemoApp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DemoApp {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self::on(Date::today())
     }
 
-    fn on(today: Date) -> Self {
+    pub fn on(today: Date) -> Self {
         Self {
             document: build(move || {
                 provide_context(Today(today));
@@ -1981,3 +1982,6 @@ fn ThemeSample(name: &'static str) -> NodeId {
         </Frame>
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -38,6 +38,10 @@ impl DocumentTest {
         &self.document
     }
 
+    pub fn size(&self) -> Vec2 {
+        self.size
+    }
+
     pub fn fonts(&self) -> &FontLibrary {
         &self.fonts
     }

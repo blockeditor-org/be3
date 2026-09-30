@@ -1,16 +1,23 @@
 [package]
-name = "beui-demo-snapshots"
+name = "beui-demo"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-[dependencies]
+[[bin]]
+name = "demo"
+path = "src/main.rs"
 
-[dev-dependencies]
+[dependencies]
 beui = { path = "../beui", default-features = false }
 beui_macros = { path = "../beui-macros" }
-block-ui-test = { path = "../block-ui-test" }
 text-editor-core = { path = "../text-editor-core" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+beui = { path = "../beui" }
+
+[dev-dependencies]
+block-ui-test = { path = "../block-ui-test" }
 
 [lints]
 workspace = true

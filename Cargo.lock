@@ -902,7 +902,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "beui-demo-snapshots"
+name = "beui-demo"
 version = "0.1.0"
 dependencies = [
  "beui",
@@ -993,8 +993,7 @@ name = "beui-web-demo"
 version = "0.1.0"
 dependencies = [
  "beui",
- "beui_macros",
- "text-editor-core",
+ "beui-demo",
  "wasi-threads",
  "wasm-bindgen",
  "wasm-bindgen-futures",

@@ -1,13 +1,11 @@
 use super::*;
 use beui::FontSources;
 
-const WINDOW: Vec2 = Vec2::new(1100.0, 800.0);
-
 #[test]
 fn the_demo_paints_with_only_the_fonts_beui_carries() {
-    let mut test = demo(WINDOW);
+    let mut test = demo(WIDE);
     for page in PAGES {
-        test.click(&format!("demo.catalog.{}", page.title()));
+        open(&mut test, page);
     }
     test.frame(Vec::new());
 

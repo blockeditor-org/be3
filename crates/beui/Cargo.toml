@@ -50,9 +50,5 @@ wgpu = { version = "29", default-features = false }
 workspace = true
 
 [[example]]
-name = "demo"
-required-features = ["window"]
-
-[[example]]
 name = "survey"
 required-features = ["window"]
