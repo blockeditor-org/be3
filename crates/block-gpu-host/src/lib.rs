@@ -1,5 +1,4 @@
 mod convert;
-mod record;
 mod tables;
 
 #[cfg(test)]
@@ -14,7 +13,6 @@ use block_gpu_abi as abi;
 use tables::Table;
 
 pub use convert::texture_format;
-pub use record::{Call, Recorder};
 pub use wgpu;
 
 const SURFACE_USAGE: wgpu::TextureUsages = wgpu::TextureUsages::RENDER_ATTACHMENT

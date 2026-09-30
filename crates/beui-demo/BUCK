@@ -1,0 +1,14 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library")
+load("@root//buck/wasm:defs.bzl", "plugin_tests")
+
+srcs = glob(["src/**/*.rs"])
+
+cargo_library(srcs = srcs)
+
+# The demo in a window: `./scripts/buck run //crates/beui-demo:demo`.
+cargo_binary(srcs = srcs)
+
+# The demo's tests paint its pages the way a plugin's tests do: compiled to
+# wasm with the fonts beui carries, and run here so they can read and write
+# snapshots/.
+plugin_tests(srcs = srcs)

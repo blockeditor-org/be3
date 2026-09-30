@@ -42,8 +42,8 @@ driven by reactive props rather than by setter calls. `<RadioGroup>` and
 `<Listbox>` take `labels` and an `Option<usize>` `selected` prop and report
 changes through `on_change`; `None` clears the selection, and the first option
 becomes the entry point. `<ToggleButton>` takes `label` and `pressed`, and its
-label stays stable as the pressed state changes. The demo's Choices tab shows
-all three.
+label stays stable as the pressed state changes. The demo's Choices and Buttons
+pages show all three.
 
 `<Tree>` takes the `keys` of the rows that are visible in tree order, an `item`
 callback that answers with the `TreeItem` (label, depth, whether it can expand,
@@ -53,7 +53,7 @@ row hidden inside a collapsed one. It reports `on_select`, `on_expand`,
 row. The tree owns
 the roving Tab stop, the marker, the indent and the keyboard model; the caller
 owns the rows themselves, so a tree of anything keyed by anything hashable
-works. The demo's Tree tab and the beui inspector both use it.
+works. The demo's Tree page and the beui inspector both use it.
 
 `<Link>` takes a `label`, an optional `glyph` for an icon beside it, and
 `on_click`. It reads as a link rather than a button, underlines itself while
@@ -78,7 +78,7 @@ submenus. Each item's `label` and `disabled` are ordinary props, so a row
 follows the signals it was given without the menu being rebuilt. Both controls
 sit on the `base`
 overlay element: an anchored, viewport-relative popup painted above the rest of
-the tree that traps Tab while open. The demo's Menus tab shows both.
+the tree that traps Tab while open. The demo's Choices and Menus pages show them.
 
 Reading a control's state back out, rather than owning the signal that drives
 it, is for tests and host integration: `*_selected`, `*_open`, `*_pressed`,

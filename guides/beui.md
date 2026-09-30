@@ -11,8 +11,9 @@ The consequence worth internalising is that a component body runs **once**. The
 closures and effects it leaves behind are what run again. Everything else in
 this guide follows from that.
 
-The quickest introductions are `crates/beui/examples/counter.rs` and the
-component catalog in `crates/beui/examples/demo.rs`. The
+The quickest introduction is the component catalog in
+`crates/beui-demo`: a dock whose Components pane opens a page for
+each group of styled components. The
 [reactive guide](reactive.md) is the reference for signals, attribute syntax,
 children and render props, controlled state, keyed lists, scopes, and context;
 this guide is about using beui itself.
@@ -762,9 +763,8 @@ tree and the beui inspector both work this way. `styled::tree_row_node` and
 `styled::DockArea` is the workspace layout: panes split from one another, a tab
 bar on each pane, and tabs that can be dragged between panes or out into
 windows that float over the rest of the dock. `unstyled::Dock` underneath it
-owns the tree, the dragging and the keyboard, and paints nothing;
-`crates/beui/examples/dock.rs` is the worked example, run with
-`./scripts/buck run //crates/beui:dock-example`.
+owns the tree, the dragging and the keyboard, and paints nothing; the demo in
+`crates/beui-demo` is laid out in one.
 
 The layout is a `DockState`, which the caller keeps in a signal and hands back
 when the dock reports a change, the way `PanZoom` takes its camera:
@@ -1138,11 +1138,10 @@ impl App for CounterApp {
 }
 ```
 
-Run the repository examples with:
+Run the demo with:
 
 ```text
-./scripts/buck run //crates/beui:counter-example
-./scripts/buck run //crates/beui:demo-example
+./scripts/buck run //crates/beui-demo:demo
 ```
 
 Beui's features:

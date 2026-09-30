@@ -1,4 +1,5 @@
 mod beui;
+mod document;
 mod input;
 mod snapshot;
 mod store;
@@ -6,4 +7,5 @@ mod store;
 mod tests;
 
 pub use beui::BeuiTest;
+pub use document::DocumentTest;
 pub use store::ContentStore;

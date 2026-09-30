@@ -21,7 +21,8 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
 | `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's, signed on a worker with CI's key) |
-| `./scripts/buck run //crates/beui:demo-example` | a crate example; every example is `<name>-example` |
+| `./scripts/buck run //crates/beui-demo:demo` | beui's demo in a window |
+| `./scripts/buck run //crates/beui:survey-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //crates/beui-web-demo:web-serve` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 | `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |

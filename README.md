@@ -30,10 +30,7 @@ Basic setup:
 ./scripts/buck run //crates/block-app:android -- --install
 
 # run beui's demo
-./scripts/buck run //crates/beui:demo-example
-
-# run beui's docking demo
-./scripts/buck run //crates/beui:dock-example
+./scripts/buck run //crates/beui-demo:demo
 
 # run be-compositor
 ./scripts/buck run //crates/be-compositor:be-compositor-bin

@@ -20,7 +20,7 @@ use uuid::Uuid;
 use crate::input::Input;
 use crate::{ContentStore, snapshot};
 
-mod capture;
+pub(crate) mod capture;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
 const EAGER_FRAMES: usize = 8;

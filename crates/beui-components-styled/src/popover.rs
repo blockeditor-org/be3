@@ -9,6 +9,7 @@ use beui_core::node::NodeId;
 use beui_view::reactive::{Callback, Child, Frame, Prop, Render, clone, create_memo};
 
 pub const PANEL_PADDING: f32 = 12.0;
+pub const PANEL_MAX_WIDTH: f32 = 320.0;
 
 #[component]
 pub fn Popover(
@@ -17,6 +18,7 @@ pub fn Popover(
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = PANEL_MAX_WIDTH)] max_width: Prop<f32>,
     #[prop(children)] content: Render<PopoverHandle>,
     on_open_change: Callback<bool>,
 ) -> NodeId {
@@ -27,6 +29,7 @@ pub fn Popover(
         false => String::new(),
     }));
     let face_disabled = create_memo(clone!(disabled -> move || disabled.get()));
+    let max_width = create_memo(move || Some(max_width.get()));
     view! {
         <unstyled::Popover
             label={label.clone()}
@@ -55,14 +58,17 @@ pub fn Popover(
             }}
         >
             {move |handle: PopoverHandle| view! {
-                <PopoverPanel>{content.call(handle)}</PopoverPanel>
+                <PopoverPanel max_width={max_width.clone()}>{content.call(handle)}</PopoverPanel>
             }}
         </unstyled::Popover>
     }
 }
 
 #[component]
-pub fn PopoverPanel(children: Child) -> NodeId {
+pub fn PopoverPanel(
+    #[prop(default = None)] max_width: Prop<Option<f32>>,
+    children: Child,
+) -> NodeId {
     let theme = use_theme();
     view! {
         <Frame
@@ -73,6 +79,7 @@ pub fn PopoverPanel(children: Child) -> NodeId {
             radius=CARD_RADIUS
             padding_horizontal=PANEL_PADDING
             padding_vertical=PANEL_PADDING
+            max_width
         >
             {children}
         </Frame>
