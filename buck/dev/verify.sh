@@ -25,6 +25,7 @@ for argument in "$@"; do
         *) echo "Usage: ./scripts/buck run //:verify -- [--check] [--lint] [--tests] [--plugin-tests] [--verbose]" >&2; exit 1 ;;
     esac
 done
+$verbose && export BE3_VERBOSE=1
 if ! $lint && ! $tests && ! $plugin_tests; then
     lint=true tests=true plugin_tests=true
 fi

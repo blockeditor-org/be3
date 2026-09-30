@@ -16,18 +16,28 @@ use wasmtime_wasi::{
 #[derive(Clone, Default)]
 pub struct Tee {
     written: Arc<Mutex<Vec<u8>>>,
+    held: bool,
 }
 
 impl Tee {
+    pub fn held() -> Self {
+        Self {
+            held: true,
+            ..Self::default()
+        }
+    }
+
     pub fn contents(&self) -> String {
         let written = self.written.lock().unwrap_or_else(PoisonError::into_inner);
         String::from_utf8_lossy(&written).into_owned()
     }
 
     fn write(&self, bytes: &[u8]) {
-        let mut stderr = io::stderr().lock();
-        let _ = stderr.write_all(bytes);
-        let _ = stderr.flush();
+        if !self.held {
+            let mut stderr = io::stderr().lock();
+            let _ = stderr.write_all(bytes);
+            let _ = stderr.flush();
+        }
         self.written
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

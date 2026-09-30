@@ -45,15 +45,18 @@ impl Host {
             let mut single = vec![arguments[0].clone(), name.clone(), "--exact".to_owned()];
             single.extend(carried.iter().map(|argument| (*argument).clone()));
             single.extend(["--test-threads=1".to_owned(), "--nocapture".to_owned()]);
-            let stderr = Tee::default();
-            match self.run_instance(&module, &single, root, None, &stderr) {
-                Ok(0) => {}
-                Ok(code) => failed.push((name, why(&stderr, &format!("exit {code}")))),
-                Err(failure) => {
-                    eprintln!("{failure}");
-                    failed.push((name, why(&stderr, &failure)));
-                }
-            }
+            let stdout = MemoryOutputPipe::new(usize::MAX);
+            let stderr = Tee::held();
+            let failure =
+                match self.run_instance(&module, &single, root, Some(stdout.clone()), &stderr) {
+                    Ok(0) => continue,
+                    Ok(code) => format!("exit {code}"),
+                    Err(failure) => failure,
+                };
+            print!("{}", String::from_utf8_lossy(&stdout.contents()));
+            eprint!("{}", stderr.contents());
+            eprintln!("{failure}");
+            failed.push((name, why(&stderr, &failure)));
         }
         match failed.is_empty() {
             true => eprintln!("every test passed on its own, but not in one run together"),
