@@ -2,13 +2,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::ICON_LOCK;
+use block_editor_beui::beui::icons::{ICON_LOCK, ICON_MORE_VERT};
 use block_editor_beui::beui::reactive::{
     Align, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, clone, component, create_effect,
     create_memo, create_signal, view,
 };
-use block_editor_beui::beui::styled::{Caption, Heading};
-use block_editor_beui::beui::unstyled::TabId;
+use block_editor_beui::beui::styled::{ButtonVariant, Caption, Heading, IconButton};
+use block_editor_beui::beui::unstyled::{TabId, dock_actions};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{
@@ -157,14 +157,28 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
     let editor = workspace.editor().clone();
     let branch = Rc::clone(&workspace);
     let branch_info = info.clone();
-    let counting = Rc::clone(&workspace);
     let phone = workspace.phone.clone();
+    let (more, set_more) = create_signal(false);
+    let resetting = set_more.clone();
+    create_effect(clone!(phone -> move || {
+        if !phone.get() {
+            resetting.set(false);
+        }
+    }));
     let top_bar = create_memo(clone!(phone -> move || match phone.get() {
-        true => TopBar::Phone {
-            open_files: u32::try_from(counting.open_count()).unwrap_or(u32::MAX),
-        },
+        true => TopBar::Phone { more: more.get() },
         false => TopBar::Shown,
     }));
+    let opening = set_more.clone();
+    dock_actions(view! {
+        <IconButton
+            @test_id={"workspace.more"}
+            glyph={ICON_MORE_VERT.to_owned()}
+            label="More"
+            variant=ButtonVariant::Ghost
+            on_click={move || opening.set(true)}
+        />
+    });
     let desktop = create_memo(move || !phone.get());
     view! {
         <Frame>
@@ -177,6 +191,7 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                         let info = branch_info.clone();
                         let editor = editor.clone();
                         let top_bar = top_bar.clone();
+                        let set_more = set_more.clone();
                         match content {
                             Content::Debug => view! {
                                 <BlockData
@@ -195,10 +210,7 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                                     info={info}
                                     top_bar={top_bar}
                                     on_bar={move |action: BarAction| match action {
-                                        BarAction::Back => workspace.go_files(),
-                                        BarAction::Switch => {
-                                            workspace.set_sheet(PhoneSheet::Switcher)
-                                        }
+                                        BarAction::CloseMore => set_more.set(false),
                                         BarAction::Details => {
                                             workspace.set_sheet(PhoneSheet::Details(tab))
                                         }

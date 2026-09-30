@@ -1,20 +1,6 @@
-use block_editor_beui::BarAction;
-
 use super::*;
 
 const PHONE: Vec2 = Vec2::new(390.0, 800.0);
-
-fn switch(fixture: &mut Fixture, id: Uuid) {
-    let child = fixture
-        .test
-        .children()
-        .iter()
-        .find(|placement| Uuid::from_bytes(placement.block_id) == id)
-        .expect("the file is on show")
-        .child;
-    fixture.test.child_bar(child, BarAction::Switch);
-    fixture.settle();
-}
 
 #[test]
 fn a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown() {
@@ -34,8 +20,9 @@ fn a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown() {
     reopened.settle();
     assert_eq!(reopened.shown(), vec![first]);
 
-    switch(&mut reopened, first);
-    reopened.test.click("workspace.switcher.close.2");
+    reopened.test.click("dock.switch");
+    reopened.settle();
+    reopened.test.click("dock.switcher.close.2");
     reopened.settle();
     assert_eq!(
         reopened.shown(),

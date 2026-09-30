@@ -3,7 +3,7 @@ use block_editor_plugin::editor_session::EditorSession;
 use block_editor_plugin::{Plugin, Waker};
 use block_plugin_api::{
     ChildRect, EditorInstanceId, FrameChrome, FrameSpec, ScreenId, ScreenPlacement, ScreenRequest,
-    ViewportMetrics,
+    TopBar, ViewportMetrics,
 };
 
 mod a_child_block_asks_the_host_for_the_frame_it_will_own;

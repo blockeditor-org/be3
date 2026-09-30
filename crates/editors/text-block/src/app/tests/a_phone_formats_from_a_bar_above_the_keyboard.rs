@@ -14,7 +14,7 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
     let editor = Editor::new(host, Uuid::new_v4());
     let mut editor = BeuiTest::<TextApp>::new(editor)
         .with_size(Vec2::new(390.0, 760.0))
-        .with_phone_bar(1);
+        .on_phone();
     editor.hold(None, TextContent::from("word"));
     editor.run();
 
@@ -38,8 +38,7 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
     editor.run();
     assert!(!editor.shown("text.format.bold"));
 
-    editor.click("editor.more");
-    editor.run();
+    editor.set_more(true);
     assert!(
         editor
             .label("editor.more.item.1")

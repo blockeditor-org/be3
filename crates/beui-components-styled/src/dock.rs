@@ -1,3 +1,5 @@
+mod stack;
+
 use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
@@ -5,10 +7,11 @@ use crate::context_menu::ContextMenu;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::text::{Body, IconSized};
 use crate::theme::{CARD_RADIUS, FONT_BODY, RADIUS, use_theme};
+use stack::DockStackBar;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockDragged, DockGripHandle, DockMode, DockPanelHandle, DockPreviewHandle, DockSplitterHandle,
-    DockState, DockTabHandle, DockWindowHandle, Entry, MenuItem, SPLITTER_THICKNESS, TabId,
+    DockStackHandle, DockState, DockTabHandle, DockWindowHandle, Entry, MenuItem, SPLITTER_THICKNESS, TabId,
     sidebar_size,
 };
 use beui_core::base::{Align, Direction, ItemSize};
@@ -45,6 +48,7 @@ pub fn DockArea(
     title: Func<TabId, String>,
     closable: Option<Func<TabId, bool>>,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
+    #[prop(default = None)] home: Prop<Option<TabId>>,
     empty: Option<RenderFn<()>>,
     #[prop(children)] content: RenderFn<TabId>,
 ) -> NodeId {
@@ -60,12 +64,19 @@ pub fn DockArea(
         <unstyled::Dock
             state
             mode
+            home
             group_inset=GROUP_INSET
             on_change={move |state: DockState| on_change.call(state)}
             on_close={move |tab: TabId| on_close.call(tab)}
             title
             content
             empty={move || empty.call(())}
+            stack={clone!(closable -> move |handle: DockStackHandle| {
+                let closable = closable.clone();
+                view! {
+                    <DockStackBar handle closable />
+                }
+            })}
             tab={clone!(closable -> move |handle: DockTabHandle| {
                 let closable = closable.clone();
                 view! {

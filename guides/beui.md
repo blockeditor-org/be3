@@ -801,6 +801,12 @@ Files that says nothing is open rather than a tab that says so.
 `mode=DockMode::Stacked` draws the same state as one screen: the focused tab
 fills the dock with no tab bars, splitters or windows, and everything else in
 the state is kept, so switching back to `DockMode::Tiled` restores the layout.
+The dock draws the stacked screen's bar itself: the tab's title, which opens a
+sheet listing the open tabs to show or close, and a back button when the caller
+names a `home` tab (`home={Some(FILES)}`), which the back gesture also follows
+and whose own screen has none. The bar is the dock's, not the caller's; what a
+tab adds to it is only its own actions, which its panel hands over while it is
+built with `dock_actions(node)`, and which are shown while that tab is.
 Each tab's panel is built once and moved between the two, so what it holds
 survives the switch. `recent_tabs` lists the tabs from the one shown last (the
 order is part of the state, so it is saved with the layout), and

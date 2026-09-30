@@ -51,9 +51,9 @@ pub use date_time_field::{
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
     Dock, DockDragged, DockDrop, DockGripHandle, DockLayout, DockMode, DockPanelHandle,
-    DockPreviewHandle, DockSplitter, DockSplitterHandle, DockState, DockTabHandle,
-    DockWindowHandle, Entry, GroupId, LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH,
-    SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId, TabPosition, Tree, dock_state,
+    DockPreviewHandle, DockSplitter, DockSplitterHandle, DockStackHandle, DockState,
+    DockTabHandle, DockWindowHandle, Entry, GroupId, LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH,
+    SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId, TabPosition, Tree, dock_actions, dock_state,
     layout_surface, layout_tree, sidebar_size,
 };
 pub use drag::{
