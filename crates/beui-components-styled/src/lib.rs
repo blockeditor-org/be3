@@ -79,7 +79,6 @@ pub use stack::Stack;
 pub use switch::{Switch, switch_on};
 pub use tabs::{Tabs, tabs_selected};
 pub use text::{Body, Caption, Code, Display, Heading, Icon, IconSized, Paragraph, Title};
-pub use text_area::emoji::{EmojiMenu, emoji_completer, search_emoji};
 pub use text_area::{TextArea, text_area_surface};
 pub use text_input::{TextInput, text_input_value};
 pub use theme::{DocumentTheme, Theme, ThemeProvider, ThemeStore, use_theme};
