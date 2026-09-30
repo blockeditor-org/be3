@@ -6,41 +6,51 @@ pub struct Difference {
 }
 
 pub fn difference(before: &Snapshot, after: &Snapshot) -> Option<Difference> {
+    differences(before, after).into_iter().next()
+}
+
+pub fn differences(before: &Snapshot, after: &Snapshot) -> Vec<Difference> {
     if before == after {
-        return None;
+        return Vec::new();
     }
     if before.frames.len() != after.frames.len() {
-        return Some(Difference {
+        return vec![Difference {
             description: format!(
                 "the recording is {} long, it used to be {}",
                 frames(after.frames.len()),
                 frames(before.frames.len())
             ),
             frame: None,
-        });
+        }];
     }
-    let changed = before
+    let count = after.frames.len();
+    let changed: Vec<Difference> = before
         .frames
         .iter()
         .zip(&after.frames)
-        .position(|(before, after)| before != after);
-    let Some(index) = changed else {
-        return Some(Difference {
+        .enumerate()
+        .filter(|(_, (before, after))| before != after)
+        .map(|(index, (before, after))| {
+            let description = within(before, after);
+            Difference {
+                description: match count {
+                    1 => description,
+                    count => format!("frame {} of {count} changed: {description}", index + 1),
+                },
+                frame: Some(index),
+            }
+        })
+        .collect();
+    if changed.is_empty() {
+        return vec![Difference {
             description: "the textures the painting uses changed".to_owned(),
             frame: None,
-        });
-    };
-    let description = within(&before.frames[index], &after.frames[index]);
-    Some(Difference {
-        description: match after.frames.len() {
-            1 => description,
-            count => format!("frame {} of {count} changed: {description}", index + 1),
-        },
-        frame: Some(index),
-    })
+        }];
+    }
+    changed
 }
 
-fn frames(count: usize) -> String {
+pub(crate) fn frames(count: usize) -> String {
     match count {
         1 => "one frame".to_owned(),
         count => format!("{count} frames"),

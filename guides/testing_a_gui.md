@@ -170,17 +170,14 @@ way for the test to fail.
   you do not need to review or explain changed paintings. They show up on the pull request,
   and a person reviews them there before merging. Leave the images alone.
 - The exception is a painting you did not expect to change: if your change should not have
-  touched it, restore the committed file and run the tests without UPDATE_SNAPSHOTS - git restore
-  snapshots/ && ./scripts/buck run //:verify -- --check --plugin-tests - and the failure says which frame
-  changed and what moved in it.
-- When that is not enough to tell what happened, look at the images. With the changed
-  paintings in snapshots/ (./scripts/buck run //:verify writes them back if you restored
-  them), put the committed ones in a folder outside the checkout and compare the two:
-  mkdir -p /tmp/paint/before && git archive HEAD snapshots | tar -x -C /tmp/paint/before --strip-components=1 &&
-  ./scripts/buck run //crates/paint-snapshot:preview-example -- /tmp/paint/before "$PWD/snapshots" /tmp/paint/previews
-  It is what CI shows on a pull request: for every frame that differs it writes a before, an
-  after and a changes PNG, where magenta marks every pixel that differs, and
-  /tmp/paint/previews/comment.md says which painting and frame each PNG is.
+  touched it, find out why it changed.
+  ./scripts/buck run //crates/paint-snapshot:changed-example says, for every painting in
+  snapshots/ that differs from HEAD, which frame changed and what moved in it.
+  ./scripts/buck run //crates/paint-snapshot:changed-images-example writes the same paintings
+  into target/changed-paintings as PNGs - a before, an after and a changes image for every
+  frame that differs, where magenta marks every pixel that differs - and prints which is
+  which. Both take a revision to compare against in place of HEAD, and changed-images-example
+  a folder to write to after it.
 
 A beui document that is not an editor - beui's demo, say - is painted the same way through
 block_ui_test::DocumentTest, which drives the document itself with only the fonts beui

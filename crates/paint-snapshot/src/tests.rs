@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use crate::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 
+mod a_change_gives_a_reason_for_every_frame_that_changed;
 mod a_frame_that_changed_is_named_by_its_number;
 mod a_glyph_paints_its_coverage_in_its_colour;
 mod a_highlight_marks_only_the_pixels_that_changed;
@@ -10,6 +11,7 @@ mod a_rounded_rect_is_covered_the_way_the_shader_covers_it;
 mod a_snapshot_survives_a_round_trip;
 mod a_triangle_is_filled_with_its_corner_colour;
 mod a_turned_rounded_rect_is_covered_where_it_turned_to;
+mod an_added_or_removed_painting_says_so;
 
 fn white() -> Texture {
     Texture::encode([1, 1], &[[255, 255, 255, 255]]).unwrap()
