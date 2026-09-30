@@ -302,6 +302,7 @@ pub fn interact(
     }
 
     for event in ctx.input(|input| input.events.clone()) {
+        ::reactive::settle(|| {});
         doc.validate_focus();
         let (key, pressed, repeat, modifiers) = match event {
             Event::Key {

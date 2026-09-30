@@ -11,10 +11,10 @@ fn dragging_with_the_artboard_tool_adds_an_artboard() {
 
     editor.click("editor.menu");
     editor.run();
-    for key in [Key::ArrowUp, Key::ArrowUp, Key::Enter] {
-        editor.key_press(key);
-        editor.run();
-    }
+    editor.key_press(Key::ArrowUp);
+    editor.key_press(Key::ArrowUp);
+    editor.key_press(Key::Enter);
+    editor.run();
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let from = canvas.center() - Vec2::new(200.0, 150.0);
     editor.drag(from, from + Vec2::new(300.0, 200.0));

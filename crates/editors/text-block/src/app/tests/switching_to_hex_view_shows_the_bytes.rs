@@ -8,10 +8,9 @@ fn switching_to_hex_view_shows_the_bytes() {
 
     editor.click("editor.menu");
     editor.run();
-    for key in [Key::ArrowDown, Key::Enter] {
-        editor.key_press(key);
-        editor.run();
-    }
+    editor.key_press(Key::ArrowDown);
+    editor.key_press(Key::Enter);
+    editor.run();
 
     editor.snapshot("switching_to_hex_view_shows_the_bytes");
 }
