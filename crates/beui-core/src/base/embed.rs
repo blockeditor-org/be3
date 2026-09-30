@@ -43,6 +43,15 @@ pub struct EmbedNode {
     punch: bool,
     rotation: f32,
     state: Rc<EmbedState>,
+    own: Option<NodeId>,
+}
+
+impl EmbedNode {
+    fn forget(&self) {
+        if self.own.is_some() && self.state.node.get() == self.own {
+            self.state.placement.set(None);
+        }
+    }
 }
 
 impl Element for EmbedNode {
@@ -88,7 +97,11 @@ impl Element for EmbedNode {
     }
 
     fn unplaced(&mut self, _doc: &mut Document) {
-        self.state.placement.set(None);
+        self.forget();
+    }
+
+    fn detached(&mut self) {
+        self.forget();
     }
 
     fn interact(
@@ -132,14 +145,17 @@ impl Element for EmbedNode {
 
 impl Document {
     pub fn create_embed(&mut self, state: Rc<EmbedState>) -> NodeId {
-        self.arena.insert(EmbedNode {
+        let embed = self.arena.insert(EmbedNode {
             child: None,
             width: None,
             height: None,
             punch: false,
             rotation: 0.0,
             state,
-        })
+            own: None,
+        });
+        self.arena.touch_mut_as::<EmbedNode>(embed).own = Some(embed);
+        embed
     }
 
     pub fn set_embed_child(&mut self, embed: NodeId, child: NodeId) {

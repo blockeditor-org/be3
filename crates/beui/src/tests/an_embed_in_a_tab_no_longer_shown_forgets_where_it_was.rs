@@ -13,6 +13,8 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
     layout.show(TabId::new(1));
     let (state, set_state) = create_signal(layout);
     let showing = set_state.clone();
+    let returning = set_state.clone();
+    let inside = set_state.clone();
     let document = build(move || {
         let slots = slots.clone();
         view! {
@@ -49,5 +51,28 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
     assert!(
         first.placement().is_none(),
         "a tab hidden behind a group no longer claims the place it was shown at"
+    );
+
+    with_reactive_scope(harness.document_mut(), move || {
+        returning.update(|state| state.show(TabId::new(1)));
+    });
+    harness.frame(Vec::new());
+    harness.frame(Vec::new());
+
+    assert!(
+        first.placement().is_some(),
+        "the tab shown again is placed again"
+    );
+    assert!(second.placement().is_none());
+
+    with_reactive_scope(harness.document_mut(), move || {
+        inside.update(|state| state.show(TabId::new(2)));
+    });
+    harness.frame(Vec::new());
+    harness.frame(Vec::new());
+
+    assert!(
+        second.placement().is_some(),
+        "the tab inside the group shown again is placed again"
     );
 }

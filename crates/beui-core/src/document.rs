@@ -629,6 +629,9 @@ impl Document {
             }
             self.detach_subtree(child, scopes);
         }
+        let mut element = self.arena.take(id);
+        element.detached();
+        self.arena.put_back(id, element);
         self.arena.remove(id);
         self.overlay_stack.retain(|overlay| *overlay != id);
         self.passive_overlays.retain(|overlay| *overlay != id);
