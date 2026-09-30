@@ -10,6 +10,7 @@ fn a_docked_pane_lays_its_content_inside_its_border() {
             <styled::DockArea
                 @node_ref=&built
                 state={state}
+                inset=false
                 title={Func::new(|tab: unstyled::TabId| format!("Tab {}", tab.value()))}
                 on_change={move |next: unstyled::DockState| set_state.set(next)}
                 on_close={move |_: unstyled::TabId| {}}

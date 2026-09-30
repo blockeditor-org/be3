@@ -56,6 +56,7 @@ pub fn Tree<K>(
     #[prop(default = None)] ancestors: Option<Func<K, Vec<K>>>,
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = 0.0)] padding: f32,
+    #[prop(default = false)] selection_follows_focus: bool,
     #[prop(default = None)] focus_color: Prop<Option<Color32>>,
     #[prop(default = None)] row_test_id: Option<Func<K, String>>,
     #[prop(default = String::new())] reveal_test_id: String,
@@ -105,6 +106,7 @@ where
                         item={described}
                         selected={chosen}
                         spacing
+                        selection_follows_focus
                         on_select={move |key| on_select.call(key)}
                         on_expand={move |expansion| on_expand.call(expansion)}
                         on_hover_change={move |hover| on_hover_change.call(hover)}
@@ -370,6 +372,7 @@ fn Chevron(
                     <unstyled::Button
                         @test_id={named}
                         tab_stop=false
+                        press_focus=false
                         accessibility={chevron_accessibility(item)}
                         on_click={move || toggle()}
                         content={move |button: ButtonHandle| view! {

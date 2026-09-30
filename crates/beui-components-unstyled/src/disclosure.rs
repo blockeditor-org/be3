@@ -45,7 +45,7 @@ pub fn Disclosure(
     }));
 
     view! {
-        <List spacing>
+        <List spacing=0.0>
             <unstyled::Button
                 accessibility
                 on_click={move || {
@@ -62,7 +62,12 @@ pub fn Disclosure(
                     })
                 }}
             />
-            <Frame visible={open_read}>{children}</Frame>
+            <Frame visible={open_read}>
+                <List spacing>
+                    <Frame />
+                    {children}
+                </List>
+            </Frame>
         </List>
     }
 }

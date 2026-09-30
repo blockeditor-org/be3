@@ -65,6 +65,7 @@ pub struct OverlayNode {
     placement: Placement,
     traps_focus: bool,
     light: bool,
+    trigger: Option<NodeRef>,
     mode: OverlayMode,
     on_dismiss: Option<ClickHandler>,
     back: BackProgress,
@@ -82,6 +83,7 @@ impl OverlayNode {
             placement,
             traps_focus: true,
             light: false,
+            trigger: None,
             mode: OverlayMode::Modal,
             on_dismiss: None,
             back: BackProgress::default(),
@@ -597,6 +599,20 @@ impl Document {
         }
     }
 
+    pub fn set_overlay_trigger(&mut self, overlay: NodeId, trigger: Option<NodeRef>) {
+        self.arena.get_mut_as::<OverlayNode>(overlay).trigger = trigger;
+    }
+
+    fn on_overlay_trigger(&self, overlay: NodeId, pos: Pos2) -> bool {
+        self.arena
+            .get_as::<OverlayNode>(overlay)
+            .trigger
+            .as_ref()
+            .and_then(NodeRef::try_get)
+            .and_then(|trigger| self.node_rect(trigger))
+            .is_some_and(|rect| rect.contains_half_open(pos))
+    }
+
     fn overlay_holds(&self, overlay: NodeId, pos: Pos2) -> bool {
         self.overlay_content(overlay)
             .and_then(|content| self.node_rect(content))
@@ -609,7 +625,7 @@ impl Document {
 
     pub fn dismiss_light_overlays(&mut self, pos: Pos2) {
         while let Some(&top) = self.overlay_stack.last() {
-            if !self.light_overlay_misses(top, pos) {
+            if !self.light_overlay_misses(top, pos) || self.on_overlay_trigger(top, pos) {
                 return;
             }
             self.close_overlay_at(self.overlay_stack.len() - 1);
