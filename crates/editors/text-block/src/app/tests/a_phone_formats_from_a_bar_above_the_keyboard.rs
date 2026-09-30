@@ -18,11 +18,13 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
     editor.hold(None, TextContent::from("word"));
     editor.run();
 
-    assert!(!editor.shown("text.hex-view"));
     assert!(!editor.shown("text.format.bold"));
 
-    editor.click("text.surface");
+    let surface = editor.point_of("text.surface");
+    editor.touch_start(surface);
+    editor.touch_end(surface);
     editor.run();
+    assert!(editor.shown("text.format.done"));
     assert!(editor.shown("text.format.bold"));
     editor.snapshot("a_phone_formats_from_a_bar_above_the_keyboard");
 

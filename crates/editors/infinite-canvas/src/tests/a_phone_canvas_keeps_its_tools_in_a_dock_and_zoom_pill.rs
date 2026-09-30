@@ -5,7 +5,6 @@ fn a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill() {
     let rectangle = card();
     let mut editor = phone(std::slice::from_ref(&rectangle));
 
-    assert!(!editor.shown("infinite-canvas.add-block"));
     assert!(!editor.shown("chrome.sidebar"));
     assert!(editor.shown("infinite-canvas.dock.block"));
     assert!(editor.shown("infinite-canvas.zoom-pill"));

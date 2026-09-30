@@ -23,7 +23,7 @@ use embeds::ResolvedEmbed;
 use import_error::ImportError;
 use state::{DIRECT_EDITOR_WIDTH, Shared, State};
 use surface::TextSurface;
-use toolbar::{EditorToolbar, FormatBar};
+use toolbar::{EditorMenu, FormatBar};
 
 pub struct TextApp;
 
@@ -68,7 +68,7 @@ pub fn TextEditor(editor: Editor) -> NodeId {
     };
     view! {
         <List @node_ref=&content spacing=0.0>
-            <EditorToolbar state={state.clone()} />
+            <EditorMenu state={state.clone()} />
             <ImportError state={state.clone()} />
             <Show condition={text_shown} then={text_surface} />
             <Show condition={hex_shown} then={hex_surface} />

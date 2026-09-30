@@ -5,7 +5,7 @@ use block_editor_beui::beui::Vec2;
 fn dragging_with_the_rectangle_tool_adds_a_rectangle() {
     let mut editor = editor(&[]);
 
-    editor.click("infinite-canvas.tool.Rectangle");
+    editor.click("infinite-canvas.dock.tool.Rectangle");
     editor.run();
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let from = canvas.center();

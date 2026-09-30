@@ -1,15 +1,19 @@
 use super::*;
-use block_editor_beui::beui::Vec2;
+use block_editor_beui::beui::{Key, Vec2};
 
 #[test]
 fn dragging_with_the_artboard_tool_adds_an_artboard() {
-    let mut editor = editor(&[card()]);
+    let mut editor = editor(&[card()]).with_top_bar(false);
     assert!(
         entities(&editor).iter().all(|entity| !entity.is_artboard()),
         "a canvas has no artboard until one is drawn"
     );
 
-    editor.click("infinite-canvas.tool.Artboard");
+    editor.click("editor.menu");
+    editor.run();
+    editor.key_press(Key::ArrowUp);
+    editor.key_press(Key::ArrowUp);
+    editor.key_press(Key::Enter);
     editor.run();
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let from = canvas.center() - Vec2::new(200.0, 150.0);

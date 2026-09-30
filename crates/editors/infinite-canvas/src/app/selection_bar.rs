@@ -4,15 +4,15 @@ use block_editor_beui::be_block::canvas::{CanvasColor, CanvasEntityKind, CanvasL
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::{
-    ICON_CONTENT_COPY, ICON_DELETE, ICON_FLIP_TO_FRONT, ICON_OPEN_IN_NEW, ICON_TUNE,
+    ICON_DELETE, ICON_FLIP_TO_FRONT, ICON_OPEN_IN_NEW, ICON_TUNE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, List, Memo, NodeRef, Prop, Show, clone, component,
-    create_memo, view,
+    Align, Callback, Direction, ForEach, Frame, List, Memo, Show, clone, component, create_memo,
+    view,
 };
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::{IconButton, use_theme};
-use block_editor_beui::beui::unstyled::{self, ButtonHandle, Edge, Floating};
+use block_editor_beui::beui::unstyled::{self, ButtonHandle};
 use block_editor_beui::{narrow_chrome, sheet_control};
 use uuid::Uuid;
 
@@ -20,30 +20,13 @@ use super::paint::resolve_color;
 use super::sidebar::{PRESETS, set_foreground, styled_entities};
 use super::state::{CanvasCommand, CanvasState, CommonValue, common_value};
 
-const MARGIN: f32 = 12.0;
 const RADIUS: u8 = 12;
 const SWATCH: f32 = 22.0;
 const SWATCH_RING: f32 = 3.0;
 
 #[component]
-pub(crate) fn SelectionBar(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
-    let previewing = state.previewing();
+pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
     let narrow = narrow_chrome();
-    let chosen = create_memo(clone!(state -> move || !state.selection.get().is_empty()));
-    let open = create_memo(clone!(chosen -> move || {
-        shown.get() && chosen.get() && !previewing && !narrow.get()
-    }));
-    view! {
-        <Floating anchor={anchor} edge=Edge::Top open={open}>
-            <Frame padding_vertical=MARGIN>
-                <SelectionTools state phone=false />
-            </Frame>
-        </Floating>
-    }
-}
-
-#[component]
-pub(crate) fn SelectionTools(state: Rc<CanvasState>, phone: bool) -> NodeId {
     let colored = create_memo(clone!(state -> move || !styled_entities(&state).is_empty()));
     let value = create_memo(clone!(state -> move || {
         common_value(
@@ -57,7 +40,6 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>, phone: bool) -> NodeId {
     }));
     let embedded = create_memo(clone!(state -> move || embedded_block(&state).is_some()));
     let picking = Rc::clone(&state);
-    let duplicate = clone!(state -> move || state.run(CanvasCommand::Duplicate));
     let front =
         clone!(state -> move || state.run(CanvasCommand::Reorder(CanvasLayerMove::BringToFront)));
     let delete = clone!(state -> move || state.run(CanvasCommand::Delete));
@@ -105,14 +87,6 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>, phone: bool) -> NodeId {
                         </ForEach>
                     </List>
                 </Show>
-                <Show condition={!phone}>
-                    <IconButton
-                        glyph={ICON_CONTENT_COPY.to_owned()}
-                        label="Duplicate"
-                        @test_id={"infinite-canvas.duplicate"}
-                        on_click={duplicate}
-                    />
-                </Show>
                 <IconButton
                     glyph={ICON_FLIP_TO_FRONT.to_owned()}
                     label="Bring to front"
@@ -135,7 +109,7 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>, phone: bool) -> NodeId {
                         on_click={open}
                     />
                 </Show>
-                <Show condition={phone}>
+                <Show condition={narrow}>
                     <IconButton
                         glyph={ICON_TUNE.to_owned()}
                         label="Inspector"
