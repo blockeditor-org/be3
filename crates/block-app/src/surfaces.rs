@@ -195,6 +195,14 @@ pub(crate) fn commit() {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn shown_blits() -> Vec<Blit> {
+    SurfaceId::ALL
+        .into_iter()
+        .flat_map(|id| with_state(id, |state| state.blits.clone()))
+        .collect()
+}
+
 fn redrawn(blits: &[Blit]) -> Option<Vec<Rect>> {
     let mut damage = Vec::new();
     for blit in blits {

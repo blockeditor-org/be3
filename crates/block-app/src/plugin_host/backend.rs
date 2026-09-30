@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use block_plugin_api::{Message, PluginManifest, ScreenLayout};
+use block_plugin_api::{Message, PluginManifest, ScreenLayout, SurfaceRect};
 
 #[cfg(not(target_arch = "wasm32"))]
 use super::wasm::Wasm;
@@ -9,12 +9,24 @@ use super::web::Web;
 
 pub(super) const NOT_INSTALLED: &str = "The plugin host is not installed.";
 
+pub(super) trait ShownFrame {
+    fn presents(&self) -> u64;
+
+    fn damage(&self) -> Option<&[SurfaceRect]>;
+
+    fn set_damage(&mut self, damage: Option<Vec<SurfaceRect>>);
+}
+
 pub(super) trait Backend: Sized {
-    type Frame;
+    type Frame: ShownFrame;
 
     fn new(plugin: &PluginManifest) -> Self;
 
     fn start(&mut self, plugin: &PluginManifest);
+
+    fn ready(&self) -> bool {
+        true
+    }
 
     fn send(&mut self, messages: Vec<Message>);
 

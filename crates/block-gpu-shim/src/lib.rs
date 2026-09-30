@@ -1,24 +1,38 @@
 #![cfg(target_arch = "wasm32")]
 
 mod exports;
+mod screens;
 
 use std::{cell::RefCell, collections::VecDeque};
 
-use block_gpu_host::Recorder;
-use wasm_bindgen::prelude::*;
+use block_gpu_host::Gpu;
+use wasm_bindgen::{JsCast, prelude::*};
+
+use screens::Screens;
+
+const SCREENS_SURFACE: u32 = 0;
 
 thread_local! {
     static SHIM: RefCell<Option<Shim>> = const { RefCell::new(None) };
 }
 
 struct Shim {
-    gpu: Recorder,
+    gpu: Gpu,
+    screens: Screens,
     inbox: VecDeque<Vec<u8>>,
     outbox: Vec<Vec<u8>>,
     scratch: Vec<u8>,
     started: f64,
     woken: bool,
     failure: Option<String>,
+}
+
+impl Shim {
+    fn fail(&mut self, result: Result<(), String>) {
+        if let Err(error) = result {
+            self.failure.get_or_insert(error);
+        }
+    }
 }
 
 fn with<R>(act: impl FnOnce(&mut Shim) -> R, absent: R) -> R {
@@ -29,13 +43,16 @@ fn with<R>(act: impl FnOnce(&mut Shim) -> R, absent: R) -> R {
 }
 
 #[wasm_bindgen]
-pub fn start(limits: &[u8]) -> Result<(), JsValue> {
+pub async fn start() -> Result<(), JsValue> {
     std::panic::set_hook(Box::new(|info| {
         web_sys::console::error_1(&format!("the plugin's gpu shim panicked: {info}").into());
     }));
-    let gpu = Recorder::new(limits).map_err(|error| JsValue::from_str(&error))?;
+    let (screens, device, queue) = Screens::open()
+        .await
+        .map_err(|error| JsValue::from_str(&error))?;
     let shim = Shim {
-        gpu,
+        gpu: Gpu::new(device, queue),
+        screens,
         inbox: VecDeque::new(),
         outbox: Vec::new(),
         scratch: Vec::new(),
@@ -45,6 +62,37 @@ pub fn start(limits: &[u8]) -> Result<(), JsValue> {
     };
     SHIM.with(|current| *current.borrow_mut() = Some(shim));
     Ok(())
+}
+
+#[wasm_bindgen]
+pub fn show(id: u32, canvas: JsValue, x: u32, y: u32, width: u32, height: u32) {
+    with(
+        |shim| {
+            let canvas = canvas.dyn_into::<web_sys::OffscreenCanvas>().ok();
+            let shown = shim.screens.show(id, canvas, [x, y, width, height]);
+            shim.fail(shown);
+        },
+        (),
+    );
+}
+
+#[wasm_bindgen]
+pub fn forget(id: u32) {
+    with(|shim| shim.screens.forget(id), ());
+}
+
+#[wasm_bindgen]
+pub fn paint() {
+    with(
+        |shim| {
+            if shim.gpu.take_presented().contains(&SCREENS_SURFACE) {
+                shim.screens.presented();
+            }
+            let painted = shim.screens.paint(shim.gpu.surface(SCREENS_SURFACE));
+            shim.fail(painted);
+        },
+        (),
+    );
 }
 
 #[wasm_bindgen]
@@ -64,14 +112,6 @@ pub fn collect() -> js_sys::Array {
         (),
     );
     frames
-}
-
-#[wasm_bindgen]
-pub fn calls() -> Vec<u8> {
-    with(
-        |shim| block_gpu_abi::encode(&shim.gpu.take_calls()),
-        Vec::new(),
-    )
 }
 
 #[wasm_bindgen]

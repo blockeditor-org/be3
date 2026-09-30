@@ -178,6 +178,12 @@ impl beui::App for Shell {
             store.set(view);
             surfaces::commit();
         });
+        #[cfg(target_arch = "wasm32")]
+        plugin_host::place_screens(
+            &surfaces::shown_blits(),
+            context.pixels_per_point() / context.native_pixels_per_point(),
+            self.document.theme().background,
+        );
         host::filter_document_input(context);
         self.document.show(context, rect);
         if surfaces::read_placements() {

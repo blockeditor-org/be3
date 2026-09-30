@@ -59,11 +59,18 @@ impl CanvasSurface {
         let capabilities = surface.get_capabilities(&adapter);
         let format =
             surface_format(&capabilities.formats).ok_or("the adapter cannot show a canvas")?;
-        let alpha_mode = capabilities
+        let alpha_mode = match capabilities
             .alpha_modes
-            .first()
-            .copied()
-            .unwrap_or(wgpu::CompositeAlphaMode::Auto);
+            .contains(&wgpu::CompositeAlphaMode::PreMultiplied)
+            || adapter.get_info().backend == wgpu::Backend::BrowserWebGpu
+        {
+            true => wgpu::CompositeAlphaMode::PreMultiplied,
+            false => capabilities
+                .alpha_modes
+                .first()
+                .copied()
+                .unwrap_or(wgpu::CompositeAlphaMode::Auto),
+        };
         context.set_renderer_info(renderer_info(&adapter.get_info(), format));
         let renderer = Renderer::new(&device, format);
         let config = wgpu::SurfaceConfiguration {

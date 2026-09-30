@@ -3,8 +3,8 @@
 // A plugin is the same bindgen-free wasm that wasmtime runs on every other
 // platform: its only imports are WASI and the be3 gpu abi. In a browser the
 // abi is answered by block-gpu-shim, a second module that does have bindgen
-// and records the plugin's gpu calls for the app to replay on its own device,
-// so what a plugin draws never leaves the GPU the app draws with. The two
+// and a real wgpu device in the worker, which draws what the plugin shows into
+// the canvases the page transferred to the worker. The two
 // modules have separate memories, so a call that only passes numbers is bound
 // straight to the shim's export, and a call that passes a pointer goes through
 // a wrapper here that copies the bytes into a scratch block the shim owns.
@@ -183,10 +183,10 @@ function memoryLimits(bytes) {
     throw new Error("a plugin does not import the memory it runs in");
 }
 
-export async function boot(shimUrl, moduleUrl, deviceLimits, wake) {
+export async function boot(shimUrl, moduleUrl, wake) {
     const shimModule = await import(shimUrl);
     const shim = await shimModule.default();
-    shimModule.start(deviceLimits);
+    await shimModule.start();
     const bytes = await (await fetch(moduleUrl)).arrayBuffer();
     const limits = memoryLimits(bytes);
     const memory = new WebAssembly.Memory({ ...limits, shared: true });
@@ -202,7 +202,10 @@ export async function boot(shimUrl, moduleUrl, deviceLimits, wake) {
     return {
         deliver: (frame) => shimModule.deliver(frame),
         collect: () => shimModule.collect(),
-        calls: () => shimModule.calls(),
+        show: (id, canvas, x, y, width, height) =>
+            shimModule.show(id, canvas, x, y, width, height),
+        forget: (id) => shimModule.forget(id),
+        paint: () => shimModule.paint(),
         failure: () => shimModule.failure(),
         woken: () => shimModule.woken(),
         step: () => exports.plugin_step(),
