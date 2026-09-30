@@ -77,7 +77,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     );
     assert_eq!(fixture.shown(), vec![second], "and leaves the file on show");
 
-    tap(&mut fixture, "workspace.more");
+    tap(&mut fixture, "dock.more");
     assert_eq!(
         top_bar(&fixture, second),
         Some(TopBar::Phone { more: true }),

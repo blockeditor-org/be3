@@ -2,7 +2,7 @@ use super::*;
 use crate::EditorDock;
 use beui::reactive::{Func, Text, create_signal, view};
 use beui::unstyled::SIDEBAR_WIDTH;
-use block_plugin_api::{EditorMessage, Message, PaneItem, PaneTree};
+use block_plugin_api::{EditorMessage, Message, PaneItem, PaneLayout, PaneTree};
 use std::cell::RefCell;
 
 thread_local! {
@@ -57,6 +57,16 @@ fn a_layout_the_host_rearranged_comes_back_as_the_editors_own() {
         },
         vec![PaneId(1)],
         Some(PaneId(2)),
+    );
+    assert!(
+        !session.outbound().into_iter().any(|message| matches!(
+            message,
+            Message::Editor(EditorMessage::Panes {
+                layout: Some(PaneLayout { arrangement: 1, .. }),
+                ..
+            })
+        )),
+        "a layout the editor has not rearranged yet does not claim to answer the arrangement"
     );
     session.run(EditorRegion::Frame, 2);
 

@@ -1254,7 +1254,11 @@ impl BlockApp {
             .flatten();
             let panes: Vec<PaneId> = editor
                 .panes()
-                .map(|layout| layout.panes.iter().map(|info| info.pane).collect())
+                .map(|layout| {
+                    let listed = layout.panes.iter().map(|info| info.pane);
+                    let empty = layout.empty.then_some(block_plugin_api::EMPTY_PANE);
+                    listed.chain(empty).collect()
+                })
                 .unwrap_or_default();
             let mut action = main;
             for pane in &panes {
@@ -1772,6 +1776,11 @@ impl BlockApp {
             UiCommand::ClosePane(pane) => {
                 if let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) {
                     shell.close_pane(pane);
+                }
+            }
+            UiCommand::PaneMore(pane) => {
+                if let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) {
+                    shell.pane_more(pane);
                 }
             }
         }

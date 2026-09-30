@@ -268,6 +268,7 @@ pub(crate) enum UiCommand {
         focused: Option<PaneId>,
     },
     ClosePane(PaneId),
+    PaneMore(PaneId),
 }
 
 pub(crate) fn root(view: AppViewStore) -> NodeId {

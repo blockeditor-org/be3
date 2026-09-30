@@ -250,7 +250,8 @@ impl EditorMessage {
             | Self::Panes { .. }
             | Self::ShowPane { .. }
             | Self::PanesArranged { .. }
-            | Self::ClosePane { .. } => {}
+            | Self::ClosePane { .. }
+            | Self::PaneMore { .. } => {}
         }
     }
 }

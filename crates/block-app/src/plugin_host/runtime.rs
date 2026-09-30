@@ -653,8 +653,8 @@ pub(crate) fn editor_ui(ui: &mut Ui, slot: EditorSlot<'_>) -> EditorPresentation
         ui.register(target, rect);
         if runtime
             .instances
-            .frame_report(instance)
-            .is_some_and(|report| region == EditorRegion::Frame && report.handles_back)
+            .frame_report(instance, region)
+            .is_some_and(|report| report.handles_back)
         {
             host::offer_back(target);
         }
@@ -742,7 +742,7 @@ pub(crate) fn editor_ui(ui: &mut Ui, slot: EditorSlot<'_>) -> EditorPresentation
                 Some(_) => Vec::new(),
                 None => runtime
                     .instances
-                    .frame_report(instance)
+                    .frame_report(instance, region)
                     .map(|report| {
                         report
                             .floating
@@ -1097,6 +1097,13 @@ pub(crate) fn close_pane(plugin_id: &str, instance: EditorInstanceId, pane: Pane
     });
 }
 
+pub(crate) fn pane_more(plugin_id: &str, instance: EditorInstanceId, pane: PaneId) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.pane_more(instance, pane);
+        runtime.send(messages);
+    });
+}
+
 pub(crate) fn show_block(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -1239,14 +1246,17 @@ pub(crate) fn cover_frame(plugin_id: &str, instance: EditorInstanceId, frame: Re
 
 pub(crate) fn frame_rects(plugin_id: &str, instance: EditorInstanceId) -> Option<HostFrame> {
     with(plugin_id, |runtime| {
-        runtime.instances.frame_report(instance).map(|report| {
-            let rect = |rect: &block_plugin_api::ChildRect| {
-                Rect::from_min_size(pos2(rect.x, rect.y), vec2(rect.width, rect.height))
-            };
-            HostFrame {
-                content: rect(&report.content),
-            }
-        })
+        runtime
+            .instances
+            .frame_report(instance, EditorRegion::Frame)
+            .map(|report| {
+                let rect = |rect: &block_plugin_api::ChildRect| {
+                    Rect::from_min_size(pos2(rect.x, rect.y), vec2(rect.width, rect.height))
+                };
+                HostFrame {
+                    content: rect(&report.content),
+                }
+            })
     })
     .flatten()
 }

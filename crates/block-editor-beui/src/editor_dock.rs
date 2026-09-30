@@ -2,11 +2,11 @@ use std::cell::Cell;
 
 use beui::NodeId;
 use beui::reactive::{
-    Callback, Frame, Func, ItemSize, List, Memo, Prop, RenderFn, Show, clone, component,
-    create_effect, create_memo, on_cleanup, untrack, view,
+    Callback, Frame, Func, Memo, Prop, ReadSignal, RenderFn, WriteSignal, clone, component,
+    create_effect, create_memo, create_signal, on_cleanup, view,
 };
 use beui::styled::DockArea;
-use beui::unstyled::{DockMode, DockState, TabId};
+use beui::unstyled::{DockMode, DockMores, DockState, TabId};
 
 use crate::Editor;
 
@@ -14,12 +14,16 @@ use crate::Editor;
 pub(crate) struct DockLink {
     pub(crate) key: u64,
     pub(crate) state: Memo<DockState>,
+    pub(crate) home: Memo<Option<TabId>>,
     pub(crate) title: Func<TabId, String>,
     pub(crate) icon: Func<TabId, String>,
     pub(crate) closable: Func<TabId, bool>,
+    pub(crate) mores: ReadSignal<DockMores>,
+    pub(crate) set_more: WriteSignal<DockMores>,
     pub(crate) on_change: Callback<DockState>,
     pub(crate) on_close: Callback<TabId>,
     pub(crate) content: RenderFn<TabId>,
+    pub(crate) empty: RenderFn<()>,
 }
 
 thread_local! {
@@ -49,50 +53,45 @@ pub fn EditorDock(
             }
         })
     });
-    let offered = editor.host().panes_offered();
-    let mode = create_memo(move || mode.get());
-    let paned = create_memo(clone!(mode -> move || offered && mode.get() == DockMode::Tiled));
-    let local = create_memo(clone!(paned -> move || !paned.get()));
-    let state = create_memo(move || state.get());
-    let home = create_memo(move || home.get());
-    if offered {
-        let key = NEXT_LINK.with(|next| next.replace(next.get() + 1));
-        let link = DockLink {
-            key,
-            state: state.clone(),
-            title: title.clone(),
-            icon: icon.clone(),
-            closable: closable.clone(),
-            on_change: on_change.clone(),
-            on_close: on_close.clone(),
-            content: content.clone(),
+    if !editor.host().panes_offered() {
+        return view! {
+            <DockArea
+                state
+                mode
+                home
+                title
+                icon
+                closable
+                content
+                empty={move || empty.call(())}
+                on_change={move |next: DockState| on_change.call(next)}
+                on_close={move |tab: TabId| on_close.call(tab)}
+            />
         };
-        create_effect(clone!(editor paned -> move || {
-            let paned = paned.get();
-            untrack(|| match paned {
-                true => editor.set_dock(link.clone()),
-                false => editor.forget_dock(key),
-            });
-        }));
-        on_cleanup(move || editor.forget_dock(key));
     }
+    let key = NEXT_LINK.with(|next| next.replace(next.get() + 1));
+    let (mores, set_more) = create_signal(DockMores::new());
+    let waking = editor.clone();
+    create_effect(clone!(mores -> move || {
+        mores.with(|_| ());
+        waking.host().waker().wake();
+    }));
+    editor.set_dock(DockLink {
+        key,
+        state: create_memo(move || state.get()),
+        home: create_memo(move || home.get()),
+        title,
+        icon,
+        closable,
+        mores,
+        set_more,
+        on_change,
+        on_close,
+        content,
+        empty,
+    });
+    on_cleanup(move || editor.forget_dock(key));
     view! {
-        <List spacing=0.0>
-            <Show condition={local}>
-                <DockArea
-                    @sizing=ItemSize::Percent(100.0)
-                    state={state.clone()}
-                    mode={mode.clone()}
-                    home={home.clone()}
-                    title={title.clone()}
-                    icon={icon.clone()}
-                    closable={closable.clone()}
-                    content={content.clone()}
-                    empty={clone!(empty -> move || empty.call(()))}
-                    on_change={clone!(on_change -> move |next: DockState| on_change.call(next))}
-                    on_close={clone!(on_close -> move |tab: TabId| on_close.call(tab))}
-                />
-            </Show>
-        </List>
+        <Frame />
     }
 }

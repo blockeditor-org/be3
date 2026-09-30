@@ -6,7 +6,8 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::time::Duration;
 
-use beui::unstyled::{DockState, TabId, Tree};
+use beui::reactive::provide_context;
+use beui::unstyled::{DockState, DockTabMore, TabId, Tree};
 use beui_plugin_input::panes::{dock_tree, pane_of, pane_tree, tab_of};
 use block_editor_plugin::{
     Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Ime, Instance, PaneEvent,
@@ -15,7 +16,7 @@ use block_editor_plugin::{
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect, wgpu};
 use block_plugin_api::{CursorIcon, ImeInput, InputEvent, PointerButton, WheelUnit};
-use block_plugin_api::{PaneId, PaneInfo, PaneLayout};
+use block_plugin_api::{EMPTY_PANE, PaneId, PaneInfo, PaneLayout};
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar};
@@ -309,6 +310,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
                     self.detached.retain(|detached| *detached != tab);
                     actions.push(PaneAction::Close(tab));
                 }
+                PaneEvent::More(pane) => actions.push(PaneAction::More(tab_of(pane))),
             }
         }
         actions
@@ -344,6 +346,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
                     title: link.title.call(*tab),
                     icon: link.icon.call(*tab),
                     closable: link.closable.call(*tab),
+                    more: link.mores.with_untracked(|mores| mores.contains_key(tab)),
                 })
                 .collect()
         });
@@ -351,8 +354,12 @@ impl<A: BeuiApp> BeuiInstance<A> {
             panes,
             tree: pane_tree(&tree),
             arrangement: 0,
+            home: link.home.get_untracked().map(pane_of),
+            empty: true,
         }));
-        self.retain_panes(&tabs);
+        let mut kept = tabs;
+        kept.push(tab_of(EMPTY_PANE));
+        self.retain_panes(&kept);
     }
 
     fn retain_panes(&mut self, tabs: &[TabId]) {
@@ -377,12 +384,22 @@ impl<A: BeuiApp> BeuiInstance<A> {
         let Some(link) = self.dock() else {
             return;
         };
+        if pane == EMPTY_PANE {
+            let empty = link.empty.clone();
+            self.panes
+                .insert(pane, beui::reactive::build(move || empty.call(())));
+            return;
+        }
         let tab = tab_of(pane);
         if !self.pane_tabs().contains(&tab) {
             return;
         }
         let content = link.content.clone();
-        let document = beui::reactive::build(move || content.call(tab));
+        let set_more = link.set_more.clone();
+        let document = beui::reactive::build(move || {
+            provide_context(DockTabMore { tab, set_more });
+            content.call(tab)
+        });
         self.panes.insert(pane, document);
     }
 
@@ -402,6 +419,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
 enum PaneAction {
     Change(DockState),
     Close(TabId),
+    More(TabId),
 }
 
 impl<A: BeuiApp> Instance for BeuiInstance<A> {
@@ -581,6 +599,14 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                                         link.on_change.call(next);
                                     }
                                     link.on_close.call(tab);
+                                }
+                                PaneAction::More(tab) => {
+                                    let press = link.mores.with_untracked(|mores| {
+                                        mores.get(&tab).map(|(_, press)| press.clone())
+                                    });
+                                    if let Some(press) = press {
+                                        press.call();
+                                    }
                                 }
                             }
                         }

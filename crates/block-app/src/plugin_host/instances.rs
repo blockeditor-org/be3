@@ -1548,11 +1548,15 @@ impl Instances {
         changed
     }
 
-    pub(super) fn frame_report(&self, instance: EditorInstanceId) -> Option<&FrameReport> {
+    pub(super) fn frame_report(
+        &self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<&FrameReport> {
         self.entries
             .get(&instance)?
             .screens
-            .get(&EditorRegion::Frame)?
+            .get(&region)?
             .report
             .as_ref()
     }
@@ -2523,6 +2527,13 @@ impl Instances {
             return Vec::new();
         }
         vec![Message::Editor(EditorMessage::ClosePane { instance, pane })]
+    }
+
+    pub(super) fn pane_more(&mut self, instance: EditorInstanceId, pane: PaneId) -> Vec<Message> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Message::Editor(EditorMessage::PaneMore { instance, pane })]
     }
 
     pub(super) fn take_artifact_watch(&mut self, instance: EditorInstanceId) -> Option<Vec<Uuid>> {

@@ -382,6 +382,11 @@ impl Screens {
                     session.close_pane(*pane);
                 }
             }
+            Message::Editor(EditorMessage::PaneMore { instance, pane }) => {
+                if let Some(session) = self.sessions.get_mut(instance) {
+                    session.pane_more(*pane);
+                }
+            }
             Message::Editor(EditorMessage::Close { instance }) => {
                 self.sessions.remove(instance);
                 self.requests

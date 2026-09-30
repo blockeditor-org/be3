@@ -367,9 +367,15 @@ impl DockTree {
                 first,
                 second,
             } => {
-                let first = first.without(dropped);
-                let second = second.without(dropped);
-                match (first.tabs().is_empty(), second.tabs().is_empty()) {
+                let emptied = |before: &DockTree, after: &DockTree| {
+                    !before.tabs().is_empty() && after.tabs().is_empty()
+                };
+                let kept_first = first.without(dropped);
+                let kept_second = second.without(dropped);
+                let first_gone = emptied(first, &kept_first);
+                let second_gone = emptied(second, &kept_second);
+                let (first, second) = (kept_first, kept_second);
+                match (first_gone, second_gone) {
                     (false, false) => DockTree::Split {
                         direction: *direction,
                         fraction: *fraction,

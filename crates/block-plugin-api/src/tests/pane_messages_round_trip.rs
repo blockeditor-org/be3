@@ -41,14 +41,21 @@ fn pane_messages_round_trip() {
                     title: "Files".into(),
                     icon: "folder".into(),
                     closable: false,
+                    more: true,
                 }],
                 tree: tree.clone(),
                 arrangement: 3,
+                home: Some(PaneId(1)),
+                empty: true,
             }),
         }),
         Message::Editor(EditorMessage::Panes {
             instance: EditorInstanceId(2),
             layout: None,
+        }),
+        Message::Editor(EditorMessage::PaneMore {
+            instance: EditorInstanceId(2),
+            pane: PaneId(1),
         }),
         Message::Editor(EditorMessage::ShowPane {
             instance: EditorInstanceId(2),

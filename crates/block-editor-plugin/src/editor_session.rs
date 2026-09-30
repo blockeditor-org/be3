@@ -32,7 +32,6 @@ pub struct EditorSession {
     artifact: Option<ArtifactState>,
     replacements: Vec<(u64, bool)>,
     generation: u64,
-    arrangement: u64,
     sent_panes: Option<PaneLayout>,
 }
 
@@ -101,7 +100,6 @@ impl EditorSession {
             artifact: None,
             replacements: Vec::new(),
             generation: 0,
-            arrangement: 0,
             sent_panes: None,
         }
     }
@@ -117,23 +115,29 @@ impl EditorSession {
         detached: Vec<PaneId>,
         focused: Option<PaneId>,
     ) {
-        self.arrangement = self.arrangement.max(arrangement);
-        self.host.push_pane_event(PaneEvent::Arranged {
-            tree,
-            detached,
-            focused,
-        });
+        self.host.push_pane_event(
+            arrangement,
+            PaneEvent::Arranged {
+                tree,
+                detached,
+                focused,
+            },
+        );
     }
 
     pub fn close_pane(&mut self, pane: PaneId) {
-        self.host.push_pane_event(PaneEvent::Closed(pane));
+        self.host.push_pane_event(0, PaneEvent::Closed(pane));
+    }
+
+    pub fn pane_more(&mut self, pane: PaneId) {
+        self.host.push_pane_event(0, PaneEvent::More(pane));
     }
 
     fn pane_messages(&mut self) -> Vec<Message> {
         let instance = self.instance;
         let mut messages = Vec::new();
         let layout = self.host.pane_layout().map(|layout| PaneLayout {
-            arrangement: self.arrangement,
+            arrangement: self.host.taken_arrangement(),
             ..layout
         });
         if self.sent_panes != layout {
@@ -900,7 +904,8 @@ impl EditorSession {
                 rect: reported(ime.rect),
                 cursor: reported(ime.cursor),
             });
-            state.report = (region == EditorRegion::Frame).then(|| FrameReport {
+            let reports = matches!(region, EditorRegion::Frame | EditorRegion::Pane(_));
+            state.report = reports.then(|| FrameReport {
                 screen,
                 content: reported(reported_content),
                 painted: frame.painted.iter().map(|rect| reported(*rect)).collect(),

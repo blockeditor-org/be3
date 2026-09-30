@@ -1017,6 +1017,12 @@ impl PluginEditor {
         }
     }
 
+    pub(crate) fn pane_more(&self, pane: PaneId) {
+        if let Some(plugin) = &self.plugin {
+            crate::plugin_host::pane_more(&plugin.identity.id, self.instance, pane);
+        }
+    }
+
     pub(crate) fn pane_ui(
         &mut self,
         ui: &mut Ui,

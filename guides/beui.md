@@ -809,7 +809,10 @@ has none. A tab's icon comes from the optional `icon` function, an icon-font
 glyph (empty for none) that the tab bars, the drag preview and the stacked bar
 all draw. The bar is the dock's, not the caller's; what a
 tab adds to it is only its own actions, which its panel hands over while it is
-built with `dock_actions(node)`, and which are shown while that tab is.
+built with `dock_actions(node)`, and which are shown while that tab is, and a
+More button, which the panel asks for with `dock_more(on_click)`. More is not a
+node, so a dock that lays out tabs built somewhere else (the app's dock holding
+a plugin's panes) can draw it and pass the press back.
 Each tab's panel is built once and moved between the two, so what it holds
 survives the switch. `recent_tabs` lists the tabs from the one shown last (the
 order is part of the state, so it is saved with the layout), and

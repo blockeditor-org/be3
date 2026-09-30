@@ -328,7 +328,8 @@ pub struct EditorHost {
     waker: Waker,
     panes_offered: Rc<Cell<bool>>,
     pane_layout: Rc<RefCell<Option<PaneLayout>>>,
-    pane_events: Rc<RefCell<Vec<PaneEvent>>>,
+    pane_events: Rc<RefCell<Vec<(u64, PaneEvent)>>>,
+    taken_arrangement: Rc<Cell<u64>>,
     shown_panes: Rc<RefCell<Vec<PaneId>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     changes: Rc<Cell<u64>>,
@@ -1299,13 +1300,25 @@ impl EditorHost {
         self.pane_layout.borrow().clone()
     }
 
-    pub(crate) fn push_pane_event(&self, event: PaneEvent) {
-        self.pane_events.borrow_mut().push(event);
+    pub(crate) fn push_pane_event(&self, arrangement: u64, event: PaneEvent) {
+        self.pane_events.borrow_mut().push((arrangement, event));
         self.waker.wake();
     }
 
     pub fn take_pane_events(&self) -> Vec<PaneEvent> {
-        std::mem::take(&mut self.pane_events.borrow_mut())
+        let taken = std::mem::take(&mut *self.pane_events.borrow_mut());
+        taken
+            .into_iter()
+            .map(|(arrangement, event)| {
+                self.taken_arrangement
+                    .set(self.taken_arrangement.get().max(arrangement));
+                event
+            })
+            .collect()
+    }
+
+    pub(crate) fn taken_arrangement(&self) -> u64 {
+        self.taken_arrangement.get()
     }
 
     pub fn show_pane(&self, pane: PaneId) {
@@ -1607,6 +1620,7 @@ pub enum PaneEvent {
         focused: Option<PaneId>,
     },
     Closed(PaneId),
+    More(PaneId),
 }
 
 pub enum PastedImage {

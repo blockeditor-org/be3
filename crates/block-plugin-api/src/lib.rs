@@ -450,6 +450,7 @@ pub struct PaneInfo {
     pub title: String,
     pub icon: String,
     pub closable: bool,
+    pub more: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -457,7 +458,11 @@ pub struct PaneLayout {
     pub panes: Vec<PaneInfo>,
     pub tree: PaneTree,
     pub arrangement: u64,
+    pub home: Option<PaneId>,
+    pub empty: bool,
 }
+
+pub const EMPTY_PANE: PaneId = PaneId(u64::MAX);
 
 impl EditorRegion {
     pub const ALL: [Self; 3] = [Self::Frame, Self::Preview, Self::ArtifactSettings];
@@ -963,6 +968,10 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         pane: PaneId,
     },
+    PaneMore {
+        instance: EditorInstanceId,
+        pane: PaneId,
+    },
     VersionControl {
         instance: EditorInstanceId,
         block_id: [u8; 16],
@@ -1051,6 +1060,7 @@ impl EditorMessage {
             | Self::ShowPane { instance, .. }
             | Self::PanesArranged { instance, .. }
             | Self::ClosePane { instance, .. }
+            | Self::PaneMore { instance, .. }
             | Self::VersionControl { instance, .. }
             | Self::VersionStatus { instance, .. } => *instance,
         }
@@ -1599,6 +1609,7 @@ impl EditorMessage {
             | Self::Blocks { .. }
             | Self::PanesArranged { .. }
             | Self::ClosePane { .. }
+            | Self::PaneMore { .. }
             | Self::VersionStatus { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
             | Self::Focused { .. }

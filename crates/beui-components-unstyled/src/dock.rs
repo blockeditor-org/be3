@@ -138,6 +138,8 @@ pub struct DockStackHandle {
     pub away: Memo<bool>,
     pub tabs: Memo<Vec<TabId>>,
     pub actions: Memo<Option<NodeId>>,
+    pub more: Memo<bool>,
+    pub press_more: ClickCallback,
     pub titles: Func<TabId, String>,
     pub icons: Func<TabId, String>,
     pub back: ClickCallback,
@@ -149,6 +151,35 @@ pub struct DockStackHandle {
 struct DockTabActions {
     tab: TabId,
     set_actions: WriteSignal<HashMap<TabId, NodeId>>,
+}
+
+pub type DockMores = HashMap<TabId, (u64, ClickCallback)>;
+
+#[derive(Clone)]
+pub struct DockTabMore {
+    pub tab: TabId,
+    pub set_more: WriteSignal<DockMores>,
+}
+
+thread_local! {
+    static NEXT_MORE: Cell<u64> = const { Cell::new(1) };
+}
+
+pub fn dock_more(on_click: ClickCallback) {
+    let Some(DockTabMore { tab, set_more }) = use_context::<DockTabMore>() else {
+        return;
+    };
+    let key = NEXT_MORE.with(|next| next.replace(next.get() + 1));
+    set_more.update(|all| {
+        all.insert(tab, (key, on_click));
+    });
+    on_cleanup(move || {
+        set_more.update(|all| {
+            if all.get(&tab).is_some_and(|(held, _)| *held == key) {
+                all.remove(&tab);
+            }
+        });
+    });
 }
 
 pub fn dock_actions(actions: NodeId) {
@@ -207,6 +238,8 @@ struct State {
     home: Memo<Option<TabId>>,
     actions: ReadSignal<HashMap<TabId, NodeId>>,
     set_actions: WriteSignal<HashMap<TabId, NodeId>>,
+    mores: ReadSignal<DockMores>,
+    set_more: WriteSignal<DockMores>,
     thickness: f32,
     group_inset: f32,
     rect: ReadSignal<Rect>,
@@ -287,8 +320,10 @@ impl State {
         }
         let scope = with_document(|document| node_scope(document, self.owner.clone()));
         let set_actions = self.set_actions.clone();
+        let set_more = self.set_more.clone();
         let panel = scope.context().run(|| {
             provide_context(DockTabActions { tab, set_actions });
+            provide_context(DockTabMore { tab, set_more });
             self.content.call(tab)
         });
         with_document(|document| document.register_node_scope(panel, scope));
@@ -856,6 +891,7 @@ pub fn Dock(
 ) -> NodeId {
     let (current, set_current) = create_signal(state.peek());
     let (actions, set_actions) = create_signal(HashMap::new());
+    let (mores, set_more) = create_signal(DockMores::new());
     create_effect(clone!(set_current -> move || set_current.set(state.get())));
     let (drag, set_drag) = create_signal(None);
     let dock: Handle = Rc::new(State {
@@ -874,6 +910,8 @@ pub fn Dock(
         home: create_memo(move || home.get()),
         actions,
         set_actions,
+        mores,
+        set_more,
         stack,
         thickness: splitter_thickness,
         group_inset,
@@ -1041,6 +1079,24 @@ fn stack_handle(dock: &Handle, shown: Memo<Option<TabId>>, away: Memo<bool>) -> 
         let shown = shown.get()?;
         actions.with(|actions| actions.get(&shown).copied())
     }));
+    let mores = dock.mores.clone();
+    let more = create_memo(clone!(shown mores -> move || {
+        shown
+            .get()
+            .is_some_and(|shown| mores.with(|mores| mores.contains_key(&shown)))
+    }));
+    let pressing = dock.mores.clone();
+    let pressed = shown.clone();
+    let press_more = ClickCallback::new(move || {
+        let Some(shown) = pressed.get_untracked() else {
+            return;
+        };
+        let held =
+            pressing.with_untracked(|mores| mores.get(&shown).map(|(_, press)| press.clone()));
+        if let Some(press) = held {
+            press.call();
+        }
+    });
     let titles = dock.clone();
     let icons = dock.clone();
     let back = dock.clone();
@@ -1054,6 +1110,8 @@ fn stack_handle(dock: &Handle, shown: Memo<Option<TabId>>, away: Memo<bool>) -> 
         away,
         tabs,
         actions: slot,
+        more,
+        press_more,
         titles: Func::new(move |tab| titles.title(tab)),
         icons: Func::new(move |tab| icons.icon(tab)),
         back: ClickCallback::new(move || {

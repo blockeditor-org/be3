@@ -25,7 +25,6 @@ use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
 use super::panel::BlockPanel;
-use super::phone::PhoneSheets;
 use super::saved::{self, LAYOUT};
 use super::tab::TabItem;
 
@@ -282,6 +281,13 @@ impl Workspace {
             if !dock.contains(FILES) {
                 dock = starting_layout_with(dock);
             }
+            let mut orphans: Vec<TabId> = tabs.keys().copied().collect();
+            orphans.sort();
+            for tab in orphans {
+                if !dock.contains(tab) {
+                    place_tab(&mut dock, tab);
+                }
+            }
             let mut next = restored
                 .next_tab
                 .max(FIRST_BLOCK_TAB)
@@ -450,8 +456,11 @@ impl Workspace {
         self.record_type(item.id, item.block_type);
         if let Some(tab) = self.tab_showing(item.id) {
             let mut layout = self.layout.get_untracked();
-            layout.show(tab);
-            self.set_layout.set(layout);
+            match layout.contains(tab) {
+                true => layout.show(tab),
+                false => place_tab(&mut layout, tab),
+            }
+            self.set_layout.set(settled(layout));
             self.editor.show_pane(tab);
             self.active.set(Some(item.id));
             return;
@@ -787,16 +796,13 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
         true => DockMode::Stacked,
         false => DockMode::Tiled,
     }));
-    let sheets = Rc::clone(&workspace);
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     let layout = workspace.layout.clone();
     let titles = workspace.titles.clone();
     let failure = workspace.error.clone();
     let docked = workspace.host().panes_offered();
-    let failed = create_memo(clone!(failure phone -> move || {
-        (!docked || phone.get()) && failure.get().is_some()
-    }));
+    let failed = create_memo(clone!(failure -> move || !docked && failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let title = Func::new(move |tab: TabId| match tab {
         FILES => "Files".to_owned(),
@@ -852,7 +858,6 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                         }
                     }}
                 </EditorDock>
-                <PhoneSheets workspace={sheets} />
             </List>
         </Frame>
     }
@@ -871,15 +876,13 @@ fn Failure(failed: Memo<bool>, reason: Memo<String>) -> NodeId {
 #[component]
 pub(crate) fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
     let phone = workspace.phone.clone();
-    let top_bar = create_memo(clone!(phone -> move || match phone.get() {
+    let top_bar = create_memo(move || match phone.get() {
         true => TopBar::Phone { more: false },
         false => TopBar::Hidden,
-    }));
+    });
     let failure = workspace.error.clone();
     let docked = workspace.host().panes_offered();
-    let failed = create_memo(clone!(failure -> move || {
-        docked && !phone.get() && failure.get().is_some()
-    }));
+    let failed = create_memo(clone!(failure -> move || docked && failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let files = workspace.files.clone();
     let target = create_memo(move || {

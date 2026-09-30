@@ -2,15 +2,17 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui::reactive::{
-    Func, ItemSize, List, Memo, Show, clone, component, component_rect, create_effect, create_memo,
-    create_signal, on_cleanup, untrack, view,
+    ClickCallback, Frame, Func, ItemSize, List, Memo, Show, clone, component, component_rect,
+    create_effect, create_memo, create_signal, on_cleanup, untrack, view,
 };
 use beui::styled::DockArea;
 use beui::styled::theme::NARROW_WIDTH;
-use beui::unstyled::{DockState, DockTree, DockTreeEntry, GroupId, TabId, Tree, narrower_than};
+use beui::unstyled::{
+    DockMode, DockState, DockTree, DockTreeEntry, GroupId, TabId, Tree, dock_more, narrower_than,
+};
 use beui::{NodeId, Rect, pos2, vec2};
 use beui_plugin_input::panes::{dock_tree_with, pane_tree_with};
-use block_plugin_api::{PaneId, PaneLayout, PaneTree};
+use block_plugin_api::{EMPTY_PANE, PaneId, PaneLayout, PaneTree};
 
 use super::debug::{
     ClientPanel, DebugCommand, DebugWindow, PerformancePanel, PluginsPanel, VersionPanel,
@@ -305,6 +307,20 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
         narrow.get() && state.with(only_the_workspace)
     }));
     let tiled = create_memo(clone!(lone -> move || !lone.get()));
+    let stacking = panes.clone();
+    let phone = narrower_than(NARROW_WIDTH);
+    let mode = create_memo(
+        move || match phone.get() && stacking.with(Option::is_some) {
+            true => DockMode::Stacked,
+            false => DockMode::Tiled,
+        },
+    );
+    let homing = panes.clone();
+    let home = create_memo(move || {
+        homing.with(|layout| layout.as_ref().and_then(|layout| layout.home).map(pane_tab))
+    });
+    let emptied = panes.clone();
+    let claimed = Rc::new(Cell::new(false));
     let status = view.status.clone();
     let listed = panes.clone();
     let info = move |pane: PaneId| {
@@ -330,6 +346,7 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
     let group_title = Func::new(move |group: GroupId| {
         (grouped.group.get() == Some(group)).then(|| status.get().workspace)
     });
+    let wanting = info.clone();
     let closable = Func::new(move |tab: TabId| match tab_pane(tab) {
         Some(pane) => info(pane).is_some_and(|info| info.closable),
         None => tab != WORKSPACE,
@@ -343,6 +360,8 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
                 <DockArea
                     @sizing=ItemSize::Percent(100.0)
                     state={state}
+                    mode={mode}
+                    home={home}
                     title={title}
                     icon={icon}
                     group_title={group_title}
@@ -356,13 +375,30 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
                             send(UiCommand::ClosePane(pane));
                         }
                     }}
+                    empty={move || {
+                        let offered = emptied.with(|layout| {
+                            layout.as_ref().is_some_and(|layout| layout.empty)
+                        });
+                        if !offered || claimed.replace(true) {
+                            return view! {
+                                <Frame />
+                            };
+                        }
+                        let released = Rc::clone(&claimed);
+                        on_cleanup(move || released.set(false));
+                        view! {
+                            <HostSurface id=SurfaceId::Pane(EMPTY_PANE.0) />
+                        }
+                    }}
                 >
                     {move |tab: TabId| {
                         let view = view.clone();
                         let debug = view.debug.clone();
                         if let Some(pane) = tab_pane(tab) {
+                            let wanting = wanting.clone();
+                            let more = create_memo(move || wanting(pane).is_some_and(|info| info.more));
                             return view! {
-                                <HostSurface id=SurfaceId::Pane(pane.0) />
+                                <PaneSurface pane={pane} more={more} />
                             };
                         }
                         match Tool::of(tab) {
@@ -404,6 +440,18 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
                 </DockArea>
             </Show>
         </List>
+    }
+}
+
+#[component]
+fn PaneSurface(pane: PaneId, more: Memo<bool>) -> NodeId {
+    create_effect(move || {
+        if more.get() {
+            dock_more(ClickCallback::new(move || send(UiCommand::PaneMore(pane))));
+        }
+    });
+    view! {
+        <HostSurface id=SurfaceId::Pane(pane.0) />
     }
 }
 
