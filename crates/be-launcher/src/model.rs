@@ -274,6 +274,8 @@ impl Model {
     pub(crate) fn refresh_list(&self) {
         self.set_listing.set(Loaded::Loading);
         self.tasks.list(self.filter.get_untracked());
+        #[cfg(target_os = "android")]
+        self.phone.refresh_main();
     }
 
     pub(crate) fn select(&self, number: u64) {

@@ -109,6 +109,23 @@ pub(crate) fn uninstall() -> Result<(), String> {
     })?)
 }
 
+pub(crate) fn apk() -> Option<PathBuf> {
+    with_launcher(|env, class| {
+        let apk = env
+            .call_static_method(
+                class,
+                jni_str!("apk"),
+                jni_sig!("()Ljava/lang/String;"),
+                &[],
+            )?
+            .l()?;
+        string(env, apk)
+    })
+    .ok()
+    .flatten()
+    .map(PathBuf::from)
+}
+
 pub(crate) fn open_url(url: &str) {
     let _ = with_launcher(|env, class| {
         let url = env.new_string(url)?;

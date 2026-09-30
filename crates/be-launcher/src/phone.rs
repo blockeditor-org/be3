@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use beui::NodeId;
 use beui::icons::ICON_PLAY_ARROW;
@@ -22,13 +21,14 @@ use crate::tasks::{self, Tasks};
 const APP: &str = "app.apk";
 const LAUNCHER: &str = "launcher.apk";
 const INSTALLED: &str = "installed.json";
+const LAUNCHER_RECORD: &str = "launcher.json";
 const PROGRESS_STEP: u64 = 1 << 20;
 const MEGABYTE: f64 = 1_000_000.0;
 const SHORT_SHA: usize = 7;
 
 pub(crate) enum Event {
-    Found(Option<Installed>),
-    Fetched(Slot, Result<Option<Build>, String>),
+    Found(Option<Installed>, Own),
+    Fetched(Slot, Result<Found, String>),
     Progress(Slot, u64, u64),
     Downloaded(Slot, Result<Downloaded, String>),
     Committed(Result<(), String>),
@@ -39,6 +39,18 @@ pub(crate) enum Downloaded {
     Current,
     App { commit: String, app: Object },
     Launcher,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Found {
+    pub(crate) wanted: String,
+    pub(crate) build: Option<Build>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Own {
+    pub(crate) hash: String,
+    pub(crate) record: Option<Installed>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,7 +77,9 @@ pub(crate) struct Work {
 #[derive(Clone)]
 pub(crate) struct Phone {
     tasks: Tasks,
-    builds: Cache<Slot, Option<Build>>,
+    builds: Cache<Slot, Found>,
+    own: ReadSignal<Option<Own>>,
+    set_own: WriteSignal<Option<Own>>,
     installed: ReadSignal<Option<Installed>>,
     set_installed: WriteSignal<Option<Installed>>,
     work: ReadSignal<Option<Work>>,
@@ -79,11 +93,14 @@ impl Phone {
     pub(crate) fn new(tasks: Tasks) -> Self {
         android::remember(tasks.clone());
         let (installed, set_installed) = create_signal(None);
+        let (own, set_own) = create_signal(None);
         let (work, set_work) = create_signal(None);
         let (problem, set_problem) = create_signal(None);
         Self {
             tasks,
             builds: Rc::new(RefCell::new(HashMap::new())),
+            own,
+            set_own,
             installed,
             set_installed,
             work,
@@ -96,9 +113,15 @@ impl Phone {
 
     pub(crate) fn start(&self) {
         self.tasks.background(|tasks| {
-            let record = android::files(tasks).join(INSTALLED);
-            let installed = builds::installed(&record).filter(|_| android::installed());
-            tasks::Event::Phone(Event::Found(installed))
+            let files = android::files(tasks);
+            let installed =
+                builds::installed(&files.join(INSTALLED)).filter(|_| android::installed());
+            let hash = android::apk()
+                .and_then(|apk| builds::hash_file(&apk))
+                .unwrap_or_default();
+            let record = builds::installed(&files.join(LAUNCHER_RECORD))
+                .filter(|record| !hash.is_empty() && record.hash == hash);
+            tasks::Event::Phone(Event::Found(installed, Own { hash, record }))
         });
     }
 
@@ -110,17 +133,37 @@ impl Phone {
         })
     }
 
-    pub(crate) fn build(&self, slot: Slot, commit: &str) -> ReadSignal<Loaded<Option<Build>>> {
+    pub(crate) fn build(&self, slot: Slot, commit: &str) -> ReadSignal<Loaded<Found>> {
         if let Some((read, _)) = self.builds.borrow().get(&slot) {
             return read.clone();
         }
         let (read, write) = create_signal(Loaded::Loading);
         self.builds.borrow_mut().insert(slot, (read.clone(), write));
-        self.fetch(slot, commit.to_owned());
+        self.fetch(slot, Some(commit.to_owned()));
+        read
+    }
+
+    pub(crate) fn main_build(&self) -> ReadSignal<Loaded<Found>> {
+        if let Some((read, _)) = self.builds.borrow().get(&Slot::Main) {
+            return read.clone();
+        }
+        let (read, write) = create_signal(Loaded::Loading);
+        self.builds
+            .borrow_mut()
+            .insert(Slot::Main, (read.clone(), write));
+        self.fetch(Slot::Main, None);
         read
     }
 
     pub(crate) fn refresh(&self, slot: Slot, commit: &str) {
+        self.refetch(slot, Some(commit.to_owned()));
+    }
+
+    pub(crate) fn refresh_main(&self) {
+        self.refetch(Slot::Main, None);
+    }
+
+    fn refetch(&self, slot: Slot, commit: Option<String>) {
         let write = self
             .builds
             .borrow()
@@ -128,23 +171,32 @@ impl Phone {
             .map(|(_, write)| write.clone());
         if let Some(write) = write {
             write.set(Loaded::Loading);
-            self.fetch(slot, commit.to_owned());
+            self.fetch(slot, commit);
         }
     }
 
-    fn fetch(&self, slot: Slot, commit: String) {
-        self.tasks.background(move |_| {
-            tasks::Event::Phone(Event::Fetched(slot, fetch_build(slot, &commit)))
+    fn fetch(&self, slot: Slot, commit: Option<String>) {
+        self.tasks.background(move |tasks| {
+            let found = commit
+                .map_or_else(
+                    || tasks.github().and_then(|github| github.branch_head("main")),
+                    Ok,
+                )
+                .and_then(|wanted| {
+                    let build = fetch_build(slot)?;
+                    Ok(Found { wanted, build })
+                });
+            tasks::Event::Phone(Event::Fetched(slot, found))
         });
     }
 
-    pub(crate) fn run(&self, slot: Slot, commit: String, fresh: bool) {
+    pub(crate) fn run(&self, slot: Slot, fresh: bool) {
         if !self.begin(slot, Package::App, fresh) {
             return;
         }
         self.tasks.background(move |tasks| {
             let files = android::files(tasks);
-            let result = fetch_build(slot, &commit).and_then(|build| {
+            let result = fetch_build(slot).and_then(|build| {
                 let build = build.ok_or_else(|| "be3-ci has no Android build of it".to_owned())?;
                 let current = builds::installed(&files.join(INSTALLED))
                     .is_some_and(|installed| installed.hash == build.app.hash);
@@ -168,22 +220,28 @@ impl Phone {
         });
     }
 
-    pub(crate) fn install(&self, slot: Slot, commit: String) {
+    pub(crate) fn install(&self, slot: Slot) {
         if !self.begin(slot, Package::Launcher, false) {
             return;
         }
         self.tasks.background(move |tasks| {
-            let apk = android::files(tasks).join(LAUNCHER);
-            let result = fetch_build(slot, &commit).and_then(|build| {
+            let files = android::files(tasks);
+            let result = fetch_build(slot).and_then(|build| {
                 let build = build.ok_or_else(|| "be3-ci has no Android build of it".to_owned())?;
                 let mut progress = progress(tasks, slot);
                 builds::fetch_apk(
-                    &apk,
+                    &files.join(LAUNCHER),
                     slot,
                     &build.launcher,
                     &mut android::Http,
                     &mut progress,
                 )?;
+                let record = Installed {
+                    slot,
+                    commit: build.commit,
+                    hash: build.launcher.hash,
+                };
+                builds::remember(&files.join(LAUNCHER_RECORD), Some(&record))?;
                 Ok(Downloaded::Launcher)
             });
             tasks::Event::Phone(Event::Downloaded(slot, result))
@@ -251,7 +309,10 @@ impl Phone {
 
     pub(crate) fn receive(&self, event: Event) {
         match event {
-            Event::Found(installed) => self.set_installed.set(installed),
+            Event::Found(installed, own) => {
+                self.set_installed.set(installed);
+                self.set_own.set(Some(own));
+            }
             Event::Fetched(slot, build) => {
                 let write = self
                     .builds
@@ -334,18 +395,10 @@ fn progress(tasks: &Tasks, slot: Slot) -> impl FnMut(u64, u64) + '_ {
     }
 }
 
-fn fetch_build(slot: Slot, commit: &str) -> Result<Option<Build>, String> {
-    match android::get(&slot.manifest_url(commit))? {
-        Some(document) => Build::parse(&document).map(Some),
-        None => Ok(None),
-    }
-}
-
-fn now_key() -> String {
-    let minutes = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |elapsed| elapsed.as_secs() / 60);
-    format!("t{minutes}")
+fn fetch_build(slot: Slot) -> Result<Option<Build>, String> {
+    android::get(&slot.manifest_url())?
+        .map(|document| Build::parse(&document))
+        .transpose()
 }
 
 fn short(sha: &str) -> &str {
@@ -368,19 +421,12 @@ pub(crate) fn Actions(
     let slot = Slot::PullRequest(initial.number);
     let build = phone.build(slot, &initial.head_sha);
     let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
-    let disabled = create_memo(clone!(build busy -> move || {
-        busy.get() || !matches!(build.get(), Loaded::Ready(Some(_)))
-    }));
-    let run = clone!(phone pull_request -> move || {
-        phone.run(slot, pull_request.get_untracked().head_sha, false);
-    });
-    let pick = clone!(phone pull_request -> move |path: Vec<usize>| {
-        let head = pull_request.get_untracked().head_sha;
-        match path.as_slice() {
-            [0] => phone.run(slot, head, true),
-            [1] => phone.install(slot, head),
-            _ => {}
-        }
+    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(&build)));
+    let run = clone!(phone -> move || phone.run(slot, false));
+    let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
+        [0] => phone.run(slot, true),
+        [1] => phone.install(slot),
+        _ => {}
     });
     view! {
         <SplitButton
@@ -411,24 +457,11 @@ pub(crate) fn Notes(
     let slot = Slot::PullRequest(initial.number);
     let build = phone.build(slot, &initial.head_sha);
     let status = create_memo(clone!(build pull_request -> move || {
-        let pull_request = pull_request.get();
         match build.get() {
-            Loaded::Loading => "Looking for its Android build".to_owned(),
-            Loaded::Failed(error) => error,
-            Loaded::Ready(None) if !pull_request.same_repository => {
+            Loaded::Ready(Found { build: None, .. }) if !pull_request.get().same_repository => {
                 "It comes from a fork, so CI does not publish an Android build of it.".to_owned()
             }
-            Loaded::Ready(None) => "CI has not published an Android build of it yet.".to_owned(),
-            Loaded::Ready(Some(build)) if build.commit == pull_request.head_sha => format!(
-                "The Android build of {} is {}.",
-                short(&build.commit),
-                megabytes(build.app.size)
-            ),
-            Loaded::Ready(Some(build)) => format!(
-                "CI has not published {} yet, so this runs {}.",
-                short(&pull_request.head_sha),
-                short(&build.commit)
-            ),
+            found => describe(found, "Looking for its Android build", "it"),
         }
     }));
     view! {
@@ -442,29 +475,53 @@ pub(crate) fn Notes(
 #[component]
 pub(crate) fn MainActions(model: Model) -> NodeId {
     let phone = model.phone.clone();
+    let build = phone.main_build();
     let busy = create_memo(clone!(phone -> move || phone.work.with(Option::is_some)));
-    let run = clone!(phone -> move || phone.run(Slot::Main, now_key(), false));
+    let disabled = create_memo(clone!(build busy -> move || busy.get() || !published(&build)));
+    let run = clone!(phone -> move || phone.run(Slot::Main, false));
     let pick = clone!(phone -> move |path: Vec<usize>| match path.as_slice() {
-        [0] => phone.run(Slot::Main, now_key(), true),
-        [1] => phone.install(Slot::Main, now_key()),
+        [0] => phone.run(Slot::Main, true),
+        [1] => phone.install(Slot::Main),
         _ => {}
     });
     let current = create_memo(clone!(phone -> move || phone.holds(Slot::Main)));
-    let summary = create_memo(clone!(current -> move || if current.get() {
-        "main is installed"
-    } else {
-        "The latest build of main"
-    }.to_owned()));
+    let summary = create_memo(clone!(current build -> move || {
+        let described = describe(build.get(), "Looking for main's Android build", "main");
+        if current.get() {
+            format!("main is installed. {described}")
+        } else {
+            described
+        }
+    }));
+    let launcher = create_memo(clone!(phone build -> move || {
+        let main = match build.get() {
+            Loaded::Ready(Found { build: Some(build), .. }) => Some(build),
+            _ => None,
+        };
+        match phone.own.get() {
+            None => "Looking at which launcher this is".to_owned(),
+            Some(Own { record: Some(record), .. }) => {
+                format!("This launcher is {} at {}.", slot_name(record.slot), short(&record.commit))
+            }
+            Some(Own { hash, .. }) => match main {
+                Some(main) if !hash.is_empty() && main.launcher.hash == hash => {
+                    format!("This launcher is main at {}.", short(&main.commit))
+                }
+                _ if hash.is_empty() => "Android did not say where this launcher is installed.".to_owned(),
+                _ => format!("This launcher, {}, is not a build be3-ci has published.", short(&hash)),
+            },
+        }
+    }));
     view! {
         <List spacing=8.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Caption @sizing=ItemSize::Percent(100.0) content={summary} />
+                <Caption @sizing=ItemSize::Percent(100.0) content={summary} wrap=true />
                 <SplitButton
                     label="Run main"
                     glyph=ICON_PLAY_ARROW
                     variant=ButtonVariant::Secondary
                     menu_label="More ways to run main"
-                    disabled={busy}
+                    disabled
                     items={view! {
                         <MenuItem label="Run main with fresh data" />
                         <MenuItem label="Install main's launcher" />
@@ -473,8 +530,46 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
                     on_select={pick}
                 />
             </List>
+            <Caption content={launcher} wrap=true />
             <SlotNotes model slot={Slot::Main} />
         </List>
+    }
+}
+
+fn published(build: &ReadSignal<Loaded<Found>>) -> bool {
+    matches!(build.get(), Loaded::Ready(Found { build: Some(_), .. }))
+}
+
+fn describe(found: Loaded<Found>, loading: &str, subject: &str) -> String {
+    match found {
+        Loaded::Loading => loading.to_owned(),
+        Loaded::Failed(error) => error,
+        Loaded::Ready(Found { build: None, .. }) => {
+            format!("CI has not published an Android build of {subject} yet.")
+        }
+        Loaded::Ready(Found {
+            wanted,
+            build: Some(build),
+        }) if build.commit == wanted => format!(
+            "The Android build of {} is {}.",
+            short(&build.commit),
+            megabytes(build.app.size)
+        ),
+        Loaded::Ready(Found {
+            wanted,
+            build: Some(build),
+        }) => format!(
+            "CI has not published {} yet, so this runs {}.",
+            short(&wanted),
+            short(&build.commit)
+        ),
+    }
+}
+
+fn slot_name(slot: Slot) -> String {
+    match slot {
+        Slot::PullRequest(number) => format!("#{number}"),
+        Slot::Main => "main".to_owned(),
     }
 }
 
