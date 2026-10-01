@@ -16,6 +16,7 @@ pub mod dock;
 pub mod drag;
 pub mod fling;
 pub mod floating;
+pub mod list_row;
 pub mod menu;
 pub mod menu_button;
 pub mod number_input;
@@ -76,6 +77,7 @@ pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
 };
 pub use floating::{Edge, Floating};
+pub use list_row::ListRow;
 pub use menu::{
     MenuItem, MenuRowHandle, menu_list_len, menu_list_root_focusable, menu_list_row_button,
     menu_list_row_submenu_content,
@@ -104,9 +106,9 @@ pub use slider::{Slider, SliderHandle, SliderScale, slider_value};
 pub use stack::Stack;
 pub use text_area::text_area_handles;
 pub use text_area::{
-    Completer, Completion, CompletionMenu, CompletionRowHandle, RemoteTextCursor, SyntaxColors, TextArea,
-    TextAreaColors, TextAreaLayout, TextAreaState, TextWidget, text_area_index_at, text_area_shown,
-    emoji_completer, search_emoji, text_area_state,
+    Completer, Completion, CompletionMenu, CompletionRowHandle, RemoteTextCursor, SyntaxColors,
+    TextArea, TextAreaColors, TextAreaLayout, TextAreaState, TextWidget, emoji_completer,
+    search_emoji, text_area_index_at, text_area_shown, text_area_state,
 };
 pub use text_input::text_input_handles;
 pub use text_input::{
