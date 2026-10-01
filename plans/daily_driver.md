@@ -1,22 +1,23 @@
 # Daily driver
 
 A plan to get the app to the point where the user keeps their own notes in it.
-Nothing here is implemented yet. Each phase lists what "done" looks like.
+Each phase lists what "done" looks like.
 
 Real notes live in one remote workspace on a server running on a single VPS.
 Local-only workspaces (the embedded server) stay, but only for testing, so
 nothing here has to protect their data. Offline support on web waits until
 before a public release.
 
-From that point on:
+From the freeze on (phase 8):
 - Data written by the app must keep working in later versions.
   - That holds for the text and folder blocks and everything they sit on:
     objects, commits, metadata, keys and the server's database.
   - Other block types may keep breaking.
 - Deleting the client or server database stops being an acceptable fix.
 
-The phases are ordered so that nothing written after the format freeze
-(phase 2) has to be rewritten.
+Formats can keep changing until the freeze, which is the last step (phase 8).
+Phase 2 makes them versioned so the freeze is cheap when it comes, but nothing
+is held fixed before then.
 
 ## Phase 1: Stop silent data loss (done)
 
@@ -32,9 +33,11 @@ Landed. What it left open:
 - Conflicts and diverged sessions are reported only through the status
   error and the debug window. Phase 5 adds the UI.
 
-## Phase 2: Freeze the formats
+## Phase 2: Version the formats
 
-Nothing written today carries a version. Everything is bare postcard, which
+This is format work, not the freeze: it can land at any point, and the formats
+it versions can still change afterwards. Nothing written today carries a
+version. Everything is bare postcard, which
 cannot tell a missing field from corruption, and whose enum variants are
 positional.
 
@@ -77,19 +80,6 @@ positional.
   - Done: `PRAGMA user_version`, ordered migrations, and a test that opens
     every older schema.
   - Web `SavedAccount` fields get `#[serde(default)]`.
-
-### How the freeze is enforced
-
-- **Golden fixtures.**
-  - Check in bytes that the current code writes: a sealed text block, a
-    folder, metadata, a commit, a snapshot tree, a server database, and an
-    app-state database.
-  - The fixtures live under `snapshots/formats/`, and `//:verify` decodes
-    them.
-  - A test fails if a frozen type's encoding of a known value changes.
-  - This turns "keep text and folder working" from a promise into a check.
-- **A short format section in `guides/the_new_block_stack.md`.** It names
-  what is frozen and how to evolve it: new variant, never edit one.
 
 ## Phase 3: A real encryption key, with backup (mostly done)
 
@@ -277,8 +267,7 @@ each item has a work-count test in the style of
    - This is in memory and on the wire only; stored text is raw UTF-8 and
      does not change.
    - The edit operation format on the wire may change freely before the
-     protocol freezes in phase 2. So do this before, or together with,
-     phase 2.
+     protocol freezes in phase 8.
 2. **Graphemes.** `grapheme_boundaries` segments the whole document on every
    left/right, backspace and click (`text-editor-core/src/core.rs:2591-2621`).
    Segment only the surrounding line.
@@ -361,12 +350,29 @@ Nice to have later:
 - image button that picks a file;
 - trimming the Add picker to the block types that are ready.
 
+## Phase 8: Freeze the formats
+
+The last step, once the formats have settled through real use. From here on,
+text and folder blocks and everything under them keep working across versions,
+and deleting a database stops being a fix.
+
+- **Golden fixtures.**
+  - Check in bytes that the current code writes: a sealed text block, a
+    folder, metadata, a commit, a snapshot tree, a server database, and an
+    app-state database.
+  - The fixtures live under `snapshots/formats/`, and `//:verify` decodes
+    them.
+  - A test fails if a frozen type's encoding of a known value changes.
+  - This turns "keep text and folder working" from a promise into a check.
+- **A short format section in `guides/the_new_block_stack.md`.** It names
+  what is frozen and how to evolve it: new variant, never edit one.
+
 ## Suggested order
 
-1. Phases 3 and 6.1 (keys and anchors), because they change what is
-   written or sent.
-2. Phase 2, the freeze, with golden fixtures.
+1. Phase 6.1 (anchors), and the rest of phase 3.
+2. Phase 2, versioning the formats, whenever it is convenient.
 3. Phase 4. Start the server, and take backups from day one.
 4. Phases 5 and 7 in parallel. Start real use when offline open, the status
    indicator, Move to…, search and export exist.
 5. The rest of phase 6, measured against the benchmark.
+6. Phase 8, the freeze, last.
