@@ -12,7 +12,7 @@ use beui_core::base::Direction;
 use beui_core::base::offset::{OffsetNode, ScrollPosition};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
-use beui_core::geometry::Pos2;
+use beui_core::geometry::{Pos2, Rect};
 use beui_core::input::{CursorIcon, DragGesture, PointerPress, ScrollGesture};
 use beui_core::node::{NodeId, NodeOf};
 use beui_view::components::overlay::Overlay;
@@ -96,48 +96,42 @@ impl Motion {
         with_document(|document| document.first_offset_within(content))
     }
 
-    fn laid_out(&self) -> (Option<f32>, ScrollPosition) {
+    fn laid_out(&self) -> (Option<Rect>, Option<Rect>, ScrollPosition) {
         let node = self.node();
         let frame = self.frame.try_get();
         with_document(|document| {
-            let height = frame
-                .and_then(|frame| document.node_rect(frame))
-                .map(|rect| rect.height());
+            let sheet = frame.and_then(|frame| document.node_rect(frame));
+            let node = node.filter(|node| document.contains(*node));
+            let body = node.and_then(|node| document.node_rect(node));
             let position = node
-                .filter(|node| document.contains(*node))
                 .and_then(|node| document.offset_position(node))
                 .unwrap_or_default();
-            (height, position)
+            (sheet, body, position)
         })
     }
 
     fn height(&self) -> f32 {
         match self.rest_at.get_untracked() {
             Rest::Free(height) => height,
-            Rest::Share(share) => share * self.extent.get_untracked(),
-            Rest::Fitted => self.laid_out().0.unwrap_or(0.0),
+            Rest::Share(_) | Rest::Fitted => self.laid_out().0.map_or(0.0, |sheet| sheet.height()),
         }
     }
 
     fn shape(&self) -> Shape {
         let extent = self.extent.get_untracked();
-        let (height, position) = self.laid_out();
-        if let Some(height) = height.filter(|_| position.viewport > 0.0) {
-            self.chrome.set(height - position.viewport);
+        let (sheet, body, position) = self.laid_out();
+        if let (Some(sheet), Some(body)) = (sheet, body) {
+            self.chrome.set(body.top() - sheet.top());
         }
         let chrome = self.chrome.get();
         let highest = self.shares.last().copied().unwrap_or(SHEET_STOPS[2]);
-        let cap = highest * extent;
-        let top = match self.fit {
-            true => (chrome + position.content).min(cap),
-            false => cap,
-        };
+        let top = (chrome + position.content).min(highest * extent);
         let stops = match self.fit {
             true => vec![(top, Rest::Fitted)],
             false => self
                 .shares
                 .iter()
-                .map(|share| (share * extent, Rest::Share(*share)))
+                .map(|share| ((share * extent).min(top), Rest::Share(*share)))
                 .collect(),
         };
         let viewport = (top - chrome).max(0.0);
@@ -159,7 +153,7 @@ impl Motion {
 
     fn rest_height(&self, rest: Rest, shape: &Shape) -> f32 {
         match rest {
-            Rest::Share(share) => share * shape.extent,
+            Rest::Share(share) => (share * shape.extent).min(shape.top),
             Rest::Fitted => shape.top,
             Rest::Free(height) => height,
         }
@@ -505,17 +499,13 @@ pub fn Sheet(
     let extent = create_memo(move || extent.get().max(1.0));
     let (rest_at, set_rest) = create_signal(resting);
     let (dragging, set_dragging) = create_signal(false);
-    let frame_height = create_memo(clone!(extent rest_at -> move || match rest_at.get() {
-        Rest::Share(share) => Some(share * extent.get()),
-        Rest::Fitted => None,
-        Rest::Free(height) => Some(height),
+    let sizing = create_memo(clone!(extent rest_at -> move || match rest_at.get() {
+        Rest::Share(share) => ItemSize::Intrinsic.max(share * extent.get()).shrink(1.0),
+        Rest::Fitted => ItemSize::Intrinsic.shrink(1.0),
+        Rest::Free(height) => ItemSize::Fixed(height).shrink(1.0),
     }));
     let content = NodeRef::new();
     let frame = NodeRef::new();
-    let body = match fit {
-        true => ItemSize::Intrinsic.shrink(1.0),
-        false => ItemSize::Percent(100.0).into(),
-    };
     let motion = Motion {
         extent,
         shares,
@@ -552,32 +542,40 @@ pub fn Sheet(
     let (cancelled, released) = (motion.clone(), motion);
     let grip = grip.call(SheetGripHandle { dragging });
     view! {
-        <BackHandler enabled={open} on_back={move || on_close.call()}>
-            {panel.call(view! {
-                <Frame @node_ref=&frame height={frame_height}>
-                    <Interactive
-                        scroll_axis={axis}
-                        intercept_at={move |_: Pos2| tapped.flinging()}
-                        on_press={move |_: PointerPress| stopped.stop_fling()}
-                        on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
-                        on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
-                    >
-                        <List spacing=0.0>
-                            <Interactive
-                                @test_id={"sheet.handle"}
-                                cursor=CursorIcon::ResizeVertical
-                                on_press={move |press: PointerPress| pressed.handle_press(press)}
-                                on_drag={move |press: PointerPress| handled.handle_drag(press)}
-                                on_cancel={move || cancelled.handle_cancel()}
-                                on_active_change={move |active: bool| released.handle_active(active)}
-                                children={Some(grip)}
-                            />
-                            <Offset @node_ref=&content @sizing={body} fit>{children}</Offset>
-                        </List>
-                    </Interactive>
-                </Frame>
-            })}
-        </BackHandler>
+        <List spacing=0.0>
+            <BackHandler @sizing={sizing} enabled={open} on_back={move || on_close.call()}>
+                {panel.call(view! {
+                    <Frame @node_ref=&frame>
+                        <Interactive
+                            scroll_axis={axis}
+                            intercept_at={move |_: Pos2| tapped.flinging()}
+                            on_press={move |_: PointerPress| stopped.stop_fling()}
+                            on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
+                            on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
+                        >
+                            <List spacing=0.0>
+                                <Interactive
+                                    @test_id={"sheet.handle"}
+                                    cursor=CursorIcon::ResizeVertical
+                                    on_press={move |press: PointerPress| pressed.handle_press(press)}
+                                    on_drag={move |press: PointerPress| handled.handle_drag(press)}
+                                    on_cancel={move || cancelled.handle_cancel()}
+                                    on_active_change={move |active: bool| released.handle_active(active)}
+                                    children={Some(grip)}
+                                />
+                                <Offset
+                                    @node_ref=&content
+                                    @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                                    fit=true
+                                >
+                                    {children}
+                                </Offset>
+                            </List>
+                        </Interactive>
+                    </Frame>
+                })}
+            </BackHandler>
+        </List>
     }
 }
 
@@ -625,11 +623,7 @@ fn ModalSheetBody(
     let extent = create_memo(move || size.get().y);
     let highest = stops.iter().copied().fold(SHEET_STOPS[0], f32::max);
     let room = create_memo(clone!(extent -> move || {
-        let least = match fit {
-            true => extent.get() * (1.0 - highest),
-            false => 0.0,
-        };
-        ItemSize::Percent(100.0).min(least)
+        ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest))
     }));
     let outside = on_close.clone();
     let closing = on_close;

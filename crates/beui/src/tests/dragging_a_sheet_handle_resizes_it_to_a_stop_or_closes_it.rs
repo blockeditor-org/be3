@@ -21,7 +21,7 @@ fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
                         extent=600.0
                         on_close={move || closed.set(closed.get() + 1)}
                     >
-                        <Frame />
+                        <Frame height=1000.0 />
                     </Sheet>
                 </List>
             }

@@ -460,7 +460,9 @@ bar undoes on two and redoes on three. `Sheet` is the panel that rises from the
 bottom of a narrow screen. It scrolls what it holds itself, so what goes in it
 is not wrapped in a vertical `Scroll` (one inside would measure nothing tall): a
 swipe anywhere on it raises it to its top stop before it scrolls the content,
-and lowers it once the content is back at its start. Let go, it springs to the
+and lowers it once the content is back at its start. It is never taller than
+what it holds, whatever stop it rests at, and pulled past its top it stretches
+like an overscroll. Let go, it springs to the
 stop nearest where the flick was heading, or closed below the lowest one, and
 its content flings and bounces at its ends as a `Scroll` does; the handle does
 the same for a mouse, and going back closes it.
