@@ -1,8 +1,12 @@
 # Daily driver
 
 A plan to get the app to the point where the user keeps their own notes in it.
-Nothing here is implemented yet. Items marked **(ask)** need a decision from
-the user. Each phase lists what "done" looks like.
+Nothing here is implemented yet. Each phase lists what "done" looks like.
+
+Real notes live in one remote workspace on a server running on a single VPS.
+Local-only workspaces (the embedded server) stay, but only for testing, so
+nothing here has to protect their data. Offline support on web waits until
+before a public release.
 
 From that point on:
 - Data written by the app must keep working in later versions.
@@ -37,17 +41,21 @@ Small, independent fixes.
   commit.
 - **`PruneHistory` ignores `pinned`** (`blocks.rs:427-456`). It should keep
   pinned commits.
-- **The crash screen offers "Delete local server database" after any panic.**
-  - That button does `remove_dir_all(<data_dir>/server)`
-    (`main.rs:1962-1973`, `ui/onboarding.rs:48-134`).
-  - Done: the crash screen offers Restart and Copy only. Resetting moves to
-    settings, and it renames the directory rather than deleting it.
+- **The crash screen offers to delete databases after any panic**
+  (`main.rs:1940-1973`, `ui/onboarding.rs:48-134`).
+  - Deleting the local server database can stay, because local workspaces
+    are only for testing.
+  - "Delete client database" must not delete unsynced work. Once phase 5
+    adds a local outbox, the client database holds edits the server has not
+    seen yet.
+  - Done: the client reset refuses, or warns with a count, while anything is
+    unsynced.
 - **Live merges throw away conflicts.**
   - `live.reconcile()` drops the `MergeResult` (`be/worker.rs:274`, `:453`,
     `:562`).
   - A conflicted model document is published with only a count, and the
     count is discarded.
-  - Done: a conflicted merge is recorded where the UI can show it (phase 6)
+  - Done: a conflicted merge is recorded where the UI can show it (phase 5)
     instead of vanishing.
 - **Live sessions drop operations they cannot decode** (`be-client/src/live.rs:272-274`,
   `:292-294`, `:423-425`). Mixed-version peers therefore diverge silently.
@@ -120,23 +128,33 @@ workspace id can decrypt everything. Nothing about the key is stored, and there
 is no recovery. This must land before the freeze is final, because changing
 the key means re-sealing every object.
 
-### Proposed design (ask)
+### Design
+
+The password only signs in. It never unlocks content, so the server holds
+nothing that a password guess could decrypt.
 
 - **A random workspace key.** Each workspace gets a key from
   `ContentKey::random()`, which already exists.
 - **Wrapped copies on the server.** The server stores the key wrapped
   under:
-  - **a recovery key**: 32 random bytes, shown once as a phrase or a
-    QR/file, with "I saved it" confirmation. This is the backup.
-  - **each device's key**: a random device key kept in the OS keystore
-    (Keychain, Android Keystore, libsecret/DPAPI; non-extractable WebCrypto
-    plus IndexedDB on web).
-  - optionally **a password-derived key**: Argon2id run on the client with
-    its own salt, separate from the login hash. A new device can then sign
-    in with just the password. A forgotten password still leaves the recovery
-    key.
-- **Adding a device** means signing in, then unwrapping with the password or
-  the recovery phrase, or approving it from an existing device.
+  - **a recovery key**: 32 random bytes, shown once as a word phrase, with
+    "I saved it" confirmation (type back a few words). This is the backup.
+  - **each device's public key**: a device keypair (X25519) whose private
+    half lives in the OS keystore (Keychain, Android Keystore,
+    libsecret/DPAPI).
+- **Adding a device.**
+  - Sign in. The new device makes its keypair and shows as "waiting for
+    approval".
+  - Unlock it one of two ways:
+    - **Recovery phrase.** Type the phrase on the new device.
+    - **Approval.** An existing device sees the request, the user compares a
+      short code shown on both screens, and the existing device wraps the
+      workspace key to the new device's public key. The server only relays.
+  - Both devices showing the code is what stops the server from substituting
+    its own key.
+- **Removing a device** deletes its wrapped copy. A device that saw the key
+  can still decrypt old content until the key rotates. Rotation is out of
+  scope for now.
 - **Key epochs.** The object prefix (phase 2) carries the key epoch. Rotating
   after removing a member then becomes possible later, though it is not
   built now.
@@ -149,8 +167,10 @@ the key means re-sealing every object.
 
 - Store the session token in the OS keystore rather than plaintext
   `app.sqlite3`.
-- **Settings › Security** shows the recovery key again, after
-  re-authentication.
+- **Settings › Security** lists devices and lets you remove one. It also
+  makes a new recovery phrase, which re-wraps the key and invalidates the
+  old phrase. It cannot show the old phrase again, because nothing stores
+  it.
 - **Done when:**
   - no key can be computed from server data;
   - a fresh device can open the workspace with the recovery phrase alone;
@@ -195,14 +215,27 @@ signups open.
   - A `/health` HTTP path.
   - SIGTERM drains connections and checkpoints the WAL.
   - A config file in place of growing flags.
-  - A systemd unit and a short `guides/hosting.md`: Caddy terminates TLS and
-    be-server binds to 127.0.0.1.
-- **Backups.**
-  - `be-server backup <dest>`: `VACUUM INTO` the database, then copy new
-    objects incrementally and never delete. Objects are immutable, and the
-    database snapshot is taken first, so the copy is consistent.
-  - Run it nightly from a systemd timer to a second disk or an off-site
-    target (restic or rclone). Keep N daily and M weekly copies.
+  - A systemd unit and a short `guides/hosting.md` for the existing VPS:
+    Caddy terminates TLS and be-server binds to 127.0.0.1.
+- **Backups, to Bunny Storage.**
+  - `be-server backup`:
+    1. `VACUUM INTO` the database.
+    2. Upload the snapshot under a dated name.
+    3. Upload the objects added since the last run, and never delete any.
+    - Objects are immutable and the database snapshot is taken first, so
+      the copy is consistent.
+    - Uploads use Bunny's storage HTTP API (a `PUT` per file with the zone's
+      access key).
+    - A local list of uploaded hashes avoids listing the zone each run.
+  - The snapshot itself is not end-to-end encrypted: it holds accounts,
+    password hashes and the block graph. Encrypt it with a backup key before
+    upload. Objects are already ciphertext.
+  - Run it hourly from a systemd timer. Keep 48 hourly, 30 daily and 12
+    monthly database snapshots. They are small, and the objects are shared
+    by all of them.
+  - The zone's access key on the VPS can also delete backups. Enable
+    replication to a second Bunny region, and keep an occasional pulled copy
+    on a machine the VPS cannot reach.
   - `be-server verify` checks every referenced object exists and hashes
     correctly. Run it after each backup.
   - **Done when** a restore drill from backup into an empty data directory
@@ -211,7 +244,7 @@ signups open.
     recovery key (phase 3). Say this in the hosting guide.
 - **Garbage collection stays off.**
   - `CollectDetached` and `PruneHistory` are never called by the app. That
-    is the safe default until trash and history (phase 6) define what may be
+    is the safe default until trash and history (phase 7) define what may be
     reclaimed.
   - Unpublished objects are never collected either. Note it and watch disk.
 
@@ -275,12 +308,14 @@ Today:
   - the connection dies mid-seal.
 - No sleeping: drive time with the frame clock and the transport.
 
-### Web (ask)
+### Web: deferred until before a public release
 
-- An IndexedDB object store and refs database.
-- `ObjectStore` is synchronous, so it would need an in-memory front with
-  async write-behind.
-- Suggest deferring this: use native and Android for daily notes first.
+- Dogfooding uses native and Android.
+- Web offline later needs an IndexedDB object store and refs database.
+  `ObjectStore` is synchronous, so that needs an in-memory front with async
+  write-behind.
+- Device keys on web will need non-extractable WebCrypto keys kept in
+  IndexedDB (phase 3).
 
 ## Phase 6: Text editor at 120 fps on a large file
 
@@ -396,17 +431,3 @@ Nice to have later:
 5. Phases 5 and 7 in parallel. Start real use when offline open, the status
    indicator, Move to…, search and export exist.
 6. The rest of phase 6, measured against the benchmark.
-
-## Open questions (ask)
-
-- **Key unlock.** Should a new device unlock with the password
-  (convenient; a forgotten password still has the recovery phrase), or only
-  with the recovery phrase or an existing device (the server never sees
-  anything password-derived)?
-- **Embedded local server.** Do daily notes live only in the remote
-  account, or should the embedded local server stay for local-only
-  workspaces? If it stays, it needs its own backup path.
-- **Web.** Is web offline needed for daily use, or is native plus Android
-  enough at first?
-- **Host.** Which host runs the server? This decides the systemd/Caddy
-  guide and where off-site backups go.
