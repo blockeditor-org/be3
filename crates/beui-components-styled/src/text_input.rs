@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
-use crate::context_menu::text_input_menu;
+use crate::context_menu::text_menu;
 use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::TextInputHandle;
@@ -70,7 +70,7 @@ pub fn TextInput(
             selection_color={theme.accent_soft.clone()}
             caret_color={theme.accent.clone()}
             padding_horizontal=PADDING_HORIZONTAL
-            menu={text_input_menu()}
+            menu={text_menu()}
             on_change={move |value| on_change.call(value)}
             on_submit={move |value| on_submit.call(value)}
             on_focus_change={move |focused| on_focus_change.call(focused)}

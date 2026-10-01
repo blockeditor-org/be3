@@ -2,7 +2,8 @@ use crate as unstyled;
 use crate::ChoiceOption;
 use crate::button::ButtonHandle;
 use crate::scroll::ScrollbarStyle;
-use crate::text_input::{TextInputHandle, TextInputMenu};
+use crate::text_input::TextInputHandle;
+use crate::text_menu::TextMenu;
 use beui_core::base::overlay::Placement;
 use beui_core::color::Color32;
 use beui_core::document::Document;
@@ -85,7 +86,7 @@ pub fn Select(
     search_caret_color: Prop<Color32>,
     search_padding_horizontal: Prop<f32>,
     search_content: Option<Render<TextInputHandle>>,
-    #[prop(default = TextInputMenu::default())] search_menu: TextInputMenu,
+    #[prop(default = TextMenu::default())] search_menu: TextMenu,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     trigger: Option<Render<SelectTriggerHandle>>,
     option: Option<RenderFn<SelectOptionHandle>>,

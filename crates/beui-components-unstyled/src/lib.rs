@@ -32,6 +32,7 @@ pub mod slider;
 pub mod stack;
 pub mod text_area;
 pub mod text_input;
+pub mod text_menu;
 pub mod time_list;
 pub mod toggle;
 pub mod tooltip;
@@ -103,10 +104,11 @@ pub use text_area::{
 };
 pub use text_input::text_input_handles;
 pub use text_input::{
-    TextInput, TextInputHandle, TextInputMenu, text_input_caret, text_input_focused,
+    TextInput, TextInputHandle, text_input_caret, text_input_focused,
     text_input_index_at, text_input_menu_row, text_input_selection, text_input_shown,
     text_input_text, text_input_value,
 };
+pub use text_menu::{TextContextMenu, TextMenu};
 pub use time_list::{TimeList, TimeOptionHandle, time_list_selected};
 pub use toggle::{Toggle, ToggleHandle, toggle_checked};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};

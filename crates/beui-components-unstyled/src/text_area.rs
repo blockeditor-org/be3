@@ -22,6 +22,7 @@ use text_editor_core::{
 use beui_macros::{component, view};
 
 use crate::Scroll;
+use crate::text_menu::{TextContextMenu, TextMenu};
 use beui_core::base::text::TextGeometry;
 use beui_core::base::{ImeCursor, ItemSize, ScrollPosition};
 use beui_core::color::Color32;
@@ -883,6 +884,7 @@ pub fn TextArea(
     selected_widget: Option<RenderFn<usize>>,
     #[prop(default = Completer::none())] completer: Completer,
     completion_menu: Option<RenderFn<CompletionMenu>>,
+    #[prop(default = TextMenu::default())] menu: TextMenu,
     on_widget_press: Callback<usize, bool>,
     on_menu: Callback<Pos2>,
     on_key_override: Callback<KeyPress, bool>,
@@ -1054,6 +1056,9 @@ pub fn TextArea(
         beui_core::current::try_with_document(|document| document.remove_node(anchor));
     });
 
+    let text_menu = menu;
+    let has_text_menu = text_menu.is_some();
+    let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
     let cx: Context = Rc::new(Surface {
         state: state.clone(),
         single_line,
@@ -1099,7 +1104,12 @@ pub fn TextArea(
         set_highlighted: set_highlighted.clone(),
         set_dismissed,
         on_widget_press,
-        on_menu,
+        on_menu: Callback::new(clone!(disabled set_menu_at -> move |at: Pos2| {
+            if has_text_menu && !disabled.get_untracked() {
+                set_menu_at.set(Some(at));
+            }
+            on_menu.call(at);
+        })),
         on_submit,
     });
     state.publish_layout(TextAreaLayout::new(cx.clone()));
@@ -1210,7 +1220,9 @@ pub fn TextArea(
         actions::register(&state, &disabled);
     }
 
-    view! {
+    let menu_state = state.clone();
+    let menu_masked = masked.clone();
+    let area = view! {
         <Frame @node_ref=&outer color={outer_color}>
             <List spacing=0.0>
                 <Show condition={single_line}>
@@ -1252,6 +1264,22 @@ pub fn TextArea(
                 </Show>
             </List>
         </Frame>
+    };
+    match has_text_menu {
+        false => area,
+        true => view! {
+            <TextContextMenu
+                state={menu_state}
+                menu={text_menu}
+                masked={menu_masked}
+                disabled
+                open_at={menu_at}
+                child_size=ItemSize::Percent(100.0)
+                on_close={move || set_menu_at.set(None)}
+            >
+                {area}
+            </TextContextMenu>
+        },
     }
 }
 

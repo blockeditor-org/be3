@@ -1,6 +1,6 @@
 use beui_macros::{component, view};
 
-use crate::context_menu::text_input_menu;
+use crate::context_menu::text_menu;
 use crate::scroll::scrollbar_style;
 use crate::text::Icon;
 use crate::theme::{BORDER_WIDTH, CARD_RADIUS, FONT_BODY, FONT_SMALL, RADIUS, use_theme};
@@ -43,7 +43,7 @@ pub fn CommandPalette(open: Prop<bool>, on_close: ClickCallback) -> NodeId {
             search_content={|handle| view! {
                 <PaletteSearch handle />
             }}
-            search_menu={text_input_menu()}
+            search_menu={text_menu()}
             scrollbar={scrollbar_style()}
             row={|handle| view! {
                 <PaletteRow handle />

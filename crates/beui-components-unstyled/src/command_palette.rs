@@ -19,7 +19,8 @@ use beui_view::reactive::{
 use crate as unstyled;
 use crate::button::ButtonHandle;
 use crate::scroll::ScrollbarStyle;
-use crate::text_input::{TextInputHandle, TextInputMenu};
+use crate::text_input::TextInputHandle;
+use crate::text_menu::TextMenu;
 
 pub struct CommandRowHandle {
     pub label: Prop<String>,
@@ -63,7 +64,7 @@ pub fn CommandPalette(
     search_caret_color: Prop<Color32>,
     search_padding_horizontal: Prop<f32>,
     search_content: Option<Render<TextInputHandle>>,
-    #[prop(default = TextInputMenu::default())] search_menu: TextInputMenu,
+    #[prop(default = TextMenu::default())] search_menu: TextMenu,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     row: Option<RenderFn<CommandRowHandle>>,
     #[prop(children)] panel: Option<Render<Child>>,
