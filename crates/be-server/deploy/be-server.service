@@ -1,0 +1,21 @@
+[Unit]
+Description=be-server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=be-server
+Group=be-server
+EnvironmentFile=-/etc/be-server/server.env
+ExecStart=/usr/local/bin/be-server --addr 127.0.0.1:9090 --data-dir /var/lib/be-server $BE_SERVER_FLAGS
+Restart=always
+RestartSec=2
+LimitNOFILE=65536
+StateDirectory=be-server
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, hash_map::Entry},
     path::{Path, PathBuf},
+    time::{Duration, Instant},
 };
 
 use argon2::{
@@ -49,7 +50,19 @@ pub struct ServerStore {
     objects: FileStore,
     graphs: Mutex<HashMap<Uuid, BlockGraph>>,
     object_refs: std::sync::Mutex<ObjectRefs>,
+    hashing: tokio::sync::Semaphore,
+    failures: std::sync::Mutex<HashMap<String, Failures>>,
 }
+
+struct Failures {
+    count: u32,
+    until: Option<Instant>,
+}
+
+const PASSWORD_CHECKS_AT_ONCE: usize = 4;
+const FREE_FAILURES: u32 = 5;
+const FIRST_LOCKOUT: Duration = Duration::from_secs(30);
+const LONGEST_LOCKOUT: Duration = Duration::from_secs(60 * 60);
 
 impl ServerStore {
     pub fn open(root: impl AsRef<Path>) -> Result<Self, ServerError> {
@@ -63,6 +76,8 @@ impl ServerStore {
             objects: FileStore::open(root.join("objects"))?,
             graphs: Mutex::new(HashMap::new()),
             object_refs: std::sync::Mutex::new(object_refs),
+            hashing: tokio::sync::Semaphore::new(PASSWORD_CHECKS_AT_ONCE),
+            failures: std::sync::Mutex::new(HashMap::new()),
         })
     }
 
@@ -86,7 +101,7 @@ impl ServerStore {
                 "a password must be at least eight characters".into(),
             ));
         }
-        let hash = hash_password(password)?;
+        let hash = self.hash(password.to_owned()).await?;
         let account = Uuid::new_v4();
         let database = self.database.lock().await;
         let existing: Option<String> = database
@@ -123,28 +138,39 @@ impl ServerStore {
         password: &str,
     ) -> Result<(Profile, String), ServerError> {
         let email = normalize_email(email)?;
-        let database = self.database.lock().await;
-        let row: Option<(String, String, String)> = database
-            .query_row(
-                "SELECT id, display_name, password_hash FROM accounts WHERE email = ?1",
-                [&email],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )
-            .optional()?;
-        let Some((id, display_name, hash)) = row else {
+        if let Some(wait) = self.locked_out(&email) {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidCredentials,
+                format!(
+                    "too many failed sign-ins for this account; try again in {} seconds",
+                    wait.as_secs().max(1)
+                ),
+            ));
+        }
+        let row: Option<(String, String, String)> = {
+            let database = self.database.lock().await;
+            database
+                .query_row(
+                    "SELECT id, display_name, password_hash FROM accounts WHERE email = ?1",
+                    [&email],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .optional()?
+        };
+        let hash = row
+            .as_ref()
+            .map_or_else(|| dummy_hash().to_owned(), |(_, _, hash)| hash.clone());
+        let matches = self.verify(password.to_owned(), hash).await?;
+        let Some((id, display_name, _)) = row.filter(|_| matches) else {
+            self.failed(&email);
             return Err(ServerError::Refused(
                 ErrorCode::InvalidCredentials,
                 "no account matches those credentials".into(),
             ));
         };
-        if !verify_password(password, &hash) {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidCredentials,
-                "no account matches those credentials".into(),
-            ));
-        }
+        self.failures.lock().unwrap().remove(&email);
         let account = parse_uuid(&id)?;
-        let token = issue_token(&database, account)?;
+        let token = issue_token(&*self.database.lock().await, account)?;
         Ok((
             Profile {
                 account,
@@ -153,6 +179,59 @@ impl ServerStore {
             },
             token,
         ))
+    }
+
+    fn locked_out(&self, email: &str) -> Option<Duration> {
+        let failures = self.failures.lock().unwrap();
+        let until = failures.get(email)?.until?;
+        until.checked_duration_since(Instant::now())
+    }
+
+    fn failed(&self, email: &str) {
+        let mut failures = self.failures.lock().unwrap();
+        let entry = failures.entry(email.to_owned()).or_insert(Failures {
+            count: 0,
+            until: None,
+        });
+        entry.count += 1;
+        if entry.count >= FREE_FAILURES {
+            let doublings = (entry.count - FREE_FAILURES).min(16);
+            let wait = FIRST_LOCKOUT
+                .saturating_mul(1 << doublings)
+                .min(LONGEST_LOCKOUT);
+            entry.until = Some(Instant::now() + wait);
+            tracing::warn!(email, failures = entry.count, ?wait, "sign-ins locked out");
+        }
+    }
+
+    async fn hash(&self, password: String) -> Result<String, ServerError> {
+        let _permit = self
+            .hashing
+            .acquire()
+            .await
+            .map_err(|_| ServerError::Corrupt)?;
+        tokio::task::spawn_blocking(move || hash_password(&password))
+            .await
+            .map_err(|_| ServerError::Corrupt)?
+    }
+
+    async fn verify(&self, password: String, hash: String) -> Result<bool, ServerError> {
+        let _permit = self
+            .hashing
+            .acquire()
+            .await
+            .map_err(|_| ServerError::Corrupt)?;
+        tokio::task::spawn_blocking(move || verify_password(&password, &hash))
+            .await
+            .map_err(|_| ServerError::Corrupt)
+    }
+
+    pub async fn checkpoint(&self) -> Result<(), ServerError> {
+        self.database
+            .lock()
+            .await
+            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")?;
+        Ok(())
     }
 
     pub async fn resolve_token(&self, token: &str) -> Result<Profile, ServerError> {
@@ -614,6 +693,13 @@ fn hash_password(password: &str) -> Result<String, ServerError> {
         .hash_password(password.as_bytes(), &salt)
         .map(|hash| hash.to_string())
         .map_err(|_| ServerError::Corrupt)
+}
+
+fn dummy_hash() -> &'static str {
+    static DUMMY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    DUMMY.get_or_init(|| {
+        hash_password(&Uuid::new_v4().to_string()).expect("hashing a random password succeeds")
+    })
 }
 
 fn verify_password(password: &str, hash: &str) -> bool {

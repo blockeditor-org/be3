@@ -9,7 +9,7 @@ use be_protocol::{
 use be_session::{Resume, resume, takeover_needs_merge};
 use be_store::{ChunkerConfig, ContentKey, Hash, MemoryStore, ObjectStore, Vault};
 use futures_util::{SinkExt, StreamExt};
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, sync::oneshot};
 use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message as WsMessage,
 };
@@ -17,6 +17,9 @@ use uuid::Uuid;
 
 use super::*;
 
+mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
+mod a_bunny_storage_zone_holds_a_backup;
+mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
 mod a_session_hands_ownership_over_without_a_merge;
 mod a_stale_publish_is_rejected_with_the_current_head;
@@ -28,9 +31,11 @@ mod blocks_publish_and_read_back_through_the_server;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
 mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
+mod old_database_backups_thin_out_by_age;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
 mod pruning_history_keeps_pinned_commits;
 mod relayed_session_traffic_passes_through_the_server_sealed;
+mod repeated_failed_sign_ins_lock_the_account_out;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
 mod workspace_keys_are_sealed_per_member_and_never_overwritten;
 
@@ -45,13 +50,16 @@ struct Harness {
 
 impl Harness {
     async fn start() -> Self {
-        let directory = std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()));
+        Self::at(std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()))).await
+    }
+
+    async fn at(directory: PathBuf) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let (shutdown, receiver) = oneshot::channel();
         let data_dir = directory.clone();
         let handle = tokio::spawn(async move {
-            let _ = serve_until_shutdown(listener, data_dir, receiver).await;
+            let _ = serve_with_config(listener, data_dir, ServerConfig::OPEN, receiver).await;
         });
         Self {
             url: format!("ws://{address}"),

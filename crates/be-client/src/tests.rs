@@ -46,7 +46,13 @@ impl Harness {
         let (shutdown, receiver) = oneshot::channel();
         let data_dir = directory.clone();
         let handle = tokio::spawn(async move {
-            let _ = be_server::serve_until_shutdown(listener, data_dir, receiver).await;
+            let _ = be_server::serve_with_config(
+                listener,
+                data_dir,
+                be_server::ServerConfig::OPEN,
+                receiver,
+            )
+            .await;
         });
         Self {
             url: format!("ws://{address}"),

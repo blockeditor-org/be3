@@ -81,7 +81,7 @@ positional.
     every older schema.
   - Web `SavedAccount` fields get `#[serde(default)]`.
 
-## Phase 3: A real encryption key, with backup (mostly done)
+## Phase 3: A real encryption key, with backup (done)
 
 Landed: random workspace keys kept on each device, a recovery phrase per account
 whose public half seals every workspace key on the server, unlocking a new
@@ -93,85 +93,30 @@ It differs from the first design in one way: there are no device key pairs.
 Each device keeps the workspace key itself and the server holds only copies
 sealed to recovery keys, because a device key pair added nothing a device's
 own copy does not already give it, and pairing hands the key over directly.
+What it leaves for a public release is in `plans/public_release.md`.
 
-Still to do:
-- Keep workspace keys and the session token in the OS keystore (Keychain,
-  Android Keystore, libsecret/DPAPI, non-extractable WebCrypto) rather than
-  plaintext app state.
-- Key epochs (with the phase 2 object prefix), so a key can rotate after a
-  member leaves.
 
-## Phase 4: A server you can leave running
+## Phase 4: A server you can leave running (done)
 
-Today registration is open by default. There is no TLS, no rate limiting,
-no backups, no logging, and no signal handling. `serve.sh` only disables
-registration when it gets no other arguments, so `--domain x` runs with
-signups open.
+Landed:
+- Registration is closed unless `--allow-registration` is given, sign-ins with
+  a password unless `--allow-login` is, and `--add-account` reads the password
+  from standard input.
+- Password checks run off the database lock, at most four at a time, with a
+  dummy hash for unknown emails. An email is locked out after five failed
+  sign-ins, for 30 seconds doubling to an hour.
+- A handshake timeout, server pings with an idle timeout, a bounded outbound
+  queue, a connection cap, and accept errors that no longer stop the server.
+- `tracing` logs, and SIGTERM stops the server after a WAL checkpoint.
+- `be-server backup`, `restore` and `verify`, to a directory or a Bunny Storage
+  zone, with the database sealed by a backup key and old snapshots thinned.
+- systemd units, a Caddyfile and `guides/hosting.md`.
 
-- **Closed by default.**
-  - `allow_registration` defaults to false. `--allow-registration` turns it
-    on, which the dev targets pass.
-  - `--add-account` reads the password from stdin, not argv.
-- **Auth hardening.**
-  - Tokens get a creation time, an expiry with sliding renewal, and
-    revocation.
-  - Add change-password and "sign out other devices".
-  - Run Argon2 in `spawn_blocking` and outside the database mutex. Today a
-    login flood stalls every request (`be-server/src/store.rs:126-140`).
-  - Verify a dummy hash when the email is unknown, to remove the timing
-    oracle.
-  - Rate-limit logins per IP. Behind Caddy that means the forwarded address.
-- **Isolation, for the day a second person gets an invite.**
-  - Scope `GetObject`, `PutObject` and `MissingObjects` to the open
-    workspace.
-  - Check access on `Watch`, `ClaimOwnership`, `Relay` and the other session
-    messages.
-  - Key the session registry and watchers by (workspace, block).
-  - Today these are keyed by block UUID alone, and the client picks the
-    UUID (`lib.rs:605-708`, `sessions.rs:11`).
-- **Resource limits.**
-  - Add a connection cap, a handshake timeout, an idle timeout with server
-    pings, and a bounded outbound queue per client. A slow reader currently
-    grows memory without bound (`lib.rs:183`).
-  - A per-account storage quota.
-  - An accept error must not stop the server (`lib.rs:129`).
-- **Operations.**
-  - Structured logging with `tracing`.
-  - A `/health` HTTP path.
-  - SIGTERM drains connections and checkpoints the WAL.
-  - A config file in place of growing flags.
-  - A systemd unit and a short `guides/hosting.md` for the existing VPS:
-    Caddy terminates TLS and be-server binds to 127.0.0.1.
-- **Backups, to Bunny Storage.**
-  - `be-server backup`:
-    1. `VACUUM INTO` the database.
-    2. Upload the snapshot under a dated name.
-    3. Upload the objects added since the last run, and never delete any.
-    - Objects are immutable and the database snapshot is taken first, so
-      the copy is consistent.
-    - Uploads use Bunny's storage HTTP API (a `PUT` per file with the zone's
-      access key).
-    - A local list of uploaded hashes avoids listing the zone each run.
-  - The snapshot itself is not end-to-end encrypted: it holds accounts,
-    password hashes and the block graph. Encrypt it with a backup key before
-    upload. Objects are already ciphertext.
-  - Run it hourly from a systemd timer. Keep 48 hourly, 30 daily and 12
-    monthly database snapshots. They are small, and the objects are shared
-    by all of them.
-  - The zone's access key on the VPS can also delete backups. Enable
-    replication to a second Bunny region, and keep an occasional pulled copy
-    on a machine the VPS cannot reach.
-  - `be-server verify` checks every referenced object exists and hashes
-    correctly. Run it after each backup.
-  - **Done when** a restore drill from backup into an empty data directory
-    opens the workspace, and that drill is a test.
-  - The data is end-to-end encrypted, so the backup is useless without the
-    recovery key (phase 3). Say this in the hosting guide.
-- **Garbage collection stays off.**
-  - `CollectDetached` and `PruneHistory` are never called by the app. That
-    is the safe default until trash and history (phase 7) define what may be
-    reclaimed.
-  - Unpublished objects are never collected either. Note it and watch disk.
+Garbage collection stays off: the app never sends `CollectDetached` or
+`PruneHistory`, and unpublished objects are never collected, until trash and
+history (phase 7) define what may be reclaimed. Token expiry, changing a
+password, per-IP limits, storage quotas, a health endpoint and a config file
+wait for a public release (`plans/public_release.md`).
 
 ## Phase 5: Offline and flaky connections
 
@@ -232,15 +177,6 @@ Today:
   - two devices edit the same note offline, then both reconnect;
   - the connection dies mid-seal.
 - No sleeping: drive time with the frame clock and the transport.
-
-### Web: deferred until before a public release
-
-- Dogfooding uses native and Android.
-- Web offline later needs an IndexedDB object store and refs database.
-  `ObjectStore` is synchronous, so that needs an in-memory front with async
-  write-behind.
-- Device keys on web will need non-extractable WebCrypto keys kept in
-  IndexedDB (phase 3).
 
 ## Phase 6: Text editor at 120 fps on a large file
 
@@ -371,10 +307,10 @@ and deleting a database stops being a fix.
 
 ## Suggested order
 
-1. Phase 6.1 (anchors), and the rest of phase 3.
-2. Phase 2, versioning the formats, whenever it is convenient.
-3. Phase 4. Start the server, and take backups from day one.
+1. Start the server on the VPS (`guides/hosting.md`), with backups from day one.
+2. The profiling at the start of phase 6.
+3. Phase 2, versioning the formats, whenever it is convenient.
 4. Phases 5 and 7 in parallel. Start real use when offline open, the status
    indicator, Move to…, search and export exist.
-5. The rest of phase 6, measured against the benchmark.
+5. The rest of phase 6, measured against the profile.
 6. Phase 8, the freeze, last.

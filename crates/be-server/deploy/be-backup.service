@@ -1,0 +1,17 @@
+[Unit]
+Description=Back up be-server to Bunny Storage
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=be-server
+Group=be-server
+EnvironmentFile=/etc/be-server/backup.env
+ExecStart=/usr/local/bin/be-server backup --data-dir /var/lib/be-server --to bunny:${BUNNY_STORAGE_ZONE} --key-file /etc/be-server/backup.key
+ExecStartPost=/usr/local/bin/be-server verify --data-dir /var/lib/be-server
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/be-server
+PrivateTmp=true
