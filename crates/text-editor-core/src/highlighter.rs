@@ -38,7 +38,7 @@ impl Language {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SynHlColorScope {
     Invalid,
     PunctuationImportant,
@@ -89,21 +89,21 @@ impl SynHlColorScope {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SynHlFontFamily {
     #[default]
     Proportional,
     Monospace,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SynHlTextSize {
     #[default]
     Body,
     Heading(u8),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SynHlStyle {
     pub color: SynHlColorScope,
     pub family: SynHlFontFamily,
@@ -145,7 +145,7 @@ struct MarkdownSource {
     windows: Mutex<Vec<(usize, Arc<markdown::MarkdownWindow>)>>,
 }
 
-const MARKDOWN_WINDOWS_KEPT: usize = 16;
+const MARKDOWN_WINDOWS_KEPT: usize = 32;
 const MARKDOWN_WINDOW_LIMIT: usize = 4 * markdown::WINDOW_TARGET;
 
 impl MarkdownSource {
@@ -163,10 +163,13 @@ impl MarkdownSource {
             .windows
             .lock()
             .expect("the markdown windows were poisoned");
-        if let Some((start, window)) = windows
+        if let Some(found) = windows
             .iter()
-            .find(|(start, window)| (*start..*start + window.len).contains(&index))
+            .position(|(start, window)| (*start..*start + window.len).contains(&index))
         {
+            let last = windows.len() - 1;
+            windows[found..].rotate_left(usize::from(found != last));
+            let (start, window) = &windows[last];
             return (*start, Arc::clone(window));
         }
         let range = markdown::window_range(&self.bytes, &self.fences, index..index + 1);

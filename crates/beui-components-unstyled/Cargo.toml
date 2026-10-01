@@ -9,6 +9,7 @@ accesskit = "0.24.1"
 beui-core = { path = "../beui-core" }
 beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
+foldhash = "0.2"
 memchr = "2"
 reactive = { path = "../reactive" }
 serde = { version = "1", features = ["derive"] }

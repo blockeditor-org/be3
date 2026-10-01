@@ -1,4 +1,8 @@
 use std::cell::{Cell, Ref, RefCell, RefMut};
+use std::collections::HashMap;
+use std::hash::{BuildHasher, Hash, Hasher};
+
+use foldhash::fast::FixedState;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -132,6 +136,7 @@ impl Find {
 struct Inner {
     core: RefCell<Core>,
     snapshot: RefCell<Snapshot>,
+    heights: RefCell<HashMap<u64, (f32, f32)>>,
     find: Find,
     canvas: NodeRef,
     cursor_cache: RefCell<Vec<CursorPosition>>,
@@ -180,6 +185,7 @@ impl TextAreaState {
         let state = Self(Rc::new(Inner {
             core: RefCell::new(core),
             snapshot: RefCell::new(Snapshot::default()),
+            heights: RefCell::default(),
             find: Find::new(),
             canvas: NodeRef::new(),
             cursor_cache: RefCell::new(Vec::new()),
@@ -428,6 +434,8 @@ impl TextAreaState {
         let wrap = (width - super::PADDING.x * 2.0).max(1.0);
         let mut height = DOCUMENT_PADDING.y;
         let (mut shaped_bytes, mut shaped_height, mut one_line) = (0usize, 0.0f32, f32::MAX);
+        let mut held = self.0.heights.borrow_mut();
+        let mut heights = HashMap::with_capacity(held.len());
         for line in 0..starts.len() {
             let (start, end, newline) = line_range(&snapshot.bytes, starts, line)?;
             if snapshot.hidden.iter().any(|range| range.contains(&start)) {
@@ -448,15 +456,24 @@ impl TextAreaState {
                 spacers: &[],
                 placeholder: None,
             };
-            let row = build_row(&inputs, line, start, end, newline);
-            let row_height = rich_layout(&row, options.body_size, options.padding(), wrap)?
-                .size
-                .y;
-            height += row_height + row.block.map_or(0.0, |(_, size)| size.y);
+            let key = line_key(&snapshot, widgets, start, end, wrap);
+            let (row_height, block) = match held.get(&key) {
+                Some(measured) => *measured,
+                None => {
+                    let row = build_row(&inputs, line, start, end, newline);
+                    let row_height = rich_layout(&row, options.body_size, options.padding(), wrap)?
+                        .size
+                        .y;
+                    (row_height, row.block.map_or(0.0, |(_, size)| size.y))
+                }
+            };
+            heights.insert(key, (row_height, block));
+            height += row_height + block;
             shaped_bytes += end - start + 1;
             shaped_height += row_height;
             one_line = one_line.min(row_height);
         }
+        *held = heights;
         Some(Vec2::new(width, height))
     }
 
@@ -605,6 +622,43 @@ impl TextAreaState {
         self.0.cursor_counter.set(self.0.cursor_counter.get() + 1);
         self.0.set_cursors.set(self.0.cursor_counter.get());
     }
+}
+
+fn line_key(snapshot: &Snapshot, widgets: &[TextWidget], start: usize, end: usize, wrap: f32) -> u64 {
+    let mut hasher = FixedState::with_seed(0).build_hasher();
+    wrap.to_bits().hash(&mut hasher);
+    let last = (end + 1).min(snapshot.bytes.len());
+    snapshot.bytes[start..last].hash(&mut hasher);
+    let mut runs = snapshot.highlight().styles_in(start..last).into_iter();
+    if let Some(mut style) = runs.next() {
+        let mut length = 1usize;
+        for next in runs {
+            if next == style {
+                length += 1;
+                continue;
+            }
+            (style, length).hash(&mut hasher);
+            (style, length) = (next, 1);
+        }
+        (style, length).hash(&mut hasher);
+    }
+    for widget in widgets
+        .iter()
+        .filter(|widget| widget.range.start <= end && widget.range.end >= start)
+    {
+        (widget.range.start.wrapping_sub(start), widget.range.end.wrapping_sub(start)).hash(&mut hasher);
+        (&widget.label, widget.icon, widget.italic).hash(&mut hasher);
+        widget
+            .block_size
+            .map(|size| (size.x.to_bits(), size.y.to_bits()))
+            .hash(&mut hasher);
+    }
+    snapshot
+        .sections
+        .iter()
+        .any(|section| section.collapsed && section.line_start == start)
+        .hash(&mut hasher);
+    hasher.finish()
 }
 
 fn read_bytes(core: &Core) -> Vec<u8> {
