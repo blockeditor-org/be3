@@ -258,19 +258,13 @@ retained. Editing is O(document) many times per keystroke. Fix in this order;
 each item has a work-count test in the style of
 `a_long_text_area_only_builds_the_lines_in_view.rs`.
 
-1. **Anchors.**
-   - Every byte carries a UUID, and finding one is a linear scan
-     (`editors/text-block/src/document.rs:31-79`). That is 160 MB of anchors
-     for 10 MB, and each caret move scans it many times over.
-   - Done: a rope (or piece table) for the bytes, and a position index for
-     anchors that does not scan.
-   - This is in memory and on the wire only; stored text is raw UTF-8 and
-     does not change.
-   - The edit operation format on the wire may change freely before the
-     protocol freezes in phase 8.
-2. **Graphemes.** `grapheme_boundaries` segments the whole document on every
-   left/right, backspace and click (`text-editor-core/src/core.rs:2591-2621`).
-   Segment only the surrounding line.
+1. **Anchors (done).** Anchors exist only for positions in use
+   (`text_editor_core::AnchorTable`), so finding one no longer scans the text.
+   The bytes are still a flat `Vec<u8>`, spliced in O(n) at several layers. A
+   rope or piece table is worth it once items 3-5 stop the whole-document
+   copies, and measuring says the splice matters.
+2. **Graphemes (done).** Boundaries are found within the surrounding line, and
+   an ASCII byte on the right needs no segmenting at all.
 3. **Measuring.**
    - `TextAreaState::measure` shapes every line on each change, which also
      empties the shape cache (`text_area/state.rs:413-449`).

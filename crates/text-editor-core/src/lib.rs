@@ -1,7 +1,9 @@
+mod anchors;
 mod core;
 mod document;
 mod highlighter;
 
+pub use anchors::AnchorTable;
 pub use core::*;
 pub use document::{
     Anchor, Document, DocumentEdit, DocumentRead, DocumentView, TextBuffer, TextIndentation,
