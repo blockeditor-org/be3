@@ -9,6 +9,7 @@ use beui_core::node::NodeId;
 
 use beui_core::base::focus::ImeCursor;
 use beui_core::base::interactive::InteractiveNode;
+use beui_core::interact::forward::ForwardedInput;
 use beui_macros::component;
 
 #[component]
@@ -56,6 +57,8 @@ pub fn Interactive(
     on_zoom: Callback<ZoomGesture>,
     capture_at: Callback<Pos2, bool>,
     intercept_at: Callback<Pos2, bool>,
+    on_forward: Callback<ForwardedInput>,
+    forward_at: Callback<Pos2, bool>,
     children: Option<Child>,
 ) -> NodeId {
     assert!(
@@ -106,6 +109,8 @@ pub fn Interactive(
         node.on_zoom = on_zoom;
         node.capture_at = capture_at;
         node.intercept_at = intercept_at;
+        node.on_forward = on_forward;
+        node.forward_at = forward_at;
         if let Some(child) = children {
             document.set_interactive_child(interactive, child);
         }

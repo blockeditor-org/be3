@@ -12,6 +12,7 @@ use beui_core::damage::Region;
 use beui_core::display::{Display, Layer, Part};
 use beui_core::draw::{Quad, Turn, push_quads};
 use beui_core::drawing::Drawing;
+use beui_core::fade::Fade;
 use beui_core::filter::Filter;
 use beui_core::font::{GlyphId, GlyphImage};
 use beui_core::geometry::{Rect, Vec2};
@@ -296,6 +297,8 @@ struct Space {
     translation: [f32; 2],
     padding: [f32; 2],
     clip: [f32; 4],
+    fade: [f32; 4],
+    widths: [f32; 4],
 }
 
 const OPEN: [f32; 4] = [-1.0e9, -1.0e9, 1.0e9, 1.0e9];
@@ -419,6 +422,7 @@ struct Walk {
     bound: [f32; 4],
     offset: Vec2,
     clip: Rect,
+    fade: Fade,
 }
 
 impl Walk {
@@ -447,10 +451,22 @@ impl Walk {
 
     fn enter(&self, entry: Entry, frame: &mut Frame) -> Self {
         let clip = self.clip.intersect(entry.clip.translate(self.offset));
+        let fade = self.fade.within(
+            entry
+                .fade
+                .translate(self.offset)
+                .scaled(self.factor, Vec2::new(self.origin[0], self.origin[1])),
+        );
         let Some(shift) = entry.shift else {
+            let space = match entry.fade.is_none() {
+                true => self.space,
+                false => frame.space(self.origin, self.bound, fade),
+            };
             return Self {
                 offset: self.offset + entry.translation,
                 clip,
+                space,
+                fade,
                 ..*self
             };
         };
@@ -462,11 +478,12 @@ impl Walk {
         let bound = overlap(pixels(clip, self.factor, self.origin), self.bound);
         Self {
             factor: self.factor,
-            space: frame.space(origin, bound),
+            space: frame.space(origin, bound, fade),
             origin,
             bound,
             offset: entry.translation - shift,
             clip: Rect::EVERYTHING,
+            fade,
         }
     }
 }
@@ -478,23 +495,29 @@ struct Frame<'a> {
     screen: Vec2,
     pixels_per_point: f32,
     spaces: Vec<Space>,
-    slots: HashMap<[u32; 6], u32>,
+    slots: HashMap<[u32; 14], u32>,
     staging: Vec<Instance>,
     drawings: Vec<(Drawing, DrawAt)>,
     overflow: bool,
 }
 
 impl Frame<'_> {
-    fn space(&mut self, origin: [f32; 2], bound: [f32; 4]) -> u32 {
+    fn space(&mut self, origin: [f32; 2], bound: [f32; 4], fade: Fade) -> u32 {
         let bound = bound.map(|value| value.clamp(OPEN[0], OPEN[2]));
-        let key = [
-            origin[0].to_bits(),
-            origin[1].to_bits(),
-            bound[0].to_bits(),
-            bound[1].to_bits(),
-            bound[2].to_bits(),
-            bound[3].to_bits(),
-        ];
+        let rect = [
+            fade.rect.min.x,
+            fade.rect.min.y,
+            fade.rect.max.x,
+            fade.rect.max.y,
+        ]
+        .map(|value| value.clamp(OPEN[0], OPEN[2]));
+        let mut key = [0; 14];
+        for (slot, value) in key
+            .iter_mut()
+            .zip(origin.iter().chain(&bound).chain(&rect).chain(&fade.widths))
+        {
+            *slot = value.to_bits();
+        }
         if let Some(slot) = self.slots.get(&key) {
             return *slot;
         }
@@ -503,6 +526,8 @@ impl Frame<'_> {
             translation: origin,
             padding: [0.0; 2],
             clip: bound,
+            fade: rect,
+            widths: fade.widths,
         });
         self.slots.insert(key, slot);
         slot
@@ -600,7 +625,7 @@ impl Renderer {
             label: Some("beui space layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: true,
@@ -923,7 +948,7 @@ impl Renderer {
                 drawings: Vec::new(),
                 overflow: false,
             };
-            frame.space([0.0; 2], OPEN);
+            frame.space([0.0; 2], OPEN, Fade::NONE);
             let top = self.list_top;
             let drawn = self.emit(&mut frame, output, repaint, prepared.is_some());
             if !frame.overflow {
@@ -1085,11 +1110,12 @@ impl Renderer {
                     let bound = overlap(pixels(*clip, pixels_per_point, [0.0; 2]), OPEN);
                     let at = Walk {
                         factor: pixels_per_point * scale,
-                        space: frame.space([0.0; 2], bound),
+                        space: frame.space([0.0; 2], bound, Fade::NONE),
                         origin: [0.0; 2],
                         bound,
                         offset: entry.translation,
                         clip: entry.clip,
+                        fade: Fade::NONE,
                     };
                     let mut top = Vec::new();
                     self.walk(frame, display, at, target, &mut top);
@@ -1321,6 +1347,7 @@ impl Renderer {
                 bound,
                 offset: entry.translation,
                 clip: entry.clip,
+                fade: Fade::NONE,
             };
             mark(display, at, &mut live);
         }
@@ -1658,6 +1685,7 @@ fn mark(display: &Display, at: Walk, live: &mut std::collections::HashSet<ListKe
                     bound: overlap(pixels(clip, at.factor, at.origin), at.bound),
                     offset: entry.translation - shift,
                     clip: Rect::EVERYTHING,
+                    fade: at.fade,
                 }
             }
         };

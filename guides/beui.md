@@ -601,6 +601,17 @@ names a colour. The gutter is always reserved, and the bar paints nothing while
 its content fits, so a scroll that grows past its viewport does not shift the
 content beside it.
 
+`ScrollbarStyle::fading(length)` also fades the content out toward each edge
+that has more content beyond it, over at most `length` points and only as far
+as the content has scrolled, so a scroll whose rows happen to end exactly at
+its edge still reads as scrollable. The styled layer's scrollbar style fades by
+`theme::SCROLL_FADE`, so `styled::Scroll` and every styled control that scrolls
+fade. The offset puts the fade on the entries of its items (`Painter::faded`,
+`Entry::fade`), the same way it puts its clip there: the wgpu renderer
+multiplies the alpha of everything in that space by it in the shader, and the
+DOM renderer masks the item's frame with a gradient. Shapes a node paints
+itself and custom `Drawing`s are not faded.
+
 Under both sits the base `Offset`, which is named for what
 it does rather than for what it is used for: it holds a run of items along a
 direction and lays them out from an offset, with no bar, no theme, and no input

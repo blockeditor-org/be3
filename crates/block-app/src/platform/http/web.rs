@@ -5,6 +5,14 @@ use wasm_bindgen_futures::JsFuture;
 
 type Outcome = Rc<RefCell<Option<Result<Vec<u8>, String>>>>;
 
+pub(crate) fn fetch(
+    url: String,
+    headers: Vec<(&'static str, String)>,
+    deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
+) {
+    wasm_bindgen_futures::spawn_local(async move { deliver(run(url, headers).await) });
+}
+
 pub(crate) struct Fetch {
     state: Outcome,
 }
@@ -19,13 +27,6 @@ impl Fetch {
             crate::host::wake();
         });
         Self { state }
-    }
-
-    pub(crate) fn answered(result: Result<Vec<u8>, String>) -> Self {
-        crate::host::wake();
-        Self {
-            state: Rc::new(RefCell::new(Some(result))),
-        }
     }
 
     pub(crate) fn poll(&self) -> Option<Result<Vec<u8>, String>> {

@@ -251,7 +251,7 @@ impl Document {
         self.update_focus(None);
     }
 
-    fn focusables(&self) -> Vec<NodeId> {
+    pub(crate) fn focusables(&self) -> Vec<NodeId> {
         let mut out = Vec::new();
         let start = self
             .overlay_stack

@@ -1,19 +1,34 @@
 use block_editor_beui::be_block::AudioContent;
 use block_editor_beui::beui::icons::{ICON_AUDIO_FILE, ICON_PAUSE, ICON_PLAY_ARROW};
+use std::time::Duration;
+
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, NodeRef, Show, clone, component, create_memo, view,
+    Align, Direction, Frame, ItemSize, List, NodeRef, Show, clone, component, create_effect,
+    create_memo, create_signal, create_timer, now, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, IconButton, IconSized, use_theme,
 };
 use block_editor_beui::beui::{NodeId, TextAlign};
-use block_editor_beui::{Editor, FileChooser, Sidebar};
+use block_editor_beui::{AudioStatus, Editor, FileChooser, Sidebar};
 
 use super::{decode, filter, format_micros};
 
 const PADDING: f32 = 12.0;
 const SPACING: f32 = 8.0;
 const ICON_SIZE: f32 = 48.0;
+const SECOND_MICROS: u64 = 1_000_000;
+
+fn played_to(status: &AudioStatus, since: Duration) -> u64 {
+    let since = match status.playing {
+        true => since.as_micros() as u64,
+        false => 0,
+    };
+    let played = status.position_micros.saturating_add(since);
+    status
+        .duration_micros
+        .map_or(played, |duration| played.min(duration))
+}
 
 #[component]
 pub fn AudioView(editor: Editor) -> NodeId {
@@ -30,13 +45,32 @@ pub fn AudioView(editor: Editor) -> NodeId {
         true => "Pause".to_owned(),
         false => "Play".to_owned(),
     }));
-    let elapsed = create_memo(clone!(status -> move || {
-        status.with(|status| {
-            let duration = status
-                .duration_micros
-                .map_or_else(|| "--:--".to_owned(), format_micros);
-            format!("{} / {duration}", format_micros(status.position_micros))
+    let received = create_memo(clone!(status -> move || status.with(|_| now())));
+    let (clock, set_clock) = create_signal(now());
+    let position = create_memo(clone!(status received -> move || {
+        status.with(|status| played_to(status, clock.get().saturating_duration_since(received.get())))
+    }));
+    let ticking = create_timer(clone!(status received -> move || {
+        let at = now();
+        set_clock.set(at);
+        status.with_untracked(|status| {
+            let played = played_to(status, at.saturating_duration_since(received.get_untracked()));
+            let ended = status.duration_micros.is_some_and(|duration| played >= duration);
+            (status.playing && !ended)
+                .then(|| Duration::from_micros(SECOND_MICROS - played % SECOND_MICROS))
         })
+    }));
+    create_effect(clone!(status -> move || {
+        if status.with(|status| status.playing) {
+            ticking.restart(Duration::ZERO);
+        } else {
+            ticking.stop();
+        }
+    }));
+    let elapsed = create_memo(clone!(status position -> move || {
+        let duration = status.with(|status| status.duration_micros);
+        let duration = duration.map_or_else(|| "--:--".to_owned(), format_micros);
+        format!("{} / {duration}", format_micros(position.get()))
     }));
     let failed =
         create_memo(clone!(status -> move || status.with(|status| status.error.is_some())));
