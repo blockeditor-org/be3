@@ -72,7 +72,7 @@ struct Instance {
     intrinsic: Option<Vec2>,
     aspect_ratio: Option<f32>,
     pending: Vec<Pending>,
-    text_pastes: Vec<String>,
+    text_pastes: Vec<block_plugin_api::InputEvent>,
     audio: Option<AudioPlayer>,
     reported_audio: AudioStatus,
     reported_size: Option<Vec2>,
@@ -81,6 +81,8 @@ struct Instance {
     reported_view: Option<EditorView>,
     view_changes: Vec<ViewChange>,
     bar_actions: Vec<block_plugin_api::BarAction>,
+    menu: Vec<block_plugin_api::MenuEntry>,
+    child_menu_picks: Vec<(ChildId, String)>,
     presenting: bool,
     reported_presenting: bool,
     grabbed: bool,
@@ -123,18 +125,18 @@ impl ContentLink {
     }
 
     fn describe(&mut self, block: Uuid) {
-        let Some(content) = crate::be::content(block) else {
+        let Some(revision) = crate::be::content_revision(block) else {
             return;
         };
-        if self.described == Some(content.revision) || !crate::be::access(block).can_edit() {
+        if self.described == Some(revision) || !crate::be::access(block).can_edit() {
             return;
         }
-        self.described = Some(content.revision);
-        crate::be::describe_implicitly(block, crate::be::describe_of(&content).unwrap_or_default());
+        self.described = Some(revision);
+        crate::be::describe_implicitly(block, crate::be::describe_block(block).unwrap_or_default());
     }
 
     fn content_message(&mut self, instance: EditorInstanceId, block: Uuid) -> Option<Message> {
-        if crate::be::content(block).is_none() {
+        if crate::be::content_revision(block).is_none() {
             if !std::mem::replace(&mut self.opened, true) {
                 crate::be::open(block, self.content_type);
             }
@@ -253,6 +255,8 @@ impl Instance {
             reported_view: None,
             view_changes: Vec::new(),
             bar_actions: Vec::new(),
+            menu: Vec::new(),
+            child_menu_picks: Vec::new(),
             presenting: false,
             reported_presenting: false,
             grabbed: false,
@@ -823,6 +827,35 @@ impl Instances {
             .unwrap_or_default()
     }
 
+    pub(super) fn menu(&self, instance: EditorInstanceId) -> Vec<block_plugin_api::MenuEntry> {
+        self.entries
+            .get(&instance)
+            .map(|entry| entry.menu.clone())
+            .unwrap_or_default()
+    }
+
+    pub(super) fn menu_pick(&mut self, instance: EditorInstanceId, id: String) -> Vec<Message> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Message::Editor(EditorMessage::MenuPick { instance, id })]
+    }
+
+    pub(super) fn take_child_menu_picks(
+        &mut self,
+        instance: EditorInstanceId,
+        children: &[ChildId],
+    ) -> Vec<(ChildId, String)> {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return Vec::new();
+        };
+        let (taken, kept) = std::mem::take(&mut entry.child_menu_picks)
+            .into_iter()
+            .partition(|(child, _)| children.contains(child));
+        entry.child_menu_picks = kept;
+        taken
+    }
+
     pub(super) fn take_view_changes(&mut self, instance: EditorInstanceId) -> Vec<ViewChange> {
         self.entries
             .get_mut(&instance)
@@ -1388,6 +1421,7 @@ impl Instances {
                 capabilities: status.capabilities,
                 resize: status.resize,
                 error: status.error,
+                menu: status.menu,
             };
             if screen.reported_statuses.get(&status.child) == Some(&status) {
                 continue;
@@ -1866,10 +1900,7 @@ impl Instances {
             {
                 messages.push(Message::Input(block_plugin_api::InputBatch {
                     screen,
-                    events: texts
-                        .into_iter()
-                        .map(block_plugin_api::InputEvent::Paste)
-                        .collect(),
+                    events: texts,
                 }));
             }
             let entry = self.entries.get_mut(&instance).unwrap();
@@ -2319,9 +2350,11 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry
-                    .text_pastes
-                    .extend(super::clipboard::read_clipboard_text());
+                if let Some(text) = super::clipboard::read_clipboard_text() {
+                    entry
+                        .text_pastes
+                        .extend(block_plugin_api::paste_events(&text));
+                }
                 true
             }
             EditorMessage::ChildReplaced {
@@ -2407,6 +2440,24 @@ impl Instances {
                     return false;
                 };
                 entry.bar_actions.push(action);
+                true
+            }
+            EditorMessage::Menu { instance, entries } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.menu = entries;
+                true
+            }
+            EditorMessage::ChildMenuPick {
+                instance,
+                child,
+                id,
+            } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.child_menu_picks.push((child, id));
                 true
             }
             EditorMessage::ChangeView { instance, change } => {
@@ -2535,11 +2586,20 @@ impl Instances {
         vec![Message::Editor(EditorMessage::ClosePane { instance, pane })]
     }
 
-    pub(super) fn pane_more(&mut self, instance: EditorInstanceId, pane: PaneId) -> Vec<Message> {
+    pub(super) fn pane_menu_pick(
+        &mut self,
+        instance: EditorInstanceId,
+        pane: PaneId,
+        id: String,
+    ) -> Vec<Message> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
-        vec![Message::Editor(EditorMessage::PaneMore { instance, pane })]
+        vec![Message::Editor(EditorMessage::PaneMenuPick {
+            instance,
+            pane,
+            id,
+        })]
     }
 
     pub(super) fn take_artifact_watch(&mut self, instance: EditorInstanceId) -> Option<Vec<Uuid>> {

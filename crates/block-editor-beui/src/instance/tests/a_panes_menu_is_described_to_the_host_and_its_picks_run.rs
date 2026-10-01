@@ -1,17 +1,17 @@
 use super::*;
 use crate::EditorDock;
-use beui::reactive::{ClickCallback, Func, Text, create_signal, view};
-use beui::unstyled::dock_more;
-use block_plugin_api::{EMPTY_PANE, EditorMessage, Message};
+use beui::reactive::{Action, Func, Text, create_memo, create_signal, view};
+use beui::unstyled::dock_menu;
+use block_plugin_api::{EMPTY_PANE, EditorMessage, MenuEntry, Message};
 use std::cell::Cell;
 
 thread_local! {
     static PRESSED: Cell<u32> = const { Cell::new(0) };
 }
 
-struct MoreApp;
+struct MenuApp;
 
-impl crate::BeuiApp for MoreApp {
+impl crate::BeuiApp for MenuApp {
     fn view(editor: crate::Editor) -> beui::NodeId {
         let (layout, set_layout) = create_signal(DockState::new([TabId::new(1), TabId::new(2)]));
         view! {
@@ -25,9 +25,11 @@ impl crate::BeuiApp for MoreApp {
             >
                 {move |tab: TabId| {
                     if tab.value() == 2 {
-                        dock_more(ClickCallback::new(|| {
+                        let tidy = Action::new("tab.tidy", "Tidy up", || {
                             PRESSED.with(|pressed| pressed.set(pressed.get() + 1));
-                        }));
+                        })
+                        .register();
+                        dock_menu(create_memo(move || vec![tidy.clone()]));
                     }
                     view! {
                         <Text string={format!("tab {}", tab.value())} />
@@ -50,8 +52,8 @@ fn latest(session: &mut EditorSession) -> Option<PaneLayout> {
 }
 
 #[test]
-fn a_panes_more_button_is_pressed_by_the_host() {
-    let mut session = session::<MoreApp>(Uuid::new_v4());
+fn a_panes_menu_is_described_to_the_host_and_its_picks_run() {
+    let mut session = session::<MenuApp>(Uuid::new_v4());
     session.offer_panes(true);
     regions(&mut session, &[EditorRegion::Frame]);
     session.run(EditorRegion::Frame, 1);
@@ -66,23 +68,33 @@ fn a_panes_more_button_is_pressed_by_the_host() {
     session.run(empty, 2);
     session.run(EditorRegion::Frame, 3);
 
-    let described = latest(&mut session).expect("a pane asking for More is described again");
-    let wants = |pane: u64| {
+    let described = latest(&mut session).expect("a pane handing over a menu is described again");
+    let menu = |pane: u64| {
         described
             .panes
             .iter()
             .find(|info| info.pane == PaneId(pane))
-            .is_some_and(|info| info.more)
+            .map(|info| info.menu.clone())
+            .unwrap_or_default()
     };
-    assert!(wants(2), "the pane that asked for a More button has one");
-    assert!(!wants(1));
+    assert_eq!(
+        menu(2),
+        [MenuEntry {
+            id: "tab.tidy".into(),
+            label: "Tidy up".into(),
+            glyph: String::new(),
+            enabled: true,
+        }],
+        "the pane that handed over a menu is described with it"
+    );
+    assert!(menu(1).is_empty());
 
-    session.pane_more(PaneId(2));
+    session.pick_pane_menu(PaneId(2), "tab.tidy".into());
     session.run(EditorRegion::Frame, 4);
 
     assert_eq!(
         PRESSED.with(Cell::get),
         1,
-        "the host's press reaches the pane"
+        "the host's pick runs the pane's action"
     );
 }

@@ -32,11 +32,7 @@ use beui_core::node::NodeId;
 use beui_view::components::back::BackHandler;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, Child, ClickCallback, Dynamic, ForEach, Frame, Func, Interactive,
-    IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext, Show,
-    WriteSignal, clone, component_accessibility, component_rect, component_size, create_effect,
-    create_memo, create_signal, create_timer, node_scope, on_cleanup, on_shortcut, owner_scope,
-    provide_context, set_component_state, try_with_document, use_context, with_document,
+    Action, Callback, Canvas, CanvasItem, Child, ClickCallback, Dynamic, ForEach, Frame, Func, Interactive, IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext, Show, WriteSignal, clone, component_accessibility, component_rect, component_size, create_effect, create_memo, create_signal, create_timer, node_scope, on_cleanup, on_shortcut, owner_scope, provide_context, set_component_state, try_with_document, use_context, with_document,
 };
 
 pub use state::{
@@ -110,6 +106,7 @@ pub struct DockPanelHandle {
     pub grip: Option<NodeId>,
     pub bar: Option<NodeId>,
     pub closable: Memo<bool>,
+    pub menu: Memo<Vec<Action>>,
     pub close: ClickCallback,
     pub body: NodeId,
 }
@@ -135,8 +132,7 @@ pub struct DockStackHandle {
     pub away: Memo<bool>,
     pub tabs: Memo<Vec<TabId>>,
     pub actions: Memo<Option<NodeId>>,
-    pub more: Memo<bool>,
-    pub press_more: ClickCallback,
+    pub menu: Memo<Vec<Action>>,
     pub titles: Func<TabId, String>,
     pub icons: Func<TabId, String>,
     pub back: ClickCallback,
@@ -151,33 +147,43 @@ struct DockTabActions {
     set_actions: WriteSignal<HashMap<TabId, NodeId>>,
 }
 
-pub type DockMores = HashMap<TabId, (u64, ClickCallback)>;
+pub type DockMenus = HashMap<TabId, (u64, Memo<Vec<Action>>)>;
 
 #[derive(Clone)]
-pub struct DockTabMore {
+pub struct DockTabMenu {
     pub tab: TabId,
-    pub set_more: WriteSignal<DockMores>,
+    pub set_menu: WriteSignal<DockMenus>,
 }
 
 thread_local! {
-    static NEXT_MORE: Cell<u64> = const { Cell::new(1) };
+    static NEXT_MENU: Cell<u64> = const { Cell::new(1) };
 }
 
-pub fn dock_more(on_click: ClickCallback) {
-    let Some(DockTabMore { tab, set_more }) = use_context::<DockTabMore>() else {
+pub fn dock_menu(items: Memo<Vec<Action>>) {
+    let Some(DockTabMenu { tab, set_menu }) = use_context::<DockTabMenu>() else {
         return;
     };
-    let key = NEXT_MORE.with(|next| next.replace(next.get() + 1));
-    set_more.update(|all| {
-        all.insert(tab, (key, on_click));
+    let key = NEXT_MENU.with(|next| next.replace(next.get() + 1));
+    set_menu.update(|all| {
+        all.insert(tab, (key, items));
     });
     on_cleanup(move || {
-        set_more.update(|all| {
+        set_menu.update(|all| {
             if all.get(&tab).is_some_and(|(held, _)| *held == key) {
                 all.remove(&tab);
             }
         });
     });
+}
+
+pub fn dock_menu_items(menus: &ReadSignal<DockMenus>, tab: Option<TabId>) -> Vec<Action> {
+    let Some(tab) = tab else {
+        return Vec::new();
+    };
+    menus
+        .with(|menus| menus.get(&tab).map(|(_, items)| items.clone()))
+        .map(|items| items.get())
+        .unwrap_or_default()
 }
 
 pub fn dock_actions(actions: impl FnOnce() -> NodeId) {
@@ -208,6 +214,7 @@ pub struct DockWindowHandle {
     pub grip: NodeId,
     pub tabs: Option<NodeId>,
     pub closable: Memo<bool>,
+    pub menu: Memo<Vec<Action>>,
     pub close: ClickCallback,
     pub pane: NodeId,
 }
@@ -240,8 +247,8 @@ struct State {
     home: Memo<Option<TabId>>,
     actions: ReadSignal<HashMap<TabId, NodeId>>,
     set_actions: WriteSignal<HashMap<TabId, NodeId>>,
-    mores: ReadSignal<DockMores>,
-    set_more: WriteSignal<DockMores>,
+    menus: ReadSignal<DockMenus>,
+    set_menu: WriteSignal<DockMenus>,
     thickness: f32,
     group_inset: f32,
     rect: ReadSignal<Rect>,
@@ -323,16 +330,28 @@ impl State {
         }
     }
 
+    fn leaf_menu(self: &Rc<Self>, leaf: Option<LeafId>) -> Memo<Vec<Action>> {
+        let dock = Rc::clone(self);
+        create_memo(move || {
+            let tab = leaf.and_then(|leaf| {
+                dock.state
+                    .with(|state| state.active_entry(leaf))
+                    .and_then(Entry::tab)
+            });
+            dock_menu_items(&dock.menus, tab)
+        })
+    }
+
     fn panel(&self, tab: TabId) -> NodeId {
         if let Some(panel) = self.panels.borrow().get(&tab) {
             return *panel;
         }
         let scope = with_document(|document| node_scope(document, self.owner.clone()));
         let set_actions = self.set_actions.clone();
-        let set_more = self.set_more.clone();
+        let set_menu = self.set_menu.clone();
         let panel = scope.context().run(|| {
             provide_context(DockTabActions { tab, set_actions });
-            provide_context(DockTabMore { tab, set_more });
+            provide_context(DockTabMenu { tab, set_menu });
             self.content.call(tab)
         });
         with_document(|document| document.register_node_scope(panel, scope));
@@ -903,7 +922,7 @@ pub fn Dock(
 ) -> NodeId {
     let (current, set_current) = create_signal(state.peek());
     let (actions, set_actions) = create_signal(HashMap::new());
-    let (mores, set_more) = create_signal(DockMores::new());
+    let (menus, set_menu) = create_signal(DockMenus::new());
     create_effect(clone!(set_current -> move || set_current.set(state.get())));
     let (drag, set_drag) = create_signal(None);
     let dock: Handle = Rc::new(State {
@@ -924,8 +943,8 @@ pub fn Dock(
         home: create_memo(move || home.get()),
         actions,
         set_actions,
-        mores,
-        set_more,
+        menus,
+        set_menu,
         stack,
         thickness: splitter_thickness,
         group_inset,
@@ -1101,24 +1120,8 @@ fn stack_handle(dock: &Handle, shown: Memo<Option<TabId>>, away: Memo<bool>) -> 
         let shown = shown.get()?;
         actions.with(|actions| actions.get(&shown).copied())
     }));
-    let mores = dock.mores.clone();
-    let more = create_memo(clone!(shown mores -> move || {
-        shown
-            .get()
-            .is_some_and(|shown| mores.with(|mores| mores.contains_key(&shown)))
-    }));
-    let pressing = dock.mores.clone();
-    let pressed = shown.clone();
-    let press_more = ClickCallback::new(move || {
-        let Some(shown) = pressed.get_untracked() else {
-            return;
-        };
-        let held =
-            pressing.with_untracked(|mores| mores.get(&shown).map(|(_, press)| press.clone()));
-        if let Some(press) = held {
-            press.call();
-        }
-    });
+    let menus = dock.menus.clone();
+    let menu = create_memo(clone!(shown -> move || dock_menu_items(&menus, shown.get())));
     let titles = dock.clone();
     let icons = dock.clone();
     let back = dock.clone();
@@ -1134,8 +1137,7 @@ fn stack_handle(dock: &Handle, shown: Memo<Option<TabId>>, away: Memo<bool>) -> 
         away,
         tabs,
         actions: slot,
-        more,
-        press_more,
+        menu,
         titles: Func::new(move |tab| titles.title(tab)),
         icons: Func::new(move |tab| icons.icon(tab)),
         back: ClickCallback::new(move || {
@@ -1401,6 +1403,7 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
         create_memo(clone!(state -> move || state.with(|state| state.sidebar_width(leaf))));
     let closed = dock.clone();
     let close = ClickCallback::new(move || closed.close_leaf(leaf));
+    let menu = dock.leaf_menu(Some(leaf));
     let built = dock.clone();
     let pressed = dock.clone();
     view! {
@@ -1456,6 +1459,7 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
                             grip,
                             bar,
                             closable: dock.all_closable(contents.clone()),
+                            menu: menu.clone(),
                             close: close.clone(),
                             body,
                         });
@@ -2124,6 +2128,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let vertical = create_memo(clone!(state -> move || {
         hoisted.is_some_and(|leaf| state.with(|state| state.is_vertical(leaf)))
     }));
+    let menu = dock.leaf_menu(hoisted);
     let built = dock.clone();
     let grips = dock.clone();
     let marker = dock.clone();
@@ -2270,6 +2275,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                             grip,
                                             tabs,
                                             closable: dock.all_closable(contents.clone()),
+                                            menu: menu.clone(),
                                             close: close.clone(),
                                             pane,
                                         });

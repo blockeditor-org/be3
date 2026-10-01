@@ -66,12 +66,12 @@ pub use date_time_picker::{
 };
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
-    Dock, DockDragged, DockDrop, DockGripHandle, DockLayout, DockMode, DockMores, DockPanelHandle,
+    Dock, DockDragged, DockDrop, DockGripHandle, DockLayout, DockMenus, DockMode, DockPanelHandle,
     DockPreviewHandle, DockSplitter, DockSplitterHandle, DockStackHandle, DockState, DockTabHandle,
-    DockTabMore, DockTree, DockTreeEntry, DockWindowHandle, Entry, GroupId, LeafId,
+    DockTabMenu, DockTree, DockTreeEntry, DockWindowHandle, Entry, GroupId, LeafId,
     MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SPLITTER_THICKNESS, Side, SplitId,
-    SurfaceId, TabId, TabPosition, Tree, dock_actions, dock_more, dock_state, layout_surface,
-    layout_tree, sidebar_size,
+    SurfaceId, TabId, TabPosition, Tree, dock_actions, dock_menu, dock_menu_items, dock_state,
+    layout_surface, layout_tree, sidebar_size,
 };
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
@@ -82,7 +82,7 @@ pub use menu::{
     MenuItem, MenuRowHandle, menu_list_len, menu_list_root_focusable, menu_list_row_button,
     menu_list_row_submenu_content,
 };
-pub use menu_button::{MenuButton, MenuButtonHandle};
+pub use menu_button::{MenuButton, MenuButtonHandle, MenuSheet, MenuSheetHandle};
 pub use number_input::{
     NumberDrag, NumberFaceHandle, NumberFieldHandle, NumberInput, number_input_face,
     number_input_field,

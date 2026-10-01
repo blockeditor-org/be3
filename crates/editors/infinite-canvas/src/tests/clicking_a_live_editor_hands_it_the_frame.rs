@@ -38,6 +38,7 @@ fn clicking_a_live_editor_hands_it_the_frame() {
             capabilities: EditorCapabilities::default(),
             resize: ResizeMode::Both,
             error: None,
+            menu: Vec::new(),
         });
         editor.run();
     };

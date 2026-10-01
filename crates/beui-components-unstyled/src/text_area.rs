@@ -44,7 +44,7 @@ use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
 use rows::{
     BODY_SIZE, Composition, Inline, InlineItem, LINE_PADDING, Row, RowOptions, TableSpacers,
-    galley, line_of, line_starts, rich_layout, table_spacers,
+    galley, line_of, rich_layout, table_spacers,
 };
 use state::{AreaGeometry, Grab};
 
@@ -597,6 +597,27 @@ enum Beyond {
     After,
 }
 
+const ACCESSIBLE_TEXT_LIMIT: usize = 64 * 1024;
+
+fn accessible_range(bytes: &[u8], caret: usize) -> Range<usize> {
+    if bytes.len() <= ACCESSIBLE_TEXT_LIMIT {
+        return 0..bytes.len();
+    }
+    let from = caret
+        .min(bytes.len())
+        .saturating_sub(ACCESSIBLE_TEXT_LIMIT / 2);
+    let start = bytes[..from]
+        .iter()
+        .rposition(|byte| *byte == b'\n')
+        .map_or(0, |newline| newline + 1);
+    let to = (start + ACCESSIBLE_TEXT_LIMIT).min(bytes.len());
+    let end = bytes[to..]
+        .iter()
+        .position(|byte| *byte == b'\n')
+        .map_or(bytes.len(), |newline| to + newline);
+    start..end
+}
+
 fn begin_handle_drag(cx: &Context, handle: CaretHandle, pos: Pos2) {
     let (grab, moving_byte) = match handle {
         CaretHandle::Middle => {
@@ -931,11 +952,17 @@ pub fn TextArea(
     };
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     let accessible = state.content();
+    let moved = state.cursors();
     let described = create_memo(
-        clone!(state accessible masked placeholder disabled -> move || {
+        clone!(state accessible moved masked placeholder disabled -> move || {
             accessible.get();
+            let bytes = state.bytes();
+            if bytes.len() > ACCESSIBLE_TEXT_LIMIT {
+                moved.get();
+            }
+            let caret = state.caret_indices().first().copied().unwrap_or(0);
             let mut node = accessibility.get();
-            let value = String::from_utf8_lossy(&state.bytes()).into_owned();
+            let value = String::from_utf8_lossy(&bytes[accessible_range(&bytes, caret)]).into_owned();
             node.set_value(match masked.get() {
                 true => rows::mask(&value),
                 false => value,
@@ -955,7 +982,10 @@ pub fn TextArea(
     let content = state.content();
     let starts = create_memo(clone!(state content -> move || {
         content.get();
-        Rc::new(line_starts(&state.bytes()))
+        state.with_snapshot(|snapshot| match snapshot.starts.is_empty() {
+            true => Rc::new(vec![0]),
+            false => Rc::clone(&snapshot.starts),
+        })
     }));
     let visible = create_memo(clone!(state content starts -> move || {
         content.get();

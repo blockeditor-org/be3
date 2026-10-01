@@ -251,7 +251,10 @@ impl EditorMessage {
             | Self::ShowPane { .. }
             | Self::PanesArranged { .. }
             | Self::ClosePane { .. }
-            | Self::PaneMore { .. } => {}
+            | Self::PaneMenuPick { .. }
+            | Self::Menu { .. }
+            | Self::MenuPick { .. }
+            | Self::ChildMenuPick { .. } => {}
         }
     }
 }

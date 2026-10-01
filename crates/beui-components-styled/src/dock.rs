@@ -5,21 +5,21 @@ use beui_macros::{component, view};
 use crate::button::ButtonVariant;
 use crate::context_menu::menu_style;
 use crate::icon_button::{IconButton, IconButtonSize};
+use crate::menu_button::IconMenuButton;
 use crate::text::{Body, IconSized};
 use crate::theme::{CARD_RADIUS, FONT_BODY, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockDragged, DockGripHandle, DockMode, DockPanelHandle, DockPreviewHandle, DockSplitterHandle,
-    DockStackHandle, DockState, DockTabHandle, DockWindowHandle, Entry, GroupId,
+    DockStackHandle, DockState, DockTabHandle, DockWindowHandle, Entry, GroupId, MenuItem,
     SPLITTER_THICKNESS, TabId, sidebar_size,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
-use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_TAB_GROUP};
+use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_MORE_VERT, ICON_TAB_GROUP};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCallback, Frame, Func, List, Memo, Prop, ReadSignal, RenderFn, Show, Text,
-    clone, create_memo, focus_ring,
+    Action, Callback, ClickCallback, DynamicSegment, ForEach, Frame, Func, List, ListChild, Memo, Prop, ReadSignal, RenderFn, Show, Text, clone, create_memo, focus_ring,
 };
 use stack::DockStackBar;
 
@@ -238,6 +238,7 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
         grip,
         bar,
         closable,
+        menu,
         close,
         body,
         ..
@@ -254,6 +255,7 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
                     sidebar_width
                     sidebar_splitter
                     title=String::new()
+                    menu
                     closable
                     close={move || close.call()}
                     body
@@ -278,6 +280,7 @@ fn DockWindowFace(handle: DockWindowHandle) -> NodeId {
         grip,
         tabs,
         closable,
+        menu,
         close,
         pane,
         ..
@@ -291,6 +294,7 @@ fn DockWindowFace(handle: DockWindowHandle) -> NodeId {
             sidebar_width
             sidebar_splitter
             title
+            menu
             closable
             close={move || close.call()}
             body={pane}
@@ -307,6 +311,7 @@ fn DockChrome(
     sidebar_width: Memo<f32>,
     #[prop(default = None)] sidebar_splitter: Prop<Option<NodeId>>,
     title: Prop<String>,
+    menu: Memo<Vec<Action>>,
     closable: Memo<bool>,
     close: ClickCallback,
     body: NodeId,
@@ -324,6 +329,7 @@ fn DockChrome(
     };
     let tabs = tabs.peek();
     let side_title = title.clone();
+    let side_menu = menu.clone();
     let side_closable = closable.clone();
     let side_close = close.clone();
     view! {
@@ -342,6 +348,7 @@ fn DockChrome(
                         grip
                         tabs
                         title={side_title}
+                        menu={side_menu}
                         closable={side_closable}
                         close={move || side_close.call()}
                         @sizing={sidebar}
@@ -351,7 +358,7 @@ fn DockChrome(
                     {sidebar_splitter.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Fixed(SPLITTER_THICKNESS)
                 </Show>
                 <Show condition={!vertical}>
-                    <DockTitleBar grip tabs title closable close={move || close.call()} />
+                    <DockTitleBar grip tabs title menu closable close={move || close.call()} />
                 </Show>
                 {body} @sizing=ItemSize::Percent(100.0)
             </List>
@@ -364,6 +371,7 @@ fn DockTitleBar(
     grip: NodeId,
     #[prop(default = None)] tabs: Prop<Option<NodeId>>,
     title: Prop<String>,
+    menu: Memo<Vec<Action>>,
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
@@ -384,6 +392,7 @@ fn DockTitleBar(
                 <Show condition={titled}>
                     <Body content={title} @sizing=ItemSize::Percent(100.0) />
                 </Show>
+                <DockMenu menu />
                 <DockClose closable close={move || close.call()} />
             </List>
         </Frame>
@@ -395,6 +404,7 @@ fn DockSideBar(
     grip: NodeId,
     #[prop(default = None)] tabs: Prop<Option<NodeId>>,
     title: Prop<String>,
+    menu: Memo<Vec<Action>>,
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
@@ -415,7 +425,10 @@ fn DockSideBar(
                     spacing=BAR_SPACING
                 >
                     {grip}
-                    <DockClose closable close={move || close.call()} />
+                    <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
+                        <DockMenu menu />
+                        <DockClose closable close={move || close.call()} />
+                    </List>
                 </List>
                 <Show condition={!titled}>
                     {tabs.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Percent(100.0)
@@ -425,6 +438,44 @@ fn DockSideBar(
                 </Show>
             </List>
         </Frame>
+    }
+}
+
+#[component]
+pub(crate) fn DockMenu(
+    menu: Memo<Vec<Action>>,
+    #[prop(default = IconButtonSize::Compact)] size: IconButtonSize,
+) -> DynamicSegment<ListChild> {
+    let offered = create_memo(clone!(menu -> move || menu.with(|items| !items.is_empty())));
+    let keys = create_memo(clone!(menu -> move || {
+        menu.with(|items| items.iter().map(Action::key).collect::<Vec<u64>>())
+    }));
+    view! {
+        <Show condition={offered}>
+            <IconMenuButton
+                @test_id={"dock.menu"}
+                label="More"
+                glyph=ICON_MORE_VERT
+                size
+                items={view! {
+                    <ForEach keys={keys}>
+                        {move |key: u64| {
+                            let item = menu.with_untracked(|items| {
+                                items.iter().find(|action| action.key() == key).cloned()
+                            });
+                            match item {
+                                Some(action) => view! {
+                                    <MenuItem action />
+                                },
+                                None => view! {
+                                    <MenuItem label="" disabled=true />
+                                },
+                            }
+                        }}
+                    </ForEach>
+                }}
+            />
+        </Show>
     }
 }
 

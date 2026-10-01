@@ -624,6 +624,23 @@ impl PluginEditor {
         presentation.report(statuses);
         crate::plugin_host::report_child_views(&plugin.identity.id, self.instance, region, views);
         crate::plugin_host::report_child_bars(&plugin.identity.id, self.instance, region, bars);
+        let placed: Vec<block_plugin_api::ChildId> = presentation
+            .children
+            .iter()
+            .map(|child| child.child)
+            .collect();
+        for (child, id) in
+            crate::plugin_host::take_child_menu_picks(&plugin.identity.id, self.instance, &placed)
+        {
+            let block = presentation
+                .children
+                .iter()
+                .find(|placed| placed.child == child)
+                .map(|placed| placed.block_id);
+            if let Some(block) = block {
+                editors.pick_frame_menu(block, id);
+            }
+        }
         if region == EditorRegion::Frame {
             action = action.or(self.block_pick_ui(editors));
         }
@@ -717,6 +734,10 @@ impl PluginEditor {
             capabilities: child_capabilities(editors, child.block_id),
             resize: child_resize(editors, child.block_id),
             error: (!available).then(|| CHILD_UNAVAILABLE.to_owned()),
+            menu: match available && child.frame_owner {
+                true => editors.frame_menu(child.block_id),
+                false => Vec::new(),
+            },
         });
         action
     }
@@ -755,6 +776,7 @@ impl PluginEditor {
                 interaction: child_interaction(editors, child.block_id),
                 capabilities: child_capabilities(editors, child.block_id),
                 resize: child_resize(editors, child.block_id),
+                menu: Vec::new(),
                 error: (!available).then(|| CHILD_UNAVAILABLE.to_owned()),
             });
         }
@@ -1017,9 +1039,22 @@ impl PluginEditor {
         }
     }
 
-    pub(crate) fn pane_more(&self, pane: PaneId) {
+    pub(crate) fn pick_pane_menu(&self, pane: PaneId, id: String) {
         if let Some(plugin) = &self.plugin {
-            crate::plugin_host::pane_more(&plugin.identity.id, self.instance, pane);
+            crate::plugin_host::pane_menu_pick(&plugin.identity.id, self.instance, pane, id);
+        }
+    }
+
+    pub(crate) fn menu(&self) -> Vec<block_plugin_api::MenuEntry> {
+        match &self.plugin {
+            Some(plugin) => crate::plugin_host::menu(&plugin.identity.id, self.instance),
+            None => Vec::new(),
+        }
+    }
+
+    pub(crate) fn pick_menu(&self, id: String) {
+        if let Some(plugin) = &self.plugin {
+            crate::plugin_host::menu_pick(&plugin.identity.id, self.instance, id);
         }
     }
 

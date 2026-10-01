@@ -1103,11 +1103,41 @@ pub(crate) fn close_pane(plugin_id: &str, instance: EditorInstanceId, pane: Pane
     });
 }
 
-pub(crate) fn pane_more(plugin_id: &str, instance: EditorInstanceId, pane: PaneId) {
+pub(crate) fn pane_menu_pick(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    pane: PaneId,
+    id: String,
+) {
     with(plugin_id, |runtime| {
-        let messages = runtime.instances.pane_more(instance, pane);
+        let messages = runtime.instances.pane_menu_pick(instance, pane, id);
         runtime.send(messages);
     });
+}
+
+pub(crate) fn menu(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<block_plugin_api::MenuEntry> {
+    with(plugin_id, |runtime| runtime.instances.menu(instance)).unwrap_or_default()
+}
+
+pub(crate) fn menu_pick(plugin_id: &str, instance: EditorInstanceId, id: String) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.menu_pick(instance, id);
+        runtime.send(messages);
+    });
+}
+
+pub(crate) fn take_child_menu_picks(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    children: &[block_plugin_api::ChildId],
+) -> Vec<(block_plugin_api::ChildId, String)> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_child_menu_picks(instance, children)
+    })
+    .unwrap_or_default()
 }
 
 pub(crate) fn show_block(

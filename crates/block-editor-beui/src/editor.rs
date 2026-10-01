@@ -10,8 +10,8 @@ use beui::reactive::{
 };
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    BarAction, ChildId, ChildLayer, ChildMode, EditorCapabilities, InteractionMode, ResizeMode,
-    TopBar, ViewChange,
+    BarAction, ChildId, ChildLayer, ChildMode, EditorCapabilities, InteractionMode, MenuEntry,
+    ResizeMode, TopBar, ViewChange,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -158,6 +158,8 @@ pub struct ChildState {
     pub capabilities: EditorCapabilities,
     pub resize: ResizeMode,
     pub error: Option<String>,
+    pub child: Option<ChildId>,
+    pub menu: Vec<MenuEntry>,
 }
 
 impl ChildState {
@@ -165,6 +167,7 @@ impl ChildState {
         let Some(status) = child.and_then(|child| host.child_status(child)) else {
             return Self {
                 placed: child.is_some(),
+                child,
                 ..Self::default()
             };
         };
@@ -181,6 +184,8 @@ impl ChildState {
             capabilities: status.capabilities,
             resize: status.resize,
             error: status.error,
+            child,
+            menu: status.menu,
         }
     }
 }

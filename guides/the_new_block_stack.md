@@ -535,7 +535,7 @@ clearing it hands the name back to the content, which renames the block the
 next time an editor sees a revision. `be::describe_implicitly` is the automatic
 name: whenever an instance that may edit a block is sent a new revision of it,
 the host derives `BlockContent::name` from the content and writes it, unless the
-name was set by hand. The file tree, the block picker and the top bar read the
+name was set by hand. The file tree, the block picker and the tabs read the
 name out of the mirror, so a block nobody has open keeps the name it was last
 given.
 

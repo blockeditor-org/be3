@@ -55,6 +55,7 @@ Design principles:
   - beui layout is O(n) or better on the number of nodes in the tree.
   - beui is a reactive framework; we should push changes, not poll for changes.
   - code that reads the time uses the frame clock (`ctx.now()` or `timer::now()`), not `Instant::now()`, so tests can advance it without sleeping.
+  - new components added to beui should also be added in beui-demo
 - block-app plugins:
   - the plugin protocol is framework-independent. we theoretically could use it with different GUI frameworks without modifying the plugin protocol.
   - the plugin protocol passes textures without them leaving the GPU.
