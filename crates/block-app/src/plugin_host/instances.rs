@@ -72,7 +72,7 @@ struct Instance {
     intrinsic: Option<Vec2>,
     aspect_ratio: Option<f32>,
     pending: Vec<Pending>,
-    text_pastes: Vec<String>,
+    text_pastes: Vec<block_plugin_api::InputEvent>,
     audio: Option<AudioPlayer>,
     reported_audio: AudioStatus,
     reported_size: Option<Vec2>,
@@ -125,18 +125,18 @@ impl ContentLink {
     }
 
     fn describe(&mut self, block: Uuid) {
-        let Some(content) = crate::be::content(block) else {
+        let Some(revision) = crate::be::content_revision(block) else {
             return;
         };
-        if self.described == Some(content.revision) || !crate::be::access(block).can_edit() {
+        if self.described == Some(revision) || !crate::be::access(block).can_edit() {
             return;
         }
-        self.described = Some(content.revision);
-        crate::be::describe_implicitly(block, crate::be::describe_of(&content).unwrap_or_default());
+        self.described = Some(revision);
+        crate::be::describe_implicitly(block, crate::be::describe_block(block).unwrap_or_default());
     }
 
     fn content_message(&mut self, instance: EditorInstanceId, block: Uuid) -> Option<Message> {
-        if crate::be::content(block).is_none() {
+        if crate::be::content_revision(block).is_none() {
             if !std::mem::replace(&mut self.opened, true) {
                 crate::be::open(block, self.content_type);
             }
@@ -1900,10 +1900,7 @@ impl Instances {
             {
                 messages.push(Message::Input(block_plugin_api::InputBatch {
                     screen,
-                    events: texts
-                        .into_iter()
-                        .map(block_plugin_api::InputEvent::Paste)
-                        .collect(),
+                    events: texts,
                 }));
             }
             let entry = self.entries.get_mut(&instance).unwrap();
@@ -2353,9 +2350,11 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry
-                    .text_pastes
-                    .extend(super::clipboard::read_clipboard_text());
+                if let Some(text) = super::clipboard::read_clipboard_text() {
+                    entry
+                        .text_pastes
+                        .extend(block_plugin_api::paste_events(&text));
+                }
                 true
             }
             EditorMessage::ChildReplaced {

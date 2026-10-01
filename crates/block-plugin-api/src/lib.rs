@@ -14,7 +14,7 @@ pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 pub const PROTOCOL_VERSION: u16 = 63;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
-pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
+pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_MESSAGES: usize = 256;
@@ -2544,6 +2544,28 @@ fn string(value: &str) -> Result<(), DecodeError> {
     } else {
         Ok(())
     }
+}
+
+pub fn paste_events(text: &str) -> Vec<InputEvent> {
+    text_pieces(text, MAX_TEXT_BYTES)
+        .into_iter()
+        .map(InputEvent::Paste)
+        .collect()
+}
+
+fn text_pieces(text: &str, limit: usize) -> Vec<String> {
+    let mut pieces = Vec::new();
+    let mut rest = text;
+    while !rest.is_empty() {
+        let mut end = rest.len().min(limit);
+        while !rest.is_char_boundary(end) {
+            end -= 1;
+        }
+        let (piece, after) = rest.split_at(end);
+        pieces.push(piece.to_owned());
+        rest = after;
+    }
+    pieces
 }
 
 fn text(value: &str) -> Result<(), DecodeError> {

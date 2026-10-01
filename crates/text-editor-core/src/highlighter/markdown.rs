@@ -2,6 +2,7 @@ use std::ops::Range;
 use tree_sitter_md::{MarkdownCursor, MarkdownTree};
 
 use super::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
+use crate::TextChange;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MarkdownTableAlignment {
@@ -22,10 +23,10 @@ pub struct MarkdownTable {
     pub alignments: Vec<MarkdownTableAlignment>,
 }
 
-pub(super) fn styles(tree: &MarkdownTree, len: usize) -> Vec<SynHlStyle> {
-    let mut styles = vec![SynHlStyle::plain(SynHlColorScope::MarkdownPlainText); len];
+pub(super) fn styles_in(tree: &MarkdownTree, window: Range<usize>) -> Vec<SynHlStyle> {
+    let mut styles = vec![SynHlStyle::plain(SynHlColorScope::MarkdownPlainText); window.len()];
     let mut cursor = tree.walk();
-    style_node(&mut cursor, &mut styles);
+    style_node(&mut cursor, &mut styles, window.start);
     styles
 }
 
@@ -148,9 +149,14 @@ fn table_alignment(cursor: &mut MarkdownCursor<'_>) -> MarkdownTableAlignment {
     }
 }
 
-fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle]) {
+fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle], offset: usize) {
     let node = cursor.node();
-    let range = node.start_byte().min(styles.len())..node.end_byte().min(styles.len());
+    let window_end = offset + styles.len();
+    if node.end_byte() < offset || node.start_byte() >= window_end {
+        return;
+    }
+    let range = node.start_byte().clamp(offset, window_end) - offset
+        ..node.end_byte().clamp(offset, window_end) - offset;
     let kind = node.kind();
     let parent_kind = node.parent().map(|parent| parent.kind());
 
@@ -252,7 +258,9 @@ fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle]) {
             }
         }
         "backslash_escape" => {
-            if let Some(style) = styles.get_mut(range.start) {
+            if node.start_byte() >= offset
+                && let Some(style) = styles.get_mut(range.start)
+            {
                 set_symbol(style);
             }
         }
@@ -291,7 +299,7 @@ fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle]) {
 
     if cursor.goto_first_child() {
         loop {
-            style_node(cursor, styles);
+            style_node(cursor, styles, offset);
             if !cursor.goto_next_sibling() {
                 break;
             }
@@ -331,4 +339,296 @@ pub(super) fn collect_chain(
         }
         cursor.goto_parent();
     }
+}
+
+pub(super) const WINDOW_TARGET: usize = 1024;
+const WINDOW_REACH: usize = 4 * 1024;
+
+pub(super) struct MarkdownWindow {
+    pub(super) len: usize,
+    pub(super) styles: Vec<SynHlStyle>,
+    pub(super) tables: Vec<MarkdownTable>,
+    pub(super) code_blocks: Vec<Range<usize>>,
+}
+
+pub(super) fn fences(bytes: &[u8]) -> Vec<Range<usize>> {
+    let mut fences = Vec::new();
+    let mut open: Option<(usize, u8, usize)> = None;
+    let mut start = 0;
+    while start < bytes.len() {
+        let end = memchr::memchr(b'\n', &bytes[start..])
+            .map_or(bytes.len(), |newline| start + newline + 1);
+        let line = &bytes[start..end];
+        let indent = line.iter().take_while(|byte| **byte == b' ').count();
+        if indent <= 3 {
+            let marker = line.get(indent).copied();
+            let run = line[indent..]
+                .iter()
+                .take_while(|byte| Some(**byte) == marker)
+                .count();
+            if matches!(marker, Some(b'`' | b'~')) && run >= 3 {
+                let marker = marker.unwrap_or(b'`');
+                match open {
+                    None => open = Some((start, marker, run)),
+                    Some((opened, wanted, length)) if wanted == marker && run >= length => {
+                        if line[indent + run..].iter().all(u8::is_ascii_whitespace) {
+                            fences.push(opened..end);
+                            open = None;
+                        }
+                    }
+                    Some(_) => {}
+                }
+            }
+        }
+        start = end;
+    }
+    if let Some((opened, _, _)) = open {
+        fences.push(opened..bytes.len());
+    }
+    fences
+}
+
+fn fence_at(fences: &[Range<usize>], index: usize) -> Option<&Range<usize>> {
+    let found = fences.partition_point(|fence| fence.end <= index);
+    fences.get(found).filter(|fence| fence.start <= index)
+}
+
+fn is_blank_line_start(bytes: &[u8], index: usize) -> bool {
+    (index == 0 || bytes[index - 1] == b'\n')
+        && bytes[index..]
+            .iter()
+            .take_while(|byte| **byte != b'\n')
+            .all(u8::is_ascii_whitespace)
+}
+
+fn line_start_before(bytes: &[u8], index: usize) -> usize {
+    memchr::memrchr(b'\n', &bytes[..index]).map_or(0, |newline| newline + 1)
+}
+
+fn line_end_after(bytes: &[u8], index: usize) -> usize {
+    memchr::memchr(b'\n', &bytes[index.min(bytes.len())..])
+        .map_or(bytes.len(), |newline| index + newline + 1)
+}
+
+pub(super) fn touched_lines(bytes: &[u8], start: usize, end: usize) -> Range<usize> {
+    line_start_before(bytes, start)..line_end_after(bytes, end)
+}
+
+fn is_fence_line(line: &[u8]) -> bool {
+    let indent = line.iter().take_while(|byte| **byte == b' ').count();
+    let Some(marker @ (b'`' | b'~')) = line.get(indent).copied() else {
+        return false;
+    };
+    indent <= 3
+        && line[indent..]
+            .iter()
+            .take_while(|byte| **byte == marker)
+            .count()
+            >= 3
+}
+
+fn has_fence_line(bytes: &[u8]) -> bool {
+    bytes.split(|byte| *byte == b'\n').any(is_fence_line)
+}
+
+pub(super) fn shifted_fences(
+    old_bytes: &[u8],
+    old_fences: &[Range<usize>],
+    bytes: &[u8],
+    change: TextChange,
+) -> Vec<Range<usize>> {
+    let old_lines = touched_lines(old_bytes, change.start, change.old_end);
+    let new_lines = touched_lines(bytes, change.start, change.new_end);
+    if has_fence_line(&old_bytes[old_lines]) || has_fence_line(&bytes[new_lines]) {
+        return fences(bytes);
+    }
+    let shifted: Option<Vec<Range<usize>>> = old_fences
+        .iter()
+        .map(|fence| Some(change.moved(fence.start)?..change.moved(fence.end)?))
+        .collect();
+    shifted.unwrap_or_else(|| fences(bytes))
+}
+
+pub(super) fn shifted_table_starts(
+    old_bytes: &[u8],
+    old_starts: &[usize],
+    bytes: &[u8],
+    change: TextChange,
+) -> Vec<usize> {
+    let old_lines = touched_lines(old_bytes, change.start, change.old_end);
+    let from = line_start_before(old_bytes, old_lines.start.saturating_sub(1));
+    let new_lines = touched_lines(bytes, change.start, change.new_end);
+    let scanned_end = line_end_after(bytes, new_lines.end);
+    let delta = |at: usize| at - old_lines.end + new_lines.end;
+    let mut starts: Vec<usize> = old_starts
+        .iter()
+        .copied()
+        .take_while(|start| *start < from)
+        .collect();
+    starts.extend(
+        table_starts(&bytes[from..scanned_end])
+            .into_iter()
+            .map(|start| start + from)
+            .filter(|start| *start < new_lines.end),
+    );
+    starts.extend(
+        old_starts
+            .iter()
+            .copied()
+            .filter(|start| *start >= old_lines.end)
+            .map(delta),
+    );
+    starts
+}
+
+fn boundary_before(bytes: &[u8], fences: &[Range<usize>], from: usize) -> usize {
+    let mut at = line_start_before(bytes, from);
+    let limit = from.saturating_sub(WINDOW_REACH);
+    loop {
+        if let Some(fence) = fence_at(fences, at) {
+            at = fence.start;
+        }
+        if at == 0 || (is_blank_line_start(bytes, at) && fence_at(fences, at).is_none()) {
+            return at;
+        }
+        if at <= limit {
+            let cut = line_start_before(bytes, from);
+            return fence_at(fences, cut).map_or(cut, |fence| fence.start);
+        }
+        at = line_start_before(bytes, at - 1);
+    }
+}
+
+fn boundary_after(bytes: &[u8], fences: &[Range<usize>], from: usize) -> usize {
+    let mut at = from.min(bytes.len());
+    at = bytes[at..]
+        .iter()
+        .position(|byte| *byte == b'\n')
+        .map_or(bytes.len(), |newline| at + newline + 1);
+    let limit = from.saturating_add(WINDOW_REACH);
+    loop {
+        if let Some(fence) = fence_at(fences, at) {
+            at = fence.end;
+        }
+        if at >= bytes.len() || (is_blank_line_start(bytes, at) && fence_at(fences, at).is_none()) {
+            return at.min(bytes.len());
+        }
+        if at >= limit {
+            return at;
+        }
+        at = bytes[at..]
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .map_or(bytes.len(), |newline| at + newline + 1);
+    }
+}
+
+pub(super) fn window_range(
+    bytes: &[u8],
+    fences: &[Range<usize>],
+    around: Range<usize>,
+) -> Range<usize> {
+    let start = boundary_before(
+        bytes,
+        fences,
+        around.start.saturating_sub(WINDOW_TARGET / 2),
+    );
+    let end = boundary_after(bytes, fences, around.end.saturating_add(WINDOW_TARGET / 2));
+    start..end.max(around.end.min(bytes.len()))
+}
+
+fn parse(bytes: &[u8]) -> Option<MarkdownTree> {
+    tree_sitter_md::MarkdownParser::default().parse(bytes, None)
+}
+
+pub(super) fn parse_window(source: &[u8]) -> MarkdownWindow {
+    let Some(tree) = parse(source) else {
+        return MarkdownWindow {
+            styles: vec![SynHlStyle::plain(SynHlColorScope::MarkdownPlainText); source.len()],
+            len: source.len(),
+            tables: Vec::new(),
+            code_blocks: Vec::new(),
+        };
+    };
+    MarkdownWindow {
+        len: source.len(),
+        styles: styles_in(&tree, 0..source.len()),
+        tables: tables(&tree),
+        code_blocks: code_blocks(&tree),
+    }
+}
+
+pub(super) fn shift_table(table: &MarkdownTable, by: usize) -> MarkdownTable {
+    let shift = |inner: &Range<usize>| inner.start + by..inner.end + by;
+    MarkdownTable {
+        rows: table
+            .rows
+            .iter()
+            .map(|row| MarkdownTableRow {
+                range: shift(&row.range),
+                cells: row.cells.iter().map(shift).collect(),
+            })
+            .collect(),
+        alignments: table.alignments.clone(),
+    }
+}
+
+pub(super) fn table_starts(bytes: &[u8]) -> Vec<usize> {
+    let mut starts = Vec::new();
+    let mut previous: Option<(usize, bool)> = None;
+    let mut start = 0;
+    while start < bytes.len() {
+        let end =
+            memchr::memchr(b'\n', &bytes[start..]).map_or(bytes.len(), |newline| start + newline);
+        let line = &bytes[start..end];
+        if is_delimiter_row(line)
+            && let Some((header, true)) = previous
+        {
+            starts.push(header);
+        }
+        previous = Some((start, memchr::memchr(b'|', line).is_some()));
+        start = end + 1;
+    }
+    starts
+}
+
+fn is_delimiter_row(line: &[u8]) -> bool {
+    let line = line.trim_ascii();
+    memchr::memchr(b'|', line).is_some()
+        && line.contains(&b'-')
+        && line
+            .iter()
+            .all(|byte| matches!(byte, b'|' | b'-' | b':' | b' ' | b'\t'))
+}
+
+pub(super) fn chain(
+    bytes: &[u8],
+    fences: &[Range<usize>],
+    start: usize,
+    end: usize,
+) -> Vec<(usize, usize)> {
+    let range = window_range(bytes, fences, start..end);
+    let Some(tree) = parse(&bytes[range.clone()]) else {
+        return Vec::new();
+    };
+    let document_len = range.len();
+    let local_start = (start - range.start).min(document_len);
+    let local_end = if start == end {
+        (local_start + 1).min(document_len)
+    } else {
+        (end - range.start).min(document_len)
+    };
+    let mut result = Vec::new();
+    let mut cursor = tree.walk();
+    collect_chain(&mut cursor, local_start, local_end, &mut result);
+    result.reverse();
+    result.dedup();
+    let mut chain: Vec<(usize, usize)> = result
+        .into_iter()
+        .map(|(from, to)| (from + range.start, to + range.start))
+        .collect();
+    if chain.last() != Some(&(0, bytes.len())) {
+        chain.push((0, bytes.len()));
+    }
+    chain
 }
