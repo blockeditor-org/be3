@@ -71,6 +71,17 @@ pub fn DockArea(
             }
         })
     });
+    let theme = use_theme();
+    let fill = create_memo(clone!(mode -> move || match mode.get() {
+        DockMode::Tiled => Color32::TRANSPARENT,
+        DockMode::Stacked => theme.surface.get(),
+    }));
+    let content = RenderFn::new(move |tab: TabId| {
+        let body = content.call(tab);
+        view! {
+            <Frame color={fill.clone()}>{body}</Frame>
+        }
+    });
     view! {
         <unstyled::Dock
             state

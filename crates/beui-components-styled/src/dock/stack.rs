@@ -87,7 +87,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>)
     view! {
         <List spacing=0.0>
             <Frame
-                color={theme.surface.clone()}
+                color={theme.background.clone()}
                 padding_horizontal=BAR_PADDING
                 padding_vertical=BAR_PADDING
             >
