@@ -12,8 +12,7 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Time, Weekday};
 use beui_components_unstyled::{
     ChoiceOption, DateSegmentHandle, DateTimeBoxHandle, DateTimePanelHandle, DateTimeParts,
-    DateTimeTriggerHandle, PopoverPlacement, PopoverTriggerHandle, TimeOptionHandle,
-    narrower_than,
+    DateTimeTriggerHandle, PopoverPlacement, PopoverTriggerHandle, TimeOptionHandle, narrower_than,
 };
 use beui_core::base::{Align, Direction, Justify, TextAlign};
 use beui_core::color::Color32;
@@ -113,37 +112,34 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
         true => theme.surface.get(),
         false => theme.surface_raised.get(),
     }));
-    let boxed = view! {
+    let outer = trigger.is_some();
+    let keyboard = focus_ring(focused);
+    let ring = create_memo(move || outer && keyboard.get());
+    view! {
         <Frame
-            height=HEIGHT
-            color={fill}
-            outline={border}
-            outline_width=BORDER_WIDTH
-            outline_visible=true
-            radius=RADIUS
-            padding_right=TRIGGER_GAP
+            outline={theme.accent.clone()}
+            outline_width=FOCUS_RING_WIDTH
+            radius={RADIUS + 3}
+            outline_offset=FOCUS_RING_OFFSET
+            outline_visible={ring}
         >
-            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                {field} @sizing=ItemSize::Percent(100.0)
-                <Show condition={trigger.is_some()}>
-                    {trigger.unwrap_or_else(|| unreachable!())}
-                </Show>
-            </List>
-        </Frame>
-    };
-    match trigger.is_some() {
-        false => boxed,
-        true => view! {
             <Frame
-                outline={theme.accent.clone()}
-                outline_width=FOCUS_RING_WIDTH
-                radius={RADIUS + 3}
-                outline_offset=FOCUS_RING_OFFSET
-                outline_visible={focus_ring(focused)}
+                height=HEIGHT
+                color={fill}
+                outline={border}
+                outline_width=BORDER_WIDTH
+                outline_visible=true
+                radius=RADIUS
+                padding_right=TRIGGER_GAP
             >
-                {boxed}
+                <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                    {field} @sizing=ItemSize::Percent(100.0)
+                    <Show condition=outer>
+                        {trigger.unwrap_or_else(|| unreachable!())}
+                    </Show>
+                </List>
             </Frame>
-        },
+        </Frame>
     }
 }
 
