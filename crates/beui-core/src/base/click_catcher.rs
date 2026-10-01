@@ -361,7 +361,7 @@ impl Element for ClickCatcherNode {
         }
         if input.released_this_frame {
             if self.armed
-                && (contains_pointer || captured)
+                && (contains_pointer || captured || input.touch_ended)
                 && !input.touch_dragged
                 && !input.touch_cancelled
             {

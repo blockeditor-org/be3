@@ -18,10 +18,6 @@
       },
       "regions": [
         "Frame"
-      ],
-      "chrome": [
-        "Toolbar",
-        "LeftSidebar"
       ]
     }
   ],

@@ -22,12 +22,11 @@ mod wasm;
 pub use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockPick,
     ChildId, ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage, ConflictSide,
-    CursorIcon, DataListing, EditorBand, EditorCapabilities, EditorInstanceId, EditorRegion,
-    FetchResult, FileSave, FrameChrome, FrameSpec, HostReply, HostRequest, InputEvent,
-    InteractionMode, Key, Modifiers, Occluder, PointerButton, ResizeMode, ScreenPlacement,
-    SurfaceRect, TopBar, TouchPhase, VersionBranch, VersionChange, VersionChangeKind,
-    VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand, WebViewEvent,
-    WheelUnit,
+    CursorIcon, DataListing, EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult,
+    FileSave, FrameChrome, FrameSpec, HostReply, HostRequest, InputEvent, InteractionMode, Key,
+    Modifiers, Occluder, PointerButton, ResizeMode, ScreenPlacement, SurfaceRect, TopBar,
+    TouchPhase, VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit,
+    VersionStatus, ViewChange, WebViewCommand, WebViewEvent, WheelUnit,
 };
 pub use block_ui;
 pub use content::ContentProjection;
@@ -36,9 +35,9 @@ pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphComm
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
     ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FileSaver, FocusedBlock,
-    HostContent, ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
-    PerformanceReporter, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest,
-    ShownPresence, Waker,
+    HostContent, ImagePaster, OpenRequest, PaneEvent, PastedImage, PeerPresence,
+    PerformanceMeasurementGuard, PerformanceReporter, PickedBlock, PickedFile, Pushed, SavedFile,
+    SeededContent, ShowRequest, ShownPresence, Waker,
 };
 #[cfg(target_arch = "wasm32")]
 pub use plugin::PaintTarget;

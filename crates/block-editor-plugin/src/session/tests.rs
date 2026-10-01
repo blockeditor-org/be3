@@ -13,6 +13,7 @@ fn accept(session: &mut ClientSession) {
             max_side: DEFAULT_SURFACE_SIDE,
         }),
         theme: Theme { dark: true },
+        panes: false,
     }));
 }
 

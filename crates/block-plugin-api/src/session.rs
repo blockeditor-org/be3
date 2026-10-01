@@ -36,6 +36,7 @@ pub struct HostSession {
     state: SessionState,
     host_name: String,
     theme: Theme,
+    panes: bool,
     surface: Option<SurfaceSpec>,
     granted: Option<SurfaceSpec>,
     queue: VecDeque<Message>,
@@ -49,12 +50,18 @@ impl HostSession {
             state: SessionState::Idle,
             host_name: host_name.into(),
             theme,
+            panes: false,
             surface,
             granted: None,
             queue: VecDeque::new(),
             requests: HashMap::new(),
             lifecycle_deadline: None,
         }
+    }
+
+    pub fn offer_panes(mut self) -> Self {
+        self.panes = true;
+        self
     }
 
     pub fn state(&self) -> &SessionState {
@@ -113,6 +120,7 @@ impl HostSession {
                     host_name: self.host_name.clone(),
                     surface: granted,
                     theme: self.theme,
+                    panes: self.panes,
                 }));
                 self.state = SessionState::Running;
                 self.lifecycle_deadline = None;

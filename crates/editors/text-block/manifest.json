@@ -21,9 +21,6 @@
       "resize": "Horizontal",
       "regions": [
         "Frame"
-      ],
-      "chrome": [
-        "Toolbar"
       ]
     }
   ],

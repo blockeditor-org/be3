@@ -44,6 +44,7 @@ mod a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_
 mod a_drag_preview_follows_the_pointer_until_the_drop;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
+mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
 mod a_dynamic_child_can_fill_its_available_height;
 mod a_finger_beside_the_bar_between_two_panes_drags_it;
 mod a_finger_dragged_across_a_color_area_picks_rather_than_scrolls;
@@ -123,6 +124,7 @@ mod a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus;
 mod a_show_adds_and_removes_a_menu_item_among_the_items_beside_it;
 mod a_show_adds_and_removes_a_tab_among_the_tabs_beside_it;
 mod a_shrinking_child_gives_way_to_its_fixed_neighbour;
+mod a_signal_set_in_one_document_builds_nodes_in_the_document_that_watches_it;
 mod a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame;
 mod a_simulated_mouse_click_lands_where_the_trackpad_moved_its_cursor;
 mod a_simulated_screen_larger_than_the_window_is_shrunk_to_fit;
@@ -176,9 +178,12 @@ mod accessibility_updates_leave_the_tree_a_fresh_build_would_make;
 mod alt_arrows_walk_the_simulated_screen_reader_through_the_document;
 mod alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left;
 mod an_aspect_ratio_frame_centres_the_largest_box_that_fits;
+mod an_embed_in_a_tab_no_longer_shown_forgets_where_it_was;
 mod an_embed_punches_a_hole_in_the_surface_it_sits_on;
+mod an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed;
 mod an_embed_reports_a_rect_on_the_pixel_grid;
 mod an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in;
+mod an_embed_taken_out_of_the_tree_forgets_where_it_was;
 mod an_empty_field_shows_its_placeholder_until_something_is_typed;
 mod an_empty_view_builds_a_children_prop_with_nothing_in_it;
 mod an_icon_is_as_tall_as_the_text_it_sits_with;
@@ -1330,7 +1335,6 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
             <styled::DockArea
                 @node_ref=&built
                 state={state}
-                inset=false
                 title={Func::new(|tab: unstyled::TabId| format!("Tab {}", tab.value()))}
                 on_change={move |next: unstyled::DockState| set_state.set(next)}
                 on_close={move |_: unstyled::TabId| {}}
@@ -1585,6 +1589,7 @@ mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
 mod a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath;
 mod a_separator_keeps_the_length_it_is_given_where_its_row_centres_it;
 mod a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions;
+mod a_stacked_dock_bar_shows_more_for_a_tab_that_asks_and_presses_it;
 mod a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels;
 mod a_vertical_separator_rules_down_the_row_it_sits_in;
 mod a_window_without_room_for_the_app_beside_the_inspector_uses_the_tab_bar;

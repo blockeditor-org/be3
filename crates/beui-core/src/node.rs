@@ -81,6 +81,8 @@ pub trait Element: Any {
 
     fn unplaced(&mut self, _doc: &mut Document) {}
 
+    fn detached(&mut self) {}
+
     fn paints(&self) -> bool {
         true
     }

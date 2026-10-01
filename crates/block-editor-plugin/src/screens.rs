@@ -22,6 +22,7 @@ pub(crate) struct Screens {
     layout: ScreenLayout,
     block_types: Rc<BlockCatalog>,
     surface: Option<SurfaceSpec>,
+    panes: bool,
 }
 
 impl Screens {
@@ -34,6 +35,7 @@ impl Screens {
             layout: ScreenLayout::default(),
             block_types: Rc::new(BlockCatalog::default()),
             surface: None,
+            panes: false,
         }
     }
 
@@ -69,7 +71,10 @@ impl Screens {
 
     pub(crate) fn receive(&mut self, message: &Message) -> bool {
         match message {
-            Message::HelloAccepted(accepted) => self.surface = accepted.surface,
+            Message::HelloAccepted(accepted) => {
+                self.surface = accepted.surface;
+                self.panes = accepted.panes;
+            }
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::Editor(EditorMessage::Open {
                 instance,
@@ -82,7 +87,9 @@ impl Screens {
                 editable,
             }) => {
                 let block_types = Rc::clone(&self.block_types);
+                let panes = self.panes;
                 let session = self.open(*instance, Uuid::from_bytes(*block_type));
+                session.offer_panes(panes);
                 session.set_block_types(block_types);
                 session.set_view_block(view_block.map(Uuid::from_bytes));
                 session.set_client_id(Uuid::from_bytes(*client_id));
@@ -100,7 +107,9 @@ impl Screens {
                 client_id,
             }) => {
                 let block_types = Rc::clone(&self.block_types);
+                let panes = self.panes;
                 let session = self.open(*instance, Uuid::from_bytes(*block_type));
+                session.offer_panes(panes);
                 session.set_block_types(block_types);
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
@@ -118,7 +127,9 @@ impl Screens {
                 data,
             }) => {
                 let block_types = Rc::clone(&self.block_types);
+                let panes = self.panes;
                 let session = self.open(*instance, Uuid::from_bytes(*source_type));
+                session.offer_panes(panes);
                 session.set_block_types(block_types);
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
@@ -353,6 +364,27 @@ impl Screens {
                         ),
                         *scale,
                     );
+                }
+            }
+            Message::Editor(EditorMessage::PanesArranged {
+                instance,
+                arrangement,
+                tree,
+                detached,
+                focused,
+            }) => {
+                if let Some(session) = self.sessions.get_mut(instance) {
+                    session.arrange_panes(*arrangement, tree.clone(), detached.clone(), *focused);
+                }
+            }
+            Message::Editor(EditorMessage::ClosePane { instance, pane }) => {
+                if let Some(session) = self.sessions.get_mut(instance) {
+                    session.close_pane(*pane);
+                }
+            }
+            Message::Editor(EditorMessage::PaneMore { instance, pane }) => {
+                if let Some(session) = self.sessions.get_mut(instance) {
+                    session.pane_more(*pane);
                 }
             }
             Message::Editor(EditorMessage::Close { instance }) => {

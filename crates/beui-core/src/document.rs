@@ -100,6 +100,7 @@ pub struct Document {
     next_paint: Option<Instant>,
     now: Instant,
     reactive_scope: ::reactive::Scope,
+    zone: u64,
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
     sizes: NodeMap<Vec<SizeWatcher>>,
@@ -222,6 +223,8 @@ struct PlacementWatcher {
     write: ::reactive::WriteSignal<Rect>,
 }
 
+static NEXT_ZONE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 impl Document {
     pub fn new() -> Self {
         Self {
@@ -288,6 +291,7 @@ impl Document {
             next_paint: None,
             now: Instant::now(),
             reactive_scope: ::reactive::Scope::new(),
+            zone: NEXT_ZONE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             extensions: HashMap::new(),
             node_scopes: HashMap::new(),
             sizes: NodeMap::default(),
@@ -325,6 +329,16 @@ impl Document {
 
     pub fn reactive_scope(&self) -> &::reactive::Scope {
         &self.reactive_scope
+    }
+
+    pub fn zone(&self) -> u64 {
+        self.zone
+    }
+
+    pub fn dispose(&mut self) {
+        let scope = std::mem::replace(&mut self.reactive_scope, ::reactive::Scope::detached());
+        crate::current::with_reactive_scope(self, || scope.dispose());
+        ::reactive::forget_zone(self.zone);
     }
 
     pub fn extension<T: Clone + 'static>(&self) -> Option<T> {
@@ -624,7 +638,7 @@ impl Document {
             .collect();
         self.release_portal(id, &borrowed);
         for child in held {
-            self.forget_placement(child);
+            self.release_forgotten(child);
         }
         for child in children {
             if borrowed.contains(&child) {
@@ -632,6 +646,9 @@ impl Document {
             }
             self.detach_subtree(child, scopes);
         }
+        let mut element = self.arena.take(id);
+        element.detached();
+        self.arena.put_back(id, element);
         self.arena.remove(id);
         self.overlay_stack.retain(|overlay| *overlay != id);
         self.passive_overlays.retain(|overlay| *overlay != id);
@@ -1424,6 +1441,15 @@ impl Document {
         }
         for child in self.placed_children.remove(&id).unwrap_or_default() {
             self.drop_placement(child, out, dropped);
+        }
+    }
+
+    fn release_forgotten(&mut self, id: NodeId) {
+        let rects = Rc::clone(&self.rects);
+        let mut dropped = Vec::new();
+        self.drop_placement(id, &rects, &mut dropped);
+        for node in dropped {
+            self.release_placement(node);
         }
     }
 
