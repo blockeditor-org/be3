@@ -37,6 +37,7 @@ pub(super) fn lines() -> Vec<Line> {
             format!("{} block(s) unsealed", status.unsealed)
         },
     );
+    field(&mut lines, 1, "Merge conflicts", status.conflicts);
     field(
         &mut lines,
         1,

@@ -25,6 +25,13 @@ pub enum Journaled<Op> {
     Replaced,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Conflict {
+    pub ours: CommitId,
+    pub theirs: CommitId,
+    pub count: usize,
+}
+
 enum Role {
     Owner(Sequencer),
     Follower(Follower),
@@ -48,6 +55,9 @@ pub struct Live<S: ObjectStore, C: LiveEdit> {
     shown: BTreeMap<Uuid, Vec<u8>>,
     presence_changed: bool,
     moved: bool,
+    conflicts: Vec<Conflict>,
+    incompatible: bool,
+    diverged: bool,
 }
 
 impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
@@ -83,6 +93,9 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             shown: BTreeMap::new(),
             presence_changed: false,
             moved: false,
+            conflicts: Vec::new(),
+            incompatible: false,
+            diverged: false,
         };
         if let Role::Follower(follower) = &live.role {
             let catchup = follower.catchup();
@@ -185,7 +198,32 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         self.journal(Journaled::Replaced);
     }
 
+    pub fn is_incompatible(&self) -> bool {
+        self.incompatible
+    }
+
+    pub fn is_diverged(&self) -> bool {
+        self.diverged
+    }
+
+    fn unreadable_message(&mut self) {
+        self.incompatible = true;
+        if !self.is_owner() {
+            self.diverged = true;
+        }
+    }
+
+    fn refuse_if_diverged(&self) -> Result<(), ClientError> {
+        match self.diverged {
+            true => Err(ClientError::Content(be_block::ContentError::Malformed(
+                "an edit from a peer running a different version",
+            ))),
+            false => Ok(()),
+        }
+    }
+
     pub async fn edit(&mut self, operation: C::Op) -> Result<(), ClientError> {
+        self.refuse_if_diverged()?;
         self.visible.apply(&operation);
         self.journal(Journaled::Edited(operation.clone()));
         let payload = C::encode_operation(&operation);
@@ -270,6 +308,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             } if block == self.block => {
                 let plain = self.peer.unseal(&payload)?;
                 let Ok(message) = be_protocol::decode::<SessionMessage>(&plain) else {
+                    self.unreadable_message();
                     return Ok(0);
                 };
                 self.receive(from, message).await?;
@@ -290,6 +329,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                     return Ok(());
                 };
                 let Ok(operation) = C::decode_operation(&payload) else {
+                    self.unreadable_message();
                     return Ok(());
                 };
                 let onto: Vec<_> = sequencer
@@ -421,6 +461,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             return;
         }
         let Ok(operation) = C::decode_operation(&op.payload) else {
+            self.unreadable_message();
             return;
         };
         self.confirmed.apply(&operation);
@@ -526,6 +567,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
     }
 
     pub async fn replace(&mut self, content: C) -> Result<bool, ClientError> {
+        self.refuse_if_diverged()?;
         let mut expected = self.base;
         for _ in 0..4 {
             match self.peer.save(self.block, &content, expected).await? {
@@ -576,6 +618,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
     }
 
     pub async fn seal(&mut self) -> Result<Saved, ClientError> {
+        self.refuse_if_diverged()?;
         if !self.is_owner() {
             return Ok(Saved::Rejected { head: self.base });
         }
@@ -671,7 +714,23 @@ impl<S: ObjectStore, C: LiveEdit + Merge + Clone + Default> Live<S, C> {
                 let theirs = self.peer.open_commit::<C>(to).await?;
                 let merged = C::merge3(&ancestor, &self.confirmed, &theirs);
                 let (value, outcome) = split(merged);
-                let saved = self.peer.save(self.block, &value, Some(to)).await?;
+                let saved = match outcome {
+                    MergeResult::Clean(()) => self.peer.save(self.block, &value, Some(to)).await?,
+                    MergeResult::Conflicted { conflicts, .. } => {
+                        let ours = self
+                            .peer
+                            .stash(self.block, &self.confirmed, self.base)
+                            .await?;
+                        self.conflicts.push(Conflict {
+                            ours,
+                            theirs: to,
+                            count: conflicts,
+                        });
+                        self.peer
+                            .save_merge(self.block, &value, Some(to), vec![ours])
+                            .await?
+                    }
+                };
                 self.take_merged(value, saved.published()).await?;
                 Ok(outcome)
             }
@@ -684,6 +743,20 @@ impl<S: ObjectStore, C: LiveEdit + Merge + Clone + Default> Live<S, C> {
                 let theirs_content = self.peer.open_commit::<C>(theirs).await?;
                 let merged = C::merge3(&ancestor, &ours_content, &theirs_content);
                 let (value, outcome) = split(merged);
+                let mut ours = ours;
+                if let MergeResult::Conflicted { conflicts, .. } = outcome {
+                    if unsealed {
+                        ours = self
+                            .peer
+                            .stash(self.block, &ours_content, Some(ours))
+                            .await?;
+                    }
+                    self.conflicts.push(Conflict {
+                        ours,
+                        theirs,
+                        count: conflicts,
+                    });
+                }
                 let saved = self
                     .peer
                     .save_merge(self.block, &value, Some(theirs), vec![ours])
@@ -692,6 +765,10 @@ impl<S: ObjectStore, C: LiveEdit + Merge + Clone + Default> Live<S, C> {
                 Ok(outcome)
             }
         }
+    }
+
+    pub fn take_conflicts(&mut self) -> Vec<Conflict> {
+        std::mem::take(&mut self.conflicts)
     }
 
     async fn open_or_default(&self, commit: Option<CommitId>) -> Result<C, ClientError> {

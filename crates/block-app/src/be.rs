@@ -125,6 +125,7 @@ pub(crate) struct Status {
     pub(crate) blocks: usize,
     pub(crate) wakes: u64,
     pub(crate) unsealed: usize,
+    pub(crate) conflicts: usize,
     pub(crate) error: Option<String>,
 }
 
@@ -485,6 +486,7 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             access: be_graph::Access::Edit,
             references: source.references.clone(),
             metadata: metadata.clone(),
+            unreadable_metadata: false,
             head: None,
             version: 0,
         });
@@ -525,6 +527,7 @@ pub(crate) fn status() -> Status {
         blocks: shared.blocks.len(),
         wakes: shared.wakes,
         unsealed: shared.unsealed,
+        conflicts: shared.conflicts.values().map(Vec::len).sum(),
         error: shared.error.clone(),
     })
     .unwrap_or_default()
@@ -646,6 +649,7 @@ pub(crate) fn create(
             access: be_graph::Access::Edit,
             references: Vec::new(),
             metadata: metadata.clone(),
+            unreadable_metadata: false,
             head: None,
             version: 0,
         });
@@ -665,6 +669,14 @@ pub(crate) fn set_parent(block: Uuid, parent: be_graph::BlockParent) {
 }
 
 pub(crate) fn set_metadata(block: Uuid, metadata: be_block::BlockMetadata) {
+    if node(block).is_some_and(|node| node.unreadable_metadata) {
+        with_shared_mut(|shared| {
+            shared.error = Some(format!(
+                "block {block} has metadata this version cannot read, so it was left unchanged"
+            ));
+        });
+        return;
+    }
     with_shared_mut(|shared| {
         shared
             .graph

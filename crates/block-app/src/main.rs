@@ -1820,6 +1820,7 @@ impl BlockApp {
             error: ui::ErrorView {
                 message: self.error.clone().unwrap_or_default(),
                 pending: self.pending_error_action,
+                unsaved: be::status().unsealed,
             },
             accounts: accounts.clone(),
             account_error: self.account_error.clone(),
@@ -1924,6 +1925,7 @@ impl BlockApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn restart(&mut self) {
+        be::flush();
         be::stop();
         match Self::new(Some(self.data_dir.clone())) {
             Ok(fresh) => *self = fresh,
@@ -1933,6 +1935,7 @@ impl BlockApp {
 
     #[cfg(target_arch = "wasm32")]
     fn restart(&mut self) {
+        be::flush();
         be::stop();
         match Self::new() {
             Ok(fresh) => *self = fresh,

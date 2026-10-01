@@ -63,6 +63,10 @@ async fn an_offline_rewrite_conflicts_instead_of_interleaving() {
         panic!("a full rewrite silently absorbed a concurrent edit");
     };
     assert_eq!(conflicts, 1);
+    let recorded = session.take_conflicts();
+    assert_eq!(recorded.len(), 1, "the conflict was not recorded");
+    assert_eq!(recorded[0].ours, ours);
+    assert_eq!(recorded[0].count, 1);
 
     let merged = session.content().text();
     assert!(merged.contains("<<<<<<< local"), "{merged}");

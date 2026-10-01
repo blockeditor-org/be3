@@ -258,13 +258,12 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    pub fn metadata(&self, summary: &BlockSummary) -> BlockMetadata {
+    pub fn metadata(&self, summary: &BlockSummary) -> Result<BlockMetadata, ClientError> {
         if summary.metadata.is_empty() {
-            return BlockMetadata::default();
+            return Ok(BlockMetadata::default());
         }
-        self.unseal(&summary.metadata)
-            .map(|plain| BlockMetadata::decode(&plain))
-            .unwrap_or_default()
+        let plain = self.unseal(&summary.metadata)?;
+        Ok(BlockMetadata::decode(&plain)?)
     }
 
     fn seal_metadata(&self, metadata: &BlockMetadata) -> Vec<u8> {
@@ -451,6 +450,27 @@ impl<S: ObjectStore> Peer<S> {
             Vec::new(),
         )
         .await
+    }
+
+    pub async fn stash<C: BlockContent>(
+        &self,
+        block: Uuid,
+        content: &C,
+        parent: Option<CommitId>,
+    ) -> Result<CommitId, ClientError> {
+        let references = sorted(self.resolve(block, content.references_in(self.workspace())));
+        let id = self.commits.write(
+            C::CONTENT_TYPE,
+            &content.encode(),
+            self.account,
+            now_milliseconds(),
+            parent,
+            references,
+        )?;
+        let mut objects = vec![id.hash()];
+        objects.extend(self.commits.get(id)?.manifest.chunk_hashes());
+        self.push(&objects).await?;
+        Ok(id)
     }
 
     pub async fn save_merge<C: BlockContent>(

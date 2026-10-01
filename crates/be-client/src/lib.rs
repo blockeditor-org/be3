@@ -10,7 +10,7 @@ pub mod peer;
 mod transport;
 
 pub use connection::Connection;
-pub use live::{Journaled, Live};
+pub use live::{Conflict, Journaled, Live};
 pub use peer::{Credentials, Peer, PeerConfig, Resolver, Saved};
 
 #[derive(Debug)]
