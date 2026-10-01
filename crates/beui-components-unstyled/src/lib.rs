@@ -9,6 +9,7 @@ pub mod command_palette;
 pub mod container;
 pub mod context_menu;
 pub mod date_time_field;
+pub mod date_time_picker;
 pub mod datetime;
 pub mod disclosure;
 pub mod dock;
@@ -58,6 +59,9 @@ pub use context_menu::{ContextMenu, context_menu_menu, context_menu_overlay};
 pub use date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts, date_time_field_text,
     date_time_field_value,
+};
+pub use date_time_picker::{
+    DateTimeBoxHandle, DateTimePanelHandle, DateTimePicker, DateTimeTriggerHandle,
 };
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
