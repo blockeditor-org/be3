@@ -6,7 +6,7 @@ use crate::popover::{PANEL_PADDING, PopoverPanel};
 use crate::scroll::scrollbar_style;
 use crate::tabs::Tabs;
 use crate::text::IconSized;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, ThemeStore, use_theme};
+use crate::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, field_border, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Time, Weekday};
@@ -107,7 +107,7 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
     let border = create_memo(clone!(theme focused disabled -> move || {
-        border_color(&theme, disabled.get(), focused.get(), hovered.get())
+        field_border(&theme, disabled.get(), focused.get(), hovered.get())
     }));
     let fill = create_memo(clone!(theme disabled -> move || match disabled.get() {
         true => theme.surface.get(),
@@ -551,16 +551,5 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
                 vertical_align=TextAlign::Center
             />
         </Frame>
-    }
-}
-
-fn border_color(theme: &ThemeStore, disabled: bool, focused: bool, hovered: bool) -> Color32 {
-    if disabled {
-        return theme.border.get();
-    }
-    match (focused, hovered) {
-        (true, _) => theme.accent.get(),
-        (false, true) => theme.text_muted.get(),
-        (false, false) => theme.border.get(),
     }
 }

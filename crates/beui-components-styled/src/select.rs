@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 
 use crate::context_menu::menu_style;
 use crate::scroll::scrollbar_style;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
@@ -88,7 +88,7 @@ fn SelectTrigger(options: Run<ChoiceOption>, handle: SelectTriggerHandle) -> Nod
     let theme = use_theme();
     let label_text = create_memo(move || trigger_label(&options, selected.get()));
     let border = create_memo(clone!(focused theme disabled -> move || {
-        border_color(&theme, disabled.get(), focused.get(), hovered.get())
+        field_border(&theme, disabled.get(), focused.get(), hovered.get())
     }));
     let fill = create_memo(clone!(theme disabled -> move || match disabled.get() {
         true => theme.surface.get(),
@@ -138,7 +138,7 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
     let border = create_memo(clone!(theme -> move || {
-        border_color(&theme, false, focused.get(), hovered.get())
+        field_border(&theme, false, focused.get(), hovered.get())
     }));
     view! {
         <Frame
@@ -226,16 +226,5 @@ fn option_background(theme: &ThemeStore, highlighted: bool, hovered: bool) -> Co
         (true, _) => theme.accent_soft.get(),
         (false, true) => theme.surface.get(),
         (false, false) => Color32::TRANSPARENT,
-    }
-}
-
-fn border_color(theme: &ThemeStore, disabled: bool, focused: bool, hovered: bool) -> Color32 {
-    if disabled {
-        return theme.border.get();
-    }
-    match (focused, hovered) {
-        (true, _) => theme.accent.get(),
-        (false, true) => theme.text_muted.get(),
-        (false, false) => theme.border.get(),
     }
 }

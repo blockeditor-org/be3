@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 use beui_core::color::Color32;
 
 use crate::context_menu::menu_style;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::TextInputHandle;
 use beui_core::document::Document;
@@ -109,7 +109,7 @@ fn TextInputFrame(
         !plain.get() || focused.get() || hovered.get()
     }));
     let border = create_memo(clone!(focused theme disabled -> move || {
-        border_color(&theme, disabled.get(), focused.get(), hovered.get())
+        field_border(&theme, disabled.get(), focused.get(), hovered.get())
     }));
     let fill = create_memo(clone!(theme disabled raised -> move || {
         match (raised.get(), disabled.get()) {
@@ -160,15 +160,4 @@ fn TextInputFrame(
 
 pub fn text_input_value(document: &Document, input: NodeId) -> String {
     unstyled::text_input_value(document, input)
-}
-
-fn border_color(theme: &ThemeStore, disabled: bool, focused: bool, hovered: bool) -> Color32 {
-    if disabled {
-        return theme.border.get();
-    }
-    match (focused, hovered) {
-        (true, _) => theme.accent.get(),
-        (false, true) => theme.text_muted.get(),
-        (false, false) => theme.border.get(),
-    }
 }
