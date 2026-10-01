@@ -1,13 +1,13 @@
 use std::{
     borrow::Cow,
     ops::Range,
-    sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
+    sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::CursorPosition;
+use crate::{AnchorTable, CursorPosition};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TextLanguage {
@@ -194,7 +194,7 @@ pub struct TextBuffer {
 
 struct BufferState {
     bytes: Vec<u8>,
-    anchors: Vec<Anchor>,
+    anchors: Mutex<AnchorTable>,
     language: TextLanguage,
     indentation: TextIndentation,
     revision: u64,
@@ -205,18 +205,17 @@ struct BufferState {
 
 struct BufferHistoryEntry {
     bytes: Vec<u8>,
-    anchors: Vec<Anchor>,
+    anchors: AnchorTable,
     cursors: Vec<CursorPosition>,
 }
 
 impl TextBuffer {
     pub fn new(bytes: impl AsRef<[u8]>) -> Self {
         let bytes = bytes.as_ref().to_vec();
-        let anchors = bytes.iter().map(|_| Anchor::new()).collect();
         Self {
             state: RwLock::new(BufferState {
                 bytes,
-                anchors,
+                anchors: Mutex::default(),
                 language: TextLanguage::default(),
                 indentation: TextIndentation::default(),
                 revision: 0,
@@ -241,10 +240,20 @@ impl TextBuffer {
 }
 
 impl BufferState {
+    fn anchors(&self) -> std::sync::MutexGuard<'_, AnchorTable> {
+        self.anchors
+            .lock()
+            .expect("the text buffer's anchors were poisoned")
+    }
+
+    fn anchor(&self, index: usize) -> Option<Anchor> {
+        (index < self.bytes.len()).then(|| self.anchors().anchor(index))
+    }
+
     fn snapshot(&self, cursors: Vec<CursorPosition>) -> BufferHistoryEntry {
         BufferHistoryEntry {
             bytes: self.bytes.clone(),
-            anchors: self.anchors.clone(),
+            anchors: self.anchors().clone(),
             cursors,
         }
     }
@@ -252,7 +261,7 @@ impl BufferState {
     fn restore(&mut self, entry: BufferHistoryEntry) -> BufferHistoryEntry {
         let inverse = self.snapshot(entry.cursors);
         self.bytes = entry.bytes;
-        self.anchors = entry.anchors;
+        self.anchors = Mutex::new(entry.anchors);
         self.revision += 1;
         inverse
     }
@@ -339,14 +348,11 @@ impl DocumentRead for BufferRead<'_> {
     }
 
     fn anchor(&self, index: usize) -> Option<Anchor> {
-        self.state.anchors.get(index).copied()
+        self.state.anchor(index)
     }
 
     fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
-        self.state
-            .anchors
-            .iter()
-            .position(|candidate| *candidate == anchor)
+        self.state.anchors().index(anchor)
     }
 
     fn language(&self) -> TextLanguage {
@@ -373,14 +379,11 @@ impl DocumentRead for BufferEdit<'_> {
     }
 
     fn anchor(&self, index: usize) -> Option<Anchor> {
-        self.state.anchors.get(index).copied()
+        self.state.anchor(index)
     }
 
     fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
-        self.state
-            .anchors
-            .iter()
-            .position(|candidate| *candidate == anchor)
+        self.state.anchors().index(anchor)
     }
 
     fn language(&self) -> TextLanguage {
@@ -408,7 +411,9 @@ impl DocumentEdit for BufferEdit<'_> {
             .splice(index..index + delete, insert.iter().copied());
         self.state
             .anchors
-            .splice(index..index + delete, insert.iter().map(|_| Anchor::new()));
+            .get_mut()
+            .expect("the text buffer's anchors were poisoned")
+            .splice(index, delete, insert.len());
         self.edited = true;
     }
 }

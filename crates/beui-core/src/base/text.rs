@@ -311,8 +311,9 @@ impl TextNode {
             let area = layout.caret_rect(caret.at, caret.width).translate(origin);
             if let Some(handle) = caret.handle {
                 let top = painter.on_top();
-                let (shape, corners) = handle_shape(area, handle);
-                top.rect_filled(shape, corners, caret.color);
+                let (shape, corners, angle) = handle_shape(area, handle);
+                top.rotated(shape.center(), angle)
+                    .rect_filled(shape, corners, caret.color);
                 continue;
             }
             painter.rect_filled(area, 0.0, caret.color);
@@ -486,8 +487,9 @@ impl Element for TextNode {
             let top = painter.on_top();
             for (index, handle, color) in &self.handles {
                 let caret = plain_caret_rect(&placed.galley, placed.origin, *index);
-                let (shape, corners) = handle_shape(caret, *handle);
-                top.rect_filled(shape, corners, *color);
+                let (shape, corners, angle) = handle_shape(caret, *handle);
+                top.rotated(shape.center(), angle)
+                    .rect_filled(shape, corners, *color);
             }
         }
         if self.underline {

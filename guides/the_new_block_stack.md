@@ -747,14 +747,17 @@ in the clear. `crates/be-keys` holds the cryptography.
   and the server stores only the public half (`SetRecoveryKey`). Each member's
   copy of a workspace key is sealed to that public key (`PutWorkspaceKey`,
   `GetKeys`), so a new device opens a workspace with the phrase alone. A new
-  phrase has to reseal every key the old one sealed, which the server checks.
+  phrase (the workspace menu's New recovery phrase) has to reseal every key the
+  old one sealed, which the server checks, so it can only be made on a device
+  that holds all of them.
 - **Sealing for members.** When the worker connects, it seals the workspace key
   for every member that has a recovery key and no sealed copy
   (`ListMemberKeys`), which covers the creator and anyone invited since. The
   server only ever inserts a sealed key, never replaces one, so a member cannot
   overwrite another's.
 - **Adding a device.** The new device shows an eight-character code. The user
-  types it on a device where the workspace is open, and the two run SPAKE2
+  types it on a device that holds the key and has any workspace of the account
+  open (the worker gets every key the device holds), and the two run SPAKE2
   keyed by the code over the server's relay (`Pair`, delivered as `Paired` to
   the account's other connections). The open device seals the key under the
   agreed secret, so the server would have to guess the code to read or replace
@@ -788,13 +791,16 @@ same way rather than joining it to the peer's `UserActive` entry.
 ### Editors with their own model
 
 The text editor cannot hand its state to a projection: `text_editor_core` wants
-a `Document` with an anchor per byte, so a cursor stays on its character while
-other people type. `text_block::document::BlockDocument` keeps the bytes and
-their anchors itself, turns each local edit into `TextOp::Delete` and
-`TextOp::Insert` that the editor pushes into its `ContentProjection` every
-frame, and adopts a change from elsewhere by diffing the projection's text
-against its own: unchanged bytes keep their anchors, and only inserted bytes get
-new ones. Its undo is its own too, because it has to give the text core back its
+a `Document` that hands out anchors, so a cursor stays on its character while
+other people type. An anchor names one byte and dies with it. Only the bytes
+something holds a position on have one: `text_editor_core::AnchorTable` makes
+them on demand and moves them on every edit, so its cost follows the cursors and
+undo steps, not the length of the text. `text_block::document::BlockDocument`
+keeps the bytes and their table itself, turns each local edit into
+`TextOp::Delete` and `TextOp::Insert` that the editor pushes into its
+`ContentProjection` every frame, and adopts a change from elsewhere by diffing
+the projection's text against its own: anchors on unchanged bytes move with
+them, and the rest are dropped. Its undo is its own too, because it has to give the text core back its
 cursors. Each step remembers the anchors either side of the text it replaced
 and both versions of that text, so undo finds the text wherever it has moved to
 and skips it when someone else has changed it since.

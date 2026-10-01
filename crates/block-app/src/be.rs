@@ -31,6 +31,7 @@ pub(crate) struct Config {
     pub(crate) account: Uuid,
     pub(crate) workspace: Uuid,
     pub(crate) content_key: [u8; 32],
+    pub(crate) other_keys: Vec<(Uuid, [u8; 32])>,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) data_dir: PathBuf,
 }
@@ -319,7 +320,10 @@ fn stack() -> &'static Mutex<Option<Stack>> {
 pub(crate) fn start(config: Config) {
     stop();
     let (commands, receiver) = unbounded_channel();
-    let shared = Arc::new(Mutex::new(Shared::default()));
+    let shared = Arc::new(Mutex::new(Shared {
+        other_keys: config.other_keys.iter().copied().collect(),
+        ..Shared::default()
+    }));
     let changed = Arc::new(Condvar::new());
     let account = config.account;
     let workspace = config.workspace;

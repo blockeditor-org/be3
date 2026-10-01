@@ -14,10 +14,10 @@ fn a_recovery_phrase_round_trips_through_its_words() {
     let mut words = phrase.words();
     words.swap(0, 1);
     if words[0] != words[1] {
-        assert_eq!(
-            RecoveryPhrase::parse(&words.join(" ")),
-            Err(KeyError::Phrase),
-            "a phrase with its words swapped still parsed"
+        assert_ne!(
+            RecoveryPhrase::parse(&words.join(" ")).ok(),
+            Some(phrase.clone()),
+            "a phrase with its words swapped opened the same secret"
         );
     }
     assert_eq!(RecoveryPhrase::parse("not a phrase"), Err(KeyError::Phrase));

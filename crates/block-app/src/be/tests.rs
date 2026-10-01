@@ -12,6 +12,7 @@ mod a_child_moved_into_a_block_is_added_to_its_content;
 mod a_commit_in_one_checkout_is_brought_into_another;
 mod a_conflicting_edit_keeps_every_side_until_one_is_chosen;
 mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
+mod a_device_answers_pairing_for_a_workspace_it_is_not_showing;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_held_block_stays_open_when_its_editors_close;
@@ -121,6 +122,7 @@ impl Harness {
             account: self.account,
             workspace: self.workspace,
             content_key: self.content_key,
+            other_keys: Vec::new(),
             data_dir,
         }
     }
