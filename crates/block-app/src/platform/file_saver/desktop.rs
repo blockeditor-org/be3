@@ -1,11 +1,9 @@
-use std::{fs, path::PathBuf, sync::mpsc::Receiver};
+use std::{fs, path::PathBuf};
 
-use super::{SaveResult, SavedFile};
+use super::{Deliver, SaveResult, SavedFile};
 
-pub(super) fn save(file: SavedFile) -> Receiver<SaveResult> {
-    let (sender, receiver) = crate::host::waking_channel();
-    let _ = sender.send(write(file));
-    receiver
+pub(super) fn save(file: SavedFile, deliver: Deliver<SaveResult>) {
+    std::thread::spawn(move || deliver.send(write(file)));
 }
 
 fn write(file: SavedFile) -> SaveResult {
@@ -19,7 +17,8 @@ fn write(file: SavedFile) -> SaveResult {
 
 #[cfg(not(target_os = "linux"))]
 fn choose(name: &str) -> Result<Option<PathBuf>, String> {
-    Ok(rfd::FileDialog::new().set_file_name(name).save_file())
+    let dialog = rfd::AsyncFileDialog::new().set_file_name(name).save_file();
+    Ok(pollster::block_on(dialog).map(|file| file.path().to_path_buf()))
 }
 
 #[cfg(target_os = "linux")]

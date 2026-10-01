@@ -111,6 +111,17 @@ pub fn control_outline_visible(theme: &ThemeStore) -> Memo<bool> {
     create_memo(move || outline.get().is_some())
 }
 
+pub fn field_border(theme: &ThemeStore, disabled: bool, focused: bool, hovered: bool) -> Color32 {
+    if disabled {
+        return theme.border.get();
+    }
+    match (focused, hovered) {
+        (true, _) => theme.accent.get(),
+        (false, true) => theme.text_muted.get(),
+        (false, false) => theme.border.get(),
+    }
+}
+
 pub fn use_theme() -> ThemeStore {
     use_context::<ThemeStore>().unwrap_or_else(|| with_document(document_theme_store))
 }
@@ -162,3 +173,4 @@ pub const BORDER_WIDTH: f32 = 1.0;
 pub const SEPARATOR_THICKNESS: f32 = 1.0;
 pub const SCROLLBAR_WIDTH: f32 = 6.0;
 pub const SCROLLBAR_SPACING: f32 = 4.0;
+pub const SCROLL_FADE: f32 = 24.0;

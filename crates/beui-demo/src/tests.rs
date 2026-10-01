@@ -48,10 +48,11 @@ fn paint_every_page(size: Vec2, suffix: &str) {
     for page in PAGES {
         let mut test = demo(size);
         open(&mut test, page);
-        test.snapshot(&format!(
-            "{}{suffix}",
-            page.title().to_lowercase().replace(' ', "_")
-        ));
+        let name = format!("{}{suffix}", page.title().to_lowercase().replace(' ', "_"));
+        match page {
+            Page::Docking => test.snapshot(&name),
+            _ => test.snapshot_of(&name, &format!("demo.page.{}", page.title())),
+        }
     }
 }
 

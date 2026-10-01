@@ -1,5 +1,6 @@
 use super::*;
 
+use beui_core::fade::Fade;
 use beui_core::geometry::{Rect, pos2, vec2};
 use beui_core::painter::Entry;
 
@@ -9,6 +10,7 @@ fn a_child_display_is_placed_inside_the_clip_it_entered() {
         translation: vec2(30.0, -120.0),
         clip: Rect::from_min_max(pos2(20.0, 10.0), pos2(220.0, 310.0)),
         shift: None,
+        fade: Fade::NONE,
     };
     let (frame, content) = style::placement(entry, 1.0);
     assert_eq!(

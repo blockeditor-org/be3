@@ -220,6 +220,14 @@ impl HostSession {
         }
     }
 
+    pub fn next_deadline(&self) -> Option<u64> {
+        self.requests
+            .values()
+            .copied()
+            .chain(self.lifecycle_deadline)
+            .min()
+    }
+
     pub fn tick(&mut self, now_milliseconds: u64) {
         if let Some((&request_id, _)) = self
             .requests

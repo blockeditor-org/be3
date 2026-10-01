@@ -7,12 +7,11 @@ use crate::button::ButtonVariant;
 use crate::dock::DockMenu;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::list_row::ListRow;
-use crate::scroll::Scroll;
-use crate::sheet::{ModalSheet, SHEET_STOPS};
+use crate::sheet::ModalSheet;
 use crate::text::{Caption, Heading, Icon};
 use crate::theme::{CARD_RADIUS, FONT_BODY, FONT_SMALL, use_theme};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{DockStackHandle, TabId};
+use beui_components_unstyled::{DockStackHandle, SHEET_STOPS, TabId};
 use beui_core::base::{Align, Direction, ItemSize, TextAlign};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_HOME};
@@ -51,7 +50,7 @@ struct Switching {
 }
 
 #[component]
-pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>) -> NodeId {
+pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
     let DockStackHandle {
         shown,
         title,
@@ -66,6 +65,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>)
         back,
         show,
         close,
+        closable,
     } = handle;
     let theme = use_theme();
     let (open, set_open) = create_signal(false);
@@ -219,23 +219,21 @@ fn DockSwitcher(switching: Switching, home: Memo<Option<TabId>>) -> NodeId {
             <Frame padding_horizontal=SHEET_PADDING>
                 <Heading content="Open tabs" />
             </Frame>
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
-                    <List spacing=CARD_SPACING>
-                        <Show condition={none}>
-                            <Caption content="Nothing else is open." />
-                        </Show>
-                        <ForEach keys={rows}>
-                            {move |row: usize| {
-                                let switching = switching.clone();
-                                view! {
-                                    <DockSwitcherRow switching row />
-                                }
-                            }}
-                        </ForEach>
-                    </List>
-                </Frame>
-            </Scroll>
+            <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
+                <List spacing=CARD_SPACING>
+                    <Show condition={none}>
+                        <Caption content="Nothing else is open." />
+                    </Show>
+                    <ForEach keys={rows}>
+                        {move |row: usize| {
+                            let switching = switching.clone();
+                            view! {
+                                <DockSwitcherRow switching row />
+                            }
+                        }}
+                    </ForEach>
+                </List>
+            </Frame>
             <Show condition={homed}>
                 <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
                     <ActionRow

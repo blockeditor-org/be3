@@ -185,11 +185,9 @@ pub fn Sidebar(
 ) -> NodeId {
     view! {
         <SidebarFrame side shown width>
-            <Scroll>
-                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                    <List spacing=SPACING children={children} />
-                </Frame>
-            </Scroll>
+            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                <List spacing=SPACING children={children} />
+            </Frame>
         </SidebarFrame>
     }
 }
@@ -213,9 +211,9 @@ fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame visible={leading} width=BORDER_WIDTH color={theme.border.clone()} />
             <Frame visible={docked} width={width} color={theme.surface.clone()}>
-                <List spacing=0.0>
-                    <Portal @sizing=ItemSize::Percent(100.0) node={held} />
-                </List>
+                <Scroll>
+                    <Portal node={held} />
+                </Scroll>
             </Frame>
             <Frame visible={trailing} width=BORDER_WIDTH color={theme.border.clone()} />
         </List>

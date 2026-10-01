@@ -115,6 +115,13 @@ pub(crate) struct Shared {
     pub(crate) other_keys: HashMap<Uuid, [u8; 32]>,
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
+    pub(crate) touched: std::collections::HashSet<Uuid>,
+}
+
+impl Shared {
+    pub(crate) fn touch(&mut self, block: Uuid) {
+        self.touched.insert(block);
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -990,6 +997,7 @@ fn set_busy(shared: &Arc<Mutex<Shared>>, block: Uuid, busy: bool, error: Option<
     state.status.busy = busy;
     state.status.error = error;
     state.revision += 1;
+    held.touch(block);
 }
 
 async fn apply(
@@ -1062,6 +1070,7 @@ async fn apply(
             held.blocks.remove(&block);
             held.histories.remove(&block);
             held.presence.remove(&block);
+            held.touch(block);
             true
         }
         Command::Operate(block, origin, operation) => {
@@ -1295,12 +1304,14 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         let history = session.history();
         if held.histories.get(block) != Some(&history) {
             held.histories.insert(*block, history);
+            held.touch(*block);
             changed = true;
         }
         if let Some(presence) = session.take_presence() {
             held.presence_revision += 1;
             let revision = held.presence_revision;
             held.presence.insert(*block, (revision, presence));
+            held.touch(*block);
             changed = true;
         }
         let conflicts = session.take_conflicts();
@@ -1319,6 +1330,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
                 *block,
                 Content::new(session.content_type(), session.bytes()),
             );
+            held.touch(*block);
             changed = true;
             continue;
         };
@@ -1329,6 +1341,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             content.record(entry);
         }
         content.bytes = session.bytes();
+        held.touch(*block);
         changed = true;
     }
     changed

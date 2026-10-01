@@ -2,7 +2,9 @@ use beui_macros::{component, view};
 
 use crate::Scrollbar;
 use crate::text::IconSized;
-use crate::theme::{BORDER_WIDTH, ICON_SIZE, SCROLLBAR_SPACING, SCROLLBAR_WIDTH, use_theme};
+use crate::theme::{
+    BORDER_WIDTH, ICON_SIZE, SCROLL_FADE, SCROLLBAR_SPACING, SCROLLBAR_WIDTH, use_theme,
+};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
 use beui_core::base::{Align, Direction, ItemSize, ScrollPosition};
@@ -57,6 +59,7 @@ pub fn scrollbar_style() -> ScrollbarStyle {
             />
         }
     })
+    .fading(SCROLL_FADE)
 }
 
 #[component]

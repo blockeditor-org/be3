@@ -747,6 +747,7 @@ impl Versions {
             if entry.status != status {
                 entry.status = status;
                 entry.revision += 1;
+                held.touch(block);
             }
         }
     }

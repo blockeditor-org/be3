@@ -1366,6 +1366,7 @@ pub use crate::components::layers::{Layer, Layers};
 pub use crate::components::offset::Offset;
 pub use crate::components::overlay::Overlay;
 pub use crate::components::portal::Portal;
+pub use crate::components::shift::Shift;
 pub use crate::components::text::{Text, TextItem};
 pub use crate::components::virtual_list::VirtualList;
 pub use crate::file_picker::{

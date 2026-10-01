@@ -655,6 +655,14 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
     }
 
+    pub fn settle(&mut self) {
+        self.settle_until("its animations to finish", |test| {
+            test.output.as_ref().is_none_or(|output| {
+                !output.changed && output.repaint_after > std::time::Duration::ZERO
+            })
+        });
+    }
+
     pub fn settle_until(&mut self, what: &str, ready: impl Fn(&Self) -> bool) {
         let started = std::time::Instant::now();
         let mut eager = 0;
@@ -1124,8 +1132,13 @@ impl<A: BeuiApp> BeuiTest<A> {
             .output
             .as_ref()
             .expect("the editor has not drawn a frame yet");
-        capture::capture(output, self.size, output.pixels_per_point(), Color32::BLACK)
-            .expect("the painting could not be rendered")
+        capture::capture(
+            output,
+            Rect::from_min_size(Pos2::ZERO, self.size),
+            output.pixels_per_point(),
+            Color32::BLACK,
+        )
+        .expect("the painting could not be rendered")
     }
 }
 

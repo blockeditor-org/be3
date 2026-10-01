@@ -250,10 +250,10 @@ impl Page {
             Page::Editor => "A markdown text area",
             Page::Canvas => "A pannable, zoomable stage",
             Page::Themes => "The dark and e-ink themes",
-            Page::Pressing => "Pressables, buttons and toggles",
-            Page::Values => "Sliders and text inputs",
-            Page::Selecting => "Choices and disclosures",
-            Page::Popups => "Popovers, tooltips and menus",
+            Page::Pressing => "Pressables, buttons, toggles and rows",
+            Page::Values => "Sliders, text and number inputs, colors",
+            Page::Selecting => "Choices, disclosures, trees, text menus",
+            Page::Popups => "Popovers, tooltips, menus, sheets, dates",
             Page::Dragging => "Draggables and drop targets",
             Page::Scrolling => "Scroll areas and scrollbars",
             Page::Frames => "Fills, outlines, padding, sizes",
@@ -431,7 +431,7 @@ fn DemoShell() -> NodeId {
                                 <CatalogPanel set_state active />
                             },
                             Some(page) => view! {
-                                <Container>
+                                <Container @test_id={format!("demo.page.{}", page.title())}>
                                     {move |_| match page {
                                         Page::Docking => view! {
                                             <DockingPage />

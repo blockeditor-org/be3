@@ -1,7 +1,7 @@
 use super::*;
 use beui::KeyPress;
 use beui::reactive::{
-    Dynamic, Grid, GridCell, Interactive, Layers, NodeRef, Overlay, Placement, Track,
+    Dynamic, Grid, GridCell, Interactive, Layers, NodeRef, Overlay, Placement, Shift, Track,
 };
 
 const SWATCH: f32 = 72.0;
@@ -505,6 +505,9 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Overlay" code={vec![AnchoredOverlay::SOURCE]}>
                 <AnchoredOverlay />
             </Sample>
+            <Sample title="Shift" code={vec![NudgedTile::SOURCE]}>
+                <NudgedTile />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -544,6 +547,31 @@ fn BadgedCard() -> NodeId {
                     </Frame>
                 </Frame>
             </Layers>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn NudgedTile() -> NodeId {
+    let theme = use_theme();
+    let (nudged, set_nudged) = create_signal(false);
+    let by = create_memo(move || match nudged.get() {
+        true => beui::vec2(SWATCH, 0.0),
+        false => beui::Vec2::ZERO,
+    });
+    let face = theme.surface_raised.clone();
+    let ink = theme.text.clone();
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
+            <Interactive on_click={move || set_nudged.update(|nudged| *nudged = !*nudged)}>
+                <Frame color={face} radius=RADIUS padding_horizontal=16.0 padding_vertical=10.0>
+                    <Text string="Nudge" color={ink} />
+                </Frame>
+            </Interactive>
+            <Shift by={by}>
+                <Frame width=SWATCH height=SWATCH color={theme.accent.clone()} radius=12 />
+            </Shift>
         </List>
     }
 }

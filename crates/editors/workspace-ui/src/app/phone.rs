@@ -10,7 +10,7 @@ use block_editor_beui::beui::reactive::{
     create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
-    ActionRow, Caption, Heading, Icon, ModalSheet, SHEET_STOPS, Scroll, use_theme,
+    ActionRow, Caption, Heading, Icon, ModalSheet, SHEET_STOPS, use_theme,
 };
 use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::{BlockInfo, BlockParent};
@@ -152,69 +152,67 @@ fn DetailsBody(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
     let referencing = Rc::clone(&workspace);
     let backreferencing = Rc::clone(&workspace);
     view! {
-        <Scroll>
-            <Frame padding_horizontal=SECTION_PADDING padding_vertical=SECTION_PADDING>
-                <List spacing=0.0>
-                    <Frame padding_horizontal=SHEET_PADDING padding_vertical=SECTION_PADDING>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
-                            <Icon glyph color={theme.accent.clone()} />
-                            <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                                <Heading content={name} />
-                                <Caption content={kind} />
-                            </List>
+        <Frame padding_horizontal=SECTION_PADDING padding_vertical=SECTION_PADDING>
+            <List spacing=0.0>
+                <Frame padding_horizontal=SHEET_PADDING padding_vertical=SECTION_PADDING>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
+                        <Icon glyph color={theme.accent.clone()} />
+                        <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                            <Heading content={name} />
+                            <Caption content={kind} />
                         </List>
-                    </Frame>
+                    </List>
+                </Frame>
+                <ActionRow
+                    @test_id={"workspace.details.new"}
+                    label="New file here"
+                    glyph={ICON_NOTE_ADD.to_owned()}
+                    on_click={new_here}
+                />
+                <ActionRow
+                    @test_id={"workspace.details.rename"}
+                    label="Rename"
+                    glyph={ICON_DRIVE_FILE_RENAME_OUTLINE.to_owned()}
+                    disabled={rename_off}
+                    on_click={move || renaming(Action::Rename)}
+                />
+                <ActionRow
+                    @test_id={"workspace.details.share"}
+                    label="Share"
+                    glyph={ICON_SHARE.to_owned()}
+                    disabled={share_off}
+                    on_click={move || sharing(Action::Share)}
+                />
+                <Show condition={unlinkable}>
                     <ActionRow
-                        @test_id={"workspace.details.new"}
-                        label="New file here"
-                        glyph={ICON_NOTE_ADD.to_owned()}
-                        on_click={new_here}
+                        @test_id={"workspace.details.unlink"}
+                        label="Unlink"
+                        glyph={ICON_LINK_OFF.to_owned()}
+                        on_click={move || unlinking(Action::Unlink)}
                     />
-                    <ActionRow
-                        @test_id={"workspace.details.rename"}
-                        label="Rename"
-                        glyph={ICON_DRIVE_FILE_RENAME_OUTLINE.to_owned()}
-                        disabled={rename_off}
-                        on_click={move || renaming(Action::Rename)}
-                    />
-                    <ActionRow
-                        @test_id={"workspace.details.share"}
-                        label="Share"
-                        glyph={ICON_SHARE.to_owned()}
-                        disabled={share_off}
-                        on_click={move || sharing(Action::Share)}
-                    />
-                    <Show condition={unlinkable}>
-                        <ActionRow
-                            @test_id={"workspace.details.unlink"}
-                            label="Unlink"
-                            glyph={ICON_LINK_OFF.to_owned()}
-                            on_click={move || unlinking(Action::Unlink)}
-                        />
-                    </Show>
-                    <ActionRow
-                        @test_id={"workspace.details.delete"}
-                        label={delete_label}
-                        glyph={ICON_DELETE.to_owned()}
-                        disabled={delete_off}
-                        danger=true
-                        on_click={move || deleting(Action::Delete)}
-                    />
-                    <RelatedBlocks
-                        workspace={referencing}
-                        title="References"
-                        refs={references}
-                        named="workspace.details.reference"
-                    />
-                    <RelatedBlocks
-                        workspace={backreferencing}
-                        title="Referenced by"
-                        refs={backrefs}
-                        named="workspace.details.backref"
-                    />
-                </List>
-            </Frame>
-        </Scroll>
+                </Show>
+                <ActionRow
+                    @test_id={"workspace.details.delete"}
+                    label={delete_label}
+                    glyph={ICON_DELETE.to_owned()}
+                    disabled={delete_off}
+                    danger=true
+                    on_click={move || deleting(Action::Delete)}
+                />
+                <RelatedBlocks
+                    workspace={referencing}
+                    title="References"
+                    refs={references}
+                    named="workspace.details.reference"
+                />
+                <RelatedBlocks
+                    workspace={backreferencing}
+                    title="Referenced by"
+                    refs={backrefs}
+                    named="workspace.details.backref"
+                />
+            </List>
+        </Frame>
     }
 }
 

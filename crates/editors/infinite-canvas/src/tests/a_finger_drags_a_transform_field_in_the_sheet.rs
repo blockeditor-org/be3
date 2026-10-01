@@ -15,7 +15,9 @@ fn a_finger_drags_a_transform_field_in_the_sheet() {
     editor.run();
     let handle = editor.rect_of("sheet.handle").center();
     editor.drag(handle, handle - Vec2::new(0.0, 400.0));
-    editor.run();
+    editor.settle_until("the sheet to come to rest", |editor| {
+        !editor.wants_another_frame()
+    });
 
     let held = entities(&editor)[0].transform;
     let from = editor.point_of("infinite-canvas.transform.x");

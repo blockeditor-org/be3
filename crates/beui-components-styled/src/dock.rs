@@ -3,7 +3,7 @@ mod stack;
 use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
-use crate::context_menu::ContextMenu;
+use crate::context_menu::menu_style;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::menu_button::IconMenuButton;
 use crate::text::{Body, IconSized};
@@ -19,8 +19,8 @@ use beui_core::color::Color32;
 use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_MORE_VERT, ICON_TAB_GROUP};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Action, Callback, ClickCallback, DynamicSegment, ForEach, Frame, Func, Interactive, List,
-    ListChild, Memo, Prop, ReadSignal, RenderFn, Show, Text, clone, create_memo, focus_ring,
+    Action, Callback, ClickCallback, DynamicSegment, ForEach, Frame, Func, List, ListChild, Memo,
+    Prop, ReadSignal, RenderFn, Show, Text, clone, create_memo, focus_ring,
 };
 use stack::DockStackBar;
 
@@ -94,38 +94,28 @@ pub fn DockArea(
             on_close={move |tab: TabId| on_close.call(tab)}
             title
             icon
+            closable
+            menu={menu_style()}
             content
             empty={move || empty.call(())}
-            stack={clone!(closable -> move |handle: DockStackHandle| {
-                let closable = closable.clone();
-                view! {
-                    <DockStackBar handle closable />
-                }
-            })}
-            tab={clone!(closable -> move |handle: DockTabHandle| {
-                let closable = closable.clone();
-                view! {
-                    <DockTabFace handle closable />
-                }
-            })}
-            panel={clone!(closable -> move |handle: DockPanelHandle| {
-                let closable = closable.clone();
-                view! {
-                    <DockPanelFace handle closable />
-                }
-            })}
+            stack={move |handle: DockStackHandle| view! {
+                <DockStackBar handle />
+            }}
+            tab={move |handle: DockTabHandle| view! {
+                <DockTabFace handle />
+            }}
+            panel={move |handle: DockPanelHandle| view! {
+                <DockPanelFace handle />
+            }}
             splitter={move |handle: DockSplitterHandle| view! {
                 <DockSplitterFace handle />
             }}
             grip={move |handle: DockGripHandle| view! {
                 <DockGrip handle />
             }}
-            window={clone!(closable -> move |handle: DockWindowHandle| {
-                let closable = closable.clone();
-                view! {
-                    <DockWindowFace handle closable />
-                }
-            })}
+            window={move |handle: DockWindowHandle| view! {
+                <DockWindowFace handle />
+            }}
             highlight={move || view! {
                 <DockDropHighlight />
             }}
@@ -141,102 +131,36 @@ pub fn DockArea(
 }
 
 #[component]
-fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
+fn DockTabFace(handle: DockTabHandle) -> NodeId {
     let DockTabHandle {
         entry,
         title,
         icon,
-        tabs,
-        has_next,
         selected,
         hovered,
         active,
         focused,
         dragged,
+        closable,
         close,
-        float,
-        group,
-        split,
-        ungroup,
-        floating,
-        pinned,
         vertical,
-        held,
-        toggle_held,
         ..
     } = handle;
-    let stuck = create_memo(clone!(held -> move || floating || held.get() == Some(true)));
-    let homeless = create_memo(clone!(held -> move || held.get().is_none()));
-    let pin_label = create_memo(move || match held.get() {
-        Some(true) => "Unpin from group".to_owned(),
-        Some(false) | None => "Pin to group".to_owned(),
-    });
-    let closable = create_memo(move || {
-        !pinned && tabs.with(|tabs| tabs.iter().all(|tab| closable.call(*tab)))
-    });
-    let alone = create_memo(clone!(has_next -> move || !has_next.get()));
-    let grouped = matches!(entry, Entry::Group(_));
-    let closing = close.clone();
-    let middle = close.clone();
-    let closes = closable.clone();
-    let (group_label, split_label, close_label) = match grouped {
-        false => ("Group with next tab", "Split with next tab", "Close tab"),
-        true => (
-            "Add next tab to group",
-            "Split next tab into group",
-            "Close group",
-        ),
-    };
     view! {
-        <ContextMenu
-            items={view! {
-                <MenuItem label="Pop out into a window" disabled={stuck} />
-                <MenuItem label={group_label} disabled={alone.clone()} />
-                <MenuItem label={split_label} disabled={alone.clone()} />
-                <MenuItem
-                    label={close_label}
-                    disabled={create_memo(clone!(closable -> move || !closable.get()))}
-                />
-                <Show condition={!grouped}>
-                    <MenuItem label={pin_label} disabled={homeless} />
-                </Show>
-                <Show condition={grouped}>
-                    <MenuItem label="Ungroup" disabled={pinned} />
-                </Show>
-            }}
-            on_select={move |path: Vec<usize>| match path.first() {
-                Some(0) => float.call(),
-                Some(1) => group.call(),
-                Some(2) => split.call(),
-                Some(3) => closing.call(),
-                Some(4) if grouped => ungroup.call(),
-                Some(4) => toggle_held.call(),
-                _ => {}
-            }}
-        >
-            <Interactive
-                on_middle_click={move || {
-                    if closes.get_untracked() {
-                        middle.call();
-                    }
-                }}
-            >
-                <DockTabChrome
-                    title
-                    icon
-                    grouped
-                    vertical
-                    selected
-                    hovered
-                    active
-                    focused
-                    dragged
-                    closable
-                    close_test_id={close_test_id(entry)}
-                    close={move || close.call()}
-                />
-            </Interactive>
-        </ContextMenu>
+        <DockTabChrome
+            title
+            icon
+            grouped={matches!(entry, Entry::Group(_))}
+            vertical
+            selected
+            hovered
+            active
+            focused
+            dragged
+            closable
+            close_test_id={close_test_id(entry)}
+            close={move || close.call()}
+        />
     }
 }
 
@@ -317,22 +241,21 @@ fn DockTabChrome(
 }
 
 #[component]
-fn DockPanelFace(handle: DockPanelHandle, closable: Func<TabId, bool>) -> NodeId {
+fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
     let DockPanelHandle {
         vertical,
         focused,
-        contents,
         sidebar_width,
         sidebar_splitter,
         grip,
         bar,
+        closable,
         menu,
         close,
         body,
         ..
     } = handle;
     let theme = use_theme();
-    let closable = all_closable(contents, closable);
     view! {
         <List spacing=0.0>
             <Show condition={bar.is_some()}>
@@ -361,22 +284,21 @@ fn DockPanelFace(handle: DockPanelHandle, closable: Func<TabId, bool>) -> NodeId
 }
 
 #[component]
-fn DockWindowFace(handle: DockWindowHandle, closable: Func<TabId, bool>) -> NodeId {
+fn DockWindowFace(handle: DockWindowHandle) -> NodeId {
     let DockWindowHandle {
         vertical,
         focused,
         title,
-        contents,
         sidebar_width,
         sidebar_splitter,
         grip,
         tabs,
+        closable,
         menu,
         close,
         pane,
         ..
     } = handle;
-    let closable = all_closable(contents, closable);
     view! {
         <DockChrome
             vertical
@@ -589,32 +511,16 @@ fn DockClose(closable: Memo<bool>, close: ClickCallback) -> NodeId {
 
 #[component]
 fn DockGrip(handle: DockGripHandle) -> NodeId {
-    let DockGripHandle {
-        focused,
-        vertical,
-        toggle_vertical,
-        ..
-    } = handle;
+    let DockGripHandle { focused, .. } = handle;
     let theme = use_theme();
     let color = create_memo(clone!(theme -> move || match focused.get() {
         true => theme.text_muted.get(),
         false => theme.border.get(),
     }));
     view! {
-        <ContextMenu
-            items={view! {
-                <MenuItem label={orientation_label(vertical)} />
-            }}
-            on_select={move |_: Vec<usize>| toggle_vertical.call()}
-        >
-            <Frame
-                width=GRIP_WIDTH
-                padding_vertical=WINDOW_BAR_PADDING
-                padding_horizontal=GRIP_PADDING
-            >
-                <IconSized glyph=ICON_DRAG_INDICATOR font_size=GRIP_GLYPH color={color} />
-            </Frame>
-        </ContextMenu>
+        <Frame width=GRIP_WIDTH padding_vertical=WINDOW_BAR_PADDING padding_horizontal=GRIP_PADDING>
+            <IconSized glyph=ICON_DRAG_INDICATOR font_size=GRIP_GLYPH color={color} />
+        </Frame>
     }
 }
 
@@ -699,19 +605,6 @@ fn close_test_id(entry: Entry) -> String {
     match entry {
         Entry::Tab(tab) => format!("dock.tab.{}.close", tab.value()),
         Entry::Group(_) => String::new(),
-    }
-}
-
-fn all_closable(contents: Memo<Vec<TabId>>, closable: Func<TabId, bool>) -> Memo<bool> {
-    create_memo(move || {
-        contents.with(|tabs| !tabs.is_empty() && tabs.iter().all(|tab| closable.call(*tab)))
-    })
-}
-
-fn orientation_label(vertical: bool) -> &'static str {
-    match vertical {
-        true => "Show tabs across the top",
-        false => "Show tabs in a sidebar",
     }
 }
 

@@ -14,7 +14,7 @@ use super::onboarding::ErrorText;
 
 const PANEL_PADDING: f32 = 12.0;
 use super::{AppViewStore, UiCommand, send};
-use crate::surfaces::{self, HostSurface, SurfaceId};
+use crate::surfaces::{self, HostedSurface, SurfaceId};
 
 #[component]
 pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
@@ -209,7 +209,7 @@ fn ArtifactSettingsDialog(view: AppViewStore) -> NodeId {
     let summary = create_memo(move || settings.get().and_then(|settings| settings.summary));
     let has_summary = create_memo(clone!(summary -> move || summary.get().is_some()));
     let summary_text = create_memo(move || summary.get().unwrap_or_default());
-    let height = surfaces::handle(SurfaceId::ArtifactSettings).height();
+    let height = surfaces::height(SurfaceId::ArtifactSettings);
     view! {
         <Dialog
             open={open}
@@ -219,7 +219,7 @@ fn ArtifactSettingsDialog(view: AppViewStore) -> NodeId {
         >
             <List spacing=12.0>
                 <Frame height={height}>
-                    <HostSurface id=SurfaceId::ArtifactSettings />
+                    <HostedSurface id=SurfaceId::ArtifactSettings />
                 </Frame>
                 <Show condition={has_summary}>
                     <Caption content={summary_text} />

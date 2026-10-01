@@ -7,6 +7,8 @@ struct Space {
     translation: vec2<f32>,
     padding: vec2<f32>,
     clip: vec4<f32>,
+    fade: vec4<f32>,
+    widths: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
@@ -74,6 +76,17 @@ fn corner_radius(offset: vec2<f32>, radii: vec4<f32>) -> f32 {
     return select(radii.z, radii.w, offset.x < 0.0);
 }
 
+fn ramp(distance: vec2<f32>, width: vec2<f32>) -> vec2<f32> {
+    let ramped = clamp(distance / max(width, vec2<f32>(1.0e-6)), vec2<f32>(0.0), vec2<f32>(1.0));
+    return select(vec2<f32>(1.0), ramped, width > vec2<f32>(0.0));
+}
+
+fn faded(point: vec2<f32>) -> f32 {
+    let near = ramp(point - space.fade.xy, space.widths.xy);
+    let far = ramp(space.fade.zw - point, space.widths.zw);
+    return near.x * near.y * far.x * far.y;
+}
+
 @vertex
 fn vertex(@builtin(vertex_index) index: u32, instance: Instance) -> Fragment {
     let shift = vec4<f32>(space.translation, space.translation);
@@ -115,11 +128,12 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
     }
 
     let local = turned(input.point, input.turn, -1.0);
+    let fade = faded(input.point);
     var coverage = 1.0;
     if input.params.z > 2.5 {
         let reach = segment_distance(input.point, input.segment.xy, input.segment.zw);
         let edge = clamp(input.params.x + 0.5 - reach, 0.0, 1.0);
-        return vec4<f32>(input.color.rgb, input.color.a * edge);
+        return vec4<f32>(input.color.rgb, input.color.a * edge * fade);
     }
     if input.params.z > 1.5 {
         let texel = textureSampleLevel(atlas, atlas_sampler, input.uv, 0.0);
@@ -127,7 +141,7 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
         let extent = (input.rect.zw - input.rect.xy) * 0.5;
         let distance = rounded_distance(local - center, extent, input.params.x);
         let edge = clamp(0.5 - distance, 0.0, 1.0);
-        return vec4<f32>(texel.rgb * input.color.rgb, texel.a * input.color.a * edge);
+        return vec4<f32>(texel.rgb * input.color.rgb, texel.a * input.color.a * edge * fade);
     }
     if input.params.z > 0.5 {
         coverage = textureSampleLevel(atlas, atlas_sampler, input.uv, 0.0).r;
@@ -144,5 +158,5 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
         coverage = clamp(0.5 - distance, 0.0, 1.0);
     }
 
-    return vec4<f32>(input.color.rgb, input.color.a * coverage);
+    return vec4<f32>(input.color.rgb, input.color.a * coverage * fade);
 }
