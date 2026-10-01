@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ClickCatcher, Frame, List, build, view};
+use crate::reactive::{Frame, Interactive, List, build, view};
 
 const ROW: f32 = 20.0;
 
@@ -12,12 +12,12 @@ fn the_edge_two_rows_share_hovers_only_the_lower_one() {
         move || {
             view! {
                 <List spacing=0.0>
-                    <ClickCatcher on_hover_change={move |hovered| upper.set(hovered)}>
+                    <Interactive on_hover_change={move |hovered| upper.set(hovered)}>
                         <Frame height=ROW />
-                    </ClickCatcher>
-                    <ClickCatcher on_hover_change={move |hovered| lower.set(hovered)}>
+                    </Interactive>
+                    <Interactive on_hover_change={move |hovered| lower.set(hovered)}>
                         <Frame height=ROW />
-                    </ClickCatcher>
+                    </Interactive>
                 </List>
             }
         }

@@ -8,7 +8,7 @@ use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::input::{CursorIcon, PointerPress};
 use crate::painter::Painter;
 
-use crate::base::click_catcher::ClickCatcherNode;
+use crate::base::interactive::InteractiveNode;
 use crate::callback::{Callback, NodeRef};
 use crate::current::with_document;
 use crate::document::Document;
@@ -319,9 +319,9 @@ impl Document {
         let overlay_cell: Rc<Cell<Option<NodeId>>> = Rc::new(Cell::new(None));
         let press_cell = overlay_cell.clone();
         let tap_cell = overlay_cell.clone();
-        let scrim = self.create_click_catcher();
-        self.set_click_catcher_cursor(scrim, Some(CursorIcon::Default));
-        let node = self.arena.touch_mut_as::<ClickCatcherNode>(scrim);
+        let scrim = self.create_interactive(false);
+        self.set_interactive_cursor(scrim, Some(CursorIcon::Default));
+        let node = self.arena.touch_mut_as::<InteractiveNode>(scrim);
         node.on_press = Callback::new(move |press: PointerPress| {
             if press.touch {
                 return;

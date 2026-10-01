@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use super::*;
-use crate::reactive::{ClickCatcher, Frame, build, view};
+use crate::reactive::{Frame, Interactive, build, view};
 
 #[test]
 fn a_second_finger_cancels_the_press_the_first_began() {
@@ -12,12 +12,12 @@ fn a_second_finger_cancels_the_press_the_first_began() {
         let (cancelled, clicked) = (cancelled.clone(), clicked.clone());
         move || {
             view! {
-                <ClickCatcher
+                <Interactive
                     on_cancel={move || cancelled.set(cancelled.get() + 1)}
                     on_click={move || clicked.set(true)}
                 >
                     <Frame width=300.0 height=300.0 />
-                </ClickCatcher>
+                </Interactive>
             }
         }
     });

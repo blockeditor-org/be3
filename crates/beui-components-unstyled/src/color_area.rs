@@ -10,9 +10,8 @@ use beui_core::geometry::{Pos2, Vec2, pos2};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCatcher, Focusable, Memo, Prop, ReadSignal, Render, clone,
-    component_accessibility, component_rect, create_effect, create_memo, create_signal,
-    set_component_state,
+    Callback, Interactive, Memo, Prop, ReadSignal, Render, clone, component_accessibility,
+    component_rect, create_effect, create_memo, create_signal, set_component_state,
 };
 
 const STEP: f32 = 0.01;
@@ -143,7 +142,8 @@ pub fn ColorArea(
     });
     let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             tab_stop
             focused
             on_focus_change={move |focused: bool| set_has_focus.set(focused)}
@@ -174,24 +174,21 @@ pub fn ColorArea(
                 }
                 true
             }}
-        >
-            <ClickCatcher
-                cursor
-                touch_drags=true
-                on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-                on_hover_move={move |press: PointerPress| set_pointer.set(Some(press.pos))}
-                on_press={grabbed}
-                on_drag={move |press: PointerPress| {
-                    let (x, y) = dragged_to(press);
-                    drag_set(x, 1.0 - y)
-                }}
-                on_active_change={move |active: bool| {
-                    set_dragging.set(active);
-                    on_drag_change.call(active);
-                }}
-                children={content_node}
-            />
-        </Focusable>
+            cursor
+            touch_drags=true
+            on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
+            on_hover_move={move |press: PointerPress| set_pointer.set(Some(press.pos))}
+            on_press={grabbed}
+            on_drag={move |press: PointerPress| {
+                let (x, y) = dragged_to(press);
+                drag_set(x, 1.0 - y)
+            }}
+            on_active_change={move |active: bool| {
+                set_dragging.set(active);
+                on_drag_change.call(active);
+            }}
+            children={content_node}
+        />
     }
 }
 

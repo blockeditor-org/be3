@@ -5,8 +5,8 @@ use block_editor_beui::beui::icons::{
     ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_CLOSE, ICON_DELETE, ICON_FULLSCREEN,
 };
 use block_editor_beui::beui::reactive::{
-    Align, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize, List, NodeRef, Prop,
-    ReadSignal, Show, Text, clone, component, create_memo, create_selector, create_signal, view,
+    Align, Direction, ForEach, Frame, Interactive, ItemSize, List, NodeRef, Prop, ReadSignal, Show,
+    Text, clone, component, create_memo, create_selector, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Button, ButtonVariant, Caption, IconButton, Scroll, theme, use_theme,
@@ -51,7 +51,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
     });
 
     view! {
-        <Focusable focused={presenting.clone()} on_key={keys}>
+        <Interactive focusable=true focused={presenting.clone()} on_key={keys}>
             <Frame color={background}>
                 <List direction=Direction::Horizontal spacing=0.0>
                     <Filmstrip
@@ -91,7 +91,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                     </List>
                 </List>
             </Frame>
-        </Focusable>
+        </Interactive>
     }
 }
 
@@ -266,7 +266,7 @@ fn Playback(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
 
     view! {
         <Frame visible={shown} height=PLAYBACK_HEIGHT>
-            <ClickCatcher
+            <Interactive
                 on_hover_change={move |hovered| set_over.set(hovered)}
                 @test_id={"presentation.playback"}
             >
@@ -303,7 +303,7 @@ fn Playback(editor: Editor, slides: Rc<Slides>, shown: Prop<bool>) -> NodeId {
                         />
                     </List>
                 </Frame>
-            </ClickCatcher>
+            </Interactive>
         </Frame>
     }
 }

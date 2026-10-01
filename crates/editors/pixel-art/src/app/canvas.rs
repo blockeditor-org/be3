@@ -3,11 +3,11 @@ use std::rc::Rc;
 use block_editor_beui::be_block::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
 use block_editor_beui::beui::icons::ICON_ARROW_FORWARD;
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, ClickCatcher, Focusable, ForEach, Frame, ItemSize, List, Memo,
-    NodeRef, Picture, ReadSignal, WriteSignal, clone, component, component_rect, create_effect,
-    create_memo, view,
+    Canvas, CanvasItem, CanvasView, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef,
+    ReadSignal, WriteSignal, clone, component, component_rect, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Code, use_theme};
+use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{
     Color32, CursorIcon, ImageFit, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2,
 };
@@ -202,30 +202,30 @@ pub(crate) fn ArtworkCanvas(
     editor.content(&content);
     view! {
         <Frame @node_ref={&content} @test_id={"pixel-art.canvas"}>
-            <Focusable on_key={on_key}>
-                <ClickCatcher
-                    cursor=CursorIcon::Crosshair
-                    repeat_drag=true
-                    on_press={on_press}
-                    on_drag={on_drag}
-                    on_click_at={on_click_at}
-                    on_secondary_press={on_secondary}
-                    on_hover_move={on_hover_move}
-                    on_hover_change={on_hover_change}
-                >
-                    <List spacing=0.0>
-                        <Artwork
-                            @sizing=ItemSize::Percent(100.0)
-                            shown={shown}
-                            view={view}
-                            scale={scale}
-                            artwork={artwork}
-                            show_grid={tools.show_grid.clone()}
-                            hovered={hovered}
-                        />
-                    </List>
-                </ClickCatcher>
-            </Focusable>
+            <Interactive
+                focusable=true
+                on_key={on_key}
+                cursor=CursorIcon::Crosshair
+                repeat_drag=true
+                on_press={on_press}
+                on_drag={on_drag}
+                on_click_at={on_click_at}
+                on_secondary_press={on_secondary}
+                on_hover_move={on_hover_move}
+                on_hover_change={on_hover_change}
+            >
+                <List spacing=0.0>
+                    <Artwork
+                        @sizing=ItemSize::Percent(100.0)
+                        shown={shown}
+                        view={view}
+                        scale={scale}
+                        artwork={artwork}
+                        show_grid={tools.show_grid.clone()}
+                        hovered={hovered}
+                    />
+                </List>
+            </Interactive>
         </Frame>
     }
 }

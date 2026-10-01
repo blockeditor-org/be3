@@ -22,7 +22,7 @@ use beui_core::icons::{ICON_CALENDAR_MONTH, ICON_SCHEDULE};
 use beui_core::input::{CursorIcon, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Children, ClickCallback, ClickCatcher, Dynamic, Frame, ItemSize, List,
+    Callback, Child, Children, ClickCallback, Dynamic, Frame, Interactive, ItemSize, List,
     ListChild, Memo, NodeRef, Prop, ReadSignal, Show, Text, WriteSignal, clone, component_rect,
     create_effect, create_memo, create_signal, create_timer, focus_ring,
 };
@@ -241,7 +241,7 @@ fn FieldBox(
         false => theme.surface_raised.get(),
     }));
     view! {
-        <ClickCatcher on_hover_change={move |inside: bool| set_hovered.set(inside)}>
+        <Interactive on_hover_change={move |inside: bool| set_hovered.set(inside)}>
             <Frame
                 height=HEIGHT
                 color={fill}
@@ -252,7 +252,7 @@ fn FieldBox(
                 padding_right=TRIGGER_GAP
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                    <ClickCatcher
+                    <Interactive
                         @sizing=ItemSize::Percent(100.0)
                         cursor=CursorIcon::Text
                         on_click_at={move |_: PointerPress| on_press.call()}
@@ -281,11 +281,11 @@ fn FieldBox(
                                 }}
                             />
                         </Frame>
-                    </ClickCatcher>
+                    </Interactive>
                     {children}
                 </List>
             </Frame>
-        </ClickCatcher>
+        </Interactive>
     }
 }
 

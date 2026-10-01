@@ -8,8 +8,8 @@ use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Callback, Child, Children, ClickCallback, ClickCatcher, ItemSize, List, NodeRef, Prop,
-    RenderFn, clone, create_effect, create_memo, create_signal, set_component_state,
+    Callback, Child, Children, ClickCallback, Interactive, ItemSize, List, NodeRef, Prop, RenderFn,
+    clone, create_effect, create_memo, create_signal, set_component_state,
 };
 
 struct State {
@@ -79,7 +79,7 @@ pub fn ContextMenu(
         />
     });
     view! {
-        <ClickCatcher
+        <Interactive
             on_secondary_press={move |press: PointerPress| {
                 if disabled.get() {
                     return;
@@ -105,7 +105,7 @@ pub fn ContextMenu(
                     {menu}
                 </Overlay>
             </List>
-        </ClickCatcher>
+        </Interactive>
     }
 }
 

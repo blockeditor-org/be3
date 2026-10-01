@@ -2,7 +2,7 @@ use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::reactive::{
-    Callback, Canvas, CanvasItem, ClickCatcher, Direction, ForEach, Frame, ItemSize, List, Memo,
+    Callback, Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
     clone, component, component_rect, component_size, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Body, Caption, ListRow, Scroll, use_theme};
@@ -121,7 +121,7 @@ fn Grid(
     let rule_width = column_width.clone();
     view! {
         <Frame height=CONTENT_HEIGHT>
-            <ClickCatcher on_click_at={move |press| slot(press.pos)}>
+            <Interactive on_click_at={move |press| slot(press.pos)}>
                 <Canvas>
                     <ForEach keys={hours.clone()}>
                         {move |hour: u8| {
@@ -169,7 +169,7 @@ fn Grid(
                         }}
                     </ForEach>
                 </Canvas>
-            </ClickCatcher>
+            </Interactive>
         </Frame>
     }
 }

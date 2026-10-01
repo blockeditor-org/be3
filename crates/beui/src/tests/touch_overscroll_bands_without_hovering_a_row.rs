@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{ClickCatcher, ForEach, Frame, ItemSize, List, NodeRef, Spacer, build, view};
+use crate::reactive::{ForEach, Frame, Interactive, ItemSize, List, NodeRef, Spacer, build, view};
 use crate::unstyled::Scroll;
 
 #[test]
@@ -12,11 +12,11 @@ fn touch_overscroll_bands_without_hovering_a_row() {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll_ref>
-                    <ClickCatcher on_hover_change={move |value| hover_sink.set(value)}>
+                    <Interactive on_hover_change={move |value| hover_sink.set(value)}>
                         <Frame padding_horizontal=0.0 padding_vertical=20.0>
                             <Spacer />
                         </Frame>
-                    </ClickCatcher>
+                    </Interactive>
                     <ForEach keys={indices(20)}>
                         {|_: usize| view! {
                             <Frame padding_horizontal=0.0 padding_vertical=20.0>

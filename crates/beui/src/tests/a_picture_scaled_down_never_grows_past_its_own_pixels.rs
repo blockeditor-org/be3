@@ -1,6 +1,7 @@
 use super::*;
 use crate::image::{Image, ImageFit};
-use crate::reactive::{Frame, Picture, build, view};
+use crate::reactive::{Frame, build, view};
+use crate::unstyled::Picture;
 
 fn drawn(width: f32, height: f32) -> Rect {
     let image = Image::from_rgba(20, 10, vec![128; 800]);

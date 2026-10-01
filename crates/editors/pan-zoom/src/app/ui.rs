@@ -1,7 +1,7 @@
 use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::ICON_LEFT_PANEL_OPEN;
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, ClickCatcher, Direction, ForEach, Frame, ItemSize, List, NodeRef,
+    Canvas, CanvasItem, Direction, ForEach, Frame, Interactive, ItemSize, List, NodeRef,
     ReadSignal, Show, Text, WriteSignal, clone, component, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Icon, Separator, use_theme};
@@ -320,7 +320,7 @@ fn CardView(
             height={card.height}
             @test_id={format!("pan_zoom.card.{index}")}
         >
-            <ClickCatcher cursor=CursorIcon::PointingHand on_click={select}>
+            <Interactive cursor=CursorIcon::PointingHand on_click={select}>
                 <Frame
                     color={theme.surface_raised.clone()}
                     outline={outline}
@@ -343,7 +343,7 @@ fn CardView(
                         />
                     </List>
                 </Frame>
-            </ClickCatcher>
+            </Interactive>
         </CanvasItem>
     }
 }

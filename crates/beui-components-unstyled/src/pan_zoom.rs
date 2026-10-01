@@ -7,7 +7,7 @@ use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::input::{CursorIcon, Key, KeyPress, ScrollGesture, ZoomGesture};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCatcher, Focusable, Memo, Prop, ReadSignal, Render, WriteSignal, clone,
+    Callback, Interactive, Memo, Prop, ReadSignal, Render, WriteSignal, clone,
     component_accessibility, component_rect, create_effect, create_memo, create_signal,
     set_component_state, untrack,
 };
@@ -189,26 +189,24 @@ pub fn PanZoom(
     set_component_state(current);
 
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             on_focus_change={move |focused: bool| set_focused.set(focused)}
             on_key={move |press: KeyPress| key_camera.key(press)}
-        >
-            <ClickCatcher
-                cursor={cursor}
-                on_scroll={move |gesture: ScrollGesture| {
-                    if gesture.modifiers.ctrl {
-                        let factor = (gesture.delta.y * ZOOM_PER_SCROLL_POINT).exp();
-                        scroll_camera.zoom(factor, gesture.pos);
-                    } else {
-                        scroll_camera.pan(gesture.delta);
-                    }
-                }}
-                on_zoom={move |gesture: ZoomGesture| zoom_camera.zoom(gesture.factor, gesture.pos)}
-                on_pan_drag={move |delta: Vec2| camera.pan(delta)}
-                on_pan_active_change={move |panning: bool| set_panning.set(panning)}
-                children={Some(content_node)}
-            />
-        </Focusable>
+            cursor={cursor}
+            on_scroll={move |gesture: ScrollGesture| {
+                if gesture.modifiers.ctrl {
+                    let factor = (gesture.delta.y * ZOOM_PER_SCROLL_POINT).exp();
+                    scroll_camera.zoom(factor, gesture.pos);
+                } else {
+                    scroll_camera.pan(gesture.delta);
+                }
+            }}
+            on_zoom={move |gesture: ZoomGesture| zoom_camera.zoom(gesture.factor, gesture.pos)}
+            on_pan_drag={move |delta: Vec2| camera.pan(delta)}
+            on_pan_active_change={move |panning: bool| set_panning.set(panning)}
+            children={Some(content_node)}
+        />
     }
 }
 

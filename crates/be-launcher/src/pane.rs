@@ -2,9 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui::reactive::{
-    ClickCatcher, Focusable, ForEach, Frame, List, Memo, ReadSignal, Text, WriteSignal, clone,
-    component, component_size, create_effect, create_memo, create_signal, layout_text, untrack,
-    view,
+    ForEach, Frame, Interactive, List, Memo, ReadSignal, Text, WriteSignal, clone, component,
+    component_size, create_effect, create_memo, create_signal, layout_text, untrack, view,
 };
 use beui::{Color32, Direction, FontId, KeyPress, NodeId, ScrollGesture, TextLayout};
 use ghostty_vt::{Renderer, Rgb, Terminal};
@@ -202,33 +201,31 @@ pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
     let typed = pane.clone();
     let pressed = pane.clone();
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             on_text={move |text: String| typed.type_text(&text)}
             on_key={move |press: KeyPress| pressed.press(press)}
+            on_scroll={move |gesture: ScrollGesture| {
+                let rows = (gesture.delta.y / (FONT_SIZE * LINE_SPACING)).round() as isize;
+                if rows != 0 {
+                    pane.scroll(-rows);
+                }
+            }}
         >
-            <ClickCatcher
-                on_scroll={move |gesture: ScrollGesture| {
-                    let rows = (gesture.delta.y / (FONT_SIZE * LINE_SPACING)).round() as isize;
-                    if rows != 0 {
-                        pane.scroll(-rows);
-                    }
-                }}
-            >
-                <Frame color={background} padding_horizontal=PADDING padding_vertical=PADDING>
-                    <List spacing=0.0>
-                        <ForEach keys>
-                            {move |index: usize| {
-                                let rows = rows.clone();
-                                let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()).unwrap_or_default());
-                                view! {
-                                    <TerminalLine row />
-                                }
-                            }}
-                        </ForEach>
-                    </List>
-                </Frame>
-            </ClickCatcher>
-        </Focusable>
+            <Frame color={background} padding_horizontal=PADDING padding_vertical=PADDING>
+                <List spacing=0.0>
+                    <ForEach keys>
+                        {move |index: usize| {
+                            let rows = rows.clone();
+                            let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()).unwrap_or_default());
+                            view! {
+                                <TerminalLine row />
+                            }
+                        }}
+                    </ForEach>
+                </List>
+            </Frame>
+        </Interactive>
     }
 }
 

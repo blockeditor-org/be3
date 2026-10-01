@@ -4,8 +4,8 @@ use std::time::{Duration, Instant};
 
 use beui::accesskit::{Node, Role};
 use beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, NodeRef, Viewport, clone, component, create_memo,
-    create_signal, create_timer, view,
+    Align, Direction, Drawing, Frame, ItemSize, List, NodeRef, Prop, clone, component, create_memo,
+    create_signal, create_timer, draw_gpu, view,
 };
 use beui::styled::{Card, Shortcut};
 use beui::unstyled::{Edge, Floating, PointerLock, PointerLockHandle};
@@ -118,7 +118,10 @@ pub(crate) fn Scene3DView() -> NodeId {
         >
             {move |_: PointerLockHandle| view! {
                 <List spacing=0.0>
-                    <Viewport drawing={drawing} @sizing=ItemSize::Percent(100.0) />
+                    <Drawing
+                        draw={Prop::Dynamic(Rc::new(move || draw_gpu(drawing.get())))}
+                        @sizing=ItemSize::Percent(100.0)
+                    />
                     <Floating
                         anchor={anchor.clone()}
                         edge=Edge::Bottom

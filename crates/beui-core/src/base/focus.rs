@@ -1,15 +1,13 @@
-use std::any::Any;
-
 use crate::base::frame::FrameNode;
+use crate::base::interactive::InteractiveNode;
 use crate::base::overlay::OverlayNode;
 use crate::geometry::{Rect, Vec2};
 use crate::input::{ImeArea, Key, KeyPress};
-use crate::painter::Painter;
 
 use crate::callback::{Callback, ClickCallback};
 use crate::current::with_document;
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, NodeId};
 
 pub type KeyCallback = Callback<KeyPress, bool>;
 
@@ -19,9 +17,7 @@ pub struct ImeCursor {
     pub rect: Option<Rect>,
 }
 
-pub struct FocusableNode {
-    pub child: Option<NodeId>,
-    pub focused: bool,
+pub struct Focus {
     pub tab_stop: bool,
     pub press_focus: bool,
     pub ime: bool,
@@ -37,17 +33,15 @@ pub struct FocusableNode {
     pub on_motion: Callback<Vec2>,
 }
 
-impl Default for FocusableNode {
+impl Default for Focus {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl FocusableNode {
+impl Focus {
     pub fn new() -> Self {
         Self {
-            child: None,
-            focused: false,
             tab_stop: true,
             press_focus: true,
             ime: false,
@@ -65,87 +59,21 @@ impl FocusableNode {
     }
 }
 
-impl Element for FocusableNode {
-    fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
-        match self.child {
-            Some(child) => crate::layout::measure(doc, painter, child, available),
-            None => Vec2::ZERO,
-        }
-    }
-
-    fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
-        crate::layout::baseline(doc, painter, self.child?, available)
-    }
-
-    fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        if let Some(child) = self.child {
-            crate::layout::layout(doc, painter, child, rect, out);
-        }
-    }
-
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
-        if let Some(child) = self.child {
-            crate::paint::paint(doc, painter, rects, child);
-        }
-    }
-
-    fn interact(
-        &mut self,
-        doc: &mut Document,
-        _painter: &Painter,
-        input: &InteractInput,
-        id: NodeId,
-        rect: Rect,
-        focus_target: &mut Option<NodeId>,
-        children: &mut Vec<NodeId>,
-    ) {
-        let hovered = input.pointer_over(rect);
-        if hovered
-            && ((input.pressed_this_frame && !input.touch_started)
-                || (input.touch_ended && !input.touch_dragged && !input.touch_cancelled))
-        {
-            *focus_target = match self.press_focus {
-                true => Some(id),
-                false => doc.focused_node(),
-            };
-        }
-        children.extend(self.child);
-    }
-
-    fn children(&self) -> Vec<NodeId> {
-        self.child.into_iter().collect()
-    }
-
-    fn kind(&self) -> &'static str {
-        "focusable"
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
+pub fn focus_of(element: &dyn Element) -> Option<&Focus> {
+    element
+        .as_any()
+        .downcast_ref::<InteractiveNode>()?
+        .focus
+        .as_ref()
 }
 
 impl Document {
-    pub fn create_focusable(&mut self) -> NodeId {
-        self.arena.insert(FocusableNode::new())
-    }
-
-    pub fn set_focusable_child(&mut self, focusable: NodeId, child: NodeId) {
-        if self.arena.get_as::<FocusableNode>(focusable).child != Some(child) {
-            self.arena.get_mut_as::<FocusableNode>(focusable).child = Some(child);
-        }
-    }
-
     pub fn set_focusable_tab_stop(&mut self, focusable: NodeId, tab_stop: bool) {
         if !self.contains(focusable) {
             return;
         }
-        if self.arena.get_as::<FocusableNode>(focusable).tab_stop != tab_stop {
-            self.arena.touch_mut_as::<FocusableNode>(focusable).tab_stop = tab_stop;
+        if focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.tab_stop != tab_stop) {
+            self.focus_mut(focusable).tab_stop = tab_stop;
         }
     }
 
@@ -153,11 +81,18 @@ impl Document {
         if !self.contains(focusable) {
             return;
         }
-        if self.arena.get_as::<FocusableNode>(focusable).press_focus != press_focus {
-            self.arena
-                .get_mut_as::<FocusableNode>(focusable)
-                .press_focus = press_focus;
+        if focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.press_focus != press_focus)
+        {
+            self.focus_mut(focusable).press_focus = press_focus;
         }
+    }
+
+    fn focus_mut(&mut self, id: NodeId) -> &mut Focus {
+        self.arena
+            .touch_mut_as::<InteractiveNode>(id)
+            .focus
+            .as_mut()
+            .expect("the node is focusable")
     }
 
     pub fn focused_node(&self) -> Option<NodeId> {
@@ -193,25 +128,19 @@ impl Document {
 
     pub fn set_focusable_ime(&mut self, focusable: NodeId, ime: bool) {
         if self.contains(focusable) {
-            self.arena.touch_mut_as::<FocusableNode>(focusable).ime = ime;
+            self.focus_mut(focusable).ime = ime;
         }
     }
 
     pub fn set_focusable_ime_cursor(&mut self, focusable: NodeId, cursor: Option<ImeCursor>) {
         if self.contains(focusable) {
-            self.arena
-                .touch_mut_as::<FocusableNode>(focusable)
-                .ime_cursor = cursor;
+            self.focus_mut(focusable).ime_cursor = cursor;
         }
     }
 
     pub fn focused_ime_area(&self) -> Option<ImeArea> {
         let focused = self.focused?;
-        let node = self
-            .arena
-            .get(focused)
-            .as_any()
-            .downcast_ref::<FocusableNode>()?;
+        let node = focus_of(self.arena.get(focused))?;
         if !node.ime {
             return None;
         }
@@ -232,11 +161,7 @@ impl Document {
 
     pub fn focus_takes_text(&self) -> bool {
         self.focused.is_some_and(|focused| {
-            self.arena
-                .get(focused)
-                .as_any()
-                .downcast_ref::<FocusableNode>()
-                .is_some_and(|node| !node.on_text.is_empty())
+            focus_of(self.arena.get(focused)).is_some_and(|node| !node.on_text.is_empty())
         })
     }
 
@@ -244,13 +169,7 @@ impl Document {
         let Some(focused) = self.focused else {
             return false;
         };
-        let Some(on_key) = self
-            .arena
-            .get(focused)
-            .as_any()
-            .downcast_ref::<FocusableNode>()
-            .map(|node| node.on_key.clone())
-        else {
+        let Some(on_key) = focus_of(self.arena.get(focused)).map(|node| node.on_key.clone()) else {
             return false;
         };
         on_key.call(press)
@@ -309,12 +228,7 @@ impl Document {
         for offset in 0..order.len() {
             let id = order[(start as isize + offset as isize * step)
                 .rem_euclid(order.len() as isize) as usize];
-            let element = self.arena.get(id);
-            if element
-                .as_any()
-                .downcast_ref::<FocusableNode>()
-                .is_none_or(|node| node.tab_stop)
-            {
+            if focus_of(self.arena.get(id)).is_none_or(|focus| focus.tab_stop) {
                 self.update_focus(Some(id));
                 return;
             }
@@ -353,7 +267,7 @@ impl Document {
         {
             return;
         }
-        if element.as_any().is::<FocusableNode>() {
+        if focus_of(element).is_some() {
             out.push(id);
         }
         for child in element.children() {
@@ -419,12 +333,7 @@ impl Document {
         if !activate || !self.contains(id) {
             return;
         }
-        let on_activate = self
-            .arena
-            .get(id)
-            .as_any()
-            .downcast_ref::<FocusableNode>()
-            .map(|node| node.on_activate.clone());
+        let on_activate = focus_of(self.arena.get(id)).map(|node| node.on_activate.clone());
         if let Some(on_activate) = on_activate {
             on_activate.call();
         }
@@ -434,14 +343,7 @@ impl Document {
         if !self.contains(id) {
             return;
         }
-        if let Some(node) = self
-            .arena
-            .touch_mut(id)
-            .as_any_mut()
-            .downcast_mut::<FocusableNode>()
-        {
-            node.focused = focused;
-        }
+        self.arena.touch_mut(id);
         self.call_focusable_handler(id, focused, |node| &node.on_focus_change);
     }
 
@@ -449,17 +351,12 @@ impl Document {
         &mut self,
         id: NodeId,
         value: V,
-        select: impl Fn(&FocusableNode) -> &Callback<V>,
+        select: impl Fn(&Focus) -> &Callback<V>,
     ) {
         if !self.contains(id) {
             return;
         }
-        let handler = self
-            .arena
-            .get(id)
-            .as_any()
-            .downcast_ref::<FocusableNode>()
-            .map(|node| select(node).clone());
+        let handler = focus_of(self.arena.get(id)).map(|node| select(node).clone());
         if let Some(handler) = handler {
             handler.call(value);
         }
@@ -482,13 +379,7 @@ impl Document {
         let (Some(root), Some(focused)) = (self.root, self.focused) else {
             return false;
         };
-        if self
-            .arena
-            .get(focused)
-            .as_any()
-            .downcast_ref::<FocusableNode>()
-            .is_some_and(|node| !node.on_step.is_empty())
-        {
+        if focus_of(self.arena.get(focused)).is_some_and(|node| !node.on_step.is_empty()) {
             return false;
         }
         let mut path = Vec::new();
@@ -496,12 +387,7 @@ impl Document {
             return false;
         }
         for id in path.into_iter().rev().skip(1) {
-            let handler = self
-                .arena
-                .get(id)
-                .as_any()
-                .downcast_ref::<FocusableNode>()
-                .map(|node| node.on_ancestor_key.clone());
+            let handler = focus_of(self.arena.get(id)).map(|node| node.on_ancestor_key.clone());
             if let Some(handler) = handler
                 && handler.call(press)
             {

@@ -1,5 +1,5 @@
-use crate::base::click_catcher::ClickCatcherNode;
 use crate::base::embed::EmbedNode;
+use crate::base::interactive::InteractiveNode;
 use crate::base::list::Direction;
 use crate::context::Context;
 use crate::document::Document;
@@ -123,7 +123,7 @@ fn start(doc: &mut Document, rects: &Rects, root: NodeId, input: InteractInput) 
     let Some(target) = super::target(doc, rects, root, Some(pos), &claims_middle) else {
         return untouched;
     };
-    if !catcher(doc, target).is_some_and(ClickCatcherNode::wants_autoscroll) {
+    if !catcher(doc, target).is_some_and(InteractiveNode::wants_autoscroll) {
         return untouched;
     }
     let autoscroll = Autoscroll {
@@ -148,15 +148,15 @@ fn claims_middle(element: &dyn Element) -> bool {
     let any = element.as_any();
     any.is::<EmbedNode>()
         || any
-            .downcast_ref::<ClickCatcherNode>()
-            .is_some_and(ClickCatcherNode::claims_middle)
+            .downcast_ref::<InteractiveNode>()
+            .is_some_and(InteractiveNode::claims_middle)
 }
 
-fn catcher(doc: &Document, id: NodeId) -> Option<&ClickCatcherNode> {
+fn catcher(doc: &Document, id: NodeId) -> Option<&InteractiveNode> {
     doc.arena
         .get(id)
         .as_any()
-        .downcast_ref::<ClickCatcherNode>()
+        .downcast_ref::<InteractiveNode>()
         .filter(|catcher| catcher.wants_autoscroll())
 }
 

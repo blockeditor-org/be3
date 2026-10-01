@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use super::*;
 use crate::input::PointerPress;
-use crate::reactive::{ClickCatcher, Frame, build, view};
+use crate::reactive::{Frame, Interactive, build, view};
 
 #[test]
 fn a_click_catcher_that_takes_touch_drags_keeps_a_vertical_finger_drag() {
@@ -13,13 +13,13 @@ fn a_click_catcher_that_takes_touch_drags_keeps_a_vertical_finger_drag() {
         let (drags, cancelled) = (drags.clone(), cancelled.clone());
         move || {
             view! {
-                <ClickCatcher
+                <Interactive
                     touch_drags=true
                     on_drag={move |press: PointerPress| drags.borrow_mut().push(press.pos)}
                     on_cancel={move || cancelled.set(true)}
                 >
                     <Frame width=300.0 height=300.0 />
-                </ClickCatcher>
+                </Interactive>
             }
         }
     });
