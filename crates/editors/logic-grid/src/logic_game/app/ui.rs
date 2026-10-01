@@ -154,9 +154,8 @@ fn LevelRow(
                 </List>
             </ListRow>
             <Show condition={expanded}>
-                <List direction=Direction::Horizontal spacing=0.0>
-                    <Spacer @sizing=ItemSize::Fixed(INDENT) />
-                    <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
+                <Frame padding_left=INDENT>
+                    <List spacing=ROW_SPACING>
                         <Caption content={goal} wrap=true />
                         <Show condition={shows_quiz}>
                             <BinaryAddition editor={editor} block={block} />
@@ -170,7 +169,7 @@ fn LevelRow(
                             />
                         </Show>
                     </List>
-                </List>
+                </Frame>
             </Show>
         </List>
     }

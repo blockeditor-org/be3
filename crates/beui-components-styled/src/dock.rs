@@ -13,7 +13,7 @@ use beui_components_unstyled::{
     DockStackHandle, DockState, DockTabHandle, DockWindowHandle, Entry, GroupId, MenuItem,
     SPLITTER_THICKNESS, TabId, sidebar_size,
 };
-use beui_core::base::{Align, Direction, ItemSize};
+use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_TAB_GROUP};
 use beui_core::node::NodeId;
@@ -486,9 +486,13 @@ fn DockSideBar(
             padding_horizontal=BAR_PADDING
         >
             <List spacing=BAR_SPACING>
-                <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    justify=Justify::SpaceBetween
+                    spacing=BAR_SPACING
+                >
                     {grip}
-                    <Frame @sizing=ItemSize::Percent(100.0) />
                     <DockClose closable close={move || close.call()} />
                 </List>
                 <Show condition={!titled}>

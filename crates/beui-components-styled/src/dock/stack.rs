@@ -177,26 +177,24 @@ fn DockTabCount(count: Memo<usize>, on_click: ClickCallback) -> NodeId {
                         outline={theme.accent.clone()}
                         outline_width=COUNT_OUTLINE
                         outline_visible={focus_ring(focused)}
+                        align_horizontal=Align::Center
+                        align_vertical=Align::Center
                     >
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Frame @sizing=ItemSize::Percent(50.0) />
-                            <Frame
-                                width=COUNT_SIDE
-                                height=COUNT_SIDE
-                                radius=COUNT_RADIUS
-                                outline={theme.text.clone()}
-                                outline_width=COUNT_OUTLINE
-                                outline_visible=true
-                            >
-                                <Text
-                                    string={label}
-                                    font_size=FONT_SMALL
-                                    color={theme.text.clone()}
-                                    align=TextAlign::Center
-                                />
-                            </Frame>
-                            <Frame @sizing=ItemSize::Percent(50.0) />
-                        </List>
+                        <Frame
+                            width=COUNT_SIDE
+                            height=COUNT_SIDE
+                            radius=COUNT_RADIUS
+                            outline={theme.text.clone()}
+                            outline_width=COUNT_OUTLINE
+                            outline_visible=true
+                        >
+                            <Text
+                                string={label}
+                                font_size=FONT_SMALL
+                                color={theme.text.clone()}
+                                align=TextAlign::Center
+                            />
+                        </Frame>
                     </Frame>
                 }
             }}

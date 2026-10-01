@@ -203,7 +203,7 @@ fn Sidebar(model: Model) -> NodeId {
                 </List>
             </Frame>
             <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding_horizontal=PADDING>
+                <Frame padding_horizontal=PADDING padding_bottom=PADDING>
                     <List spacing=0.0>
                         <ForEach keys={visible}>
                             {move |number: u64| {
@@ -214,7 +214,6 @@ fn Sidebar(model: Model) -> NodeId {
                                 }
                             }}
                         </ForEach>
-                        <Spacer @sizing=ItemSize::Fixed(PADDING) />
                     </List>
                 </Frame>
             </Scroll>

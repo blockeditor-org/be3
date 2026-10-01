@@ -19,8 +19,8 @@ use beui_core::image::Image;
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
 use beui_view::reactive::{
-    Callback, Draw, Drawing, ForEach, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show,
-    WriteSignal, clone, create_effect, create_memo, create_signal, focus_ring,
+    Callback, Draw, Drawing, ForEach, Frame, Grid, ItemSize, List, Memo, Prop, ReadSignal, Show,
+    Track, WriteSignal, clone, create_effect, create_memo, create_signal, focus_ring,
 };
 
 pub const PICKER_WIDTH: f32 = 244.0;
@@ -354,65 +354,52 @@ fn ColorFields(picker: Picker, alpha: bool) -> NodeId {
                     />
                 </Show>
             </List>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Caption content="R" />
+            <Grid
+                columns={[Track::Intrinsic, Track::Fraction(1.0)].repeat(3)}
+                column_spacing=6.0
+                row_spacing=8.0
+            >
+                <ChannelLabel content="R" />
+                <NumberInput value={red} min=0.0 max=255.0 label="Red" on_change={set_red} />
+                <ChannelLabel content="G" />
+                <NumberInput value={green} min=0.0 max=255.0 label="Green" on_change={set_green} />
+                <ChannelLabel content="B" />
+                <NumberInput value={blue} min=0.0 max=255.0 label="Blue" on_change={set_blue} />
+                <ChannelLabel content="H" />
                 <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
-                    value={red}
-                    min=0.0
-                    max=255.0
-                    label="Red"
-                    on_change={set_red}
-                />
-                <Caption content="G" />
-                <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
-                    value={green}
-                    min=0.0
-                    max=255.0
-                    label="Green"
-                    on_change={set_green}
-                />
-                <Caption content="B" />
-                <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
-                    value={blue}
-                    min=0.0
-                    max=255.0
-                    label="Blue"
-                    on_change={set_blue}
-                />
-            </List>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Caption content="H" />
-                <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
                     value={hue}
                     min=0.0
                     max=360.0
                     label="Hue degrees"
                     on_change={set_hue}
                 />
-                <Caption content="S" />
+                <ChannelLabel content="S" />
                 <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
                     value={saturation}
                     min=0.0
                     max=100.0
                     label="Saturation percent"
                     on_change={set_saturation}
                 />
-                <Caption content="L" />
+                <ChannelLabel content="L" />
                 <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
                     value={lightness}
                     min=0.0
                     max=100.0
                     label="Lightness percent"
                     on_change={set_lightness}
                 />
-            </List>
+            </Grid>
         </List>
+    }
+}
+
+#[component]
+fn ChannelLabel(content: Prop<String>) -> NodeId {
+    view! {
+        <Frame align_vertical=Align::Center>
+            <Caption content />
+        </Frame>
     }
 }
 

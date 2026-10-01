@@ -1,6 +1,6 @@
 use beui::NodeId;
 use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, Text, VirtualList, clone,
+    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Text, VirtualList, clone,
     component, create_memo, view,
 };
 use beui::styled::{
@@ -134,7 +134,7 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
 fn LineView(line: Memo<Option<Line>>) -> NodeId {
     let theme = use_theme();
     let indent = create_memo(clone!(line -> move || {
-        ItemSize::Fixed(line.get().map_or(0.0, |line| f32::from(line.indent) * INDENT))
+        Some(line.get().map_or(0.0, |line| f32::from(line.indent) * INDENT))
     }));
     let text =
         create_memo(clone!(line -> move || line.get().map(|line| line.text).unwrap_or_default()));
@@ -152,18 +152,9 @@ fn LineView(line: Memo<Option<Line>>) -> NodeId {
         _ => 12.0,
     });
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
-            <Spacer @sizing={indent} />
-            <Text
-                @sizing=ItemSize::Percent(100.0)
-                string={text}
-                font_size={size}
-                color={color}
-                bold
-                monospace
-                wrap=true
-            />
-        </List>
+        <Frame padding_left={indent}>
+            <Text string={text} font_size={size} color={color} bold monospace wrap=true />
+        </Frame>
     }
 }
 

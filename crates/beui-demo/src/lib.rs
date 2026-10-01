@@ -7,7 +7,7 @@ use beui::icons::{
 };
 use beui::reactive::{
     Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, ClickCallback, ForEach,
-    Frame, Func, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer, Text,
+    Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer, Text,
     VirtualList, WriteSignal, build, clone, create_memo, create_selector, create_signal,
     focus_ring, provide_context, use_context, view, with_document,
 };
@@ -1269,8 +1269,12 @@ fn OverlaysPage() -> NodeId {
                             <Paragraph
                                 content="Escape, a click outside or the back gesture dismisses a dialog."
                             />
-                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <Spacer @sizing=ItemSize::Percent(100.0) />
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                justify=Justify::End
+                                spacing=8.0
+                            >
                                 <Button
                                     label="Keep"
                                     variant=ButtonVariant::Secondary
