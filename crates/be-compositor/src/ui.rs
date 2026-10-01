@@ -1,5 +1,7 @@
+use std::rc::Rc;
+
 use beui::reactive::{
-    ClickCatcher, Focusable, ForEach, Frame, Func, List, Viewport, clone, component,
+    ClickCatcher, Focusable, ForEach, Frame, Func, List, Drawing, Prop, draw_gpu, clone, component,
     component_rect, create_effect, create_memo, create_signal, on_cleanup, view,
 };
 use beui::styled::theme::use_theme;
@@ -138,7 +140,7 @@ fn ClientView(clients: Clients, id: WindowId, signals: ClientSignals) -> NodeId 
             on_key={|_| true}
         >
             <ClickCatcher cursor on_hover_change={move |hovered: bool| hover.hover(id, hovered)}>
-                <Viewport drawing={signals.drawing} />
+                <Drawing draw={Prop::Dynamic(Rc::new(move || draw_gpu(signals.drawing.get())))} />
             </ClickCatcher>
         </Focusable>
     }

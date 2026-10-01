@@ -4,9 +4,10 @@ use block_editor_beui::be_block::pixel_art::{PixelArtOperation, PixelColor, Pixe
 use block_editor_beui::beui::icons::ICON_ARROW_FORWARD;
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, ClickCatcher, Focusable, ForEach, Frame, ItemSize, List, Memo,
-    NodeRef, Picture, ReadSignal, WriteSignal, clone, component, component_rect, create_effect,
+    NodeRef, ReadSignal, WriteSignal, clone, component, component_rect, create_effect,
     create_memo, view,
 };
+use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::styled::{Code, use_theme};
 use block_editor_beui::beui::{
     Color32, CursorIcon, ImageFit, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2,

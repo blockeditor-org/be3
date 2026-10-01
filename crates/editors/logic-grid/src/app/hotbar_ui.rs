@@ -2,9 +2,10 @@ use beui::icons::{ICON_ADD, ICON_ARROW_UPWARD};
 use beui::reactive::Func;
 use beui::reactive::{
     Align, Canvas, CanvasItem, Child, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize,
-    List, Memo, Picture, ReadSignal, Show, Spacer, Text, clone, component, create_memo,
+    List, Memo, ReadSignal, Show, Spacer, Text, clone, component, create_memo,
     create_signal, view,
 };
+use beui::unstyled::Picture;
 use beui::styled::{
     Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, MenuButton, Tabs,
     TextInput, Tooltip, use_theme,

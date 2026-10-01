@@ -11,12 +11,9 @@ pub mod layers;
 pub mod list;
 pub mod offset;
 pub mod overlay;
-pub mod picture;
 pub mod portal;
 pub mod share;
-pub mod stroke;
 pub mod text;
-pub mod viewport;
 pub mod virtual_list;
 
 pub use crate::font::TextAlign;

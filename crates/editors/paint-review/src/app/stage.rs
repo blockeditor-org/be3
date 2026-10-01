@@ -1,9 +1,10 @@
 use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, ForEach, Frame, ItemSize, List, Memo, Picture, Show, clone, component,
+    Canvas, CanvasItem, ForEach, Frame, ItemSize, List, Memo, Show, clone, component,
     create_effect, create_memo, create_timer, set_component_state, untrack, view,
 };
+use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::styled::{Body, Caption, use_theme};
 use block_editor_beui::beui::{Document, ImageFit, NodeId, Pos2, Rect, Vec2};
 

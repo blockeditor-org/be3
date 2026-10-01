@@ -1,8 +1,8 @@
 use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_OPEN_IN_NEW};
 use beui::reactive::{
-    Align, ClickCallback, ClickCatcher, Direction, Focusable, Frame, ItemSize, List, Memo, Picture,
-    Prop, Show, clone, component, component_size, create_memo, create_signal, view,
+    Align, ClickCallback, ClickCatcher, Direction, Focusable, Frame, ItemSize, List, Memo, Prop, Show, clone, component, component_size, create_memo, create_signal, view,
 };
+use beui::unstyled::Picture;
 use beui::styled::{Caption, Fullscreen, IconButton, Scroll, use_theme};
 use beui::{CursorIcon, Image, ImageFit, Key, KeyPress, NodeId, TextAlign, Vec2};
 

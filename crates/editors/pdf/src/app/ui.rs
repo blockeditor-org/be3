@@ -4,8 +4,9 @@ use block_editor_beui::be_block::PdfContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, ClickCatcher, Direction, ForEach, Frame, ItemSize, List, Memo,
-    NodeRef, Picture, Show, Spacer, clone, component, create_effect, create_memo, view,
+    NodeRef, Show, Spacer, clone, component, create_effect, create_memo, view,
 };
+use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, Caption, Heading, use_theme};
 use block_editor_beui::beui::{Color32, ImageFit, NodeId, Pos2, Rect, Vec2};
 use block_editor_beui::{Editor, FileChooser, Sidebar, Toolbar};

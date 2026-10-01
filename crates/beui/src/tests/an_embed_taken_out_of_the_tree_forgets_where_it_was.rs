@@ -11,9 +11,12 @@ fn an_embed_taken_out_of_the_tree_forgets_where_it_was() {
             <List spacing=0.0>
                 <Dynamic value={shown}>
                     {move |shown: bool| match shown {
-                        true => view! {
-                            <Embed slot={held.clone()} height=100.0 />
-                        },
+                        true => {
+                            let slot = held.clone();
+                            view! {
+                                <Frame height=100.0><Embed slot={slot} /></Frame>
+                            }
+                        }
                         false => view! {
                             <Frame height=100.0 />
                         },

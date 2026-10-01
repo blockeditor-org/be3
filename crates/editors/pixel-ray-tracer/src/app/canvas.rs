@@ -1,9 +1,10 @@
 use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, ClickCatcher, Drawing, Focusable, Frame, ItemSize, List, Picture, clone,
+    Canvas, CanvasItem, ClickCatcher, Drawing, Focusable, Frame, ItemSize, List, clone,
     component, component_rect, create_memo, view,
 };
+use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::{
     CursorIcon, ImageFit, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2,
