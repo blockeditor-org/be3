@@ -18,7 +18,7 @@ use crate::block_picker::{
     ChooseView, CreateView, LinkRow, PickerAction, PickerCommand, PickerTab, PickerView, Placing,
     Tile, TileSection, creation_surface,
 };
-use crate::surfaces::{self, HostSurface, SurfaceId};
+use crate::surfaces::{self, HostedSurface, SurfaceId};
 
 const TILE_WIDTH: f32 = 132.0;
 const TILE_HEIGHT: f32 = 124.0;
@@ -529,13 +529,13 @@ fn CreateBody(id: Memo<Uuid>, create: Memo<Option<CreateView>>, surface: Surface
     let not_ready =
         create_memo(clone!(create -> move || !create.get().is_some_and(|create| create.ready)));
     let dialog = create_memo(move || create.get().is_some_and(|create| create.dialog));
-    let height = surfaces::handle(surface).height();
+    let height = surfaces::height(surface);
     let (create_id, cancel_id) = (id.clone(), id);
     view! {
         <List spacing=10.0>
             <Show condition={dialog}>
                 <Frame height={height}>
-                    <HostSurface id=surface />
+                    <HostedSurface id=surface />
                 </Frame>
             </Show>
             <Separator />

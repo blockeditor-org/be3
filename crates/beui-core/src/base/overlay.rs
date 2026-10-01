@@ -643,7 +643,7 @@ impl Document {
             .is_some_and(|rect| rect.contains_half_open(pos))
     }
 
-    fn light_overlay_misses(&self, overlay: NodeOf<OverlayNode>, pos: Pos2) -> bool {
+    pub(crate) fn light_overlay_misses(&self, overlay: NodeOf<OverlayNode>, pos: Pos2) -> bool {
         self.arena.get_as::<OverlayNode>(overlay).light && !self.overlay_holds(overlay, pos)
     }
 
