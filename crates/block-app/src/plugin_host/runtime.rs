@@ -271,6 +271,9 @@ impl Runtime {
             self.requested_at = Some(self.now());
             messages.push(Message::DrawFrame);
         }
+        if self.requested_at.is_some() {
+            host::request_repaint_after(Duration::from_secs_f64(FRAME_TIMEOUT_SECONDS));
+        }
         self.send(messages);
     }
 
@@ -318,6 +321,9 @@ impl Runtime {
         }
         self.deliver();
         self.session.tick(now);
+        if let Some(deadline) = self.session.next_deadline() {
+            host::request_repaint_after(Duration::from_millis(deadline.saturating_sub(now)));
+        }
         match self.session.state() {
             SessionState::Idle | SessionState::Starting | SessionState::Running => {}
             state => {
