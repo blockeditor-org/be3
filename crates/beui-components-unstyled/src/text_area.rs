@@ -523,7 +523,10 @@ impl Surface {
     }
 
     fn on_caret_handle(&self, pos: Pos2) -> bool {
-        let Some(caret) = self.caret_handle().and_then(|byte| self.caret_rect_at(byte)) else {
+        let Some(caret) = self
+            .caret_handle()
+            .and_then(|byte| self.caret_rect_at(byte))
+        else {
             return false;
         };
         let center = handle_center(caret, CaretHandle::Middle);

@@ -1,7 +1,11 @@
 use std::{
     cell::RefCell,
     path::PathBuf,
-    sync::mpsc::{self, Receiver, Sender, TryRecvError},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver, Sender, TryRecvError},
+    },
     thread,
     time::Instant,
 };
@@ -60,6 +64,8 @@ struct Worker {
     commands: Sender<Command>,
     events: Receiver<Event>,
     pending: Vec<Vec<u8>>,
+    waiting: Arc<AtomicBool>,
+    received: Vec<Vec<u8>>,
     ready: bool,
     stepping: bool,
     target: Option<Target>,
@@ -107,15 +113,19 @@ impl super::backend::Backend for Wasm {
         };
         let (commands, orders) = mpsc::channel();
         let (reports, events) = mpsc::channel();
+        let waiting = Arc::new(AtomicBool::new(false));
+        let watched = Arc::clone(&waiting);
         let spawned = thread::Builder::new()
             .name(format!("plugin {}", plugin.identity.id))
-            .spawn(move || run(host, module, orders, reports));
+            .spawn(move || run(host, module, orders, reports, watched));
         match spawned {
             Ok(_) => {
                 self.worker = Some(Worker {
                     commands,
                     events,
                     pending: Vec::new(),
+                    waiting,
+                    received: Vec::new(),
                     ready: false,
                     stepping: false,
                     target: None,
@@ -141,47 +151,18 @@ impl super::backend::Backend for Wasm {
         if let Some(failure) = failure {
             self.error.get_or_insert(failure);
         }
+        if !worker.pending.is_empty() {
+            worker.waiting.store(true, Ordering::SeqCst);
+            self.poll_worker();
+        }
     }
 
     fn receive(&mut self) -> Vec<Message> {
+        self.poll_worker();
         let Some(worker) = &mut self.worker else {
             return Vec::new();
         };
-        let mut frames = Vec::new();
-        let mut failure = None;
-        loop {
-            match worker.events.try_recv() {
-                Ok(Event::Ready(produced)) => {
-                    worker.ready = true;
-                    worker.absorb(produced, &mut frames);
-                }
-                Ok(Event::Stepped(produced)) => {
-                    worker.stepping = false;
-                    worker.absorb(produced, &mut frames);
-                }
-                Ok(Event::Failed(error)) => {
-                    failure = Some(error);
-                    break;
-                }
-                Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => {
-                    failure = Some(STOPPED.to_owned());
-                    break;
-                }
-            }
-        }
-        if failure.is_none() && worker.ready && !worker.stepping {
-            let step = Command::Step(std::mem::take(&mut worker.pending));
-            match worker.commands.send(step) {
-                Ok(()) => worker.stepping = true,
-                Err(_) => failure = Some(STOPPED.to_owned()),
-            }
-        }
-        if let Some(failure) = failure {
-            self.error.get_or_insert(failure);
-            self.worker = None;
-        }
-        decode(frames, &mut self.error)
+        decode(std::mem::take(&mut worker.received), &mut self.error)
     }
 
     fn frame(&mut self, _layout: &ScreenLayout, _pass: u64) -> Option<SurfaceFrame> {
@@ -223,9 +204,51 @@ impl super::backend::Backend for Wasm {
     }
 }
 
+impl Wasm {
+    fn poll_worker(&mut self) {
+        let Some(worker) = &mut self.worker else {
+            return;
+        };
+        if let Some(failure) = worker.poll() {
+            self.error.get_or_insert(failure);
+            self.worker = None;
+        }
+    }
+}
+
 impl Worker {
-    fn absorb(&mut self, produced: Produced, frames: &mut Vec<Vec<u8>>) {
-        frames.extend(produced.outbound);
+    fn poll(&mut self) -> Option<String> {
+        loop {
+            match self.events.try_recv() {
+                Ok(Event::Ready(produced)) => {
+                    self.ready = true;
+                    self.absorb(produced);
+                }
+                Ok(Event::Stepped(produced)) => {
+                    self.stepping = false;
+                    self.absorb(produced);
+                }
+                Ok(Event::Failed(error)) => return Some(error),
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => return Some(STOPPED.to_owned()),
+            }
+        }
+        if !self.ready || self.stepping {
+            return None;
+        }
+        self.waiting.store(false, Ordering::SeqCst);
+        let step = Command::Step(std::mem::take(&mut self.pending));
+        match self.commands.send(step) {
+            Ok(()) => {
+                self.stepping = true;
+                None
+            }
+            Err(_) => Some(STOPPED.to_owned()),
+        }
+    }
+
+    fn absorb(&mut self, produced: Produced) {
+        self.received.extend(produced.outbound);
         if let Some(target) = produced.presented {
             self.target = Some(target);
             self.presented = true;
@@ -258,7 +281,13 @@ fn open(host: &Host, module: &Module) -> Result<Plugin, String> {
     }
 }
 
-fn run(host: Host, module: Module, orders: Receiver<Command>, reports: Sender<Event>) {
+fn run(
+    host: Host,
+    module: Module,
+    orders: Receiver<Command>,
+    reports: Sender<Event>,
+    waiting: Arc<AtomicBool>,
+) {
     let mut plugin = match open(&host, &module) {
         Ok(plugin) => plugin,
         Err(error) => {
@@ -273,7 +302,12 @@ fn run(host: Host, module: Module, orders: Receiver<Command>, reports: Sender<Ev
         crate::host::wake();
         return;
     }
-    if !report(&reports, Event::Ready(produced(&mut plugin)), true) {
+    if !report(
+        &reports,
+        Event::Ready(produced(&mut plugin)),
+        true,
+        &waiting,
+    ) {
         return;
     }
     for order in orders {
@@ -288,17 +322,17 @@ fn run(host: Host, module: Module, orders: Receiver<Command>, reports: Sender<Ev
         };
         let woken = plugin.take_wake();
         let failed = matches!(event, Event::Failed(_));
-        if !report(&reports, event, woken) || failed {
+        if !report(&reports, event, woken, &waiting) || failed {
             return;
         }
     }
     plugin.stop();
 }
 
-fn report(reports: &Sender<Event>, event: Event, woken: bool) -> bool {
+fn report(reports: &Sender<Event>, event: Event, woken: bool, waiting: &AtomicBool) -> bool {
     let quiet = !woken && matches!(&event, Event::Stepped(produced) if produced.is_empty());
     let sent = reports.send(event).is_ok();
-    if !quiet {
+    if !quiet || waiting.load(Ordering::SeqCst) {
         crate::host::wake();
     }
     sent

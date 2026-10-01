@@ -15,7 +15,10 @@ fn a_tap_near_the_bottom_places_the_caret_while_the_format_bar_opens() {
     let mut editor = BeuiTest::<TextApp>::new(editor)
         .with_size(Vec2::new(390.0, 760.0))
         .on_phone();
-    editor.hold(None, TextContent::from(format!("top{}", "\n".repeat(60)).as_str()));
+    editor.hold(
+        None,
+        TextContent::from(format!("top{}", "\n".repeat(60)).as_str()),
+    );
     editor.run();
     assert!(!editor.shown("text.format.bold"));
 
