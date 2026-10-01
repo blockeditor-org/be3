@@ -106,10 +106,22 @@ pub(crate) fn PluginRegion(
         revision.get();
         plugin_host::region_view(&editor.plugin, instance, region)
     }));
-    create_effect(clone!(revision plugin_id -> move || {
+    create_effect(clone!(revision plugin_id state -> move || {
         revision.get();
         for action in plugin_host::take_region_actions(&plugin_id, instance) {
             super::act(action);
+        }
+        let placed: Vec<(ChildId, Uuid)> = state.with_untracked(|view| {
+            view.children
+                .iter()
+                .map(|child| (child.child, child.block_id))
+                .collect()
+        });
+        let children: Vec<ChildId> = placed.iter().map(|(child, _)| *child).collect();
+        for (child, pick) in plugin_host::take_child_menu_picks(&plugin_id, instance, &children) {
+            if let Some((_, block)) = placed.iter().find(|(placed, _)| *placed == child) {
+                super::editors::pick_frame_menu(*block, pick);
+            }
         }
     }));
     let frames = create_memo(clone!(revision plugin_id -> move || {

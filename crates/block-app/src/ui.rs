@@ -282,7 +282,7 @@ pub(crate) enum UiCommand {
         focused: Option<PaneId>,
     },
     ClosePane(PaneId),
-    PaneMore(PaneId),
+    PaneMenuPick(PaneId, String),
     ConfirmRecovery(Vec<String>),
     NewRecoveryPhrase,
     CancelRecovery,

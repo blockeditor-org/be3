@@ -12,6 +12,10 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
         instance: INSTANCE,
         region: REGION,
         generation: 1,
+        size: block_plugin_api::Size {
+            width: SIZE.x,
+            height: SIZE.y,
+        },
         children: vec![ChildPlacement {
             child: ChildId(1),
             block_id: [1; 16],

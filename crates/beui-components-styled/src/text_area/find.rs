@@ -1,6 +1,6 @@
 use beui_macros::{component, view};
 
-use text_editor_core::FindDirection;
+use text_editor_core::{FindDirection, FindStatus};
 
 use crate::Button;
 use crate::ButtonVariant;
@@ -39,33 +39,23 @@ pub fn FindBar(state: TextAreaState) -> NodeId {
 #[component]
 fn FindBarRows(state: TextAreaState) -> NodeId {
     let theme = use_theme();
-    let content = state.content();
-    let cursors = state.cursors();
+    let status = create_memo(clone!(state -> move || {
+        let query_empty = state.find().query.get().is_empty();
+        (query_empty, state.find_status())
+    }));
+    let summary = create_memo(clone!(status -> move || match status.get() {
+        (true, FindStatus { total: 0, .. }) => String::new(),
+        (false, FindStatus { total: 0, .. }) => "No results".to_owned(),
+        (_, FindStatus { total, current: Some(current) }) => format!("{}/{total}", current + 1),
+        (_, FindStatus { total, current: None }) => format!("0/{total}"),
+    }));
+    let no_matches = create_memo(clone!(status -> move || status.get().1.total == 0));
+    let no_current = create_memo(clone!(status -> move || status.get().1.current.is_none()));
+
     let query = state.find().query.clone();
     let case_sensitive = state.find().case_sensitive.clone();
     let focus_query = state.find().focus_query.clone();
     let show_replace = state.find().show_replace.clone();
-    let status = create_memo(
-        clone!(state content cursors query case_sensitive -> move || {
-            content.get();
-            cursors.get();
-            let text = query.get();
-            case_sensitive.get();
-            let status = state.find_status();
-            (text.is_empty(), status.total, status.current)
-        }),
-    );
-    let summary = create_memo(clone!(status -> move || match status.get() {
-        (true, 0, _) => String::new(),
-        (false, 0, _) => "No results".to_owned(),
-        (_, total, Some(current)) => format!("{}/{total}", current + 1),
-        (_, total, None) => format!("0/{total}"),
-    }));
-    let no_matches = create_memo(clone!(status -> move || status.get().1 == 0));
-    let no_current = create_memo(clone!(status -> move || status.get().2.is_none()));
-
-    let query = state.find().query.clone();
-    let case_sensitive = state.find().case_sensitive.clone();
     let change_state = state.clone();
     let submit_state = state.clone();
     let case_state = state.clone();
@@ -91,17 +81,8 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                                 label="Find"
                                 focused={focus_query}
                                 @test_id={"text.find.query"}
-                                on_change={move |value: String| {
-                                    change_state.find().set_query.set(value);
-                                    if change_state.sync_find() {
-                                        change_state.reveal_cursor();
-                                    }
-                                }}
-                                on_submit={move |_: String| {
-                                    if submit_state.find_step(FindDirection::Next) {
-                                        submit_state.reveal_cursor();
-                                    }
-                                }}
+                                on_change={move |value: String| change_state.set_find_query(value)}
+                                on_submit={move |_: String| submit_state.find_step(FindDirection::Next)}
                             />
                         </Frame>
                         <ToggleButton
@@ -110,12 +91,7 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                             label="Match case"
                             pressed={case_sensitive}
                             @test_id={"text.find.match-case"}
-                            on_change={move |pressed: bool| {
-                                case_state.find().set_case_sensitive.set(pressed);
-                                if case_state.sync_find() {
-                                    case_state.reveal_cursor();
-                                }
-                            }}
+                            on_change={move |pressed: bool| case_state.set_find_case_sensitive(pressed)}
                         />
                         <Caption content={summary} />
                         <IconButton
@@ -123,22 +99,14 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                             label="Previous match"
                             disabled={previous_disabled}
                             @test_id={"text.find.previous"}
-                            on_click={move || {
-                                if previous_state.find_step(FindDirection::Previous) {
-                                    previous_state.reveal_cursor();
-                                }
-                            }}
+                            on_click={move || previous_state.find_step(FindDirection::Previous)}
                         />
                         <IconButton
                             glyph=ICON_KEYBOARD_ARROW_DOWN
                             label="Next match"
                             disabled={no_matches}
                             @test_id={"text.find.next"}
-                            on_click={move || {
-                                if next_state.find_step(FindDirection::Next) {
-                                    next_state.reveal_cursor();
-                                }
-                            }}
+                            on_click={move || next_state.find_step(FindDirection::Next)}
                         />
                         <IconButton
                             glyph=ICON_CLOSE
@@ -177,9 +145,7 @@ fn ReplaceRow(state: TextAreaState, no_current: Memo<bool>, no_matches: Memo<boo
                         placeholder="Replace"
                         label="Replace"
                         @test_id={"text.find.replacement"}
-                        on_change={move |value: String| {
-                            change_state.find().set_replacement.set(value);
-                        }}
+                        on_change={move |value: String| change_state.set_find_replacement(value)}
                     />
                 </Frame>
                 <Button
@@ -187,10 +153,7 @@ fn ReplaceRow(state: TextAreaState, no_current: Memo<bool>, no_matches: Memo<boo
                     variant=ButtonVariant::Secondary
                     disabled={no_current}
                     @test_id={"text.find.replace"}
-                    on_click={move || {
-                        replace_state.replace_match();
-                        replace_state.reveal_cursor();
-                    }}
+                    on_click={move || replace_state.replace_match()}
                 />
                 <Button
                     label="Replace All"

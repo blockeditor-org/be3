@@ -4,11 +4,11 @@ use std::rc::Rc;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::{
-    Align, ClickCallback, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, clone, component,
-    create_effect, create_memo, create_signal, view,
+    Align, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, clone, component, create_effect,
+    create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{Caption, Heading};
-use block_editor_beui::beui::unstyled::{TabId, dock_more};
+use block_editor_beui::beui::unstyled::{TabId, dock_menu};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{
@@ -159,19 +159,10 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
     let branch = Rc::clone(&workspace);
     let branch_info = info.clone();
     let phone = workspace.phone.clone();
-    let (more, set_more) = create_signal(false);
-    let resetting = set_more.clone();
-    create_effect(clone!(phone -> move || {
-        if !phone.get() {
-            resetting.set(false);
-        }
-    }));
     let top_bar = create_memo(clone!(phone -> move || match phone.get() {
-        true => TopBar::Phone { more: more.get() },
+        true => TopBar::Phone,
         false => TopBar::Shown,
     }));
-    let opening = set_more.clone();
-    dock_more(ClickCallback::new(move || opening.set(true)));
     let desktop = create_memo(move || !phone.get());
     let details = Rc::clone(&workspace);
     view! {
@@ -185,7 +176,6 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                         let info = branch_info.clone();
                         let editor = editor.clone();
                         let top_bar = top_bar.clone();
-                        let set_more = set_more.clone();
                         match content {
                             Content::Debug => view! {
                                 <BlockData
@@ -204,7 +194,6 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                                     info={info}
                                     top_bar={top_bar}
                                     on_bar={move |action: BarAction| match action {
-                                        BarAction::CloseMore => set_more.set(false),
                                         BarAction::Details => {
                                             workspace.set_sheet(PhoneSheet::Details(tab))
                                         }
@@ -251,8 +240,11 @@ fn BlockChild(
             on_bar={move |action: BarAction| on_bar.call(action)}
             @test_id={"workspace.block"}
         >
-            {move |handle: ChildBlockHandle| view! {
-                <PanelStatus state={handle.state} loading="This block is loading…" />
+            {move |handle: ChildBlockHandle| {
+                dock_menu(handle.menu);
+                view! {
+                    <PanelStatus state={handle.state} loading="This block is loading…" />
+                }
             }}
         </ChildBlock>
     }

@@ -138,11 +138,22 @@ impl State {
     }
 
     pub fn pump(&self) {
-        for operation in self.document.take_operations() {
+        let operations = self.document.take_operations();
+        let count = operations.len() as u64;
+        let before = self.content.revision();
+        for operation in operations {
             self.content.operate(operation);
         }
         let revision = self.content.revision();
         if revision.is_none() || revision == self.adopted.get() {
+            return;
+        }
+        if count > 0
+            && before.is_some()
+            && before == self.adopted.get()
+            && revision == before.map(|before| before + count)
+        {
+            self.adopted.set(revision);
             return;
         }
         let first = self.adopted.replace(revision).is_none();

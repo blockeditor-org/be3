@@ -19,6 +19,7 @@ pub use beui_core::document::{
 };
 pub use beui_core::draw::{Quad, Quads, Turn, quads};
 pub use beui_core::drawing::Drawing;
+pub use beui_core::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest, PickedFile};
 pub use beui_core::filter::{ColorVision, Filter, MAX_BLUR};
 pub use beui_core::font::{
     FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,

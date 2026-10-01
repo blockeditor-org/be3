@@ -1869,9 +1869,9 @@ impl BlockApp {
                     self.with_editor(shell, |shell| shell.close_pane(pane));
                 }
             }
-            UiCommand::PaneMore(pane) => {
+            UiCommand::PaneMenuPick(pane, id) => {
                 if let Some(shell) = self.shell {
-                    self.with_editor(shell, |shell| shell.pane_more(pane));
+                    self.with_editor(shell, |shell| shell.pick_pane_menu(pane, id));
                 }
             }
             UiCommand::ConfirmRecovery(words) => {

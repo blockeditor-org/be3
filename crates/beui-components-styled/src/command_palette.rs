@@ -1,8 +1,8 @@
 use beui_macros::{component, view};
 
-use crate::context_menu::text_input_menu;
 use crate::scroll::scrollbar_style;
 use crate::text::Icon;
+use crate::text_input::text_input_style;
 use crate::theme::{BORDER_WIDTH, CARD_RADIUS, FONT_BODY, FONT_SMALL, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{CommandRowHandle, TextInputHandle};
@@ -26,7 +26,6 @@ const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 90);
 
 #[component]
 pub fn CommandPalette(open: Prop<bool>, on_close: ClickCallback) -> NodeId {
-    let theme = use_theme();
     view! {
         <unstyled::CommandPalette
             open
@@ -34,16 +33,10 @@ pub fn CommandPalette(open: Prop<bool>, on_close: ClickCallback) -> NodeId {
             list_height=LIST_HEIGHT
             scrim=SCRIM
             search_placeholder="Run a command"
-            search_font_size=FONT_BODY
-            search_color={theme.text.clone()}
-            search_placeholder_color={theme.text_muted.clone()}
-            search_selection_color={theme.accent_soft.clone()}
-            search_caret_color={theme.accent.clone()}
-            search_padding_horizontal=PADDING_HORIZONTAL
             search_content={|handle| view! {
                 <PaletteSearch handle />
             }}
-            search_menu={text_input_menu()}
+            search_style={text_input_style()}
             scrollbar={scrollbar_style()}
             row={|handle| view! {
                 <PaletteRow handle />

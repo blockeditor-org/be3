@@ -20,7 +20,12 @@ fn escape_closes_the_emoji_menu_until_the_colon_is_typed_again() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let state = held.borrow().clone().expect("the text area was built");
-    let offered = |harness: &Harness| harness.document().find_test_id("text.emoji.0").is_some();
+    let offered = |harness: &Harness| {
+        harness
+            .document()
+            .find_test_id("text.completion.0")
+            .is_some()
+    };
 
     harness.click(pos2(300.0, 16.0));
     harness.type_text(":hea");

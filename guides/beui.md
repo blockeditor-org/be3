@@ -13,7 +13,12 @@ this guide follows from that.
 
 The quickest introduction is the component catalog in
 `crates/beui-demo`: a dock whose Components pane opens a page for
-each group of styled components. The
+each group of styled components, for the unstyled components painted by
+hand, and for the base nodes (frames, text, lists, grids, control flow,
+interaction, layers and overlays). Every sample on a page shows the code it was written with: a
+function marked `#[beui_macros::sample]` (above its `#[component]`) also
+gets a `Name::SOURCE` holding its text exactly as written, so a new sample
+cannot drift from its listing. The
 [reactive guide](reactive.md) is the reference for signals, attribute syntax,
 children and render props, controlled state, keyed lists, scopes, and context;
 this guide is about using beui itself.
@@ -218,7 +223,7 @@ direction:
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
-| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's runner: its window or view, input, IME, clipboard and accessibility adapter |
+| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's runner: its window or view, input, IME, clipboard, file picker and accessibility adapter |
 
 Core cannot see the crates above it, so the few places it used to reach up are
 hooks the higher crates fill in:
@@ -425,7 +430,9 @@ Tab leaves; `frame` wraps the field in the caller's chrome inside the area's
 own focus and pointer handling. `TextInput` is that single-line mode over a
 plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
 fix to how text is edited lands in both. `MenuButton` is the button that opens a menu under itself, which is
-what a toolbar reaches for where `Select` would imply the choice sticks;
+what a toolbar reaches for where `Select` would imply the choice sticks - or,
+when a finger opened it, the same items as rows in a sheet, so one button
+serves a mouse and a touch (`IconMenuButton` is the same with an icon button's face);
 `ContextMenu` is the same menu on a secondary press, and it also takes an
 `open_at` point so a touch gesture can raise it where the finger was. A finger
 held still for the long-press delay (`Context::set_long_press_delay`, which a
@@ -582,6 +589,17 @@ names a colour. The gutter is always reserved, and the bar paints nothing while
 its content fits, so a scroll that grows past its viewport does not shift the
 content beside it.
 
+`ScrollbarStyle::fading(length)` also fades the content out toward each edge
+that has more content beyond it, over at most `length` points and only as far
+as the content has scrolled, so a scroll whose rows happen to end exactly at
+its edge still reads as scrollable. The styled layer's scrollbar style fades by
+`theme::SCROLL_FADE`, so `styled::Scroll` and every styled control that scrolls
+fade. The offset puts the fade on the entries of its items (`Painter::faded`,
+`Entry::fade`), the same way it puts its clip there: the wgpu renderer
+multiplies the alpha of everything in that space by it in the shader, and the
+DOM renderer masks the item's frame with a gradient. Shapes a node paints
+itself and custom `Drawing`s are not faded.
+
 Under both sits the base `Offset`, which is named for what
 it does rather than for what it is used for: it holds a run of items along a
 direction and lays them out from an offset, with no bar, no theme, and no input
@@ -650,7 +668,10 @@ value when the focus leaves it. A `Date` field keeps the time of the value it
 was given, and a `Time` field the date. `styled::Calendar` is the month grid on
 its own, with `min` and `max` limits; its title is a month button and a year
 button, which open a grid of months and a grid of twenty years, and `show`
-moves it to a month without selecting anything.
+moves it to a month without selecting anything. All of the field's behaviour,
+the popover and its focus and what each pick does, is
+`unstyled::DateTimePicker`; the styled field gives it faces and the popover's
+layout, and says when to page with `paged`.
 
 `styled::ColorPicker` is a saturation and brightness area, hue and opacity
 sliders, hex, RGB and HSL fields and a row of swatches; `styled::ColorInput` is a
@@ -658,6 +679,8 @@ hex field whose swatch opens one. Both keep the hue while the color passes
 through grey or black, and a drag is reported through `on_preview` while it
 moves and through `on_change` once, when it ends, the way `NumberInput`
 reports a scrub - so an edit lands in the undo history once per gesture.
+That state is `unstyled::ColorPickerState`, and `unstyled::HexText` keeps a hex
+field in step with a color for both.
 
 `unstyled::Popover` is what both open: a trigger and a modal overlay, built the
 first time it opens, that traps Tab, closes on Escape, a press outside or its
@@ -855,10 +878,15 @@ has none. A tab's icon comes from the optional `icon` function, an icon-font
 glyph (empty for none) that the tab bars, the drag preview and the stacked bar
 all draw. The bar is the dock's, not the caller's; what a
 tab adds to it is only its own actions, which its panel hands over while it is
-built with `dock_actions(node)`, and which are shown while that tab is, and a
-More button, which the panel asks for with `dock_more(on_click)`. More is not a
-node, so a dock that lays out tabs built somewhere else (the app's dock holding
-a plugin's panes) can draw it and pass the press back.
+built with `dock_actions(node)`, and which are shown while that tab is, and its
+menu, which the panel hands over with `dock_menu(actions)`, a `Memo<Vec<Action>>`.
+The menu is not tied to the stacked bar: a tiled pane offers the menu of the tab
+it shows behind a More button just before its close button, at the end of its
+tab bar or at the top of its sidebar, and so does a window. A menu is a list of
+actions rather than a node, so a dock that lays out tabs built somewhere else
+(the app's dock holding a plugin's panes) can draw it from rows it was sent,
+with actions made by `ActionBuilder::detached`, which runs without being
+registered for shortcuts or the palette, and pass the pick back.
 Each tab's panel is built once and moved between the two, so what it holds
 survives the switch. `recent_tabs` lists the tabs from the one shown last (the
 order is part of the state, so it is saved with the layout), and
@@ -1049,6 +1077,23 @@ camera a plugin editor is handed (guides/pan_and_zoom.md) reaches a beui editor
 the same way. Anything between the gesture and the camera - momentum, snapping,
 clamping the camera to the content - belongs to the caller, apart from the
 scale limits `min_scale` and `max_scale`.
+
+### Picking a file
+
+`beui::reactive::create_file_picker(picked)` gives a component a `FilePicker`:
+`open(FileFilter::new(name, extensions, mime_types))` asks the platform for one
+file, `picking()` is a signal that is true until the answer arrives (a button
+takes it as `disabled`), and `picked` is called with the `PickedFile` (its name
+and bytes) or with why it could not be read; a cancelled pick only clears
+`picking`. `pick_file(filter, picked)` is the one-shot form underneath, handed
+the raw `FilePick`. Nothing blocks while the dialog is open: the document queues
+the request, `Context` hands it to the runner in `FrameOutput::file_picks`, and
+the runner answers with `Context::file_picked` whenever the person is done -
+winit from a thread that runs the native dialog, the web runner from an
+`<input type=file>`, Android from `BeuiActivity`, and a plugin through the host
+it runs in. The document delivers the answer at the start of a later frame,
+inside its reactive scope, so `picked` can write signals like an event handler.
+A host that runs beui itself does the same with the requests in `file_picks`.
 
 ### Hold the pointer
 

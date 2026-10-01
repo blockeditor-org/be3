@@ -519,6 +519,14 @@ pub(crate) fn content(block: Uuid) -> Option<Content> {
     with_shared(|shared| shared.blocks.get(&block).cloned())?
 }
 
+pub(crate) fn content_revision(block: Uuid) -> Option<u64> {
+    with_shared(|shared| shared.blocks.get(&block).map(|content| content.revision))?
+}
+
+pub(crate) fn describe_block(block: Uuid) -> Option<Described> {
+    with_shared(|shared| shared.blocks.get(&block).and_then(describe_of))?
+}
+
 pub(crate) fn pairing_requests() -> Vec<PairingRequest> {
     with_shared(|shared| shared.pairing.clone()).unwrap_or_default()
 }
@@ -705,11 +713,7 @@ pub(crate) fn set_name(block: Uuid, name: Option<String>) {
         return;
     };
     metadata.named_by_hand = name.is_some();
-    metadata.name = name.or_else(|| {
-        content(block)
-            .and_then(|content| describe_of(&content))
-            .and_then(|described| described.name)
-    });
+    metadata.name = name.or_else(|| describe_block(block).and_then(|described| described.name));
     set_metadata(block, metadata);
 }
 

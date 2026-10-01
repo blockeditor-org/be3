@@ -23,6 +23,7 @@ mod a_closure_child_receives_the_handle_its_slot_hands_over;
 mod a_colon_in_a_text_area_offers_emoji_that_enter_inserts;
 mod a_color_input_opens_its_picker_from_the_swatch;
 mod a_color_input_reports_the_hex_it_was_typed;
+mod a_color_input_takes_a_hex_typed_without_a_hash_and_keeps_its_opacity;
 mod a_component_can_return_a_show_for_its_parent_to_lay_out;
 mod a_component_function_returns_its_base_node;
 mod a_component_that_builds_no_node_owns_its_scope_through_the_value;
@@ -48,6 +49,7 @@ mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
 mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
 mod a_dynamic_child_can_fill_its_available_height;
+mod a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it;
 mod a_finger_beside_the_bar_between_two_panes_drags_it;
 mod a_finger_dragged_across_a_color_area_picks_rather_than_scrolls;
 mod a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped;
@@ -125,6 +127,7 @@ mod a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch;
 mod a_second_swipe_during_a_fling_keeps_scrolling;
 mod a_select_following_its_prop_does_not_report_a_change;
 mod a_selected_radio_option_marks_its_ring_with_the_accent_colour;
+mod a_selection_across_text_with_spans_is_painted;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
 mod a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus;
 mod a_show_adds_and_removes_a_menu_item_among_the_items_beside_it;
@@ -140,6 +143,7 @@ mod a_spinner_hidden_by_a_show_stops_asking_for_frames;
 mod a_split_button_runs_its_action_or_opens_its_menu;
 mod a_stack_becomes_a_column_when_its_container_gets_narrow;
 mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
+mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
 mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
@@ -308,6 +312,8 @@ mod jumping_up_a_virtual_scroll_only_builds_the_items_in_view;
 mod keys_without_alt_reach_the_control_the_screen_reader_focused;
 mod layers_stack_their_children_in_one_box_sized_to_the_largest;
 mod lifting_the_fingers_off_a_trackpad_scroll_carries_it_on;
+mod line_starts_and_checkboxes_follow_edits;
+mod measuring_after_an_edit_matches_measuring_afresh;
 mod middle_clicking_a_scroll_scrolls_it_towards_the_pointer;
 mod moving_a_dock_tab_to_another_pane_keeps_its_panel;
 mod nested_lists_measure_each_node_a_bounded_number_of_times;
@@ -395,6 +401,7 @@ mod the_caret_of_a_text_input_paints_two_points_wide;
 mod the_click_that_ends_autoscroll_presses_nothing;
 mod the_color_areas_thumb_shows_a_grab_cursor;
 mod the_components_tab_lists_components_instead_of_base_nodes;
+mod the_find_bar_counts_matches_as_the_query_is_typed_and_steps_between_them;
 mod the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it;
 mod the_frame_output_reports_the_region_whose_shapes_changed;
 mod the_innermost_drop_target_that_accepts_the_payload_takes_the_drop;
@@ -736,6 +743,10 @@ impl Harness {
 
     pub(crate) fn document(&self) -> &Document {
         &self.document
+    }
+
+    pub(crate) fn context(&self) -> &Context {
+        &self.context
     }
 
     pub(crate) fn document_mut(&mut self) -> &mut Document {
@@ -1610,7 +1621,6 @@ mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
 mod a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath;
 mod a_separator_keeps_the_length_it_is_given_where_its_row_centres_it;
 mod a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions;
-mod a_stacked_dock_bar_shows_more_for_a_tab_that_asks_and_presses_it;
 mod a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels;
 mod a_vertical_separator_rules_down_the_row_it_sits_in;
 mod a_window_without_room_for_the_app_beside_the_inspector_uses_the_tab_bar;
@@ -1659,3 +1669,7 @@ mod a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone;
 mod an_action_shortcut_runs_in_the_scope_that_holds_the_focus;
 mod moving_the_pointer_ends_the_wheel_latch;
 mod the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones;
+
+mod a_stacked_dock_bar_shows_the_menu_its_tab_hands_it;
+mod a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_down;
+mod a_touch_opens_a_menu_buttons_menu_as_a_sheet_and_a_click_as_a_dropdown;

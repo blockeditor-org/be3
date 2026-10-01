@@ -367,6 +367,36 @@ fn frame_child(editors: &Editors, block: Uuid) -> Option<Uuid> {
     plugin_host::frame_child(handle.plugin_id()?, handle.instance)
 }
 
+fn chrome_owner(editors: &Editors, block: Uuid) -> Uuid {
+    let mut stack = Vec::new();
+    let mut next = frame_child(editors, block);
+    while let Some(id) = next {
+        if id == block || stack.contains(&id) {
+            break;
+        }
+        stack.push(id);
+        next = frame_child(editors, id);
+    }
+    stack.last().copied().unwrap_or(block)
+}
+
+fn frame_menu(editors: &Editors, block: Uuid) -> Vec<block_plugin_api::MenuEntry> {
+    let owner = chrome_owner(editors, block);
+    editors
+        .with(|open| open.get(&owner).map(PluginEditor::menu))
+        .unwrap_or_default()
+}
+
+pub(super) fn pick_frame_menu(block: Uuid, pick: String) {
+    let editors = editors();
+    let owner = chrome_owner(&editors, block);
+    editors.with(|open| {
+        if let Some(editor) = open.get(&owner) {
+            editor.pick_menu(pick);
+        }
+    });
+}
+
 fn revoke_frame_child(editors: &Editors, block: Uuid) {
     if let Some(handle) = editors.handle(block)
         && let Some(plugin_id) = handle.plugin_id()
@@ -1099,6 +1129,10 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         capabilities,
         resize,
         error: (!available).then(|| CHILD_UNAVAILABLE.to_owned()),
+        menu: match available && child.frame_owner {
+            true => frame_menu(editors, child.block_id),
+            false => Vec::new(),
+        },
     }
 }
 

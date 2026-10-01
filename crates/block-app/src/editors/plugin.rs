@@ -549,9 +549,22 @@ impl PluginEditor {
         }
     }
 
-    pub(crate) fn pane_more(&self, pane: PaneId) {
+    pub(crate) fn pick_pane_menu(&self, pane: PaneId, id: String) {
         if let Some(plugin) = &self.plugin {
-            crate::plugin_host::pane_more(&plugin.identity.id, self.instance, pane);
+            crate::plugin_host::pane_menu_pick(&plugin.identity.id, self.instance, pane, id);
+        }
+    }
+
+    pub(crate) fn menu(&self) -> Vec<block_plugin_api::MenuEntry> {
+        match &self.plugin {
+            Some(plugin) => crate::plugin_host::menu(&plugin.identity.id, self.instance),
+            None => Vec::new(),
+        }
+    }
+
+    pub(crate) fn pick_menu(&self, id: String) {
+        if let Some(plugin) = &self.plugin {
+            crate::plugin_host::menu_pick(&plugin.identity.id, self.instance, id);
         }
     }
 

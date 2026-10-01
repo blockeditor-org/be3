@@ -1,6 +1,7 @@
 use std::fmt::Write as _;
 
 use beui_core::color::Color32;
+use beui_core::fade::Fade;
 use beui_core::font::Galley;
 use beui_core::geometry::{Pos2, Rect, Rotation, vec2};
 use beui_core::painter::{Entry, Shape};
@@ -218,7 +219,52 @@ pub fn placement(entry: Entry, factor: f32) -> (String, String) {
         f64::from(snap(entry.translation.x, factor)) - x.map_or(0.0, |(min, _)| min),
         f64::from(snap(entry.translation.y, factor)) - y.map_or(0.0, |(min, _)| min),
     );
-    (clipped(x, y), content)
+    let mut frame = clipped(x, y);
+    if let (Some(x), Some(y)) = (x, y) {
+        frame.push_str(&masked(entry.fade, (x.0, y.0)));
+    }
+    (frame, content)
+}
+
+fn masked(fade: Fade, origin: (f64, f64)) -> String {
+    if fade.is_none() {
+        return String::new();
+    }
+    let [left, top, right, bottom] = fade.widths.map(f64::from);
+    let rect = fade.rect;
+    let gradients: Vec<String> = [
+        ("right", rect.min.x, rect.max.x, left, right, origin.0),
+        ("bottom", rect.min.y, rect.max.y, top, bottom, origin.1),
+    ]
+    .into_iter()
+    .filter(|(.., near, far, _)| *near > 0.0 || *far > 0.0)
+    .map(|(towards, start, end, near, far, origin)| {
+        let start = f64::from(start).clamp(-REACH, REACH) - origin;
+        let end = f64::from(end).clamp(-REACH, REACH) - origin;
+        let mut stops = Vec::new();
+        match near > 0.0 {
+            true => {
+                stops.push(format!("transparent {start}px"));
+                stops.push(format!("#000 {}px", start + near));
+            }
+            false => stops.push("#000 0px".to_owned()),
+        }
+        match far > 0.0 {
+            true => {
+                stops.push(format!("#000 {}px", end - far));
+                stops.push(format!("transparent {end}px"));
+            }
+            false => stops.push("#000 100%".to_owned()),
+        }
+        format!("linear-gradient(to {towards},{})", stops.join(","))
+    })
+    .collect();
+    let images = gradients.join(",");
+    let mut css = format!("mask-image:{images};-webkit-mask-image:{images};");
+    if gradients.len() > 1 {
+        css.push_str("mask-composite:intersect;-webkit-mask-composite:source-in;");
+    }
+    css
 }
 
 pub fn layer(clip: Rect, scale: f32, factor: f32) -> (String, String) {

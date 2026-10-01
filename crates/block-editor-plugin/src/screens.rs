@@ -450,9 +450,14 @@ impl Screens {
                     session.close_pane(*pane);
                 }
             }
-            Message::Editor(EditorMessage::PaneMore { instance, pane }) => {
+            Message::Editor(EditorMessage::PaneMenuPick { instance, pane, id }) => {
                 if let Some(session) = self.sessions.get_mut(instance) {
-                    session.pane_more(*pane);
+                    session.pick_pane_menu(*pane, id.clone());
+                }
+            }
+            Message::Editor(EditorMessage::MenuPick { instance, id }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.pick_menu(id.clone());
                 }
             }
             Message::Editor(EditorMessage::Close { instance }) => {

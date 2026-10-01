@@ -34,7 +34,7 @@ pub(crate) const DEFAULT_PAGE_SIZE: block_editor_beui::beui::Vec2 =
     block_editor_beui::beui::Vec2::new(612.0, 792.0);
 
 pub(crate) fn filter() -> FileFilter {
-    FileFilter::new("PDF", "Document.pdf", &["pdf"], &["application/pdf"])
+    FileFilter::new("PDF", &["pdf"], &["application/pdf"])
 }
 
 pub(crate) fn imported(file: PickedFile) -> Result<PdfContent, String> {

@@ -18,6 +18,7 @@ fn status(instance: EditorInstanceId) -> ChildStatus {
         capabilities: EditorCapabilities::default(),
         resize: ResizeMode::Both,
         error: None,
+        menu: Vec::new(),
     }
 }
 
