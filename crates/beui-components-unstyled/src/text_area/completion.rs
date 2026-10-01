@@ -4,9 +4,13 @@ use std::rc::Rc;
 use beui_macros::{component, view};
 
 use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::input::CursorIcon;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::{Callback, Memo, NodeRef, RenderFn, create_memo};
+use beui_view::reactive::{
+    Child, ForEach, Interactive, List, Memo, NodeRef, ReadSignal, RenderFn, clone, create_memo,
+    create_signal,
+};
 
 use super::{Context, TextAreaState};
 
@@ -37,12 +41,29 @@ impl Completer {
     }
 }
 
+pub struct CompletionRowHandle {
+    pub index: usize,
+    pub completion: Memo<Option<Completion>>,
+    pub highlighted: Memo<bool>,
+    pub hovered: ReadSignal<bool>,
+}
+
 #[derive(Clone)]
 pub struct CompletionMenu {
-    pub items: Memo<Vec<Completion>>,
-    pub highlighted: Memo<usize>,
-    pub pick: Callback<usize>,
-    pub highlight: Callback<usize>,
+    row: RenderFn<CompletionRowHandle>,
+    panel: RenderFn<Child>,
+}
+
+impl CompletionMenu {
+    pub fn new(
+        row: impl Fn(CompletionRowHandle) -> NodeId + 'static,
+        panel: impl Fn(Child) -> NodeId + 'static,
+    ) -> Self {
+        Self {
+            row: RenderFn::new(row),
+            panel: RenderFn::new(panel),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -54,17 +75,12 @@ pub(super) struct Query {
 const QUERY_LIMIT: usize = 32;
 
 #[component]
-pub(super) fn Completions(cx: Context, render: RenderFn<CompletionMenu>) -> NodeId {
+pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
     let anchor = NodeRef::new();
     anchor.fill(cx.anchor);
-    let (pick_cx, highlight_cx) = (cx.clone(), cx.clone());
-    let highlighted = cx.highlighted.clone();
-    let content = render.call(CompletionMenu {
-        items: cx.completions.clone(),
-        highlighted: create_memo(move || highlighted.get()),
-        pick: Callback::new(move |index: usize| pick_cx.complete(index)),
-        highlight: Callback::new(move |index: usize| highlight_cx.set_highlighted.set(index)),
-    });
+    let items = cx.completions.clone();
+    let keys = create_memo(clone!(items -> move || (0..items.get().len()).collect::<Vec<usize>>()));
+    let CompletionMenu { row, panel } = menu;
     view! {
         <Overlay
             anchor={OverlayAnchor::Node(anchor)}
@@ -73,8 +89,49 @@ pub(super) fn Completions(cx: Context, render: RenderFn<CompletionMenu>) -> Node
             traps_focus=false
             open=true
         >
-            {content}
+            {panel.call(view! {
+                <List spacing=0.0>
+                    <ForEach keys>
+                        {move |index: usize| {
+                            let (cx, row) = (cx.clone(), row.clone());
+                            view! {
+                                <CompletionRow cx index row />
+                            }
+                        }}
+                    </ForEach>
+                </List>
+            })}
         </Overlay>
+    }
+}
+
+#[component]
+fn CompletionRow(cx: Context, index: usize, row: RenderFn<CompletionRowHandle>) -> NodeId {
+    let items = cx.completions.clone();
+    let completion = create_memo(move || items.get().get(index).cloned());
+    let highlighted = cx.highlighted.clone();
+    let highlighted = create_memo(move || highlighted.get() == index);
+    let (hovered, set_hovered) = create_signal(false);
+    let content = row.call(CompletionRowHandle {
+        index,
+        completion,
+        highlighted,
+        hovered,
+    });
+    let pick_cx = cx.clone();
+    view! {
+        <Interactive
+            @test_id={format!("text.completion.{index}")}
+            cursor=CursorIcon::PointingHand
+            on_click={move || pick_cx.complete(index)}
+            on_hover_change={move |inside: bool| {
+                set_hovered.set(inside);
+                if inside {
+                    cx.set_highlighted.set(index);
+                }
+            }}
+            children={Some(content)}
+        />
     }
 }
 

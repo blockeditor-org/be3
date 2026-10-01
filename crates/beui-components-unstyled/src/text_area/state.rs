@@ -480,8 +480,25 @@ impl TextAreaState {
     }
 
     pub fn find_status(&self) -> FindStatus {
-        let (query, case_sensitive) = self.query();
+        self.0.content.get();
+        self.0.cursors.get();
+        let query = self.0.find.query.get();
+        let case_sensitive = self.0.find.case_sensitive.get();
         self.0.core.borrow().find_status(&query, case_sensitive)
+    }
+
+    pub fn set_find_query(&self, query: String) {
+        self.0.find.set_query.set(query);
+        self.sync_find();
+    }
+
+    pub fn set_find_case_sensitive(&self, case_sensitive: bool) {
+        self.0.find.set_case_sensitive.set(case_sensitive);
+        self.sync_find();
+    }
+
+    pub fn set_find_replacement(&self, replacement: String) {
+        self.0.find.set_replacement.set(replacement);
     }
 
     pub fn open_find(&self, show_replace: bool) {
@@ -496,9 +513,7 @@ impl TextAreaState {
         }
         self.0.find.set_show_replace.set(show_replace);
         self.0.find.set_focus_query.set(true);
-        if self.sync_find() {
-            self.reveal_cursor();
-        }
+        self.sync_find();
     }
 
     pub fn close_find(&self) {
@@ -506,9 +521,9 @@ impl TextAreaState {
         self.0.find.set_focus_query.set(false);
     }
 
-    pub fn sync_find(&self) -> bool {
+    fn sync_find(&self) {
         if !self.0.find.open.get_untracked() {
-            return false;
+            return;
         }
         let (query, case_sensitive) = self.query();
         let status = self.0.core.borrow().find_status(&query, case_sensitive);
@@ -519,12 +534,14 @@ impl TextAreaState {
                 direction: FindDirection::Next,
             });
         }
-        status.total > 0
+        if status.total > 0 {
+            self.reveal_cursor();
+        }
     }
 
-    pub fn find_step(&self, direction: FindDirection) -> bool {
+    pub fn find_step(&self, direction: FindDirection) {
         if !self.0.find.open.get_untracked() {
-            return false;
+            return;
         }
         let (query, case_sensitive) = self.query();
         self.execute(EditorCommand::Find {
@@ -532,12 +549,16 @@ impl TextAreaState {
             case_sensitive,
             direction,
         });
-        self.0
+        if self
+            .0
             .core
             .borrow()
             .find_status(&query, case_sensitive)
             .total
             > 0
+        {
+            self.reveal_cursor();
+        }
     }
 
     pub fn replace_match(&self) {
@@ -548,6 +569,7 @@ impl TextAreaState {
             case_sensitive,
             replacement: replacement.as_bytes(),
         });
+        self.reveal_cursor();
     }
 
     pub fn replace_all_matches(&self) {

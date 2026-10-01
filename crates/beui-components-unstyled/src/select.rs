@@ -2,9 +2,8 @@ use crate as unstyled;
 use crate::ChoiceOption;
 use crate::button::ButtonHandle;
 use crate::scroll::ScrollbarStyle;
-use crate::text_input::{TextInputHandle, TextInputMenu};
+use crate::text_input::{TextInputHandle, TextInputStyle};
 use beui_core::base::overlay::Placement;
-use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
@@ -24,6 +23,7 @@ const OPTIONS_MAX_HEIGHT: f32 = 240.0;
 
 pub struct SelectTriggerHandle {
     pub selected: ReadSignal<Option<usize>>,
+    pub label: Memo<Option<String>>,
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
@@ -78,14 +78,8 @@ pub fn Select(
     #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<Option<usize>>,
     search_placeholder: Prop<String>,
-    search_font_size: Prop<f32>,
-    search_color: Prop<Color32>,
-    search_placeholder_color: Prop<Color32>,
-    search_selection_color: Prop<Color32>,
-    search_caret_color: Prop<Color32>,
-    search_padding_horizontal: Prop<f32>,
     search_content: Option<Render<TextInputHandle>>,
-    #[prop(default = TextInputMenu::default())] search_menu: TextInputMenu,
+    #[prop(default = TextInputStyle::default())] search_style: TextInputStyle,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     trigger: Option<Render<SelectTriggerHandle>>,
     option: Option<RenderFn<SelectOptionHandle>>,
@@ -154,9 +148,19 @@ pub fn Select(
         node
     }));
     let trigger_disabled = disabled.clone();
+    let labelled = options.clone();
+    let chosen = selected.clone();
+    let label = create_memo(move || {
+        let index = chosen.get()?;
+        labelled
+            .items()
+            .get(index)
+            .map(|option| option.label().get())
+    });
     let trigger_content = move |handle: ButtonHandle| {
         trigger_view.call(SelectTriggerHandle {
             selected,
+            label,
             hovered: handle.hovered,
             active: handle.active,
             focused: handle.focused,
@@ -235,13 +239,7 @@ pub fn Select(
                             value={search_text}
                             focused={focused.memo(Focus::Search)}
                             placeholder={search_placeholder}
-                            font_size={search_font_size}
-                            color={search_color}
-                            placeholder_color={search_placeholder_color}
-                            selection_color={search_selection_color}
-                            caret_color={search_caret_color}
-                            padding_horizontal={search_padding_horizontal}
-                            menu={search_menu}
+                            style={search_style}
                             content={search_content.unwrap_or_else(|| Render::new(|handle: TextInputHandle| handle.field))}
                             on_focus_change={move |has_focus: bool| blur(&search_blur, has_focus, Focus::Search)}
                             on_change={move |text: String| filter(&filter_state, &text)}

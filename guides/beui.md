@@ -657,7 +657,10 @@ value when the focus leaves it. A `Date` field keeps the time of the value it
 was given, and a `Time` field the date. `styled::Calendar` is the month grid on
 its own, with `min` and `max` limits; its title is a month button and a year
 button, which open a grid of months and a grid of twenty years, and `show`
-moves it to a month without selecting anything.
+moves it to a month without selecting anything. All of the field's behaviour,
+the popover and its focus and what each pick does, is
+`unstyled::DateTimePicker`; the styled field gives it faces and the popover's
+layout, and says when to page with `paged`.
 
 `styled::ColorPicker` is a saturation and brightness area, hue and opacity
 sliders, hex, RGB and HSL fields and a row of swatches; `styled::ColorInput` is a
@@ -665,6 +668,8 @@ hex field whose swatch opens one. Both keep the hue while the color passes
 through grey or black, and a drag is reported through `on_preview` while it
 moves and through `on_change` once, when it ends, the way `NumberInput`
 reports a scrub - so an edit lands in the undo history once per gesture.
+That state is `unstyled::ColorPickerState`, and `unstyled::HexText` keeps a hex
+field in step with a color for both.
 
 `unstyled::Popover` is what both open: a trigger and a modal overlay, built the
 first time it opens, that traps Tab, closes on Escape, a press outside or its

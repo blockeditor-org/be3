@@ -1,9 +1,9 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use crate::context_menu::text_input_menu;
 use crate::scroll::scrollbar_style;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::text_input::text_input_style;
+use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
@@ -13,7 +13,7 @@ use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Children, Frame, Prop, Run, Text, clone, create_memo, focus_ring,
+    Callback, Child, Children, Frame, Prop, Text, clone, create_memo, focus_ring,
 };
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
@@ -34,7 +34,6 @@ pub fn Select(
     on_change: Callback<Option<usize>>,
 ) -> NodeId {
     let options = options.into_run();
-    let trigger_options = options.clone();
     let accessibility = label.map(|label| {
         let mut node = Node::new(Role::ComboBox);
         if !label.is_empty() {
@@ -42,7 +41,6 @@ pub fn Select(
         }
         node
     });
-    let theme = use_theme();
     view! {
         <unstyled::Select
             options
@@ -51,19 +49,13 @@ pub fn Select(
             accessibility
             on_change={move |selected| on_change.call(selected)}
             search_placeholder="Search"
-            search_font_size=FONT_BODY
-            search_color={theme.text.clone()}
-            search_placeholder_color={theme.text_muted.clone()}
-            search_selection_color={theme.accent_soft.clone()}
-            search_caret_color={theme.accent.clone()}
-            search_padding_horizontal=PADDING_HORIZONTAL
             search_content={|handle| view! {
                 <SearchField handle />
             }}
-            search_menu={text_input_menu()}
+            search_style={text_input_style()}
             scrollbar={scrollbar_style()}
             trigger={move |handle| view! {
-                <SelectTrigger options={trigger_options} handle />
+                <SelectTrigger handle />
             }}
             option={|handle| view! {
                 <SelectOption handle />
@@ -77,18 +69,18 @@ pub fn Select(
 }
 
 #[component]
-fn SelectTrigger(options: Run<ChoiceOption>, handle: SelectTriggerHandle) -> NodeId {
+fn SelectTrigger(handle: SelectTriggerHandle) -> NodeId {
     let SelectTriggerHandle {
-        selected,
+        label,
         hovered,
         focused,
         disabled,
         ..
     } = handle;
     let theme = use_theme();
-    let label_text = create_memo(move || trigger_label(&options, selected.get()));
+    let label_text = create_memo(move || label.get().unwrap_or_else(|| "Select...".to_owned()));
     let border = create_memo(clone!(focused theme disabled -> move || {
-        border_color(&theme, disabled.get(), focused.get(), hovered.get())
+        field_border(&theme, disabled.get(), focused.get(), hovered.get())
     }));
     let fill = create_memo(clone!(theme disabled -> move || match disabled.get() {
         true => theme.surface.get(),
@@ -138,7 +130,7 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
     } = handle;
     let theme = use_theme();
     let border = create_memo(clone!(theme -> move || {
-        border_color(&theme, false, focused.get(), hovered.get())
+        field_border(&theme, false, focused.get(), hovered.get())
     }));
     view! {
         <Frame
@@ -210,32 +202,10 @@ pub fn select_open(document: &Document, select: NodeId) -> bool {
     unstyled::select_open(document, select)
 }
 
-fn trigger_label(options: &Run<ChoiceOption>, selected: Option<usize>) -> String {
-    selected
-        .and_then(|index| {
-            options
-                .items()
-                .get(index)
-                .map(|option| option.label().get())
-        })
-        .unwrap_or_else(|| "Select...".to_owned())
-}
-
 fn option_background(theme: &ThemeStore, highlighted: bool, hovered: bool) -> Color32 {
     match (highlighted, hovered) {
         (true, _) => theme.accent_soft.get(),
         (false, true) => theme.surface.get(),
         (false, false) => Color32::TRANSPARENT,
-    }
-}
-
-fn border_color(theme: &ThemeStore, disabled: bool, focused: bool, hovered: bool) -> Color32 {
-    if disabled {
-        return theme.border.get();
-    }
-    match (focused, hovered) {
-        (true, _) => theme.accent.get(),
-        (false, true) => theme.text_muted.get(),
-        (false, false) => theme.border.get(),
     }
 }
