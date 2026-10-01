@@ -72,7 +72,7 @@ struct Instance {
     intrinsic: Option<Vec2>,
     aspect_ratio: Option<f32>,
     pending: Vec<Pending>,
-    text_pastes: Vec<String>,
+    text_pastes: Vec<block_plugin_api::InputEvent>,
     audio: Option<AudioPlayer>,
     reported_audio: AudioStatus,
     reported_size: Option<Vec2>,
@@ -1867,10 +1867,7 @@ impl Instances {
             {
                 messages.push(Message::Input(block_plugin_api::InputBatch {
                     screen,
-                    events: texts
-                        .into_iter()
-                        .map(block_plugin_api::InputEvent::Paste)
-                        .collect(),
+                    events: texts,
                 }));
             }
             let entry = self.entries.get_mut(&instance).unwrap();
@@ -2320,10 +2317,11 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry.text_pastes.extend(
-                    super::clipboard::read_clipboard_text()
-                        .filter(|text| text.len() <= block_plugin_api::MAX_TEXT_BYTES),
-                );
+                if let Some(text) = super::clipboard::read_clipboard_text() {
+                    entry
+                        .text_pastes
+                        .extend(block_plugin_api::paste_events(&text));
+                }
                 true
             }
             EditorMessage::ChildReplaced {

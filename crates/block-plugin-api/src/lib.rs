@@ -2524,6 +2524,28 @@ fn string(value: &str) -> Result<(), DecodeError> {
     }
 }
 
+pub fn paste_events(text: &str) -> Vec<InputEvent> {
+    text_pieces(text, MAX_TEXT_BYTES)
+        .into_iter()
+        .map(InputEvent::Paste)
+        .collect()
+}
+
+fn text_pieces(text: &str, limit: usize) -> Vec<String> {
+    let mut pieces = Vec::new();
+    let mut rest = text;
+    while !rest.is_empty() {
+        let mut end = rest.len().min(limit);
+        while !rest.is_char_boundary(end) {
+            end -= 1;
+        }
+        let (piece, after) = rest.split_at(end);
+        pieces.push(piece.to_owned());
+        rest = after;
+    }
+    pieces
+}
+
 fn text(value: &str) -> Result<(), DecodeError> {
     if value.len() > MAX_TEXT_BYTES {
         Err(DecodeError::LimitExceeded("text"))
