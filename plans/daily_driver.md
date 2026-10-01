@@ -349,10 +349,10 @@ and deleting a database stops being a fix.
 
 ## Suggested order
 
-1. Phase 6.1 (anchors), and the rest of phase 3.
-2. Phase 2, versioning the formats, whenever it is convenient.
-3. Phase 4. Start the server, and take backups from day one.
+1. Phase 4. Start the server, and take backups from day one.
+2. The profiling at the start of phase 6.
+3. Phase 2, versioning the formats, whenever it is convenient.
 4. Phases 5 and 7 in parallel. Start real use when offline open, the status
    indicator, Move to…, search and export exist.
-5. The rest of phase 6, measured against the benchmark.
+5. The rest of phase 6, measured against the profile.
 6. Phase 8, the freeze, last.
