@@ -13,6 +13,9 @@ use crate::host::WakingSender;
 
 const HISTORY_SCRIPT: &str = r#"
 (() => {
+    if (window !== window.top) {
+        return;
+    }
     const send = (kind, value) => window.ipc.postMessage(`${kind}:${value}`);
     const address = () => send("address", location.href);
     const pushState = history.pushState.bind(history);
