@@ -250,6 +250,11 @@ impl TextNode {
                 );
             }
         }
+        if let Some((range, color)) = &self.selection {
+            for area in layout.selection_rects(range.clone()) {
+                painter.rect_filled(area.translate(origin), 0.0, *color);
+            }
+        }
         for line in &layout.lines {
             for run in &line.runs {
                 let Some(galley) = &run.galley else {
@@ -323,6 +328,15 @@ impl TextNode {
                     0.0,
                     caret.color,
                 );
+            }
+        }
+        if !self.handles.is_empty() {
+            let top = painter.on_top();
+            for (index, handle, color) in &self.handles {
+                let caret = layout.caret_rect(*index, 0.0).translate(origin);
+                let (shape, corners, angle) = handle_shape(caret, *handle);
+                top.rotated(shape.center(), angle)
+                    .rect_filled(shape, corners, *color);
             }
         }
     }

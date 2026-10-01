@@ -9,6 +9,7 @@ use crate::beui::capture;
 use crate::snapshot;
 
 const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
+const DRAG_STEPS: usize = 8;
 
 pub struct DocumentTest {
     document: Document,
@@ -92,6 +93,26 @@ impl DocumentTest {
             }]);
         }
         self.frame(vec![beui::Event::PointerGone]);
+    }
+
+    pub fn drag(&mut self, from: Pos2, to: Pos2) {
+        self.frame(vec![beui::Event::PointerMoved(from)]);
+        self.frame(vec![beui::Event::PointerButton {
+            pos: from,
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers: Modifiers::NONE,
+        }]);
+        for step in 1..=DRAG_STEPS {
+            let along = step as f32 / DRAG_STEPS as f32;
+            self.frame(vec![beui::Event::PointerMoved(from + (to - from) * along)]);
+        }
+        self.frame(vec![beui::Event::PointerButton {
+            pos: to,
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Modifiers::NONE,
+        }]);
     }
 
     pub fn scroll_at(&mut self, pos: Pos2, delta: Vec2) {
