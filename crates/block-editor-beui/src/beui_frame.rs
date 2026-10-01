@@ -5,19 +5,19 @@ use be_block::metadata::MAX_NAME_BYTES;
 use beui::NodeId;
 use beui::icons::{
     ICON_CLOSE, ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_INFO, ICON_MORE_VERT, ICON_REDO, ICON_SHARE,
-    ICON_UNDO,
+    ICON_TERMINAL, ICON_UNDO,
 };
 use beui::reactive::{
     Action, Chord, ClickCallback, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show,
     WriteSignal, clone, component, create_effect, create_memo, create_signal, menu_actions,
-    on_finger_tap, on_shortcut, provide_context, use_context, view,
+    on_finger_tap, provide_context, use_context, view,
 };
 use beui::styled::{
     ActionRow, Button, ButtonVariant, CommandPalette, IconButton, MenuButton, ModalSheet, Scroll,
     TextInput,
 };
 use beui::unstyled::MenuItem;
-use beui::{Context, Document, Key, KeyPress};
+use beui::{Context, Document, Key};
 use block_plugin_api::BarAction;
 use block_ui::{BlockLabel, BlockTypes};
 use uuid::Uuid;
@@ -71,16 +71,15 @@ impl BeuiFrame {
             let phone = create_memo(clone!(bar -> move || bar.get().on_phone));
             let (palette, set_palette) = create_signal(false);
             let opening = set_palette.clone();
-            on_shortcut(move |press: KeyPress| {
-                if !PALETTE.matches(press) {
-                    return false;
-                }
-                opening.set(true);
-                true
-            });
+            let opener = Action::new("editor.palette", "Command palette", move || {
+                opening.set(true)
+            })
+            .glyph(ICON_TERMINAL)
+            .shortcut(PALETTE)
+            .register();
             view! {
                 <List spacing=0.0>
-                    <TopBar editor bar on_exit={move || exit_writer.set(true)} />
+                    <TopBar editor bar palette={opener} on_exit={move || exit_writer.set(true)} />
                     <CommandPalette open={palette} on_close={move || set_palette.set(false)} />
                     <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>
                         {move || {
@@ -347,7 +346,12 @@ fn frame_actions(
 }
 
 #[component]
-pub(crate) fn TopBar(editor: Editor, bar: ReadSignal<FrameBar>, on_exit: ClickCallback) -> NodeId {
+pub(crate) fn TopBar(
+    editor: Editor,
+    bar: ReadSignal<FrameBar>,
+    palette: Action,
+    on_exit: ClickCallback,
+) -> NodeId {
     let on_phone = create_memo(clone!(bar -> move || bar.get().on_phone));
     let shown = create_memo(clone!(bar on_phone -> move || bar.get().shown && !on_phone.get()));
     let closable = create_memo(clone!(bar -> move || bar.get().closable));
@@ -374,7 +378,7 @@ pub(crate) fn TopBar(editor: Editor, bar: ReadSignal<FrameBar>, on_exit: ClickCa
     view! {
         <List spacing=0.0>
             <DesktopBar watched state shown closable={closable.clone()} actions />
-            <PhoneMore editor more closable actions={phone_actions} />
+            <PhoneMore editor more closable actions={phone_actions} palette />
         </List>
     }
 }
@@ -492,6 +496,7 @@ fn PhoneMore(
     more: Memo<bool>,
     closable: Memo<bool>,
     actions: FrameActions,
+    palette: Action,
 ) -> NodeId {
     let (dismissed, set_dismissed) = create_signal(false);
     let resetting = set_dismissed.clone();
@@ -517,13 +522,18 @@ fn PhoneMore(
             stops={MORE_STOPS.to_vec()}
             on_close={move || closing.call()}
         >
-            <MoreSheet closable actions done={move || done.call()} />
+            <MoreSheet closable actions palette done={move || done.call()} />
         </ModalSheet>
     }
 }
 
 #[component]
-fn MoreSheet(closable: Memo<bool>, actions: FrameActions, done: ClickCallback) -> NodeId {
+fn MoreSheet(
+    closable: Memo<bool>,
+    actions: FrameActions,
+    palette: Action,
+    done: ClickCallback,
+) -> NodeId {
     let items = menu_actions();
     let keys = create_memo(clone!(items -> move || {
         items.with(|items| items.iter().map(Action::key).collect::<Vec<u64>>())
@@ -543,6 +553,7 @@ fn MoreSheet(closable: Memo<bool>, actions: FrameActions, done: ClickCallback) -
             action.run();
         }
     };
+    let palette_run = row(palette.clone());
     let (undo_run, redo_run, rename_run, share_run, details_run, close_run) = (
         row(undo.clone()),
         row(redo.clone()),
@@ -560,6 +571,11 @@ fn MoreSheet(closable: Memo<bool>, actions: FrameActions, done: ClickCallback) -
                     <SheetRow @test_id="editor.more.redo" action={redo} on_click={redo_run} />
                     <SheetRow @test_id="editor.more.rename" action={rename} on_click={rename_run} />
                     <SheetRow @test_id="editor.more.share" action={share} on_click={share_run} />
+                    <SheetRow
+                        @test_id="editor.more.palette"
+                        action={palette}
+                        on_click={palette_run}
+                    />
                     <ForEach keys={keys}>
                         {move |key: u64| {
                             let item = items.with_untracked(|items| {

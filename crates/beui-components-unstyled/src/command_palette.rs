@@ -133,6 +133,7 @@ pub fn CommandPalette(
                 <List spacing=6.0>
                     <unstyled::TextInput
                         @node_ref={&state.search}
+                        @test_id={"command-palette.search"}
                         value={query}
                         focused={searching}
                         placeholder={search_placeholder}
