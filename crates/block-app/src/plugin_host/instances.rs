@@ -1172,6 +1172,7 @@ impl Instances {
             instance,
             region,
             generation,
+            size,
             children,
             occluders,
         } = placements;
@@ -1195,10 +1196,7 @@ impl Instances {
         });
         let table = ChildTable {
             generation,
-            size: vec2(
-                screen.request.metrics.logical_width,
-                screen.request.metrics.logical_height,
-            ),
+            size: vec2(size.width, size.height),
             children,
             occluders,
         };

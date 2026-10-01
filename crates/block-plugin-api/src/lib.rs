@@ -263,6 +263,7 @@ pub struct ChildPlacements {
     pub instance: EditorInstanceId,
     pub region: EditorRegion,
     pub generation: u64,
+    pub size: Size,
     pub children: Vec<ChildPlacement>,
     pub occluders: Vec<Occluder>,
 }
