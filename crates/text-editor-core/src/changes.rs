@@ -72,10 +72,12 @@ impl ChangeLog {
         if from == to {
             return Some(TextChange::NONE);
         }
-        let first = self.entries.iter().position(|(revision, _)| *revision == from + 1)?;
-        let mut expected = from + 1;
+        let first = self
+            .entries
+            .iter()
+            .position(|(revision, _)| *revision == from + 1)?;
         let mut total = TextChange::NONE;
-        for (revision, change) in self.entries.iter().skip(first) {
+        for ((revision, change), expected) in self.entries.iter().skip(first).zip(from + 1..) {
             if *revision != expected || *revision > to {
                 return None;
             }
@@ -83,7 +85,6 @@ impl ChangeLog {
             if *revision == to {
                 return Some(total);
             }
-            expected += 1;
         }
         None
     }

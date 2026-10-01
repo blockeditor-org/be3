@@ -262,9 +262,7 @@ impl TextAreaState {
     }
 
     pub fn bytes(&self) -> Ref<'_, [u8]> {
-        Ref::map(self.0.snapshot.borrow(), |snapshot| {
-            &snapshot.bytes[..]
-        })
+        Ref::map(self.0.snapshot.borrow(), |snapshot| &snapshot.bytes[..])
     }
 
     pub fn language(&self) -> TextLanguage {
@@ -598,7 +596,13 @@ impl TextAreaState {
         let change = {
             let snapshot = self.0.snapshot.borrow();
             (snapshot.highlight.is_some() && snapshot.loaded && snapshot.language == language)
-                .then(|| self.0.core.borrow().document().changes_since(snapshot.revision))
+                .then(|| {
+                    self.0
+                        .core
+                        .borrow()
+                        .document()
+                        .changes_since(snapshot.revision)
+                })
                 .flatten()
         };
         let (starts, checkboxes) = {
@@ -645,7 +649,13 @@ impl TextAreaState {
     }
 }
 
-fn line_key(snapshot: &Snapshot, widgets: &[TextWidget], start: usize, end: usize, wrap: f32) -> u64 {
+fn line_key(
+    snapshot: &Snapshot,
+    widgets: &[TextWidget],
+    start: usize,
+    end: usize,
+    wrap: f32,
+) -> u64 {
     let mut hasher = FixedState::with_seed(0).build_hasher();
     wrap.to_bits().hash(&mut hasher);
     let last = (end + 1).min(snapshot.bytes.len());
@@ -667,7 +677,11 @@ fn line_key(snapshot: &Snapshot, widgets: &[TextWidget], start: usize, end: usiz
         .iter()
         .filter(|widget| widget.range.start <= end && widget.range.end >= start)
     {
-        (widget.range.start.wrapping_sub(start), widget.range.end.wrapping_sub(start)).hash(&mut hasher);
+        (
+            widget.range.start.wrapping_sub(start),
+            widget.range.end.wrapping_sub(start),
+        )
+            .hash(&mut hasher);
         (&widget.label, widget.icon, widget.italic).hash(&mut hasher);
         widget
             .block_size

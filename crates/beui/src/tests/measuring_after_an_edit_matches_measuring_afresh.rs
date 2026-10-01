@@ -36,14 +36,24 @@ fn measuring_after_an_edit_matches_measuring_afresh() {
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
         let before = state.measure(&[], 300.0).expect("the text was measured");
         let at = state.core().position(text().find("line 21 ").unwrap());
-        state.execute(EditorCommand::SetSelection { anchor: at, focus: at });
+        state.execute(EditorCommand::SetSelection {
+            anchor: at,
+            focus: at,
+        });
         state.execute(EditorCommand::InsertText(b"```\n"));
-        let after = state.measure(&[], 300.0).expect("the edited text was measured");
+        let after = state
+            .measure(&[], 300.0)
+            .expect("the edited text was measured");
 
         let edited = state.bytes().to_vec();
         let fresh = TextAreaState::new(Arc::new(TextBuffer::new(&edited)));
-        let expected = fresh.measure(&[], 300.0).expect("the fresh text was measured");
-        assert_ne!(before, after, "opening a fence below the top restyles what follows");
+        let expected = fresh
+            .measure(&[], 300.0)
+            .expect("the fresh text was measured");
+        assert_ne!(
+            before, after,
+            "opening a fence below the top restyles what follows"
+        );
         assert_eq!(after, expected);
     });
 }

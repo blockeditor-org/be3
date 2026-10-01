@@ -431,10 +431,10 @@ impl DocumentEdit for BufferEdit<'_> {
             .get_mut()
             .expect("the text buffer's anchors were poisoned")
             .splice(index, delete, insert.len());
-        self.state.pending = self
-            .state
-            .pending
-            .then(TextChange::replace(index, delete, insert.len()));
+        self.state.pending =
+            self.state
+                .pending
+                .then(TextChange::replace(index, delete, insert.len()));
         self.edited = true;
     }
 }

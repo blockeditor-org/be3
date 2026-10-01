@@ -4,12 +4,20 @@ use crate::unstyled::{TextArea, TextAreaState};
 use std::sync::Arc;
 use text_editor_core::{EditorCommand, TextBuffer};
 
-fn indexed(state: &TextAreaState) -> (Vec<usize>, Vec<(usize, std::ops::Range<usize>, bool)>) {
+type Checkbox = (usize, std::ops::Range<usize>, bool);
+
+fn indexed(state: &TextAreaState) -> (Vec<usize>, Vec<Checkbox>) {
     state.with_snapshot(|snapshot| {
         let checkboxes = snapshot
             .checkboxes
             .iter()
-            .map(|checkbox| (checkbox.line_start, checkbox.marker.clone(), checkbox.checked))
+            .map(|checkbox| {
+                (
+                    checkbox.line_start,
+                    checkbox.marker.clone(),
+                    checkbox.checked,
+                )
+            })
             .collect();
         (snapshot.starts.to_vec(), checkboxes)
     })
@@ -47,7 +55,10 @@ fn line_starts_and_checkboxes_follow_edits() {
             let length = state.bytes().len();
             let start = state.core().position(at.min(length));
             let end = state.core().position((at + delete).min(length));
-            state.execute(EditorCommand::SetSelection { anchor: start, focus: end });
+            state.execute(EditorCommand::SetSelection {
+                anchor: start,
+                focus: end,
+            });
             state.execute(EditorCommand::InsertText(insert));
             let edited = state.bytes().to_vec();
             let fresh = TextAreaState::new(Arc::new(TextBuffer::new(&edited)));

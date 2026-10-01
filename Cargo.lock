@@ -907,6 +907,7 @@ dependencies = [
  "beui-core",
  "beui-view",
  "beui_macros",
+ "foldhash 0.2.0",
  "memchr",
  "reactive",
  "serde",
@@ -918,6 +919,7 @@ name = "beui-core"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "foldhash 0.2.0",
  "geometry",
  "reactive",
  "thumbhash",

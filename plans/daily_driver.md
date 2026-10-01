@@ -202,40 +202,35 @@ lines of 200 words each (about 12 MB):
   plan or the PR, and re-order the items below by what the profile shows.
 - Profile again after each item lands.
 
-**First profile** (8.7 MB, 10,000 lines of 200 words, release build, Linux VM
-with llvmpipe, `perf` with `BE3_PERF_MAP=1` for the plugin's wasm):
+**Profile** (8.7 MB, 10,000 lines of 200 words, release build, Linux VM with
+llvmpipe, `perf` with `BE3_PERF_MAP=1` for the plugin's wasm):
 
-| Scenario | Before | After this round |
+| Scenario | First profile | Now |
 |---|---|---|
 | Pasting the document | plugin trapped: the edit was larger than a frame, and the paste larger than the API's text limit | works; the edit is saved as a commit instead of relayed |
 | Idle, caret blinking | about 0 CPU | unchanged |
 | Holding an arrow key | 53 ms per move | 4.5 ms |
-| Page down | 28 ms per page | unchanged |
-| Typing near the top, plugin CPU per key | 440 ms | 140 ms |
+| Page down | 28 ms per page | not re-measured |
+| Typing near the top, plugin CPU per key | 440 ms | 27 ms |
 
-What the 140 ms per key is now: about ten whole-document passes, each
-5-15 ms in wasm without SIMD:
-- the snapshot copy, the highlighter's copy and its diff against the last one;
-- `fences`, `table_starts`, `line_starts`, the checkbox scan, the section
-  scan, `parse_block_urls`;
-- `adopt`'s full compare in the text block's `pump`.
+What the 27 ms per key is now:
+- about 6.5 ms in the plugin framework's frame;
+- about 6 ms parsing the edited markdown window (about 3 KB here, since the
+  test document has no blank lines);
+- about 2 ms splicing the block content's flat `Vec<u8>` (item 1);
+- 1-2 ms each for the section scan, `parse_block_urls` in
+  `refresh_embeds`, and laying out the edited row.
 
-What it is not any more:
-- shaping a wrapped paragraph's rest once per visual line, which was O(n²)
-  per paragraph;
-- re-parsing every markdown window on every edit;
-- describing the whole document for accessibility.
+tree-sitter-md gets nothing from an old tree: re-parsing unchanged text
+with it costs as much as a fresh parse, because its external scanners
+produce nearly every token. So the cost of an edit is the size of the
+window parsed, and windows are kept small instead.
 
 Outside the plugin, per key:
-- the be worker spends about 110 ms, mostly SHA-256 over the whole document
+- the be worker spends about 100 ms, mostly SHA-256 over the whole document
   when it seals (item 6);
-- the host's main thread spends about 180 ms, mostly llvmpipe, which a real
+- the host's main thread spends about 140 ms, mostly llvmpipe, which a real
   GPU won't have.
-
-Next:
-- turn on `simd128` for the wasm targets, which speeds every scan;
-- make the scans in item 5 incremental;
-- item 6.
 
 1. **Anchors (done).** Anchors exist only for positions in use
    (`text_editor_core::AnchorTable`), so finding one no longer scans the text.
@@ -244,32 +239,34 @@ Next:
    copies, and measuring says the splice matters.
 2. **Graphemes (done).** Boundaries are found within the surrounding line, and
    an ASCII byte on the right needs no segmenting at all.
-3. **Measuring.**
-   - `TextAreaState::measure` shapes every line on each change, which also
-     empties the shape cache (`text_area/state.rs:413-449`).
-   - `table_spacers` does the same for tables.
-   - Done: cache height per line and invalidate only the edited lines.
+3. **Measuring (mostly done).**
+   - `TextAreaState::measure` shapes the first 64 KB exactly and estimates
+     the rest. Each line's height is kept under a hash of its bytes, style
+     runs, widgets and the wrap width, so only lines that changed are shaped.
+   - `table_spacers` still lays out every table in the document on each
+     change.
 4. **Highlighting.**
    - The tree-sitter parse is incremental, but the style pass builds a style
      per byte and walks the whole tree on every edit
      (`highlighter.rs:230-327`).
    - Done: highlight lazily per visible line, from the tree's changed ranges.
-   - Partly done: markdown is parsed in windows of about 8 KB around what is
-     read, cut at blank lines and kept outside fences. An edit re-parses only
-     the window it touched; windows before it are kept and windows after it
-     are shifted.
+   - Done for markdown: it is parsed in windows of about 1 KB plus the way to
+     the nearest blank line, kept outside fences. Documents keep a log of the
+     range each revision changed (`Document::changes_since`), so an edit
+     drops only the windows on the lines it touched and shifts the rest, and
+     fences and table starts are shifted unless the edited lines hold a fence.
    - `collapsible_sections()` runs on every caret move (`state.rs:549-552`).
      Run it only on content change, and incrementally.
-5. **Whole-document copies on every edit:**
-   - `read_bytes`;
-   - the `described` and `shown` strings, plus their equality compares;
-   - `line_starts`;
-   - the `VirtualList` keys;
-   - the checkbox scan;
-   - `parse_embeds`;
-   - `adopt`'s full compare;
+5. **Whole-document copies on every edit.** Done: the snapshot shares the
+   highlighter's bytes; line starts and checkboxes are spliced from the
+   change; `adopt` skips its compare after the text block's own edits; wasm is
+   built with SIMD. Left:
+   - the highlighter's own copy of the bytes, and the content's `Vec<u8>`
+     splice (item 1);
+   - the collapsible section scan, which can reach far past an edit (a new
+     heading ends the section above it);
+   - `parse_block_urls` in `refresh_embeds` and in the host;
    - the host's `session.bytes()` re-encode in `publish()` (`be/worker.rs:1166`).
-   Each becomes incremental or is dropped.
 6. **Sealing.**
    - Sealing every 750 ms re-encodes, re-chunks, re-hashes and re-encrypts
      the whole document.

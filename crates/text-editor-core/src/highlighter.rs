@@ -198,7 +198,9 @@ impl MarkdownSource {
         {
             windows.held.remove(oldest);
         }
-        let at = windows.held.partition_point(|held| held.start < range.start);
+        let at = windows
+            .held
+            .partition_point(|held| held.start < range.start);
         windows.held.insert(
             at,
             HeldWindow {
