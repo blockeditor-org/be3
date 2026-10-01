@@ -342,7 +342,7 @@ last a weight in the bounded space left over - or a `Sizing` built from one:
 length down to its `min` when the row overflows (the label beside a fixed-size
 button), `.align(..)` overrides the list's `align` for that child, and
 `.gap(..)` replaces the list's `spacing` before it:
-`@sizing=ItemSize::Percent(100.0).max(320.0)`.
+`@sizing={ItemSize::Percent(100.0).max(320.0)}`.
 
 `Frame` combines optional sizing, an aspect ratio it centres
 its box within, padding, fill, outline, and visibility on one retained node.

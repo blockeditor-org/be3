@@ -10,7 +10,7 @@ fn a_percent_child_stops_at_its_max_and_hands_the_rest_on() {
             view! {
                 <List direction=Direction::Horizontal spacing=0.0>
                     <Frame
-                        @sizing=ItemSize::Percent(50.0).max(40.0)
+                        @sizing={ItemSize::Percent(50.0).max(40.0)}
                         @node_ref=&capped
                         height=10.0
                     />
