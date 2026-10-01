@@ -10,9 +10,7 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Align, Callback, Direction, Frame, ItemSize, List, Prop, Spacer, clone, create_memo, focus_ring,
-};
+use beui_view::reactive::{Align, Callback, Frame, Prop, clone, create_memo, focus_ring};
 
 const WIDTH: f32 = 42.0;
 const HEIGHT: f32 = 24.0;
@@ -56,8 +54,7 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
-    let before_percent = create_memo(clone!(checked -> move || before_size(checked.get())));
-    let after_percent = create_memo(clone!(checked -> move || after_size(checked.get())));
+    let knob_align = create_memo(clone!(checked -> move || knob_align(checked.get())));
     let track_color =
         create_memo(clone!(theme -> move || track_fill(&theme, checked.get(), hovered.get())));
 
@@ -79,20 +76,18 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
                 radius=TRACK_RADIUS
                 padding_horizontal=PADDING
                 padding_vertical=PADDING
+                align_horizontal={knob_align}
+                align_vertical=Align::Center
             >
-                <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                    <Spacer @sizing={before_percent} />
-                    <Frame
-                        width=KNOB_SIZE
-                        height=KNOB_SIZE
-                        color={theme.knob.clone()}
-                        outline={control_outline(&theme)}
-                        outline_width=BORDER_WIDTH
-                        outline_visible={control_outline_visible(&theme)}
-                        radius=KNOB_RADIUS
-                    />
-                    <Spacer @sizing={after_percent} />
-                </List>
+                <Frame
+                    width=KNOB_SIZE
+                    height=KNOB_SIZE
+                    color={theme.knob.clone()}
+                    outline={control_outline(&theme)}
+                    outline_width=BORDER_WIDTH
+                    outline_visible={control_outline_visible(&theme)}
+                    radius=KNOB_RADIUS
+                />
             </Frame>
         </Frame>
     }
@@ -102,20 +97,8 @@ pub fn switch_on(document: &Document, switch: NodeId) -> bool {
     unstyled::toggle_checked(document, switch).get()
 }
 
-fn before_size(on: bool) -> ItemSize {
-    if on {
-        ItemSize::Percent(100.0)
-    } else {
-        ItemSize::Percent(0.0)
-    }
-}
-
-fn after_size(on: bool) -> ItemSize {
-    if on {
-        ItemSize::Percent(0.0)
-    } else {
-        ItemSize::Percent(100.0)
-    }
+fn knob_align(on: bool) -> Align {
+    if on { Align::End } else { Align::Start }
 }
 
 fn track_fill(theme: &ThemeStore, on: bool, hovered: bool) -> Color32 {

@@ -11,8 +11,8 @@ use beui_core::input::{CursorIcon, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Align, BackHandler, Child, ClickCallback, ClickCatcher, Direction, Frame, ItemSize, List, Prop,
-    Spacer, clone, component_size, create_memo, create_signal,
+    Align, BackHandler, Child, ClickCallback, ClickCatcher, Frame, ItemSize, List, Prop, Spacer,
+    clone, component_size, create_memo, create_signal,
 };
 
 pub const SHEET_STOPS: [f32; 3] = [0.3, 0.5, 0.9];
@@ -110,17 +110,17 @@ pub fn Sheet(
                         on_cancel={cancelled}
                         on_active_change={released}
                     >
-                        <Frame height=HANDLE_HEIGHT>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                                <Spacer @sizing=ItemSize::Percent(100.0) />
-                                <Frame
-                                    width=GRIP_WIDTH
-                                    height=GRIP_HEIGHT
-                                    radius=2
-                                    color={theme.text_muted.clone()}
-                                />
-                                <Spacer @sizing=ItemSize::Percent(100.0) />
-                            </List>
+                        <Frame
+                            height=HANDLE_HEIGHT
+                            align_horizontal=Align::Center
+                            align_vertical=Align::Center
+                        >
+                            <Frame
+                                width=GRIP_WIDTH
+                                height=GRIP_HEIGHT
+                                radius=2
+                                color={theme.text_muted.clone()}
+                            />
                         </Frame>
                     </ClickCatcher>
                     {children} @sizing={body}

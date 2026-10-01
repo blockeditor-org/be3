@@ -7,8 +7,8 @@ use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_FORMAT_COLOR_RESET;
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, ItemSize, List, Memo, Show, Spacer, clone, component, create_memo,
-    create_signal, view,
+    Align, Direction, ForEach, Frame, Grid, ItemSize, List, Memo, Show, Spacer, Track, clone,
+    component, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
     Accordion, Button, ButtonVariant, Caption, Checkbox, ColorInput, Heading, NumberDrag,
@@ -304,10 +304,15 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
     let angle = at(&entity, |entity| entity.transform.rotation.to_degrees());
     view! {
         <List spacing=6.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Caption content="X" />
+            <Grid
+                columns={[Track::Intrinsic, Track::Fraction(1.0)].repeat(2)}
+                column_spacing=6.0
+                row_spacing=6.0
+            >
+                <Frame align_vertical=Align::Center>
+                    <Caption content="X" />
+                </Frame>
                 <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
                     label="X"
                     value={center_x}
                     disabled={locked.clone()}
@@ -315,9 +320,10 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
                     on_change={x}
                     on_preview={x_preview}
                 />
-                <Caption content="Y" />
+                <Frame align_vertical=Align::Center>
+                    <Caption content="Y" />
+                </Frame>
                 <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
                     label="Y"
                     value={center_y}
                     disabled={locked.clone()}
@@ -325,11 +331,10 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
                     on_change={y}
                     on_preview={y_preview}
                 />
-            </List>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Caption content="W" />
+                <Frame align_vertical=Align::Center>
+                    <Caption content="W" />
+                </Frame>
                 <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
                     label="W"
                     min={MIN_SIZE as f64}
                     value={size_x}
@@ -338,9 +343,10 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
                     on_change={width}
                     on_preview={width_preview}
                 />
-                <Caption content="H" />
+                <Frame align_vertical=Align::Center>
+                    <Caption content="H" />
+                </Frame>
                 <NumberInput
-                    @sizing=ItemSize::Percent(100.0)
                     label="H"
                     min={MIN_SIZE as f64}
                     value={size_y}
@@ -349,7 +355,7 @@ fn TransformFields(state: Rc<CanvasState>) -> NodeId {
                     on_change={height}
                     on_preview={height_preview}
                 />
-            </List>
+            </Grid>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <Caption content="Rotation" />
                 <NumberInput

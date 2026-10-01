@@ -649,27 +649,27 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let arrow_color = create_memo(clone!(cx -> move || cx.colors.get().gutter_arrow));
     let number_color = create_memo(clone!(cx -> move || cx.colors.get().gutter_text));
     view! {
-        <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
-            <Frame width=GUTTER_PADDING_LEFT />
-            <Frame width=GUTTER_ARROW_SIZE height={height.clone()}>
-                <Text
-                    string={arrow}
-                    icon=true
-                    font_size=GUTTER_ARROW_SIZE
-                    color={arrow_color}
-                    align=TextAlign::Center
-                />
-            </Frame>
-            <Frame @sizing=ItemSize::Percent(100.0) height={height}>
-                <Text
-                    string={number}
-                    monospace=true
-                    font_size=GUTTER_TEXT_SIZE
-                    color={number_color}
-                    align=TextAlign::End
-                />
-            </Frame>
-            <Frame width=GUTTER_PADDING_RIGHT />
-        </List>
+        <Frame padding_left=GUTTER_PADDING_LEFT padding_right=GUTTER_PADDING_RIGHT>
+            <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
+                <Frame width=GUTTER_ARROW_SIZE height={height.clone()}>
+                    <Text
+                        string={arrow}
+                        icon=true
+                        font_size=GUTTER_ARROW_SIZE
+                        color={arrow_color}
+                        align=TextAlign::Center
+                    />
+                </Frame>
+                <Frame @sizing=ItemSize::Percent(100.0) height={height}>
+                    <Text
+                        string={number}
+                        monospace=true
+                        font_size=GUTTER_TEXT_SIZE
+                        color={number_color}
+                        align=TextAlign::End
+                    />
+                </Frame>
+            </List>
+        </Frame>
     }
 }

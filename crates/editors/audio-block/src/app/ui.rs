@@ -1,8 +1,7 @@
 use block_editor_beui::be_block::AudioContent;
 use block_editor_beui::beui::icons::{ICON_AUDIO_FILE, ICON_PAUSE, ICON_PLAY_ARROW};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, NodeRef, Show, Spacer, clone, component, create_memo,
-    view,
+    Align, Direction, Frame, ItemSize, List, NodeRef, Show, clone, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, Caption, Heading, IconButton, IconSized, use_theme,
@@ -70,16 +69,13 @@ pub fn AudioView(editor: Editor) -> NodeId {
                             color={theme.text.clone()}
                         />
                         <Body content={source} align=TextAlign::Center />
-                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Spacer @sizing=ItemSize::Percent(100.0) />
-                            <IconButton
-                                glyph={glyph}
-                                label={action}
-                                @test_id={"audio.play"}
-                                on_click={toggle}
-                            />
-                            <Spacer @sizing=ItemSize::Percent(100.0) />
-                        </List>
+                        <IconButton
+                            @sizing={ItemSize::Intrinsic.align(Align::Center)}
+                            glyph={glyph}
+                            label={action}
+                            @test_id={"audio.play"}
+                            on_click={toggle}
+                        />
                         <Caption
                             content={elapsed}
                             align=TextAlign::Center

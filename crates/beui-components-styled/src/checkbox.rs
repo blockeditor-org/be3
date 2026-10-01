@@ -9,8 +9,7 @@ use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, ItemSize, List, Prop, Spacer, Text, clone, create_memo,
-    focus_ring,
+    Align, Callback, Direction, Frame, ItemSize, List, Prop, Text, clone, create_memo, focus_ring,
 };
 
 const BOX_SIZE: f32 = 18.0;
@@ -76,18 +75,16 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
                     outline_width=BORDER_WIDTH
                     radius=CHIP_RADIUS
                     outline_visible={border_visible}
+                    align_horizontal=Align::Center
+                    align_vertical=Align::Center
                 >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                        <Frame
-                            visible={checked}
-                            width=MARK_SIZE
-                            height=MARK_SIZE
-                            color={mark_color}
-                            radius=MARK_RADIUS
-                        />
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                    </List>
+                    <Frame
+                        visible={checked}
+                        width=MARK_SIZE
+                        height=MARK_SIZE
+                        color={mark_color}
+                        radius=MARK_RADIUS
+                    />
                 </Frame>
                 <Text
                     @sizing=ItemSize::Percent(100.0)
