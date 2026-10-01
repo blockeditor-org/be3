@@ -99,8 +99,9 @@ What it leaves for a public release is in `plans/public_release.md`.
 ## Phase 4: A server you can leave running (done)
 
 Landed:
-- Registration is closed unless `--allow-registration` is given, and
-  `--add-account` reads the password from standard input.
+- Registration is closed unless `--allow-registration` is given, sign-ins with
+  a password unless `--allow-login` is, and `--add-account` reads the password
+  from standard input.
 - Password checks run off the database lock, at most four at a time, with a
   dummy hash for unknown emails. An email is locked out after five failed
   sign-ins, for 30 seconds doubling to an hour.

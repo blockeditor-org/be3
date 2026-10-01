@@ -155,7 +155,9 @@ postcard frames.
   lets them see, or a `BlockRemoved` when it no longer does.
 - Accounts live here. `Register` (refused unless the server runs with
   `--allow-registration`; the app's embedded server and the dev targets do),
-  `Login`, `Authenticate` with a token and `Logout`; workspaces are created
+  `Login` (refused unless the server runs with `--allow-login`, so a server
+  on the internet takes only the tokens of devices already signed in),
+  `Authenticate` with a token and `Logout`; workspaces are created
   through it, and an administrator can `Invite` an email that the invitee sees
   with `ListInvitations` and answers with `RespondInvitation`.
   `--add-account EMAIL NAME WORKSPACE` provisions an account and its workspace

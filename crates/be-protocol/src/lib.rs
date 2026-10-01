@@ -98,6 +98,7 @@ pub enum ErrorCode {
     WorkspaceNotFound,
     RegistrationDisabled,
     InvitationNotFound,
+    LoginDisabled,
 }
 
 impl fmt::Display for ErrorCode {

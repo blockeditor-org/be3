@@ -4,8 +4,8 @@
 # Caddyfile beside this. Without --domain, Caddy serves plain http on --listen
 # on this machine. With --domain, Caddy serves that domain over https on ports
 # 80 and 443, with a certificate it gets for it, and --listen is unused. Other
-# arguments go to be-server, which refuses new accounts unless given
-# --allow-registration.
+# arguments go to be-server, which refuses sign-ins and new accounts unless
+# given --allow-login and --allow-registration.
 #
 #   ./scripts/buck run //crates/block-app:web-serve [-- --listen HOST:PORT] [--backend HOST:PORT]
 #   ./scripts/buck run //crates/block-app:web-serve -- --domain blocks.pfg.pw [--data-dir DIR]

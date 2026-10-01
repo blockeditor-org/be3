@@ -101,11 +101,13 @@ impl From<tokio_tungstenite::tungstenite::Error> for ServerError {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ServerConfig {
     pub allow_registration: bool,
+    pub allow_login: bool,
 }
 
 impl ServerConfig {
     pub const OPEN: Self = Self {
         allow_registration: true,
+        allow_login: true,
     };
 }
 
@@ -378,6 +380,15 @@ impl Connection {
                 email,
                 password,
             } => {
+                if !self.config.allow_login {
+                    tracing::warn!(email, "refused a sign-in: sign-ins are off");
+                    return Err(ServerError::Refused(
+                        ErrorCode::LoginDisabled,
+                        "this server is not accepting sign-ins with a password; use a device that \
+                         is already signed in, or ask its operator to allow sign-ins for a while"
+                            .into(),
+                    ));
+                }
                 let (profile, token) = self
                     .store
                     .login(&email, &password)

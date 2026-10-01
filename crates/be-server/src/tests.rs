@@ -19,8 +19,8 @@ use super::*;
 
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_bunny_storage_zone_holds_a_backup;
+mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
-mod a_server_refuses_new_accounts_unless_told_to_allow_them;
 mod a_session_hands_ownership_over_without_a_merge;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_watcher_is_told_when_the_head_moves;

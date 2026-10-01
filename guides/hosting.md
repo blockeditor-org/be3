@@ -11,6 +11,11 @@ How the server runs on a VPS for real notes. The files referred to are in
   the web bundle from `/srv/be3-web` if it is wanted (`Caddyfile`; build it
   with `./scripts/buck build //crates/block-app:web --out DIR`).
 - Data lives in `/var/lib/be-server`: `metadata.sqlite` and `objects/`.
+- Sign-ins with a password are off, so only devices that are already signed
+  in connect, with the session tokens they hold. To sign in a new device,
+  put `BE_SERVER_FLAGS=--allow-login` in `/etc/be-server/server.env`, restart
+  be-server, sign in, then empty that line and restart again. Restarting drops
+  every connection for a moment; devices reconnect on their own.
 - Registration is closed. Accounts are made on the server:
   `sudo -u be-server be-server --data-dir /var/lib/be-server --add-account EMAIL NAME WORKSPACE`,
   typing the password on standard input. It writes the database directly, so

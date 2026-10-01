@@ -5,7 +5,7 @@ use tokio::net::TcpListener;
 
 const USAGE: &str = "\
 Usage:
-  be-server [--addr ADDR] [--data-dir DIR] [--allow-registration]
+  be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
   be-server [--data-dir DIR] --add-account EMAIL NAME WORKSPACE < password
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
@@ -14,6 +14,8 @@ Usage:
 
   --addr ADDR               Address to listen on (default: 127.0.0.1:9090)
   --data-dir DIR            Where accounts and blocks are stored (default: be-server-data)
+  --allow-login             Accept sign-ins with a password; without it, only devices
+                            already signed in can connect, with the tokens they hold
   --allow-registration      Let anyone who reaches the server make an account; without it,
                             accounts are made with --add-account
   --add-account             Make an account that owns a new workspace, reading its password
@@ -79,6 +81,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
                 data_dir = PathBuf::from(arguments.next().ok_or("--data-dir needs a value")?);
             }
             "--allow-registration" => config.allow_registration = true,
+            "--allow-login" => config.allow_login = true,
             "--add-account" => {
                 let email = arguments.next().ok_or("--add-account needs an email")?;
                 let display_name = arguments.next().ok_or("--add-account needs a name")?;
@@ -108,6 +111,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
     tracing::info!(
         address = %listener.local_addr()?,
         data = %data_dir.display(),
+        login = config.allow_login,
         registration = config.allow_registration,
         "be-server listening"
     );
