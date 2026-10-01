@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use text_editor_core::{
     CollapsibleSection, CopyMode, Core, CursorPosition, EditorCommand, FindDirection, FindStatus,
-    Position, SyntaxHighlight, TextIndentation, TextLanguage, markdown_checkbox_marker,
+    Position, SyntaxHighlight, TextChange, TextIndentation, TextLanguage, markdown_checkbox_marker,
 };
 
 use beui_core::geometry::{Pos2, Rect, Vec2};
@@ -38,7 +38,7 @@ pub struct MarkdownCheckbox {
 pub struct Snapshot {
     pub loaded: bool,
     pub revision: u64,
-    pub bytes: Vec<u8>,
+    pub bytes: Arc<[u8]>,
     pub starts: Rc<Vec<usize>>,
     pub language: TextLanguage,
     pub sections: Vec<CollapsibleSection>,
@@ -263,7 +263,7 @@ impl TextAreaState {
 
     pub fn bytes(&self) -> Ref<'_, [u8]> {
         Ref::map(self.0.snapshot.borrow(), |snapshot| {
-            snapshot.bytes.as_slice()
+            &snapshot.bytes[..]
         })
     }
 
@@ -591,17 +591,38 @@ impl TextAreaState {
                 return;
             }
         }
-        let bytes = read_bytes(&self.0.core.borrow());
         let highlight = self.0.core.borrow_mut().highlight();
+        let bytes = highlight
+            .markdown_bytes()
+            .unwrap_or_else(|| read_bytes(&self.0.core.borrow()).into());
+        let change = {
+            let snapshot = self.0.snapshot.borrow();
+            (snapshot.highlight.is_some() && snapshot.loaded && snapshot.language == language)
+                .then(|| self.0.core.borrow().document().changes_since(snapshot.revision))
+                .flatten()
+        };
+        let (starts, checkboxes) = {
+            let snapshot = self.0.snapshot.borrow();
+            match change {
+                Some(change) => (
+                    Rc::new(shifted_line_starts(&snapshot.starts, &bytes, change)),
+                    shifted_checkboxes(&snapshot.checkboxes, &bytes, change),
+                ),
+                None => (
+                    Rc::new(line_starts(&bytes)),
+                    parse_markdown_checkboxes(&bytes),
+                ),
+            }
+        };
         let checkboxes = match language {
-            TextLanguage::Markdown => parse_markdown_checkboxes(&bytes),
+            TextLanguage::Markdown => checkboxes,
             _ => Vec::new(),
         };
         let hidden = hidden_ranges(&sections);
         *self.0.snapshot.borrow_mut() = Snapshot {
             loaded,
             revision,
-            starts: Rc::new(line_starts(&bytes)),
+            starts,
             bytes,
             language,
             sections,
@@ -659,6 +680,63 @@ fn line_key(snapshot: &Snapshot, widgets: &[TextWidget], start: usize, end: usiz
         .any(|section| section.collapsed && section.line_start == start)
         .hash(&mut hasher);
     hasher.finish()
+}
+
+fn shifted_line_starts(starts: &[usize], bytes: &[u8], change: TextChange) -> Vec<usize> {
+    if starts.is_empty() {
+        return line_starts(bytes);
+    }
+    let kept = starts.partition_point(|start| *start <= change.start);
+    let after = starts.partition_point(|start| *start <= change.old_end);
+    let mut shifted = Vec::with_capacity(starts.len());
+    shifted.extend_from_slice(&starts[..kept]);
+    shifted.extend(
+        memchr::memchr_iter(b'\n', &bytes[change.start..change.new_end])
+            .map(|at| change.start + at + 1),
+    );
+    shifted.extend(
+        starts[after..]
+            .iter()
+            .map(|start| start - change.old_end + change.new_end),
+    );
+    shifted
+}
+
+fn shifted_checkboxes(
+    checkboxes: &[MarkdownCheckbox],
+    bytes: &[u8],
+    change: TextChange,
+) -> Vec<MarkdownCheckbox> {
+    let first = memchr::memrchr(b'\n', &bytes[..change.start]).map_or(0, |newline| newline + 1);
+    let end = memchr::memchr(b'\n', &bytes[change.new_end..])
+        .map_or(bytes.len(), |newline| change.new_end + newline);
+    let old_end = end - change.new_end + change.old_end;
+    let shift = |at: usize| at - change.old_end + change.new_end;
+    let mut shifted: Vec<MarkdownCheckbox> = checkboxes
+        .iter()
+        .take_while(|checkbox| checkbox.line_start < first)
+        .cloned()
+        .collect();
+    shifted.extend(
+        parse_markdown_checkboxes(&bytes[first..end])
+            .into_iter()
+            .map(|checkbox| MarkdownCheckbox {
+                line_start: checkbox.line_start + first,
+                marker: checkbox.marker.start + first..checkbox.marker.end + first,
+                checked: checkbox.checked,
+            }),
+    );
+    shifted.extend(
+        checkboxes
+            .iter()
+            .filter(|checkbox| checkbox.line_start > old_end)
+            .map(|checkbox| MarkdownCheckbox {
+                line_start: shift(checkbox.line_start),
+                marker: shift(checkbox.marker.start)..shift(checkbox.marker.end),
+                checked: checkbox.checked,
+            }),
+    );
+    shifted
 }
 
 fn read_bytes(core: &Core) -> Vec<u8> {

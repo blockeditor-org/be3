@@ -327,6 +327,13 @@ impl SyntaxHighlight {
         styles
     }
 
+    pub fn markdown_bytes(&self) -> Option<Arc<[u8]>> {
+        match &self.styles {
+            Styles::Markdown(source) => Some(Arc::clone(&source.bytes)),
+            _ => None,
+        }
+    }
+
     pub fn markdown_tables(&self) -> Vec<MarkdownTable> {
         let Styles::Markdown(source) = &self.styles else {
             return Vec::new();
