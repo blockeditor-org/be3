@@ -57,10 +57,10 @@ pub fn Focusable(
     create_effect(move || {
         let wanted = focused.get();
         with_document(|document| match wanted {
-            true => document.focus_focusable(focusable),
-            false if document.focused_node() == Some(focusable) => document.update_focus(None),
+            true => document.focus_focusable(focusable.id()),
+            false if document.focused_node() == Some(focusable.id()) => document.update_focus(None),
             false => {}
         });
     });
-    focusable
+    focusable.id()
 }

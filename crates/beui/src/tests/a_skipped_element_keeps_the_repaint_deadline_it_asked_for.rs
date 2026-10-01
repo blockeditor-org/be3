@@ -19,7 +19,7 @@ fn a_skipped_element_keeps_the_repaint_deadline_it_asked_for() {
             }
         }
     });
-    let (panel, text) = (panel.get(), text.get());
+    let (panel, text) = (kind_of::<FrameNode>(&document, panel.get()), text.get());
     let (_, paints) = counted(&mut document, text);
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());

@@ -83,7 +83,7 @@ pub fn Text(
         });
     }
     children.mount(node);
-    node
+    node.id()
 }
 
 pub struct TextItem {
@@ -137,5 +137,5 @@ pub fn TextItem(
         item
     });
     create_effect(move || with_document(|document| document.set_text_item_at(item, at.get())));
-    TextItem { node: item }
+    TextItem { node: item.id() }
 }

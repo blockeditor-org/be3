@@ -62,8 +62,8 @@ fn tab_labels(document: &Document, tabs: NodeId) -> Vec<String> {
 }
 
 fn label_within(document: &Document, node: NodeId) -> Option<String> {
-    if document.node_kind(node) == "text" {
-        return Some(document.text(node).to_owned());
+    if let Some(text) = document.arena.kind_of::<TextNode>(node) {
+        return Some(document.text(text).to_owned());
     }
     document
         .children(node)

@@ -61,5 +61,5 @@ impl NodeSlot for Layer {
 pub fn Layers(children: Children<Layer>) -> NodeId {
     let layers = with_document(Document::create_layers);
     children.mount(layers);
-    layers
+    layers.id()
 }

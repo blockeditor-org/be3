@@ -7,7 +7,7 @@ const ROWS: usize = 40;
 fn a_scroll_only_re_measures_the_row_that_changed() {
     let mut document = Document::new();
     let scroll = document.create_offset();
-    let rows: Vec<NodeId> = (0..ROWS)
+    let rows: Vec<NodeOf<TextNode>> = (0..ROWS)
         .map(|index| document.create_text(format!("row {index}"), 14.0, Color32::WHITE))
         .collect();
     for row in &rows {
@@ -15,9 +15,9 @@ fn a_scroll_only_re_measures_the_row_that_changed() {
             .arena
             .get_mut_as::<OffsetNode>(scroll)
             .items
-            .push(*row);
+            .push(row.id());
     }
-    document.set_root(scroll);
+    document.set_root(scroll.id());
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 

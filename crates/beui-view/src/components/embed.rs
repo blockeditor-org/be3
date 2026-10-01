@@ -22,7 +22,7 @@ pub fn Embed(
         }
         embed
     });
-    slot.0.node.set(Some(embed));
+    slot.0.node.set(Some(embed.id()));
     create_effect(move || {
         let width = width.as_ref().map(Prop::get);
         let height = height.as_ref().map(Prop::get);
@@ -36,5 +36,5 @@ pub fn Embed(
         let rotation = rotation.get();
         with_document(|document| document.set_embed_rotation(embed, rotation));
     });
-    embed
+    embed.id()
 }

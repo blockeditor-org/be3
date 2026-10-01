@@ -53,7 +53,9 @@ refresh before effects observe them, preventing intermediate derived values.
 Dependencies are discovered on each execution. Conditional branches unsubscribe
 from inputs they no longer read. `untrack(|| ...)` disables subscription for its
 closure while preserving the current cleanup scope. Memo computations must be
-pure: writing a signal inside a memo panics, including inside `untrack`.
+pure: writing a signal inside a memo panics, including inside `untrack`, and
+`./scripts/buck run //:verify` reports a `set`, `update` or `set_unconditionally`
+written inside a `create_memo` closure outside tests.
 
 `with` holds a shared borrow for the closure; `update` holds a mutable borrow.
 Do not access the same signal incompatibly from those closures.
@@ -180,8 +182,10 @@ which destroys the row's nodes and its scope and builds a replacement, losing
 focus, caret and measured text along the way. A key that is the item's identity
 survives the edit, and only the bindings that read what changed run.
 `for_each` reconciles its children in place, so a list whose order did not change
-leaves the document untouched no matter how much of its content did. It panics
-if two items claim the same key.
+leaves the document untouched no matter how much of its content did. A key
+that appears more than once gets a row for each appearance, matched to the
+appearances in order, so a list of keys is never wrong, only slower to edit
+when it repeats one.
 
 ## Blocks
 
@@ -251,8 +255,8 @@ to stop runaway feedback loops.
 
 A `Scope::new()` created inside an active scope becomes its child. Parent disposal
 also disposes children, even when a child handle remains alive. A scope cannot
-be entered after disposal; a memo cannot be read after its owning scope is
-disposed. Disposal is idempotent.
+be entered after disposal; a memo read after its owning scope is disposed
+answers the value it last computed, without subscribing. Disposal is idempotent.
 
 Inside a computation, the current scope is that computation's execution scope,
 which is thrown away every time it reruns. To open a scope that survives those
@@ -749,6 +753,12 @@ out of view disposes exactly that row's effects. Any other code that builds a su
 it will later remove on its own must do the same, with `in_new_scope`; building
 it in the enclosing component's scope instead leaves the subtree's effects alive
 after `remove_node` and they panic the next time an input changes.
+
+An effect that writes one particular node belongs to that node rather than to
+whichever scope is running: `bind(node, || ...)` creates it in a scope
+registered against the node, so removing the node stops it wherever it was
+written. A `NodeRef` lets go of its node when the node is removed, so an effect
+that reaches a node through `try_get` finds nothing rather than a removed id.
 
 None of these functions hold `&mut Document` across a call boundary: each reads
 it back out of a thread-local (`with_document`) installed by whichever ambient

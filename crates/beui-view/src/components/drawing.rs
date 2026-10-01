@@ -12,5 +12,5 @@ pub fn Drawing(draw: Prop<Draw>) -> NodeId {
         let draw = draw.get();
         with_document(|document| document.set_drawing(drawing, draw));
     });
-    drawing
+    drawing.id()
 }

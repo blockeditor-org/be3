@@ -3,7 +3,7 @@ use std::any::Any;
 use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
-use crate::node::{Element, InteractInput, NodeId, Rects, SpaceId};
+use crate::node::{Element, InteractInput, NodeId, Rects, SpaceId, NodeOf};
 use crate::painter::Painter;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -73,7 +73,7 @@ impl CanvasNode {
         self.view.map_or(1.0, |view| view.scale)
     }
 
-    fn slot(doc: &Document, item: NodeId) -> u8 {
+    fn slot(doc: &Document, item: NodeOf<CanvasItemNode>) -> u8 {
         match doc.arena.get_as::<CanvasItemNode>(item).clip {
             true => CLIPPED,
             false => UNCLIPPED,
@@ -107,9 +107,9 @@ impl Element for CanvasNode {
         let visible = rect.translate(-shift);
         let scale = self.scale();
         for item in self.items.iter() {
-            let placed = scaled(doc.canvas_item_rect(*item), scale);
+            let placed = scaled(doc.canvas_item_rect(NodeOf::assumed(*item)), scale);
             if placed.intersects(visible) {
-                let painter = match Self::slot(doc, *item) {
+                let painter = match Self::slot(doc, NodeOf::assumed(*item)) {
                     CLIPPED => &clipped,
                     _ => &unclipped,
                 };
@@ -132,7 +132,7 @@ impl Element for CanvasNode {
         );
         for item in self.items.iter() {
             if rects.contains_key(item) {
-                let painter = match Self::slot(doc, *item) {
+                let painter = match Self::slot(doc, NodeOf::assumed(*item)) {
                     CLIPPED => &clipped,
                     _ => &unclipped,
                 };
@@ -247,7 +247,7 @@ impl Element for CanvasItemNode {
 }
 
 impl Document {
-    pub fn create_canvas(&mut self) -> NodeId {
+    pub fn create_canvas(&mut self) -> NodeOf<CanvasNode> {
         self.arena.insert(CanvasNode {
             view: None,
             size: Vec2::ZERO,
@@ -257,19 +257,19 @@ impl Document {
         })
     }
 
-    pub fn set_canvas_view(&mut self, canvas: NodeId, view: Option<CanvasView>) {
+    pub fn set_canvas_view(&mut self, canvas: NodeOf<CanvasNode>, view: Option<CanvasView>) {
         if self.arena.get_as::<CanvasNode>(canvas).view != view {
             self.arena.get_mut_as::<CanvasNode>(canvas).view = view;
         }
     }
 
-    pub fn set_canvas_size(&mut self, canvas: NodeId, size: Vec2) {
+    pub fn set_canvas_size(&mut self, canvas: NodeOf<CanvasNode>, size: Vec2) {
         if self.arena.get_as::<CanvasNode>(canvas).size != size {
             self.arena.get_mut_as::<CanvasNode>(canvas).size = size;
         }
     }
 
-    pub fn create_canvas_item(&mut self) -> NodeId {
+    pub fn create_canvas_item(&mut self) -> NodeOf<CanvasItemNode> {
         self.arena.insert(CanvasItemNode {
             child: None,
             rect: Rect::ZERO,
@@ -277,25 +277,25 @@ impl Document {
         })
     }
 
-    pub fn set_canvas_item_child(&mut self, item: NodeId, child: NodeId) {
+    pub fn set_canvas_item_child(&mut self, item: NodeOf<CanvasItemNode>, child: NodeId) {
         if self.arena.get_as::<CanvasItemNode>(item).child != Some(child) {
             self.arena.get_mut_as::<CanvasItemNode>(item).child = Some(child);
         }
     }
 
-    pub fn set_canvas_item_rect(&mut self, item: NodeId, rect: Rect) {
+    pub fn set_canvas_item_rect(&mut self, item: NodeOf<CanvasItemNode>, rect: Rect) {
         if self.arena.get_as::<CanvasItemNode>(item).rect != rect {
             self.arena.get_mut_as::<CanvasItemNode>(item).rect = rect;
         }
     }
 
-    pub fn set_canvas_item_clip(&mut self, item: NodeId, clip: bool) {
+    pub fn set_canvas_item_clip(&mut self, item: NodeOf<CanvasItemNode>, clip: bool) {
         if self.arena.get_as::<CanvasItemNode>(item).clip != clip {
             self.arena.get_mut_as::<CanvasItemNode>(item).clip = clip;
         }
     }
 
-    pub fn canvas_item_rect(&self, item: NodeId) -> Rect {
+    pub fn canvas_item_rect(&self, item: NodeOf<CanvasItemNode>) -> Rect {
         self.arena.get_as::<CanvasItemNode>(item).rect
     }
 }

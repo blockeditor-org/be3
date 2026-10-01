@@ -9,7 +9,7 @@ use crate::painter::Painter;
 use crate::callback::{Callback, ClickCallback};
 use crate::current::with_document;
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
 
 pub type KeyCallback = Callback<KeyPress, bool>;
 
@@ -130,17 +130,17 @@ impl Element for FocusableNode {
 }
 
 impl Document {
-    pub fn create_focusable(&mut self) -> NodeId {
+    pub fn create_focusable(&mut self) -> NodeOf<FocusableNode> {
         self.arena.insert(FocusableNode::new())
     }
 
-    pub fn set_focusable_child(&mut self, focusable: NodeId, child: NodeId) {
+    pub fn set_focusable_child(&mut self, focusable: NodeOf<FocusableNode>, child: NodeId) {
         if self.arena.get_as::<FocusableNode>(focusable).child != Some(child) {
             self.arena.get_mut_as::<FocusableNode>(focusable).child = Some(child);
         }
     }
 
-    pub fn set_focusable_tab_stop(&mut self, focusable: NodeId, tab_stop: bool) {
+    pub fn set_focusable_tab_stop(&mut self, focusable: NodeOf<FocusableNode>, tab_stop: bool) {
         if !self.contains(focusable) {
             return;
         }
@@ -149,7 +149,7 @@ impl Document {
         }
     }
 
-    pub fn set_focusable_press_focus(&mut self, focusable: NodeId, press_focus: bool) {
+    pub fn set_focusable_press_focus(&mut self, focusable: NodeOf<FocusableNode>, press_focus: bool) {
         if !self.contains(focusable) {
             return;
         }
@@ -191,13 +191,13 @@ impl Document {
         });
     }
 
-    pub fn set_focusable_ime(&mut self, focusable: NodeId, ime: bool) {
+    pub fn set_focusable_ime(&mut self, focusable: NodeOf<FocusableNode>, ime: bool) {
         if self.contains(focusable) {
             self.arena.touch_mut_as::<FocusableNode>(focusable).ime = ime;
         }
     }
 
-    pub fn set_focusable_ime_cursor(&mut self, focusable: NodeId, cursor: Option<ImeCursor>) {
+    pub fn set_focusable_ime_cursor(&mut self, focusable: NodeOf<FocusableNode>, cursor: Option<ImeCursor>) {
         if self.contains(focusable) {
             self.arena
                 .touch_mut_as::<FocusableNode>(focusable)
@@ -330,6 +330,7 @@ impl Document {
             .rev()
             .copied()
             .find(|overlay| self.overlay_traps_focus(*overlay))
+            .map(NodeOf::id)
             .or(self.root);
         if let Some(start) = start {
             self.collect_focusables(start, &mut out);
@@ -526,13 +527,12 @@ impl Document {
     }
 }
 
-pub fn focus_within(node: NodeId) {
+pub fn focus_within(node: NodeId) -> bool {
     with_document(|document| {
-        let focusable = document
-            .focusables_within(node)
-            .first()
-            .copied()
-            .expect("focus_within needs a focusable inside the node it is given");
+        let Some(focusable) = document.focusables_within(node).first().copied() else {
+            return false;
+        };
         document.focus_focusable(focusable);
-    });
+        true
+    })
 }

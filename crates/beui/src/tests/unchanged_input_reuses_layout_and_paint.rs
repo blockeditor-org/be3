@@ -12,7 +12,7 @@ fn unchanged_input_reuses_layout_and_paint() {
             }
         }
     });
-    let fill = fill.get();
+    let fill = kind_of::<FrameNode>(&document, fill.get());
     let (layouts, paints) = counted(&mut document, fill);
     let mut harness = Harness::new(document);
     assert!(harness.frame(vec![]).changed);
@@ -29,7 +29,7 @@ fn unchanged_input_reuses_layout_and_paint() {
         assert_eq!(output.shapes().len(), 1);
     }
     harness.document.set_frame_color(fill, Color32::WHITE);
-    harness.document.set_root(fill);
+    harness.document.set_root(fill.id());
     assert!(!harness.frame(vec![]).changed);
     assert_eq!((layouts.get(), paints.get()), (1, 1));
     harness.document.set_frame_color(fill, Color32::BLACK);

@@ -112,5 +112,5 @@ pub fn ClickCatcher(
             document.set_click_catcher_key_active(click_catcher, key_active.get())
         })
     });
-    click_catcher
+    click_catcher.id()
 }

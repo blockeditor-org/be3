@@ -4,7 +4,7 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::image::{Image, ImageFit, Thumbhash};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
 use crate::painter::Painter;
 
 pub struct PictureNode {
@@ -113,7 +113,7 @@ impl Element for PictureNode {
 }
 
 impl Document {
-    pub fn create_picture(&mut self) -> NodeId {
+    pub fn create_picture(&mut self) -> NodeOf<PictureNode> {
         self.arena.insert(PictureNode {
             image: None,
             thumbhash: None,
@@ -126,13 +126,13 @@ impl Document {
         })
     }
 
-    pub fn set_picture_image(&mut self, picture: NodeId, image: Option<Image>) {
+    pub fn set_picture_image(&mut self, picture: NodeOf<PictureNode>, image: Option<Image>) {
         if self.arena.get_as::<PictureNode>(picture).image != image {
             self.arena.get_mut_as::<PictureNode>(picture).image = image;
         }
     }
 
-    pub fn set_picture_thumbhash(&mut self, picture: NodeId, thumbhash: Option<Thumbhash>) {
+    pub fn set_picture_thumbhash(&mut self, picture: NodeOf<PictureNode>, thumbhash: Option<Thumbhash>) {
         if self.arena.get_as::<PictureNode>(picture).thumbhash != thumbhash {
             let node = self.arena.get_mut_as::<PictureNode>(picture);
             node.placeholder = thumbhash.as_ref().and_then(Thumbhash::decode);
@@ -140,31 +140,31 @@ impl Document {
         }
     }
 
-    pub fn set_picture_source(&mut self, picture: NodeId, source: Option<Rect>) {
+    pub fn set_picture_source(&mut self, picture: NodeOf<PictureNode>, source: Option<Rect>) {
         if self.arena.get_as::<PictureNode>(picture).source != source {
             self.arena.get_mut_as::<PictureNode>(picture).source = source;
         }
     }
 
-    pub fn set_picture_fit(&mut self, picture: NodeId, fit: ImageFit) {
+    pub fn set_picture_fit(&mut self, picture: NodeOf<PictureNode>, fit: ImageFit) {
         if self.arena.get_as::<PictureNode>(picture).fit != fit {
             self.arena.paint_mut_as::<PictureNode>(picture).fit = fit;
         }
     }
 
-    pub fn set_picture_tint(&mut self, picture: NodeId, tint: Color32) {
+    pub fn set_picture_tint(&mut self, picture: NodeOf<PictureNode>, tint: Color32) {
         if self.arena.get_as::<PictureNode>(picture).tint != tint {
             self.arena.paint_mut_as::<PictureNode>(picture).tint = tint;
         }
     }
 
-    pub fn set_picture_radius(&mut self, picture: NodeId, radius: f32) {
+    pub fn set_picture_radius(&mut self, picture: NodeOf<PictureNode>, radius: f32) {
         if self.arena.get_as::<PictureNode>(picture).radius != radius {
             self.arena.paint_mut_as::<PictureNode>(picture).radius = radius;
         }
     }
 
-    pub fn set_picture_smooth(&mut self, picture: NodeId, smooth: bool) {
+    pub fn set_picture_smooth(&mut self, picture: NodeOf<PictureNode>, smooth: bool) {
         if self.arena.get_as::<PictureNode>(picture).smooth != smooth {
             self.arena.paint_mut_as::<PictureNode>(picture).smooth = smooth;
         }

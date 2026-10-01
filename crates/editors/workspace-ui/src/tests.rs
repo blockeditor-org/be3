@@ -77,7 +77,11 @@ impl Fixture {
 }
 
 fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
-    if document.node_kind(id) == "text" && document.text(id).contains(words) {
+    if document
+        .arena
+        .kind_of(id)
+        .is_some_and(|node| document.text(node).contains(words))
+    {
         return Some(id);
     }
     document

@@ -26,5 +26,5 @@ pub fn Stroke(
         let color = color.get();
         with_document(|document| document.set_stroke_color(stroke, color));
     });
-    stroke
+    stroke.id()
 }

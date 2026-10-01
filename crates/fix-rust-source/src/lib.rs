@@ -1,3 +1,4 @@
+mod beui_rules;
 mod views;
 
 use ra_ap_syntax::ast::{self, AstNode, AstToken, HasAttrs, HasName};
@@ -349,6 +350,8 @@ fn inspect_file_queue(
         let source = fs::read(path).map_err(|error| error.to_string())?;
         let tree = parse(&source).map_err(|error| error.to_string())?;
         let relative = relative(root, path);
+        let text = std::str::from_utf8(&source).map_err(|error| error.to_string())?;
+        violations.extend(beui_rules::beui_violations(&tree, text, &relative));
         if path.file_name().is_some_and(|name| name == "mod.rs") {
             violations.push(format!("module file: {relative}"));
         }

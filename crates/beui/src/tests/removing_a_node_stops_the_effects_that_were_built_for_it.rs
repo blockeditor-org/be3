@@ -10,7 +10,7 @@ fn removing_a_node_stops_the_effects_that_were_built_for_it() {
             <Caption content={label} />
         }]
     });
-    let list = document.root().expect("the toolbar is the root");
+    let list = kind_of::<ListNode>(&document, document.root().expect("the toolbar is the root"));
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());

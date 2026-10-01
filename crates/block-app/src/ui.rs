@@ -271,14 +271,8 @@ pub(crate) enum UiCommand {
     PaneMore(PaneId),
 }
 
-pub(crate) fn root(view: AppViewStore) -> NodeId {
-    view! {
-        <Root view />
-    }
-}
-
 #[component]
-fn Root(view: AppViewStore) -> NodeId {
+pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let theme = use_theme();
     let screen = view.screen.clone();
     view! {

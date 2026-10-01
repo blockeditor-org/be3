@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
 use crate::painter::Painter;
 
 pub type Draw = Rc<dyn Fn(&Painter, Rect)>;
@@ -56,11 +56,11 @@ impl Element for DrawingNode {
 }
 
 impl Document {
-    pub fn create_drawing(&mut self) -> NodeId {
+    pub fn create_drawing(&mut self) -> NodeOf<DrawingNode> {
         self.arena.insert(DrawingNode { draw: None })
     }
 
-    pub fn set_drawing(&mut self, drawing: NodeId, draw: Draw) {
+    pub fn set_drawing(&mut self, drawing: NodeOf<DrawingNode>, draw: Draw) {
         let held = self.arena.get_as::<DrawingNode>(drawing).draw.as_ref();
         if held.is_some_and(|held| Rc::ptr_eq(held, &draw)) {
             return;

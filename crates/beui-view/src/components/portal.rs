@@ -14,5 +14,5 @@ pub fn Portal(#[prop(default = None)] node: Prop<Option<NodeId>>) -> NodeId {
     on_cleanup(move || {
         beui_core::current::try_with_document(|document| document.set_portal_child(portal, None));
     });
-    portal
+    portal.id()
 }

@@ -142,7 +142,10 @@ impl Shell {
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
             view = Some(store.clone());
-            ui::root(store)
+            let view = store;
+            beui::reactive::view! {
+                <ui::Root view />
+            }
         });
         Self {
             document,

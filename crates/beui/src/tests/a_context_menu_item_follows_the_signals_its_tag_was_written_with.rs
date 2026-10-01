@@ -76,8 +76,8 @@ fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {
 }
 
 fn label_within(document: &Document, node: NodeId) -> Option<String> {
-    if document.node_kind(node) == "text" {
-        return Some(document.text(node).to_owned());
+    if let Some(text) = document.arena.kind_of::<TextNode>(node) {
+        return Some(document.text(text).to_owned());
     }
     document
         .children(node)

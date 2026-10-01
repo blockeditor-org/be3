@@ -54,7 +54,11 @@ impl SlotChild for GridCell {
         if let (Some(parent), Prop::Dynamic(read)) = (parent, span) {
             create_effect(move || {
                 let span = read();
-                with_document(|document| document.set_grid_span(parent, node, span));
+                with_document(|document| {
+                    if let Some(grid) = document.arena.kind_of::<GridNode>(parent) {
+                        document.set_grid_span(grid, node, span);
+                    }
+                });
             });
         }
         GridItem {
@@ -89,7 +93,7 @@ pub fn Grid(
         with_document(|document| document.set_grid_spacing(grid, spacing.0, spacing.1));
     });
     children.mount(grid);
-    grid
+    grid.id()
 }
 
 #[component]

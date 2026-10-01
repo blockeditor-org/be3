@@ -3,7 +3,7 @@ use std::any::Any;
 use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
 use crate::painter::Painter;
 
 pub struct StrokeNode {
@@ -71,7 +71,7 @@ impl Element for StrokeNode {
 }
 
 impl Document {
-    pub fn create_stroke(&mut self) -> NodeId {
+    pub fn create_stroke(&mut self) -> NodeOf<StrokeNode> {
         self.arena.insert(StrokeNode {
             from: Pos2::ZERO,
             to: Pos2::ZERO,
@@ -80,7 +80,7 @@ impl Document {
         })
     }
 
-    pub fn set_stroke_ends(&mut self, stroke: NodeId, from: Pos2, to: Pos2) {
+    pub fn set_stroke_ends(&mut self, stroke: NodeOf<StrokeNode>, from: Pos2, to: Pos2) {
         let node = self.arena.get_as::<StrokeNode>(stroke);
         if node.from != from || node.to != to {
             let node = self.arena.get_mut_as::<StrokeNode>(stroke);
@@ -89,13 +89,13 @@ impl Document {
         }
     }
 
-    pub fn set_stroke_width(&mut self, stroke: NodeId, width: f32) {
+    pub fn set_stroke_width(&mut self, stroke: NodeOf<StrokeNode>, width: f32) {
         if self.arena.get_as::<StrokeNode>(stroke).width != width {
             self.arena.get_mut_as::<StrokeNode>(stroke).width = width;
         }
     }
 
-    pub fn set_stroke_color(&mut self, stroke: NodeId, color: Color32) {
+    pub fn set_stroke_color(&mut self, stroke: NodeOf<StrokeNode>, color: Color32) {
         if self.arena.get_as::<StrokeNode>(stroke).color != color {
             self.arena.paint_mut_as::<StrokeNode>(stroke).color = color;
         }

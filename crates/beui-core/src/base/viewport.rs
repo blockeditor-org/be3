@@ -3,7 +3,7 @@ use std::any::Any;
 use crate::document::Document;
 use crate::drawing::Drawing;
 use crate::geometry::{Rect, Vec2, vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
 use crate::painter::Painter;
 
 pub struct ViewportNode {
@@ -64,11 +64,11 @@ impl Element for ViewportNode {
 }
 
 impl Document {
-    pub fn create_viewport(&mut self) -> NodeId {
+    pub fn create_viewport(&mut self) -> NodeOf<ViewportNode> {
         self.arena.insert(ViewportNode { drawing: None })
     }
 
-    pub fn set_viewport_drawing(&mut self, viewport: NodeId, drawing: Option<Drawing>) {
+    pub fn set_viewport_drawing(&mut self, viewport: NodeOf<ViewportNode>, drawing: Option<Drawing>) {
         if self.arena.get_as::<ViewportNode>(viewport).drawing != drawing {
             self.arena.paint_mut_as::<ViewportNode>(viewport).drawing = drawing;
         }

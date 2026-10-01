@@ -85,6 +85,7 @@ mod a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it;
 mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_narrow_inspector_puts_its_close_button_beside_its_tabs;
 mod a_nested_container_reports_its_own_width_not_the_windows;
+mod a_node_ref_lets_go_of_a_removed_node;
 mod a_number_input_reports_what_was_typed_within_its_range;
 mod a_pan_zoom_follows_the_view_its_caller_sets;
 mod a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard;
@@ -178,6 +179,7 @@ mod accessibility_updates_leave_the_tree_a_fresh_build_would_make;
 mod alt_arrows_walk_the_simulated_screen_reader_through_the_document;
 mod alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left;
 mod an_aspect_ratio_frame_centres_the_largest_box_that_fits;
+mod an_effect_bound_to_a_node_stops_when_the_node_is_removed;
 mod an_embed_in_a_tab_no_longer_shown_forgets_where_it_was;
 mod an_embed_punches_a_hole_in_the_surface_it_sits_on;
 mod an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed;
@@ -448,7 +450,9 @@ use crate::geometry::{Pos2, Vec2, pos2, vec2};
 use crate::input::{Event, Key, Modifiers, PointerButton, RawInput};
 use crate::input::{TouchId, TouchPhase};
 
-use crate::base::list::{Direction, ItemSize};
+use crate::base::frame::FrameNode;
+use crate::base::list::{Direction, ItemSize, ListNode};
+use crate::base::text::TextNode;
 use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
 use crate::reactive::{
@@ -732,7 +736,7 @@ impl Harness {
         &mut self.document
     }
 
-    pub(crate) fn rect(&self, id: NodeId) -> Rect {
+    pub(crate) fn rect(&self, id: impl Into<NodeId>) -> Rect {
         self.document
             .node_rect(id)
             .expect("the node was not laid out")
@@ -744,7 +748,7 @@ impl Harness {
             .unwrap_or_else(|| panic!("no node with test id {test_id:?}"))
     }
 
-    pub(crate) fn center(&self, id: NodeId) -> Pos2 {
+    pub(crate) fn center(&self, id: impl Into<NodeId>) -> Pos2 {
         self.rect(id).center()
     }
 
@@ -1242,16 +1246,16 @@ pub(crate) fn hello_column() -> HelloColumn {
 
 pub(crate) struct StackedPanels {
     pub(crate) document: Document,
-    pub(crate) upper: NodeId,
-    pub(crate) lower: NodeId,
+    pub(crate) upper: NodeOf<FrameNode>,
+    pub(crate) lower: NodeOf<FrameNode>,
 }
 
 pub(crate) struct ThreePanels {
     pub(crate) document: Document,
-    pub(crate) list: NodeId,
-    pub(crate) top: NodeId,
-    pub(crate) middle: NodeId,
-    pub(crate) bottom: NodeId,
+    pub(crate) list: NodeOf<ListNode>,
+    pub(crate) top: NodeOf<FrameNode>,
+    pub(crate) middle: NodeOf<FrameNode>,
+    pub(crate) bottom: NodeOf<FrameNode>,
 }
 
 pub(crate) fn three_panels() -> ThreePanels {
@@ -1271,11 +1275,11 @@ pub(crate) fn three_panels() -> ThreePanels {
         }
     });
     ThreePanels {
+        list: kind_of(&document, list.get()),
+        top: kind_of(&document, top.get()),
+        middle: kind_of(&document, middle.get()),
+        bottom: kind_of(&document, bottom.get()),
         document,
-        list: list.get(),
-        top: top.get(),
-        middle: middle.get(),
-        bottom: bottom.get(),
     }
 }
 
@@ -1293,9 +1297,9 @@ pub(crate) fn stacked_panels() -> StackedPanels {
         }
     });
     StackedPanels {
+        upper: kind_of(&document, upper.get()),
+        lower: kind_of(&document, lower.get()),
         document,
-        upper: upper.get(),
-        lower: lower.get(),
     }
 }
 
@@ -1319,8 +1323,15 @@ pub(crate) fn indices(count: usize) -> Vec<usize> {
     (0..count).collect()
 }
 
+pub(crate) fn kind_of<T: Element>(document: &Document, id: NodeId) -> NodeOf<T> {
+    document
+        .arena
+        .kind_of(id)
+        .expect("the node is of the kind the test expects")
+}
+
 pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
-    document.text(id)
+    document.text(kind_of(document, id))
 }
 
 pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
@@ -1362,8 +1373,10 @@ pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::S
 }
 
 pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Option<NodeId> {
-    if document.node_kind(root) == "text"
-        && document.text(root) == text
+    if document
+        .arena
+        .kind_of(root)
+        .is_some_and(|node| document.text(node) == text)
         && document.node_rect(root).is_some()
     {
         return Some(root);
@@ -1509,12 +1522,13 @@ fn still() -> crate::reactive::Draw {
     })
 }
 
-fn counted(document: &mut Document, node: NodeId) -> (Rc<Cell<usize>>, Rc<Cell<usize>>) {
+fn counted(document: &mut Document, node: impl Into<NodeId>) -> (Rc<Cell<usize>>, Rc<Cell<usize>>) {
     let counts = counted_with_measures(document, node);
     (counts.layouts, counts.paints)
 }
 
-fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
+fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Counts {
+    let node = node.into();
     let counts = Counts {
         layouts: Rc::new(Cell::new(0)),
         paints: Rc::new(Cell::new(0)),
@@ -1555,6 +1569,7 @@ mod empty_choices_and_invalid_selection_do_not_break_tab_navigation;
 mod escape_then_tab_moves_the_focus_out_of_a_text_area_that_takes_tab;
 mod every_styled_interactive_control_paints_a_keyboard_focus_ring;
 mod focus_loss_and_hidden_content_cancel_keyboard_activation;
+mod focus_within_a_node_with_nothing_focusable_reports_false;
 mod hover_only_repaints_when_its_handler_changes_a_node;
 mod key_handlers_can_move_focus_and_change_their_tab_stop;
 mod key_repeats_and_shortcut_modifiers_do_not_accidentally_activate_controls;

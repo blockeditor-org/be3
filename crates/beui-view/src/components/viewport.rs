@@ -12,5 +12,5 @@ pub fn Viewport(drawing: Prop<Option<Drawing>>) -> NodeId {
         let drawing = drawing.get();
         with_document(|document| document.set_viewport_drawing(viewport, drawing));
     });
-    viewport
+    viewport.id()
 }

@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::cell::{Cell, RefCell};
+use std::marker::PhantomData;
 
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Modifiers, SecondaryDrag};
@@ -11,6 +12,58 @@ use crate::document::Document;
 pub struct NodeId {
     index: u32,
     generation: u32,
+}
+
+pub struct NodeOf<T> {
+    id: NodeId,
+    kind: PhantomData<fn() -> T>,
+}
+
+impl<T> NodeOf<T> {
+    pub fn id(self) -> NodeId {
+        self.id
+    }
+
+    pub(crate) fn assumed(id: NodeId) -> Self {
+        Self {
+            id,
+            kind: PhantomData,
+        }
+    }
+}
+
+impl<T> Clone for NodeOf<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for NodeOf<T> {}
+
+impl<T> PartialEq for NodeOf<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl<T> Eq for NodeOf<T> {}
+
+impl<T> std::hash::Hash for NodeOf<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl<T> std::fmt::Debug for NodeOf<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.id.fmt(f)
+    }
+}
+
+impl<T> From<NodeOf<T>> for NodeId {
+    fn from(node: NodeOf<T>) -> Self {
+        node.id
+    }
 }
 
 impl NodeId {
@@ -481,7 +534,7 @@ impl Arena {
         self.live == 0
     }
 
-    pub fn insert<T: Element>(&mut self, element: T) -> NodeId {
+    pub fn insert<T: Element>(&mut self, element: T) -> NodeOf<T> {
         let tracks = element.tracks_stale_children();
         let id = match self.free.pop() {
             Some(index) => {
@@ -512,7 +565,10 @@ impl Arena {
         };
         self.live += 1;
         self.invalidate_node(id);
-        id
+        NodeOf {
+            id,
+            kind: PhantomData,
+        }
     }
 
     fn slot(&self, id: NodeId) -> Option<usize> {
@@ -529,7 +585,8 @@ impl Arena {
         Some(NodeId { index, generation })
     }
 
-    pub fn contains(&self, id: NodeId) -> bool {
+    pub fn contains(&self, id: impl Into<NodeId>) -> bool {
+        let id = id.into();
         self.slot(id).is_some_and(|slot| self.nodes[slot].is_some())
     }
 
@@ -542,23 +599,25 @@ impl Arena {
         self.nodes[slot].as_deref_mut().expect("node was removed")
     }
 
-    pub fn get(&self, id: NodeId) -> &dyn Element {
+    pub fn get(&self, id: impl Into<NodeId>) -> &dyn Element {
+        let id = id.into();
         self.element(id).expect("node was removed")
     }
 
-    pub fn get_mut(&mut self, id: NodeId) -> &mut dyn Element {
+    pub fn get_mut(&mut self, id: impl Into<NodeId>) -> &mut dyn Element {
+        let id = id.into();
         self.invalidate_node(id);
         self.element_mut(id)
     }
 
-    pub fn paint_mut_as<T: Element>(&mut self, id: NodeId) -> &mut T {
-        self.repaint_node(id);
-        self.downcast_mut(id)
+    pub fn paint_mut_as<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
+        self.repaint_node(node.id);
+        self.downcast_mut(node)
     }
 
-    pub fn touch_mut_as<T: Element>(&mut self, id: NodeId) -> &mut T {
-        self.changed.push(id);
-        self.downcast_mut(id)
+    pub fn touch_mut_as<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
+        self.changed.push(node.id);
+        self.downcast_mut(node)
     }
 
     pub fn touch_mut(&mut self, id: NodeId) -> &mut dyn Element {
@@ -566,33 +625,42 @@ impl Arena {
         self.element_mut(id)
     }
 
-    fn downcast_mut<T: Element>(&mut self, id: NodeId) -> &mut T {
-        self.element_mut(id)
+    fn downcast_mut<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
+        self.element_mut(node.id)
             .as_any_mut()
             .downcast_mut::<T>()
-            .unwrap_or_else(|| panic!("node is not a {}", std::any::type_name::<T>()))
+            .expect("a node keeps the kind it was made as")
     }
 
-    pub fn get_as<T: Element>(&self, id: NodeId) -> &T {
-        self.get(id)
+    pub fn get_as<T: Element>(&self, node: NodeOf<T>) -> &T {
+        self.get(node.id)
             .as_any()
             .downcast_ref::<T>()
-            .unwrap_or_else(|| panic!("node is not a {}", std::any::type_name::<T>()))
+            .expect("a node keeps the kind it was made as")
     }
 
-    pub fn get_mut_as<T: Element>(&mut self, id: NodeId) -> &mut T {
-        self.get_mut(id)
+    pub fn get_mut_as<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
+        self.get_mut(node.id)
             .as_any_mut()
             .downcast_mut::<T>()
-            .unwrap_or_else(|| panic!("node is not a {}", std::any::type_name::<T>()))
+            .expect("a node keeps the kind it was made as")
     }
 
-    pub fn take(&mut self, id: NodeId) -> Box<dyn Element> {
+    pub fn kind_of<T: Element>(&self, id: NodeId) -> Option<NodeOf<T>> {
+        self.element(id)?.as_any().is::<T>().then_some(NodeOf {
+            id,
+            kind: PhantomData,
+        })
+    }
+
+    pub fn take(&mut self, id: impl Into<NodeId>) -> Box<dyn Element> {
+        let id = id.into();
         let slot = self.slot(id).expect("node was removed");
         self.nodes[slot].take().expect("node was removed")
     }
 
-    pub fn put_back(&mut self, id: NodeId, element: Box<dyn Element>) {
+    pub fn put_back(&mut self, id: impl Into<NodeId>, element: Box<dyn Element>) {
+        let id = id.into();
         let slot = self.slot(id).expect("node was removed");
         self.nodes[slot] = Some(element);
     }
@@ -609,7 +677,8 @@ impl Arena {
         self.marked = None;
     }
 
-    pub fn invalidate_node(&mut self, id: NodeId) {
+    pub fn invalidate_node(&mut self, id: impl Into<NodeId>) {
+        let id = id.into();
         self.layout_revision = self.layout_revision.wrapping_add(1);
         self.relaid.push(id);
         self.repaint_node(id);

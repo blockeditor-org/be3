@@ -60,7 +60,7 @@ pub fn Canvas(
         let size = Vec2::new(width.get(), height.get());
         with_document(|document| document.set_canvas_size(canvas, size));
     });
-    canvas
+    canvas.id()
 }
 
 #[component]
@@ -87,5 +87,5 @@ pub fn CanvasItem(
     create_effect(move || {
         with_document(|document| document.set_canvas_item_clip(item, clip.get()))
     });
-    CanvasItem { node: item }
+    CanvasItem { node: item.id() }
 }

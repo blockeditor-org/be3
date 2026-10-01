@@ -107,6 +107,8 @@ pub fn TextArea(
     set_component_state(surface.clone());
     let menu_state = state.clone();
     let close_menu = set_menu_at.clone();
+    let block = block.unwrap_or_else(blank_widget);
+    let selected_widget = selected_widget.unwrap_or_else(blank_widget);
     view! {
         <List spacing=0.0>
             <FindBar state={state.clone()} />
@@ -147,8 +149,8 @@ pub fn TextArea(
                     on_key_override={move |press: KeyPress| on_key_override.call(press)}
                     on_focus_change={move |focused: bool| on_focus_change.call(focused)}
                     on_menu={move |at: Pos2| set_menu_at.set(Some(at))}
-                    block={move |index: usize| forward(block.as_ref(), index)}
-                    selected_widget={move |index: usize| forward(selected_widget.as_ref(), index)}
+                    block={block}
+                    selected_widget={selected_widget}
                     completer={match emoji {
                         true => emoji::emoji_completer(),
                         false => Completer::none(),
@@ -162,13 +164,12 @@ pub fn TextArea(
     }
 }
 
-fn forward(render: Option<&RenderFn<usize>>, index: usize) -> NodeId {
-    match render {
-        Some(render) => render.call(index),
-        None => view! {
+fn blank_widget() -> RenderFn<usize> {
+    RenderFn::new(|_| {
+        view! {
             <Frame />
-        },
-    }
+        }
+    })
 }
 
 pub fn text_area_surface(document: &Document, area: NodeId) -> NodeId {

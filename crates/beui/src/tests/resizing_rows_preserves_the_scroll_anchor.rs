@@ -30,7 +30,10 @@ fn resizing_rows_preserves_the_scroll_anchor() {
         }
     });
     let scroll = scroll.get();
-    let rows: Vec<NodeId> = rows.iter().map(NodeRef::get).collect();
+    let rows: Vec<NodeOf<FrameNode>> = rows
+        .iter()
+        .map(|row| kind_of(&document, row.get()))
+        .collect();
     let mut harness = Harness::new(document);
     harness.document.set_scroll_offset(scroll, 227.0);
     harness.frame(Vec::new());

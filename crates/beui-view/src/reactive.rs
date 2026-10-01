@@ -11,7 +11,7 @@ use beui_core::base::list::{ListItem, ListNode};
 use beui_core::base::offset::OffsetNode;
 use beui_core::document::Document;
 use beui_core::geometry::{Rect, Vec2};
-use beui_core::node::NodeId;
+use beui_core::node::{NodeId, NodeOf};
 
 pub use beui_core::callback::{Callback, ClickCallback, NodeRef};
 pub use beui_core::timer::{Timer, create_timer, now};
@@ -108,6 +108,12 @@ pub fn focus_takes_text() -> bool {
     with_document(|document| document.focus_takes_text())
 }
 
+pub fn bind(node: NodeId, effect: impl FnMut() + 'static) {
+    let scope = with_document(|document| node_scope(document, None));
+    scope.context().run(|| create_effect(effect));
+    with_document(|document| document.register_node_scope(node, scope));
+}
+
 pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     let reading = match test_id {
         Prop::Static(value) => {
@@ -116,23 +122,19 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
         }
         Prop::Dynamic(reading) => reading,
     };
-    let scope = with_document(|document| node_scope(document, None));
-    scope.context().run(|| {
-        let published: Cell<Option<String>> = Cell::new(None);
-        create_effect(move || {
-            let next = reading();
-            let previous = published.replace(Some(next.clone()));
-            with_document(|document| {
-                if let Some(previous) = previous
-                    && previous != next
-                {
-                    document.clear_test_id(node, &previous);
-                }
-                document.set_test_id(node, next);
-            });
+    let published: Cell<Option<String>> = Cell::new(None);
+    bind(node, move || {
+        let next = reading();
+        let previous = published.replace(Some(next.clone()));
+        with_document(|document| {
+            if let Some(previous) = previous
+                && previous != next
+            {
+                document.clear_test_id(node, &previous);
+            }
+            document.set_test_id(node, next);
         });
     });
-    with_document(|document| document.register_node_scope(node, scope));
 }
 
 pub fn in_new_scope(f: impl FnOnce() -> NodeId) -> NodeId {
@@ -520,6 +522,14 @@ pub trait BuildsNode {
     fn built_node(&self) -> NodeId;
 }
 
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` is no node, so `component_state`, `component_accessibility`, `component_size` and `component_rect` have nothing to watch",
+    label = "call it from a component that returns the node it builds"
+)]
+pub trait WatchedNode {}
+
+impl<T: BuildsNode + ?Sized> WatchedNode for T {}
+
 impl BuildsNode for NodeId {
     fn built_node(&self) -> NodeId {
         *self
@@ -574,7 +584,11 @@ impl ListChild {
         if let (Some(parent), Prop::Dynamic(read)) = (parent, size) {
             create_effect(move || {
                 let size = read();
-                with_document(|document| document.set_child_size(parent, node, size));
+                with_document(|document| {
+                    if let Some(list) = document.arena.kind_of::<ListNode>(parent) {
+                        document.set_child_size(list, node, size);
+                    }
+                });
             });
         }
         (node, initial)
@@ -756,16 +770,16 @@ pub trait SlotChild: Sized + 'static {
 pub trait NodeSlot: SlotChild {
     type Host: ChildHost<Stored = Self::Stored>;
 
-    fn open_slot(parent: NodeId) -> SlotId {
-        with_document(|document| document.open_child_slot::<Self::Host>(parent))
+    fn open_slot(parent: NodeOf<Self::Host>) -> SlotId {
+        with_document(|document| document.open_child_slot(parent))
     }
 
-    fn fill_slot(parent: NodeId, slot: SlotId, items: Vec<Self::Stored>) {
-        with_document(|document| document.fill_child_slot::<Self::Host>(parent, slot, items));
+    fn fill_slot(parent: NodeOf<Self::Host>, slot: SlotId, items: Vec<Self::Stored>) {
+        with_document(|document| document.fill_child_slot(parent, slot, items));
     }
 
-    fn append(parent: NodeId, stored: Self::Stored) {
-        with_document(|document| document.append_child_item::<Self::Host>(parent, stored));
+    fn append(parent: NodeOf<Self::Host>, stored: Self::Stored) {
+        with_document(|document| document.append_child_item(parent, stored));
     }
 }
 
@@ -905,7 +919,7 @@ enum Place<S> {
     Node {
         parent: NodeId,
         slot: SlotId,
-        fill: fn(NodeId, SlotId, Vec<S>),
+        fill: Rc<dyn Fn(SlotId, Vec<S>)>,
     },
     Run {
         run: Rc<RunState<S>>,
@@ -919,7 +933,7 @@ impl<S> Clone for Place<S> {
             Place::Node { parent, slot, fill } => Place::Node {
                 parent: *parent,
                 slot: *slot,
-                fill: *fill,
+                fill: fill.clone(),
             },
             Place::Run { run, slot } => Place::Run {
                 run: run.clone(),
@@ -944,15 +958,15 @@ impl<C: SlotChild> Clone for ChildSlot<C> {
 }
 
 impl<C: SlotChild> ChildSlot<C> {
-    fn in_node(parent: NodeId) -> Self
+    fn in_node(parent: NodeOf<C::Host>) -> Self
     where
         C: NodeSlot,
     {
         Self {
             place: Place::Node {
-                parent,
+                parent: parent.id(),
                 slot: C::open_slot(parent),
-                fill: C::fill_slot,
+                fill: Rc::new(move |slot, items| C::fill_slot(parent, slot, items)),
             },
             change: None,
         }
@@ -998,7 +1012,7 @@ impl<C: SlotChild> ChildSlot<C> {
 
     pub fn fill(&self, items: Vec<C::Stored>) {
         match &self.place {
-            Place::Node { parent, slot, fill } => fill(*parent, *slot, items),
+            Place::Node { slot, fill, .. } => fill(*slot, items),
             Place::Run { run, slot } => {
                 run.items.borrow_mut().fill(*slot, items);
                 run.changed();
@@ -1212,7 +1226,7 @@ fn fill_run<T: SlotChild>(run: &Run<T>, segment: ChildSegment<T>) {
 }
 
 impl<T: SlotChild> Children<T> {
-    pub fn mount(self, parent: NodeId)
+    pub fn mount(self, parent: NodeOf<T::Host>)
     where
         T: NodeSlot,
     {
@@ -1222,12 +1236,12 @@ impl<T: SlotChild> Children<T> {
     }
 }
 
-fn mount_segment<T: NodeSlot>(parent: NodeId, segment: ChildSegment<T>) {
+fn mount_segment<T: NodeSlot>(parent: NodeOf<T::Host>, segment: ChildSegment<T>) {
     match segment {
-        ChildSegment::One(child) => T::append(parent, child.store(Some(parent))),
+        ChildSegment::One(child) => T::append(parent, child.store(Some(parent.id()))),
         ChildSegment::Many(children) => {
             for child in children {
-                T::append(parent, child.store(Some(parent)));
+                T::append(parent, child.store(Some(parent.id())));
             }
         }
         ChildSegment::Nested(segments) => {
@@ -1352,12 +1366,12 @@ pub fn List(
     create_effect(move || with_document(|document| document.set_list_wrap(list, wrap.get())));
     create_effect(move || with_document(|document| document.set_list_spacing(list, spacing.get())));
     children.mount(list);
-    list
+    list.id()
 }
 
 #[component]
 pub fn Spacer() -> NodeId {
-    with_document(Document::create_frame)
+    with_document(Document::create_frame).id()
 }
 
 type HeldChild<C> = Rc<RefCell<Option<(<C as SlotChild>::Stored, Scope)>>>;

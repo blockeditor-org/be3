@@ -46,12 +46,10 @@ impl<T> Clone for Memo<T> {
 
 impl<T> Memo<T> {
     pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
-        assert!(
-            !self.computation.is_disposed(),
-            "reactive memo was disposed"
-        );
-        self.computation.refresh();
-        self.inner.source.track();
+        if !self.computation.is_disposed() {
+            self.computation.refresh();
+            self.inner.source.track();
+        }
         f(self
             .inner
             .value

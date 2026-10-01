@@ -3,7 +3,7 @@ use std::any::Any;
 use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
 use crate::painter::Painter;
 
 #[derive(Default)]
@@ -74,7 +74,7 @@ impl Element for LayersNode {
 }
 
 impl Document {
-    pub fn create_layers(&mut self) -> NodeId {
+    pub fn create_layers(&mut self) -> NodeOf<LayersNode> {
         self.arena.insert(LayersNode::default())
     }
 }

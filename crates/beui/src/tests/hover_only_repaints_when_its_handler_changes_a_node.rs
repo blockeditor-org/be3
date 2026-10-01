@@ -20,7 +20,7 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
             }
         }
     });
-    let fill = fill.get();
+    let fill = kind_of::<FrameNode>(&document, fill.get());
     let (layouts, paints) = counted(&mut document, fill);
     let mut harness = Harness::new(document);
     harness.frame(vec![]);

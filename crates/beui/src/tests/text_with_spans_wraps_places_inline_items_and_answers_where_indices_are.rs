@@ -45,7 +45,10 @@ fn text_with_spans_wraps_places_inline_items_and_answers_where_indices_are() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let (text, item) = (text.get(), item.get());
+    let (text, item) = (
+        kind_of::<TextNode>(harness.document(), text.get()),
+        item.get(),
+    );
     let geometry = harness.document().text_geometry(text);
     let placed = harness.rect(text);
 

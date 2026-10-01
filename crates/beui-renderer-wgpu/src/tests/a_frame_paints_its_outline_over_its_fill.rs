@@ -16,7 +16,7 @@ fn a_frame_paints_its_outline_over_its_fill() {
             ..Default::default()
         },
     );
-    document.set_root(frame);
+    document.set_root(frame.id());
 
     let capture = capture(Color32::BLACK, |painter| {
         document.show(

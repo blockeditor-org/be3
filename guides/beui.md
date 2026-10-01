@@ -31,7 +31,9 @@ registered against the node it builds, so that removing that node disposes
 exactly the effects the function created. A plain helper that
 builds nodes leaves its effects in the caller's scope, where they outlive the
 subtree they bind and panic with "node was removed" the next time one of their
-inputs changes. `#[component]` is also what makes the function usable as a tag,
+inputs changes. `./scripts/buck run //:verify` reports a function outside an
+`impl` that writes a `view!` and returns a node or a child value without the
+attribute. `#[component]` is also what makes the function usable as a tag,
 gives it `@test_id`, `@node_ref` and `@sizing`, and makes
 `component_state`, `component_accessibility` and `component_size` available
 inside it.
@@ -47,8 +49,8 @@ the owner tree does the rest. That is how an item made of data rather than
 nodes — a label, a key, a callback — can still be a component, with its own
 scope, context, memos and cleanups, and still be written as a tag. Such a
 component has nothing for `component_state`, `component_accessibility`,
-`component_size` or `component_rect` to watch, so all four panic rather than
-going quietly nowhere, and `@test_id` and `@node_ref` on its tag do not compile,
+`component_size` or `component_rect` to watch, so naming any of them in its body
+does not compile, and `@test_id` and `@node_ref` on its tag do not compile either,
 because they only take a component whose output implements `BuildsNode`.
 `unstyled::MenuItem` is one: a menu item is a label, a disabled flag and its
 own submenu items, so a menu is written as tags and each row follows
@@ -85,7 +87,9 @@ below it, and there is no second `view!` earlier in the body: `view!` builds
 nodes the moment it runs, so a subtree built into a local and then used
 conditionally has already been added to the document whether or not it ends up
 in the tree, and a subtree built in one place but parented somewhere else
-obscures which component's scope owns it.
+obscures which component's scope owns it. `./scripts/buck run //:verify`
+reports a component with a second `view!` outside a closure, or with anything
+after its last one.
 
 When part of the tree depends on something, express it in the view rather than
 in Rust control flow around it. `Show` takes a condition and builds its child
@@ -1741,6 +1745,15 @@ base implementation has three parts:
 - `Document::create_*` and `Document::set_*` methods beside the node, plus a
   public `#[component]` wrapper in `beui-view`. The wrapper creates the node
   with `with_document` and binds reactive props to setters with `create_effect`.
+
+`Document::create_*` returns a `NodeOf<XNode>`, a node id that carries the kind
+of node it names, and the setters that reach the node's fields take that
+handle, so a setter cannot be handed a node of another kind. `.id()` is the
+plain `NodeId` for everything that takes any node. Code that only holds a
+`NodeId` - from a `NodeRef`, or a walk of the tree - asks
+`document.arena.kind_of::<XNode>(id)`, which answers `None` for a node of
+another kind, and a query meant for such code takes a `NodeId` and answers
+`None` or `false` itself, as `is_overlay_open` does.
 
 `measure` takes `&self` and must not mutate; `layout` takes `&mut self` and may
 update the node's own retained state, which is how a `VirtualList` realises

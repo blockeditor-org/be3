@@ -20,7 +20,7 @@ fn at(harness: &Harness, state: &TextAreaState, byte: usize) -> Pos2 {
     pos2(rect.min.x + 0.25, rect.center().y)
 }
 
-fn texts(harness: &Harness) -> Vec<NodeId> {
+fn texts(harness: &Harness) -> Vec<NodeOf<TextNode>> {
     let document = harness.document();
     let root = document.root().expect("the document has a root");
     document.texts_within(root)

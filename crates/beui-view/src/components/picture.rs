@@ -46,5 +46,5 @@ pub fn Picture(
         let smooth = smooth.get();
         with_document(|document| document.set_picture_smooth(picture, smooth));
     });
-    picture
+    picture.id()
 }

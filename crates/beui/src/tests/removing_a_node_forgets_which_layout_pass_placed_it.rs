@@ -8,7 +8,7 @@ fn removing_a_node_forgets_which_layout_pass_placed_it() {
             <Text string="hi" />
         }]
     });
-    let list = document.root().expect("the toolbar is the root");
+    let list = kind_of::<ListNode>(&document, document.root().expect("the toolbar is the root"));
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert!(
