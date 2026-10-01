@@ -35,12 +35,15 @@ pub struct Snapshot {
     pub loaded: bool,
     pub revision: u64,
     pub bytes: Vec<u8>,
+    pub starts: Rc<Vec<usize>>,
     pub language: TextLanguage,
     pub sections: Vec<CollapsibleSection>,
     pub hidden: Vec<Range<usize>>,
     pub checkboxes: Vec<MarkdownCheckbox>,
     pub highlight: Option<SyntaxHighlight>,
 }
+
+const MEASURED_BYTES: usize = 64 * 1024;
 
 impl Snapshot {
     pub fn highlight(&self) -> &SyntaxHighlight {
@@ -421,12 +424,18 @@ impl TextAreaState {
             single_line: false,
         };
         let colors = TextAreaColors::DEFAULT;
-        let starts = line_starts(&snapshot.bytes);
+        let starts = &snapshot.starts;
         let wrap = (width - super::PADDING.x * 2.0).max(1.0);
         let mut height = DOCUMENT_PADDING.y;
+        let (mut shaped_bytes, mut shaped_height, mut one_line) = (0usize, 0.0f32, f32::MAX);
         for line in 0..starts.len() {
-            let (start, end, newline) = line_range(&snapshot.bytes, &starts, line)?;
+            let (start, end, newline) = line_range(&snapshot.bytes, starts, line)?;
             if snapshot.hidden.iter().any(|range| range.contains(&start)) {
+                continue;
+            }
+            if start >= MEASURED_BYTES && shaped_bytes > 0 {
+                let per_byte = shaped_height / shaped_bytes as f32;
+                height += ((end - start + 1) as f32 * per_byte).max(one_line);
                 continue;
             }
             let inputs = RowInputs {
@@ -440,10 +449,13 @@ impl TextAreaState {
                 placeholder: None,
             };
             let row = build_row(&inputs, line, start, end, newline);
-            height += rich_layout(&row, options.body_size, options.padding(), wrap)?
+            let row_height = rich_layout(&row, options.body_size, options.padding(), wrap)?
                 .size
                 .y;
-            height += row.block.map_or(0.0, |(_, size)| size.y);
+            height += row_height + row.block.map_or(0.0, |(_, size)| size.y);
+            shaped_bytes += end - start + 1;
+            shaped_height += row_height;
+            one_line = one_line.min(row_height);
         }
         Some(Vec2::new(width, height))
     }
@@ -572,6 +584,7 @@ impl TextAreaState {
         *self.0.snapshot.borrow_mut() = Snapshot {
             loaded,
             revision,
+            starts: Rc::new(line_starts(&bytes)),
             bytes,
             language,
             sections,
@@ -613,9 +626,7 @@ pub fn parse_markdown_checkboxes(bytes: &[u8]) -> Vec<MarkdownCheckbox> {
     let mut result = Vec::new();
     let mut line_start = 0;
     loop {
-        let line_end = bytes[line_start..]
-            .iter()
-            .position(|byte| *byte == b'\n')
+        let line_end = memchr::memchr(b'\n', &bytes[line_start..])
             .map_or(bytes.len(), |offset| line_start + offset);
         if let Some(marker) = markdown_checkbox_marker(bytes, line_start) {
             result.push(MarkdownCheckbox {

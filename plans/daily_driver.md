@@ -202,6 +202,41 @@ lines of 200 words each (about 12 MB):
   plan or the PR, and re-order the items below by what the profile shows.
 - Profile again after each item lands.
 
+**First profile** (8.7 MB, 10,000 lines of 200 words, release build, Linux VM
+with llvmpipe, `perf` with `BE3_PERF_MAP=1` for the plugin's wasm):
+
+| Scenario | Before | After this round |
+|---|---|---|
+| Pasting the document | plugin trapped: the edit was larger than a frame, and the paste larger than the API's text limit | works; the edit is saved as a commit instead of relayed |
+| Idle, caret blinking | about 0 CPU | unchanged |
+| Holding an arrow key | 53 ms per move | 4.5 ms |
+| Page down | 28 ms per page | unchanged |
+| Typing near the top, plugin CPU per key | 440 ms | 140 ms |
+
+What the 140 ms per key is now: about ten whole-document passes, each
+5-15 ms in wasm without SIMD:
+- the snapshot copy, the highlighter's copy and its diff against the last one;
+- `fences`, `table_starts`, `line_starts`, the checkbox scan, the section
+  scan, `parse_block_urls`;
+- `adopt`'s full compare in the text block's `pump`.
+
+What it is not any more:
+- shaping a wrapped paragraph's rest once per visual line, which was O(n²)
+  per paragraph;
+- re-parsing every markdown window on every edit;
+- describing the whole document for accessibility.
+
+Outside the plugin, per key:
+- the be worker spends about 110 ms, mostly SHA-256 over the whole document
+  when it seals (item 6);
+- the host's main thread spends about 180 ms, mostly llvmpipe, which a real
+  GPU won't have.
+
+Next:
+- turn on `simd128` for the wasm targets, which speeds every scan;
+- make the scans in item 5 incremental;
+- item 6.
+
 1. **Anchors (done).** Anchors exist only for positions in use
    (`text_editor_core::AnchorTable`), so finding one no longer scans the text.
    The bytes are still a flat `Vec<u8>`, spliced in O(n) at several layers. A
@@ -219,6 +254,10 @@ lines of 200 words each (about 12 MB):
      per byte and walks the whole tree on every edit
      (`highlighter.rs:230-327`).
    - Done: highlight lazily per visible line, from the tree's changed ranges.
+   - Partly done: markdown is parsed in windows of about 8 KB around what is
+     read, cut at blank lines and kept outside fences. An edit re-parses only
+     the window it touched; windows before it are kept and windows after it
+     are shifted.
    - `collapsible_sections()` runs on every caret move (`state.rs:549-552`).
      Run it only on content change, and incrementally.
 5. **Whole-document copies on every edit:**

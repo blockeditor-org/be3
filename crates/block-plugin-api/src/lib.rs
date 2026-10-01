@@ -14,7 +14,7 @@ pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 pub const PROTOCOL_VERSION: u16 = 62;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
-pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
+pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_MESSAGES: usize = 256;

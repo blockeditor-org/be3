@@ -631,6 +631,7 @@ dependencies = [
  "be-model",
  "be-store",
  "logicgame",
+ "memchr",
  "postcard",
  "serde",
  "uuid",
@@ -906,6 +907,7 @@ dependencies = [
  "beui-core",
  "beui-view",
  "beui_macros",
+ "memchr",
  "reactive",
  "serde",
  "text-editor-core",
@@ -6599,6 +6601,7 @@ dependencies = [
 name = "text-editor-core"
 version = "0.1.0"
 dependencies = [
+ "memchr",
  "serde",
  "similar",
  "tree-sitter",

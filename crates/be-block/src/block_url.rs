@@ -42,22 +42,19 @@ fn parse_block_url(bytes: &[u8], start: usize) -> Option<(usize, Uuid, Uuid)> {
 
 pub fn parse_block_urls(bytes: &[u8]) -> Vec<BlockUrl> {
     let prefix = BLOCK_URL_BASE.as_bytes();
+    let finder = memchr::memmem::Finder::new(prefix);
     let mut urls = Vec::new();
-    let mut index = 0;
-    while index + BLOCK_URL_BYTES <= bytes.len() {
-        if !bytes[index..].starts_with(prefix) {
-            index += 1;
-            continue;
-        }
+    let mut from = 0;
+    while let Some(found) = finder.find(&bytes[from..]) {
+        let index = from + found;
+        from = index + 1;
         let Some((end, block, workspace_id)) = parse_block_url(bytes, index + prefix.len()) else {
-            index += 1;
             continue;
         };
         if bytes
             .get(end)
             .is_some_and(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, b'-' | b'_' | b'/'))
         {
-            index += 1;
             continue;
         }
         urls.push(BlockUrl {
@@ -65,7 +62,7 @@ pub fn parse_block_urls(bytes: &[u8]) -> Vec<BlockUrl> {
             block,
             workspace_id,
         });
-        index = end;
+        from = end;
     }
     urls
 }
