@@ -50,7 +50,7 @@ struct Switching {
 }
 
 #[component]
-pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>) -> NodeId {
+pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
     let DockStackHandle {
         shown,
         title,
@@ -66,6 +66,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>)
         back,
         show,
         close,
+        closable,
     } = handle;
     let theme = use_theme();
     let (open, set_open) = create_signal(false);
