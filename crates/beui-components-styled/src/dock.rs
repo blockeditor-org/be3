@@ -19,7 +19,8 @@ use beui_core::color::Color32;
 use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_MORE_VERT, ICON_TAB_GROUP};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Action, Callback, ClickCallback, DynamicSegment, ForEach, Frame, Func, List, ListChild, Memo, Prop, ReadSignal, RenderFn, Show, Text, clone, create_memo, focus_ring,
+    Action, Callback, ClickCallback, DynamicSegment, ForEach, Frame, Func, List, ListChild, Memo,
+    Prop, ReadSignal, RenderFn, Show, Text, clone, create_memo, focus_ring,
 };
 use stack::DockStackBar;
 
