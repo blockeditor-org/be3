@@ -896,7 +896,6 @@ dependencies = [
  "beui-core",
  "beui-view",
  "beui_macros",
- "emojis",
  "reactive",
  "text-editor-core",
 ]
@@ -909,6 +908,7 @@ dependencies = [
  "beui-core",
  "beui-view",
  "beui_macros",
+ "emojis",
  "foldhash 0.2.0",
  "memchr",
  "reactive",

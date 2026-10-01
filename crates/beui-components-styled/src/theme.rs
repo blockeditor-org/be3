@@ -111,6 +111,17 @@ pub fn control_outline_visible(theme: &ThemeStore) -> Memo<bool> {
     create_memo(move || outline.get().is_some())
 }
 
+pub fn field_border(theme: &ThemeStore, disabled: bool, focused: bool, hovered: bool) -> Color32 {
+    if disabled {
+        return theme.border.get();
+    }
+    match (focused, hovered) {
+        (true, _) => theme.accent.get(),
+        (false, true) => theme.text_muted.get(),
+        (false, false) => theme.border.get(),
+    }
+}
+
 pub fn use_theme() -> ThemeStore {
     use_context::<ThemeStore>().unwrap_or_else(|| with_document(document_theme_store))
 }

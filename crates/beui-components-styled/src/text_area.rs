@@ -3,14 +3,11 @@ pub mod find;
 
 use beui_macros::{component, view};
 
-use text_editor_core::{CopyMode, EditorCommand};
-
-use crate::ContextMenu;
+use crate::context_menu::menu_style;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    Completer, CompletionMenu, MenuItem, RemoteTextCursor, TextAreaColors, TextAreaState,
-    TextWidget,
+    Completer, RemoteTextCursor, TextAreaColors, TextAreaState, TextWidget,
 };
 use beui_core::base::ItemSize;
 use beui_core::document::Document;
@@ -18,60 +15,11 @@ use beui_core::geometry::Pos2;
 use beui_core::input::KeyPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ForEach, Frame, List, NodeRef, Prop, RenderFn, clone, copy_text, create_memo,
-    create_signal, request_paste, set_component_state,
+    Callback, Frame, List, NodeRef, Prop, RenderFn, create_memo, create_signal, set_component_state,
 };
-use emoji::EmojiMenu;
+use emoji::emoji_menu;
 
 use find::FindBar;
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-enum MenuAction {
-    Copy,
-    Cut,
-    Paste,
-    SelectAll,
-}
-
-impl MenuAction {
-    fn label(self) -> &'static str {
-        match self {
-            Self::Copy => "Copy",
-            Self::Cut => "Cut",
-            Self::Paste => "Paste",
-            Self::SelectAll => "Select All",
-        }
-    }
-}
-
-fn menu_actions(selected: bool, masked: bool) -> Vec<MenuAction> {
-    match selected && !masked {
-        true => vec![
-            MenuAction::Copy,
-            MenuAction::Cut,
-            MenuAction::Paste,
-            MenuAction::SelectAll,
-        ],
-        false => vec![MenuAction::Paste, MenuAction::SelectAll],
-    }
-}
-
-fn menu_action(state: &TextAreaState, action: MenuAction) {
-    match action {
-        MenuAction::Copy | MenuAction::Cut => {
-            let mode = match action {
-                MenuAction::Cut => CopyMode::Cut,
-                _ => CopyMode::Copy,
-            };
-            let text = state.copy(mode);
-            if !text.is_empty() {
-                copy_text(text);
-            }
-        }
-        MenuAction::Paste => request_paste(),
-        MenuAction::SelectAll => state.execute(EditorCommand::SelectAll),
-    }
-}
 
 #[component]
 pub fn TextArea(
@@ -95,46 +43,24 @@ pub fn TextArea(
         ..TextAreaColors::DEFAULT
     });
     let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
-    let cursors = state.cursors();
-    let masked = create_memo(clone!(password -> move || password.get()));
-    let actions = create_memo(clone!(state masked -> move || {
-        cursors.get();
-        let selected = state.selection_ranges().iter().any(|range| !range.is_empty());
-        menu_actions(selected, masked.get())
-    }));
-    let chosen = actions.clone();
+    let close_menu = set_menu_at.clone();
+    let masked = password.clone();
+    let menu_state = state.clone();
     let surface = NodeRef::new();
     set_component_state(surface.clone());
-    let menu_state = state.clone();
-    let close_menu = set_menu_at.clone();
     let block = block.unwrap_or_else(blank_widget);
     let selected_widget = selected_widget.unwrap_or_else(blank_widget);
     view! {
         <List spacing=0.0>
             <FindBar state={state.clone()} />
-            <ContextMenu
+            <unstyled::TextContextMenu
                 @sizing=ItemSize::Percent(100.0)
-                child_size=ItemSize::Percent(100.0)
+                state={menu_state}
+                menu={menu_style()}
+                masked
                 open_at={menu_at}
-                open_at_focuses=false
+                child_size=ItemSize::Percent(100.0)
                 on_close={move || close_menu.set(None)}
-                items={view! {
-                    <ForEach keys={actions}>
-                        {move |action: MenuAction| view! {
-                            <MenuItem label={action.label().to_owned()} />
-                        }}
-                    </ForEach>
-                }}
-                on_select={clone!(menu_state -> move |path: Vec<usize>| {
-                    let Some(action) = path
-                        .first()
-                        .and_then(|index| chosen.get_untracked().get(*index).copied())
-                    else {
-                        return;
-                    };
-                    menu_state.focus();
-                    menu_action(&menu_state, action);
-                })}
             >
                 <unstyled::TextArea
                     @node_ref=&surface
@@ -152,14 +78,12 @@ pub fn TextArea(
                     block={block}
                     selected_widget={selected_widget}
                     completer={match emoji {
-                        true => emoji::emoji_completer(),
+                        true => unstyled::emoji_completer(),
                         false => Completer::none(),
                     }}
-                    completion_menu={move |menu: CompletionMenu| view! {
-                        <EmojiMenu menu />
-                    }}
+                    completion_menu={emoji_menu()}
                 />
-            </ContextMenu>
+            </unstyled::TextContextMenu>
         </List>
     }
 }
