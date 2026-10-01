@@ -1,10 +1,17 @@
 use super::*;
+use beui::Pos2;
 use beui::reactive::IntoProp;
+use beui::reactive::NodeRef;
 use beui::unstyled::{
     ButtonHandle, ChoiceKind, ChoiceOptionHandle, DisclosureHandle, DragHandle, DragPoint,
     DropHandle, MenuButtonHandle, MenuRowHandle, PopoverTriggerHandle, ScrollHandle,
-    ScrollbarHandle, ScrollbarStyle, SliderHandle, TextInputHandle, TextInputStyle, ToggleHandle, TooltipHandle,
-    thumb_length, thumb_start,
+    ScrollbarHandle, ScrollbarStyle, SliderHandle, TextInputHandle, TextInputStyle, ToggleHandle,
+    TooltipHandle, thumb_length, thumb_start,
+};
+use beui::unstyled::{
+    ColorPickerState, CompletionMenu, CompletionRowHandle, DateSegmentHandle, DateTimeBoxHandle,
+    DateTimePanelHandle, DateTimeTriggerHandle, HexText, MenuStyle, NumberFaceHandle,
+    NumberFieldHandle, SheetGripHandle, TreeRevealHandle, TreeRowHandle, emoji_completer,
 };
 
 const FACE_PADDING_HORIZONTAL: f32 = 16.0;
@@ -19,6 +26,10 @@ const BIN_HEIGHT: f32 = 180.0;
 const SCROLL_HEIGHT: f32 = 200.0;
 const SCROLL_LINES: usize = 40;
 const BAR_WIDTH: f32 = 6.0;
+const NUMBER_WIDTH: f32 = 120.0;
+const SWATCH_SIZE: f32 = 32.0;
+const TREE_HEIGHT: f32 = 180.0;
+const NOTE_HEIGHT: f32 = 120.0;
 const BINS: [&str; 2] = ["Basket", "Crate"];
 const PRODUCE: [&str; 6] = ["Apple", "Banana", "Cherry", "Leek", "Onion", "Potato"];
 
@@ -34,6 +45,9 @@ pub(crate) fn PressingPage() -> NodeId {
             </Sample>
             <Sample title="Toggle" code={vec![SquareCheckbox::SOURCE, SquareCheckboxFace::SOURCE]}>
                 <SquareCheckbox />
+            </Sample>
+            <Sample title="List row" code={vec![OpenableFiles::SOURCE, FileRowFace::SOURCE]}>
+                <OpenableFiles />
             </Sample>
         </ScrollPage>
     }
@@ -200,6 +214,23 @@ pub(crate) fn ValuesPage() -> NodeId {
             >
                 <UnderlinedInput />
             </Sample>
+            <Sample
+                title="Number input"
+                code={vec![
+                    ScrubbedNumber::SOURCE,
+                    NumberFace::SOURCE,
+                    NumberField::SOURCE,
+                    UnderlinedField::SOURCE,
+                ]}
+            >
+                <ScrubbedNumber />
+            </Sample>
+            <Sample
+                title="Color picker state and hex text"
+                code={vec![HueAndHex::SOURCE, MeterFace::SOURCE, UnderlinedField::SOURCE]}
+            >
+                <HueAndHex />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -327,6 +358,23 @@ pub(crate) fn SelectingPage() -> NodeId {
             </Sample>
             <Sample title="Disclosure" code={vec![DetailsDisclosure::SOURCE]}>
                 <DetailsDisclosure />
+            </Sample>
+            <Sample
+                title="Tree"
+                code={vec![FolderTree::SOURCE, FolderRow::SOURCE, PillFace::SOURCE]}
+            >
+                <FolderTree />
+            </Sample>
+            <Sample
+                title="Text menu and completions"
+                code={vec![
+                    PlainNote::SOURCE,
+                    CompletionRow::SOURCE,
+                    MenuRow::SOURCE,
+                    PopupPanel::SOURCE,
+                ]}
+            >
+                <PlainNote />
             </Sample>
         </ScrollPage>
     }
@@ -528,6 +576,25 @@ pub(crate) fn PopupsPage() -> NodeId {
                 code={vec![ExportMenu::SOURCE, PillFace::SOURCE, MenuRow::SOURCE, PopupPanel::SOURCE]}
             >
                 <ExportMenu />
+            </Sample>
+            <Sample
+                title="Sheet"
+                code={vec![PullUpSheet::SOURCE, SheetGrip::SOURCE, PillFace::SOURCE]}
+            >
+                <PullUpSheet />
+            </Sample>
+            <Sample
+                title="Date picker"
+                code={vec![
+                    DeadlinePicker::SOURCE,
+                    DateSegmentFace::SOURCE,
+                    DateBox::SOURCE,
+                    DatePresets::SOURCE,
+                    PillFace::SOURCE,
+                    PopupPanel::SOURCE,
+                ]}
+            >
+                <DeadlinePicker />
             </Sample>
         </ScrollPage>
     }
@@ -894,5 +961,665 @@ fn ThinThumb(bar: ScrollbarHandle) -> NodeId {
             <Spacer @sizing={before} />
             <Frame @sizing={length} color={color} radius=3 />
         </List>
+    }
+}
+
+#[sample]
+#[component]
+fn OpenableFiles() -> NodeId {
+    let theme = use_theme();
+    let (chosen, set_chosen) = create_signal(0usize);
+    let (opened, set_opened) =
+        create_signal("Double-click a file, or press Enter on it".to_owned());
+    let row = move |index: usize, name: &'static str| {
+        let selected = create_memo(clone!(chosen -> move || chosen.get() == index));
+        let (choose, open) = (set_chosen.clone(), set_opened.clone());
+        view! {
+            <unstyled::ListRow
+                selected={selected.clone()}
+                on_click={move || choose.set(index)}
+                on_activate={move || open.set(format!("Opened {name}"))}
+            >
+                {move |handle: ButtonHandle| view! {
+                    <FileRowFace handle selected name />
+                }}
+            </unstyled::ListRow>
+        }
+    };
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Frame width=PANEL_WIDTH>
+                <List spacing=2.0>
+                    {row(0, "notes.md")}
+                    {row(1, "budget.csv")}
+                    {row(2, "photo.png")}
+                </List>
+            </Frame>
+            <Text string={opened} color={theme.text_muted.clone()} />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -> NodeId {
+    let ButtonHandle {
+        hovered, focused, ..
+    } = handle;
+    let theme = use_theme();
+    let fill = create_memo(clone!(theme -> move || {
+        let theme = theme.get();
+        match (selected.get(), hovered.get()) {
+            (true, _) => theme.accent_soft,
+            (false, true) => theme.hover,
+            (false, false) => Color32::TRANSPARENT,
+        }
+    }));
+    view! {
+        <Frame
+            color={fill}
+            radius=RADIUS
+            outline={theme.accent.clone()}
+            outline_width=2.0
+            outline_visible={focus_ring(focused)}
+            padding_horizontal=10.0
+            padding_vertical=6.0
+        >
+            <Text string={name.to_owned()} color={theme.text.clone()} />
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn ScrubbedNumber() -> NodeId {
+    let theme = use_theme();
+    let (gap, set_gap) = create_signal(12.0f64);
+    let shown = create_memo(clone!(gap -> move || format!("Gap {} px", gap.get())));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Frame width=NUMBER_WIDTH>
+                <unstyled::NumberInput
+                    value={gap}
+                    min=0.0
+                    max=100.0
+                    label="Gap"
+                    face={move |handle: NumberFaceHandle| view! {
+                        <NumberFace handle />
+                    }}
+                    field={move |handle: NumberFieldHandle| view! {
+                        <NumberField handle />
+                    }}
+                    on_change={move |value: f64| set_gap.set(value)}
+                />
+            </Frame>
+            <Text string={shown} color={theme.text_muted.clone()} />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn NumberFace(handle: NumberFaceHandle) -> NodeId {
+    let NumberFaceHandle {
+        text,
+        hovered,
+        active,
+        focused,
+        ..
+    } = handle;
+    let theme = use_theme();
+    let fill = create_memo(clone!(theme -> move || {
+        let theme = theme.get();
+        match (active.get(), hovered.get()) {
+            (true, _) => theme.pressed,
+            (false, true) => theme.hover,
+            (false, false) => theme.surface_raised,
+        }
+    }));
+    view! {
+        <Frame
+            color={fill}
+            radius=RADIUS
+            outline={theme.accent.clone()}
+            outline_width=2.0
+            outline_visible={focus_ring(focused)}
+            padding_horizontal=FACE_PADDING_HORIZONTAL
+            padding_vertical=FACE_PADDING_VERTICAL
+        >
+            <Text string={text} color={theme.text.clone()} align=TextAlign::Center />
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn NumberField(handle: NumberFieldHandle) -> NodeId {
+    let NumberFieldHandle {
+        text,
+        editing,
+        on_change,
+        on_submit,
+        on_focus_change,
+        on_key,
+    } = handle;
+    view! {
+        <unstyled::TextInput
+            value={text}
+            placeholder=""
+            focused={editing}
+            select_on_focus=true
+            style={underlined_style()}
+            on_change={move |typed| on_change.call(typed)}
+            on_submit={move |typed| on_submit.call(typed)}
+            on_focus_change={move |focused| on_focus_change.call(focused)}
+            on_key_override={move |press| on_key.call(press)}
+        >
+            {move |handle: TextInputHandle| view! {
+                <UnderlinedField handle />
+            }}
+        </unstyled::TextInput>
+    }
+}
+
+fn underlined_style() -> TextInputStyle {
+    let theme = use_theme();
+    TextInputStyle {
+        font_size: Prop::Static(16.0),
+        color: theme.text.clone().into_prop(),
+        placeholder_color: theme.text_muted.clone().into_prop(),
+        selection_color: theme.accent_soft.clone().into_prop(),
+        caret_color: theme.accent.clone().into_prop(),
+        ..TextInputStyle::default()
+    }
+}
+
+#[sample]
+#[component]
+fn HueAndHex() -> NodeId {
+    let (color, set_color) = create_signal(Color32::from_rgb(0x30, 0xA4, 0x6C));
+    let picker = ColorPickerState::new(
+        color.into_prop(),
+        Prop::Static(false),
+        Callback::new(move |color: Color32| set_color.set(color)),
+        Callback::default(),
+    );
+    let shown = picker.shown();
+    let hue_color = picker.color();
+    let hue = create_memo(move || hue_color.get().hue);
+    let picked = picker.clone();
+    let hex = HexText::new(
+        shown.clone(),
+        false,
+        Callback::new(move |color: Color32| picked.pick(color)),
+    );
+    let (edit, submit) = (hex.clone(), hex.clone());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <unstyled::Slider
+                value={hue}
+                min=0.0
+                max=360.0
+                on_change={move |hue: f32| picker.set_hue(hue)}
+            >
+                {move |handle: SliderHandle| view! {
+                    <MeterFace handle />
+                }}
+            </unstyled::Slider>
+            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                <Frame width=SWATCH_SIZE height=SWATCH_SIZE radius=RADIUS color={shown} />
+                <unstyled::TextInput
+                    @sizing=ItemSize::Percent(100.0)
+                    value={hex.text()}
+                    placeholder={hex.placeholder()}
+                    style={underlined_style()}
+                    on_change={move |typed: String| edit.edit(typed)}
+                    on_submit={move |typed: String| submit.submit(typed)}
+                >
+                    {move |handle: TextInputHandle| view! {
+                        <UnderlinedField handle />
+                    }}
+                </unstyled::TextInput>
+            </List>
+        </List>
+    }
+}
+
+const OUTLINE: [(&str, usize, Option<usize>); 6] = [
+    ("Recipes", 0, None),
+    ("Soup", 1, Some(0)),
+    ("Bread", 1, Some(0)),
+    ("Notes", 0, None),
+    ("Monday", 1, Some(3)),
+    ("Tuesday", 1, Some(3)),
+];
+
+#[sample]
+#[component]
+fn FolderTree() -> NodeId {
+    let (expanded, set_expanded) = create_signal(vec![0usize]);
+    let (selected, set_selected) = create_signal(Some(4usize));
+    let keys = create_memo(clone!(expanded -> move || {
+        let open = expanded.get();
+        (0..OUTLINE.len())
+            .filter(|key| OUTLINE[*key].2.is_none_or(|parent| open.contains(&parent)))
+            .collect::<Vec<usize>>()
+    }));
+    let item = Func::new(clone!(expanded -> move |key: usize| {
+        let (label, depth, parent) = OUTLINE[key];
+        TreeItem {
+            label: label.to_owned(),
+            depth,
+            expandable: parent.is_none(),
+            expanded: expanded.get().contains(&key),
+        }
+    }));
+    let tree = NodeRef::new();
+    let viewport = NodeRef::new();
+    let rows = tree.clone();
+    view! {
+        <Frame width=PANEL_WIDTH height=TREE_HEIGHT>
+            <List spacing=0.0>
+                <unstyled::Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
+                    <unstyled::Tree
+                        @node_ref={&rows}
+                        keys
+                        item
+                        selected={selected}
+                        ancestors={|key: usize| OUTLINE[key].2.into_iter().collect::<Vec<usize>>()}
+                        on_select={move |key: usize| set_selected.set(Some(key))}
+                        on_expand={move |(key, open): (usize, bool)| {
+                            set_expanded.update(|expanded| match open {
+                                true => expanded.push(key),
+                                false => expanded.retain(|held| *held != key),
+                            });
+                        }}
+                    >
+                        {move |handle: TreeRowHandle<usize>| view! {
+                            <FolderRow handle />
+                        }}
+                    </unstyled::Tree>
+                </unstyled::Scroll>
+                <unstyled::TreeReveal
+                    tree
+                    viewport
+                    on_reveal={move |_: usize| {}}
+                    button={move |handle: TreeRevealHandle| {
+                        let reveal = handle.reveal;
+                        view! {
+                            <unstyled::Button
+                                on_click={move || reveal.call()}
+                                content={move |handle: ButtonHandle| view! {
+                                    <PillFace handle label="Show the selection" />
+                                }}
+                            />
+                        }
+                    }}
+                />
+            </List>
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
+    let TreeRowHandle {
+        item,
+        selected,
+        marked,
+        focused,
+        hovered,
+        toggle,
+        target,
+        ..
+    } = handle;
+    let theme = use_theme();
+    let indent =
+        create_memo(clone!(item -> move || ItemSize::Fixed(item.get().depth as f32 * 16.0)));
+    let marker = create_memo(clone!(item -> move || {
+        let item = item.get();
+        match (item.expandable, item.expanded) {
+            (false, _) => "",
+            (true, true) => "-",
+            (true, false) => "+",
+        }
+        .to_owned()
+    }));
+    let label = create_memo(clone!(item -> move || item.get().label));
+    let fill = create_memo(clone!(theme -> move || {
+        let theme = theme.get();
+        match (selected.get(), marked.get(), hovered.get()) {
+            (true, _, _) => theme.accent_soft,
+            (false, true, _) => theme.surface_raised,
+            (false, false, true) => theme.hover,
+            (false, false, false) => Color32::TRANSPARENT,
+        }
+    }));
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+            <Spacer @sizing={indent} />
+            <unstyled::Button
+                tab_stop=false
+                press_focus=false
+                on_click={move || toggle()}
+                content={move |_: ButtonHandle| view! {
+                    <Frame width=16.0>
+                        <Text string={marker} color={theme.text_muted.clone()} />
+                    </Frame>
+                }}
+            />
+            <Frame
+                @sizing=ItemSize::Percent(100.0)
+                color={fill}
+                radius=RADIUS
+                outline={theme.accent.clone()}
+                outline_width=2.0
+                outline_visible={focus_ring(focused)}
+                padding_horizontal=6.0
+                padding_vertical=3.0
+            >
+                <unstyled::TreeRowArea target>
+                    <Text string={label} color={theme.text.clone()} />
+                </unstyled::TreeRowArea>
+            </Frame>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn PlainNote() -> NodeId {
+    let document = Arc::new(TextBuffer::new(
+        b"Right-click for Copy and Paste, or type :tada",
+    )) as Arc<dyn text_editor_core::Document>;
+    let state = TextAreaState::new(document);
+    let menu_state = state.clone();
+    let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
+    let close_menu = set_menu_at.clone();
+    let theme = use_theme();
+    view! {
+        <Frame
+            height=NOTE_HEIGHT
+            outline={theme.border.clone()}
+            outline_width=1.0
+            outline_visible=true
+            radius=RADIUS
+        >
+            <unstyled::TextContextMenu
+                state={menu_state}
+                menu={MenuStyle::new(
+                    |handle: MenuRowHandle| view! {
+                        <MenuRow handle />
+                    },
+                    |menu: Child| view! {
+                        <PopupPanel>{menu}</PopupPanel>
+                    },
+                )}
+                open_at={menu_at}
+                child_size=ItemSize::Percent(100.0)
+                on_close={move || close_menu.set(None)}
+            >
+                <unstyled::TextArea
+                    state
+                    completer={emoji_completer()}
+                    completion_menu={CompletionMenu::new(
+                        |handle: CompletionRowHandle| view! {
+                            <CompletionRow handle />
+                        },
+                        |rows: Child| view! {
+                            <PopupPanel>{rows}</PopupPanel>
+                        },
+                    )}
+                    on_menu={move |at: Pos2| set_menu_at.set(Some(at))}
+                />
+            </unstyled::TextContextMenu>
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
+    let CompletionRowHandle {
+        completion,
+        highlighted,
+        ..
+    } = handle;
+    let theme = use_theme();
+    let label = create_memo(move || {
+        completion
+            .get()
+            .map(|item| format!("{} {}", item.insert, item.label))
+            .unwrap_or_default()
+    });
+    let fill = create_memo(clone!(theme -> move || match highlighted.get() {
+        true => theme.hover.get(),
+        false => Color32::TRANSPARENT,
+    }));
+    view! {
+        <Frame color={fill} radius=RADIUS padding_horizontal=10.0 padding_vertical=4.0>
+            <Text string={label} color={theme.text.clone()} />
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn PullUpSheet() -> NodeId {
+    let theme = use_theme();
+    let (open, set_open) = create_signal(false);
+    let closing = set_open.clone();
+    let done = set_open.clone();
+    let ink = theme.text.clone();
+    view! {
+        <List direction=Direction::Horizontal spacing=0.0>
+            <unstyled::Button
+                on_click={move || set_open.set(true)}
+                content={move |handle: ButtonHandle| view! {
+                    <PillFace handle label="Open the sheet" />
+                }}
+            />
+            <unstyled::ModalSheet
+                open={open}
+                fit=true
+                scrim={Color32::from_rgba_unmultiplied(0, 0, 0, 120)}
+                grip={move |_: SheetGripHandle| view! {
+                    <SheetGrip />
+                }}
+                panel={move |content: Child| view! {
+                    <Frame color={theme.surface.clone()} radius=CARD_RADIUS>{content}</Frame>
+                }}
+                on_close={move || closing.set(false)}
+            >
+                <Frame padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
+                    <List spacing=SECTION_SPACING>
+                        <Text
+                            string="Drag the handle down, tap above, or press Escape to close."
+                            color={ink}
+                            wrap=true
+                        />
+                        <List direction=Direction::Horizontal spacing=0.0>
+                            <unstyled::Button
+                                on_click={move || done.set(false)}
+                                content={move |handle: ButtonHandle| view! {
+                                    <PillFace handle label="Done" />
+                                }}
+                            />
+                        </List>
+                    </List>
+                </Frame>
+            </unstyled::ModalSheet>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn SheetGrip() -> NodeId {
+    let theme = use_theme();
+    view! {
+        <Frame height=24.0 align_horizontal=Align::Center align_vertical=Align::Center>
+            <Frame width=36.0 height=4.0 radius=2 color={theme.text_muted.clone()} />
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn DeadlinePicker() -> NodeId {
+    let theme = use_theme();
+    let (deadline, set_deadline) = create_signal(None::<DateTime>);
+    let shown = create_memo(clone!(deadline -> move || match deadline.get() {
+        Some(deadline) => format!("Due {}", deadline.date.label()),
+        None => "No deadline".to_owned(),
+    }));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=0.0>
+                <unstyled::DateTimePicker
+                    value={deadline}
+                    parts=DateTimeParts::Date
+                    label="Deadline"
+                    segment={move |handle: DateSegmentHandle| view! {
+                        <DateSegmentFace handle />
+                    }}
+                    literal={move |text: String| view! {
+                        <Text string={text} color={use_theme().text_muted.clone()} />
+                    }}
+                    segments={move |segments: Child| view! {
+                        <Frame padding_horizontal=10.0 padding_vertical=6.0>{segments}</Frame>
+                    }}
+                    field={move |handle: DateTimeBoxHandle| view! {
+                        <DateBox handle />
+                    }}
+                    trigger={move |handle: DateTimeTriggerHandle| {
+                        let PopoverTriggerHandle {
+                            hovered,
+                            active,
+                            focused,
+                            ..
+                        } = handle.popover;
+                        view! {
+                            <PillFace
+                                handle={ButtonHandle { hovered, active, focused }}
+                                label="Pick"
+                            />
+                        }
+                    }}
+                    panel={move |handle: DateTimePanelHandle| view! {
+                        <DatePresets handle />
+                    }}
+                    on_change={move |next: Option<DateTime>| set_deadline.set(next)}
+                />
+            </List>
+            <Text string={shown} color={theme.text_muted.clone()} />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn DateSegmentFace(handle: DateSegmentHandle) -> NodeId {
+    let DateSegmentHandle {
+        text,
+        placeholder,
+        focused,
+        ..
+    } = handle;
+    let theme = use_theme();
+    let fill = create_memo(clone!(theme -> move || match focused.get() {
+        true => theme.accent_soft.get(),
+        false => Color32::TRANSPARENT,
+    }));
+    let ink = create_memo(clone!(theme -> move || match placeholder.get() {
+        true => theme.text_muted.get(),
+        false => theme.text.get(),
+    }));
+    view! {
+        <Frame color={fill} radius=3 padding_horizontal=2.0>
+            <Text string={text} color={ink} />
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn DateBox(handle: DateTimeBoxHandle) -> NodeId {
+    let DateTimeBoxHandle {
+        field,
+        trigger,
+        focused,
+        ..
+    } = handle;
+    let theme = use_theme();
+    let line = create_memo(clone!(theme -> move || match focused.get() {
+        true => theme.accent.get(),
+        false => theme.border.get(),
+    }));
+    let has_trigger = trigger.is_some();
+    view! {
+        <Frame
+            outline={line}
+            outline_width=1.0
+            outline_visible=true
+            radius=RADIUS
+            padding_right=4.0
+            padding_vertical=4.0
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                {field}
+                <Show condition=has_trigger>{trigger.unwrap_or_else(|| unreachable!())}</Show>
+            </List>
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
+    let DateTimePanelHandle {
+        field,
+        today,
+        pick_date,
+        now,
+        now_label,
+        clear,
+        ..
+    } = handle;
+    let start = today.get_untracked().unwrap_or_else(Date::today);
+    let preset = move |label: &'static str, date: Date| {
+        let pick = pick_date.clone();
+        view! {
+            <unstyled::Button
+                on_click={move || pick.call(date)}
+                content={move |handle: ButtonHandle| view! {
+                    <PillFace handle label />
+                }}
+            />
+        }
+    };
+    view! {
+        <PopupPanel>
+            <List spacing=SECTION_SPACING>
+                {field}
+                {preset("In a week", start.add_days(7))}
+                {preset("In a month", start.add_months(1))}
+                <List direction=Direction::Horizontal spacing=8.0>
+                    <unstyled::Button
+                        on_click={move || now.call()}
+                        content={move |handle: ButtonHandle| view! {
+                            <PillFace handle label=now_label />
+                        }}
+                    />
+                    <unstyled::Button
+                        on_click={move || clear.call()}
+                        content={move |handle: ButtonHandle| view! {
+                            <PillFace handle label="Clear" />
+                        }}
+                    />
+                </List>
+            </List>
+        </PopupPanel>
     }
 }
