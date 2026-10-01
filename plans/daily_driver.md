@@ -147,11 +147,20 @@ nothing that a password guess could decrypt.
     approval".
   - Unlock it one of two ways:
     - **Recovery phrase.** Type the phrase on the new device.
-    - **Approval.** An existing device sees the request, the user compares a
-      short code shown on both screens, and the existing device wraps the
-      workspace key to the new device's public key. The server only relays.
-  - Both devices showing the code is what stops the server from substituting
-    its own key.
+    - **Approval.** The new device shows a one-time code. The user types it
+      on an existing device, which approves the request.
+  - The typed code authenticates a PAKE (SPAKE2 or CPace) between the two
+    devices, run over the server's relay.
+    - The existing device wraps the workspace key only to the public key
+      that the PAKE confirmed.
+    - A server that substitutes its own key has to guess the code. It gets
+      one attempt, because a wrong code ends the request and the new device
+      has to start over.
+    - So the code can stay short: 8 characters from an unambiguous
+      alphabet, about 40 bits.
+  - Comparing codes by eye is not enough. People confirm a match without
+    really checking, which is the SSH fingerprint problem; typing the code
+    makes the check unskippable.
 - **Removing a device** deletes its wrapped copy. A device that saw the key
   can still decrypt old content until the key rotates. Rotation is out of
   scope for now.
