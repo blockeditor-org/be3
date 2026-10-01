@@ -1,7 +1,7 @@
 use std::ops::Range;
 use tree_sitter_md::{MarkdownCursor, MarkdownTree};
 
-use super::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize, byte_point};
+use super::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
 use crate::TextChange;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -341,7 +341,7 @@ pub(super) fn collect_chain(
     }
 }
 
-pub(super) const WINDOW_TARGET: usize = 8 * 1024;
+pub(super) const WINDOW_TARGET: usize = 1024;
 const WINDOW_REACH: usize = 4 * 1024;
 
 pub(super) struct MarkdownWindow {
@@ -349,7 +349,6 @@ pub(super) struct MarkdownWindow {
     pub(super) styles: Vec<SynHlStyle>,
     pub(super) tables: Vec<MarkdownTable>,
     pub(super) code_blocks: Vec<Range<usize>>,
-    tree: Option<MarkdownTree>,
 }
 
 pub(super) fn fences(bytes: &[u8]) -> Vec<Range<usize>> {
@@ -543,38 +542,12 @@ fn parse(bytes: &[u8]) -> Option<MarkdownTree> {
 }
 
 pub(super) fn parse_window(source: &[u8]) -> MarkdownWindow {
-    window_of(source, parse(source))
-}
-
-pub(super) fn reparse_window(
-    window: &MarkdownWindow,
-    old_source: &[u8],
-    source: &[u8],
-    change: TextChange,
-) -> MarkdownWindow {
-    let Some(mut tree) = window.tree.clone() else {
-        return parse_window(source);
-    };
-    tree.edit(&tree_sitter::InputEdit {
-        start_byte: change.start,
-        old_end_byte: change.old_end,
-        new_end_byte: change.new_end,
-        start_position: byte_point(old_source, change.start),
-        old_end_position: byte_point(old_source, change.old_end),
-        new_end_position: byte_point(source, change.new_end),
-    });
-    let parsed = tree_sitter_md::MarkdownParser::default().parse(source, Some(&tree));
-    window_of(source, parsed)
-}
-
-fn window_of(source: &[u8], tree: Option<MarkdownTree>) -> MarkdownWindow {
-    let Some(tree) = tree else {
+    let Some(tree) = parse(source) else {
         return MarkdownWindow {
             styles: vec![SynHlStyle::plain(SynHlColorScope::MarkdownPlainText); source.len()],
             len: source.len(),
             tables: Vec::new(),
             code_blocks: Vec::new(),
-            tree: None,
         };
     };
     MarkdownWindow {
@@ -582,14 +555,7 @@ fn window_of(source: &[u8], tree: Option<MarkdownTree>) -> MarkdownWindow {
         styles: styles_in(&tree, 0..source.len()),
         tables: tables(&tree),
         code_blocks: code_blocks(&tree),
-        tree: Some(tree),
     }
-}
-
-pub(super) fn holds_change(bytes: &[u8], window: Range<usize>, change: TextChange) -> bool {
-    let first_line_end = line_end_after(bytes, window.start);
-    let last_line_start = line_start_before(bytes, window.end.saturating_sub(1).max(window.start));
-    change.start >= first_line_end && change.old_end < last_line_start
 }
 
 pub(super) fn shift_table(table: &MarkdownTable, by: usize) -> MarkdownTable {

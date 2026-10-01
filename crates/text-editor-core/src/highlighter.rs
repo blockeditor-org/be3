@@ -142,11 +142,22 @@ struct MarkdownSource {
     bytes: Arc<[u8]>,
     fences: Vec<Range<usize>>,
     table_starts: Vec<usize>,
-    windows: Mutex<Vec<(usize, Arc<markdown::MarkdownWindow>)>>,
+    windows: Mutex<Windows>,
 }
 
-const MARKDOWN_WINDOWS_KEPT: usize = 32;
-const MARKDOWN_WINDOW_LIMIT: usize = 4 * markdown::WINDOW_TARGET;
+#[derive(Default)]
+struct Windows {
+    held: Vec<HeldWindow>,
+    clock: u64,
+}
+
+struct HeldWindow {
+    start: usize,
+    window: Arc<markdown::MarkdownWindow>,
+    used: u64,
+}
+
+const MARKDOWN_WINDOWS_KEPT: usize = 128;
 
 impl MarkdownSource {
     fn new(bytes: Arc<[u8]>) -> Self {
@@ -163,21 +174,39 @@ impl MarkdownSource {
             .windows
             .lock()
             .expect("the markdown windows were poisoned");
-        if let Some(found) = windows
-            .iter()
-            .position(|(start, window)| (*start..*start + window.len).contains(&index))
+        windows.clock += 1;
+        let clock = windows.clock;
+        let after = windows.held.partition_point(|held| held.start <= index);
+        if let Some(held) = after
+            .checked_sub(1)
+            .and_then(|found| windows.held.get_mut(found))
+            .filter(|held| index < held.start + held.window.len)
         {
-            let last = windows.len() - 1;
-            windows[found..].rotate_left(usize::from(found != last));
-            let (start, window) = &windows[last];
-            return (*start, Arc::clone(window));
+            held.used = clock;
+            return (held.start, Arc::clone(&held.window));
         }
-        let range = markdown::window_range(&self.bytes, &self.fences, index..index + 1);
+        let mut range = markdown::window_range(&self.bytes, &self.fences, index..index + 1);
+        if let Some(before) = after.checked_sub(1).map(|found| &windows.held[found]) {
+            range.start = range.start.max(before.start + before.window.len);
+        }
+        if let Some(next) = windows.held.get(after) {
+            range.end = range.end.min(next.start);
+        }
         let window = Arc::new(markdown::parse_window(&self.bytes[range.clone()]));
-        if windows.len() >= MARKDOWN_WINDOWS_KEPT {
-            windows.remove(0);
+        if windows.held.len() >= MARKDOWN_WINDOWS_KEPT
+            && let Some(oldest) = (0..windows.held.len()).min_by_key(|at| windows.held[*at].used)
+        {
+            windows.held.remove(oldest);
         }
-        windows.push((range.start, Arc::clone(&window)));
+        let at = windows.held.partition_point(|held| held.start < range.start);
+        windows.held.insert(
+            at,
+            HeldWindow {
+                start: range.start,
+                window: Arc::clone(&window),
+                used: clock,
+            },
+        );
         (range.start, window)
     }
 
@@ -190,48 +219,41 @@ impl MarkdownSource {
                 change.moved(old.start) == Some(new.start) && change.moved(old.end) == Some(new.end)
             });
         let touched = markdown::touched_lines(&self.bytes, change.start, change.old_end);
-        let windows = match fences_kept {
+        let held = match fences_kept {
             false => Vec::new(),
             true => self
                 .windows
                 .lock()
                 .expect("the markdown windows were poisoned")
+                .held
                 .iter()
-                .filter_map(|(start, window)| {
-                    let end = start + window.len;
-                    if end < touched.start {
-                        return Some((*start, Arc::clone(window)));
-                    }
-                    if *start >= touched.end {
-                        return Some((change.moved(*start)?, Arc::clone(window)));
-                    }
-                    if !markdown::holds_change(&self.bytes, *start..end, change) {
+                .filter_map(|held| {
+                    let end = held.start + held.window.len;
+                    let start = if end < touched.start {
+                        held.start
+                    } else if held.start >= touched.end {
+                        change.moved(held.start)?
+                    } else {
                         return None;
-                    }
-                    let new_end = end - change.old_end + change.new_end;
-                    if new_end - start > MARKDOWN_WINDOW_LIMIT {
-                        return None;
-                    }
-                    let inner = TextChange {
-                        start: change.start - start,
-                        old_end: change.old_end - start,
-                        new_end: change.new_end - start,
                     };
-                    let reparsed = markdown::reparse_window(
-                        window,
-                        &self.bytes[*start..end],
-                        &bytes[*start..new_end],
-                        inner,
-                    );
-                    Some((*start, Arc::new(reparsed)))
+                    Some(HeldWindow {
+                        start,
+                        window: Arc::clone(&held.window),
+                        used: held.used,
+                    })
                 })
                 .collect(),
         };
+        let clock = self
+            .windows
+            .lock()
+            .expect("the markdown windows were poisoned")
+            .clock;
         Self {
             bytes,
             fences,
             table_starts,
-            windows: Mutex::new(windows),
+            windows: Mutex::new(Windows { held, clock }),
         }
     }
 }
