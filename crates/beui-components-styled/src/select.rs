@@ -1,8 +1,8 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use crate::text_input::text_input_style;
 use crate::scroll::scrollbar_style;
+use crate::text_input::text_input_style;
 use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
@@ -13,7 +13,7 @@ use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Children, Frame, Prop, Run, Text, clone, create_memo, focus_ring,
+    Callback, Child, Children, Frame, Prop, Text, clone, create_memo, focus_ring,
 };
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
@@ -34,7 +34,6 @@ pub fn Select(
     on_change: Callback<Option<usize>>,
 ) -> NodeId {
     let options = options.into_run();
-    let trigger_options = options.clone();
     let accessibility = label.map(|label| {
         let mut node = Node::new(Role::ComboBox);
         if !label.is_empty() {
@@ -56,7 +55,7 @@ pub fn Select(
             search_style={text_input_style()}
             scrollbar={scrollbar_style()}
             trigger={move |handle| view! {
-                <SelectTrigger options={trigger_options} handle />
+                <SelectTrigger handle />
             }}
             option={|handle| view! {
                 <SelectOption handle />
@@ -70,16 +69,16 @@ pub fn Select(
 }
 
 #[component]
-fn SelectTrigger(options: Run<ChoiceOption>, handle: SelectTriggerHandle) -> NodeId {
+fn SelectTrigger(handle: SelectTriggerHandle) -> NodeId {
     let SelectTriggerHandle {
-        selected,
+        label,
         hovered,
         focused,
         disabled,
         ..
     } = handle;
     let theme = use_theme();
-    let label_text = create_memo(move || trigger_label(&options, selected.get()));
+    let label_text = create_memo(move || label.get().unwrap_or_else(|| "Select...".to_owned()));
     let border = create_memo(clone!(focused theme disabled -> move || {
         field_border(&theme, disabled.get(), focused.get(), hovered.get())
     }));
@@ -201,17 +200,6 @@ pub fn select_selected(document: &Document, select: NodeId) -> Option<usize> {
 
 pub fn select_open(document: &Document, select: NodeId) -> bool {
     unstyled::select_open(document, select)
-}
-
-fn trigger_label(options: &Run<ChoiceOption>, selected: Option<usize>) -> String {
-    selected
-        .and_then(|index| {
-            options
-                .items()
-                .get(index)
-                .map(|option| option.label().get())
-        })
-        .unwrap_or_else(|| "Select...".to_owned())
 }
 
 fn option_background(theme: &ThemeStore, highlighted: bool, hovered: bool) -> Color32 {

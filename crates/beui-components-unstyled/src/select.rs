@@ -23,6 +23,7 @@ const OPTIONS_MAX_HEIGHT: f32 = 240.0;
 
 pub struct SelectTriggerHandle {
     pub selected: ReadSignal<Option<usize>>,
+    pub label: Memo<Option<String>>,
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
@@ -147,9 +148,19 @@ pub fn Select(
         node
     }));
     let trigger_disabled = disabled.clone();
+    let labelled = options.clone();
+    let chosen = selected.clone();
+    let label = create_memo(move || {
+        let index = chosen.get()?;
+        labelled
+            .items()
+            .get(index)
+            .map(|option| option.label().get())
+    });
     let trigger_content = move |handle: ButtonHandle| {
         trigger_view.call(SelectTriggerHandle {
             selected,
+            label,
             hovered: handle.hovered,
             active: handle.active,
             focused: handle.focused,
