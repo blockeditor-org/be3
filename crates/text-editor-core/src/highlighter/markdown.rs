@@ -36,6 +36,30 @@ pub(super) fn tables(tree: &MarkdownTree) -> Vec<MarkdownTable> {
     tables
 }
 
+pub(super) fn code_blocks(tree: &MarkdownTree) -> Vec<Range<usize>> {
+    let mut blocks = Vec::new();
+    let mut cursor = tree.walk();
+    collect_code_blocks(&mut cursor, &mut blocks);
+    blocks
+}
+
+fn collect_code_blocks(cursor: &mut MarkdownCursor<'_>, blocks: &mut Vec<Range<usize>>) {
+    let node = cursor.node();
+    if matches!(node.kind(), "fenced_code_block" | "indented_code_block") {
+        blocks.push(node.start_byte()..node.end_byte());
+        return;
+    }
+    if cursor.goto_first_child() {
+        loop {
+            collect_code_blocks(cursor, blocks);
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+        cursor.goto_parent();
+    }
+}
+
 fn collect_tables(cursor: &mut MarkdownCursor<'_>, tables: &mut Vec<MarkdownTable>) {
     if cursor.node().kind() == "pipe_table" {
         tables.push(table(cursor));

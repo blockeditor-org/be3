@@ -674,6 +674,9 @@ pub(crate) fn editor_ui(ui: &mut Ui, slot: EditorSlot<'_>) -> EditorPresentation
             host::pixels_per_point(),
             pass,
         );
+        if runtime.instances.take_resized() {
+            host::request_repaint();
+        }
         if let Some(view) = view {
             runtime.instances.set_view(instance, view);
         }
@@ -958,6 +961,9 @@ pub(crate) fn preview(ui: &mut Ui, slot: PreviewSlot<'_>) -> PreviewPresentation
             scale_factor,
             pass,
         );
+        if runtime.instances.take_resized() {
+            host::request_repaint();
+        }
         let (children, _) = runtime.instances.host_children(
             instance,
             EditorRegion::Preview,
