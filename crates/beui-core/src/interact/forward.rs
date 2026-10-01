@@ -1,0 +1,208 @@
+use std::collections::HashMap;
+
+use crate::base::interactive::InteractiveNode;
+use crate::context::Context;
+use crate::document::Document;
+use crate::geometry::{Pos2, Rect};
+use crate::input::{Event, Modifiers, PointerButton, TouchPhase};
+use crate::node::{Element, NodeId, Rects};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ForwardedInput {
+    pub events: Vec<Event>,
+    pub rect: Rect,
+    pub hovered: bool,
+    pub focused: bool,
+    pub pointer: Option<Pos2>,
+    pub modifiers: Modifiers,
+}
+
+#[derive(Default)]
+pub struct Routing {
+    hovered: Option<NodeId>,
+    focused: Option<NodeId>,
+    captor: Option<NodeId>,
+    buttons: u8,
+    touches: HashMap<(u64, u64), NodeId>,
+}
+
+pub fn wants_forward(element: &dyn Element) -> bool {
+    element
+        .as_any()
+        .downcast_ref::<InteractiveNode>()
+        .is_some_and(|catcher| !catcher.on_forward.is_empty())
+}
+
+pub fn sink_at(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option<NodeId> {
+    if doc.modal_open() {
+        for overlay in doc.overlay_stack.iter().rev() {
+            if let Some(found) = super::deepest(doc, rects, overlay.id(), pos, &wants_forward) {
+                return Some(found);
+            }
+        }
+        return match doc.pointer_passes_under_overlays(pos) {
+            true => super::deepest(doc, rects, root, pos, &wants_forward),
+            false => None,
+        };
+    }
+    for overlay in doc.floating_overlays().into_iter().rev() {
+        let Some(content) = doc.overlay_content(overlay) else {
+            continue;
+        };
+        if rects
+            .visible(&content)
+            .is_some_and(|rect| rect.contains_half_open(pos))
+        {
+            return super::deepest(doc, rects, content, pos, &wants_forward);
+        }
+    }
+    super::deepest(doc, rects, root, pos, &wants_forward)
+}
+
+fn button_mask(button: PointerButton) -> u8 {
+    1 << match button {
+        PointerButton::Primary => 0,
+        PointerButton::Secondary => 1,
+        PointerButton::Middle => 2,
+        PointerButton::Back => 3,
+        PointerButton::Forward => 4,
+    }
+}
+
+pub(super) fn takes_keys(doc: &Document) -> bool {
+    doc.focused_node()
+        .is_some_and(|focused| doc.arena.contains(focused) && wants_forward(doc.arena.get(focused)))
+}
+
+pub(super) fn route(
+    doc: &mut Document,
+    ctx: &Context,
+    rects: &Rects,
+    root: NodeId,
+    pointer: bool,
+    keys: super::Keys,
+) {
+    let events = ctx.input(|input| input.events.clone());
+    let modifiers = ctx.input(|input| input.modifiers);
+    let position = ctx.input(|input| input.pointer.interact_pos());
+    let mut routing = std::mem::take(&mut doc.forward);
+    let alive = |doc: &Document, id: Option<NodeId>| {
+        id.filter(|id| doc.arena.contains(*id) && wants_forward(doc.arena.get(*id)))
+    };
+    routing.captor = alive(doc, routing.captor);
+    routing
+        .touches
+        .retain(|_, sink| doc.arena.contains(*sink) && wants_forward(doc.arena.get(*sink)));
+    let focused = alive(doc, doc.focused_node()).filter(|_| !keys.ignored());
+    let at = |doc: &Document, pos: Pos2| match pointer {
+        true => sink_at(doc, rects, root, pos),
+        false => None,
+    };
+    let hovered = position.and_then(|pos| at(doc, pos));
+    let mut routed: Vec<(NodeId, Vec<Event>)> = Vec::new();
+    let mut deliver = |to: Option<NodeId>, event: &Event| {
+        let Some(to) = to else {
+            return;
+        };
+        match routed.iter_mut().find(|(sink, _)| *sink == to) {
+            Some((_, events)) => events.push(event.clone()),
+            None => routed.push((to, vec![event.clone()])),
+        }
+    };
+    for event in &events {
+        match event {
+            Event::PointerMoved(pos) => deliver(routing.captor.or_else(|| at(doc, *pos)), event),
+            Event::PointerGone => deliver(routing.captor.or(routing.hovered), event),
+            Event::PointerButton {
+                pos,
+                button,
+                pressed,
+                ..
+            } => {
+                let to = routing.captor.or_else(|| at(doc, *pos));
+                deliver(to, event);
+                match (pressed, to) {
+                    (true, Some(to)) => {
+                        routing.captor = Some(to);
+                        routing.buttons |= button_mask(*button);
+                    }
+                    (false, _) => {
+                        routing.buttons &= !button_mask(*button);
+                        if routing.buttons == 0 {
+                            routing.captor = None;
+                        }
+                    }
+                    (true, None) => {}
+                }
+            }
+            Event::Touch { id, phase, pos, .. } => {
+                let finger = (id.device, id.finger);
+                let to = match phase {
+                    TouchPhase::Start => {
+                        let to = at(doc, *pos);
+                        if let Some(to) = to {
+                            routing.touches.insert(finger, to);
+                        }
+                        to
+                    }
+                    TouchPhase::Move => routing.touches.get(&finger).copied(),
+                    TouchPhase::End | TouchPhase::Cancel => routing.touches.remove(&finger),
+                };
+                deliver(to, event);
+            }
+            Event::Scroll(_)
+            | Event::ScrollEnded
+            | Event::Zoom(_)
+            | Event::FileHovered
+            | Event::FileHoverCancelled
+            | Event::FileDropped(_) => deliver(hovered, event),
+            Event::Key { .. }
+            | Event::PhysicalKey { .. }
+            | Event::Text(_)
+            | Event::Ime(_)
+            | Event::Modifiers(_)
+            | Event::PointerMotion(_)
+            | Event::Focus(false) => deliver(focused, event),
+            Event::Focus(true) | Event::Back(_) => {}
+        }
+    }
+    for changed in [routing.hovered, hovered, routing.focused, focused]
+        .into_iter()
+        .flatten()
+    {
+        if alive(doc, Some(changed)).is_some() && !routed.iter().any(|(sink, _)| *sink == changed)
+        {
+            let moved = (routing.hovered == Some(changed)) != (hovered == Some(changed))
+                || (routing.focused == Some(changed)) != (focused == Some(changed));
+            if moved {
+                routed.push((changed, Vec::new()));
+            }
+        }
+    }
+    routing.hovered = hovered;
+    routing.focused = focused;
+    doc.forward = routing;
+    for (sink, events) in routed {
+        if !doc.arena.contains(sink) {
+            continue;
+        }
+        let Some(on_forward) = doc
+            .arena
+            .get(sink)
+            .as_any()
+            .downcast_ref::<InteractiveNode>()
+            .map(|catcher| catcher.on_forward.clone())
+        else {
+            continue;
+        };
+        let raw = ForwardedInput {
+            events,
+            rect: rects.get(&sink).unwrap_or(Rect::NOTHING),
+            hovered: hovered == Some(sink),
+            focused: focused == Some(sink),
+            pointer: position.filter(|_| hovered == Some(sink)),
+            modifiers,
+        };
+        on_forward.call(raw);
+    }
+}

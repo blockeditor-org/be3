@@ -1,4 +1,5 @@
 pub mod autoscroll;
+pub mod forward;
 
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -295,7 +296,9 @@ pub fn interact(
     }
 
     doc.validate_focus();
-    if ctx.pointer_locked() && pointer && !keys.ignored() {
+    forward::route(doc, ctx, rects, root, pointer, keys);
+    let forwarded_keys = forward::takes_keys(doc);
+    if ctx.pointer_locked() && pointer && !keys.ignored() && !forwarded_keys {
         let motion = ctx.input(|input| input.pointer.motion);
         if motion != Vec2::ZERO {
             doc.motion_focused(motion);
@@ -322,6 +325,7 @@ pub fn interact(
                 continue;
             }
             Event::Text(_) | Event::Key { .. } | Event::Ime(_) if keys.ignored() => continue,
+            Event::Text(_) | Event::Key { .. } | Event::Ime(_) if forwarded_keys => continue,
             Event::Key { .. } if keys.claimed(&event) => {
                 continue;
             }

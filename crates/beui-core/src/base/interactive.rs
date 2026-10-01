@@ -52,6 +52,7 @@ pub struct InteractiveNode {
     pub on_zoom: Callback<ZoomGesture>,
     pub capture_at: Callback<Pos2, bool>,
     pub intercept_at: Callback<Pos2, bool>,
+    pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
 }
 
 impl Default for InteractiveNode {
@@ -101,6 +102,7 @@ impl InteractiveNode {
             on_zoom: Callback::empty(),
             capture_at: Callback::empty(),
             intercept_at: Callback::empty(),
+            on_forward: Callback::empty(),
         }
     }
 
