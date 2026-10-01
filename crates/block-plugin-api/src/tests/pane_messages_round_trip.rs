@@ -76,6 +76,10 @@ fn pane_messages_round_trip() {
             instance: EditorInstanceId(2),
             region: EditorRegion::Pane(PaneId(3)),
             generation: 1,
+            size: Size {
+                width: 300.0,
+                height: 200.0,
+            },
             children: Vec::new(),
             occluders: Vec::new(),
         }),

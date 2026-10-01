@@ -76,7 +76,8 @@ struct RegionState {
     reported_ime: Option<Option<ImeArea>>,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
-    reported_children: Option<(Vec<ChildPlacement>, Vec<Occluder>)>,
+    laid_out: Size,
+    reported_children: Option<(Size, Vec<ChildPlacement>, Vec<Occluder>)>,
 }
 
 impl EditorSession {
@@ -770,16 +771,18 @@ impl EditorSession {
         let generation = self.generation;
         let mut messages = Vec::new();
         for (region, state) in &mut self.regions {
-            let current = bounded(&state.children, &state.occluders);
+            let (children, occluders) = bounded(&state.children, &state.occluders);
+            let current = (state.laid_out, children, occluders);
             if state.reported_children.as_ref() == Some(&current) {
                 continue;
             }
             state.reported_children = Some(current.clone());
-            let (children, occluders) = current;
+            let (size, children, occluders) = current;
             messages.push(ChildPlacements {
                 instance,
                 region: *region,
                 generation,
+                size,
                 children,
                 occluders,
             });
@@ -898,6 +901,10 @@ impl EditorSession {
             .unwrap_or(content);
         if let (Some(state), Some(screen)) = (self.regions.get_mut(&region), screen) {
             state.children = placed;
+            state.laid_out = Size {
+                width: host.width(),
+                height: host.height(),
+            };
             state.occluders = occluders;
             state.cursor = frame.cursor;
             state.ime = frame.ime.map(|ime| ImeArea {
@@ -976,3 +983,6 @@ fn bounded(
             .collect(),
     )
 }
+
+#[cfg(test)]
+mod tests;

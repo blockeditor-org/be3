@@ -5,6 +5,10 @@ fn placements(occluders: Vec<Occluder>) -> Message {
         instance: EditorInstanceId(1),
         region: EditorRegion::Frame,
         generation: 1,
+        size: Size {
+            width: 100.0,
+            height: 100.0,
+        },
         children: vec![ChildPlacement {
             child: ChildId(1),
             block_id: [1; 16],

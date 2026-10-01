@@ -6,6 +6,10 @@ fn child_placements_round_trip() {
         instance: EditorInstanceId(4),
         region: EditorRegion::Frame,
         generation: 9,
+        size: Size {
+            width: 640.0,
+            height: 480.0,
+        },
         children: vec![
             ChildPlacement {
                 child: ChildId(1),
