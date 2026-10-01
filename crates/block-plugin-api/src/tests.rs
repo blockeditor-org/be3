@@ -101,6 +101,7 @@ mod grabbing_the_cursor_round_trips;
 mod history_messages_round_trip;
 mod ime_messages_round_trip;
 mod manifest_validation;
+mod menus_and_their_picks_round_trip;
 mod multiplexed_messages_round_trip;
 mod open_block_request_round_trips;
 mod open_messages_round_trip;

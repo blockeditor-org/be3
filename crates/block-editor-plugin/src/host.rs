@@ -11,9 +11,9 @@ use block_plugin_api::TopBar;
 use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand, BlockPick,
     ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
-    DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostReply, HostRequest, Occluder,
-    PaneId, PaneLayout, PaneTree, PerformanceMeasurement, Size, ViewChange, WebViewCommand,
-    WebViewEvent,
+    DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostReply, HostRequest, MenuEntry,
+    Occluder, PaneId, PaneLayout, PaneTree, PerformanceMeasurement, Size, ViewChange,
+    WebViewCommand, WebViewEvent,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -378,6 +378,9 @@ pub struct EditorHost {
     child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
     child_bars: Rc<RefCell<HashMap<ChildId, Vec<BarAction>>>>,
     bar_actions: Rc<RefCell<Vec<BarAction>>>,
+    menu: Rc<RefCell<Vec<MenuEntry>>>,
+    menu_picks: Rc<RefCell<Vec<String>>>,
+    child_menu_picks: Rc<RefCell<Vec<(ChildId, String)>>>,
     chrome: Rc<Cell<Option<bool>>>,
     content: Rc<Cell<Option<Rect>>>,
     copied: Rc<RefCell<Vec<String>>>,
@@ -1210,6 +1213,36 @@ impl EditorHost {
         std::mem::take(&mut self.bar_actions.borrow_mut())
     }
 
+    pub fn set_menu(&self, entries: Vec<MenuEntry>) {
+        if *self.menu.borrow() == entries {
+            return;
+        }
+        *self.menu.borrow_mut() = entries;
+        self.changed();
+    }
+
+    pub(crate) fn menu(&self) -> Vec<MenuEntry> {
+        self.menu.borrow().clone()
+    }
+
+    pub(crate) fn push_menu_pick(&self, id: String) {
+        self.menu_picks.borrow_mut().push(id);
+        self.changed();
+    }
+
+    pub fn take_menu_picks(&self) -> Vec<String> {
+        std::mem::take(&mut self.menu_picks.borrow_mut())
+    }
+
+    pub fn pick_child_menu(&self, child: ChildId, id: String) {
+        self.child_menu_picks.borrow_mut().push((child, id));
+        self.changed();
+    }
+
+    pub(crate) fn take_child_menu_picks(&self) -> Vec<(ChildId, String)> {
+        std::mem::take(&mut self.child_menu_picks.borrow_mut())
+    }
+
     pub fn presenting(&self) -> bool {
         self.presenting.get()
     }
@@ -1620,7 +1653,7 @@ pub enum PaneEvent {
         focused: Option<PaneId>,
     },
     Closed(PaneId),
-    More(PaneId),
+    MenuPick(PaneId, String),
 }
 
 pub enum PastedImage {

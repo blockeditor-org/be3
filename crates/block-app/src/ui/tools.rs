@@ -2,17 +2,17 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui::reactive::{
-    ClickCallback, Frame, Func, ItemSize, List, Memo, Show, clone, component, component_rect,
+    Action, Frame, Func, ItemSize, List, Memo, Show, clone, component, component_rect,
     create_effect, create_memo, create_signal, on_cleanup, untrack, view,
 };
 use beui::styled::DockArea;
 use beui::styled::theme::NARROW_WIDTH;
 use beui::unstyled::{
-    DockMode, DockState, DockTree, DockTreeEntry, GroupId, TabId, Tree, dock_more, narrower_than,
+    DockMode, DockState, DockTree, DockTreeEntry, GroupId, TabId, Tree, dock_menu, narrower_than,
 };
 use beui::{NodeId, Rect, pos2, vec2};
 use beui_plugin_input::panes::{dock_tree_with, pane_tree_with};
-use block_plugin_api::{EMPTY_PANE, PaneId, PaneLayout, PaneTree};
+use block_plugin_api::{EMPTY_PANE, MenuEntry, PaneId, PaneLayout, PaneTree};
 
 use super::debug::{
     ClientPanel, DebugCommand, DebugWindow, PerformancePanel, PluginsPanel, VersionPanel,
@@ -396,9 +396,11 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
                         let debug = view.debug.clone();
                         if let Some(pane) = tab_pane(tab) {
                             let wanting = wanting.clone();
-                            let more = create_memo(move || wanting(pane).is_some_and(|info| info.more));
+                            let menu = create_memo(move || {
+                                wanting(pane).map(|info| info.menu).unwrap_or_default()
+                            });
                             return view! {
-                                <PaneSurface pane={pane} more={more} />
+                                <PaneSurface pane={pane} menu={menu} />
                             };
                         }
                         match Tool::of(tab) {
@@ -444,12 +446,22 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn PaneSurface(pane: PaneId, more: Memo<bool>) -> NodeId {
-    create_effect(move || {
-        if more.get() {
-            dock_more(ClickCallback::new(move || send(UiCommand::PaneMore(pane))));
-        }
+fn PaneSurface(pane: PaneId, menu: Memo<Vec<MenuEntry>>) -> NodeId {
+    let actions = create_memo(move || {
+        menu.get()
+            .into_iter()
+            .map(|entry| {
+                let id = entry.id.clone();
+                Action::new(entry.id, entry.label, move || {
+                    send(UiCommand::PaneMenuPick(pane, id.clone()));
+                })
+                .glyph(&entry.glyph)
+                .enabled(entry.enabled)
+                .detached()
+            })
+            .collect()
     });
+    dock_menu(actions);
     view! {
         <HostSurface id=SurfaceId::Pane(pane.0) />
     }

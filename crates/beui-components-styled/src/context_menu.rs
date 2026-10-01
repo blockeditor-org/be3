@@ -88,6 +88,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
         has_submenu,
         hovered,
         focused,
+        ..
     } = handle;
     let theme = use_theme();
     let color = create_memo(clone!(theme -> move || {

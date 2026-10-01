@@ -425,7 +425,9 @@ Tab leaves; `frame` wraps the field in the caller's chrome inside the area's
 own focus and pointer handling. `TextInput` is that single-line mode over a
 plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
 fix to how text is edited lands in both. `MenuButton` is the button that opens a menu under itself, which is
-what a toolbar reaches for where `Select` would imply the choice sticks;
+what a toolbar reaches for where `Select` would imply the choice sticks - or,
+when a finger opened it, the same items as rows in a sheet, so one button
+serves a mouse and a touch (`IconMenuButton` is the same with an icon button's face);
 `ContextMenu` is the same menu on a secondary press, and it also takes an
 `open_at` point so a touch gesture can raise it where the finger was. A finger
 held still for the long-press delay (`Context::set_long_press_delay`, which a
@@ -855,10 +857,15 @@ has none. A tab's icon comes from the optional `icon` function, an icon-font
 glyph (empty for none) that the tab bars, the drag preview and the stacked bar
 all draw. The bar is the dock's, not the caller's; what a
 tab adds to it is only its own actions, which its panel hands over while it is
-built with `dock_actions(node)`, and which are shown while that tab is, and a
-More button, which the panel asks for with `dock_more(on_click)`. More is not a
-node, so a dock that lays out tabs built somewhere else (the app's dock holding
-a plugin's panes) can draw it and pass the press back.
+built with `dock_actions(node)`, and which are shown while that tab is, and its
+menu, which the panel hands over with `dock_menu(actions)`, a `Memo<Vec<Action>>`.
+The menu is not tied to the stacked bar: a tiled pane offers the menu of the tab
+it shows behind a More button just before its close button, at the end of its
+tab bar or at the top of its sidebar, and so does a window. A menu is a list of
+actions rather than a node, so a dock that lays out tabs built somewhere else
+(the app's dock holding a plugin's panes) can draw it from rows it was sent,
+with actions made by `ActionBuilder::detached`, which runs without being
+registered for shortcuts or the palette, and pass the pick back.
 Each tab's panel is built once and moved between the two, so what it holds
 survives the switch. `recent_tabs` lists the tabs from the one shown last (the
 order is part of the state, so it is saved with the layout), and
