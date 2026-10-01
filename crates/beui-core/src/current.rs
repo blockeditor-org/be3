@@ -16,13 +16,13 @@ impl Drop for ActiveDocumentGuard {
 }
 
 pub enum DocumentGuard<'a> {
-    Installed(&'a mut Document),
+    Installed(&'a mut Document, Option<::reactive::ZoneGuard>),
     Reentrant,
 }
 
 impl Drop for DocumentGuard<'_> {
     fn drop(&mut self) {
-        if let DocumentGuard::Installed(document) = self {
+        if let DocumentGuard::Installed(document, _) = self {
             let restored = CURRENT_DOCUMENT.with(|cell| cell.borrow_mut().take());
             **document = restored
                 .expect("beui::reactive document guard dropped without an installed document");
@@ -37,6 +37,7 @@ pub fn install(document: &mut Document) -> DocumentGuard<'_> {
     if already_installed {
         return DocumentGuard::Reentrant;
     }
+    let zone = document.zone();
     let taken = std::mem::take(document);
     CURRENT_DOCUMENT.with(|cell| {
         let previous = cell.borrow_mut().replace(taken);
@@ -45,7 +46,11 @@ pub fn install(document: &mut Document) -> DocumentGuard<'_> {
             "beui::reactive: a document is already installed on this thread"
         );
     });
-    DocumentGuard::Installed(document)
+    let mut guard = DocumentGuard::Installed(document, None);
+    if let DocumentGuard::Installed(_, slot) = &mut guard {
+        *slot = Some(::reactive::enter_zone(zone));
+    }
+    guard
 }
 
 pub fn enter<R>(document: &mut Document, f: impl FnOnce() -> R) -> R {

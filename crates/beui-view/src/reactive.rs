@@ -23,7 +23,7 @@ pub use beui_macros::{component, view};
 pub use reactive::{
     Effect, KeyedItems, KeyedStore, Memo, ReadSignal, Scope, ScopeContext, Selector, Store,
     WriteSignal, batch, clone, create_effect, create_memo, create_selector, create_signal,
-    on_cleanup, owner_scope, provide_context, settle, untrack, use_context,
+    on_cleanup, owner_scope, provide_context, settle, untrack, use_context, zone_pending,
 };
 
 thread_local! {

@@ -6,8 +6,8 @@ use block_plugin_api::{
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
     CreationOutcome, CursorIcon, DataListing, EditorInstanceId, EditorMessage, EditorRegion,
     FetchResult, FilePick, FileSave, FrameReport, FrameSpec, HostReply, HostRequest, Message,
-    Occluder, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout,
-    ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
+    Occluder, PaneId, PaneLayout, PaneTree, PerformanceMeasurement, RegenerationOutcome,
+    RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -96,6 +96,8 @@ struct Instance {
     block_queries: Vec<block_plugin_api::BlockQuery>,
     sent_blocks: HashMap<block_plugin_api::BlockQuery, Vec<block_plugin_api::BlockInfo>>,
     blocks_seen: Option<u64>,
+    panes: Option<PaneLayout>,
+    shown_panes: Vec<PaneId>,
     version_sent: Option<u64>,
 }
 
@@ -265,6 +267,8 @@ impl Instance {
             block_queries: Vec::new(),
             sent_blocks: HashMap::new(),
             blocks_seen: None,
+            panes: None,
+            shown_panes: Vec::new(),
             version_sent: None,
             content: match role {
                 InstanceRole::Editor(block) => own_content_type(block).map(ContentLink::new),
@@ -1553,11 +1557,15 @@ impl Instances {
         changed
     }
 
-    pub(super) fn frame_report(&self, instance: EditorInstanceId) -> Option<&FrameReport> {
+    pub(super) fn frame_report(
+        &self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<&FrameReport> {
         self.entries
             .get(&instance)?
             .screens
-            .get(&EditorRegion::Frame)?
+            .get(&region)?
             .report
             .as_ref()
     }
@@ -1951,6 +1959,20 @@ impl Instances {
 
     pub(super) fn editor_message(&mut self, message: EditorMessage) -> bool {
         match message {
+            EditorMessage::Panes { instance, layout } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.panes = layout;
+                true
+            }
+            EditorMessage::ShowPane { instance, pane } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.shown_panes.push(pane);
+                true
+            }
             EditorMessage::OpenBlock {
                 instance,
                 block_id,
@@ -2476,6 +2498,51 @@ impl Instances {
         } else {
             Some(entry.focus_reports.remove(0))
         }
+    }
+
+    pub(super) fn panes(&self, instance: EditorInstanceId) -> Option<PaneLayout> {
+        self.entries.get(&instance)?.panes.clone()
+    }
+
+    pub(super) fn take_shown_panes(&mut self, instance: EditorInstanceId) -> Vec<PaneId> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.shown_panes))
+            .unwrap_or_default()
+    }
+
+    pub(super) fn arrange_panes(
+        &mut self,
+        instance: EditorInstanceId,
+        arrangement: u64,
+        tree: PaneTree,
+        detached: Vec<PaneId>,
+        focused: Option<PaneId>,
+    ) -> Vec<Message> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Message::Editor(EditorMessage::PanesArranged {
+            instance,
+            arrangement,
+            tree,
+            detached,
+            focused,
+        })]
+    }
+
+    pub(super) fn close_pane(&mut self, instance: EditorInstanceId, pane: PaneId) -> Vec<Message> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Message::Editor(EditorMessage::ClosePane { instance, pane })]
+    }
+
+    pub(super) fn pane_more(&mut self, instance: EditorInstanceId, pane: PaneId) -> Vec<Message> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Message::Editor(EditorMessage::PaneMore { instance, pane })]
     }
 
     pub(super) fn take_artifact_watch(&mut self, instance: EditorInstanceId) -> Option<Vec<Uuid>> {

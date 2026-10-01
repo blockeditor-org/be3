@@ -802,8 +802,7 @@ body instead of a panel; `empty_panes` finds them and `remove_empty_panes`
 gives their room back, which is how the workspace keeps an empty pane beside
 Files that says nothing is open rather than a tab that says so.
 
-Tiled, `DockArea` keeps its panes inset from its own edges; `inset=false` lets
-them reach the edges, for a dock that already sits inside a pane of another.
+Tiled, `DockArea` keeps its panes inset from its own edges.
 `mode=DockMode::Stacked` draws the same state as one screen: the focused tab
 fills the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
 the state is kept, so switching back to `DockMode::Tiled` restores the layout.
@@ -815,7 +814,10 @@ has none. A tab's icon comes from the optional `icon` function, an icon-font
 glyph (empty for none) that the tab bars, the drag preview and the stacked bar
 all draw. The bar is the dock's, not the caller's; what a
 tab adds to it is only its own actions, which its panel hands over while it is
-built with `dock_actions(node)`, and which are shown while that tab is.
+built with `dock_actions(node)`, and which are shown while that tab is, and a
+More button, which the panel asks for with `dock_more(on_click)`. More is not a
+node, so a dock that lays out tabs built somewhere else (the app's dock holding
+a plugin's panes) can draw it and pass the press back.
 Each tab's panel is built once and moved between the two, so what it holds
 survives the switch. `recent_tabs` lists the tabs from the one shown last (the
 order is part of the state, so it is saved with the layout), and
@@ -876,6 +878,24 @@ longer than it holds more than one thing. `entries`, `active_entry`, `locate`,
 `layout_tree` lays a group's tree out the way `layout_surface` lays out a
 surface's. `find`, `all_tabs`, `surface_tabs` and `show` look through groups,
 and showing a tab inside one selects the group in every bar above it.
+
+A pinned group is one the tree never tidies away: `insert_pinned_group` puts
+one in a tab bar, and it stays a group while it holds one tab or none, cannot be
+ungrouped or closed from its menu, and admits only the tabs whose home it is -
+the tabs it was given - so dragging any other tab onto it or into it does
+nothing. Its tabs are pinned to it as well: one can be rearranged anywhere
+inside the group, and the group can be moved with all of them, but a pinned
+tab cannot be dragged, popped or carried out of it with its pane. "Unpin from
+group" on a tab's menu (`set_tab_pinned`) lets it go, it may come back later,
+and "Pin to group" pins it again once it is back. A drag that the state would
+refuse (`admits`, `admits_leaf`) shows no drop marker, and letting go there
+does nothing. `unpin` makes the whole group an ordinary group again. The app keeps a plugin's panes in one (see
+guides/adding_a_plugin_editor.md). `tree` reads a surface's or a group's layout
+out as a `DockTree`, which names tabs but no leaf, split or group ids, so it can
+be compared, sent elsewhere and rebuilt: `from_tree` makes a state out of one
+and `set_tree` replaces a tree in place, moving in any of its tabs that were
+elsewhere and keeping the focused tab focused. `group_title` names a group in
+its tab.
 
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so

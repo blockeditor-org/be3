@@ -11,6 +11,7 @@ fn fonts_from_the_host_reach_the_plugin_and_missing_characters_go_back() {
         version: PROTOCOL_VERSION,
         host_name: "test host".into(),
         surface: None,
+        panes: false,
         theme: Theme { dark: true },
     }));
     let heard = Rc::new(Cell::new(0));
