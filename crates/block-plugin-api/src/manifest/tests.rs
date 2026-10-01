@@ -14,8 +14,7 @@ pub(super) const DOCUMENT: &str = r#"{
                 "zero": {"name": "Zero", "icon": "\ue3c6", "category": "template"},
                 "another": {"block_type": "00007072-6573-656e-7461-74696f6e0001", "dialog": true}
             },
-            "regions": ["Frame"],
-            "chrome": ["Toolbar"]
+            "regions": ["Frame"]
         }
     ],
     "entry_point": "counter.wasm"

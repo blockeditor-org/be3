@@ -3,8 +3,8 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2, vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::geometry::{Rect, Vec2};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -38,23 +38,26 @@ impl EmbedSlot {
 
 pub struct EmbedNode {
     child: Option<NodeId>,
-    width: Option<f32>,
-    height: Option<f32>,
     punch: bool,
     rotation: f32,
     state: Rc<EmbedState>,
+    own: Option<NodeId>,
+}
+
+impl EmbedNode {
+    fn forget(&self) {
+        if self.own.is_some() && self.state.node.get() == self.own {
+            self.state.placement.set(None);
+        }
+    }
 }
 
 impl Element for EmbedNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
-        let inner = match self.child {
+        match self.child {
             Some(child) => crate::layout::measure(doc, painter, child, available),
             None => Vec2::ZERO,
-        };
-        vec2(
-            self.width.unwrap_or(inner.x),
-            self.height.unwrap_or(inner.y),
-        )
+        }
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
@@ -85,6 +88,14 @@ impl Element for EmbedNode {
 
     fn paints(&self) -> bool {
         self.punch
+    }
+
+    fn unplaced(&mut self, _doc: &mut Document) {
+        self.forget();
+    }
+
+    fn detached(&mut self) {
+        self.forget();
     }
 
     fn interact(
@@ -127,42 +138,33 @@ impl Element for EmbedNode {
 }
 
 impl Document {
-    pub fn create_embed(&mut self, state: Rc<EmbedState>) -> NodeId {
-        self.arena.insert(EmbedNode {
+    pub fn create_embed(&mut self, state: Rc<EmbedState>) -> NodeOf<EmbedNode> {
+        let embed = self.arena.insert(EmbedNode {
             child: None,
-            width: None,
-            height: None,
             punch: false,
             rotation: 0.0,
             state,
-        })
+            own: None,
+        });
+        self.arena.touch_mut_as::<EmbedNode>(embed).own = Some(embed.id());
+        embed
     }
 
-    pub fn set_embed_child(&mut self, embed: NodeId, child: NodeId) {
+    pub fn set_embed_child(&mut self, embed: NodeOf<EmbedNode>, child: NodeId) {
         if self.arena.get_as::<EmbedNode>(embed).child != Some(child) {
             self.arena.get_mut_as::<EmbedNode>(embed).child = Some(child);
         }
     }
 
-    pub fn set_embed_punch(&mut self, embed: NodeId, punch: bool) {
+    pub fn set_embed_punch(&mut self, embed: NodeOf<EmbedNode>, punch: bool) {
         if self.arena.get_as::<EmbedNode>(embed).punch != punch {
             self.arena.paint_mut_as::<EmbedNode>(embed).punch = punch;
         }
     }
 
-    pub fn set_embed_rotation(&mut self, embed: NodeId, rotation: f32) {
+    pub fn set_embed_rotation(&mut self, embed: NodeOf<EmbedNode>, rotation: f32) {
         if self.arena.get_as::<EmbedNode>(embed).rotation != rotation {
             self.arena.paint_mut_as::<EmbedNode>(embed).rotation = rotation;
         }
-    }
-
-    pub fn set_embed_size(&mut self, embed: NodeId, width: Option<f32>, height: Option<f32>) {
-        let node = self.arena.get_as::<EmbedNode>(embed);
-        if node.width == width && node.height == height {
-            return;
-        }
-        let node = self.arena.get_mut_as::<EmbedNode>(embed);
-        node.width = width;
-        node.height = height;
     }
 }

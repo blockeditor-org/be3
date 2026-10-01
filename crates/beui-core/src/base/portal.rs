@@ -2,7 +2,7 @@ use std::any::Any;
 
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 pub struct PortalNode {
@@ -15,6 +15,10 @@ impl Element for PortalNode {
             Some(child) => crate::layout::measure(doc, painter, child, available),
             None => Vec2::ZERO,
         }
+    }
+
+    fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
+        crate::layout::baseline(doc, painter, self.child?, available)
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
@@ -72,11 +76,11 @@ impl Element for PortalNode {
 }
 
 impl Document {
-    pub fn create_portal(&mut self) -> NodeId {
+    pub fn create_portal(&mut self) -> NodeOf<PortalNode> {
         self.arena.insert(PortalNode { child: None })
     }
 
-    pub fn set_portal_child(&mut self, portal: NodeId, child: Option<NodeId>) {
+    pub fn set_portal_child(&mut self, portal: NodeOf<PortalNode>, child: Option<NodeId>) {
         if !self.contains(portal) {
             return;
         }
@@ -104,7 +108,7 @@ impl Document {
 
     pub fn release_portal(&mut self, id: NodeId, borrowed: &[NodeId]) {
         for child in borrowed {
-            if self.portal_holders.get(child) == Some(&id) {
+            if self.portal_holders.get(child).map(|portal| portal.id()) == Some(id) {
                 self.portal_holders.remove(child);
             }
         }

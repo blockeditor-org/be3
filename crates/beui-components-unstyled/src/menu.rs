@@ -8,7 +8,7 @@ use beui_view::components::overlay::Overlay;
 use crate as unstyled;
 use crate::button::ButtonHandle;
 use beui_view::reactive::{
-    Callback, Child, ChildScope, ChildValue, Children, Focusable, IntoProp, List, Memo, NodeRef,
+    Callback, Child, ChildScope, ChildValue, Children, Interactive, IntoProp, List, Memo, NodeRef,
     Prop, ReadSignal, RenderFn, Run, Scope, Selector, Show, WriteSignal, clone, create_effect,
     create_memo, create_selector, create_signal, set_component_state,
 };
@@ -180,7 +180,8 @@ pub fn MenuList(
     });
     view! {
         <List spacing=0.0>
-            <Focusable
+            <Interactive
+                focusable=true
                 @node_ref={&state.root}
                 tab_stop={root_tab_stop}
                 focused={focused.memo(Focus::Root)}

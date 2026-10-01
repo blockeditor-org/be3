@@ -1,6 +1,7 @@
 use super::*;
 use crate::image::{Image, ImageFit};
-use crate::reactive::{Frame, NodeRef, Picture, build, view};
+use crate::reactive::{Frame, NodeRef, build, view};
+use crate::unstyled::Picture;
 
 #[test]
 fn a_picture_paints_the_image_it_is_given() {

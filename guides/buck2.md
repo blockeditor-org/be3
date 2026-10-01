@@ -11,7 +11,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 |---|---|
 | `./scripts/buck run //:check` | rustc's check pass over every first-party target, host and wasm |
 | `./scripts/buck run //:verify` | autofixes, lints, tests and plugin tests; `-- --check` writes nothing, `-- --lint`, `--tests`, `--plugin-tests` run one part |
-| `./scripts/buck test //crates/...` | the tests alone |
+| `./scripts/buck test //crates/...` | the tests alone; outside CI it prints only the failures and the compiler's errors, and `BE3_VERBOSE=1` prints everything |
 | `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; add `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings |
 | `./scripts/buck test //crates/editors/checklist:test -- --test-arg adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
 | `./scripts/buck run //crates/block-app:app` | the app, with every plugin beside it |

@@ -1,10 +1,11 @@
 use std::any::Any;
 
+use crate::base::overlay::OverlayNode;
 use crate::callback::ClickCallback;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
 use crate::input::{BackEdge, BackGesture};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 const SHIFT_FRACTION: f32 = 0.1;
@@ -39,6 +40,10 @@ impl Element for BackNode {
             Some(child) => crate::layout::measure(doc, painter, child, available),
             None => Vec2::ZERO,
         }
+    }
+
+    fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
+        crate::layout::baseline(doc, painter, self.child?, available)
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
@@ -93,7 +98,11 @@ impl Element for BackNode {
 }
 
 impl Document {
-    pub fn create_back_handler(&mut self, child: NodeId, on_back: ClickCallback) -> NodeId {
+    pub fn create_back_handler(
+        &mut self,
+        child: NodeId,
+        on_back: ClickCallback,
+    ) -> NodeOf<BackNode> {
         let id = self.arena.insert(BackNode {
             child: Some(child),
             enabled: true,
@@ -104,13 +113,13 @@ impl Document {
         id
     }
 
-    pub fn set_back_handler_enabled(&mut self, handler: NodeId, enabled: bool) {
+    pub fn set_back_handler_enabled(&mut self, handler: NodeOf<BackNode>, enabled: bool) {
         if self.arena.get_as::<BackNode>(handler).enabled == enabled {
             return;
         }
         self.arena.get_mut_as::<BackNode>(handler).enabled = enabled;
         if !enabled {
-            self.set_back_progress(handler, BackProgress::default());
+            self.set_back_progress(handler.id(), BackProgress::default());
         }
     }
 
@@ -120,11 +129,14 @@ impl Document {
 
     fn back_target(&self) -> Option<NodeId> {
         if let Some(overlay) = self.overlay_stack.last() {
-            return Some(*overlay);
+            return Some(overlay.id());
         }
-        self.back_handlers.iter().rev().copied().find(|handler| {
-            self.contains(*handler) && self.arena.get_as::<BackNode>(*handler).enabled
-        })
+        self.back_handlers
+            .iter()
+            .rev()
+            .copied()
+            .find(|handler| self.contains(handler.id()) && self.arena.get_as(*handler).enabled)
+            .map(NodeOf::id)
     }
 
     pub fn back(&mut self, gesture: BackGesture) {
@@ -165,12 +177,15 @@ impl Document {
         if !self.contains(target) {
             return;
         }
-        if self.is_overlay(target) {
-            self.set_overlay_back_progress(target, progress);
+        if let Some(overlay) = self.arena.kind_of::<OverlayNode>(target) {
+            self.set_overlay_back_progress(overlay, progress);
             return;
         }
-        if self.arena.get_as::<BackNode>(target).progress != progress {
-            self.arena.get_mut_as::<BackNode>(target).progress = progress;
+        let Some(handler) = self.arena.kind_of::<BackNode>(target) else {
+            return;
+        };
+        if self.arena.get_as(handler).progress != progress {
+            self.arena.get_mut_as(handler).progress = progress;
             self.arena.invalidate_node(target);
         }
     }
@@ -179,11 +194,14 @@ impl Document {
         if !self.contains(target) {
             return;
         }
-        if self.is_overlay(target) {
-            self.close_overlay(target);
+        if let Some(overlay) = self.arena.kind_of::<OverlayNode>(target) {
+            self.close_overlay(overlay);
             return;
         }
-        let on_back = self.arena.get_as::<BackNode>(target).on_back.clone();
+        let Some(handler) = self.arena.kind_of::<BackNode>(target) else {
+            return;
+        };
+        let on_back = self.arena.get_as(handler).on_back.clone();
         on_back.call();
     }
 }

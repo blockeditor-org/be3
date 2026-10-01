@@ -17,7 +17,7 @@ fn rect(left: f32, top: f32, right: f32, bottom: f32) -> Rect {
 fn clipped(bounds: Rect, clip: Rect) -> Shape {
     Shape::Rect {
         rect: bounds,
-        corner_radius: 0.0,
+        corner_radius: 0.0.into(),
         stroke_width: 0.0,
         color: Color32::WHITE,
         rotation: crate::geometry::Rotation::NONE,

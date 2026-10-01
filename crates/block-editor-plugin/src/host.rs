@@ -12,7 +12,8 @@ use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand, BlockPick,
     ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
     DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostReply, HostRequest, Occluder,
-    PerformanceMeasurement, Size, ViewChange, WebViewCommand, WebViewEvent,
+    PaneId, PaneLayout, PaneTree, PerformanceMeasurement, Size, ViewChange, WebViewCommand,
+    WebViewEvent,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -325,6 +326,11 @@ impl Pushed {
 #[derive(Clone, Default)]
 pub struct EditorHost {
     waker: Waker,
+    panes_offered: Rc<Cell<bool>>,
+    pane_layout: Rc<RefCell<Option<PaneLayout>>>,
+    pane_events: Rc<RefCell<Vec<(u64, PaneEvent)>>>,
+    taken_arrangement: Rc<Cell<u64>>,
+    shown_panes: Rc<RefCell<Vec<PaneId>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     changes: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
@@ -1278,6 +1284,52 @@ impl EditorHost {
         self.creation_changed.set(true);
     }
 
+    pub fn panes_offered(&self) -> bool {
+        self.panes_offered.get()
+    }
+
+    pub(crate) fn offer_panes(&self, offered: bool) {
+        self.panes_offered.set(offered);
+    }
+
+    pub fn set_pane_layout(&self, layout: Option<PaneLayout>) {
+        *self.pane_layout.borrow_mut() = layout;
+    }
+
+    pub(crate) fn pane_layout(&self) -> Option<PaneLayout> {
+        self.pane_layout.borrow().clone()
+    }
+
+    pub(crate) fn push_pane_event(&self, arrangement: u64, event: PaneEvent) {
+        self.pane_events.borrow_mut().push((arrangement, event));
+        self.waker.wake();
+    }
+
+    pub fn take_pane_events(&self) -> Vec<PaneEvent> {
+        let taken = std::mem::take(&mut *self.pane_events.borrow_mut());
+        taken
+            .into_iter()
+            .map(|(arrangement, event)| {
+                self.taken_arrangement
+                    .set(self.taken_arrangement.get().max(arrangement));
+                event
+            })
+            .collect()
+    }
+
+    pub(crate) fn taken_arrangement(&self) -> u64 {
+        self.taken_arrangement.get()
+    }
+
+    pub fn show_pane(&self, pane: PaneId) {
+        self.shown_panes.borrow_mut().push(pane);
+        self.waker.wake();
+    }
+
+    pub(crate) fn take_shown_panes(&self) -> Vec<PaneId> {
+        std::mem::take(&mut self.shown_panes.borrow_mut())
+    }
+
     pub fn take_opens(&self) -> Vec<OpenRequest> {
         std::mem::take(&mut self.opens.borrow_mut())
     }
@@ -1558,6 +1610,17 @@ impl ImagePaster {
         self.request = Some(host.paste_image());
         None
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum PaneEvent {
+    Arranged {
+        tree: PaneTree,
+        detached: Vec<PaneId>,
+        focused: Option<PaneId>,
+    },
+    Closed(PaneId),
+    More(PaneId),
 }
 
 pub enum PastedImage {

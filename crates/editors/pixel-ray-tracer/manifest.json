@@ -20,11 +20,6 @@
       "regions": [
         "Frame",
         "Preview"
-      ],
-      "chrome": [
-        "Toolbar",
-        "LeftSidebar",
-        "RightSidebar"
       ]
     }
   ],

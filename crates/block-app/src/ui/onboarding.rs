@@ -3,8 +3,8 @@ use beui::icons::{
     ICON_REFRESH, ICON_SWITCH_ACCOUNT, ICON_WORKSPACES,
 };
 use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
-    copy_text, create_effect, create_memo, create_signal, untrack, view,
+    Align, Direction, ForEach, Frame, ItemSize, Justify, List, Memo, Show, Spacer, clone,
+    component, copy_text, create_effect, create_memo, create_signal, untrack, view,
 };
 use beui::styled::{
     Button, ButtonVariant, Caption, Card, Dialog, Heading, Icon, IconButton, MenuButton, Paragraph,
@@ -218,8 +218,12 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
                     />
                 </List>
                 <AccountDetails account />
-                <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    justify=Justify::End
+                    spacing=4.0
+                >
                     <Tooltip label={open_hint}>
                         <Button
                             label="Open"

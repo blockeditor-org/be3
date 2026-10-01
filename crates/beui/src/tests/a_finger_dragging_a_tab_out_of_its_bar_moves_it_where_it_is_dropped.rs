@@ -12,7 +12,7 @@ fn a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped() {
         .window_rect(window)
         .expect("the window has a rect");
     let over = harness.rect(dock).min + placed.center().to_vec2();
-    let bottom = pos2(over.x, WIDE_VIEWPORT.y - 5.0);
+    let bottom = pos2(over.x, WIDE_VIEWPORT.y - styled::DOCK_INSET - 5.0);
     assert!(
         harness.rect(dock).min.y + placed.bottom() < bottom.y,
         "the finger lets go below the window"

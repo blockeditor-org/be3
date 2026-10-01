@@ -155,9 +155,8 @@ fn LevelRow(
             </ListRow>
             <Show condition={expanded}>
                 {move || clone!(block editor game goal level shows_quiz shows_solutions solving -> view! {
-                    <List direction=Direction::Horizontal spacing=0.0>
-                        <Spacer @sizing=ItemSize::Fixed(INDENT) />
-                        <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
+                    <Frame padding_left=INDENT>
+                        <List spacing=ROW_SPACING>
                             <Caption content={goal} wrap=true />
                             <Show condition={shows_quiz}>
                                 <BinaryAddition editor={editor.clone()} block={block.clone()} />
@@ -171,7 +170,7 @@ fn LevelRow(
                                 />
                             </Show>
                         </List>
-                    </List>
+                    </Frame>
                 })}
             </Show>
         </List>

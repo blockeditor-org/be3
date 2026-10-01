@@ -46,11 +46,8 @@ fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {
 
 fn knob_of(document: &Document, switch: NodeId) -> NodeId {
     let mut id = switch;
-    loop {
-        let children = document.children(id);
-        if children.len() > 1 {
-            return children[1];
-        }
-        id = children[0];
+    while let [child] = document.children(id)[..] {
+        id = child;
     }
+    id
 }

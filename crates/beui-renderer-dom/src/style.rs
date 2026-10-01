@@ -32,7 +32,21 @@ pub fn look(shape: &Shape, factor: f32, top: bool, image: Option<&str>) -> Optio
         } => {
             let rect = snapped(*rect, factor);
             let mut css = placed(rect, *clip, *rotation)?;
-            let _ = write!(css, "border-radius:{corner_radius}px;");
+            match corner_radius.to_array() {
+                [top_left, top_right, bottom_right, bottom_left]
+                    if top_left == top_right
+                        && top_left == bottom_right
+                        && top_left == bottom_left =>
+                {
+                    let _ = write!(css, "border-radius:{top_left}px;");
+                }
+                [top_left, top_right, bottom_right, bottom_left] => {
+                    let _ = write!(
+                        css,
+                        "border-radius:{top_left}px {top_right}px {bottom_right}px {bottom_left}px;"
+                    );
+                }
+            }
             match *stroke_width > 0.0 {
                 true => {
                     let width = (stroke_width * factor).round().max(1.0) / factor;

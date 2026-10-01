@@ -1,3 +1,4 @@
+use std::ops::Range;
 use std::sync::Arc;
 
 use tree_sitter::{InputEdit, Parser, Point, Tree};
@@ -130,6 +131,7 @@ impl SynHlStyle {
 pub struct SyntaxHighlight {
     styles: Vec<SynHlStyle>,
     markdown_tables: Vec<MarkdownTable>,
+    markdown_code_blocks: Vec<Range<usize>>,
 }
 
 impl SyntaxHighlight {
@@ -137,6 +139,7 @@ impl SyntaxHighlight {
         Self {
             styles: vec![SynHlStyle::plain(SynHlColorScope::Unstyled); len],
             markdown_tables: Vec::new(),
+            markdown_code_blocks: Vec::new(),
         }
     }
 
@@ -149,6 +152,7 @@ impl SyntaxHighlight {
         Self {
             styles: scopes.into_iter().map(SynHlStyle::plain).collect(),
             markdown_tables: Vec::new(),
+            markdown_code_blocks: Vec::new(),
         }
     }
 
@@ -168,6 +172,10 @@ impl SyntaxHighlight {
 
     pub fn markdown_tables(&self) -> &[MarkdownTable] {
         &self.markdown_tables
+    }
+
+    pub fn markdown_code_blocks(&self) -> &[Range<usize>] {
+        &self.markdown_code_blocks
     }
 }
 
@@ -285,6 +293,7 @@ impl Highlighter {
             return SyntaxHighlight {
                 styles: Vec::new(),
                 markdown_tables: Vec::new(),
+                markdown_code_blocks: Vec::new(),
             };
         }
         let read = self.document.read().expect("parsed document disappeared");
@@ -292,18 +301,24 @@ impl Highlighter {
         let bytes = document.bytes();
         match self.language {
             Language::Markdown => {
-                let (styles, markdown_tables) = match &self.backend {
+                let (styles, markdown_tables, markdown_code_blocks) = match &self.backend {
                     ParserBackend::Markdown {
                         tree: Some(tree), ..
-                    } => (markdown::styles(tree, bytes.len()), markdown::tables(tree)),
+                    } => (
+                        markdown::styles(tree, bytes.len()),
+                        markdown::tables(tree),
+                        markdown::code_blocks(tree),
+                    ),
                     _ => (
                         vec![SynHlStyle::plain(SynHlColorScope::MarkdownPlainText); bytes.len()],
+                        Vec::new(),
                         Vec::new(),
                     ),
                 };
                 SyntaxHighlight {
                     styles,
                     markdown_tables,
+                    markdown_code_blocks,
                 }
             }
             Language::Rust => SyntaxHighlight::from_scopes(rust::scopes(bytes), bytes),

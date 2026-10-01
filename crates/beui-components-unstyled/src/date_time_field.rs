@@ -11,8 +11,8 @@ use beui_core::document::Document;
 use beui_core::input::{CursorIcon, Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCatcher, Focusable, ForEach, List, Memo, Prop, ReadSignal, RenderFn, Show,
-    Timer, WriteSignal, clone, component_accessibility, create_effect, create_memo, create_signal,
+    Callback, ForEach, Interactive, List, Memo, Prop, ReadSignal, RenderFn, Show, Timer,
+    WriteSignal, clone, component_accessibility, create_effect, create_memo, create_signal,
     create_timer, set_component_state,
 };
 
@@ -325,7 +325,8 @@ fn SegmentView(
     let shown = !prefix.is_empty();
     let text = prefix;
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             tab_stop
             focused
             ime
@@ -336,17 +337,14 @@ fn SegmentView(
             on_step={move |delta: f32| step(&step_state, segment, delta.round() as i32)}
             on_key={move |press: KeyPress| segment_key(&key_state, segment, press)}
             on_text={move |typed: String| type_text(&text_state, segment, &typed)}
+            cursor=CursorIcon::Text
+            on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
         >
-            <ClickCatcher
-                cursor=CursorIcon::Text
-                on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-            >
-                <List direction=Direction::Horizontal spacing=0.0>
-                    <Show condition=shown>{move || literal.call(text.clone())}</Show>
-                    {content}
-                </List>
-            </ClickCatcher>
-        </Focusable>
+            <List direction=Direction::Horizontal spacing=0.0>
+                <Show condition=shown>{move || literal.call(text.clone())}</Show>
+                {content}
+            </List>
+        </Interactive>
     }
 }
 

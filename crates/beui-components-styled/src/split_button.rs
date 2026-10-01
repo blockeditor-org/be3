@@ -125,7 +125,7 @@ fn MainFace(
     let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
     let icon_ink = ink.clone();
     view! {
-        <HalfFace fill focused padding=LABEL_PADDING_HORIZONTAL>
+        <HalfFace fill focused side=Side::Leading padding=LABEL_PADDING_HORIZONTAL>
             <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                 <Show condition={has_glyph}>
                     <Icon glyph={glyph.clone()} color={icon_ink.clone()} />
@@ -156,7 +156,7 @@ fn ArrowFace(
     let ink = create_memo(clone!(theme disabled -> move || variant.label(&theme, disabled.get())));
     view! {
         <Tooltip label disabled={open}>
-            <HalfFace fill focused padding=ARROW_PADDING_HORIZONTAL>
+            <HalfFace fill focused side=Side::Trailing padding=ARROW_PADDING_HORIZONTAL>
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} color={ink} />
                 </List>
@@ -165,25 +165,49 @@ fn ArrowFace(
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum Side {
+    Leading,
+    Trailing,
+}
+
+impl Side {
+    fn corners(self, radius: u8) -> (u8, u8) {
+        match self {
+            Side::Leading => (radius, 0),
+            Side::Trailing => (0, radius),
+        }
+    }
+}
+
 #[component]
 fn HalfFace(
     fill: Memo<Color32>,
     focused: ReadSignal<bool>,
+    side: Side,
     padding: f32,
     children: beui_view::reactive::Child,
 ) -> NodeId {
     let theme = use_theme();
+    let (ring_left, ring_right) = side.corners(RADIUS);
+    let (fill_left, fill_right) = side.corners(RADIUS - INSET as u8);
     view! {
         <Frame
             outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH
-            radius={RADIUS}
+            radius_top_left=ring_left
+            radius_bottom_left=ring_left
+            radius_top_right=ring_right
+            radius_bottom_right=ring_right
             outline_offset=FOCUS_RING_OFFSET
             outline_visible={focus_ring(focused)}
         >
             <Frame
                 color={fill}
-                radius={RADIUS - INSET as u8}
+                radius_top_left=fill_left
+                radius_bottom_left=fill_left
+                radius_top_right=fill_right
+                radius_bottom_right=fill_right
                 padding_horizontal=padding
                 padding_vertical=PADDING_VERTICAL
             >

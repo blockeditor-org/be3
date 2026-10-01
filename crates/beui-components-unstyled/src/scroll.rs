@@ -9,6 +9,7 @@ use super::fling::Fling;
 use super::rubber_band::{
     MAX_ANIMATION_STEP, MINIMUM_VELOCITY, SCROLL_SPRING, rubber_band, spring_back, unband,
 };
+use beui_core::base::offset::OffsetNode;
 use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 use beui_core::base::{Direction, ItemSize, ScrollPosition};
 use beui_core::color::Color32;
@@ -18,12 +19,12 @@ use beui_core::input::{
     AutoscrollGesture, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
 };
 use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
-use beui_core::node::NodeId;
+use beui_core::node::{NodeId, NodeOf};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Callback, Children, ClickCatcher, Focusable, Frame, List, ListChild, Memo, Offset, Prop,
-    ReadSignal, Render, RenderFn, ShowKeepAlive, Timer, clone, component_accessibility,
-    create_memo, create_signal, create_timer, focus_ring, on_cleanup, set_component_state, untrack,
+    Callback, Children, Frame, Interactive, List, ListChild, Memo, Offset, Prop, ReadSignal,
+    Render, RenderFn, ShowKeepAlive, Timer, clone, component_accessibility, create_memo,
+    create_signal, create_timer, focus_ring, on_cleanup, set_component_state, untrack,
     with_document,
 };
 
@@ -203,7 +204,7 @@ fn rubber_banding() -> bool {
 
 #[derive(Clone)]
 struct Motion {
-    node: NodeId,
+    node: Option<NodeOf<OffsetNode>>,
     reported: ReadSignal<Option<ScrollPosition>>,
     direction: Prop<Direction>,
     momentum: Rc<RefCell<Momentum>>,
@@ -217,14 +218,18 @@ impl Motion {
 
     fn placed(&self) -> Option<ScrollPosition> {
         let reported = untrack(|| self.reported.get())?;
-        let offset = with_document(|document| document.offset_value(self.node));
+        let node = self.node?;
+        let offset = with_document(|document| document.offset_value(node));
         Some(ScrollPosition { offset, ..reported })
     }
 
     fn publish(&self, momentum: &Momentum, offset: f32) {
+        let Some(node) = self.node else {
+            return;
+        };
         with_document(|document| {
-            document.drive_offset(self.node, offset);
-            document.set_offset_overscroll(self.node, momentum.overscroll);
+            document.drive_offset(node, offset);
+            document.set_offset_overscroll(node, momentum.overscroll);
         });
     }
 
@@ -247,7 +252,7 @@ impl Motion {
         let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
         self.publish(&momentum, offset);
         if fling != 0.0 {
-            with_document(|document| document.take_offset_steered(self.node));
+            self.take_steered();
             momentum.release(-fling);
             self.animate(&mut momentum);
         }
@@ -260,7 +265,7 @@ impl Motion {
         let mut momentum = self.momentum.borrow_mut();
         momentum.dragging = !gesture.ended && !gesture.cancelled;
         if momentum.drag.is_none() {
-            with_document(|document| document.take_offset_steered(self.node));
+            self.take_steered();
             momentum.grab(&position);
         }
         let dragged = self.axis().main(gesture.delta);
@@ -344,18 +349,25 @@ impl Motion {
         true
     }
 
+    fn take_steered(&self) -> bool {
+        self.node.is_some_and(|node| {
+            with_document(|document| document.contains(node) && document.take_offset_steered(node))
+        })
+    }
+
     fn step(&self) -> Option<Duration> {
-        if !with_document(|document| document.contains(self.node)) {
+        let node = self.node?;
+        if !with_document(|document| document.contains(node)) {
             return None;
         }
-        let steered = with_document(|document| document.take_offset_steered(self.node));
+        let steered = self.take_steered();
         let mut momentum = self.momentum.borrow_mut();
         let now = beui_core::timer::now();
         let elapsed = now.duration_since(momentum.stepped).as_secs_f32();
         momentum.stepped = now;
         if steered {
             momentum.rest();
-            with_document(|document| document.set_offset_overscroll(self.node, 0.0));
+            with_document(|document| document.set_offset_overscroll(node, 0.0));
         }
         if std::mem::take(&mut momentum.dragging) {
             return Some(Duration::ZERO);
@@ -386,7 +398,7 @@ fn Scrolling(
         on_change.call(position);
     }));
     let motion = Motion {
-        node,
+        node: with_document(|document| document.first_offset_within(node)),
         reported: reported.clone(),
         direction: direction.clone(),
         momentum: Rc::new(RefCell::new(Momentum::new())),
@@ -419,49 +431,47 @@ fn Scrolling(
     let scroll_to = Callback::new(move |offset: f32| motion.scroll_to(offset));
     view! {
         <List direction={across} spacing={scrollbar.spacing()}>
-            <Focusable
+            <Interactive
+                focusable=true
                 @sizing=ItemSize::Percent(100.0)
                 on_focus_change={move |focused: bool| set_focused.set(focused)}
                 on_key={move |press: KeyPress| keyed.key(press)}
                 on_ancestor_key={move |press: KeyPress| ancestor_keyed.key(press)}
-            >
-                <ClickCatcher
-                    scroll_axis={axis}
-                    intercept_at={move |_: Pos2| tapped.flinging()}
-                    on_press={move |_: PointerPress| stopped.stop_fling()}
-                    on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
-                    on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
-                    on_autoscroll={move |gesture: AutoscrollGesture| {
+                scroll_axis={axis}
+                intercept_at={move |_: Pos2| tapped.flinging()}
+                on_press={move |_: PointerPress| stopped.stop_fling()}
+                on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
+                on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
+                on_autoscroll={move |gesture: AutoscrollGesture| {
                         let marking = (!gesture.ended).then_some(gesture.origin);
                         if untrack(|| origin.get()) != marking {
                             set_origin.set(marking);
                         }
                         autoscrolled.autoscroll(gesture);
                     }}
+            >
+                <Frame
+                    outline={focus_color}
+                    outline_width=FOCUS_RING_WIDTH
+                    outline_offset=FOCUS_RING_INSET
+                    outline_visible={focus_ring(focused)}
                 >
-                    <Frame
-                        outline={focus_color}
-                        outline_width=FOCUS_RING_WIDTH
-                        outline_offset=FOCUS_RING_INSET
-                        outline_visible={focus_ring(focused)}
-                    >
-                        <List direction={content_axis} spacing=0.0>
-                            {node} @sizing=ItemSize::Percent(100.0)
-                            <ShowKeepAlive condition={marked.clone()}>
-                                <Overlay
-                                    anchor
-                                    placement=Placement::Around
-                                    mode=OverlayMode::Passive
-                                    traps_focus=false
-                                    open={marked}
-                                >
-                                    {marker.call(marker_axis)}
-                                </Overlay>
-                            </ShowKeepAlive>
-                        </List>
-                    </Frame>
-                </ClickCatcher>
-            </Focusable>
+                    <List direction={content_axis} spacing=0.0>
+                        {node} @sizing=ItemSize::Percent(100.0)
+                        <ShowKeepAlive condition={marked.clone()}>
+                            <Overlay
+                                anchor
+                                placement=Placement::Around
+                                mode=OverlayMode::Passive
+                                traps_focus=false
+                                open={marked}
+                            >
+                                {marker.call(marker_axis)}
+                            </Overlay>
+                        </ShowKeepAlive>
+                    </List>
+                </Frame>
+            </Interactive>
             {scrollbar.beside(position, direction, scroll_to)}
         </List>
     }

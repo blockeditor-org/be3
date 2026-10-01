@@ -2,13 +2,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_LOCK, ICON_MORE_VERT};
+use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::{
-    Align, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, clone, component, create_effect,
-    create_memo, create_signal, view,
+    Align, ClickCallback, Dynamic, Frame, ItemSize, List, Memo, ReadSignal, Show, clone, component,
+    create_effect, create_memo, create_signal, view,
 };
-use block_editor_beui::beui::styled::{ButtonVariant, Caption, Heading, IconButton};
-use block_editor_beui::beui::unstyled::{TabId, dock_actions};
+use block_editor_beui::beui::styled::{Caption, Heading};
+use block_editor_beui::beui::unstyled::{TabId, dock_more};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{
@@ -19,6 +19,7 @@ use uuid::Uuid;
 use super::artifact::ArtifactBar;
 use super::block_data::BlockData;
 use super::linked::LinkedBar;
+use super::phone::DetailsSheet;
 use super::status::StatusBar;
 use super::tab::TabItem;
 use super::workspace::{PanelStatus, PhoneSheet, Workspace};
@@ -170,16 +171,9 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
         false => TopBar::Shown,
     }));
     let opening = set_more.clone();
-    dock_actions(view! {
-        <IconButton
-            @test_id={"workspace.more"}
-            glyph={ICON_MORE_VERT.to_owned()}
-            label="More"
-            variant=ButtonVariant::Ghost
-            on_click={move || opening.set(true)}
-        />
-    });
+    dock_more(ClickCallback::new(move || opening.set(true)));
     let desktop = create_memo(move || !phone.get());
+    let details = Rc::clone(&workspace);
     view! {
         <Frame>
             <List spacing=0.0>
@@ -223,6 +217,7 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                 <Show condition={desktop}>
                     <StatusBar workspace={workspace.clone()} info={info.clone()} />
                 </Show>
+                <DetailsSheet workspace={details} tab={tab} />
             </List>
         </Frame>
     }

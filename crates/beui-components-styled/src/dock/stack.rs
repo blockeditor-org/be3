@@ -14,7 +14,7 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{DockStackHandle, TabId};
 use beui_core::base::{Align, Direction, ItemSize, TextAlign};
 use beui_core::color::Color32;
-use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_HOME};
+use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_HOME, ICON_MORE_VERT};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     ClickCallback, Dynamic, ForEach, Frame, Func, List, Memo, Portal, Show, Text, WriteSignal,
@@ -59,6 +59,8 @@ pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>)
         away,
         tabs,
         actions,
+        more,
+        press_more,
         titles,
         icons,
         back,
@@ -121,6 +123,17 @@ pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>)
                         </List>
                     </Frame>
                     <Portal node={actions} />
+                    <Show condition={more}>
+                        {move || clone!(press_more -> view! {
+                            <IconButton
+                                @test_id={"dock.more"}
+                                glyph=ICON_MORE_VERT
+                                label="More"
+                                variant=ButtonVariant::Ghost
+                                on_click={move || press_more.call()}
+                            />
+                        })}
+                    </Show>
                     <Show condition={counted}>
                         {move || clone!(opening -> view! {
                             <DockTabCount
@@ -173,26 +186,24 @@ fn DockTabCount(count: Memo<usize>, on_click: ClickCallback) -> NodeId {
                         outline={theme.accent.clone()}
                         outline_width=COUNT_OUTLINE
                         outline_visible={focus_ring(focused)}
+                        align_horizontal=Align::Center
+                        align_vertical=Align::Center
                     >
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Frame @sizing=ItemSize::Percent(50.0) />
-                            <Frame
-                                width=COUNT_SIDE
-                                height=COUNT_SIDE
-                                radius=COUNT_RADIUS
-                                outline={theme.text.clone()}
-                                outline_width=COUNT_OUTLINE
-                                outline_visible=true
-                            >
-                                <Text
-                                    string={label}
-                                    font_size=FONT_SMALL
-                                    color={theme.text.clone()}
-                                    align=TextAlign::Center
-                                />
-                            </Frame>
-                            <Frame @sizing=ItemSize::Percent(50.0) />
-                        </List>
+                        <Frame
+                            width=COUNT_SIDE
+                            height=COUNT_SIDE
+                            radius=COUNT_RADIUS
+                            outline={theme.text.clone()}
+                            outline_width=COUNT_OUTLINE
+                            outline_visible=true
+                        >
+                            <Text
+                                string={label}
+                                font_size=FONT_SMALL
+                                color={theme.text.clone()}
+                                align=TextAlign::Center
+                            />
+                        </Frame>
                     </Frame>
                 }
             }}

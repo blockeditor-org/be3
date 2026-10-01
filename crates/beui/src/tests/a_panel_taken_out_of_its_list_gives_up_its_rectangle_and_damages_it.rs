@@ -8,7 +8,7 @@ fn a_panel_taken_out_of_its_list_gives_up_its_rectangle_and_damages_it() {
     harness.frame(Vec::new());
     let vacated = harness.rect(middle);
 
-    harness.document_mut().remove_child(list, middle);
+    harness.document_mut().remove_child(list, middle.id());
     let output = harness.frame(Vec::new());
 
     assert!(

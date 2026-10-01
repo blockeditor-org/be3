@@ -31,8 +31,14 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
     let drop_caret = create_memo(clone!(state drag -> move || drop_target(&state, drag.get())));
     let embed_row = clone!(state -> move |widget: usize| {
         let state = state.clone();
-        view! {
-            <EmbedFrame state={state} widget={widget} />
+        let embed = state.embeds.get_untracked().get(widget).cloned();
+        match embed {
+            Some(embed) => view! {
+                <LargeEmbed state={state} embed={embed} />
+            },
+            None => view! {
+                <Frame />
+            },
         }
     });
     let open_state = state.clone();
@@ -90,19 +96,6 @@ pub(crate) fn TextSurface(state: Shared) -> NodeId {
             block={embed_row}
             selected_widget={open_row}
         />
-    }
-}
-
-#[component]
-fn EmbedFrame(state: Shared, widget: usize) -> NodeId {
-    let embed = state.embeds.get_untracked().get(widget).cloned();
-    let Some(embed) = embed else {
-        return view! {
-            <Frame />
-        };
-    };
-    view! {
-        <LargeEmbed state={state} embed={embed} />
     }
 }
 

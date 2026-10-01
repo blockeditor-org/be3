@@ -23,7 +23,8 @@ fn a_change_inside_a_fixed_size_frame_lays_out_only_that_frame() {
             }
         }
     });
-    let (list, beside, fixed, inner) = (list.get(), beside.get(), fixed.get(), inner.get());
+    let (list, beside, fixed) = (list.get(), beside.get(), fixed.get());
+    let inner = kind_of::<FrameNode>(&document, inner.get());
     let (list_layouts, _) = counted(&mut document, list);
     let (beside_layouts, _) = counted(&mut document, beside);
     let (fixed_layouts, _) = counted(&mut document, fixed);

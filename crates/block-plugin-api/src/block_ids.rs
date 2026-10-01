@@ -246,7 +246,12 @@ impl EditorMessage {
             | Self::PasteText { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
-            | Self::Performance { .. } => {}
+            | Self::Performance { .. }
+            | Self::Panes { .. }
+            | Self::ShowPane { .. }
+            | Self::PanesArranged { .. }
+            | Self::ClosePane { .. }
+            | Self::PaneMore { .. } => {}
         }
     }
 }

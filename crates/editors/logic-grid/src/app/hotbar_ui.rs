@@ -1,14 +1,14 @@
 use beui::icons::{ICON_ADD, ICON_ARROW_UPWARD};
 use beui::reactive::Func;
 use beui::reactive::{
-    Align, Canvas, CanvasItem, Child, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize,
-    List, Memo, Picture, ReadSignal, Show, Spacer, Text, clone, component, create_memo,
-    create_signal, view,
+    Align, Canvas, CanvasItem, Child, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
+    ReadSignal, Show, Spacer, Text, clone, component, create_memo, create_signal, view,
 };
 use beui::styled::{
     Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, MenuButton, Tabs,
     TextInput, Tooltip, use_theme,
 };
+use beui::unstyled::Picture;
 use beui::unstyled::{
     ChoiceOption, DragHandle, DragPoint, Draggable, DropHandle, DropTarget, MenuItem,
 };
@@ -303,12 +303,6 @@ fn HotbarSlotButton(session: Rc<Session>, path: Vec<usize>) -> NodeId {
         Some(2) => session.update(|model| model.remove_hotbar_folder(&path)),
         _ => {}
     });
-    let items = view! {
-        <MenuItem label="Remove from hotbar" disabled={not_component} />
-        <MenuItem label="Open folder" disabled={not_folder} />
-        <MenuItem label="Remove folder" disabled={not_removable} />
-    };
-
     let (hovered, set_hovered) = create_signal(false);
     let disabled = create_memo(clone!(shown -> move || {
         shown.get().is_none_or(|slot| slot.disabled)
@@ -350,24 +344,34 @@ fn HotbarSlotButton(session: Rc<Session>, path: Vec<usize>) -> NodeId {
     );
     view! {
         <SlotDrop session={session} target={target} folder=false>
-            <ContextMenu items={items} disabled={menu_disabled} on_select={chose}>
+            <ContextMenu
+                items={view! {
+                    <MenuItem label="Remove from hotbar" disabled={not_component} />
+                    <MenuItem label="Open folder" disabled={not_folder} />
+                    <MenuItem label="Remove folder" disabled={not_removable} />
+                }}
+                disabled={menu_disabled}
+                on_select={chose}
+            >
                 <Tooltip label={label}>
-                    <Focusable on_activate={on_activate}>
-                        <ClickCatcher on_hover_change={move |over: bool| set_hovered.set(over)}>
-                            <Draggable
-                                @test_id={test_id}
-                                payload={payload}
-                                cursor=CursorIcon::PointingHand
-                                preview={ghost}
-                                on_click={clicked}
-                                on_drag_change={carried}
-                            >
-                                {move |_: DragHandle| view! {
-                                    <SlotFace shown={shown} hovered={hovered} />
-                                }}
-                            </Draggable>
-                        </ClickCatcher>
-                    </Focusable>
+                    <Interactive
+                        focusable=true
+                        on_activate={on_activate}
+                        on_hover_change={move |over: bool| set_hovered.set(over)}
+                    >
+                        <Draggable
+                            @test_id={test_id}
+                            payload={payload}
+                            cursor=CursorIcon::PointingHand
+                            preview={ghost}
+                            on_click={clicked}
+                            on_drag_change={carried}
+                        >
+                            {move |_: DragHandle| view! {
+                                <SlotFace shown={shown} hovered={hovered} />
+                            }}
+                        </Draggable>
+                    </Interactive>
                 </Tooltip>
             </ContextMenu>
         </SlotDrop>
@@ -582,14 +586,17 @@ fn ScalePicker(session: Rc<Session>, output: bool) -> NodeId {
             false => model.tool.scale = scale,
         });
     };
-    let options = view! {
-        <ForEach keys={SCALES.to_vec()}>
-            {move |value: u8| view! {
-                <ChoiceOption label={format!("{value}x")} />
-            }}
-        </ForEach>
-    };
     view! {
-        <Tabs options={options} selected={selected} on_change={chose} />
+        <Tabs
+            options={view! {
+                <ForEach keys={SCALES.to_vec()}>
+                    {move |value: u8| view! {
+                        <ChoiceOption label={format!("{value}x")} />
+                    }}
+                </ForEach>
+            }}
+            selected={selected}
+            on_change={chose}
+        />
     }
 }

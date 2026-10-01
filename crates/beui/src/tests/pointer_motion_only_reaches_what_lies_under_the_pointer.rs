@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
-use crate::reactive::{ClickCatcher, Frame, List, NodeRef, build, view};
+use crate::reactive::{Frame, Interactive, List, NodeRef, build, view};
 
 #[test]
 fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
@@ -14,15 +14,15 @@ fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
         move || {
             view! {
                 <List spacing=0.0>
-                    <ClickCatcher
+                    <Interactive
                         @node_ref=&top
                         on_hover_change={move |hovered: bool| hovers.borrow_mut().push(hovered)}
                     >
                         <Frame height=100.0 />
-                    </ClickCatcher>
-                    <ClickCatcher @node_ref=&bottom on_click={|| {}}>
+                    </Interactive>
+                    <Interactive @node_ref=&bottom on_click={|| {}}>
                         <Frame height=100.0 />
-                    </ClickCatcher>
+                    </Interactive>
                 </List>
             }
         }

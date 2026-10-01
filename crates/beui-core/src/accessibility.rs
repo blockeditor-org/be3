@@ -6,7 +6,7 @@ use accesskit::{
     Role, Tree, TreeId, TreeUpdate,
 };
 
-use crate::base::focusable::FocusableNode;
+use crate::base::focus::focus_of;
 use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
 use crate::base::text::TextNode;
@@ -568,7 +568,7 @@ impl Document {
 
     fn first_focusable_within(&self, id: NodeId) -> Option<NodeId> {
         let element = self.arena.get(id);
-        if element.as_any().is::<FocusableNode>() {
+        if focus_of(element).is_some() {
             return Some(id);
         }
         element
@@ -578,11 +578,7 @@ impl Document {
     }
 
     fn focusable_can_activate(&self, id: NodeId) -> bool {
-        self.arena
-            .get(id)
-            .as_any()
-            .downcast_ref::<FocusableNode>()
-            .is_some_and(|node| !node.on_activate.is_empty())
+        focus_of(self.arena.get(id)).is_some_and(|focus| !focus.on_activate.is_empty())
     }
 }
 

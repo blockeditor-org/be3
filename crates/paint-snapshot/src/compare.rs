@@ -141,6 +141,10 @@ fn summary(content: &Content) -> String {
             "a rect over {:?} in {:?} with corner radius {} and stroke {}",
             shape.rect, shape.color, shape.corner_radius, shape.stroke_width
         ),
+        Content::CorneredRect(shape, corners) => format!(
+            "a rect over {:?} in {:?} with corner radii {:?} and stroke {}",
+            shape.rect, shape.color, corners, shape.stroke_width
+        ),
         Content::Glyph(glyph) => format!(
             "a glyph over {:?} in {:?} from texture {:016x}",
             glyph.rect, glyph.color, glyph.texture

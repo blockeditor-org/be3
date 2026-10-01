@@ -53,7 +53,9 @@ refresh before effects observe them, preventing intermediate derived values.
 Dependencies are discovered on each execution. Conditional branches unsubscribe
 from inputs they no longer read. `untrack(|| ...)` disables subscription for its
 closure while preserving the current cleanup scope. Memo computations must be
-pure: writing a signal inside a memo panics, including inside `untrack`.
+pure: writing a signal inside a memo panics, including inside `untrack`, and
+`./scripts/buck run //:verify` reports a `set`, `update` or `set_unconditionally`
+written inside a `create_memo` closure outside tests.
 
 `with` holds a shared borrow for the closure; `update` holds a mutable borrow.
 Do not access the same signal incompatibly from those closures.
@@ -180,8 +182,10 @@ which destroys the row's nodes and its scope and builds a replacement, losing
 focus, caret and measured text along the way. A key that is the item's identity
 survives the edit, and only the bindings that read what changed run.
 `for_each` reconciles its children in place, so a list whose order did not change
-leaves the document untouched no matter how much of its content did. It panics
-if two items claim the same key.
+leaves the document untouched no matter how much of its content did. A key
+that appears more than once gets a row for each appearance, matched to the
+appearances in order, so a list of keys is never wrong, only slower to edit
+when it repeats one.
 
 ## Blocks
 
@@ -251,8 +255,8 @@ to stop runaway feedback loops.
 
 A `Scope::new()` created inside an active scope becomes its child. Parent disposal
 also disposes children, even when a child handle remains alive. A scope cannot
-be entered after disposal; a memo cannot be read after its owning scope is
-disposed. Disposal is idempotent.
+be entered after disposal; a memo read after its owning scope is disposed
+answers the value it last computed, without subscribing. Disposal is idempotent.
 
 Inside a computation, the current scope is that computation's execution scope,
 which is thrown away every time it reruns. To open a scope that survives those
@@ -274,6 +278,21 @@ Tracking, ownership, and scheduler state are restored when user code panics.
 A batch that panics does not flush effects while unwinding; pending work runs at
 the next successful outer batch or write. A panicking `update` invalidates its
 value because it may already have mutated it. There is no transaction rollback.
+
+## Zones
+
+`enter_zone(zone)` enters a zone until the guard it returns is dropped. An
+effect remembers the zone that was entered when it was created, and the effects
+it creates inherit it. While a different zone is entered, an effect woken by a
+write is parked instead of run, and it runs when its own zone is next entered;
+with no zone entered, every effect runs as it always did. `zone_pending(zone)`
+says whether a zone has parked effects, and `forget_zone(zone)` drops them.
+beui gives each `Document` a zone of its own and enters it whenever the
+document is installed, which is what lets two documents share signals: a write
+made while one document is installed does not rebuild another document's nodes
+inside it, and the other document catches up the next time it is shown. A
+host driving several documents should give the others a frame when
+`zone_pending` says one of them is behind.
 
 ## beui integration
 
@@ -551,10 +570,10 @@ is a sign the value should have been captured or passed as a prop.
 
 Anything a component would otherwise poke into a node after the fact is a prop
 on the base element instead, so the component owns a signal and the node follows
-it. `overlay` takes `open` and `anchor`, `focusable` takes `focused`,
+it. `overlay` takes `open` and `anchor`, a focusable `interactive` takes `focused`,
 `text_input` takes `value`, and `scroll` takes `offset` and `reveal` (the index
 of the child to bring into view). `unstyled::button`, `unstyled::toggle` and
-`unstyled::text_input` forward `focused` to the `focusable` underneath them.
+`unstyled::text_input` forward `focused` to the `interactive` underneath them.
 
 These props are edge triggered: the effect behind them runs when the value it
 reads changes, so a component that wants to move focus, or close a popup, writes
@@ -737,6 +756,12 @@ out of view disposes exactly that row's effects. Any other code that builds a su
 it will later remove on its own must do the same, with `in_new_scope`; building
 it in the enclosing component's scope instead leaves the subtree's effects alive
 after `remove_node` and they panic the next time an input changes.
+
+An effect that writes one particular node belongs to that node rather than to
+whichever scope is running: `bind(node, || ...)` creates it in a scope
+registered against the node, so removing the node stops it wherever it was
+written. A `NodeRef` lets go of its node when the node is removed, so an effect
+that reaches a node through `try_get` finds nothing rather than a removed id.
 
 None of these functions hold `&mut Document` across a call boundary: each reads
 it back out of a thread-local (`with_document`) installed by whichever ambient

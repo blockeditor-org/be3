@@ -118,6 +118,26 @@ sha256_of() {
 # the last release's file would fail the hash check rather than the download.
 download_mirror='https://lfs.pfg.pw/by-name/be3'
 
+# One https download, with nothing checked about what arrived. Any further
+# arguments go to curl after these, where they override them.
+#
+# --proto and --proto-redir together keep both the request and anything it is
+# redirected to on https, so a redirect cannot quietly downgrade the transport.
+# --retry covers the answers a host gives when it is briefly unhappy, 504
+# among them, and leaves a 404 to fail at once, so a mirror nobody has filled
+# in yet costs one request rather than five. curl waits between attempts on its
+# own, doubling from a second. --speed-limit turns a transfer that has stalled
+# into another of those attempts, which is what a 504 arriving after ten
+# seconds of no bytes is.
+fetch_https() {
+    local destination="$1" source="$2"
+    shift 2
+    curl --fail --location --proto '=https' --proto-redir '=https' \
+        --connect-timeout 30 --speed-limit 1024 --speed-time 60 \
+        --retry 4 --retry-connrefused \
+        "$@" --output "$destination" "$source"
+}
+
 # Everything this repository downloads goes through here, so that a pinned URL
 # is also a pinned set of bytes. A version in a URL only says what we asked
 # for; the hash is what says we got it. Without one, a moved release asset, a
@@ -133,9 +153,6 @@ download_mirror='https://lfs.pfg.pw/by-name/be3'
 #
 # A mismatch deletes the download before exiting, so a retry fetches afresh
 # instead of finding the rejected file already in place and extracting it.
-#
-# --proto and --proto-redir together keep both the request and anything it is
-# redirected to on https, so a redirect cannot quietly downgrade the transport.
 download_verified() {
     local url="$1" destination="$2" expected="$3"
     shift 3
@@ -144,16 +161,7 @@ download_verified() {
     local source actual
     for source in "${sources[@]}"; do
         rm -f "$destination"
-        # --retry covers the answers a host gives when it is briefly unhappy,
-        # 504 among them, and leaves a 404 to fail at once, so a mirror nobody
-        # has filled in yet costs one request rather than five. curl waits
-        # between attempts on its own, doubling from a second. --speed-limit
-        # turns a transfer that has stalled into another of those attempts,
-        # which is what a 504 arriving after ten seconds of no bytes is.
-        if curl --fail --location --proto '=https' --proto-redir '=https' \
-            --connect-timeout 30 --speed-limit 1024 --speed-time 60 \
-            --retry 4 --retry-connrefused \
-            --output "$destination" "$source"; then
+        if fetch_https "$destination" "$source"; then
             actual="$(sha256_of "$destination")"
             if [[ "$actual" == "$expected" ]]; then
                 return 0
@@ -463,3 +471,31 @@ configure_https_proxy_relay() {
     fi
 }
 
+# download_verified for an archive that community mirrors carry and that the
+# upstream host would rather not serve to automation: each mirror is tried in
+# turn, and upstream is only the last resort. The mirrors are nobody this
+# repository trusts, which the pinned hash is what makes safe, so unlike
+# download_verified a mirror whose bytes do not match is reported and skipped
+# rather than stopping the build; upstream's answer is still held to the full
+# check. A mirror gets one short attempt, since the next one is the better
+# retry: some are down, some hang, and some answer 429 to share their bandwidth.
+download_verified_from_mirrors() {
+    local url="$1" destination="$2" expected="$3"
+    shift 3
+    assert_command curl 'Install curl.'
+    local mirror actual
+    for mirror in "$@"; do
+        rm -f "$destination"
+        if ! fetch_https "$destination" "$mirror" \
+            --retry 0 --connect-timeout 10 --speed-limit 65536 --speed-time 20; then
+            echo "The download from $mirror did not complete." >&2
+            continue
+        fi
+        actual="$(sha256_of "$destination")"
+        if [[ "$actual" == "$expected" ]]; then
+            return 0
+        fi
+        echo "The download from $mirror is not the file this repository expects (sha256 $actual); skipping it." >&2
+    done
+    download_verified "$url" "$destination" "$expected"
+}

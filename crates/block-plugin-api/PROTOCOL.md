@@ -419,6 +419,21 @@ which of them was pressed, and the host hands that to the instance that placed
 the child, which decides what going back, switching file or showing the file's
 details means.
 
+A host that can lay out an instance's tabs in its own dock says so in the
+accepted handshake. An instance may then describe its tabs as panes: each
+pane's title and whether it can be closed, and a flat tree of the splits, tab
+bars and groups they sit in. The host draws each pane on a screen of its own,
+in the pane's region, and keeps them together as a group in its dock. When the
+user rearranges or closes a pane there, the host sends the new arrangement or
+the close back, numbering each arrangement; the instance stamps a layout with
+the last arrangement it has applied, so the host ignores one sent before it.
+The layout also names the pane back leads to when the host stacks its dock on
+a phone, and whether the instance draws a pane for an empty spot in the group,
+which the host places in the pane region of `EMPTY_PANE`. A pane may ask for a
+More button, which the host draws in its own bar and whose press it sends
+back. An instance that stops describing panes sends no layout, and the host
+shows its frame region in their place again.
+
 A block pick may name a place for what it makes: the top level or a block. The
 host then asks for a name and lets the user choose the place as well, and
 creates the block there under that name; its answer says so, and the plugin

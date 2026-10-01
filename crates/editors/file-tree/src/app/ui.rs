@@ -5,9 +5,9 @@ use block_editor_beui::BlockParent;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_AUTO_AWESOME, ICON_CLOSE};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Show, Spacer,
-    WriteSignal, clone, component, create_effect, create_memo, create_signal, focus_ring, view,
-    with_document,
+    Align, Direction, Frame, ItemSize, Justify, List, Memo, NodeRef, Prop, ReadSignal, Show,
+    Spacer, WriteSignal, clone, component, create_effect, create_memo, create_signal, focus_ring,
+    view, with_document,
 };
 use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{
@@ -138,7 +138,17 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let phone_exporter = Rc::clone(&exporter);
     let phone_inspect = inspect.clone();
     let covered = create_memo(clone!(inspecting -> move || inspecting.get().is_some()));
-    let node = view! {
+    create_effect(move || {
+        let landed = arrival(
+            &dropping.0,
+            &dropping.1,
+            &dropping.2,
+            &dropping.3,
+            &dropping.4,
+        );
+        set_landing.set(landed);
+    });
+    view! {
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
                 <Toolbar shown={toolbar}>
@@ -211,18 +221,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                 <Inspector inspecting={inspecting} set_inspecting={set_inspecting} />
             </List>
         </Frame>
-    };
-    create_effect(move || {
-        let landed = arrival(
-            &dropping.0,
-            &dropping.1,
-            &dropping.2,
-            &dropping.3,
-            &dropping.4,
-        );
-        set_landing.set(landed);
-    });
-    node
+    }
 }
 
 #[component]
@@ -260,8 +259,12 @@ fn Inspector(
                 <Field label="Your access" value={access} named="access" />
                 <Field label="Generated" value={generated} named="generated" />
                 <Field label="Shown here as" value={shown_as} named="shown-as" />
-                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    justify=Justify::End
+                    spacing=ROW_SPACING
+                >
                     <Button
                         glyph={ICON_CLOSE.to_owned()}
                         label="Close"
@@ -393,19 +396,6 @@ fn TreeRow(
     let uninspectable = create_memo(clone!(row -> move || {
         !row.get().is_some_and(|row| row.inspection.is_some())
     }));
-    let items = view! {
-        <MenuItem label="Add" disabled={add} />
-        <MenuItem label="Set parent" disabled={edit.clone()}>
-            <MenuItem label="Root" disabled={rooted} />
-            <MenuItem label="Orphaned" disabled={orphaned} />
-        </MenuItem>
-        <MenuItem label="Rename" disabled={edit.clone()} />
-        <MenuItem label="Share" disabled={edit} />
-        <MenuItem label="Unlink" disabled={unlinkable} />
-        <MenuItem label={delete_label} disabled={deletable} />
-        <MenuItem label="Inspect" disabled={uninspectable} />
-        <MenuItem label="Export" disabled={unexportable} />
-    };
     let theme = use_theme();
     let glyph_color = theme.text_muted.clone();
     let generated_color = theme.text_muted.clone();
@@ -415,7 +405,23 @@ fn TreeRow(
         false => theme.text.get(),
     }));
     view! {
-        <ContextMenu child_size=ItemSize::Percent(100.0) items={items} on_select={chose}>
+        <ContextMenu
+            child_size=ItemSize::Percent(100.0)
+            items={view! {
+                <MenuItem label="Add" disabled={add} />
+                <MenuItem label="Set parent" disabled={edit.clone()}>
+                    <MenuItem label="Root" disabled={rooted} />
+                    <MenuItem label="Orphaned" disabled={orphaned} />
+                </MenuItem>
+                <MenuItem label="Rename" disabled={edit.clone()} />
+                <MenuItem label="Share" disabled={edit} />
+                <MenuItem label="Unlink" disabled={unlinkable} />
+                <MenuItem label={delete_label} disabled={deletable} />
+                <MenuItem label="Inspect" disabled={uninspectable} />
+                <MenuItem label="Export" disabled={unexportable} />
+            }}
+            on_select={chose}
+        >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Show condition={has_glyph}>
                     <IconSized

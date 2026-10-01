@@ -6,7 +6,7 @@ use beui_core::input::CursorIcon;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCatcher, Focusable, IntoProp, Memo, Prop, ReadSignal, Render, clone,
+    Callback, Interactive, IntoProp, Memo, Prop, ReadSignal, Render, clone,
     component_accessibility, create_effect, create_memo, create_signal, set_component_state,
     untrack,
 };
@@ -79,21 +79,19 @@ pub fn Toggle(
     set_component_state(checked_read.clone());
 
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             tab_stop
             on_focus_change={move |focused: bool| set_focused.set(focused)}
             on_activate_change={move |pressed: bool| set_key_active.set(pressed)}
             on_activate={key_toggle}
-        >
-            <ClickCatcher
-                cursor
-                key_active
-                on_click={toggle_checked}
-                on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-                on_active_change={move |active: bool| set_active.set(active)}
-                children={content_node}
-            />
-        </Focusable>
+            cursor
+            key_active
+            on_click={toggle_checked}
+            on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
+            on_active_change={move |active: bool| set_active.set(active)}
+            children={content_node}
+        />
     }
 }
 

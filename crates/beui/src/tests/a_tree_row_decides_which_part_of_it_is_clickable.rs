@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use super::*;
 use crate::reactive::{
-    Align, ClickCatcher, Direction, ItemSize, List, NodeRef, Spacer, Text, build, view,
+    Align, Direction, Interactive, ItemSize, List, NodeRef, Spacer, Text, build, view,
 };
 use crate::unstyled::{TreeItem, TreeRowHandle, tree_focused};
 
@@ -36,7 +36,7 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
                         view! {
                             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                                 <Spacer @sizing=ItemSize::Fixed(MARGIN) />
-                                <ClickCatcher
+                                <Interactive
                                     @sizing=ItemSize::Percent(100.0)
                                     on_click={move || select()}
                                 >
@@ -44,7 +44,7 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
                                         @test_id={format!("name.{key}")}
                                         string={format!("row {key}")}
                                     />
-                                </ClickCatcher>
+                                </Interactive>
                             </List>
                         }
                     }}

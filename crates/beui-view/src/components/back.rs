@@ -13,5 +13,5 @@ pub fn BackHandler(
         let enabled = enabled.get();
         with_document(|document| document.set_back_handler_enabled(handler, enabled));
     });
-    handler
+    handler.id()
 }

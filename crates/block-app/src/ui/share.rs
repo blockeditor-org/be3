@@ -2,8 +2,8 @@ use be_graph::Access as BlockAccess;
 use beui::NodeId;
 use beui::icons::{ICON_CLOSE, ICON_LOCK, ICON_PERSON, ICON_PERSON_ADD, ICON_REFRESH};
 use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
-    create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, Justify, List, Memo, Show, Spacer, clone,
+    component, create_memo, view,
 };
 use beui::styled::{
     Button, ButtonVariant, Caption, Card, Chip, Dialog, Heading, Icon, IconButton, IconButtonSize,
@@ -199,7 +199,12 @@ pub(super) fn ShareWindow(view: AppViewStore) -> NodeId {
                         </ForEach>
                     </Scroll>
                 </Frame>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    justify=Justify::SpaceBetween
+                    spacing=8.0
+                >
                     <Button
                         label="Refresh"
                         glyph={ICON_REFRESH.to_owned()}
@@ -207,7 +212,6 @@ pub(super) fn ShareWindow(view: AppViewStore) -> NodeId {
                         disabled={refreshing}
                         on_click={|| share(ShareCommand::Refresh)}
                     />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Button
                         label="Done"
                         variant=ButtonVariant::Primary

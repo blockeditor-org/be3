@@ -30,16 +30,16 @@ use beui_core::node::NodeId;
 use beui_view::components::back::BackHandler;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, ClickCallback, ClickCatcher, Dynamic, Focusable, ForEach, Frame,
-    Func, IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext, Show,
+    Callback, Canvas, CanvasItem, ClickCallback, Dynamic, ForEach, Frame, Func, Interactive,
+    IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext, Show,
     WriteSignal, clone, component_accessibility, component_rect, component_size, create_effect,
     create_memo, create_signal, create_timer, node_scope, on_cleanup, on_shortcut, owner_scope,
     provide_context, set_component_state, try_with_document, use_context, with_document,
 };
 
 pub use state::{
-    DockDrop, DockLayout, DockSplitter, DockState, Entry, GroupId, LeafId, Side, SplitId,
-    SurfaceId, TabId, TabPosition, Tree, layout_surface, layout_tree,
+    DockDrop, DockLayout, DockSplitter, DockState, DockTree, DockTreeEntry, Entry, GroupId, LeafId,
+    Side, SplitId, SurfaceId, TabId, TabPosition, Tree, layout_surface, layout_tree,
 };
 use state::{FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_moved};
 pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
@@ -68,6 +68,7 @@ pub struct DockTabHandle {
     pub leaf: LeafId,
     pub index: usize,
     pub floating: bool,
+    pub pinned: bool,
     pub vertical: bool,
     pub title: Memo<String>,
     pub icon: Memo<String>,
@@ -83,6 +84,8 @@ pub struct DockTabHandle {
     pub group: ClickCallback,
     pub split: ClickCallback,
     pub ungroup: ClickCallback,
+    pub held: Memo<Option<bool>>,
+    pub toggle_held: ClickCallback,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -135,6 +138,8 @@ pub struct DockStackHandle {
     pub away: Memo<bool>,
     pub tabs: Memo<Vec<TabId>>,
     pub actions: Memo<Option<NodeId>>,
+    pub more: Memo<bool>,
+    pub press_more: ClickCallback,
     pub titles: Func<TabId, String>,
     pub icons: Func<TabId, String>,
     pub back: ClickCallback,
@@ -148,10 +153,40 @@ struct DockTabActions {
     set_actions: WriteSignal<HashMap<TabId, NodeId>>,
 }
 
-pub fn dock_actions(actions: NodeId) {
+pub type DockMores = HashMap<TabId, (u64, ClickCallback)>;
+
+#[derive(Clone)]
+pub struct DockTabMore {
+    pub tab: TabId,
+    pub set_more: WriteSignal<DockMores>,
+}
+
+thread_local! {
+    static NEXT_MORE: Cell<u64> = const { Cell::new(1) };
+}
+
+pub fn dock_more(on_click: ClickCallback) {
+    let Some(DockTabMore { tab, set_more }) = use_context::<DockTabMore>() else {
+        return;
+    };
+    let key = NEXT_MORE.with(|next| next.replace(next.get() + 1));
+    set_more.update(|all| {
+        all.insert(tab, (key, on_click));
+    });
+    on_cleanup(move || {
+        set_more.update(|all| {
+            if all.get(&tab).is_some_and(|(held, _)| *held == key) {
+                all.remove(&tab);
+            }
+        });
+    });
+}
+
+pub fn dock_actions(actions: impl FnOnce() -> NodeId) {
     let Some(DockTabActions { tab, set_actions }) = use_context::<DockTabActions>() else {
         return;
     };
+    let actions = actions();
     set_actions.update(|all| {
         all.insert(tab, actions);
     });
@@ -199,10 +234,13 @@ struct State {
     drag: ReadSignal<Option<Drag>>,
     set_drag: WriteSignal<Option<Drag>>,
     title: Func<TabId, String>,
+    group_title: Func<GroupId, Option<String>>,
     icon: Func<TabId, String>,
     home: Memo<Option<TabId>>,
     actions: ReadSignal<HashMap<TabId, NodeId>>,
     set_actions: WriteSignal<HashMap<TabId, NodeId>>,
+    mores: ReadSignal<DockMores>,
+    set_more: WriteSignal<DockMores>,
     thickness: f32,
     group_inset: f32,
     rect: ReadSignal<Rect>,
@@ -268,6 +306,9 @@ impl State {
         match entry {
             Entry::Tab(tab) => self.title(tab),
             Entry::Group(group) => {
+                if let Some(title) = self.group_title.call(group) {
+                    return title;
+                }
                 let tabs = self.state.with(|state| state.group_tabs(group));
                 group_title(tabs.into_iter().map(|tab| self.title(tab)).collect())
             }
@@ -280,8 +321,10 @@ impl State {
         }
         let scope = with_document(|document| node_scope(document, self.owner.clone()));
         let set_actions = self.set_actions.clone();
+        let set_more = self.set_more.clone();
         let panel = scope.context().run(|| {
             provide_context(DockTabActions { tab, set_actions });
+            provide_context(DockTabMore { tab, set_more });
             self.content.call(tab)
         });
         with_document(|document| document.register_node_scope(panel, scope));
@@ -393,6 +436,11 @@ impl State {
     }
 
     fn close_entry(&self, entry: Entry) {
+        if let Entry::Group(group) = entry
+            && self.state.with_untracked(|state| state.is_pinned(group))
+        {
+            return;
+        }
         let tabs = self.state.with_untracked(|state| state.entry_tabs(entry));
         for tab in tabs {
             self.close_tab(tab);
@@ -466,7 +514,7 @@ impl State {
             return;
         };
         let (target, highlight) = match point {
-            Some(point) => self.resolve(point.pos, point.modifiers.alt, drag.dragged),
+            Some(point) => self.admitted(point.pos, point.modifiers.alt, drag.dragged),
             None => (None, None),
         };
         drag.target = target;
@@ -479,7 +527,7 @@ impl State {
     }
 
     fn drop_at(&self, dragged: DockDragged, point: DragPoint) {
-        let (target, _) = self.resolve(point.pos, point.modifiers.alt, dragged);
+        let (target, _) = self.admitted(point.pos, point.modifiers.alt, dragged);
         let Some(target) = target else {
             return;
         };
@@ -487,6 +535,25 @@ impl State {
             DockDragged::Entry(entry) => state.drop_entry(entry, target),
             DockDragged::Pane(leaf) => state.drop_leaf(leaf, target),
         });
+    }
+
+    fn admitted(
+        &self,
+        pos: Pos2,
+        float: bool,
+        dragged: DockDragged,
+    ) -> (Option<DockDrop>, Option<Rect>) {
+        let (target, highlight) = self.resolve(pos, float, dragged);
+        let refused = target.is_some_and(|target| {
+            self.state.with_untracked(|state| match dragged {
+                DockDragged::Entry(entry) => !state.admits(entry, target),
+                DockDragged::Pane(leaf) => !state.admits_leaf(leaf, target),
+            })
+        });
+        match refused {
+            true => (None, None),
+            false => (target, highlight),
+        }
     }
 
     fn resolve(
@@ -806,6 +873,7 @@ pub fn Dock(
     on_change: Callback<DockState>,
     on_close: Callback<TabId>,
     title: Func<TabId, String>,
+    group_title: Option<Func<GroupId, Option<String>>>,
     icon: Option<Func<TabId, String>>,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] home: Prop<Option<TabId>>,
@@ -825,6 +893,7 @@ pub fn Dock(
 ) -> NodeId {
     let (current, set_current) = create_signal(state.peek());
     let (actions, set_actions) = create_signal(HashMap::new());
+    let (mores, set_more) = create_signal(DockMores::new());
     create_effect(clone!(set_current -> move || set_current.set(state.get())));
     let (drag, set_drag) = create_signal(None);
     let dock: Handle = Rc::new(State {
@@ -838,10 +907,13 @@ pub fn Dock(
         drag,
         set_drag,
         title,
+        group_title: group_title.unwrap_or_else(|| Func::new(|_| None)),
         icon: icon.unwrap_or_else(|| Func::new(|_| String::new())),
         home: create_memo(move || home.get()),
         actions,
         set_actions,
+        mores,
+        set_more,
         stack,
         thickness: splitter_thickness,
         group_inset,
@@ -1017,6 +1089,24 @@ fn stack_handle(dock: &Handle, shown: Memo<Option<TabId>>, away: Memo<bool>) -> 
         let shown = shown.get()?;
         actions.with(|actions| actions.get(&shown).copied())
     }));
+    let mores = dock.mores.clone();
+    let more = create_memo(clone!(shown mores -> move || {
+        shown
+            .get()
+            .is_some_and(|shown| mores.with(|mores| mores.contains_key(&shown)))
+    }));
+    let pressing = dock.mores.clone();
+    let pressed = shown.clone();
+    let press_more = ClickCallback::new(move || {
+        let Some(shown) = pressed.get_untracked() else {
+            return;
+        };
+        let held =
+            pressing.with_untracked(|mores| mores.get(&shown).map(|(_, press)| press.clone()));
+        if let Some(press) = held {
+            press.call();
+        }
+    });
     let titles = dock.clone();
     let icons = dock.clone();
     let back = dock.clone();
@@ -1030,6 +1120,8 @@ fn stack_handle(dock: &Handle, shown: Memo<Option<TabId>>, away: Memo<bool>) -> 
         away,
         tabs,
         actions: slot,
+        more,
+        press_more,
         titles: Func::new(move |tab| titles.title(tab)),
         icons: Func::new(move |tab| icons.icon(tab)),
         back: ClickCallback::new(move || {
@@ -1298,7 +1390,7 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
     let built = dock.clone();
     let pressed = dock.clone();
     view! {
-        <ClickCatcher
+        <Interactive
             claims_touch=false
             on_press={move |press: PointerPress| {
                 let hosted = pressed.state.with_untracked(|state| state.active_entry(leaf));
@@ -1358,7 +1450,7 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
                     }}
                 </Dynamic>
             </List>
-        </ClickCatcher>
+        </Interactive>
     }
 }
 
@@ -1473,24 +1565,23 @@ fn DockTabBar(dock: Handle, leaf: LeafId, vertical: bool) -> NodeId {
         Some(state.with(|state| state.active_index(leaf)))
     }));
     let labels = dock.clone();
-    let options = view! {
-        <ForEach keys={entries}>
-            {move |entry: Entry| {
-                let dock = labels.clone();
-                let label = create_memo(move || dock.entry_title(entry));
-                view! {
-                    <ChoiceOption label={label} />
-                }
-            }}
-        </ForEach>
-    };
     let changed = dock.clone();
     let faces = dock.clone();
     view! {
         <Scroll direction @node_ref=&strip>
             <Choice
                 @node_ref=&tab_list
-                options={options}
+                options={view! {
+                    <ForEach keys={entries}>
+                        {move |entry: Entry| {
+                            let dock = labels.clone();
+                            let label = create_memo(move || dock.entry_title(entry));
+                            view! {
+                                <ChoiceOption label={label} />
+                            }
+                        }}
+                    </ForEach>
+                }}
                 selected={selected}
                 kind=ChoiceKind::Tabs
                 direction
@@ -1578,6 +1669,25 @@ fn DockTabView(
             dock.edit(|state| state.ungroup(group));
         }
     }));
+    let pinned = match entry {
+        Entry::Group(group) => dock.state.with_untracked(|state| state.is_pinned(group)),
+        Entry::Tab(_) => false,
+    };
+    let held = create_memo(clone!(state -> move || match entry {
+        Entry::Tab(tab) => state.with(|state| {
+            let pinned = state.is_tab_pinned(tab);
+            (pinned || state.at_home(tab)).then_some(pinned)
+        }),
+        Entry::Group(_) => None,
+    }));
+    let toggle_held = ClickCallback::new(clone!(dock -> move || {
+        if let Entry::Tab(tab) = entry {
+            dock.edit(|state| {
+                let pinned = state.is_tab_pinned(tab);
+                state.set_tab_pinned(tab, !pinned);
+            });
+        }
+    }));
     let floating = dock.state.with_untracked(|state| {
         !state.is_nested(leaf)
             && state
@@ -1590,6 +1700,7 @@ fn DockTabView(
         leaf,
         index,
         floating,
+        pinned,
         vertical,
         title: title.clone(),
         icon: icon.clone(),
@@ -1605,6 +1716,8 @@ fn DockTabView(
         group,
         split,
         ungroup,
+        held,
+        toggle_held,
     });
     let carried = dock.clone();
     let preview = dock.preview.clone();
@@ -1665,7 +1778,8 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
     let dragged = dock.clone();
     let stepped = dock.clone();
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             on_focus_change={move |has_focus: bool| set_focused.set(has_focus)}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
@@ -1682,41 +1796,38 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
                 stepped.edit(|state| state.set_split_fraction(split, next));
                 true
             }}
-        >
-            <ClickCatcher
-                cursor={match direction {
-                    Direction::Horizontal => CursorIcon::ResizeHorizontal,
-                    Direction::Vertical => CursorIcon::ResizeVertical,
-                }}
-                touch_drag_axis={Some(direction)}
-                on_hover_change={move |over: bool| set_hovered.set(over)}
-                on_active_change={move |held: bool| set_active.set(held)}
-                on_press={move |press: PointerPress| {
-                    grabbed.set(Some((start(), press.pos)));
-                }}
-                on_drag={move |press: PointerPress| {
-                    let Some((start, from)) = held.get() else {
-                        return;
-                    };
-                    let moved = direction.main(press.pos - from);
-                    if moved == 0.0 {
-                        return;
-                    }
-                    let Some(splitter) = dragged.splitter_of(tree, split) else {
-                        return;
-                    };
-                    let fraction = fraction_moved(
-                        splitter.area,
-                        splitter.direction,
-                        dragged.thickness,
-                        start,
-                        moved,
-                    );
-                    dragged.edit(|state| state.set_split_fraction(split, fraction));
-                }}
-                children={face}
-            />
-        </Focusable>
+            cursor={match direction {
+                Direction::Horizontal => CursorIcon::ResizeHorizontal,
+                Direction::Vertical => CursorIcon::ResizeVertical,
+            }}
+            touch_drag_axis={Some(direction)}
+            on_hover_change={move |over: bool| set_hovered.set(over)}
+            on_active_change={move |held: bool| set_active.set(held)}
+            on_press={move |press: PointerPress| {
+                grabbed.set(Some((start(), press.pos)));
+            }}
+            on_drag={move |press: PointerPress| {
+                let Some((start, from)) = held.get() else {
+                    return;
+                };
+                let moved = direction.main(press.pos - from);
+                if moved == 0.0 {
+                    return;
+                }
+                let Some(splitter) = dragged.splitter_of(tree, split) else {
+                    return;
+                };
+                let fraction = fraction_moved(
+                    splitter.area,
+                    splitter.direction,
+                    dragged.thickness,
+                    start,
+                    moved,
+                );
+                dragged.edit(|state| state.set_split_fraction(split, fraction));
+            }}
+            children={face}
+        />
     }
 }
 
@@ -1759,7 +1870,8 @@ fn DockSidebarSplitter(dock: Handle, leaf: LeafId) -> NodeId {
     let dragged = dock.clone();
     let stepped = dock.clone();
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             on_focus_change={move |has_focus: bool| set_focused.set(has_focus)}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
@@ -1774,25 +1886,22 @@ fn DockSidebarSplitter(dock: Handle, leaf: LeafId) -> NodeId {
                 stepped.edit(|state| state.set_sidebar_width(leaf, next));
                 true
             }}
-        >
-            <ClickCatcher
-                cursor=CursorIcon::ResizeHorizontal
-                capture_presses=true
-                on_hover_change={move |over: bool| set_hovered.set(over)}
-                on_active_change={move |held: bool| set_active.set(held)}
-                on_press={move |press: PointerPress| {
-                    grabbed.set(Some((start.get_untracked(), press.pos)));
-                }}
-                on_drag={move |press: PointerPress| {
-                    let Some((start, from)) = held.get() else {
-                        return;
-                    };
-                    let next = start + (press.pos.x - from.x);
-                    dragged.edit(|state| state.set_sidebar_width(leaf, next));
-                }}
-                children={face}
-            />
-        </Focusable>
+            cursor=CursorIcon::ResizeHorizontal
+            capture_presses=true
+            on_hover_change={move |over: bool| set_hovered.set(over)}
+            on_active_change={move |held: bool| set_active.set(held)}
+            on_press={move |press: PointerPress| {
+                grabbed.set(Some((start.get_untracked(), press.pos)));
+            }}
+            on_drag={move |press: PointerPress| {
+                let Some((start, from)) = held.get() else {
+                    return;
+                };
+                let next = start + (press.pos.x - from.x);
+                dragged.edit(|state| state.set_sidebar_width(leaf, next));
+            }}
+            children={face}
+        />
     }
 }
 
@@ -1905,7 +2014,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let moved = dock.clone();
     let (held, stretched, released) = (band.clone(), band.clone(), band);
     let set_stretch = set_overshoot;
-    let window = view! {
+    view! {
         <Overlay
             @node_ref=&overlay
             anchor={anchor}
@@ -1917,7 +2026,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
             <Frame @node_ref=&frame width={width.clone()} height={height.clone()}>
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                        <ClickCatcher
+                        <Interactive
                             capture_at={move |pos: Pos2| {
                                 captor.surface_rect(surface).is_some_and(|window| window.contains(pos))
                                     && captor.over_window_bar(surface, pos)
@@ -1990,7 +2099,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                             }),
                                         });
                                         let grip = view! {
-                                            <ClickCatcher
+                                            <Interactive
                                                 @node_ref=&grip_ref
                                                 cursor=CursorIcon::Grab
                                                 children={grip_face}
@@ -2029,7 +2138,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                     }}
                                 </Dynamic>
                             </List>
-                        </ClickCatcher>
+                        </Interactive>
                     </CanvasItem>
                     <DockDropMarker dock={marker} surface origin={origin} />
                     <ForEach keys={GRIPS.to_vec()}>
@@ -2047,7 +2156,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                             let rect = rect.clone();
                             view! {
                                 <CanvasItem x={x} y={y} width={width} height={height}>
-                                    <ClickCatcher
+                                    <Interactive
                                         cursor={grip.cursor()}
                                         capture_presses=true
                                         on_press={move |press: PointerPress| {
@@ -2058,7 +2167,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                             let resized = grip.resized(start, press.pos - from);
                                             dock.edit(|state| state.set_window_rect(surface, resized));
                                         }}
-                                    ></ClickCatcher>
+                                    ></Interactive>
                                 </CanvasItem>
                             }
                         }}
@@ -2066,8 +2175,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                 </Canvas>
             </Frame>
         </Overlay>
-    };
-    window
+    }
 }
 
 fn grip_reach(frame: &NodeRef, grip: &NodeRef) -> f32 {

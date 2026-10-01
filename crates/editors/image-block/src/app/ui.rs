@@ -1,9 +1,10 @@
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::beui::reactive::{
-    Align, Canvas, CanvasItem, Direction, Frame, ItemSize, List, Memo, NodeRef, Picture, Show,
-    Spacer, clone, component, component_rect, create_effect, create_memo, view,
+    Align, Canvas, CanvasItem, Direction, Frame, ItemSize, List, Memo, NodeRef, Show, Spacer,
+    clone, component, component_rect, create_effect, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Button, ButtonVariant, Caption, Heading, use_theme};
+use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Image, ImageFit, NodeId, Pos2, Rect, Thumbhash, Vec2};
 use block_editor_beui::{Editor, FileChooser, Sidebar, fit_content};
 

@@ -17,7 +17,7 @@ fn removing_a_node_runs_the_cleanups_its_components_registered() {
             })
         })]
     });
-    let list = document.root().expect("the toolbar is the root");
+    let list = kind_of::<ListNode>(&document, document.root().expect("the toolbar is the root"));
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());

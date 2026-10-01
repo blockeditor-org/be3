@@ -55,7 +55,7 @@ pub fn Overlay(
             false => document.close_overlay(overlay),
         });
     });
-    overlay
+    overlay.id()
 }
 
 impl IntoProp<OverlayAnchor> for &NodeRef {

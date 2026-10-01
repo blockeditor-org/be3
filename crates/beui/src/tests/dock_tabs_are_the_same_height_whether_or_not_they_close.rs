@@ -45,7 +45,7 @@ fn tab_height(harness: &Harness, dock: NodeId, title: &str) -> f32 {
     let label = dock_tab(harness.document(), dock, title);
     let mut node = label;
     while let Some(parent) = parent_of(harness.document(), dock, node) {
-        if harness.document().node_kind(parent) == "click-catcher" {
+        if harness.document().node_kind(parent) == "interactive" {
             return harness.rect(parent).height();
         }
         node = parent;

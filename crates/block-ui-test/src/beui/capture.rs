@@ -25,16 +25,20 @@ pub(crate) fn capture(
                 corner_radius,
                 stroke_width,
                 turn,
-            } => (
-                clip,
-                Content::RoundedRect(RoundedRect {
+            } => {
+                let corners = corner_radius.map(|radius| radius / pixels_per_point);
+                let shape = RoundedRect {
                     rect: points(rect),
-                    corner_radius: corner_radius / pixels_per_point,
+                    corner_radius: corners[0],
                     stroke_width: stroke_width / pixels_per_point,
                     color: color.to_array(),
                     turn: turned(turn, pixels_per_point),
-                }),
-            ),
+                };
+                match corners.iter().all(|radius| *radius == corners[0]) {
+                    true => (clip, Content::RoundedRect(shape)),
+                    false => (clip, Content::CorneredRect(shape, corners)),
+                }
+            }
             Quad::Glyph {
                 rect,
                 clip,

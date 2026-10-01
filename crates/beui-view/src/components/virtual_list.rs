@@ -26,5 +26,5 @@ where
     create_effect(move || {
         with_document(|document| document.set_virtual_list_item_size::<K>(list, item_size.get()))
     });
-    list
+    list.id()
 }

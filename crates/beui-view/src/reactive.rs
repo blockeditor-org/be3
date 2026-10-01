@@ -4,14 +4,14 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-pub use beui_core::base::{Align, Direction, ItemSize};
+pub use beui_core::base::{Align, Direction, ItemSize, Justify, Sizing, Track};
 
 use beui_core::base::child_list::{ChildHost, ChildList, SlotId};
 use beui_core::base::list::{ListItem, ListNode};
 use beui_core::base::offset::OffsetNode;
 use beui_core::document::Document;
 use beui_core::geometry::{Rect, Vec2};
-use beui_core::node::NodeId;
+use beui_core::node::{NodeId, NodeOf};
 
 pub use beui_core::callback::{Callback, ClickCallback, NodeRef};
 pub use beui_core::timer::{Timer, create_timer, now};
@@ -23,7 +23,7 @@ pub use beui_macros::{component, view};
 pub use reactive::{
     Effect, KeyedItems, KeyedStore, Memo, ReadSignal, Scope, ScopeContext, Selector, Store,
     WriteSignal, batch, clone, create_effect, create_memo, create_selector, create_signal,
-    on_cleanup, owner_scope, provide_context, settle, untrack, use_context,
+    on_cleanup, owner_scope, provide_context, settle, untrack, use_context, zone_pending,
 };
 
 thread_local! {
@@ -37,6 +37,7 @@ struct ComponentContext {
     accessibility: RefCell<Option<accesskit::Node>>,
     size: RefCell<Option<(ReadSignal<Vec2>, WriteSignal<Vec2>)>>,
     placement: RefCell<Option<(ReadSignal<Rect>, WriteSignal<Rect>)>>,
+    placed: RefCell<Option<(ReadSignal<bool>, WriteSignal<bool>)>>,
 }
 
 pub fn build(f: impl FnOnce() -> NodeId) -> Document {
@@ -108,6 +109,12 @@ pub fn focus_takes_text() -> bool {
     with_document(|document| document.focus_takes_text())
 }
 
+pub fn bind(node: NodeId, effect: impl FnMut() + 'static) {
+    let scope = with_document(|document| node_scope(document, None));
+    scope.context().run(|| create_effect(effect));
+    with_document(|document| document.register_node_scope(node, scope));
+}
+
 pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
     let reading = match test_id {
         Prop::Static(value) => {
@@ -116,23 +123,19 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
         }
         Prop::Dynamic(reading) => reading,
     };
-    let scope = with_document(|document| node_scope(document, None));
-    scope.context().run(|| {
-        let published: Cell<Option<String>> = Cell::new(None);
-        create_effect(move || {
-            let next = reading();
-            let previous = published.replace(Some(next.clone()));
-            with_document(|document| {
-                if let Some(previous) = previous
-                    && previous != next
-                {
-                    document.clear_test_id(node, &previous);
-                }
-                document.set_test_id(node, next);
-            });
+    let published: Cell<Option<String>> = Cell::new(None);
+    bind(node, move || {
+        let next = reading();
+        let previous = published.replace(Some(next.clone()));
+        with_document(|document| {
+            if let Some(previous) = previous
+                && previous != next
+            {
+                document.clear_test_id(node, &previous);
+            }
+            document.set_test_id(node, next);
         });
     });
-    with_document(|document| document.register_node_scope(node, scope));
 }
 
 pub fn in_new_scope(f: impl FnOnce() -> NodeId) -> NodeId {
@@ -152,6 +155,12 @@ pub fn component<T: ChildValue>(name: &'static str, f: impl FnOnce() -> T) -> T 
     let accessibility = context.accessibility.take();
     let size = context.size.take();
     let placement = context.placement.take();
+    let placed = context.placed.take();
+    if let (Some(root), Some((_, write))) = (anchor, placed.as_ref()) {
+        let watched = with_document(|document| document.watch_placed(root));
+        let write = write.clone();
+        scope.run(|| create_effect(move || write.set(watched.get())));
+    }
     match anchor {
         Some(root) => with_document(|document| {
             document.name_component(root, name);
@@ -169,9 +178,14 @@ pub fn component<T: ChildValue>(name: &'static str, f: impl FnOnce() -> T) -> T 
             }
         }),
         None => assert!(
-            states.is_empty() && accessibility.is_none() && size.is_none() && placement.is_none(),
+            states.is_empty()
+                && accessibility.is_none()
+                && size.is_none()
+                && placement.is_none()
+                && placed.is_none(),
             "a component that builds no node has nothing for `component_state`, \
-             `component_accessibility`, `component_size` or `component_rect` to watch"
+             `component_accessibility`, `component_size`, `component_rect` or \
+             `component_placed` to watch"
         ),
     }
     value.adopt_scope(scope);
@@ -194,6 +208,19 @@ pub fn component_size() -> ReadSignal<Vec2> {
     }
     let (read, write) = create_signal(Vec2::ZERO);
     component.size.replace(Some((read.clone(), write)));
+    read
+}
+
+pub fn component_placed() -> ReadSignal<bool> {
+    let component = current_component();
+    if let Some(target) = component.target.get() {
+        return node_placed(target);
+    }
+    if let Some((read, _)) = component.placed.borrow().as_ref() {
+        return read.clone();
+    }
+    let (read, write) = create_signal(false);
+    component.placed.replace(Some((read.clone(), write)));
     read
 }
 
@@ -466,6 +493,30 @@ impl<T: Clone + PartialEq + 'static> IntoProp<Option<T>> for Memo<T> {
     }
 }
 
+impl IntoProp<Sizing> for ItemSize {
+    fn into_prop(self) -> Prop<Sizing> {
+        Prop::Static(self.into())
+    }
+}
+
+impl IntoProp<Sizing> for Prop<ItemSize> {
+    fn into_prop(self) -> Prop<Sizing> {
+        self.map(Sizing::from)
+    }
+}
+
+impl IntoProp<Sizing> for ReadSignal<ItemSize> {
+    fn into_prop(self) -> Prop<Sizing> {
+        Prop::Dynamic(Rc::new(move || self.get().into()))
+    }
+}
+
+impl IntoProp<Sizing> for Memo<ItemSize> {
+    fn into_prop(self) -> Prop<Sizing> {
+        Prop::Dynamic(Rc::new(move || self.get().into()))
+    }
+}
+
 pub type Child = NodeId;
 
 #[diagnostic::on_unimplemented(
@@ -495,6 +546,14 @@ impl ChildValue for NodeId {
 pub trait BuildsNode {
     fn built_node(&self) -> NodeId;
 }
+
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` is no node, so `component_state`, `component_accessibility`, `component_size`, `component_rect` and `component_placed` have nothing to watch",
+    label = "call it from a component that returns the node it builds"
+)]
+pub trait WatchedNode {}
+
+impl<T: BuildsNode + ?Sized> WatchedNode for T {}
 
 impl BuildsNode for NodeId {
     fn built_node(&self) -> NodeId {
@@ -533,24 +592,28 @@ impl ChildScope {
 
 pub struct ListChild {
     pub node: NodeId,
-    pub size: Prop<ItemSize>,
+    pub size: Prop<Sizing>,
 }
 
 impl ListChild {
-    pub fn new(node: NodeId, size: impl IntoProp<ItemSize>) -> Self {
+    pub fn new(node: NodeId, size: impl IntoProp<Sizing>) -> Self {
         Self {
             node,
             size: size.into_prop(),
         }
     }
 
-    fn watch(self, parent: Option<NodeId>) -> (NodeId, ItemSize) {
+    fn watch(self, parent: Option<NodeId>) -> (NodeId, Sizing) {
         let initial = self.size.peek();
         let ListChild { node, size } = self;
         if let (Some(parent), Prop::Dynamic(read)) = (parent, size) {
             create_effect(move || {
                 let size = read();
-                with_document(|document| document.set_child_size(parent, node, size));
+                with_document(|document| {
+                    if let Some(list) = document.arena.kind_of::<ListNode>(parent) {
+                        document.set_child_size(list, node, size);
+                    }
+                });
             });
         }
         (node, initial)
@@ -595,7 +658,7 @@ impl IntoChild<NodeId> for NodeId {
 
 impl IntoChild<ListChild> for NodeId {
     fn into_child(self) -> ListChild {
-        ListChild::new(self, ItemSize::Intrinsic)
+        ListChild::new(self, Sizing::default())
     }
 }
 
@@ -732,16 +795,16 @@ pub trait SlotChild: Sized + 'static {
 pub trait NodeSlot: SlotChild {
     type Host: ChildHost<Stored = Self::Stored>;
 
-    fn open_slot(parent: NodeId) -> SlotId {
-        with_document(|document| document.open_child_slot::<Self::Host>(parent))
+    fn open_slot(parent: NodeOf<Self::Host>) -> SlotId {
+        with_document(|document| document.open_child_slot(parent))
     }
 
-    fn fill_slot(parent: NodeId, slot: SlotId, items: Vec<Self::Stored>) {
-        with_document(|document| document.fill_child_slot::<Self::Host>(parent, slot, items));
+    fn fill_slot(parent: NodeOf<Self::Host>, slot: SlotId, items: Vec<Self::Stored>) {
+        with_document(|document| document.fill_child_slot(parent, slot, items));
     }
 
-    fn append(parent: NodeId, stored: Self::Stored) {
-        with_document(|document| document.append_child_item::<Self::Host>(parent, stored));
+    fn append(parent: NodeOf<Self::Host>, stored: Self::Stored) {
+        with_document(|document| document.append_child_item(parent, stored));
     }
 }
 
@@ -881,7 +944,7 @@ enum Place<S> {
     Node {
         parent: NodeId,
         slot: SlotId,
-        fill: fn(NodeId, SlotId, Vec<S>),
+        fill: Rc<dyn Fn(SlotId, Vec<S>)>,
     },
     Run {
         run: Rc<RunState<S>>,
@@ -895,7 +958,7 @@ impl<S> Clone for Place<S> {
             Place::Node { parent, slot, fill } => Place::Node {
                 parent: *parent,
                 slot: *slot,
-                fill: *fill,
+                fill: fill.clone(),
             },
             Place::Run { run, slot } => Place::Run {
                 run: run.clone(),
@@ -920,15 +983,15 @@ impl<C: SlotChild> Clone for ChildSlot<C> {
 }
 
 impl<C: SlotChild> ChildSlot<C> {
-    fn in_node(parent: NodeId) -> Self
+    fn in_node(parent: NodeOf<C::Host>) -> Self
     where
         C: NodeSlot,
     {
         Self {
             place: Place::Node {
-                parent,
+                parent: parent.id(),
                 slot: C::open_slot(parent),
-                fill: C::fill_slot,
+                fill: Rc::new(move |slot, items| C::fill_slot(parent, slot, items)),
             },
             change: None,
         }
@@ -974,7 +1037,7 @@ impl<C: SlotChild> ChildSlot<C> {
 
     pub fn fill(&self, items: Vec<C::Stored>) {
         match &self.place {
-            Place::Node { parent, slot, fill } => fill(*parent, *slot, items),
+            Place::Node { slot, fill, .. } => fill(*slot, items),
             Place::Run { run, slot } => {
                 run.items.borrow_mut().fill(*slot, items);
                 run.changed();
@@ -1188,7 +1251,7 @@ fn fill_run<T: SlotChild>(run: &Run<T>, segment: ChildSegment<T>) {
 }
 
 impl<T: SlotChild> Children<T> {
-    pub fn mount(self, parent: NodeId)
+    pub fn mount(self, parent: NodeOf<T::Host>)
     where
         T: NodeSlot,
     {
@@ -1198,12 +1261,12 @@ impl<T: SlotChild> Children<T> {
     }
 }
 
-fn mount_segment<T: NodeSlot>(parent: NodeId, segment: ChildSegment<T>) {
+fn mount_segment<T: NodeSlot>(parent: NodeOf<T::Host>, segment: ChildSegment<T>) {
     match segment {
-        ChildSegment::One(child) => T::append(parent, child.store(Some(parent))),
+        ChildSegment::One(child) => T::append(parent, child.store(Some(parent.id()))),
         ChildSegment::Many(children) => {
             for child in children {
-                T::append(parent, child.store(Some(parent)));
+                T::append(parent, child.store(Some(parent.id())));
             }
         }
         ChildSegment::Nested(segments) => {
@@ -1289,20 +1352,18 @@ impl<F> UnitHandle<()> for F {}
 
 pub use crate::components::back::BackHandler;
 pub use crate::components::canvas::{Canvas, CanvasItem};
-pub use crate::components::click_catcher::ClickCatcher;
 pub use crate::components::drawing::Drawing;
 pub use crate::components::embed::Embed;
-pub use crate::components::focusable::Focusable;
 pub use crate::components::frame::Frame;
+pub use crate::components::grid::{Grid, GridCell};
+pub use crate::components::interactive::Interactive;
+pub use crate::components::layers::{Layer, Layers};
 pub use crate::components::offset::Offset;
-pub use crate::components::picture::Picture;
 pub use crate::components::portal::Portal;
-pub use crate::components::stroke::Stroke;
 pub use crate::components::text::{Text, TextItem};
-pub use crate::components::viewport::Viewport;
 pub use crate::components::virtual_list::VirtualList;
 pub use beui_core::base::canvas::CanvasView;
-pub use beui_core::base::drawing::Draw;
+pub use beui_core::base::drawing::{Draw, draw_gpu};
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
 pub use beui_core::rich::{
     CaretHandle, RichLayout, SpanKind, SpanStyle, TextCaret, TextMark, TextSpan,
@@ -1312,6 +1373,7 @@ pub use beui_core::rich::{
 pub fn List(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = Align::Stretch)] align: Prop<Align>,
+    #[prop(default = Justify::Start)] justify: Prop<Justify>,
     #[prop(default = false)] wrap: Prop<bool>,
     spacing: Prop<f32>,
     children: Children<ListChild>,
@@ -1321,15 +1383,16 @@ pub fn List(
         with_document(|document| document.set_list_direction(list, direction.get()))
     });
     create_effect(move || with_document(|document| document.set_list_align(list, align.get())));
+    create_effect(move || with_document(|document| document.set_list_justify(list, justify.get())));
     create_effect(move || with_document(|document| document.set_list_wrap(list, wrap.get())));
     create_effect(move || with_document(|document| document.set_list_spacing(list, spacing.get())));
     children.mount(list);
-    list
+    list.id()
 }
 
 #[component]
 pub fn Spacer() -> NodeId {
-    with_document(Document::create_frame)
+    with_document(Document::create_frame).id()
 }
 
 type HeldChild<C> = Rc<RefCell<Option<(<C as SlotChild>::Stored, Scope)>>>;

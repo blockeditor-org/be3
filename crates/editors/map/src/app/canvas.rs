@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use block_editor_beui::be_block::map::MapPoint;
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, Child, ClickCatcher, Focusable, ForEach, Frame, ItemSize, List, Memo,
-    NodeRef, clone, component, create_effect, create_memo, create_selector, untrack, view,
+    Canvas, CanvasItem, Child, ForEach, Frame, Interactive, ItemSize, List, Memo, NodeRef, clone,
+    component, create_effect, create_memo, create_selector, untrack, view,
 };
 use block_editor_beui::beui::styled::{Caption, use_theme};
 use block_editor_beui::beui::{
@@ -236,7 +236,8 @@ fn MapSurface(state: Rc<MapState>, children: Option<Child>) -> NodeId {
     let pasting = Rc::clone(&state);
     let panning = Rc::clone(&state);
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             on_key={move |press: KeyPress| {
                 if press.key == Key::V && press.modifiers.ctrl {
                     pasting.ask_to_paste();
@@ -249,19 +250,16 @@ fn MapSurface(state: Rc<MapState>, children: Option<Child>) -> NodeId {
                     }
                 false
             }}
-        >
-            <ClickCatcher
-                cursor=CursorIcon::Default
-                on_press={move |press: PointerPress| pressing.press(press.pos)}
-                on_drag={move |press: PointerPress| dragging.drag(press.pos)}
-                on_active_change={move |active: bool| {
-                    if !active {
-                        releasing.release();
-                    }
-                }}
-                on_pan_drag={move |delta: Vec2| panning.pan(delta)}
-                children={children}
-            />
-        </Focusable>
+            cursor=CursorIcon::Default
+            on_press={move |press: PointerPress| pressing.press(press.pos)}
+            on_drag={move |press: PointerPress| dragging.drag(press.pos)}
+            on_active_change={move |active: bool| {
+                if !active {
+                    releasing.release();
+                }
+            }}
+            on_pan_drag={move |delta: Vec2| panning.pan(delta)}
+            children={children}
+        />
     }
 }

@@ -25,18 +25,11 @@ const SHEET_PADDING: f32 = 12.0;
 const SECTION_PADDING: f32 = 8.0;
 
 #[component]
-pub(crate) fn PhoneSheets(workspace: Rc<Workspace>) -> NodeId {
-    view! {
-        <DetailsSheet workspace={workspace} />
-    }
-}
-
-#[component]
-fn DetailsSheet(workspace: Rc<Workspace>) -> NodeId {
+pub(crate) fn DetailsSheet(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
     let sheet = workspace.sheet.clone();
     let shown = create_memo(clone!(sheet -> move || match sheet.get() {
-        PhoneSheet::Details(tab) => Some(tab),
-        PhoneSheet::Closed => None,
+        PhoneSheet::Details(shown) if shown == tab => Some(shown),
+        PhoneSheet::Details(_) | PhoneSheet::Closed => None,
     }));
     let open = create_memo(clone!(shown -> move || shown.get().is_some()));
     let closing = Rc::clone(&workspace);

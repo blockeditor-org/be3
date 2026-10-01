@@ -2,8 +2,8 @@ use crate::beui_frame::bar_item;
 use beui::NodeId;
 use beui::icons::ICON_TUNE;
 use beui::reactive::{
-    Align, Children, Direction, ForEach, Frame, ItemSize, List, ListChild, Memo, Portal, Prop,
-    ReadSignal, Render, Show, WriteSignal, clone, component, component_size, create_effect,
+    Align, Child, Children, Direction, ForEach, Frame, ItemSize, List, ListChild, Memo, Portal,
+    Prop, ReadSignal, Render, Show, WriteSignal, clone, component, component_size, create_effect,
     create_memo, create_signal, on_cleanup, provide_context, untrack, use_context, view,
 };
 use beui::styled::theme::BORDER_WIDTH;
@@ -165,18 +165,16 @@ fn PanelItem(set_open: WriteSignal<bool>) -> NodeId {
 
 #[component]
 fn SheetToggle() -> NodeId {
-    let Some(layout) = use_context::<ChromeLayout>() else {
-        return view! {
-            <List spacing=0.0 />
-        };
+    let (open, set_open) = match use_context::<ChromeLayout>() {
+        Some(layout) => (layout.open, layout.set_open),
+        None => create_signal(false),
     };
-    let set_open = layout.set_open.clone();
     view! {
         <ToggleButton
             label="Sidebar"
             glyph={ICON_TUNE.to_owned()}
             icon_only=true
-            pressed={layout.open.clone()}
+            pressed={open}
             @test_id={"chrome.sidebar"}
             on_change={move |open: bool| set_open.set(open)}
         />
@@ -190,6 +188,20 @@ pub fn Sidebar(
     #[prop(default = SIDEBAR_WIDTH)] width: Prop<f32>,
     #[prop(children)] children: Children<ListChild>,
 ) -> NodeId {
+    view! {
+        <SidebarFrame side shown width>
+            <Scroll>
+                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                    <List spacing=SPACING children={children} />
+                </Frame>
+            </Scroll>
+        </SidebarFrame>
+    }
+}
+
+#[component]
+fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child) -> NodeId {
+    let body = children;
     let theme = use_theme();
     let layout = use_context::<ChromeLayout>();
     let narrow = narrow_chrome();
@@ -198,13 +210,6 @@ pub fn Sidebar(
     let folded = create_memo(clone!(shown narrow -> move || shown.get() && narrow.get()));
     let leading = create_memo(clone!(docked -> move || docked.get() && side == Side::Right));
     let trailing = create_memo(clone!(docked -> move || docked.get() && side == Side::Left));
-    let body = view! {
-        <Scroll>
-            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                <List spacing=SPACING children={children} />
-            </Frame>
-        </Scroll>
-    };
     if let Some(layout) = layout {
         fold_into_sheet(layout, body, folded);
     }
@@ -247,6 +252,21 @@ pub fn Toolbar(
     #[prop(default = false)] fit: Prop<bool>,
     #[prop(children)] children: Children<ListChild>,
 ) -> NodeId {
+    view! {
+        <ToolbarFrame shown fit>
+            <List
+                direction=Direction::Horizontal
+                align=Align::Center
+                spacing={spacing}
+                children={children}
+            />
+        </ToolbarFrame>
+    }
+}
+
+#[component]
+fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
+    let row = children;
     let shown = create_memo(move || shown.get());
     let theme = use_theme();
     let fit = create_memo(move || fit.get());
@@ -264,14 +284,6 @@ pub fn Toolbar(
     let fitted_toggle = create_memo(clone!(offers squeezed fit -> move || {
         offers.get() && squeezed.get() && fit.get()
     }));
-    let row = view! {
-        <List
-            direction=Direction::Horizontal
-            align=Align::Center
-            spacing={spacing}
-            children={children}
-        />
-    };
     let spread = create_memo(clone!(roomy -> move || roomy.get().then_some(row)));
     let scrolled = create_memo(clone!(narrow -> move || narrow.get().then_some(row)));
     view! {

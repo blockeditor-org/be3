@@ -9,6 +9,7 @@ mod chrome;
 pub mod database;
 mod dock;
 mod editor;
+mod editor_dock;
 mod file_chooser;
 pub mod fonts;
 pub mod headless;
@@ -26,7 +27,8 @@ pub use chrome::{
 };
 pub use dock::BottomDock;
 pub use editor::{Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, fit_content};
-pub use file_chooser::{FileChooser, content_file_creation};
+pub use editor_dock::EditorDock;
+pub use file_chooser::{ContentFileCreation, FileChooser};
 pub use instance::BeuiPlugin;
 pub use related_content::RelatedContent;
 pub use version_control::{VersionHistory, short_id};
@@ -34,10 +36,14 @@ pub use version_control::{VersionHistory, short_id};
 pub trait BeuiApp: 'static {
     fn view(editor: Editor) -> beui::NodeId;
     fn preview_view(_editor: Editor) -> beui::NodeId {
-        beui::reactive::Frame().build()
+        beui::reactive::view! {
+            <beui::reactive::Frame />
+        }
     }
     fn creation_view(_creation: Creation) -> beui::NodeId {
-        beui::reactive::Frame().build()
+        beui::reactive::view! {
+            <beui::reactive::Frame />
+        }
     }
     fn create_block(creation: &Creation) -> Result<uuid::Uuid, String> {
         creation.create_block()
@@ -47,7 +53,9 @@ pub trait BeuiApp: 'static {
         Err("this editor does not generate artifacts".into())
     }
     fn artifact_settings_view(_artifacts: Artifacts) -> beui::NodeId {
-        beui::reactive::Frame().build()
+        beui::reactive::view! {
+            <beui::reactive::Frame />
+        }
     }
     fn intrinsic_size() -> Option<beui::Vec2> {
         None

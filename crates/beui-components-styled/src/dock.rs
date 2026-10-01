@@ -10,15 +10,15 @@ use crate::theme::{CARD_RADIUS, FONT_BODY, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockDragged, DockGripHandle, DockMode, DockPanelHandle, DockPreviewHandle, DockSplitterHandle,
-    DockStackHandle, DockState, DockTabHandle, DockWindowHandle, Entry, MenuItem,
+    DockStackHandle, DockState, DockTabHandle, DockWindowHandle, Entry, GroupId, MenuItem,
     SPLITTER_THICKNESS, TabId, sidebar_size,
 };
-use beui_core::base::{Align, Direction, ItemSize};
+use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_TAB_GROUP};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCallback, ClickCatcher, Frame, Func, List, Memo, Prop, ReadSignal, RenderFn,
+    Callback, ClickCallback, Frame, Func, Interactive, List, Memo, Prop, ReadSignal, RenderFn,
     Show, Text, clone, create_memo, focus_ring,
 };
 use stack::DockStackBar;
@@ -37,7 +37,7 @@ const FOCUS_RING_WIDTH: f32 = 2.0;
 pub const CHROME_BORDER: f32 = 2.0;
 const GROUP_GLYPH: f32 = 16.0;
 const GROUP_INSET: f32 = 6.0;
-const DOCK_INSET: f32 = 8.0;
+pub const DOCK_INSET: f32 = 8.0;
 const DROP_ALPHA: u8 = 64;
 const PREVIEW_ALPHA: u8 = 235;
 
@@ -47,20 +47,21 @@ pub fn DockArea(
     on_change: Callback<DockState>,
     on_close: Callback<TabId>,
     title: Func<TabId, String>,
+    group_title: Option<Func<GroupId, Option<String>>>,
     icon: Option<Func<TabId, String>>,
     closable: Option<Func<TabId, bool>>,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] home: Prop<Option<TabId>>,
-    #[prop(default = true)] inset: Prop<bool>,
     empty: Option<RenderFn<()>>,
     #[prop(children)] content: RenderFn<TabId>,
 ) -> NodeId {
     let mode = create_memo(move || mode.get());
-    let padding = create_memo(clone!(mode -> move || match (inset.get(), mode.get()) {
-        (true, DockMode::Tiled) => DOCK_INSET,
-        (false, _) | (_, DockMode::Stacked) => 0.0,
+    let padding = create_memo(clone!(mode -> move || match mode.get() {
+        DockMode::Tiled => DOCK_INSET,
+        DockMode::Stacked => 0.0,
     }));
     let closable = closable.unwrap_or_else(|| Func::new(|_| true));
+    let group_title = group_title.unwrap_or_else(|| Func::new(|_| None));
     let icon = icon.unwrap_or_else(|| Func::new(|_| String::new()));
     let empty = empty.unwrap_or_else(|| {
         RenderFn::new(|()| {
@@ -72,6 +73,7 @@ pub fn DockArea(
     view! {
         <unstyled::Dock
             state
+            group_title
             mode
             home
             inset={padding}
@@ -145,50 +147,62 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
         split,
         ungroup,
         floating,
+        pinned,
         vertical,
+        held,
+        toggle_held,
         ..
     } = handle;
-    let closable =
-        create_memo(move || tabs.with(|tabs| tabs.iter().all(|tab| closable.call(*tab))));
+    let stuck = create_memo(clone!(held -> move || floating || held.get() == Some(true)));
+    let homeless = create_memo(clone!(held -> move || held.get().is_none()));
+    let pin_label = create_memo(move || match held.get() {
+        Some(true) => "Unpin from group".to_owned(),
+        Some(false) | None => "Pin to group".to_owned(),
+    });
+    let closable = create_memo(move || {
+        !pinned && tabs.with(|tabs| tabs.iter().all(|tab| closable.call(*tab)))
+    });
     let alone = create_memo(clone!(has_next -> move || !has_next.get()));
     let grouped = matches!(entry, Entry::Group(_));
     let closing = close.clone();
     let middle = close.clone();
     let closes = closable.clone();
-    let items = match grouped {
-        false => view! {
-            <MenuItem label="Pop out into a window" disabled={floating} />
-            <MenuItem label="Group with next tab" disabled={alone.clone()} />
-            <MenuItem label="Split with next tab" disabled={alone.clone()} />
-            <MenuItem
-                label="Close tab"
-                disabled={create_memo(clone!(closable -> move || !closable.get()))}
-            />
-        },
-        true => view! {
-            <MenuItem label="Pop out into a window" disabled={floating} />
-            <MenuItem label="Add next tab to group" disabled={alone.clone()} />
-            <MenuItem label="Split next tab into group" disabled={alone.clone()} />
-            <MenuItem
-                label="Close group"
-                disabled={create_memo(clone!(closable -> move || !closable.get()))}
-            />
-            <MenuItem label="Ungroup" />
-        },
+    let (group_label, split_label, close_label) = match grouped {
+        false => ("Group with next tab", "Split with next tab", "Close tab"),
+        true => (
+            "Add next tab to group",
+            "Split next tab into group",
+            "Close group",
+        ),
     };
     view! {
         <ContextMenu
-            items={items}
+            items={view! {
+                <MenuItem label="Pop out into a window" disabled={stuck} />
+                <MenuItem label={group_label} disabled={alone.clone()} />
+                <MenuItem label={split_label} disabled={alone.clone()} />
+                <MenuItem
+                    label={close_label}
+                    disabled={create_memo(clone!(closable -> move || !closable.get()))}
+                />
+                <Show condition={!grouped}>
+                    <MenuItem label={pin_label.clone()} disabled={homeless.clone()} />
+                </Show>
+                <Show condition={grouped}>
+                    <MenuItem label="Ungroup" disabled={pinned} />
+                </Show>
+            }}
             on_select={move |path: Vec<usize>| match path.first() {
                 Some(0) => float.call(),
                 Some(1) => group.call(),
                 Some(2) => split.call(),
                 Some(3) => closing.call(),
-                Some(4) => ungroup.call(),
+                Some(4) if grouped => ungroup.call(),
+                Some(4) => toggle_held.call(),
                 _ => {}
             }}
         >
-            <ClickCatcher
+            <Interactive
                 on_middle_click={move || {
                     if closes.get_untracked() {
                         middle.call();
@@ -209,7 +223,7 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
                     close_test_id={close_test_id(entry)}
                     close={move || close.call()}
                 />
-            </ClickCatcher>
+            </Interactive>
         </ContextMenu>
     }
 }
@@ -490,9 +504,13 @@ fn DockSideBar(
             padding_horizontal=BAR_PADDING
         >
             <List spacing=BAR_SPACING>
-                <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    justify=Justify::SpaceBetween
+                    spacing=BAR_SPACING
+                >
                     {grip}
-                    <Frame @sizing=ItemSize::Percent(100.0) />
                     <DockClose closable close={move || close.call()} />
                 </List>
                 <Show condition={!titled}>
@@ -585,6 +603,7 @@ fn DockDropHighlight() -> NodeId {
     let fill = create_memo(clone!(theme -> move || translucent(theme.accent.get(), DROP_ALPHA)));
     view! {
         <Frame
+            @test_id={"dock.drop"}
             color={fill}
             outline={theme.accent.clone()}
             outline_width=FOCUS_RING_WIDTH

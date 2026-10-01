@@ -1,8 +1,8 @@
 use std::cell::Cell;
 
 use beui::reactive::{
-    Align, ClickCatcher, Direction, Draw, Drawing, ForEach, Frame, ItemSize, List, Memo, Prop,
-    Show, Spacer, clone, component, component_rect, create_memo, create_signal, view,
+    Align, Direction, Draw, Drawing, ForEach, Frame, Interactive, ItemSize, List, Memo, Prop, Show,
+    Spacer, clone, component, component_rect, create_memo, create_signal, view,
 };
 use beui::styled::{
     Accordion, Body, Button, ButtonVariant, Caption, Code, Dialog, ListRow, Scroll, Separator,
@@ -969,11 +969,11 @@ fn EntityPanel(session: Rc<Session>, row: Memo<Option<EntityRow>>, entity: Debug
         }
     });
     view! {
-        <ClickCatcher on_hover_change={hovered}>
+        <Interactive on_hover_change={hovered}>
             <Accordion title={title} open={open} on_toggle={move |open| set_open.set(open)}>
                 <Rows rows={details} />
             </Accordion>
-        </ClickCatcher>
+        </Interactive>
     }
 }
 
@@ -1113,11 +1113,11 @@ fn GraphCanvas(
         }
     });
     view! {
-        <ClickCatcher on_hover_move={over} on_hover_change={left}>
+        <Interactive on_hover_move={over} on_hover_change={left}>
             <Frame width={width} height={height}>
                 <Drawing draw={draw} />
             </Frame>
-        </ClickCatcher>
+        </Interactive>
     }
 }
 

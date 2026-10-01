@@ -6,8 +6,8 @@ use beui_macros::{component, view};
 use crate::theme::use_theme;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Direction, Frame, ItemSize, List, Prop, Spacer, clone, component_accessibility, create_effect,
-    create_memo, create_signal, create_timer, node_placed, now,
+    Direction, Frame, ItemSize, List, Prop, Spacer, clone, component_accessibility,
+    component_placed, create_effect, create_memo, create_signal, create_timer, now,
 };
 
 const HEIGHT: f32 = 4.0;
@@ -38,22 +38,7 @@ pub fn Spinner(
     let after = create_memo(move || {
         ItemSize::Percent((1.0 - phase.get()) * (1.0 - SEGMENT) * 100.0 + 0.001)
     });
-    let width = create_memo(move || Some(width.get()));
-    let theme = use_theme();
-    let node = view! {
-        <Frame width height=HEIGHT color={theme.track.clone()} radius=RADIUS>
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Spacer @sizing={before} />
-                <Frame
-                    @sizing=ItemSize::Percent(SEGMENT * 100.0)
-                    color={theme.accent.clone()}
-                    radius=RADIUS
-                />
-                <Spacer @sizing={after} />
-            </List>
-        </Frame>
-    };
-    let placed = node_placed(node);
+    let placed = component_placed();
     let ticking = create_timer(clone!(placed -> move || {
         if !placed.get_untracked() {
             return None;
@@ -65,5 +50,19 @@ pub fn Spinner(
         true => ticking.start(Duration::ZERO),
         false => ticking.stop(),
     });
-    node
+    let width = create_memo(move || Some(width.get()));
+    let theme = use_theme();
+    view! {
+        <Frame width height=HEIGHT color={theme.track.clone()} radius=RADIUS>
+            <List direction=Direction::Horizontal spacing=0.0>
+                <Spacer @sizing={before} />
+                <Frame
+                    @sizing=ItemSize::Percent(SEGMENT * 100.0)
+                    color={theme.accent.clone()}
+                    radius=RADIUS
+                />
+                <Spacer @sizing={after} />
+            </List>
+        </Frame>
+    }
 }

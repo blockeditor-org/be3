@@ -8,7 +8,7 @@ use beui_core::painter::Shape;
 fn a_stroked_rect_is_a_border_and_a_filled_one_a_background() {
     let rect = |stroke_width| Shape::Rect {
         rect: Rect::from_min_max(pos2(10.0, 20.0), pos2(40.0, 30.0)),
-        corner_radius: 4.0,
+        corner_radius: 4.0.into(),
         stroke_width,
         color: Color32::from_rgba_unmultiplied(0, 128, 255, 255),
         rotation: Rotation::NONE,

@@ -8,6 +8,7 @@ fn refuses_to_draw_without_a_surface() {
         host_name: "test host".into(),
         surface: None,
         theme: Theme { dark: true },
+        panes: false,
     }));
     assert_eq!(session.state(), State::Running);
     assert_eq!(session.surface(), None);

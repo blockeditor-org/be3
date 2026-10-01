@@ -1,10 +1,11 @@
 use std::cell::Cell;
+use std::rc::Rc;
 
 use beui::icons::{ICON_BUILD, ICON_FIT_SCREEN, ICON_ZOOM_IN, ICON_ZOOM_OUT};
 use beui::reactive::{
-    Canvas, CanvasItem, ClickCatcher, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef,
-    ReadSignal, Show, Spacer, Text, Viewport, clone, component, component_rect, create_effect,
-    create_memo, focus_takes_text, on_shortcut, view,
+    Canvas, CanvasItem, Direction, Drawing, ForEach, Frame, Interactive, ItemSize, List, Memo,
+    NodeRef, Prop, ReadSignal, Show, Spacer, Text, clone, component, component_rect, create_effect,
+    create_memo, draw_gpu, focus_takes_text, on_shortcut, view,
 };
 use beui::styled::{Body, Button, ButtonVariant, Caption, IconButton, Separator, use_theme};
 use beui::{CursorIcon, KeyPress, NodeId, PointerPress};
@@ -242,7 +243,7 @@ fn GridCanvas(session: Rc<Session>) -> NodeId {
     editor.content(&content);
     view! {
         <Frame @node_ref={&content}>
-            <ClickCatcher
+            <Interactive
                 cursor=CursorIcon::Crosshair
                 @test_id={"logic-grid.canvas"}
                 on_press={on_press}
@@ -254,7 +255,7 @@ fn GridCanvas(session: Rc<Session>) -> NodeId {
             >
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width={width.clone()} height={height.clone()}>
-                        <Viewport drawing={drawing} />
+                        <Drawing draw={Prop::Dynamic(Rc::new(move || draw_gpu(drawing.get())))} />
                     </CanvasItem>
                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                         <Canvas view={grid_view}>
@@ -273,7 +274,7 @@ fn GridCanvas(session: Rc<Session>) -> NodeId {
                         </Canvas>
                     </CanvasItem>
                 </Canvas>
-            </ClickCatcher>
+            </Interactive>
         </Frame>
     }
 }

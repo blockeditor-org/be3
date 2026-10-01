@@ -1,9 +1,10 @@
 use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_OPEN_IN_NEW};
 use beui::reactive::{
-    Align, ClickCallback, ClickCatcher, Direction, Focusable, Frame, ItemSize, List, Memo, Picture,
-    Prop, Show, clone, component, component_size, create_memo, create_signal, view,
+    Align, ClickCallback, Direction, Frame, Interactive, ItemSize, List, Memo, Prop, Show, clone,
+    component, component_size, create_memo, create_signal, view,
 };
 use beui::styled::{Caption, Fullscreen, IconButton, Scroll, use_theme};
+use beui::unstyled::Picture;
 use beui::{CursorIcon, Image, ImageFit, Key, KeyPress, NodeId, TextAlign, Vec2};
 
 use crate::model::{Loaded, Model};
@@ -85,9 +86,14 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
                         on_browse={browse}
                         on_close={close}
                     />
-                    <Focusable @sizing=ItemSize::Percent(100.0) focused={open} on_key={keys}>
+                    <Interactive
+                        focusable=true
+                        @sizing=ItemSize::Percent(100.0)
+                        focused={open}
+                        on_key={keys}
+                    >
                         <ImageStage picture />
-                    </Focusable>
+                    </Interactive>
                 </List>
             </Frame>
         </Fullscreen>
@@ -173,24 +179,24 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
         <List spacing=8.0>
             <Show condition={fitted}>
                 {move || clone!(shrunk whole -> view! {
-                    <ClickCatcher
+                    <Interactive
                         @sizing=ItemSize::Percent(100.0)
                         cursor={cursor.clone()}
                         on_click={zoom_in.clone()}
                     >
                         <Picture image={whole} fit=ImageFit::ScaleDown smooth={shrunk.clone()} />
-                    </ClickCatcher>
+                    </Interactive>
                 })}
             </Show>
             <Show condition={zoomed}>
                 {move || clone!(height picture width zoom_out -> view! {
                     <Scroll @sizing=ItemSize::Percent(100.0)>
                         <Scroll direction=Direction::Horizontal>
-                            <ClickCatcher cursor=CursorIcon::PointingHand on_click={zoom_out}>
+                            <Interactive cursor=CursorIcon::PointingHand on_click={zoom_out}>
                                 <Frame width={width} height={height}>
                                     <Picture image={picture} fit=ImageFit::Fill smooth=false />
                                 </Frame>
-                            </ClickCatcher>
+                            </Interactive>
                         </Scroll>
                     </Scroll>
                 })}

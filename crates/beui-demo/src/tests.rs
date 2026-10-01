@@ -50,8 +50,13 @@ fn paint_every_page(size: Vec2, suffix: &str) {
 
 fn showing(document: &Document, id: NodeId, text: &str) -> usize {
     let laid_out = document.node_rect(id).is_some();
-    let here =
-        usize::from(laid_out && document.node_kind(id) == "text" && document.text(id) == text);
+    let here = usize::from(
+        laid_out
+            && document
+                .arena
+                .kind_of(id)
+                .is_some_and(|node| document.text(node) == text),
+    );
     here + document
         .children(id)
         .into_iter()
@@ -62,7 +67,9 @@ fn showing(document: &Document, id: NodeId, text: &str) -> usize {
 fn lowest_edge(document: &Document, id: NodeId, clip: f32) -> f32 {
     let rect = document.node_rect(id);
     let own = rect.map_or(0.0, |rect| rect.bottom().min(clip));
-    let scrolls = document.first_offset_within(id) == Some(id);
+    let scrolls = document
+        .first_offset_within(id)
+        .is_some_and(|offset| offset.id() == id);
     let clip = match rect.filter(|_| scrolls) {
         Some(rect) => rect.bottom().min(clip),
         None => clip,

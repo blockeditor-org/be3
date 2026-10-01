@@ -1,38 +1,38 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    rc::Rc,
+};
 
 use beui::reactive::{
-    Canvas, CanvasItem, Embed, EmbedSlot, ForEach, Frame, KeyedStore, List, Memo, ReadSignal, Show,
-    Text, Viewport, WriteSignal, clone, component, create_memo, create_signal, view,
+    Canvas, CanvasItem, Drawing, Embed, EmbedSlot, ForEach, Frame, KeyedStore, List, Memo, Prop,
+    ReadSignal, Show, Text, WriteSignal, clone, component, create_memo, create_signal, draw_gpu,
+    view,
 };
 use beui::styled::{Button, ButtonVariant, Caption, Heading, Icon, Spinner, use_theme};
-use beui::{Align, Color32, Drawing, NodeId, Rect, Region, TextAlign, Vec2};
+use beui::{Align, Color32, NodeId, Rect, Region, TextAlign, Vec2};
 
 use crate::host::{self, HostCommand, HostItem, PlacedItem, SurfaceOutput, Ui};
 use crate::plugin_host::{Blit, PluginDrawing};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum SurfaceId {
     Main,
     Presenting,
     Creation,
     NestedCreation,
     ArtifactSettings,
+    Pane(u64),
 }
 
 impl SurfaceId {
-    const COUNT: usize = Self::ArtifactSettings as usize + 1;
-
-    const ALL: [Self; Self::COUNT] = [
+    const FIXED: [Self; 5] = [
         Self::Main,
         Self::Presenting,
         Self::Creation,
         Self::NestedCreation,
         Self::ArtifactSettings,
     ];
-
-    fn index(self) -> usize {
-        self as usize
-    }
 }
 
 #[derive(Default)]
@@ -48,8 +48,8 @@ struct State {
 #[derive(Clone)]
 pub(crate) struct SurfaceHandle {
     slot: EmbedSlot,
-    drawing: ReadSignal<Option<Drawing>>,
-    set_drawing: WriteSignal<Option<Drawing>>,
+    drawing: ReadSignal<Option<beui::Drawing>>,
+    set_drawing: WriteSignal<Option<beui::Drawing>>,
     items: KeyedStore<u64, PlacedItem>,
     size: ReadSignal<Vec2>,
     set_size: WriteSignal<Vec2>,
@@ -89,27 +89,53 @@ impl SurfaceHandle {
 }
 
 thread_local! {
-    static STATES: [RefCell<State>; SurfaceId::COUNT] = Default::default();
-    static HANDLES: RefCell<Option<Rc<[SurfaceHandle; SurfaceId::COUNT]>>> = const { RefCell::new(None) };
+    static STATES: RefCell<HashMap<SurfaceId, State>> = RefCell::new(HashMap::new());
+    static HANDLES: RefCell<HashMap<SurfaceId, SurfaceHandle>> = RefCell::new(HashMap::new());
+    static HEADLESS: Cell<Option<Rect>> = const { Cell::new(None) };
 }
 
 pub(crate) fn create_handles() {
-    let handles = Rc::new(SurfaceId::ALL.map(|_| SurfaceHandle::new()));
-    HANDLES.with(|slot| *slot.borrow_mut() = Some(handles));
+    HANDLES.with(|handles| {
+        let mut handles = handles.borrow_mut();
+        handles.clear();
+        for id in SurfaceId::FIXED {
+            handles.insert(id, SurfaceHandle::new());
+        }
+    });
 }
 
 pub(crate) fn handle(id: SurfaceId) -> SurfaceHandle {
     HANDLES.with(|handles| {
         handles
-            .borrow()
-            .as_ref()
-            .expect("the surface handles are created before the view is built")[id.index()]
-        .clone()
+            .borrow_mut()
+            .entry(id)
+            .or_insert_with(SurfaceHandle::new)
+            .clone()
     })
 }
 
+fn ids() -> Vec<SurfaceId> {
+    let mut ids: Vec<SurfaceId> =
+        HANDLES.with(|handles| handles.borrow().keys().copied().collect());
+    ids.sort();
+    ids
+}
+
+pub(crate) fn keep_panes(panes: &[u64]) {
+    let kept = |id: &SurfaceId| match id {
+        SurfaceId::Pane(pane) => panes.contains(pane),
+        _ => true,
+    };
+    HANDLES.with(|handles| handles.borrow_mut().retain(|id, _| kept(id)));
+    STATES.with(|states| states.borrow_mut().retain(|id, _| kept(id)));
+}
+
+pub(crate) fn set_headless(rect: Option<Rect>) {
+    HEADLESS.with(|headless| headless.set(rect));
+}
+
 fn with_state<R>(id: SurfaceId, act: impl FnOnce(&mut State) -> R) -> R {
-    STATES.with(|states| act(&mut states[id.index()].borrow_mut()))
+    STATES.with(|states| act(states.borrow_mut().entry(id).or_default()))
 }
 
 pub(crate) fn with<R>(id: SurfaceId, act: impl FnOnce(&mut Ui) -> R) -> Option<R> {
@@ -118,7 +144,11 @@ pub(crate) fn with<R>(id: SurfaceId, act: impl FnOnce(&mut Ui) -> R) -> Option<R
         (state.placement, std::mem::take(&mut state.output))
     });
     let layer = match id {
-        SurfaceId::Main if !placement.is_some_and(|(rect, _)| host::floats(rect)) => 0,
+        SurfaceId::Main | SurfaceId::Pane(_)
+            if !placement.is_some_and(|(rect, _)| host::floats(rect)) =>
+        {
+            0
+        }
         _ => 1,
     };
     let result = placement.map(|(rect, clip)| {
@@ -141,7 +171,7 @@ pub(crate) fn set_height(id: SurfaceId, height: Option<f32>) {
 }
 
 pub(crate) fn commit() {
-    for id in SurfaceId::ALL {
+    for id in ids() {
         let handle = handle(id);
         let (output, used, origin, height, placement, changed, damage) = with_state(id, |state| {
             let output = std::mem::take(&mut state.output);
@@ -197,7 +227,7 @@ pub(crate) fn commit() {
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn shown_blits() -> Vec<Blit> {
-    SurfaceId::ALL
+    ids()
         .into_iter()
         .flat_map(|id| with_state(id, |state| state.blits.clone()))
         .collect()
@@ -223,12 +253,18 @@ fn local(damage: &[Rect], origin: beui::Pos2) -> Region {
 
 pub(crate) fn read_placements() -> bool {
     let mut moved = false;
-    for id in SurfaceId::ALL {
-        let placement = handle(id)
-            .slot
-            .placement()
-            .filter(|placement| placement.rect.is_positive())
-            .map(|placement| (placement.rect, placement.clip));
+    let headless = HEADLESS.with(Cell::get);
+    for id in ids() {
+        let placement = headless
+            .filter(|_| id == SurfaceId::Main)
+            .map(|rect| (rect, rect))
+            .or_else(|| {
+                handle(id)
+                    .slot
+                    .placement()
+                    .filter(|placement| placement.rect.is_positive())
+                    .map(|placement| (placement.rect, placement.clip))
+            });
         let shown = handle(id).shown.get_untracked();
         with_state(id, |state| {
             let next = if shown || id == SurfaceId::Main {
@@ -259,7 +295,12 @@ pub(crate) fn HostSurface(id: SurfaceId) -> NodeId {
         <Embed slot={handle.slot.clone()} punch=false>
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                    <Viewport drawing={handle.drawing.clone()} />
+                    <Drawing
+                        draw={Prop::Dynamic(Rc::new({
+                            let drawing = handle.drawing.clone();
+                            move || draw_gpu(drawing.get())
+                        }))}
+                    />
                 </CanvasItem>
                 <ForEach keys={items.keys()}>
                     {move |key: u64| {

@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::GameModuleContent;
 use block_editor_beui::beui::reactive::view;
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{Creation, Editor, FileFilter, PickedFile, content_file_creation};
+use block_editor_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
 use game_host::Game;
 
 mod ui;
@@ -20,7 +20,14 @@ impl block_editor_beui::BeuiApp for GameModuleApp {
     }
 
     fn creation_view(creation: Creation) -> NodeId {
-        content_file_creation::<GameModuleContent>(&creation, "game-module", filter(), imported)
+        view! {
+            <ContentFileCreation
+                creation
+                id_prefix="game-module"
+                filter={filter()}
+                import={imported}
+            />
+        }
     }
 
     fn intrinsic_size() -> Option<Vec2> {

@@ -312,20 +312,8 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
 fn ChangeLine(editor: Editor, row: ChangeRow) -> NodeId {
     let (block, block_type, name, label) = row;
     let removed = label == change_label(VersionChangeKind::Removed);
-    let shown = match removed {
-        true => {
-            let name = name.unwrap_or_else(|| "Untitled".to_owned());
-            view! {
-                <Body content={name} />
-            }
-        }
-        false => {
-            let target = Some(ChildTarget::new(block, block_type));
-            view! {
-                <BlockLink editor block={target} />
-            }
-        }
-    };
+    let name = name.unwrap_or_else(|| "Untitled".to_owned());
+    let target = Some(ChildTarget::new(block, block_type));
     view! {
         <List
             direction=Direction::Horizontal
@@ -334,7 +322,12 @@ fn ChangeLine(editor: Editor, row: ChangeRow) -> NodeId {
             @test_id={format!("checkout.change.{block}")}
         >
             <Caption content={label} />
-            {shown}
+            <Show condition={removed}>
+                <Body content={name.clone()} />
+            </Show>
+            <Show condition={!removed}>
+                <BlockLink editor={editor.clone()} block={target} />
+            </Show>
         </List>
     }
 }
@@ -352,58 +345,17 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
             });
         }
     };
-    let sides = match base.is_some() || ours.is_some() || theirs.is_some() {
-        true => {
-            let (base_editor, ours_editor, theirs_editor) =
-                (editor.clone(), editor.clone(), editor.clone());
-            let (take_base, take_ours, take_theirs) = (
-                choose(ConflictSide::Base),
-                choose(ConflictSide::Ours),
-                choose(ConflictSide::Theirs),
-            );
-            let (base_blocked, ours_blocked, theirs_blocked) =
-                (blocked.clone(), blocked.clone(), blocked.clone());
-            let (base, ours, theirs) = (side(base), side(ours), side(theirs));
-            view! {
-                <List spacing=8.0>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                        <Caption content="Base" />
-                        <BlockLink editor={base_editor} block={base} fallback="none" />
-                        <Caption content="Yours" />
-                        <BlockLink editor={ours_editor} block={ours} fallback="none" />
-                        <Caption content="Theirs" />
-                        <BlockLink editor={theirs_editor} block={theirs} fallback="none" />
-                    </List>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Button
-                            label="Take base"
-                            variant=ButtonVariant::Secondary
-                            disabled={base_blocked}
-                            @test_id={format!("checkout.base.{block}")}
-                            on_click={take_base}
-                        />
-                        <Button
-                            label="Take yours"
-                            variant=ButtonVariant::Secondary
-                            disabled={ours_blocked}
-                            @test_id={format!("checkout.ours.{block}")}
-                            on_click={take_ours}
-                        />
-                        <Button
-                            label="Take theirs"
-                            variant=ButtonVariant::Secondary
-                            disabled={theirs_blocked}
-                            @test_id={format!("checkout.theirs.{block}")}
-                            on_click={take_theirs}
-                        />
-                    </List>
-                </List>
-            }
-        }
-        false => view! {
-            <List spacing=0.0 />
-        },
-    };
+    let compared = base.is_some() || ours.is_some() || theirs.is_some();
+    let (base_editor, ours_editor, theirs_editor) =
+        (editor.clone(), editor.clone(), editor.clone());
+    let (take_base, take_ours, take_theirs) = (
+        choose(ConflictSide::Base),
+        choose(ConflictSide::Ours),
+        choose(ConflictSide::Theirs),
+    );
+    let (base_blocked, ours_blocked, theirs_blocked) =
+        (blocked.clone(), blocked.clone(), blocked.clone());
+    let (base, ours, theirs) = (side(base), side(ours), side(theirs));
     let keep = choose(ConflictSide::Merged);
     let working = Some(ChildTarget::new(block, block_type));
     let link_editor = editor.clone();
@@ -413,7 +365,47 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                 <BlockLink editor={link_editor} block={working} />
                 <Caption content={label} />
             </List>
-            {sides}
+            <List spacing=8.0>
+                <Show condition={compared}>
+                    {move || clone!(base_editor ours_editor theirs_editor -> view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                            <Caption content="Base" />
+                            <BlockLink editor={base_editor} block={base} fallback="none" />
+                            <Caption content="Yours" />
+                            <BlockLink editor={ours_editor} block={ours} fallback="none" />
+                            <Caption content="Theirs" />
+                            <BlockLink editor={theirs_editor} block={theirs} fallback="none" />
+                        </List>
+                    })}
+                </Show>
+                <Show condition={compared}>
+                    {move || clone!(base_blocked ours_blocked take_base take_ours take_theirs theirs_blocked -> view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <Button
+                                label="Take base"
+                                variant=ButtonVariant::Secondary
+                                disabled={base_blocked}
+                                @test_id={format!("checkout.base.{block}")}
+                                on_click={take_base}
+                            />
+                            <Button
+                                label="Take yours"
+                                variant=ButtonVariant::Secondary
+                                disabled={ours_blocked}
+                                @test_id={format!("checkout.ours.{block}")}
+                                on_click={take_ours}
+                            />
+                            <Button
+                                label="Take theirs"
+                                variant=ButtonVariant::Secondary
+                                disabled={theirs_blocked}
+                                @test_id={format!("checkout.theirs.{block}")}
+                                on_click={take_theirs}
+                            />
+                        </List>
+                    })}
+                </Show>
+            </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Button
                     label="Keep as merged"

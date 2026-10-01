@@ -9,7 +9,7 @@ use beui_components_unstyled::datetime::{Date, Weekday};
 use beui_components_unstyled::{
     CalendarDayHandle, CalendarHeaderHandle, CalendarMode, CalendarMonthHandle, CalendarYearHandle,
 };
-use beui_core::base::{Align, Direction, TextAlign};
+use beui_core::base::{Align, Direction, Justify, TextAlign};
 use beui_core::color::Color32;
 use beui_core::icons::{
     ICON_ARROW_DROP_DOWN, ICON_ARROW_DROP_UP, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT,
@@ -110,8 +110,12 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
                 disabled={no_previous}
                 on_click={move || previous.call(())}
             />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0 />
+            <List
+                @sizing=ItemSize::Percent(100.0)
+                direction=Direction::Horizontal
+                justify=Justify::Center
+                spacing=0.0
+            >
                 <Show condition={month_shown}>
                     {move || clone!(month_label months_open show_months -> view! {
                         <HeaderToggle
@@ -128,7 +132,6 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
                     open={years_open}
                     on_click={move || show_years.call(())}
                 />
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0 />
             </List>
             <IconButton
                 glyph={ICON_CHEVRON_RIGHT.to_owned()}

@@ -137,10 +137,9 @@ fn TextInputFrame(
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     <Show condition={marked}>
                         {move || clone!(glyph theme -> view! {
-                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                                <Frame width=PADDING_HORIZONTAL />
+                            <Frame padding_left=PADDING_HORIZONTAL>
                                 <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
-                            </List>
+                            </Frame>
                         })}
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)

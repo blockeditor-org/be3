@@ -1,6 +1,6 @@
 use beui_macros::{component, view};
 
-use beui_core::base::{Direction, ItemSize};
+use beui_core::base::{Direction, Sizing};
 use beui_core::node::NodeId;
 use beui_view::reactive::{Children, List, ListChild, Prop, clone, create_memo};
 
@@ -19,10 +19,11 @@ pub fn Stack(spacing: Prop<f32>, narrow: Prop<bool>, children: Children<ListChil
     let children = children.map(move |child| {
         let ListChild { node, size } = child;
         let size = Prop::Dynamic(std::rc::Rc::new(clone!(stacked -> move || {
+            let size = size.get();
             if stacked.get() {
-                ItemSize::Intrinsic
+                Sizing::default()
             } else {
-                size.get()
+                size
             }
         })));
         ListChild { node, size }

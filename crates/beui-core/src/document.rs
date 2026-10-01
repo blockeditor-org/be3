@@ -18,7 +18,7 @@ use crate::input::{BackEdge, Key, KeyPress};
 use crate::display::Display;
 use crate::interact::{self, Keys};
 use crate::layout;
-use crate::node::{Arena, NodeId, NodeMap, Placed, Rects, SpaceId};
+use crate::node::{Arena, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId};
 use crate::paint::{self, PaintCache};
 use crate::painter::{Entry, Painter, PainterState, Shape};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
@@ -47,10 +47,10 @@ pub struct Document {
     inspector_requested: bool,
     screen_pointer: Option<Pos2>,
     placement: Option<(Rect, Option<Placement>)>,
-    pub portal_holders: std::collections::HashMap<NodeId, NodeId>,
-    pub overlay_stack: Vec<NodeId>,
-    pub passive_overlays: Vec<NodeId>,
-    pub back_handlers: Vec<NodeId>,
+    pub portal_holders: std::collections::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
+    pub overlay_stack: Vec<NodeOf<crate::base::overlay::OverlayNode>>,
+    pub passive_overlays: Vec<NodeOf<crate::base::overlay::OverlayNode>>,
+    pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
     pub back_gesture: Option<(NodeId, BackEdge)>,
     timers: RefCell<crate::timer::Timers>,
     scale: (::reactive::ReadSignal<f32>, ::reactive::WriteSignal<f32>),
@@ -75,6 +75,7 @@ pub struct Document {
     pub deferred_reveals: Vec<NodeId>,
     constrained: HashSet<NodeId>,
     measurements: NodeMap<Vec<(Vec2, Vec2)>>,
+    baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
     layout_parent: Option<NodeId>,
     placed_children: NodeMap<Vec<NodeId>>,
     placing: Vec<NodeId>,
@@ -99,8 +100,10 @@ pub struct Document {
     next_paint: Option<Instant>,
     now: Instant,
     reactive_scope: ::reactive::Scope,
+    zone: u64,
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
+    node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
     sizes: NodeMap<Vec<SizeWatcher>>,
     placements: NodeMap<Vec<PlacementWatcher>>,
     placed: NodeMap<(::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>)>,
@@ -136,6 +139,21 @@ const REMEMBERED_MEASUREMENTS: usize = 4;
 
 fn same_size(left: Vec2, right: Vec2) -> bool {
     left.x.to_bits() == right.x.to_bits() && left.y.to_bits() == right.y.to_bits()
+}
+
+fn still_fits(offered: Vec2, size: Vec2, available: Vec2) -> bool {
+    axis_still_fits(offered.x, size.x, available.x)
+        && axis_still_fits(offered.y, size.y, available.y)
+}
+
+fn axis_still_fits(offered: f32, size: f32, available: f32) -> bool {
+    if offered.to_bits() == available.to_bits() {
+        return true;
+    }
+    match offered.is_finite() {
+        true => available.is_finite() && size <= available && available <= offered,
+        false => available.to_bits() == size.to_bits(),
+    }
 }
 
 fn constrained(held: Vec2, available: Vec2) -> Vec2 {
@@ -206,6 +224,8 @@ struct PlacementWatcher {
     write: ::reactive::WriteSignal<Rect>,
 }
 
+static NEXT_ZONE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 impl Document {
     pub fn new() -> Self {
         Self {
@@ -247,6 +267,7 @@ impl Document {
             deferred_reveals: Vec::new(),
             constrained: HashSet::new(),
             measurements: NodeMap::default(),
+            baselines: NodeMap::default(),
             layout_parent: None,
             placed_children: NodeMap::default(),
             placing: Vec::new(),
@@ -271,8 +292,10 @@ impl Document {
             next_paint: None,
             now: Instant::now(),
             reactive_scope: ::reactive::Scope::new(),
+            zone: NEXT_ZONE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             extensions: HashMap::new(),
             node_scopes: HashMap::new(),
+            node_refs: HashMap::new(),
             sizes: NodeMap::default(),
             placements: NodeMap::default(),
             placed: NodeMap::default(),
@@ -308,6 +331,16 @@ impl Document {
 
     pub fn reactive_scope(&self) -> &::reactive::Scope {
         &self.reactive_scope
+    }
+
+    pub fn zone(&self) -> u64 {
+        self.zone
+    }
+
+    pub fn dispose(&mut self) {
+        let scope = std::mem::replace(&mut self.reactive_scope, ::reactive::Scope::detached());
+        crate::current::with_reactive_scope(self, || scope.dispose());
+        ::reactive::forget_zone(self.zone);
     }
 
     pub fn extension<T: Clone + 'static>(&self) -> Option<T> {
@@ -424,17 +457,23 @@ impl Document {
         self.node_scopes.entry(node).or_default().push(scope);
     }
 
+    pub fn register_node_ref(&mut self, node: NodeId, cell: Weak<Cell<Option<NodeId>>>) {
+        let refs = self.node_refs.entry(node).or_default();
+        refs.retain(|cell| cell.strong_count() > 0);
+        refs.push(cell);
+    }
+
     pub fn children(&self, id: NodeId) -> Vec<NodeId> {
         self.arena.get(id).children()
     }
 
-    pub fn open_child_slot<H: ChildHost>(&mut self, node: NodeId) -> SlotId {
+    pub fn open_child_slot<H: ChildHost>(&mut self, node: NodeOf<H>) -> SlotId {
         self.arena.get_mut_as::<H>(node).children().open()
     }
 
     pub fn fill_child_slot<H: ChildHost>(
         &mut self,
-        node: NodeId,
+        node: NodeOf<H>,
         slot: SlotId,
         items: Vec<H::Stored>,
     ) {
@@ -443,7 +482,7 @@ impl Document {
         host.children_changed();
     }
 
-    pub fn append_child_item<H: ChildHost>(&mut self, node: NodeId, item: H::Stored) {
+    pub fn append_child_item<H: ChildHost>(&mut self, node: NodeOf<H>, item: H::Stored) {
         self.arena.get_mut_as::<H>(node).children().push(item);
     }
 
@@ -455,7 +494,8 @@ impl Document {
         self.arena.get(id).detail()
     }
 
-    pub fn node_rect(&self, id: NodeId) -> Option<Rect> {
+    pub fn node_rect(&self, id: impl Into<NodeId>) -> Option<Rect> {
+        let id = id.into();
         self.rects.get(&id)
     }
 
@@ -529,7 +569,8 @@ impl Document {
         named.first().copied()
     }
 
-    pub fn contains(&self, id: NodeId) -> bool {
+    pub fn contains(&self, id: impl Into<NodeId>) -> bool {
+        let id = id.into();
         self.arena.contains(id)
     }
 
@@ -603,11 +644,11 @@ impl Document {
         let held: Vec<NodeId> = borrowed
             .iter()
             .copied()
-            .filter(|child| self.portal_holders.get(child) == Some(&id))
+            .filter(|child| self.portal_holders.get(child).map(|portal| portal.id()) == Some(id))
             .collect();
         self.release_portal(id, &borrowed);
         for child in held {
-            self.forget_placement(child);
+            self.release_forgotten(child);
         }
         for child in children {
             if borrowed.contains(&child) {
@@ -615,15 +656,19 @@ impl Document {
             }
             self.detach_subtree(child, scopes);
         }
+        let mut element = self.arena.take(id);
+        element.detached();
+        self.arena.put_back(id, element);
         self.arena.remove(id);
-        self.overlay_stack.retain(|overlay| *overlay != id);
-        self.passive_overlays.retain(|overlay| *overlay != id);
-        self.back_handlers.retain(|handler| *handler != id);
+        self.overlay_stack.retain(|overlay| overlay.id() != id);
+        self.passive_overlays.retain(|overlay| overlay.id() != id);
+        self.back_handlers.retain(|handler| handler.id() != id);
         self.paint_cache.borrow_mut().forget(id);
         self.sizes.remove(&id);
         self.placements.remove(&id);
         self.placed.remove(&id);
         self.measurements.remove(&id);
+        self.baselines.remove(&id);
         self.component_states.remove(&id);
         self.component_names.remove(&id);
         self.placed_children.remove(&id);
@@ -636,6 +681,13 @@ impl Document {
             self.drop_test_id(id, &test_id);
         }
         scopes.extend(self.node_scopes.remove(&id).unwrap_or_default());
+        for cell in self.node_refs.remove(&id).unwrap_or_default() {
+            if let Some(cell) = cell.upgrade()
+                && cell.get() == Some(id)
+            {
+                cell.set(None);
+            }
+        }
         if self.root == Some(id) {
             self.root = None;
         }
@@ -1239,12 +1291,16 @@ impl Document {
     pub fn measured(&mut self, id: NodeId, available: Vec2) -> Option<Vec2> {
         if self.arena.stale(id) {
             self.measurements.remove(&id);
+            self.baselines.remove(&id);
             return None;
         }
-        self.measurements
-            .get(&id)?
-            .iter()
+        let held = self.measurements.get(&id)?;
+        held.iter()
             .find(|(offered, _)| same_size(*offered, available))
+            .or_else(|| {
+                held.iter()
+                    .find(|(offered, size)| still_fits(*offered, *size, available))
+            })
             .map(|(_, size)| *size)
     }
 
@@ -1265,6 +1321,35 @@ impl Document {
             held.remove(0);
         }
         held.push((available, size));
+    }
+
+    pub fn measured_baseline(&self, id: NodeId, available: Vec2) -> Option<Option<f32>> {
+        if self.arena.stale(id) {
+            return None;
+        }
+        self.baselines
+            .get(&id)?
+            .iter()
+            .find(|(offered, _)| same_size(*offered, available))
+            .map(|(_, baseline)| *baseline)
+    }
+
+    pub fn remember_baseline(
+        &mut self,
+        id: NodeId,
+        available: Vec2,
+        baseline: Option<f32>,
+        watermark: u64,
+    ) {
+        if self.arena.layout_revision != watermark || self.arena.stale(id) {
+            return;
+        }
+        let held = self.baselines.get_or_default(id);
+        held.retain(|(offered, _)| !same_size(*offered, available));
+        if held.len() >= REMEMBERED_MEASUREMENTS {
+            held.remove(0);
+        }
+        held.push((available, baseline));
     }
 
     pub fn note_measured(&self, reused: bool) {
@@ -1373,6 +1458,15 @@ impl Document {
         }
         for child in self.placed_children.remove(&id).unwrap_or_default() {
             self.drop_placement(child, out, dropped);
+        }
+    }
+
+    fn release_forgotten(&mut self, id: NodeId) {
+        let rects = Rc::clone(&self.rects);
+        let mut dropped = Vec::new();
+        self.drop_placement(id, &rects, &mut dropped);
+        for node in dropped {
+            self.release_placement(node);
         }
     }
 

@@ -2,9 +2,8 @@ use std::ops::Range;
 use std::rc::Rc;
 
 use beui::reactive::{
-    ClickCatcher, Draw, Drawing, Focusable, Frame, Memo, NodeRef, Prop, clone, component,
-    component_size, copy_text, create_memo, layout_text, pixels_per_point, request_paste, view,
-    with_document,
+    Draw, Drawing, Frame, Interactive, Memo, NodeRef, Prop, clone, component, component_size,
+    copy_text, create_memo, layout_text, pixels_per_point, request_paste, view, with_document,
 };
 use beui::unstyled::Scroll;
 use beui::unstyled::TextAreaColors;
@@ -414,25 +413,23 @@ pub(crate) fn HexView(state: Shared) -> NodeId {
     view! {
         <Frame color={COLORS.surface}>
             <Scroll focus_color={Color32::TRANSPARENT}>
-                <Focusable
+                <Interactive
+                    focusable=true
                     on_key={move |press: KeyPress| key(&key_state, press)}
                     on_text={move |typed: String| type_text(&text_state, &typed)}
+                    cursor=CursorIcon::Text
+                    on_press={move |event: PointerPress| hex_press(&press_cx, event)}
+                    on_drag={move |event: PointerPress| hex_drag(&drag_cx, event)}
+                    on_active_change={move |active: bool| {
+                        if !active {
+                            release_state.hex_selection_anchor.set(None);
+                        }
+                    }}
                 >
-                    <ClickCatcher
-                        cursor=CursorIcon::Text
-                        on_press={move |event: PointerPress| hex_press(&press_cx, event)}
-                        on_drag={move |event: PointerPress| hex_drag(&drag_cx, event)}
-                        on_active_change={move |active: bool| {
-                            if !active {
-                                release_state.hex_selection_anchor.set(None);
-                            }
-                        }}
-                    >
-                        <Frame @node_ref=&canvas width={width} height={height}>
-                            <Drawing draw={draw} />
-                        </Frame>
-                    </ClickCatcher>
-                </Focusable>
+                    <Frame @node_ref=&canvas width={width} height={height}>
+                        <Drawing draw={draw} />
+                    </Frame>
+                </Interactive>
             </Scroll>
         </Frame>
     }

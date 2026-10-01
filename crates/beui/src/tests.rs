@@ -2,6 +2,7 @@ use super::*;
 
 mod a_back_gesture_slides_a_dialog_and_closes_it;
 mod a_back_handler_slides_its_content_and_goes_back_while_enabled;
+mod a_baseline_row_lines_up_text_of_different_sizes;
 mod a_button_that_leaves_focus_alone_keeps_the_keyboard_on_the_text;
 mod a_calendar_jumps_to_a_month_from_its_months_view;
 mod a_calendar_keeps_its_focus_between_its_limits;
@@ -43,6 +44,7 @@ mod a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_
 mod a_drag_preview_follows_the_pointer_until_the_drop;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
+mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
 mod a_dynamic_child_can_fill_its_available_height;
 mod a_finger_beside_the_bar_between_two_panes_drags_it;
 mod a_finger_dragged_across_a_color_area_picks_rather_than_scrolls;
@@ -58,11 +60,19 @@ mod a_for_each_keeps_its_rows_between_the_children_beside_it;
 mod a_for_each_places_the_items_of_a_canvas;
 mod a_for_each_row_picks_and_changes_its_own_size;
 mod a_fragment_sits_beside_the_children_written_around_it;
+mod a_frame_keeps_its_size_between_its_min_and_max;
+mod a_frame_pads_each_side_on_its_own;
+mod a_frame_places_a_smaller_child_by_its_alignment;
+mod a_frame_rounds_each_corner_on_its_own;
+mod a_frame_takes_a_fraction_of_the_space_it_is_offered;
 mod a_frame_with_a_max_width_stops_growing_at_it_but_still_shrinks;
 mod a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it;
+mod a_gap_before_one_child_replaces_the_rows_spacing;
+mod a_grid_lines_its_cells_up_in_shared_columns;
 mod a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves;
 mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
+mod a_justified_row_places_its_leftover_space;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
 mod a_lone_child_fills_a_children_prop_as_a_run_of_one;
@@ -75,9 +85,11 @@ mod a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it;
 mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_narrow_inspector_puts_its_close_button_beside_its_tabs;
 mod a_nested_container_reports_its_own_width_not_the_windows;
+mod a_node_ref_lets_go_of_a_removed_node;
 mod a_number_input_reports_what_was_typed_within_its_range;
 mod a_pan_zoom_follows_the_view_its_caller_sets;
 mod a_password_text_area_masks_its_text_and_keeps_it_off_the_clipboard;
+mod a_percent_child_stops_at_its_max_and_hands_the_rest_on;
 mod a_picture_given_a_source_paints_only_that_part_of_the_image;
 mod a_picture_paints_the_image_it_is_given;
 mod a_picture_scaled_down_never_grows_past_its_own_pixels;
@@ -112,6 +124,8 @@ mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
 mod a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus;
 mod a_show_adds_and_removes_a_menu_item_among_the_items_beside_it;
 mod a_show_adds_and_removes_a_tab_among_the_tabs_beside_it;
+mod a_shrinking_child_gives_way_to_its_fixed_neighbour;
+mod a_signal_set_in_one_document_builds_nodes_in_the_document_that_watches_it;
 mod a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame;
 mod a_simulated_mouse_click_lands_where_the_trackpad_moved_its_cursor;
 mod a_simulated_screen_larger_than_the_window_is_shrunk_to_fit;
@@ -121,7 +135,6 @@ mod a_spinner_hidden_by_a_show_stops_asking_for_frames;
 mod a_split_button_runs_its_action_or_opens_its_menu;
 mod a_stack_becomes_a_column_when_its_container_gets_narrow;
 mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
-mod a_stroke_paints_a_line_between_the_ends_it_was_given;
 mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
@@ -145,7 +158,6 @@ mod a_tree_row_decides_which_part_of_it_is_clickable;
 mod a_twelve_hour_time_field_types_the_afternoon_with_a_p;
 mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_value_written_between_tags_takes_the_sizing_after_it;
-mod a_viewport_fills_the_space_it_is_given;
 mod a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row;
 mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
@@ -165,9 +177,13 @@ mod accessibility_updates_leave_the_tree_a_fresh_build_would_make;
 mod alt_arrows_walk_the_simulated_screen_reader_through_the_document;
 mod alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left;
 mod an_aspect_ratio_frame_centres_the_largest_box_that_fits;
+mod an_effect_bound_to_a_node_stops_when_the_node_is_removed;
+mod an_embed_in_a_tab_no_longer_shown_forgets_where_it_was;
 mod an_embed_punches_a_hole_in_the_surface_it_sits_on;
+mod an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed;
 mod an_embed_reports_a_rect_on_the_pixel_grid;
 mod an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in;
+mod an_embed_taken_out_of_the_tree_forgets_where_it_was;
 mod an_empty_field_shows_its_placeholder_until_something_is_typed;
 mod an_empty_view_builds_a_children_prop_with_nothing_in_it;
 mod an_icon_is_as_tall_as_the_text_it_sits_with;
@@ -282,10 +298,13 @@ mod inserting_above_a_virtual_list_view_keeps_the_rows_in_place;
 mod inserting_into_a_virtual_list_view_builds_only_the_new_row;
 mod jumping_up_a_virtual_scroll_only_builds_the_items_in_view;
 mod keys_without_alt_reach_the_control_the_screen_reader_focused;
+mod layers_stack_their_children_in_one_box_sized_to_the_largest;
 mod lifting_the_fingers_off_a_trackpad_scroll_carries_it_on;
 mod middle_clicking_a_scroll_scrolls_it_towards_the_pointer;
 mod moving_a_dock_tab_to_another_pane_keeps_its_panel;
+mod nested_lists_measure_each_node_a_bounded_number_of_times;
 mod on_a_narrow_screen_picking_a_date_moves_on_to_the_time;
+mod one_child_can_align_itself_apart_from_its_row;
 mod opening_a_menu_button_damages_only_the_button_and_its_menu;
 mod opening_a_menu_damages_only_where_it_appears;
 mod opening_a_select_focuses_its_search_box_and_highlights_the_selected_option;
@@ -394,6 +413,7 @@ mod the_simulate_tab_filters_the_document_without_the_screen_reader;
 mod the_simulated_cursor_takes_the_shape_the_document_asks_for;
 mod the_simulated_input_bars_take_their_room_out_of_the_document;
 mod the_simulated_keyboard_types_into_the_focused_input;
+mod the_top_layer_takes_a_click_over_the_layer_below;
 mod tiling_a_stacked_dock_with_its_switcher_open_closes_the_switcher;
 mod touch_dragging_a_horizontal_scroll_moves_it_sideways;
 mod touch_dragging_a_scroll_moves_it_without_activating_a_row;
@@ -416,6 +436,7 @@ mod up_and_down_in_a_single_line_text_area_move_to_its_ends;
 mod view_attributes_can_be_written_without_braces;
 mod view_attributes_can_pun_a_bare_name_as_its_own_value;
 mod view_children_can_pick_fixed_and_percent_sizing;
+mod wrapped_rows_wrap_long_text_and_grow_percent_children;
 mod zooming_a_pan_zoom_stops_at_its_scale_limits;
 mod zooming_into_the_simulated_screen_follows_the_pointer;
 
@@ -428,7 +449,9 @@ use crate::geometry::{Pos2, Vec2, pos2, vec2};
 use crate::input::{Event, Key, Modifiers, PointerButton, RawInput};
 use crate::input::{TouchId, TouchPhase};
 
-use crate::base::list::{Direction, ItemSize};
+use crate::base::frame::FrameNode;
+use crate::base::list::{Direction, ItemSize, ListNode};
+use crate::base::text::TextNode;
 use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
 use crate::reactive::{
@@ -712,7 +735,7 @@ impl Harness {
         &mut self.document
     }
 
-    pub(crate) fn rect(&self, id: NodeId) -> Rect {
+    pub(crate) fn rect(&self, id: impl Into<NodeId>) -> Rect {
         self.document
             .node_rect(id)
             .expect("the node was not laid out")
@@ -724,7 +747,7 @@ impl Harness {
             .unwrap_or_else(|| panic!("no node with test id {test_id:?}"))
     }
 
-    pub(crate) fn center(&self, id: NodeId) -> Pos2 {
+    pub(crate) fn center(&self, id: impl Into<NodeId>) -> Pos2 {
         self.rect(id).center()
     }
 
@@ -1222,16 +1245,16 @@ pub(crate) fn hello_column() -> HelloColumn {
 
 pub(crate) struct StackedPanels {
     pub(crate) document: Document,
-    pub(crate) upper: NodeId,
-    pub(crate) lower: NodeId,
+    pub(crate) upper: NodeOf<FrameNode>,
+    pub(crate) lower: NodeOf<FrameNode>,
 }
 
 pub(crate) struct ThreePanels {
     pub(crate) document: Document,
-    pub(crate) list: NodeId,
-    pub(crate) top: NodeId,
-    pub(crate) middle: NodeId,
-    pub(crate) bottom: NodeId,
+    pub(crate) list: NodeOf<ListNode>,
+    pub(crate) top: NodeOf<FrameNode>,
+    pub(crate) middle: NodeOf<FrameNode>,
+    pub(crate) bottom: NodeOf<FrameNode>,
 }
 
 pub(crate) fn three_panels() -> ThreePanels {
@@ -1251,11 +1274,11 @@ pub(crate) fn three_panels() -> ThreePanels {
         }
     });
     ThreePanels {
+        list: kind_of(&document, list.get()),
+        top: kind_of(&document, top.get()),
+        middle: kind_of(&document, middle.get()),
+        bottom: kind_of(&document, bottom.get()),
         document,
-        list: list.get(),
-        top: top.get(),
-        middle: middle.get(),
-        bottom: bottom.get(),
     }
 }
 
@@ -1273,9 +1296,9 @@ pub(crate) fn stacked_panels() -> StackedPanels {
         }
     });
     StackedPanels {
+        upper: kind_of(&document, upper.get()),
+        lower: kind_of(&document, lower.get()),
         document,
-        upper: upper.get(),
-        lower: lower.get(),
     }
 }
 
@@ -1299,8 +1322,15 @@ pub(crate) fn indices(count: usize) -> Vec<usize> {
     (0..count).collect()
 }
 
+pub(crate) fn kind_of<T: Element>(document: &Document, id: NodeId) -> NodeOf<T> {
+    document
+        .arena
+        .kind_of(id)
+        .expect("the node is of the kind the test expects")
+}
+
 pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
-    document.text(id)
+    document.text(kind_of(document, id))
 }
 
 pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
@@ -1315,7 +1345,6 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
             <styled::DockArea
                 @node_ref=&built
                 state={state}
-                inset=false
                 title={Func::new(|tab: unstyled::TabId| format!("Tab {}", tab.value()))}
                 on_change={move |next: unstyled::DockState| set_state.set(next)}
                 on_close={move |_: unstyled::TabId| {}}
@@ -1343,8 +1372,10 @@ pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::S
 }
 
 pub(crate) fn text_within(document: &Document, root: NodeId, text: &str) -> Option<NodeId> {
-    if document.node_kind(root) == "text"
-        && document.text(root) == text
+    if document
+        .arena
+        .kind_of(root)
+        .is_some_and(|node| document.text(node) == text)
         && document.node_rect(root).is_some()
     {
         return Some(root);
@@ -1490,12 +1521,13 @@ fn still() -> crate::reactive::Draw {
     })
 }
 
-fn counted(document: &mut Document, node: NodeId) -> (Rc<Cell<usize>>, Rc<Cell<usize>>) {
+fn counted(document: &mut Document, node: impl Into<NodeId>) -> (Rc<Cell<usize>>, Rc<Cell<usize>>) {
     let counts = counted_with_measures(document, node);
     (counts.layouts, counts.paints)
 }
 
-fn counted_with_measures(document: &mut Document, node: NodeId) -> Counts {
+fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Counts {
+    let node = node.into();
     let counts = Counts {
         layouts: Rc::new(Cell::new(0)),
         paints: Rc::new(Cell::new(0)),
@@ -1536,6 +1568,7 @@ mod empty_choices_and_invalid_selection_do_not_break_tab_navigation;
 mod escape_then_tab_moves_the_focus_out_of_a_text_area_that_takes_tab;
 mod every_styled_interactive_control_paints_a_keyboard_focus_ring;
 mod focus_loss_and_hidden_content_cancel_keyboard_activation;
+mod focus_within_a_node_with_nothing_focusable_reports_false;
 mod hover_only_repaints_when_its_handler_changes_a_node;
 mod key_handlers_can_move_focus_and_change_their_tab_stop;
 mod key_repeats_and_shortcut_modifiers_do_not_accidentally_activate_controls;
@@ -1570,6 +1603,7 @@ mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
 mod a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath;
 mod a_separator_keeps_the_length_it_is_given_where_its_row_centres_it;
 mod a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions;
+mod a_stacked_dock_bar_shows_more_for_a_tab_that_asks_and_presses_it;
 mod a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels;
 mod a_vertical_separator_rules_down_the_row_it_sits_in;
 mod a_window_without_room_for_the_app_beside_the_inspector_uses_the_tab_bar;

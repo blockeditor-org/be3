@@ -8,8 +8,8 @@ use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Callback, Child, Children, ClickCallback, ClickCatcher, ItemSize, List, NodeRef, Prop,
-    RenderFn, clone, create_effect, create_memo, create_signal, set_component_state,
+    Callback, Child, Children, ClickCallback, Interactive, ItemSize, List, NodeRef, Prop, RenderFn,
+    clone, create_effect, create_memo, create_signal, set_component_state,
 };
 
 struct State {
@@ -64,22 +64,8 @@ pub fn ContextMenu(
         requested.set(true);
     });
     let items = items.into_run();
-    let menu = panel.call(view! {
-        <MenuList
-            @node_ref=&content
-            items={items}
-            row
-            panel={panel.clone()}
-            active
-            on_select={move |path: Vec<usize>| {
-                on_select.call(path);
-                close.set(false);
-                on_close.call();
-            }}
-        />
-    });
     view! {
-        <ClickCatcher
+        <Interactive
             on_secondary_press={move |press: PointerPress| {
                 if disabled.get() {
                     return;
@@ -102,10 +88,23 @@ pub fn ContextMenu(
                         dismissed.call();
                     }}
                 >
-                    {menu}
+                    {panel.call(view! {
+                        <MenuList
+                            @node_ref=&content
+                            items={items}
+                            row
+                            panel={panel.clone()}
+                            active
+                            on_select={move |path: Vec<usize>| {
+                                on_select.call(path);
+                                close.set(false);
+                                on_close.call();
+                            }}
+                        />
+                    })}
                 </Overlay>
             </List>
-        </ClickCatcher>
+        </Interactive>
     }
 }
 

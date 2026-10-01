@@ -19,7 +19,6 @@ fn manifest_validation() {
         capabilities: EditorCapabilities::default(),
         resize: ResizeMode::Both,
         regions: vec![EditorRegion::Frame, EditorRegion::Preview],
-        chrome: vec![EditorBand::Toolbar],
     };
     let manifest = PluginManifest {
         identity: PluginIdentity {
@@ -40,10 +39,6 @@ fn manifest_validation() {
     let mut invalid = manifest.clone();
     invalid.editors[0].regions = vec![EditorRegion::Preview];
     assert_eq!(invalid.validate(), Err(ManifestError::InvalidRegions));
-
-    let mut invalid = manifest.clone();
-    invalid.editors[0].chrome.push(EditorBand::Toolbar);
-    assert_eq!(invalid.validate(), Err(ManifestError::InvalidChrome));
 
     let mut invalid = manifest.clone();
     invalid.editors.clear();

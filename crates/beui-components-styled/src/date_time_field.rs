@@ -16,15 +16,15 @@ use beui_components_unstyled::{
     ChoiceOption, DateDraft, DateSegment, DateSegmentHandle, DateTimeParts, PopoverHandle,
     PopoverPlacement, PopoverTriggerHandle, TimeOptionHandle, narrower_than,
 };
-use beui_core::base::{Align, Direction, TextAlign};
+use beui_core::base::{Align, Direction, Justify, TextAlign};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_CALENDAR_MONTH, ICON_SCHEDULE};
 use beui_core::input::{CursorIcon, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Children, ClickCallback, ClickCatcher, Dynamic, Frame, ItemSize, List,
-    ListChild, Memo, NodeRef, Prop, ReadSignal, Show, Spacer, Text, WriteSignal, clone,
-    component_rect, create_effect, create_memo, create_signal, create_timer, focus_ring,
+    Callback, Child, Children, ClickCallback, Dynamic, Frame, Interactive, ItemSize, List,
+    ListChild, Memo, NodeRef, Prop, ReadSignal, Show, Text, WriteSignal, clone, component_rect,
+    create_effect, create_memo, create_signal, create_timer, focus_ring,
 };
 
 const HEIGHT: f32 = 34.0;
@@ -241,7 +241,7 @@ fn FieldBox(
         false => theme.surface_raised.get(),
     }));
     view! {
-        <ClickCatcher on_hover_change={move |inside: bool| set_hovered.set(inside)}>
+        <Interactive on_hover_change={move |inside: bool| set_hovered.set(inside)}>
             <Frame
                 height=HEIGHT
                 color={fill}
@@ -249,9 +249,10 @@ fn FieldBox(
                 outline_width=BORDER_WIDTH
                 outline_visible=true
                 radius=RADIUS
+                padding_right=TRIGGER_GAP
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                    <ClickCatcher
+                    <Interactive
                         @sizing=ItemSize::Percent(100.0)
                         cursor=CursorIcon::Text
                         on_click_at={move |_: PointerPress| on_press.call()}
@@ -280,12 +281,11 @@ fn FieldBox(
                                 }}
                             />
                         </Frame>
-                    </ClickCatcher>
+                    </Interactive>
                     {children}
-                    <Spacer @sizing=ItemSize::Fixed(TRIGGER_GAP) />
                 </List>
             </Frame>
-        </ClickCatcher>
+        </Interactive>
     }
 }
 
@@ -310,13 +310,11 @@ fn SegmentFace(handle: DateSegmentHandle) -> NodeId {
         }
     }));
     view! {
-        <List spacing=0.0>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
+        <Frame height_fraction=1.0 align_vertical=Align::Center>
             <Frame color={fill} radius=SEGMENT_RADIUS padding_horizontal=SEGMENT_PADDING>
                 <Text string={text} font_size=FONT_BODY color={ink} align=TextAlign::Center />
             </Frame>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
-        </List>
+        </Frame>
     }
 }
 
@@ -541,9 +539,13 @@ fn PickerPanel(
                         }
                     }}
                 </Dynamic>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    justify=Justify::SpaceBetween
+                    spacing=8.0
+                >
                     <Button label=now_label variant=ButtonVariant::Secondary on_click={now} />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Show condition=clearable>
                         <Button
                             label="Clear"
@@ -662,11 +664,7 @@ fn PanelBody(
 #[component]
 fn Centred(children: Child) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
-            <Spacer @sizing=ItemSize::Percent(100.0) />
-            {children}
-            <Spacer @sizing=ItemSize::Percent(100.0) />
-        </List>
+        <Frame width_fraction=1.0 align_horizontal=Align::Center>{children}</Frame>
     }
 }
 

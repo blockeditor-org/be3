@@ -528,7 +528,7 @@ given.
 itself that others want before the content has loaded. An image's is its
 thumbhash and exact size, which the image editor records in the header when it
 decodes the image; it reaches plugins as `BlockInfo::thumbhash`, and a beui
-`Picture` given it as a `beui::Thumbhash` lays out at the image's size and
+`unstyled::Picture` given it as a `beui::Thumbhash` lays out at the image's size and
 paints the blurred placeholder until the image arrives.
 
 ### Content on the plugin protocol

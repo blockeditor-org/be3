@@ -8,7 +8,7 @@ use beui_core::painter::Shape;
 fn a_shape_partly_outside_its_clip_is_cut_with_an_inset() {
     let rect = |clip| Shape::Rect {
         rect: Rect::from_min_max(pos2(0.0, 0.0), pos2(100.0, 50.0)),
-        corner_radius: 0.0,
+        corner_radius: 0.0.into(),
         stroke_width: 0.0,
         color: Color32::from_rgba_unmultiplied(255, 0, 0, 255),
         rotation: Rotation::NONE,

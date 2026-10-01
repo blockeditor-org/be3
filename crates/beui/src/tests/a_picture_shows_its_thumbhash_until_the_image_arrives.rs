@@ -1,6 +1,7 @@
 use super::*;
 use crate::image::{Image, ImageFit};
-use crate::reactive::{Frame, Picture, build, create_signal, view, with_reactive_scope};
+use crate::reactive::{Frame, build, create_signal, view, with_reactive_scope};
+use crate::unstyled::Picture;
 
 fn painted(output: &crate::FrameOutput) -> Vec<(Rect, Image, bool)> {
     output

@@ -29,10 +29,10 @@ use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::{NodeId, Rects};
-use beui_core::rich::{CaretHandle, handle_center};
+use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center};
 use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, Child, ClickCallback, ClickCatcher, Focusable, Frame, List, Memo,
-    NodeRef, Prop, ReadSignal, Render, RenderFn, Show, WriteSignal, clone, component_accessibility,
+    Callback, Canvas, CanvasItem, Child, ClickCallback, Frame, Interactive, List, Memo, NodeRef,
+    Prop, ReadSignal, Render, RenderFn, Show, WriteSignal, clone, component_accessibility,
     component_rect, component_size, create_effect, create_memo, create_signal, create_timer,
     in_new_scope, on_cleanup, pixels_per_point, set_component_state, try_with_document, untrack,
     with_document,
@@ -58,6 +58,7 @@ const GUTTER_PADDING_LEFT: f32 = 10.0;
 const GUTTER_PADDING_RIGHT: f32 = 10.0;
 const GUTTER_ARROW_SIZE: f32 = 14.0;
 const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
+const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
 const CHECKBOX_RADIUS: u8 = 3;
 const CHECKBOX_OUTLINE: f32 = 1.5;
 const INLINE_WIDGET_RADIUS: u8 = 5;
@@ -521,6 +522,17 @@ impl Surface {
             .map(|(handle, _)| handle)
     }
 
+    fn on_caret_handle(&self, pos: Pos2) -> bool {
+        let Some(caret) = self
+            .caret_handle()
+            .and_then(|byte| self.caret_rect_at(byte))
+        else {
+            return false;
+        };
+        let center = handle_center(caret, CaretHandle::Middle);
+        (Vec2::new(pos.x, pos.y) - center).length() <= HANDLE_RADIUS + CARET_HANDLE_TAP_SLACK
+    }
+
     fn inside(&self, pos: Pos2) -> (Pos2, Option<Beyond>) {
         let Some(rect) = self.node_rect(&self.viewport) else {
             return (pos, None);
@@ -678,10 +690,11 @@ fn tap(cx: &Context, press: PointerPress) {
         return;
     }
     match cx.state.end_grab() {
-        Some(Grab::Caret) => {
+        Some(Grab::Caret) if cx.on_caret_handle(press.pos) => {
             cx.on_menu.call(press.pos);
             return;
         }
+        Some(Grab::Caret) => {}
         Some(Grab::Selection(_)) => return,
         None => {}
     }
@@ -1274,7 +1287,8 @@ fn Editing(field: Field) -> NodeId {
     let hover_cx = cx.clone();
     let body_cx = cx;
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             focused
             tab_stop
             ime={create_memo(move || !disabled.get())}
@@ -1296,46 +1310,43 @@ fn Editing(field: Field) -> NodeId {
                             || on_key_override.call(press)
                             || keys::key(&key_cx, press)))
             }}
+            cursor
+            repeat_drag={autoscroll}
+            capture_at={move |pos: Pos2| {
+                !capture_cx.disabled.get_untracked() && capture_cx.handle_at(pos).is_some()
+            }}
+            on_press={move |event: PointerPress| press(&press_cx, event)}
+            on_click_at={move |event: PointerPress| tap(&tap_cx, event)}
+            on_drag={move |event: PointerPress| extend(&drag_cx, event)}
+            on_active_change={move |active: bool| release(&release_cx, active)}
+            on_hover_change={move |hovered: bool| on_hover_change.call(hovered)}
+            on_hover_move={move |event: PointerPress| {
+                set_cursor.set(hover_cursor(&hover_cx, event.pos));
+            }}
         >
-            <ClickCatcher
-                cursor
-                repeat_drag={autoscroll}
-                capture_at={move |pos: Pos2| {
-                    !capture_cx.disabled.get_untracked() && capture_cx.handle_at(pos).is_some()
-                }}
-                on_press={move |event: PointerPress| press(&press_cx, event)}
-                on_click_at={move |event: PointerPress| tap(&tap_cx, event)}
-                on_drag={move |event: PointerPress| extend(&drag_cx, event)}
-                on_active_change={move |active: bool| release(&release_cx, active)}
-                on_hover_change={move |hovered: bool| on_hover_change.call(hovered)}
-                on_hover_move={move |event: PointerPress| {
-                    set_cursor.set(hover_cursor(&hover_cx, event.pos));
-                }}
-            >
-                {{
-                    match single_line {
-                        false => view! {
-                            <Lines cx={body_cx} />
-                        },
-                        true => {
-                            let field = view! {
-                                <FieldFrame
-                                    @node_ref=&inner
-                                    color={surface_color}
-                                    report={set_field_rect}
-                                >
-                                    <SingleLine cx={body_cx} />
-                                </FieldFrame>
-                            };
-                            match frame.borrow_mut().take() {
-                                Some(frame) => frame.call(field),
-                                None => field,
-                            }
+            {{
+                match single_line {
+                    false => view! {
+                        <Lines cx={body_cx} />
+                    },
+                    true => {
+                        let field = view! {
+                            <FieldFrame
+                                @node_ref=&inner
+                                color={surface_color}
+                                report={set_field_rect}
+                            >
+                                <SingleLine cx={body_cx} />
+                            </FieldFrame>
+                        };
+                        match frame.borrow_mut().take() {
+                            Some(frame) => frame.call(field),
+                            None => field,
                         }
                     }
-                }}
-            </ClickCatcher>
-        </Focusable>
+                }
+            }}
+        </Interactive>
     }
 }
 

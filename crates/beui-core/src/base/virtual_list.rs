@@ -7,9 +7,9 @@ use crate::base::list::Direction;
 use crate::base::offset::item_rect;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
-use ::reactive::{KeyedItems, ScopeContext, owner_scope, settle};
+use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope, settle};
 
 const ROW_LIMIT: usize = 4096;
 const ANCHOR_SLACK: f32 = 4.0;
@@ -151,11 +151,6 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             .enumerate()
             .map(|(index, key)| (key.clone(), index))
             .collect();
-        assert_eq!(
-            indices.len(),
-            keys.len(),
-            "a virtual list was given the same key twice"
-        );
         self.sizes.retain(|key, _| indices.contains_key(key));
         let mut entries: Vec<(usize, f32)> = self
             .sizes
@@ -467,34 +462,41 @@ impl Document {
     pub fn create_virtual_list<K: Clone + Hash + Eq + 'static>(
         &mut self,
         build: impl Fn(K) -> NodeId + 'static,
-    ) -> NodeId {
-        self.arena.insert(VirtualListNode::new(build))
+    ) -> NodeOf<VirtualListNode<(K, usize)>> {
+        self.arena
+            .insert(VirtualListNode::new(move |(key, _): (K, usize)| build(key)))
     }
 
     pub fn set_virtual_list_direction<K: Clone + Hash + Eq + 'static>(
         &mut self,
-        list: NodeId,
+        list: NodeOf<VirtualListNode<(K, usize)>>,
         direction: Direction,
     ) {
-        if self.arena.get_as::<VirtualListNode<K>>(list).direction == direction {
+        if self
+            .arena
+            .get_as::<VirtualListNode<(K, usize)>>(list)
+            .direction
+            == direction
+        {
             return;
         }
-        let node = self.arena.get_mut_as::<VirtualListNode<K>>(list);
+        let node = self.arena.get_mut_as::<VirtualListNode<(K, usize)>>(list);
         node.direction = direction;
         node.origin = None;
     }
 
     pub fn set_virtual_list_keys<K: Clone + Hash + Eq + 'static>(
         &mut self,
-        list: NodeId,
+        list: NodeOf<VirtualListNode<(K, usize)>>,
         keys: Vec<K>,
     ) {
-        if self.arena.get_as::<VirtualListNode<K>>(list).keys == keys {
+        let keys = numbered(keys);
+        if self.arena.get_as::<VirtualListNode<(K, usize)>>(list).keys == keys {
             return;
         }
         let evicted = self
             .arena
-            .get_mut_as::<VirtualListNode<K>>(list)
+            .get_mut_as::<VirtualListNode<(K, usize)>>(list)
             .set_keys(keys);
         for row in evicted {
             self.remove_node(row);
@@ -506,27 +508,28 @@ impl Document {
         list: NodeId,
         key: &K,
     ) -> Option<f32> {
-        let node = self.arena.get_as::<VirtualListNode<K>>(list);
-        let index = *node.indices.get(key)?;
+        let list = self.arena.kind_of::<VirtualListNode<(K, usize)>>(list)?;
+        let node = self.arena.get_as(list);
+        let index = *node.indices.get(&(key.clone(), 0))?;
         Some(node.metrics.estimate(index))
     }
 
     pub fn set_virtual_list_item_size<K: Clone + Hash + Eq + 'static>(
         &mut self,
-        list: NodeId,
+        list: NodeOf<VirtualListNode<(K, usize)>>,
         item_size: f32,
     ) {
         let item_size = item_size.max(0.0);
         if self
             .arena
-            .get_as::<VirtualListNode<K>>(list)
+            .get_as::<VirtualListNode<(K, usize)>>(list)
             .metrics
             .estimated
             == item_size
         {
             return;
         }
-        let node = self.arena.get_mut_as::<VirtualListNode<K>>(list);
+        let node = self.arena.get_mut_as::<VirtualListNode<(K, usize)>>(list);
         node.sizes.clear();
         node.metrics = Metrics::new(node.metrics.count, item_size);
     }

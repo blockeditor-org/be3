@@ -7,9 +7,8 @@ use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CHECK_BOX, ICON_CHECK_BOX_OUTLINE_BLANK,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Callback, ClickCallback, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize,
-    List, Memo, NodeRef, Prop, Show, Spacer, clone, component, create_effect, create_memo, view,
-    with_document,
+    Align, Callback, ClickCallback, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
+    NodeRef, Prop, Show, Spacer, clone, component, create_effect, create_memo, view, with_document,
 };
 use block_editor_beui::beui::styled::{Body, Caption, Icon, Scroll, use_theme};
 use block_editor_beui::beui::{Color32, Key, KeyPress, NodeId, TextAlign};
@@ -74,7 +73,7 @@ fn Grid(
         <List spacing=0.0>
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Scroll direction=Direction::Horizontal>
-                    <Focusable on_key={move |press: KeyPress| on_key.call(press)}>
+                    <Interactive focusable=true on_key={move |press: KeyPress| on_key.call(press)}>
                         <List spacing=0.0>
                             <HeaderRow data={header} />
                             <ForEach keys={keys}>
@@ -87,7 +86,7 @@ fn Grid(
                                 }}
                             </ForEach>
                         </List>
-                    </Focusable>
+                    </Interactive>
                 </Scroll>
             </Scroll>
         </List>
@@ -179,7 +178,7 @@ fn HeaderCell(
             outline_width=BORDER
             outline_visible=true
         >
-            <ClickCatcher on_click={move || on_click.call()}>
+            <Interactive on_click={move || on_click.call()}>
                 <Frame padding_horizontal=CELL_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <Body content={label} color={theme.text.clone()} />
@@ -189,7 +188,7 @@ fn HeaderCell(
                         </Show>
                     </List>
                 </Frame>
-            </ClickCatcher>
+            </Interactive>
         </Frame>
     }
 }
@@ -344,7 +343,7 @@ fn Cell(
             outline_width=BORDER
             outline_visible=true
         >
-            <ClickCatcher @test_id={format!("database-view.cell.{row}.{id}")} on_click={click}>
+            <Interactive @test_id={format!("database-view.cell.{row}.{id}")} on_click={click}>
                 <Frame padding_horizontal=CELL_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=CELL_PADDING>
                         <Show condition={boolean}>
@@ -369,7 +368,7 @@ fn Cell(
                         />
                     </List>
                 </Frame>
-            </ClickCatcher>
+            </Interactive>
         </Frame>
     }
 }

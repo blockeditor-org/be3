@@ -4,6 +4,7 @@ use beui_macros::{component, view};
 
 use beui_core::base::ItemSize;
 use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
 use beui_core::font::{FontId, TextAlign};
 use beui_core::geometry::Vec2;
@@ -126,7 +127,12 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
         }
     }));
     let gutter = create_memo(clone!(cx -> move || Some(cx.gutter.get())));
-    let padding = create_memo(clone!(cx -> move || cx.padding.get().x));
+    let padding = create_memo(clone!(cx -> move || (cx.padding.get().x - CODE_OUTSET.x).max(0.0)));
+    let inset = create_memo(clone!(cx -> move || cx.padding.get().x.min(CODE_OUTSET.x)));
+    let code = create_memo(clone!(cx model -> move || match model.get().code_block {
+        true => cx.colors.get().code_background,
+        false => Color32::TRANSPARENT,
+    }));
     let block = create_memo(clone!(model -> move || model.get().block));
     let renders = cx.block.is_some();
     let has_block = create_memo(clone!(block -> move || renders && block.get().is_some()));
@@ -144,22 +150,24 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
                     <Gutter cx={gutter_cx} model={gutter_model} />
                 </Frame>
                 <Frame @sizing=ItemSize::Percent(100.0) padding_horizontal={padding}>
-                    <List spacing=0.0>
-                        <RowText cx model text wrap=true />
-                        <Show condition={has_block}>
-                            {move || {
-                                let (index, size) = block.get_untracked().unwrap_or_default();
-                                let render = block_cx
-                                    .block
-                                    .clone()
-                                    .expect("a block is only shown when the area was given one");
-                                let node = block_node.clone();
-                                view! {
-                                    <BlockSlot @node_ref=&node render index size />
-                                }
-                            }}
-                        </Show>
-                    </List>
+                    <Frame color={code} padding_horizontal={inset}>
+                        <List spacing=0.0>
+                            <RowText cx model text wrap=true />
+                            <Show condition={has_block}>
+                                {move || {
+                                    let (index, size) = block.get_untracked().unwrap_or_default();
+                                    let render = block_cx
+                                        .block
+                                        .clone()
+                                        .expect("a block is only shown when the area was given one");
+                                    let node = block_node.clone();
+                                    view! {
+                                        <BlockSlot @node_ref=&node render index size />
+                                    }
+                                }}
+                            </Show>
+                        </List>
+                    </Frame>
                 </Frame>
             </List>
         </Frame>
@@ -277,7 +285,10 @@ fn RowText(
             && text.borrow().is_none()
             && let Some(id) = node.try_get()
         {
-            *text.borrow_mut() = Some(with_document(|document| document.text_geometry(id)));
+            *text.borrow_mut() = with_document(|document| {
+                let text = document.arena.kind_of::<TextNode>(id)?;
+                Some(document.text_geometry(text))
+            });
         }
     }));
     let display = create_memo(clone!(model -> move || model.get().display.clone()));
@@ -645,27 +656,27 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let arrow_color = create_memo(clone!(cx -> move || cx.colors.get().gutter_arrow));
     let number_color = create_memo(clone!(cx -> move || cx.colors.get().gutter_text));
     view! {
-        <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
-            <Frame width=GUTTER_PADDING_LEFT />
-            <Frame width=GUTTER_ARROW_SIZE height={height.clone()}>
-                <Text
-                    string={arrow}
-                    icon=true
-                    font_size=GUTTER_ARROW_SIZE
-                    color={arrow_color}
-                    align=TextAlign::Center
-                />
-            </Frame>
-            <Frame @sizing=ItemSize::Percent(100.0) height={height}>
-                <Text
-                    string={number}
-                    monospace=true
-                    font_size=GUTTER_TEXT_SIZE
-                    color={number_color}
-                    align=TextAlign::End
-                />
-            </Frame>
-            <Frame width=GUTTER_PADDING_RIGHT />
-        </List>
+        <Frame padding_left=GUTTER_PADDING_LEFT padding_right=GUTTER_PADDING_RIGHT>
+            <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
+                <Frame width=GUTTER_ARROW_SIZE height={height.clone()}>
+                    <Text
+                        string={arrow}
+                        icon=true
+                        font_size=GUTTER_ARROW_SIZE
+                        color={arrow_color}
+                        align=TextAlign::Center
+                    />
+                </Frame>
+                <Frame @sizing=ItemSize::Percent(100.0) height={height}>
+                    <Text
+                        string={number}
+                        monospace=true
+                        font_size=GUTTER_TEXT_SIZE
+                        color={number_color}
+                        align=TextAlign::End
+                    />
+                </Frame>
+            </List>
+        </Frame>
     }
 }

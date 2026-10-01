@@ -31,10 +31,12 @@ registered against the node it builds, so that removing that node disposes
 exactly the effects the function created. A plain helper that
 builds nodes leaves its effects in the caller's scope, where they outlive the
 subtree they bind and panic with "node was removed" the next time one of their
-inputs changes. `#[component]` is also what makes the function usable as a tag,
+inputs changes. `./scripts/buck run //:verify` reports a function outside an
+`impl` that writes a `view!` and returns a node or a child value without the
+attribute. `#[component]` is also what makes the function usable as a tag,
 gives it `@test_id`, `@node_ref` and `@sizing`, and makes
-`component_state`, `component_accessibility` and `component_size` available
-inside it.
+`component_state`, `component_accessibility`, `component_size`,
+`component_rect` and `component_placed` available inside it.
 
 A component that returns its own type implements `ChildValue` to name the node
 the scope hangs on, and `IntoChild` for the slot that takes it, as
@@ -47,8 +49,8 @@ the owner tree does the rest. That is how an item made of data rather than
 nodes — a label, a key, a callback — can still be a component, with its own
 scope, context, memos and cleanups, and still be written as a tag. Such a
 component has nothing for `component_state`, `component_accessibility`,
-`component_size` or `component_rect` to watch, so all four panic rather than
-going quietly nowhere, and `@test_id` and `@node_ref` on its tag do not compile,
+`component_size`, `component_rect` or `component_placed` to watch, so naming any of them in its body
+does not compile, and `@test_id` and `@node_ref` on its tag do not compile either,
 because they only take a component whose output implements `BuildsNode`.
 `unstyled::MenuItem` is one: a menu item is a label, a disabled flag and its
 own submenu items, so a menu is written as tags and each row follows
@@ -85,7 +87,9 @@ below it, and there is no second `view!` earlier in the body: `view!` builds
 nodes the moment it runs, so a subtree built into a local and then used
 conditionally has already been added to the document whether or not it ends up
 in the tree, and a subtree built in one place but parented somewhere else
-obscures which component's scope owns it.
+obscures which component's scope owns it. `./scripts/buck run //:verify`
+reports a component with a second `view!` outside a closure, or with anything
+after its last one.
 
 When part of the tree depends on something, express it in the view rather than
 in Rust control flow around it. `Show` takes a condition, builds its child each
@@ -267,10 +271,10 @@ need:
 - **Need new behavior?** Add an unstyled component composed from base
   components.
 - **Tempted to add a base component?** Almost always, add an unstyled one
-  instead. The base layer is small on purpose — `Frame`, `List`, `Text`,
-  `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Focusable`,
-  `ClickCatcher`, `Embed`, `Portal`, `Viewport` — and it stays small because most things are
-  compositions of those.
+  instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `Grid`, `Text`,
+  `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`, `Embed`,
+  `Portal`, `BackHandler` — and it stays small because most things are
+  compositions of those. `unstyled::Picture` is one: a `Drawing` with a size.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
   arranging the existing nodes. `Portal` is one: it shows a subtree it does not
@@ -287,7 +291,9 @@ so the closure is replaced only when that page changes, and cull to
 costs the screenful it shows. Reach for it only when there genuinely is no
 arrangement of nodes that says the same thing: a row of labels is a `List` of
 `Text`, not a `Drawing`. It measures to nothing, so it takes its size from
-whatever places it - a `Frame` with a width and a height, or a `CanvasItem`.
+whatever places it - a `Frame` with a width and a height, or a `CanvasItem` -
+unless it is given a `size`, which it measures to, scaled down to the width it
+is offered and keeping its shape, as an image does.
 
 Text is never one of those. `Text` takes `spans` - byte ranges of its string
 with a font, a colour, an underline or a strikethrough each, or a fixed-width
@@ -312,7 +318,7 @@ costs a hash lookup. A `FontId` carries `bold` and `italic` alongside its size
 and family; both are synthesised by FreeType rather than loaded as separate
 faces, and `Text` takes them as props.
 
-`unstyled::Button` shows the split. It composes `Focusable` and `ClickCatcher`,
+`unstyled::Button` shows the split. It is a focusable `Interactive`,
 and owns button semantics, disabled behavior, pointer and keyboard activation,
 and accessibility. Its content closure receives a `ButtonHandle` of reactive
 `hovered`, `active`, and `focused` state. `styled::Button` wraps it and uses
@@ -323,17 +329,55 @@ Pure presentation components such as styled text and cards compose base
 components directly, because they have no interaction behavior to delegate.
 
 The main base building blocks are `List`, `Frame`, `Text`, `Offset`, and
-`VirtualList`. `List` is the only box that arranges siblings: it takes a
+`VirtualList`. `List` arranges siblings in a line: it takes a
 `direction`, which is vertical unless the tag says otherwise, an `align` for
-the cross axis, and `spacing`. Nothing wraps it, so a row is written
-`<List direction=Direction::Horizontal spacing=8.0>` and a row that centres its
-children adds `align=Align::Center`; a one-line alias per combination is what
-`Row`, `Column` and `CenteredRow` were, and reading the props beats remembering
-which names exist. `Frame` combines optional sizing, an aspect ratio it centres
+the cross axis, a `justify` for the main axis, and `spacing`. Nothing wraps it,
+so a row is written `<List direction=Direction::Horizontal spacing=8.0>` and a
+row that centres its children adds `align=Align::Center`; a one-line alias per
+combination is what `Row`, `Column` and `CenteredRow` were, and reading the
+props beats remembering which names exist. `justify` places whatever main-axis
+space the children leave (`Start`, `Center`, `End`, `SpaceBetween`,
+`SpaceAround`, `SpaceEvenly`), so pushing the last item of a toolbar to the
+far end needs no spacer. `Align::Baseline` lines a row's children up on the
+first baseline of their text, which a node reports through
+`Element::baseline`; a column treats it as `Start`. `wrap=true` flows
+children onto more lines: a child too wide for a line by itself is measured
+against the line's width, so long text wraps inside it, and each line's
+`Percent` children share that line's leftover.
+
+A child's `@sizing` is an `ItemSize` - `Intrinsic`, `Fixed` or `Percent`, the
+last a weight in the bounded space left over - or a `Sizing` built from one:
+`.min(..)` and `.max(..)` bound its length, `.shrink(weight)` lets it give up
+length down to its `min` when the row overflows (the label beside a fixed-size
+button), `.align(..)` overrides the list's `align` for that child, and
+`.gap(..)` replaces the list's `spacing` before it:
+`@sizing={ItemSize::Percent(100.0).max(320.0)}`.
+
+`Frame` combines optional sizing, an aspect ratio it centres
 its box within, padding, fill, outline, and visibility on one retained node.
-Its `width`, `max_width`, `height` and `aspect_ratio` each take an optional
-measurement, so a signal behind one can hand it back to nothing and leave that
-axis measuring intrinsically again.
+Its `width`, `min_width`, `max_width`, `height`, `min_height`, `max_height`
+and `aspect_ratio` each take an optional measurement, so a signal behind one
+can hand it back to nothing and leave that axis measuring intrinsically again;
+`width_fraction` and `height_fraction` take that share of the space the frame
+is offered, when that space is bounded. `padding_horizontal` and
+`padding_vertical` pad both sides of an axis and `padding_left`,
+`padding_top`, `padding_right` and `padding_bottom` override one side.
+`align_horizontal` and `align_vertical` place a child smaller than the frame
+inside it rather than stretching it over the frame, which is how a badge sits
+in a corner. `radius` rounds every corner and `radius_top_left` and its
+siblings override one.
+`Layers` lays every child over the same box, sized to the largest, later
+children on top: content over a background, a badge over an icon. A child that
+should not fill the box goes in a `Frame` that aligns it. Pointer input is the
+same as anywhere else - every catcher under the pointer hears it unless the
+top one sets `capture_presses`.
+`Grid` lines cells up in shared columns, filling them row by row: `columns`
+is a `Track` per column (`Fixed`, `Intrinsic` - as wide as its widest cell -
+or `Fraction`, a weight in what is left), with `column_spacing` and
+`row_spacing`, and each row is as tall as its tallest cell. A cell that spans
+several columns is written `<GridCell span=2>`. It is for forms and property
+panels whose labels should share one width, not for a list of rows, which is
+a `List` or a `VirtualList`.
 `Text` carries its own decoration too: `underline` is painted from the galley's
 baseline, so switching it on never moves anything. `Portal` shows a subtree that belongs to
 someone else: it takes a `NodeId`, lays it out and paints it where the portal
@@ -347,9 +391,6 @@ surface — publishing the rectangle and the clip it was laid out in through the
 `EmbedSlot` it was given and cutting that rectangle out of the surface so what
 is behind shows through. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
-`Viewport` reserves a rectangle the renderer draws into rather than the
-document: it fills the space it is given and paints the `Drawing` it is handed
-in its place (see [Draw with the gpu](#draw-with-the-gpu)).
 `Offset` keeps a run of items along a `direction` and lays them out from an
 offset; it answers no input at all, so nothing scrolls by putting one in a view
 (see [Scrolling](#scrolling)). `VirtualList` is an ordinary box that stands for
@@ -364,7 +405,7 @@ under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `TextArea`,
 `Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Popover`, `Container`,
 `PanZoom`, `PointerLock`, `Dock`, `Draggable`, `DropTarget`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
-`Stack`, `Calendar`, `DateTimeField`, `TimeList` and `ColorArea`. `TextArea` is the multiline one: it owns a
+`Stack`, `Calendar`, `DateTimeField`, `TimeList`, `ColorArea` and `Picture`. `TextArea` is the multiline one: it owns a
 `text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
 document out with a gutter, wrapping, collapsible sections and markdown
 checkboxes, and lays out the inline and block `TextWidget`s the caller
@@ -393,16 +434,16 @@ what a toolbar reaches for where `Select` would imply the choice sticks;
 held still for the long-press delay (`Context::set_long_press_delay`, which a
 test sets to zero rather than waiting) is a secondary press where it rests, so
 every context menu opens on tap-and-hold; the press the finger began is
-cancelled and lifting it is not a click. A `ClickCatcher` hears that
+cancelled and lifting it is not a click. An `Interactive` hears that
 cancellation, and a second finger landing, as `on_cancel`, which is where a
 gesture in progress is dropped rather than committed. A finger dragged across a
-`ClickCatcher` is read as a scroll of whatever holds it that scrolls that way
+`Interactive` is read as a scroll of whatever holds it that scrolls that way
 (where nothing does, it stays the catcher's drag) unless the catcher sets
 `touch_drags`, which a canvas that draws or moves things under the finger does,
 or `touch_drag_axis`, which keeps finger drags along one direction only and
 leaves the other to the scroll around it, as a dock tab in a scrolling tab bar
 does.
-A finger that lands on no control is taken to the nearest `ClickCatcher` that
+A finger that lands on no control is taken to the nearest `Interactive` that
 takes presses within `TOUCH_REACH` of it, for the whole touch, so every control's
 touch zone is bigger than it looks without anything growing; a direct hit always
 wins, so a neighbour never takes a tap aimed at the control beside it. A
@@ -548,8 +589,8 @@ Under both sits the base `Offset`, which is named for what
 it does rather than for what it is used for: it holds a run of items along a
 direction and lays them out from an offset, with no bar, no theme, and no input
 of their own. A wheel, a touch drag and the arrow keys are `unstyled::Scroll`'s,
-which wraps the offset in a `Focusable` for the keys and a `ClickCatcher` for
-the wheel and the drag, keeps the momentum an unfinished fling carries, and
+which wraps the offset in a focusable `Interactive` for the keys, the wheel and
+the drag, keeps the momentum an unfinished fling carries, and
 drives the offset from all three. So reach for `Offset` when something needs its
 content shifted under a viewport and nothing more, and for a `Scroll` whenever
 something needs to scroll.
@@ -805,8 +846,7 @@ body instead of a panel; `empty_panes` finds them and `remove_empty_panes`
 gives their room back, which is how the workspace keeps an empty pane beside
 Files that says nothing is open rather than a tab that says so.
 
-Tiled, `DockArea` keeps its panes inset from its own edges; `inset=false` lets
-them reach the edges, for a dock that already sits inside a pane of another.
+Tiled, `DockArea` keeps its panes inset from its own edges.
 `mode=DockMode::Stacked` draws the same state as one screen: the focused tab
 fills the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
 the state is kept, so switching back to `DockMode::Tiled` restores the layout.
@@ -818,7 +858,10 @@ has none. A tab's icon comes from the optional `icon` function, an icon-font
 glyph (empty for none) that the tab bars, the drag preview and the stacked bar
 all draw. The bar is the dock's, not the caller's; what a
 tab adds to it is only its own actions, which its panel hands over while it is
-built with `dock_actions(node)`, and which are shown while that tab is.
+built with `dock_actions(node)`, and which are shown while that tab is, and a
+More button, which the panel asks for with `dock_more(on_click)`. More is not a
+node, so a dock that lays out tabs built somewhere else (the app's dock holding
+a plugin's panes) can draw it and pass the press back.
 Each tab's panel is built once and moved between the two, so what it holds
 survives the switch. `recent_tabs` lists the tabs from the one shown last (the
 order is part of the state, so it is saved with the layout), and
@@ -879,6 +922,24 @@ longer than it holds more than one thing. `entries`, `active_entry`, `locate`,
 `layout_tree` lays a group's tree out the way `layout_surface` lays out a
 surface's. `find`, `all_tabs`, `surface_tabs` and `show` look through groups,
 and showing a tab inside one selects the group in every bar above it.
+
+A pinned group is one the tree never tidies away: `insert_pinned_group` puts
+one in a tab bar, and it stays a group while it holds one tab or none, cannot be
+ungrouped or closed from its menu, and admits only the tabs whose home it is -
+the tabs it was given - so dragging any other tab onto it or into it does
+nothing. Its tabs are pinned to it as well: one can be rearranged anywhere
+inside the group, and the group can be moved with all of them, but a pinned
+tab cannot be dragged, popped or carried out of it with its pane. "Unpin from
+group" on a tab's menu (`set_tab_pinned`) lets it go, it may come back later,
+and "Pin to group" pins it again once it is back. A drag that the state would
+refuse (`admits`, `admits_leaf`) shows no drop marker, and letting go there
+does nothing. `unpin` makes the whole group an ordinary group again. The app keeps a plugin's panes in one (see
+guides/adding_a_plugin_editor.md). `tree` reads a surface's or a group's layout
+out as a `DockTree`, which names tabs but no leaf, split or group ids, so it can
+be compared, sent elsewhere and rebuilt: `from_tree` makes a state out of one
+and `set_tree` replaces a tree in place, moving in any of its tabs that were
+elsewhere and keeping the focused tab focused. `group_title` names a group in
+its tab.
 
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
@@ -1030,15 +1091,18 @@ window that loses the keyboard gives the pointer back.
 ### Draw with the gpu
 
 A viewport whose pixels no arrangement of nodes can produce - a 3D scene, a ray
-tracer, a map - is a `Viewport` node holding a `Drawing`. `Viewport` fills the
-space it is laid out in and paints a `Shape::Drawing` over its rectangle;
-the renderer runs the `Draw` behind that drawing where the shape sits in the
-order everything else is painted in, so nodes written after it still paint over
-it.
+tracer, a map - is a `Drawing` node whose callback paints a gpu `Drawing`:
+`draw_gpu(drawing)` builds one that paints a `Shape::Drawing` over the node's
+rectangle. The renderer runs the `Draw` behind that drawing where the shape sits
+in the order everything else is painted in, so nodes written after it still
+paint over it.
 
 ```rust
 view! {
-    <Viewport drawing={drawing} @sizing=ItemSize::Percent(100.0) />
+    <Drawing
+        draw={Prop::Dynamic(Rc::new(move || draw_gpu(drawing.get())))}
+        @sizing=ItemSize::Percent(100.0)
+    />
 }
 ```
 
@@ -1180,7 +1244,7 @@ focused field into what is left, through every scroll it sits in.
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.
   `Setup` hands over a `Waker`, and whatever the renderer and runner provide:
   `setup.get::<beui::GpuSetup>()` is the wgpu device, queue and surface format,
-  for an app that paints with the gpu itself through a `Viewport`, and on the
+  for an app that paints with the gpu itself through `draw_gpu`, and on the
   desktop `setup.get::<Arc<beui::winit::window::Window>>()` is the window. `Waker::wake`
   can be called from any thread, and asks the runner for another frame: it is
   how work finishing elsewhere is pushed to the ui instead of polled for.
@@ -1386,7 +1450,7 @@ namespace so a component can name its props whatever it likes:
   resolving.
 - `@node_ref` fills a `NodeRef` when enclosing code genuinely needs the
   resulting `NodeId`.
-- `@sizing` selects the child's `ItemSize` among its siblings in a list, and
+- `@sizing` selects the child's `ItemSize` or `Sizing` among its siblings in a list, and
   only a list accepts it. Children are intrinsic by default; fixed children
   reserve a logical-point size, and percent children share the remaining
   bounded space by weight. On the single root of a `view!` it builds a
@@ -1425,7 +1489,7 @@ a fragment written among siblings takes the places between them, and how
 `Show`, `Dynamic`, `Keyed` and `ForEach` fill a parent they do not own. `List`,
 `Stack`, `Scroll` and `Canvas` all keep their children that way.
 
-Use `Frame`'s `width` and `height` props to constrain a component's own size,
+Use `Frame`'s `width` and `height` props (and their `min_`/`max_` forms) to constrain a component's own size,
 `max_width` for a box that fills the room it is given but stops at a limit, and
 `@sizing` to describe how it participates among siblings in a `List`. Say a
 width once: a `Frame` nested inside one that carries the width
@@ -1568,8 +1632,9 @@ the public component, handles, state readers, and supporting types there.
 Compose it from base components. For an interactive control this normally means:
 
 1. Model controlled values and transient interaction values with signals.
-2. Use `Focusable` for tab order, keyboard events, activation, and focus state.
-3. Use `ClickCatcher` for pointer and touch interaction.
+2. Use `Interactive` for pointer and touch interaction, and give it
+   `focusable=true` for tab order, keyboard events, activation, and focus
+   state. One node does both, so a control is a single `Interactive`.
 4. Publish the correct AccessKit role and state with `component_accessibility`.
 5. Give the caller a `Render<Handle>` or `RenderFn<Handle>` containing the
    reactive state needed to paint the control.
@@ -1587,7 +1652,7 @@ vertical wheel over a horizontal strip passes through to whatever is around it
 and a drag reaches the innermost catcher that scrolls that way.
 `unstyled::Scroll` is built out of those three.
 
-A press normally reaches every `ClickCatcher` under the pointer. A control that
+A press normally reaches every `Interactive` under the pointer. A control that
 must win a press, or that reacts to presses outside its own rect, captures it:
 `capture_presses` claims presses inside the catcher and `capture_at` claims
 presses at positions its callback accepts. Before any node handles a press the
@@ -1687,6 +1752,15 @@ base implementation has three parts:
   public `#[component]` wrapper in `beui-view`. The wrapper creates the node
   with `with_document` and binds reactive props to setters with `create_effect`.
 
+`Document::create_*` returns a `NodeOf<XNode>`, a node id that carries the kind
+of node it names, and the setters that reach the node's fields take that
+handle, so a setter cannot be handed a node of another kind. `.id()` is the
+plain `NodeId` for everything that takes any node. Code that only holds a
+`NodeId` - from a `NodeRef`, or a walk of the tree - asks
+`document.arena.kind_of::<XNode>(id)`, which answers `None` for a node of
+another kind, and a query meant for such code takes a `NodeId` and answers
+`None` or `false` itself, as `is_overlay_open` does.
+
 `measure` takes `&self` and must not mutate; `layout` takes `&mut self` and may
 update the node's own retained state, which is how a `VirtualList` realises
 the rows its slice of the viewport calls for. Both receive `&mut Document` and are
@@ -1707,7 +1781,27 @@ scrolled out of view releases its rows. A node that is laid out again gets
 Measurements are memoised per available size and dropped whenever the node or
 something under it changes its layout, so measuring a child repeatedly within a
 pass is cheap, but a `measure` that is not a pure function of the node and its
-constraint will return a stale answer.
+constraint will return a stale answer. A memoised size also answers a smaller
+offer it still fits: a node measured at a bounded width `a` to `s` answers any
+bounded width between `s` and `a` with `s`, and a node measured at an unbounded
+width answers an offer of exactly `s` with `s` (likewise for height). That is
+what keeps a list from measuring a child again at the length it just measured,
+so `measure` has to agree - offering a node more room than its size must not
+change its size unless that room is unbounded.
+
+`baseline` answers where the node's first line of text sits below its top when
+it is offered a size, for a row aligned to `Align::Baseline`. It defaults to
+none; `Text` answers from its first line, a node that wraps one child forwards
+the child's answer through `beui_core::layout::baseline` (adding whatever it
+shifts the child down by), and the answers are memoised beside the
+measurements.
+
+Layout stays linear in the number of nodes: a node measures each child a
+bounded number of times per pass, and anything it computes across its children
+is linear too - `base::share` hands a length out by weight between minimums and
+maximums in linear time, and is what a list's shrinking and percent children
+and a grid's fraction columns use. `nested_lists_measure_each_node_a_bounded_number_of_times`
+holds a deep tree of lists to that.
 
 A setter reaches its node through one of three arena accessors, chosen by what
 reads the field. `get_mut_as` is for anything `measure` or `layout` reads: the
@@ -1754,8 +1848,8 @@ under them has to paint. `paint` must therefore be a function of the node, its
 rectangle, the painter and the rectangles its own layout gave its children -
 anything else it reads goes unnoticed when it changes. What a node damages is
 where its shapes changed, so a repaint that paints the same thing costs no
-pixels. A `Drawing` whose content changed in part hands its `Viewport`
-`drawing.redrawn(region)` rather than a new `Drawing`: only that region, in the
+pixels. A `Drawing` whose content changed in part hands its `Drawing` node
+`draw_gpu(Some(drawing.redrawn(region)))` rather than a new `Drawing`: only that region, in the
 drawing's own coordinates, is damaged (the plugin host does this with the
 rectangles each plugin frame reports it changed). beui's own tests, and every test that drives a plugin through
 `block-ui-test` (which turns on `beui::verify_paint`), paint every frame again

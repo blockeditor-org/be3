@@ -49,37 +49,36 @@ pub(crate) fn CanvasMenu(state: Rc<CanvasState>, disabled: bool, children: Child
     let backward = create_memo(clone!(state -> move || !state.can_reorder(LAYERS[2])));
     let back = create_memo(clone!(state -> move || !state.can_reorder(LAYERS[3])));
     let chosen = clone!(state -> move |path: Vec<usize>| chose(&state, &path));
-    let items = view! {
-        <MenuItem label="Add">
-            <MenuItem label="Rectangle" />
-            <MenuItem label="Line" />
-            <MenuItem label="Text" />
-            <MenuItem label="Freehand" />
-            <MenuItem label="Image…" />
-            <MenuItem label="Block…" />
-        </MenuItem>
-        <MenuItem label="Open / edit" disabled={single.clone()} />
-        <MenuItem label="Toggle preview / direct editor" disabled={blocked} />
-        <MenuItem label="Fit selection" disabled={empty.clone()} />
-        <MenuItem label="Cut" disabled={empty.clone()} />
-        <MenuItem label="Copy" disabled={empty.clone()} />
-        <MenuItem label="Paste" />
-        <MenuItem label="Duplicate" disabled={empty.clone()} />
-        <MenuItem label="Delete" disabled={empty} />
-        <MenuItem label="Group" disabled={grouped} />
-        <MenuItem label="Ungroup" disabled={ungrouped} />
-        <MenuItem label="Lock" disabled={lockable} />
-        <MenuItem label="Unlock" disabled={unlockable} />
-        <MenuItem label="Bring to front" disabled={front} />
-        <MenuItem label="Forward" disabled={forward} />
-        <MenuItem label="Backward" disabled={backward} />
-        <MenuItem label="Send to back" disabled={back} />
-        <MenuItem label="Select all" />
-        <MenuItem label="Invert selection" />
-    };
     view! {
         <ContextMenu
-            items={items}
+            items={view! {
+                <MenuItem label="Add">
+                    <MenuItem label="Rectangle" />
+                    <MenuItem label="Line" />
+                    <MenuItem label="Text" />
+                    <MenuItem label="Freehand" />
+                    <MenuItem label="Image…" />
+                    <MenuItem label="Block…" />
+                </MenuItem>
+                <MenuItem label="Open / edit" disabled={single.clone()} />
+                <MenuItem label="Toggle preview / direct editor" disabled={blocked} />
+                <MenuItem label="Fit selection" disabled={empty.clone()} />
+                <MenuItem label="Cut" disabled={empty.clone()} />
+                <MenuItem label="Copy" disabled={empty.clone()} />
+                <MenuItem label="Paste" />
+                <MenuItem label="Duplicate" disabled={empty.clone()} />
+                <MenuItem label="Delete" disabled={empty} />
+                <MenuItem label="Group" disabled={grouped} />
+                <MenuItem label="Ungroup" disabled={ungrouped} />
+                <MenuItem label="Lock" disabled={lockable} />
+                <MenuItem label="Unlock" disabled={unlockable} />
+                <MenuItem label="Bring to front" disabled={front} />
+                <MenuItem label="Forward" disabled={forward} />
+                <MenuItem label="Backward" disabled={backward} />
+                <MenuItem label="Send to back" disabled={back} />
+                <MenuItem label="Select all" />
+                <MenuItem label="Invert selection" />
+            }}
             child_size=ItemSize::Percent(100.0)
             disabled={disabled}
             on_select={chosen}

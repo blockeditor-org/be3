@@ -8,8 +8,6 @@ use beui_macros::component;
 #[component]
 pub fn Embed(
     slot: EmbedSlot,
-    width: Option<Prop<f32>>,
-    height: Option<Prop<f32>>,
     #[prop(default = true)] punch: Prop<bool>,
     #[prop(default = 0.0)] rotation: Prop<f32>,
     children: Option<Child>,
@@ -22,12 +20,7 @@ pub fn Embed(
         }
         embed
     });
-    slot.0.node.set(Some(embed));
-    create_effect(move || {
-        let width = width.as_ref().map(Prop::get);
-        let height = height.as_ref().map(Prop::get);
-        with_document(|document| document.set_embed_size(embed, width, height));
-    });
+    slot.0.node.set(Some(embed.id()));
     create_effect(move || {
         let punch = punch.get();
         with_document(|document| document.set_embed_punch(embed, punch));
@@ -36,5 +29,5 @@ pub fn Embed(
         let rotation = rotation.get();
         with_document(|document| document.set_embed_rotation(embed, rotation));
     });
-    embed
+    embed.id()
 }
