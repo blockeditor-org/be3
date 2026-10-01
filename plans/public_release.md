@@ -42,6 +42,17 @@ anyone else can sign in:
 - Invitations bind to an email with no verification.
 - Logging out leaves the connection in the hub's workspace and watcher maps.
 
+## Server
+
+- Tokens never expire and cannot be revoked except by logging out on the
+  device that holds them. Done: an expiry with sliding renewal, change
+  password, and "sign out other devices".
+- Sign-in lockout is per email. Done: per-IP limits too, from the forwarded
+  address be-server already reads.
+- No storage quota per account, and objects uploaded but never published are
+  never collected.
+- A health endpoint and a config file in place of flags.
+
 ## Web offline
 
 - Native and Android are what the daily driver uses.

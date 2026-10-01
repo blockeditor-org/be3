@@ -153,12 +153,16 @@ postcard frames.
 - Graph announcements are per member too: when a block changes, every
   connected member of the workspace is sent the `BlockChanged` their own access
   lets them see, or a `BlockRemoved` when it no longer does.
-- Accounts live here. `Register` (refused with `--disable-registration`),
+- Accounts live here. `Register` (refused unless the server runs with
+  `--allow-registration`; the app's embedded server and the dev targets do),
   `Login`, `Authenticate` with a token and `Logout`; workspaces are created
   through it, and an administrator can `Invite` an email that the invitee sees
   with `ListInvitations` and answers with `RespondInvitation`.
-  `--add-account EMAIL NAME PASSWORD WORKSPACE` provisions an account and its
-  workspace from the command line.
+  `--add-account EMAIL NAME WORKSPACE` provisions an account and its workspace
+  from the command line, reading the password from standard input. Password
+  checks run off the database lock, a few at a time, and an email with five
+  failed sign-ins in a row is locked out for a time that doubles with each
+  further failure.
 - The graph is cached per workspace in memory and dropped on any error so it
   reloads from the database rather than drifting.
 
@@ -466,8 +470,8 @@ account: it embeds be-server (`crates/block-app/src/platform/native.rs`) on an
 ephemeral port with a data directory under the app's, and signs in to it like
 any other server. An account on another server connects to that server's URL
 instead, and the web build always does (`./scripts/buck run
-//crates/block-app:web-serve` starts be-server with `--disable-registration`
-beside it).
+//crates/block-app:web-serve` starts be-server beside it, closed to new
+accounts).
 
 Tests start their own server on an ephemeral port; see `Harness` in
 `crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`. The app's

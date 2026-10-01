@@ -98,37 +98,27 @@ What it leaves for a public release is in `plans/public_release.md`.
 
 ## Phase 4: A server you can leave running
 
-Today registration is open by default. There is no TLS, no rate limiting,
-no backups, no logging, and no signal handling. `serve.sh` only disables
-registration when it gets no other arguments, so `--domain x` runs with
-signups open.
+Landed:
+- Registration is closed unless `--allow-registration` is given, and
+  `--add-account` reads the password from standard input.
+- Password checks run off the database lock, at most four at a time, with a
+  dummy hash for unknown emails. An email is locked out after five failed
+  sign-ins, for 30 seconds doubling to an hour.
+- A 10-second handshake timeout, server pings with a 90-second idle timeout, a
+  bounded outbound queue that drops a client that stops reading, a cap of 1024
+  connections, and accept errors that no longer stop the server.
+- `tracing` logs (`RUST_LOG`), with the forwarded address of each connection
+  and every failed sign-in, and SIGTERM stops the server after a WAL
+  checkpoint.
 
-- **Closed by default.**
-  - `allow_registration` defaults to false. `--allow-registration` turns it
-    on, which the dev targets pass.
-  - `--add-account` reads the password from stdin, not argv.
-- **Auth hardening.**
-  - Tokens get a creation time, an expiry with sliding renewal, and
-    revocation.
-  - Add change-password and "sign out other devices".
-  - Run Argon2 in `spawn_blocking` and outside the database mutex. Today a
-    login flood stalls every request (`be-server/src/store.rs:126-140`).
-  - Verify a dummy hash when the email is unknown, to remove the timing
-    oracle.
-  - Rate-limit logins per IP. Behind Caddy that means the forwarded address.
-- **Resource limits.**
-  - Add a connection cap, a handshake timeout, an idle timeout with server
-    pings, and a bounded outbound queue per client. A slow reader currently
-    grows memory without bound (`lib.rs:183`).
-  - A per-account storage quota.
-  - An accept error must not stop the server (`lib.rs:129`).
-- **Operations.**
-  - Structured logging with `tracing`.
-  - A `/health` HTTP path.
-  - SIGTERM drains connections and checkpoints the WAL.
-  - A config file in place of growing flags.
-  - A systemd unit and a short `guides/hosting.md` for the existing VPS:
-    Caddy terminates TLS and be-server binds to 127.0.0.1.
+Still to do here:
+- A systemd unit and a short `guides/hosting.md` for the existing VPS: Caddy
+  terminates TLS and be-server binds to 127.0.0.1.
+
+Token expiry, changing a password, per-IP limits, storage quotas, a health
+endpoint and a config file wait for a public release
+(`plans/public_release.md`).
+
 - **Backups, to Bunny Storage.**
   - `be-server backup`:
     1. `VACUUM INTO` the database.

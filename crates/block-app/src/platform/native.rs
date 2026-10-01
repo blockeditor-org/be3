@@ -70,7 +70,7 @@ pub(crate) fn start_embedded_server_at(
                 if let Err(error) = be_server::serve_with_config(
                     listener,
                     data_dir,
-                    be_server::ServerConfig::default(),
+                    be_server::ServerConfig::OPEN,
                     shutdown,
                 )
                 .await

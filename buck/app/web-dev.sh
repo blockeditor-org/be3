@@ -64,7 +64,7 @@ if $fresh; then
 fi
 
 [ -x "$caddy/caddy" ] && caddy="$caddy/caddy" || caddy="$caddy/caddy.exe"
-setsid "$server" --addr "127.0.0.1:$backend" --data-dir "$dir/server" \
+setsid "$server" --addr "127.0.0.1:$backend" --data-dir "$dir/server" --allow-registration \
     > "$dir/server.log" 2>&1 < /dev/null &
 echo $! > "$dir/server.pid"
 BE3_DOMAIN_NAME="http://127.0.0.1:$port" BE3_BACKEND_URL="127.0.0.1:$backend" \
