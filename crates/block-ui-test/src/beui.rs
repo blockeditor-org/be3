@@ -1124,8 +1124,13 @@ impl<A: BeuiApp> BeuiTest<A> {
             .output
             .as_ref()
             .expect("the editor has not drawn a frame yet");
-        capture::capture(output, self.size, output.pixels_per_point(), Color32::BLACK)
-            .expect("the painting could not be rendered")
+        capture::capture(
+            output,
+            Rect::from_min_size(Pos2::ZERO, self.size),
+            output.pixels_per_point(),
+            Color32::BLACK,
+        )
+        .expect("the painting could not be rendered")
     }
 }
 
