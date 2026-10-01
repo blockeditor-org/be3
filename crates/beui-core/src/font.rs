@@ -1,5 +1,7 @@
 use std::collections::HashMap;
-use std::hash::{DefaultHasher, Hash, Hasher};
+use std::hash::{BuildHasher, Hash, Hasher};
+
+use foldhash::fast::FixedState;
 use std::ops::Range;
 use std::rc::Rc;
 use unicode_segmentation::UnicodeSegmentation;
@@ -399,7 +401,7 @@ impl GalleyKey {
 }
 
 fn galley_hash(text: &str, size: u32, family: FontFamily, shape: Shaping, scale: u32) -> u64 {
-    let mut hasher = DefaultHasher::new();
+    let mut hasher = FixedState::with_seed(0).build_hasher();
     text.hash(&mut hasher);
     size.hash(&mut hasher);
     family.hash(&mut hasher);

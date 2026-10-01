@@ -369,6 +369,14 @@ pub struct Core {
     highlighter_language: Option<TextLanguage>,
 
     collapse_state: Vec<Position>,
+    section_shapes: std::cell::RefCell<Option<(u64, Arc<[SectionShape]>)>>,
+}
+
+#[derive(Clone, Copy)]
+struct SectionShape {
+    line_start: usize,
+    line_end: usize,
+    content_end: usize,
 }
 
 impl Core {
@@ -382,6 +390,7 @@ impl Core {
             highlighter: None,
             highlighter_language: None,
             collapse_state: Vec::new(),
+            section_shapes: std::cell::RefCell::new(None),
         }
     }
 
@@ -689,20 +698,49 @@ impl Core {
     }
 
     pub fn collapsible_sections(&self) -> Vec<CollapsibleSection> {
+        let revision = self.document.revision();
         let Some(read) = self.document.read() else {
             return Vec::new();
         };
         let document = DocumentView::new(&*read);
-        self.collapsible_sections_in(&document)
+        self.collapsible_sections_in(&document, revision)
     }
 
-    fn collapsible_sections_in(&self, document: &DocumentView<'_>) -> Vec<CollapsibleSection> {
+    fn section_shapes(&self, document: &DocumentView<'_>, revision: u64) -> Arc<[SectionShape]> {
+        if let Some((held, shapes)) = &*self.section_shapes.borrow()
+            && *held == revision
+        {
+            return Arc::clone(shapes);
+        }
         let bytes = document.bytes();
         let language = document.language();
-        let mut sections = Vec::new();
+        let mut shapes = Vec::new();
         let mut start = 0;
         while start < bytes.len() {
             if let Some(content_end) = collapsible_section_end(bytes, language, start) {
+                shapes.push(SectionShape {
+                    line_start: start,
+                    line_end: line_end(bytes, start),
+                    content_end,
+                });
+            }
+            start = next_line_start(bytes, start);
+        }
+        let shapes: Arc<[SectionShape]> = shapes.into();
+        *self.section_shapes.borrow_mut() = Some((revision, Arc::clone(&shapes)));
+        shapes
+    }
+
+    fn collapsible_sections_in(
+        &self,
+        document: &DocumentView<'_>,
+        revision: u64,
+    ) -> Vec<CollapsibleSection> {
+        let bytes = document.bytes();
+        let mut sections = Vec::new();
+        for shape in self.section_shapes(document, revision).iter() {
+            let (start, content_end) = (shape.line_start, shape.content_end);
+            {
                 let hidden_start = next_line_start(bytes, start);
                 let stored = self
                     .collapse_state
@@ -717,13 +755,12 @@ impl Core {
                     });
                 sections.push(CollapsibleSection {
                     line_start: start,
-                    line_end: line_end(bytes, start),
+                    line_end: shape.line_end,
                     content_end,
                     collapsed: stored && !revealed,
                     revealed,
                 });
             }
-            start = next_line_start(bytes, start);
         }
         sections
     }
@@ -892,12 +929,13 @@ impl Core {
         stop: CursorLeftRightStop,
         mode: MoveMode,
     ) {
+        let revision = self.document.revision();
         let Some(read) = self.document.read() else {
             return;
         };
         let document = DocumentView::new(&*read);
         let stops = self.cursor_stops();
-        let sections = self.collapsible_sections_in(&document);
+        let sections = self.collapsible_sections_in(&document, revision);
         let mut opened = Vec::new();
         for cursor in &mut self.cursor_positions {
             let current = resolve_selection(&document, cursor.pos);
@@ -997,11 +1035,12 @@ impl Core {
         if metric != CursorHorizontalPositionMetric::Byte {
             return;
         }
+        let revision = self.document.revision();
         let Some(read) = self.document.read() else {
             return;
         };
         let document = DocumentView::new(&*read);
-        let sections = self.collapsible_sections_in(&document);
+        let sections = self.collapsible_sections_in(&document, revision);
         let original_len = self.cursor_positions.len();
         for index in 0..original_len {
             let cursor = self.cursor_positions[index];
@@ -2194,9 +2233,7 @@ fn line_start(bytes: &[u8], index: usize) -> usize {
 }
 
 fn next_line_start(bytes: &[u8], index: usize) -> usize {
-    bytes[index.min(bytes.len())..]
-        .iter()
-        .position(|byte| *byte == b'\n')
+    memchr::memchr(b'\n', &bytes[index.min(bytes.len())..])
         .map_or(bytes.len(), |newline| index.min(bytes.len()) + newline + 1)
 }
 
@@ -2233,10 +2270,11 @@ fn markdown_section_end(bytes: &[u8], start: usize) -> Option<usize> {
         if heading_level(bytes, cursor).is_some_and(|next| next <= level) {
             break;
         }
+        let next = next_line_start(bytes, cursor);
         if indent_columns(bytes, cursor).is_some() {
-            end = Some(line_end(bytes, cursor));
+            end = Some(if next == bytes.len() { next } else { next - 1 });
         }
-        cursor = next_line_start(bytes, cursor);
+        cursor = next;
     }
     end
 }

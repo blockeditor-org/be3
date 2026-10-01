@@ -1,9 +1,9 @@
 use std::ops::Range;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tree_sitter::{InputEdit, Parser, Point, Tree};
-use tree_sitter_md::{MarkdownParser, MarkdownTree};
 
+use crate::TextChange;
 use crate::document::{Document, DocumentView, TextLanguage};
 
 mod markdown;
@@ -38,7 +38,7 @@ impl Language {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SynHlColorScope {
     Invalid,
     PunctuationImportant,
@@ -89,21 +89,21 @@ impl SynHlColorScope {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SynHlFontFamily {
     #[default]
     Proportional,
     Monospace,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SynHlTextSize {
     #[default]
     Body,
     Heading(u8),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SynHlStyle {
     pub color: SynHlColorScope,
     pub family: SynHlFontFamily,
@@ -129,17 +129,144 @@ impl SynHlStyle {
 }
 
 pub struct SyntaxHighlight {
-    styles: Vec<SynHlStyle>,
-    markdown_tables: Vec<MarkdownTable>,
-    markdown_code_blocks: Vec<Range<usize>>,
+    styles: Styles,
+}
+
+enum Styles {
+    Uniform { style: SynHlStyle, len: usize },
+    Each(Vec<SynHlStyle>),
+    Markdown(Arc<MarkdownSource>),
+}
+
+struct MarkdownSource {
+    bytes: Arc<[u8]>,
+    fences: Vec<Range<usize>>,
+    table_starts: Vec<usize>,
+    windows: Mutex<Windows>,
+}
+
+#[derive(Default)]
+struct Windows {
+    held: Vec<HeldWindow>,
+    clock: u64,
+}
+
+struct HeldWindow {
+    start: usize,
+    window: Arc<markdown::MarkdownWindow>,
+    used: u64,
+}
+
+const MARKDOWN_WINDOWS_KEPT: usize = 128;
+
+impl MarkdownSource {
+    fn new(bytes: Arc<[u8]>) -> Self {
+        Self {
+            fences: markdown::fences(&bytes),
+            table_starts: markdown::table_starts(&bytes),
+            bytes,
+            windows: Mutex::default(),
+        }
+    }
+
+    fn window(&self, index: usize) -> (usize, Arc<markdown::MarkdownWindow>) {
+        let mut windows = self
+            .windows
+            .lock()
+            .expect("the markdown windows were poisoned");
+        windows.clock += 1;
+        let clock = windows.clock;
+        let after = windows.held.partition_point(|held| held.start <= index);
+        if let Some(held) = after
+            .checked_sub(1)
+            .and_then(|found| windows.held.get_mut(found))
+            .filter(|held| index < held.start + held.window.len)
+        {
+            held.used = clock;
+            return (held.start, Arc::clone(&held.window));
+        }
+        let mut range = markdown::window_range(&self.bytes, &self.fences, index..index + 1);
+        if let Some(before) = after.checked_sub(1).map(|found| &windows.held[found]) {
+            range.start = range.start.max(before.start + before.window.len);
+        }
+        if let Some(next) = windows.held.get(after) {
+            range.end = range.end.min(next.start);
+        }
+        let window = Arc::new(markdown::parse_window(&self.bytes[range.clone()]));
+        if windows.held.len() >= MARKDOWN_WINDOWS_KEPT
+            && let Some(oldest) = (0..windows.held.len()).min_by_key(|at| windows.held[*at].used)
+        {
+            windows.held.remove(oldest);
+        }
+        let at = windows
+            .held
+            .partition_point(|held| held.start < range.start);
+        windows.held.insert(
+            at,
+            HeldWindow {
+                start: range.start,
+                window: Arc::clone(&window),
+                used: clock,
+            },
+        );
+        (range.start, window)
+    }
+
+    fn successor(&self, bytes: Arc<[u8]>, change: TextChange) -> Self {
+        let fences = markdown::shifted_fences(&self.bytes, &self.fences, &bytes, change);
+        let table_starts =
+            markdown::shifted_table_starts(&self.bytes, &self.table_starts, &bytes, change);
+        let fences_kept = fences.len() == self.fences.len()
+            && self.fences.iter().zip(&fences).all(|(old, new)| {
+                change.moved(old.start) == Some(new.start) && change.moved(old.end) == Some(new.end)
+            });
+        let touched = markdown::touched_lines(&self.bytes, change.start, change.old_end);
+        let held = match fences_kept {
+            false => Vec::new(),
+            true => self
+                .windows
+                .lock()
+                .expect("the markdown windows were poisoned")
+                .held
+                .iter()
+                .filter_map(|held| {
+                    let end = held.start + held.window.len;
+                    let start = if end < touched.start {
+                        held.start
+                    } else if held.start >= touched.end {
+                        change.moved(held.start)?
+                    } else {
+                        return None;
+                    };
+                    Some(HeldWindow {
+                        start,
+                        window: Arc::clone(&held.window),
+                        used: held.used,
+                    })
+                })
+                .collect(),
+        };
+        let clock = self
+            .windows
+            .lock()
+            .expect("the markdown windows were poisoned")
+            .clock;
+        Self {
+            bytes,
+            fences,
+            table_starts,
+            windows: Mutex::new(Windows { held, clock }),
+        }
+    }
 }
 
 impl SyntaxHighlight {
     pub(crate) fn plaintext(len: usize) -> Self {
         Self {
-            styles: vec![SynHlStyle::plain(SynHlColorScope::Unstyled); len],
-            markdown_tables: Vec::new(),
-            markdown_code_blocks: Vec::new(),
+            styles: Styles::Uniform {
+                style: SynHlStyle::plain(SynHlColorScope::Unstyled),
+                len,
+            },
         }
     }
 
@@ -150,44 +277,104 @@ impl SyntaxHighlight {
             }
         }
         Self {
-            styles: scopes.into_iter().map(SynHlStyle::plain).collect(),
-            markdown_tables: Vec::new(),
-            markdown_code_blocks: Vec::new(),
+            styles: Styles::Each(scopes.into_iter().map(SynHlStyle::plain).collect()),
+        }
+    }
+
+    fn markdown(source: Arc<MarkdownSource>) -> Self {
+        Self {
+            styles: Styles::Markdown(source),
         }
     }
 
     pub fn advance_and_read(&self, byte_index: usize) -> SynHlColorScope {
-        self.styles
-            .get(byte_index)
-            .map(|style| style.color)
-            .unwrap_or(SynHlColorScope::Invalid)
+        self.style_at(byte_index).color
     }
 
     pub fn style_at(&self, byte_index: usize) -> SynHlStyle {
-        self.styles
-            .get(byte_index)
-            .copied()
-            .unwrap_or(SynHlStyle::plain(SynHlColorScope::Invalid))
+        let invalid = SynHlStyle::plain(SynHlColorScope::Invalid);
+        match &self.styles {
+            Styles::Uniform { style, len } => match byte_index < *len {
+                true => *style,
+                false => invalid,
+            },
+            Styles::Each(styles) => styles.get(byte_index).copied().unwrap_or(invalid),
+            Styles::Markdown(source) => {
+                if byte_index >= source.bytes.len() {
+                    return invalid;
+                }
+                let (start, window) = source.window(byte_index);
+                window
+                    .styles
+                    .get(byte_index - start)
+                    .copied()
+                    .unwrap_or(invalid)
+            }
+        }
     }
 
-    pub fn markdown_tables(&self) -> &[MarkdownTable] {
-        &self.markdown_tables
+    pub fn styles_in(&self, range: Range<usize>) -> Vec<SynHlStyle> {
+        let Styles::Markdown(source) = &self.styles else {
+            return range.map(|index| self.style_at(index)).collect();
+        };
+        let end = range.end.min(source.bytes.len());
+        let mut styles = Vec::with_capacity(end.saturating_sub(range.start));
+        let mut at = range.start;
+        while at < end {
+            let (start, window) = source.window(at);
+            let until = end.min(start + window.len);
+            styles.extend_from_slice(&window.styles[at - start..until - start]);
+            at = until;
+        }
+        styles
     }
 
-    pub fn markdown_code_blocks(&self) -> &[Range<usize>] {
-        &self.markdown_code_blocks
+    pub fn markdown_bytes(&self) -> Option<Arc<[u8]>> {
+        match &self.styles {
+            Styles::Markdown(source) => Some(Arc::clone(&source.bytes)),
+            _ => None,
+        }
+    }
+
+    pub fn markdown_tables(&self) -> Vec<MarkdownTable> {
+        let Styles::Markdown(source) = &self.styles else {
+            return Vec::new();
+        };
+        let mut tables: Vec<MarkdownTable> = Vec::new();
+        for &start in &source.table_starts {
+            let (window_start, window) = source.window(start);
+            for table in &window.tables {
+                let first = table.rows.first().map(|row| row.range.start + window_start);
+                if first == Some(start)
+                    && !tables
+                        .iter()
+                        .any(|held| held.rows.first().map(|row| row.range.start) == first)
+                {
+                    tables.push(markdown::shift_table(table, window_start));
+                }
+            }
+        }
+        tables
+    }
+
+    pub fn in_code_block(&self, range: Range<usize>) -> bool {
+        let Styles::Markdown(source) = &self.styles else {
+            return false;
+        };
+        if range.start >= source.bytes.len() {
+            return false;
+        }
+        let (start, window) = source.window(range.start);
+        window
+            .code_blocks
+            .iter()
+            .any(|block| block.start + start <= range.end && block.end + start > range.start)
     }
 }
 
 enum ParserBackend {
-    TreeSitter {
-        parser: Parser,
-        tree: Option<Tree>,
-    },
-    Markdown {
-        parser: MarkdownParser,
-        tree: Option<MarkdownTree>,
-    },
+    TreeSitter { parser: Parser, tree: Option<Tree> },
+    Markdown,
 }
 
 impl ParserBackend {
@@ -201,6 +388,7 @@ impl ParserBackend {
 }
 
 pub struct Highlighter {
+    markdown: Option<(u64, Arc<MarkdownSource>)>,
     document: Arc<dyn Document>,
     backend: ParserBackend,
     parsed_revision: Option<u64>,
@@ -211,14 +399,12 @@ pub struct Highlighter {
 impl Highlighter {
     pub fn new(document: Arc<dyn Document>, language: Language) -> Self {
         let backend = match language {
-            Language::Markdown => ParserBackend::Markdown {
-                parser: MarkdownParser::default(),
-                tree: None,
-            },
+            Language::Markdown => ParserBackend::Markdown,
             Language::Rust => ParserBackend::tree_sitter(&tree_sitter_rust::LANGUAGE.into()),
             Language::Zig => ParserBackend::tree_sitter(&tree_sitter_zig::LANGUAGE.into()),
         };
         Self {
+            markdown: None,
             document,
             backend,
             parsed_revision: None,
@@ -231,7 +417,7 @@ impl Highlighter {
         let revision = self.document.revision();
         let has_tree = match &self.backend {
             ParserBackend::TreeSitter { tree, .. } => tree.is_some(),
-            ParserBackend::Markdown { tree, .. } => tree.is_some(),
+            ParserBackend::Markdown => return Some(()),
         };
         if self.parsed_revision == Some(revision) && has_tree {
             return Some(());
@@ -239,7 +425,19 @@ impl Highlighter {
         let read = self.document.read()?;
         let document = DocumentView::new(&*read);
         let bytes = document.bytes();
-        let edit = if self.parsed_revision.is_some() {
+        let logged = self
+            .parsed_revision
+            .and_then(|parsed| self.document.changes_since(parsed));
+        let edit = if let Some(change) = logged {
+            Some(InputEdit {
+                start_byte: change.start,
+                old_end_byte: change.old_end,
+                new_end_byte: change.new_end,
+                start_position: byte_point(&self.parsed_bytes, change.start),
+                old_end_position: byte_point(&self.parsed_bytes, change.old_end),
+                new_end_position: byte_point(bytes, change.new_end),
+            })
+        } else if self.parsed_revision.is_some() {
             let prefix = self
                 .parsed_bytes
                 .iter()
@@ -275,12 +473,7 @@ impl Highlighter {
                 }
                 *tree = parser.parse(bytes, tree.as_ref());
             }
-            ParserBackend::Markdown { parser, tree } => {
-                if let (Some(tree), Some(edit)) = (tree.as_mut(), edit.as_ref()) {
-                    tree.edit(edit);
-                }
-                *tree = parser.parse(bytes, tree.as_ref());
-            }
+            ParserBackend::Markdown => {}
         }
         self.parsed_bytes.clear();
         self.parsed_bytes.extend_from_slice(bytes);
@@ -289,63 +482,58 @@ impl Highlighter {
     }
 
     pub fn highlight(&mut self) -> SyntaxHighlight {
-        if self.ensure_parsed().is_none() {
-            return SyntaxHighlight {
-                styles: Vec::new(),
-                markdown_tables: Vec::new(),
-                markdown_code_blocks: Vec::new(),
+        if self.language == Language::Markdown {
+            let revision = self.document.revision();
+            if let Some((held, source)) = &self.markdown
+                && *held == revision
+            {
+                return SyntaxHighlight::markdown(Arc::clone(source));
+            }
+            let Some(read) = self.document.read() else {
+                return SyntaxHighlight::plaintext(0);
             };
+            let bytes: Arc<[u8]> = read.slice(0..read.len()).into();
+            drop(read);
+            let change = self
+                .markdown
+                .as_ref()
+                .and_then(|(held, _)| self.document.changes_since(*held));
+            let source = Arc::new(match (self.markdown.take(), change) {
+                (Some((_, previous)), Some(change)) => previous.successor(bytes, change),
+                _ => MarkdownSource::new(bytes),
+            });
+            self.markdown = Some((revision, Arc::clone(&source)));
+            return SyntaxHighlight::markdown(source);
+        }
+        if self.ensure_parsed().is_none() {
+            return SyntaxHighlight::plaintext(0);
         }
         let read = self.document.read().expect("parsed document disappeared");
         let document = DocumentView::new(&*read);
         let bytes = document.bytes();
         match self.language {
-            Language::Markdown => {
-                let (styles, markdown_tables, markdown_code_blocks) = match &self.backend {
-                    ParserBackend::Markdown {
-                        tree: Some(tree), ..
-                    } => (
-                        markdown::styles(tree, bytes.len()),
-                        markdown::tables(tree),
-                        markdown::code_blocks(tree),
-                    ),
-                    _ => (
-                        vec![SynHlStyle::plain(SynHlColorScope::MarkdownPlainText); bytes.len()],
-                        Vec::new(),
-                        Vec::new(),
-                    ),
-                };
-                SyntaxHighlight {
-                    styles,
-                    markdown_tables,
-                    markdown_code_blocks,
-                }
-            }
             Language::Rust => SyntaxHighlight::from_scopes(rust::scopes(bytes), bytes),
             Language::Zig => SyntaxHighlight::from_scopes(zig::scopes(bytes), bytes),
+            Language::Markdown => SyntaxHighlight::plaintext(bytes.len()),
         }
     }
 
     pub(crate) fn node_chain(&mut self, start: usize, end: usize) -> Vec<(usize, usize)> {
+        if self.language == Language::Markdown {
+            let Some(read) = self.document.read() else {
+                return Vec::new();
+            };
+            let bytes = read.slice(0..read.len());
+            let fences = markdown::fences(&bytes);
+            return markdown::chain(
+                &bytes,
+                &fences,
+                start.min(bytes.len()),
+                end.min(bytes.len()),
+            );
+        }
         if self.ensure_parsed().is_none() {
             return Vec::new();
-        }
-        if let ParserBackend::Markdown {
-            tree: Some(tree), ..
-        } = &self.backend
-        {
-            let document_len = tree.block_tree().root_node().end_byte();
-            let query_end = if start == end {
-                start.saturating_add(1).min(document_len)
-            } else {
-                end.min(document_len)
-            };
-            let mut result = Vec::new();
-            let mut cursor = tree.walk();
-            markdown::collect_chain(&mut cursor, start.min(document_len), query_end, &mut result);
-            result.reverse();
-            result.dedup();
-            return result;
         }
         let ParserBackend::TreeSitter {
             tree: Some(tree), ..

@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 accesskit = "0.24.1"
+foldhash = "0.2"
 geometry = { path = "../geometry" }
 reactive = { path = "../reactive" }
 thumbhash = "0.1"
