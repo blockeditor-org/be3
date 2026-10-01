@@ -732,12 +732,33 @@ it), registers, logs in and out, lists and creates workspaces, and invites and
 answers invitations. What comes back is an account id and a token, and the
 app's peer connects with `Credentials::Token` for the workspace it opens.
 
-The content key is not a secret yet. `Config::content_key` derives it as a hash
-of a fixed label and the workspace id, so every device of a workspace reads the
-same bytes without exchanging anything, and so could anyone who knows the
-workspace id, the server included. Content, commits and block metadata are all
-sealed with it, so "the server cannot read it" is true of the design and not
-yet of the key; the key wrapping below is what replaces it.
+### Keys
+
+Each workspace has a random content key (`Config::content_key`) that seals its
+content, commits, block metadata and session traffic. The server never holds it
+in the clear. `crates/be-keys` holds the cryptography.
+
+- **On the device.** The app keeps each workspace's key in its app state, per
+  account (`AppStateStore::workspace_key`). A workspace with no key there opens
+  on the unlock screen (`crates/block-app/src/keys.rs`, `ui/keys.rs`) instead of
+  starting the peer.
+- **Recovery.** Each account has a twelve-word recovery phrase, shown once and
+  checked by typing three of its words. The phrase derives an X25519 key pair,
+  and the server stores only the public half (`SetRecoveryKey`). Each member's
+  copy of a workspace key is sealed to that public key (`PutWorkspaceKey`,
+  `GetKeys`), so a new device opens a workspace with the phrase alone. A new
+  phrase has to reseal every key the old one sealed, which the server checks.
+- **Sealing for members.** When the worker connects, it seals the workspace key
+  for every member that has a recovery key and no sealed copy
+  (`ListMemberKeys`), which covers the creator and anyone invited since. The
+  server only ever inserts a sealed key, never replaces one, so a member cannot
+  overwrite another's.
+- **Adding a device.** The new device shows an eight-character code. The user
+  types it on a device where the workspace is open, and the two run SPAKE2
+  keyed by the code over the server's relay (`Pair`, delivered as `Paired` to
+  the account's other connections). The open device seals the key under the
+  agreed secret, so the server would have to guess the code to read or replace
+  it. It gets one guess, because a wrong code ends the request.
 
 ### Presence
 
@@ -823,10 +844,9 @@ pixel art export regenerate this way.
   that wants.
 - Reconnecting rejoins from the server's head, so operations a session had not
   sealed when the socket dropped are gone.
-- The content key is derived from the workspace id (see Reaching the server), so
-  it protects nothing from the server yet. Keys are passed in whole
-  (`ContentKey`); there is no per-recipient key wrapping, so sharing a block
-  across accounts or workspaces does not share a key of its own.
+- A workspace has one key for its whole life. Removing a member does not
+  rotate it, and sealed objects carry no key id to rotate by. Sharing a block
+  across workspaces does not share a key of its own.
 - Sessions relay through the server. Direct peer connections are a latency
   optimisation on the same protocol and can come later.
 - The server learns the shape of the graph, object sizes and timings. It never

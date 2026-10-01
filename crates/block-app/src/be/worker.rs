@@ -8,7 +8,7 @@ use be_block::{BlockContent, BlockMetadata, LiveEdit, Merge, Undo};
 use be_client::{ClientError, Conflict, Credentials, Journaled, Live, Peer, PeerConfig, Saved};
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
-use be_protocol::{AccessEntry, BlockSummary, ServerMessage};
+use be_protocol::{AccessEntry, BlockSummary, ClientMessage, ServerMessage};
 use be_store::ContentKey;
 use futures_util::future::{Either, LocalBoxFuture, select};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -82,7 +82,21 @@ pub(super) enum Command {
         command: block_plugin_api::VersionCommand,
     },
     WatchVersion(Uuid),
+    ApprovePairing {
+        from: u64,
+        code: String,
+    },
+    DismissPairing(u64),
 }
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PairingRequest {
+    pub(crate) from: u64,
+    pub(crate) device: String,
+    message: Vec<u8>,
+}
+
+const PAIRING_REQUEST_LIMIT: usize = 4;
 
 #[derive(Default)]
 pub(crate) struct Shared {
@@ -96,6 +110,7 @@ pub(crate) struct Shared {
     pub(crate) connected: bool,
     pub(crate) error: Option<String>,
     pub(crate) conflicts: HashMap<Uuid, Vec<Conflict>>,
+    pub(crate) pairing: Vec<PairingRequest>,
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
 }
@@ -687,6 +702,9 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     crate::host::wake();
     let mut events = peer.connection().subscribe();
     let mut gone = peer.connection().closed();
+    if let Err(error) = seal_for_members(&peer).await {
+        record(shared, error);
+    }
     load_graph(&peer, shared).await;
     let mut sessions: HashMap<Uuid, Box<dyn Session>> = HashMap::new();
     for (block, content_type) in open.clone() {
@@ -748,6 +766,13 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                     }
                     Some(ServerMessage::HeadChanged { block, head, .. }) => {
                         shared.lock().unwrap().graph.set_head(block, Some(head));
+                    }
+                    Some(ServerMessage::Paired {
+                        from,
+                        workspace,
+                        payload,
+                    }) if workspace == peer.workspace() => {
+                        asked_to_pair(shared, from, &payload);
                     }
                     Some(_) => {}
                     None => load_graph(&peer, shared).await,
@@ -821,6 +846,89 @@ async fn wait(
     }
 }
 
+async fn seal_for_members(peer: &Peer<Store>) -> Result<(), ClientError> {
+    let workspace = peer.workspace();
+    let listed = peer
+        .connection()
+        .request(|request| ClientMessage::ListMemberKeys { request, workspace })
+        .await?;
+    let ServerMessage::MemberKeys { members, .. } = listed else {
+        return Err(ClientError::Unexpected);
+    };
+    let key = peer.commits().vault().key();
+    for member in members {
+        let Some(recovery) = member.recovery.filter(|_| !member.sealed) else {
+            continue;
+        };
+        let sealed = be_keys::RecoveryPublic(recovery).seal(key.as_bytes());
+        peer.connection()
+            .request(|request| ClientMessage::PutWorkspaceKey {
+                request,
+                workspace,
+                account: member.account,
+                sealed,
+            })
+            .await?;
+    }
+    Ok(())
+}
+
+fn asked_to_pair(shared: &Arc<Mutex<Shared>>, from: u64, payload: &[u8]) {
+    let Ok(be_keys::PairingMessage::Request { message, device }) =
+        be_keys::PairingMessage::decode(payload)
+    else {
+        return;
+    };
+    let mut held = shared.lock().unwrap();
+    held.pairing.retain(|request| request.from != from);
+    held.pairing.push(PairingRequest {
+        from,
+        device,
+        message,
+    });
+    if held.pairing.len() > PAIRING_REQUEST_LIMIT {
+        held.pairing.remove(0);
+    }
+    drop(held);
+    crate::host::wake();
+}
+
+async fn approve_pairing(
+    peer: &Peer<Store>,
+    shared: &Arc<Mutex<Shared>>,
+    from: u64,
+    code: &str,
+) -> Result<(), ClientError> {
+    let request = {
+        let mut held = shared.lock().unwrap();
+        let Some(index) = held.pairing.iter().position(|request| request.from == from) else {
+            return Ok(());
+        };
+        held.pairing.remove(index)
+    };
+    let Some(code) = be_keys::normalize_code(code) else {
+        return Err(ClientError::Encoding(
+            "that is not a pairing code".to_owned(),
+        ));
+    };
+    let workspace = peer.workspace();
+    let (pairing, message) = be_keys::Pairing::start(&code, workspace.as_bytes());
+    let key = pairing
+        .finish(&request.message)
+        .map_err(|error| ClientError::Encoding(error.to_string()))?;
+    let sealed = key.seal(peer.commits().vault().key().as_bytes());
+    let payload = be_keys::PairingMessage::Reply { message, sealed }.encode();
+    peer.connection()
+        .request(|request| ClientMessage::Pair {
+            request,
+            to: Some(from),
+            workspace,
+            payload,
+        })
+        .await?;
+    Ok(())
+}
+
 async fn rejoin(
     peer: &Arc<Peer<Store>>,
     sessions: &mut HashMap<Uuid, Box<dyn Session>>,
@@ -877,6 +985,22 @@ async fn apply(
     match command {
         Command::WatchVersion(block) => {
             Versions::watch(shared, block);
+            false
+        }
+        Command::ApprovePairing { from, code } => {
+            if let Err(error) = approve_pairing(peer, shared, from, &code).await {
+                record(shared, error);
+            }
+            crate::host::wake();
+            false
+        }
+        Command::DismissPairing(from) => {
+            shared
+                .lock()
+                .unwrap()
+                .pairing
+                .retain(|request| request.from != from);
+            crate::host::wake();
             false
         }
         Command::Version { block, command } => {
@@ -1195,7 +1319,7 @@ async fn connect(config: &Config, store: Store) -> Result<Peer<Store>, ClientErr
     Peer::connect(
         PeerConfig::new(
             config.socket_url(),
-            ContentKey::from_bytes(config.content_key()),
+            ContentKey::from_bytes(config.content_key),
             Credentials::Token(config.token.clone()),
         )
         .workspace(Some(config.workspace)),

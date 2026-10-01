@@ -28,9 +28,11 @@ mod blocks_publish_and_read_back_through_the_server;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
 mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
+mod pairing_messages_reach_only_the_same_accounts_other_connections;
 mod pruning_history_keeps_pinned_commits;
 mod relayed_session_traffic_passes_through_the_server_sealed;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
+mod workspace_keys_are_sealed_per_member_and_never_overwritten;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
 

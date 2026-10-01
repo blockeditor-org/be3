@@ -10,8 +10,8 @@ use argon2::{
 use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
 use be_protocol::{
-    AccessEntry, BlockSummary, ErrorCode, HistoryEntry, Workspace, WorkspaceInvitation,
-    WorkspaceRole,
+    AccessEntry, BlockSummary, ErrorCode, HistoryEntry, MemberKey, SealedKey, Workspace,
+    WorkspaceInvitation, WorkspaceRole,
 };
 use be_store::{FileStore, Hash, ObjectStore};
 use rand::TryRngCore;
@@ -366,6 +366,136 @@ impl ServerStore {
         })
     }
 
+    pub async fn keys(
+        &self,
+        account: Uuid,
+    ) -> Result<(Option<[u8; 32]>, Vec<SealedKey>), ServerError> {
+        let database = self.database.lock().await;
+        let recovery = recovery_key(&database, account)?;
+        let mut statement = database.prepare(
+            "SELECT workspace_keys.workspace_id, workspace_keys.sealed FROM workspace_keys
+             JOIN memberships ON memberships.workspace_id = workspace_keys.workspace_id
+                AND memberships.account_id = workspace_keys.account_id
+             WHERE workspace_keys.account_id = ?1",
+        )?;
+        let rows = statement.query_map([account.to_string()], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
+        })?;
+        let mut sealed = Vec::new();
+        for row in rows {
+            let (workspace, key) = row?;
+            sealed.push(SealedKey {
+                workspace: parse_uuid(&workspace)?,
+                sealed: key,
+            });
+        }
+        Ok((recovery, sealed))
+    }
+
+    pub async fn set_recovery_key(
+        &self,
+        account: Uuid,
+        public: [u8; 32],
+        sealed: Vec<SealedKey>,
+    ) -> Result<(), ServerError> {
+        let (_, held) = self.keys(account).await?;
+        if let Some(missing) = held
+            .iter()
+            .find(|held| !sealed.iter().any(|key| key.workspace == held.workspace))
+        {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                format!(
+                    "a new recovery key must seal every workspace key the old one did, and {} is missing",
+                    missing.workspace
+                ),
+            ));
+        }
+        let database = self.database.lock().await;
+        for key in &sealed {
+            if !is_member(&database, account, key.workspace)? {
+                return Err(not_a_member());
+            }
+        }
+        let transaction = database.unchecked_transaction()?;
+        transaction.execute(
+            "INSERT OR REPLACE INTO recovery_keys (account_id, public) VALUES (?1, ?2)",
+            params![account.to_string(), public.to_vec()],
+        )?;
+        transaction.execute(
+            "DELETE FROM workspace_keys WHERE account_id = ?1",
+            [account.to_string()],
+        )?;
+        for key in sealed {
+            transaction.execute(
+                "INSERT INTO workspace_keys (workspace_id, account_id, sealed) VALUES (?1, ?2, ?3)",
+                params![key.workspace.to_string(), account.to_string(), key.sealed],
+            )?;
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
+    pub async fn put_workspace_key(
+        &self,
+        caller: Uuid,
+        workspace: Uuid,
+        account: Uuid,
+        sealed: Vec<u8>,
+    ) -> Result<(), ServerError> {
+        let database = self.database.lock().await;
+        if !is_member(&database, caller, workspace)? || !is_member(&database, account, workspace)? {
+            return Err(not_a_member());
+        }
+        if recovery_key(&database, account)?.is_none() {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "that account has no recovery key to seal to".into(),
+            ));
+        }
+        database.execute(
+            "INSERT OR IGNORE INTO workspace_keys (workspace_id, account_id, sealed) VALUES (?1, ?2, ?3)",
+            params![workspace.to_string(), account.to_string(), sealed],
+        )?;
+        Ok(())
+    }
+
+    pub async fn member_keys(
+        &self,
+        caller: Uuid,
+        workspace: Uuid,
+    ) -> Result<Vec<MemberKey>, ServerError> {
+        let database = self.database.lock().await;
+        if !is_member(&database, caller, workspace)? {
+            return Err(not_a_member());
+        }
+        let mut statement = database.prepare(
+            "SELECT memberships.account_id, recovery_keys.public, workspace_keys.sealed IS NOT NULL
+             FROM memberships
+             LEFT JOIN recovery_keys ON recovery_keys.account_id = memberships.account_id
+             LEFT JOIN workspace_keys ON workspace_keys.account_id = memberships.account_id
+                AND workspace_keys.workspace_id = memberships.workspace_id
+             WHERE memberships.workspace_id = ?1",
+        )?;
+        let rows = statement.query_map([workspace.to_string()], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Option<Vec<u8>>>(1)?,
+                row.get::<_, bool>(2)?,
+            ))
+        })?;
+        let mut members = Vec::new();
+        for row in rows {
+            let (account, recovery, sealed) = row?;
+            members.push(MemberKey {
+                account: parse_uuid(&account)?,
+                recovery: recovery.map(|public| public_key(&public)).transpose()?,
+                sealed,
+            });
+        }
+        Ok(members)
+    }
+
     pub async fn issue_session(&self, account: Uuid) -> Result<String, ServerError> {
         let database = self.database.lock().await;
         issue_token(&database, account)
@@ -628,6 +758,40 @@ impl ServerStore {
     pub(crate) fn objects(&self) -> &FileStore {
         &self.objects
     }
+}
+
+fn is_member(connection: &Connection, account: Uuid, workspace: Uuid) -> Result<bool, ServerError> {
+    Ok(connection
+        .query_row(
+            "SELECT 1 FROM memberships WHERE workspace_id = ?1 AND account_id = ?2",
+            params![workspace.to_string(), account.to_string()],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some())
+}
+
+fn not_a_member() -> ServerError {
+    ServerError::Refused(
+        ErrorCode::PermissionDenied,
+        "that account is not a member of this workspace".into(),
+    )
+}
+
+fn recovery_key(connection: &Connection, account: Uuid) -> Result<Option<[u8; 32]>, ServerError> {
+    connection
+        .query_row(
+            "SELECT public FROM recovery_keys WHERE account_id = ?1",
+            [account.to_string()],
+            |row| row.get::<_, Vec<u8>>(0),
+        )
+        .optional()?
+        .map(|public| public_key(&public))
+        .transpose()
+}
+
+fn public_key(bytes: &[u8]) -> Result<[u8; 32], ServerError> {
+    bytes.try_into().map_err(|_| ServerError::Corrupt)
 }
 
 pub(crate) fn load_graph(

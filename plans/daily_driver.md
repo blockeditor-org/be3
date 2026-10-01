@@ -91,70 +91,30 @@ positional.
 - **A short format section in `guides/the_new_block_stack.md`.** It names
   what is frozen and how to evolve it: new variant, never edit one.
 
-## Phase 3: A real encryption key, with backup
+## Phase 3: A real encryption key, with backup (mostly done)
 
-Today the content key is `SHA256("be3.workspace.content-key.v1" || workspace_id)`
-(`block-app/src/be.rs:42-47`), so the server and anyone who knows the
-workspace id can decrypt everything. Nothing about the key is stored, and there
-is no recovery. This must land before the freeze is final, because changing
-the key means re-sealing every object.
+Landed: random workspace keys kept on each device, a recovery phrase per account
+whose public half seals every workspace key on the server, unlocking a new
+device with the phrase or a code typed on an open device (SPAKE2 over the
+server's relay), and sealing for invited members. `guides/the_new_block_stack.md`
+(Keys) describes it.
 
-### Design
+It differs from the first design in one way: there are no device key pairs.
+Each device keeps the workspace key itself and the server holds only copies
+sealed to recovery keys, because a device key pair added nothing a device's
+own copy does not already give it, and pairing hands the key over directly.
 
-The password only signs in. It never unlocks content, so the server holds
-nothing that a password guess could decrypt.
-
-- **A random workspace key.** Each workspace gets a key from
-  `ContentKey::random()`, which already exists.
-- **Wrapped copies on the server.** The server stores the key wrapped
-  under:
-  - **a recovery key**: 32 random bytes, shown once as a word phrase, with
-    "I saved it" confirmation (type back a few words). This is the backup.
-  - **each device's public key**: a device keypair (X25519) whose private
-    half lives in the OS keystore (Keychain, Android Keystore,
-    libsecret/DPAPI).
-- **Adding a device.**
-  - Sign in. The new device makes its keypair and shows as "waiting for
-    approval".
-  - Unlock it one of two ways:
-    - **Recovery phrase.** Type the phrase on the new device.
-    - **Approval.** The new device shows a one-time code. The user types it
-      on an existing device, which approves the request.
-  - The typed code authenticates a PAKE (SPAKE2 or CPace) between the two
-    devices, run over the server's relay.
-    - The existing device wraps the workspace key only to the public key
-      that the PAKE confirmed.
-    - A server that substitutes its own key has to guess the code. It gets
-      one attempt, because a wrong code ends the request and the new device
-      has to start over.
-    - So the code can stay short: 8 characters from an unambiguous
-      alphabet, about 40 bits.
-  - Comparing codes by eye is not enough. People confirm a match without
-    really checking, which is the SSH fingerprint problem; typing the code
-    makes the check unskippable.
-- **Removing a device** deletes its wrapped copy. A device that saw the key
-  can still decrypt old content until the key rotates. Rotation is out of
-  scope for now.
-- **Key epochs.** The object prefix (phase 2) carries the key epoch. Rotating
-  after removing a member then becomes possible later, though it is not
-  built now.
-- **Convergent encryption stays.** Dedup within one key still works, so
-  `Vault::seal`'s deterministic nonce stays.
-- **Migration.** A one-time re-seal of existing workspaces is acceptable,
-  because nothing is frozen yet.
-
-### Also in this phase
-
-- Store the session token in the OS keystore rather than plaintext
-  `app.sqlite3`.
-- **Settings › Security** lists devices and lets you remove one. It also
-  makes a new recovery phrase, which re-wraps the key and invalidates the
-  old phrase. It cannot show the old phrase again, because nothing stores
-  it.
-- **Done when:**
-  - no key can be computed from server data;
-  - a fresh device can open the workspace with the recovery phrase alone;
-  - a test proves the server's data directory alone decrypts nothing.
+Still to do:
+- Keep workspace keys and the session token in the OS keystore (Keychain,
+  Android Keystore, libsecret/DPAPI, non-extractable WebCrypto) rather than
+  plaintext app state.
+- **Settings › Security**: make a new recovery phrase. `SetRecoveryKey` already
+  reseals and refuses a phrase that would drop a workspace key; the app needs
+  the screen, and it can only reseal the keys this device holds.
+- Pairing reaches only a device whose open workspace is the one asked for. A
+  device could answer for any workspace whose key it holds.
+- Key epochs (with the phase 2 object prefix), so a key can rotate after a
+  member leaves.
 
 ## Phase 4: A server you can leave running
 

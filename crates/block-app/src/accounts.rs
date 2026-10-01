@@ -194,3 +194,112 @@ pub(crate) async fn invite(
         .await?;
     Ok(())
 }
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Keys {
+    pub(crate) recovery: Option<be_keys::RecoveryPublic>,
+    pub(crate) sealed: std::collections::HashMap<Uuid, Vec<u8>>,
+}
+
+pub(crate) async fn keys(server_url: String, token: String) -> Result<Keys, AccountError> {
+    let connection = authenticated(&server_url, token).await?;
+    let ServerMessage::Keys {
+        recovery, sealed, ..
+    } = connection
+        .request(|request| ClientMessage::GetKeys { request })
+        .await?
+    else {
+        return Err(ClientError::Unexpected.into());
+    };
+    Ok(Keys {
+        recovery: recovery.map(be_keys::RecoveryPublic),
+        sealed: sealed
+            .into_iter()
+            .map(|key| (key.workspace, key.sealed))
+            .collect(),
+    })
+}
+
+pub(crate) async fn set_recovery_key(
+    server_url: String,
+    token: String,
+    public: be_keys::RecoveryPublic,
+    sealed: Vec<be_protocol::SealedKey>,
+) -> Result<(), AccountError> {
+    let connection = authenticated(&server_url, token).await?;
+    connection
+        .request(|request| ClientMessage::SetRecoveryKey {
+            request,
+            public: public.0,
+            sealed,
+        })
+        .await?;
+    Ok(())
+}
+
+pub(crate) async fn pair(
+    server_url: String,
+    token: String,
+    workspace: Uuid,
+    code: String,
+    device: String,
+    cancelled: futures_util::future::BoxFuture<'static, ()>,
+) -> Result<[u8; 32], AccountError> {
+    let connection = authenticated(&server_url, token).await?;
+    let mut events = connection.subscribe();
+    let (pairing, message) = be_keys::Pairing::start(&code, workspace.as_bytes());
+    let payload = be_keys::PairingMessage::Request { message, device }.encode();
+    connection
+        .request(|request| ClientMessage::Pair {
+            request,
+            to: None,
+            workspace,
+            payload,
+        })
+        .await?;
+    let reply = async {
+        loop {
+            match events.recv().await {
+                Ok(ServerMessage::Paired {
+                    workspace: answered,
+                    payload,
+                    ..
+                }) if answered == workspace => {
+                    if let Ok(be_keys::PairingMessage::Reply { message, sealed }) =
+                        be_keys::PairingMessage::decode(&payload)
+                    {
+                        return Ok((message, sealed));
+                    }
+                }
+                Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    return Err(AccountError::from(ClientError::Disconnected(
+                        "the connection closed while waiting for another device".into(),
+                    )));
+                }
+            }
+        }
+    };
+    let (message, sealed) =
+        match futures_util::future::select(std::pin::pin!(reply), cancelled).await {
+            futures_util::future::Either::Left((reply, _)) => reply?,
+            futures_util::future::Either::Right(_) => {
+                return Err(AccountError {
+                    message: "pairing was cancelled".into(),
+                    invalid_token: false,
+                });
+            }
+        };
+    let key = pairing
+        .finish(&message)
+        .and_then(|key| key.open(&sealed))
+        .map_err(|_| AccountError {
+            message: "The code was typed wrong on the other device. Try again with a new code."
+                .into(),
+            invalid_token: false,
+        })?;
+    key.try_into().map_err(|_| AccountError {
+        message: "the other device sent a key of the wrong length".into(),
+        invalid_token: false,
+    })
+}

@@ -1,5 +1,6 @@
 mod debug;
 mod dialogs;
+mod keys;
 mod onboarding;
 mod picker;
 mod share;
@@ -46,7 +47,15 @@ pub(crate) enum Screen {
     #[default]
     Accounts,
     Workspaces,
+    Recovery,
+    Unlock,
     Workspace,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PairingRow {
+    pub(crate) from: u64,
+    pub(crate) device: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -201,6 +210,9 @@ pub(crate) struct AppView {
     pub(crate) add_account: AddAccountView,
     pub(crate) account: AccountRow,
     pub(crate) workspaces: WorkspacesView,
+    pub(crate) recovery: crate::keys::RecoveryView,
+    pub(crate) unlock: crate::keys::UnlockView,
+    pub(crate) pairing: Vec<PairingRow>,
     pub(crate) reauth: Option<ReauthView>,
     pub(crate) status: StatusView,
     pub(crate) invite: Option<InviteView>,
@@ -270,6 +282,12 @@ pub(crate) enum UiCommand {
     },
     ClosePane(PaneId),
     PaneMore(PaneId),
+    ConfirmRecovery(Vec<String>),
+    UnlockWithPhrase(String),
+    StartPairing,
+    CancelPairing,
+    ApprovePairing(u64, String),
+    DismissPairing(u64),
 }
 
 #[component]
@@ -294,6 +312,12 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                                     @sizing=ItemSize::Percent(100.0)
                                     view
                                 />
+                            },
+                            Screen::Recovery => view! {
+                                <keys::RecoveryScreen @sizing=ItemSize::Percent(100.0) view />
+                            },
+                            Screen::Unlock => view! {
+                                <keys::UnlockScreen @sizing=ItemSize::Percent(100.0) view />
                             },
                             Screen::Workspace => view! {
                                 <workspace::WorkspaceScreen @sizing=ItemSize::Percent(100.0) view />
