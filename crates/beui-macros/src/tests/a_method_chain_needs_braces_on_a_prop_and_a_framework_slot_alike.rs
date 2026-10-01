@@ -19,5 +19,7 @@ fn a_method_chain_needs_braces_on_a_prop_and_a_framework_slot_alike() {
         ]
     );
     assert!(syn::parse2::<View>(quote! { <Frame width={Width::default().get()} /> }).is_ok());
-    assert!(syn::parse2::<View>(quote! { <Frame @sizing={ItemSize::Intrinsic.min(4.0)} /> }).is_ok());
+    assert!(
+        syn::parse2::<View>(quote! { <Frame @sizing={ItemSize::Intrinsic.min(4.0)} /> }).is_ok()
+    );
 }
