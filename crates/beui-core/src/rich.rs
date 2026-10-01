@@ -1,3 +1,4 @@
+use std::f32::consts::{FRAC_PI_4, SQRT_2};
 use std::ops::Range;
 
 use crate::color::Color32;
@@ -109,30 +110,40 @@ pub fn handle_center(caret: Rect, handle: CaretHandle) -> Vec2 {
     match handle {
         CaretHandle::Start => anchor + vec2(-HANDLE_RADIUS, HANDLE_RADIUS),
         CaretHandle::End => anchor + vec2(HANDLE_RADIUS, HANDLE_RADIUS),
-        CaretHandle::Middle => anchor + vec2(0.0, HANDLE_RADIUS),
+        CaretHandle::Middle => anchor + vec2(caret.width() / 2.0, HANDLE_RADIUS * SQRT_2),
     }
 }
 
-pub fn handle_shape(caret: Rect, handle: CaretHandle) -> (Rect, Corners) {
+pub fn handle_shape(caret: Rect, handle: CaretHandle) -> (Rect, Corners, f32) {
     let center = handle_center(caret, handle);
     let rect = Rect::from_center_size(pos2(center.x, center.y), Vec2::splat(HANDLE_RADIUS * 2.0));
     let round = Corners::all(HANDLE_RADIUS);
-    let corners = match handle {
-        CaretHandle::Start => Corners {
-            top_right: 0.0,
-            ..round
-        },
-        CaretHandle::End => Corners {
-            top_left: 0.0,
-            ..round
-        },
-        CaretHandle::Middle => Corners {
-            top_left: HANDLE_RADIUS / 2.0,
-            top_right: HANDLE_RADIUS / 2.0,
-            ..round
-        },
-    };
-    (rect, corners)
+    match handle {
+        CaretHandle::Start => (
+            rect,
+            Corners {
+                top_right: 0.0,
+                ..round
+            },
+            0.0,
+        ),
+        CaretHandle::End => (
+            rect,
+            Corners {
+                top_left: 0.0,
+                ..round
+            },
+            0.0,
+        ),
+        CaretHandle::Middle => (
+            rect,
+            Corners {
+                top_left: 0.0,
+                ..round
+            },
+            FRAC_PI_4,
+        ),
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
