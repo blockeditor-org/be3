@@ -35,8 +35,8 @@ impl BlockMetadata {
         postcard::to_stdvec(self).unwrap_or_default()
     }
 
-    pub fn decode(bytes: &[u8]) -> Self {
-        postcard::from_bytes(bytes).unwrap_or_default()
+    pub fn decode(bytes: &[u8]) -> Result<Self, crate::ContentError> {
+        postcard::from_bytes(bytes).map_err(|_| crate::ContentError::Malformed("block metadata"))
     }
 
     pub fn named(name: impl Into<String>) -> Self {

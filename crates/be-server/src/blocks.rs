@@ -434,23 +434,28 @@ impl ServerStore {
             require_edit(graph, &visibility(graph, identity), block)?;
             let head = graph.head(block);
             let transaction = database.unchecked_transaction()?;
+            let pinned: Vec<CommitId> = read_history(&transaction, identity.workspace, block)?
+                .into_iter()
+                .filter(|entry| entry.pinned)
+                .map(|entry| entry.commit)
+                .collect();
             let mut refs = self.object_refs();
-            let mut freed = 0;
+            let mut freed = Vec::new();
             for commit in drop {
-                if head == Some(commit) {
+                if head == Some(commit) || pinned.contains(&commit) {
                     continue;
                 }
-                freed += release_commit(
+                freed.extend(release_commit(
                     &transaction,
                     &mut refs,
-                    self.objects(),
                     identity.workspace,
                     block,
                     commit,
-                )?;
+                )?);
             }
             transaction.commit()?;
-            Ok(freed)
+            remove_objects(self.objects(), &freed)?;
+            Ok(freed.len())
         })
         .await
     }
@@ -466,29 +471,27 @@ impl ServerStore {
             let seen = visibility(graph, identity);
             let transaction = database.unchecked_transaction()?;
             let mut refs = self.object_refs();
-            let mut freed = 0;
+            let mut freed = Vec::new();
             let mut removed = Vec::new();
             for block in detached {
                 if !seen.access(graph, block).can_edit() {
                     continue;
                 }
                 for commit in read_history(&transaction, identity.workspace, block)? {
-                    freed += release_commit(
+                    freed.extend(release_commit(
                         &transaction,
                         &mut refs,
-                        self.objects(),
                         identity.workspace,
                         block,
                         commit.commit,
-                    )?;
+                    )?);
                 }
-                freed += release_held(
+                freed.extend(release_held(
                     &transaction,
                     &mut refs,
-                    self.objects(),
                     identity.workspace,
                     block,
-                )?;
+                )?);
                 let workspace = identity.workspace.to_string();
                 transaction.execute(
                     "DELETE FROM block_edges WHERE workspace_id = ?1 AND block_id = ?2",
@@ -510,9 +513,10 @@ impl ServerStore {
                 removed.push(block);
             }
             transaction.commit()?;
+            remove_objects(self.objects(), &freed)?;
             Ok(Collected {
                 blocks: removed,
-                objects: freed,
+                objects: freed.len(),
             })
         })
         .await
@@ -630,11 +634,10 @@ fn read_history(
 fn release_commit(
     connection: &Connection,
     refs: &mut ObjectRefs,
-    objects: &be_store::FileStore,
     workspace: Uuid,
     block: Uuid,
     commit: CommitId,
-) -> Result<usize, ServerError> {
+) -> Result<Vec<Hash>, ServerError> {
     let mut held = Vec::new();
     {
         let mut statement = connection.prepare(
@@ -673,19 +676,15 @@ fn release_commit(
     )?;
     let freed = refs.release(&held);
     persist_refs(connection, refs, &held)?;
-    for hash in &freed {
-        objects.remove(*hash)?;
-    }
-    Ok(freed.len())
+    Ok(freed)
 }
 
 fn release_held(
     connection: &Connection,
     refs: &mut ObjectRefs,
-    objects: &be_store::FileStore,
     workspace: Uuid,
     block: Uuid,
-) -> Result<usize, ServerError> {
+) -> Result<Vec<Hash>, ServerError> {
     let mut held = Vec::new();
     {
         let mut statement = connection
@@ -704,10 +703,14 @@ fn release_held(
     )?;
     let freed = refs.release(&held);
     persist_refs(connection, refs, &held)?;
-    for hash in &freed {
+    Ok(freed)
+}
+
+fn remove_objects(objects: &be_store::FileStore, freed: &[Hash]) -> Result<(), ServerError> {
+    for hash in freed {
         objects.remove(*hash)?;
     }
-    Ok(freed.len())
+    Ok(())
 }
 
 fn persist_refs(

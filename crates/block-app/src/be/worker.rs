@@ -5,7 +5,7 @@ use std::{
 };
 
 use be_block::{BlockContent, BlockMetadata, LiveEdit, Merge, Undo};
-use be_client::{ClientError, Credentials, Journaled, Live, Peer, PeerConfig, Saved};
+use be_client::{ClientError, Conflict, Credentials, Journaled, Live, Peer, PeerConfig, Saved};
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
 use be_protocol::{AccessEntry, BlockSummary, ServerMessage};
@@ -95,6 +95,7 @@ pub(crate) struct Shared {
     pub(crate) unsealed: usize,
     pub(crate) connected: bool,
     pub(crate) error: Option<String>,
+    pub(crate) conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
 }
@@ -216,6 +217,8 @@ pub(super) trait Session {
     ) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
     fn take_presence(&mut self) -> Option<Vec<Presence>>;
+
+    fn take_conflicts(&mut self) -> Vec<Conflict>;
 
     fn published_elsewhere(
         &mut self,
@@ -371,6 +374,10 @@ where
 
     fn take_presence(&mut self) -> Option<Vec<Presence>> {
         take_presence(&mut self.live)
+    }
+
+    fn take_conflicts(&mut self) -> Vec<Conflict> {
+        self.live.take_conflicts()
     }
 
     fn published_elsewhere(
@@ -541,6 +548,10 @@ where
 
     fn take_presence(&mut self) -> Option<Vec<Presence>> {
         take_presence(&mut self.live)
+    }
+
+    fn take_conflicts(&mut self) -> Vec<Conflict> {
+        self.live.take_conflicts()
     }
 
     fn published_elsewhere(
@@ -1107,6 +1118,7 @@ async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uu
 }
 
 pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
+    let metadata = peer.metadata(summary);
     Node {
         id: summary.id,
         content_type: summary.content_type,
@@ -1114,7 +1126,8 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         parent: summary.parent,
         access: summary.access,
         references: summary.references.clone(),
-        metadata: peer.metadata(summary),
+        unreadable_metadata: metadata.is_err(),
+        metadata: metadata.unwrap_or_default(),
         head: summary.head,
         version: summary.version,
     }
@@ -1145,6 +1158,15 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             held.presence_revision += 1;
             let revision = held.presence_revision;
             held.presence.insert(*block, (revision, presence));
+            changed = true;
+        }
+        let conflicts = session.take_conflicts();
+        if !conflicts.is_empty() {
+            let count: usize = conflicts.iter().map(|conflict| conflict.count).sum();
+            held.error = Some(format!(
+                "block {block} merged with {count} conflicting change(s); both versions are kept in its history"
+            ));
+            held.conflicts.entry(*block).or_default().extend(conflicts);
             changed = true;
         }
         held.graph.set_head(*block, session.head());

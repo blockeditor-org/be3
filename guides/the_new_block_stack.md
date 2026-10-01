@@ -255,6 +255,14 @@ it changes the owner's content outside the operation stream, the next `Sealed`
 tells the followers to reload the head. Only an owner ever seals or reconciles
 in the app's worker: a follower's edits are the owner's to save.
 
+A merge that conflicts first writes the owner's unsaved side as a commit of its
+own (`Peer::stash`), so the merge commit has both sides as parents and neither
+is lost, and records a `Conflict` that the worker collects with
+`take_conflicts`. A session message or operation this version cannot decode
+marks the session incompatible. On a follower that also marks it diverged,
+because its copy may now be wrong, and a diverged session refuses to edit or
+seal.
+
 ## Adding a content type
 
 Describe the content as structs and derive `be_model::Model`; do not write a
@@ -514,7 +522,9 @@ once nothing is pending.
 A block's name lives in its metadata (`be_block::BlockMetadata`: `name`,
 `named_by_hand`, `derived` and, for a dynamic artifact, the `ArtifactSource` it
 was made from), which the peer seals with the content key before the server
-stores it (`Peer::seal_metadata`). `be::set_name` names a block by hand, and
+stores it (`Peer::seal_metadata`). Metadata that does not decode is an error, never
+a default: the mirror marks that node `unreadable_metadata`, and
+`be::set_metadata` refuses to write over it. `be::set_name` names a block by hand, and
 clearing it hands the name back to the content, which renames the block the
 next time an editor sees a revision. `be::describe_implicitly` is the automatic
 name: whenever an instance that may edit a block is sent a new revision of it,

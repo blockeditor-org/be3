@@ -60,6 +60,7 @@ pub(crate) enum ErrorAction {
 pub(crate) struct ErrorView {
     pub(crate) message: String,
     pub(crate) pending: Option<ErrorAction>,
+    pub(crate) unsaved: usize,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
