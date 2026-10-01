@@ -13,7 +13,7 @@ use beui_core::input::{PointerPress, TOUCH_DRAG_THRESHOLD};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Callback, ClickCallback, ClickCatcher, Dynamic, Frame, Func, IntoProp, List, Memo, Prop,
+    Callback, ClickCallback, Dynamic, Frame, Func, Interactive, IntoProp, List, Memo, Prop,
     ReadSignal, Render, RenderFn, clone, component_rect, create_memo, create_signal, on_cleanup,
     provide_context, use_context, with_document,
 };
@@ -143,7 +143,7 @@ where
         })
     });
     view! {
-        <ClickCatcher
+        <Interactive
             cursor
             capture_presses
             touch_drags
@@ -174,7 +174,7 @@ where
                     </List>
                 </Overlay>
             </List>
-        </ClickCatcher>
+        </Interactive>
     }
 }
 

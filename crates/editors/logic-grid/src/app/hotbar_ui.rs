@@ -1,14 +1,14 @@
 use beui::icons::{ICON_ADD, ICON_ARROW_UPWARD};
 use beui::reactive::Func;
 use beui::reactive::{
-    Align, Canvas, CanvasItem, Child, ClickCatcher, Direction, Focusable, ForEach, Frame, ItemSize,
-    List, Memo, Picture, ReadSignal, Show, Spacer, Text, clone, component, create_memo,
-    create_signal, view,
+    Align, Canvas, CanvasItem, Child, Direction, ForEach, Frame, Interactive, ItemSize, List, Memo,
+    ReadSignal, Show, Spacer, Text, clone, component, create_memo, create_signal, view,
 };
 use beui::styled::{
     Body, Button, ButtonVariant, Caption, ContextMenu, Dialog, IconButton, MenuButton, Tabs,
     TextInput, Tooltip, use_theme,
 };
+use beui::unstyled::Picture;
 use beui::unstyled::{
     ChoiceOption, DragHandle, DragPoint, Draggable, DropHandle, DropTarget, MenuItem,
 };
@@ -354,22 +354,24 @@ fn HotbarSlotButton(session: Rc<Session>, path: Vec<usize>) -> NodeId {
                 on_select={chose}
             >
                 <Tooltip label={label}>
-                    <Focusable on_activate={on_activate}>
-                        <ClickCatcher on_hover_change={move |over: bool| set_hovered.set(over)}>
-                            <Draggable
-                                @test_id={test_id}
-                                payload={payload}
-                                cursor=CursorIcon::PointingHand
-                                preview={ghost}
-                                on_click={clicked}
-                                on_drag_change={carried}
-                            >
-                                {move |_: DragHandle| view! {
-                                    <SlotFace shown={shown} hovered={hovered} />
-                                }}
-                            </Draggable>
-                        </ClickCatcher>
-                    </Focusable>
+                    <Interactive
+                        focusable=true
+                        on_activate={on_activate}
+                        on_hover_change={move |over: bool| set_hovered.set(over)}
+                    >
+                        <Draggable
+                            @test_id={test_id}
+                            payload={payload}
+                            cursor=CursorIcon::PointingHand
+                            preview={ghost}
+                            on_click={clicked}
+                            on_drag_change={carried}
+                        >
+                            {move |_: DragHandle| view! {
+                                <SlotFace shown={shown} hovered={hovered} />
+                            }}
+                        </Draggable>
+                    </Interactive>
                 </Tooltip>
             </ContextMenu>
         </SlotDrop>

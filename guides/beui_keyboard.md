@@ -94,7 +94,7 @@ text input and select equivalents do the same. Build reactive props out of
 those signals — including effects that react to a child's hover or focus —
 instead of querying the control's state back afterwards.
 
-`tab_stop` is a prop on `<unstyled::Button>` and `<Focusable>`: set it to
+`tab_stop` is a prop on `<unstyled::Button>` and a focusable `<Interactive>`: set it to
 `false` to keep a control reachable by pointer and programmatic focus while
 removing it from sequential Tab navigation, which is how single-Tab-stop groups
 work. `on_key` returns `true` only for keys it handled. `<unstyled::TextInput>`
@@ -107,7 +107,7 @@ Use `@node_ref=&a_node_ref` on any tag when an enclosing component needs the
 `NodeId` of something nested inside its tree; `NodeRef::get` reads it back once
 the tree is built.
 
-A host sends `Event::Focus(false)` when its window or editor region loses focus. Text and paste arrive through `Event::Text`. An input method's composition arrives as `Event::Ime`: a focusable's `on_preedit` receives the uncommitted text (empty when it ends), and a commit reaches `on_text`. A text area lays the composition out underlined at its caret, pushing the text after it along without writing it to the document, leaves keys to the input method while it lasts, and reports its caret through `Focusable`'s `ime_cursor` so `FrameOutput::ime` places the candidate window beside it. Copy and cut return text in `FrameOutput::copied_text`; the host writes this to its clipboard. Both the desktop runner and the block editor integration handle these outputs. Clipboard access for other custom hosts belongs to their platform integration.
+A host sends `Event::Focus(false)` when its window or editor region loses focus. Text and paste arrive through `Event::Text`. An input method's composition arrives as `Event::Ime`: a focusable's `on_preedit` receives the uncommitted text (empty when it ends), and a commit reaches `on_text`. A text area lays the composition out underlined at its caret, pushing the text after it along without writing it to the document, leaves keys to the input method while it lasts, and reports its caret through `Interactive`'s `ime_cursor` so `FrameOutput::ime` places the candidate window beside it. Copy and cut return text in `FrameOutput::copied_text`; the host writes this to its clipboard. Both the desktop runner and the block editor integration handle these outputs. Clipboard access for other custom hosts belongs to their platform integration.
 
 Keyboard regression tests run without a window. `./scripts/buck test //crates/beui:test` runs the tests that drive whole documents, each `beui-*` crate has its own `:test`, and `./scripts/buck run //:verify` runs the whole workspace's.
 
@@ -122,7 +122,7 @@ a cancelled contact cancels a pending tap rather than activating it.
 
 A second finger that lands while the first is still held where it touched
 down is a secondary drag rather than a pinch: it reports through
-`ClickCatcher`'s `on_secondary_drag` exactly as a right-button drag does
+`Interactive`'s `on_secondary_drag` exactly as a right-button drag does
 (`SecondaryDrag`: where it began, where it is, whether it started, ended or was
 cancelled, and the modifiers), which is how a board marks up arrows by either
 means. The moment the held finger moves, the gesture is a pinch after all and

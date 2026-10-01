@@ -1,6 +1,8 @@
+use std::rc::Rc;
+
 use beui::reactive::{
-    ClickCatcher, Focusable, ForEach, Frame, Func, List, Viewport, clone, component,
-    component_rect, create_effect, create_memo, create_signal, on_cleanup, view,
+    Drawing, ForEach, Frame, Func, Interactive, List, Prop, clone, component, component_rect,
+    create_effect, create_memo, create_signal, draw_gpu, on_cleanup, view,
 };
 use beui::styled::theme::use_theme;
 use beui::styled::{
@@ -131,15 +133,16 @@ fn ClientView(clients: Clients, id: WindowId, signals: ClientSignals) -> NodeId 
     let hover = clients.clone();
     on_cleanup(move || clients.unplaced(id));
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             @test_id={format!("compositor.client.{}", id.0)}
             focused={signals.focused}
             on_focus_change={move |focused: bool| focus.focus(id, focused)}
             on_key={|_| true}
+            cursor
+            on_hover_change={move |hovered: bool| hover.hover(id, hovered)}
         >
-            <ClickCatcher cursor on_hover_change={move |hovered: bool| hover.hover(id, hovered)}>
-                <Viewport drawing={signals.drawing} />
-            </ClickCatcher>
-        </Focusable>
+            <Drawing draw={Prop::Dynamic(Rc::new(move || draw_gpu(signals.drawing.get())))} />
+        </Interactive>
     }
 }

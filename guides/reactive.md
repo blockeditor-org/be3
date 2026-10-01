@@ -567,10 +567,10 @@ is a sign the value should have been captured or passed as a prop.
 
 Anything a component would otherwise poke into a node after the fact is a prop
 on the base element instead, so the component owns a signal and the node follows
-it. `overlay` takes `open` and `anchor`, `focusable` takes `focused`,
+it. `overlay` takes `open` and `anchor`, a focusable `interactive` takes `focused`,
 `text_input` takes `value`, and `scroll` takes `offset` and `reveal` (the index
 of the child to bring into view). `unstyled::button`, `unstyled::toggle` and
-`unstyled::text_input` forward `focused` to the `focusable` underneath them.
+`unstyled::text_input` forward `focused` to the `interactive` underneath them.
 
 These props are edge triggered: the effect behind them runs when the value it
 reads changes, so a component that wants to move focus, or close a popup, writes

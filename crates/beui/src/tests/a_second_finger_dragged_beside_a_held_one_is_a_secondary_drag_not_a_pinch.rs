@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use super::*;
 use crate::input::{SecondaryDrag, ZoomGesture};
-use crate::reactive::{ClickCatcher, Frame, build, view};
+use crate::reactive::{Frame, Interactive, build, view};
 
 #[test]
 fn a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch() {
@@ -13,12 +13,12 @@ fn a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch() {
         let (drags, zoomed) = (drags.clone(), zoomed.clone());
         move || {
             view! {
-                <ClickCatcher
+                <Interactive
                     on_secondary_drag={move |drag| drags.borrow_mut().push(drag)}
                     on_zoom={move |_: ZoomGesture| zoomed.set(true)}
                 >
                     <Frame width=300.0 height=300.0 />
-                </ClickCatcher>
+                </Interactive>
             }
         }
     });

@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use block_editor_beui::Editor;
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, ClickCatcher, Draw, Drawing, Focusable, ForEach, Memo, Prop,
-    ReadSignal, Text, clone, component, create_effect, create_memo, create_signal, view,
+    Canvas, CanvasItem, CanvasView, Draw, Drawing, ForEach, Interactive, Memo, Prop, ReadSignal,
+    Text, clone, component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{Theme, use_theme};
 use block_editor_beui::beui::{
@@ -245,55 +245,55 @@ pub(crate) fn Stage(editor: Editor, play: Play, layout: Memo<Layout>, steps: Ste
 
     let spots_layout = layout.clone();
     view! {
-        <Focusable on_key={on_key}>
-            <ClickCatcher
-                capture_presses=true
-                on_press={on_press}
-                on_drag={on_drag}
-                on_click_at={on_click_at}
-                on_active_change={on_active_change}
-                on_secondary_drag={on_secondary_drag}
-            >
-                <Canvas view={canvas}>
-                    <CanvasItem
-                        x={create_memo(clone!(plate -> move || plate.get().left()))}
-                        y={create_memo(clone!(plate -> move || plate.get().top()))}
-                        width={create_memo(clone!(plate -> move || plate.get().width().max(1.0)))}
-                        height={create_memo(clone!(plate -> move || plate.get().height().max(1.0)))}
-                    >
-                        <Drawing draw={plate_draw} />
-                    </CanvasItem>
-                    <ForEach keys={keys}>
-                        {move |spot: Spot| view! {
-                            <SpotItem spot layout={spots_layout.clone()} play={play.clone()} />
-                        }}
-                    </ForEach>
-                    <ForEach keys={label_keys}>
-                        {move |index: usize| view! {
-                            <LabelItem index layout={layout.clone()} scale={scale.clone()} />
-                        }}
-                    </ForEach>
-                    <CanvasItem
-                        x=0.0
-                        y=0.0
-                        width={create_memo(clone!(bounds -> move || bounds.get().width().max(1.0)))}
-                        height={create_memo(clone!(bounds -> move || bounds.get().height().max(1.0)))}
-                        @test_id={"game.board"}
-                    >
-                        <Drawing draw={marks_draw} />
-                    </CanvasItem>
-                    <CanvasItem
-                        x={create_memo(clone!(lifted_rect -> move || lifted_rect.get().left()))}
-                        y={create_memo(clone!(lifted_rect -> move || lifted_rect.get().top()))}
-                        width={create_memo(clone!(lifted_rect -> move || lifted_rect.get().width()))}
-                        height={create_memo(clone!(lifted_rect -> move || lifted_rect.get().height()))}
-                        @test_id={"game.lifted"}
-                    >
-                        <Drawing draw={lifted_draw} />
-                    </CanvasItem>
-                </Canvas>
-            </ClickCatcher>
-        </Focusable>
+        <Interactive
+            focusable=true
+            on_key={on_key}
+            capture_presses=true
+            on_press={on_press}
+            on_drag={on_drag}
+            on_click_at={on_click_at}
+            on_active_change={on_active_change}
+            on_secondary_drag={on_secondary_drag}
+        >
+            <Canvas view={canvas}>
+                <CanvasItem
+                    x={create_memo(clone!(plate -> move || plate.get().left()))}
+                    y={create_memo(clone!(plate -> move || plate.get().top()))}
+                    width={create_memo(clone!(plate -> move || plate.get().width().max(1.0)))}
+                    height={create_memo(clone!(plate -> move || plate.get().height().max(1.0)))}
+                >
+                    <Drawing draw={plate_draw} />
+                </CanvasItem>
+                <ForEach keys={keys}>
+                    {move |spot: Spot| view! {
+                        <SpotItem spot layout={spots_layout.clone()} play={play.clone()} />
+                    }}
+                </ForEach>
+                <ForEach keys={label_keys}>
+                    {move |index: usize| view! {
+                        <LabelItem index layout={layout.clone()} scale={scale.clone()} />
+                    }}
+                </ForEach>
+                <CanvasItem
+                    x=0.0
+                    y=0.0
+                    width={create_memo(clone!(bounds -> move || bounds.get().width().max(1.0)))}
+                    height={create_memo(clone!(bounds -> move || bounds.get().height().max(1.0)))}
+                    @test_id={"game.board"}
+                >
+                    <Drawing draw={marks_draw} />
+                </CanvasItem>
+                <CanvasItem
+                    x={create_memo(clone!(lifted_rect -> move || lifted_rect.get().left()))}
+                    y={create_memo(clone!(lifted_rect -> move || lifted_rect.get().top()))}
+                    width={create_memo(clone!(lifted_rect -> move || lifted_rect.get().width()))}
+                    height={create_memo(clone!(lifted_rect -> move || lifted_rect.get().height()))}
+                    @test_id={"game.lifted"}
+                >
+                    <Drawing draw={lifted_draw} />
+                </CanvasItem>
+            </Canvas>
+        </Interactive>
     }
 }
 

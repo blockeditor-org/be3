@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
-use crate::reactive::{ClickCatcher, Frame, List, build, view};
+use crate::reactive::{Frame, Interactive, List, build, view};
 
 #[test]
 fn a_touch_beside_a_control_reaches_the_nearest_one() {
@@ -14,12 +14,12 @@ fn a_touch_beside_a_control_reaches_the_nearest_one() {
             view! {
                 <Frame padding_horizontal=40.0 padding_vertical=40.0>
                     <List direction=Direction::Horizontal spacing=10.0>
-                        <ClickCatcher on_click={move || left.borrow_mut().push("left")}>
+                        <Interactive on_click={move || left.borrow_mut().push("left")}>
                             <Frame width=30.0 height=30.0 />
-                        </ClickCatcher>
-                        <ClickCatcher on_click={move || right.borrow_mut().push("right")}>
+                        </Interactive>
+                        <Interactive on_click={move || right.borrow_mut().push("right")}>
                             <Frame width=30.0 height=30.0 />
-                        </ClickCatcher>
+                        </Interactive>
                     </List>
                 </Frame>
             }

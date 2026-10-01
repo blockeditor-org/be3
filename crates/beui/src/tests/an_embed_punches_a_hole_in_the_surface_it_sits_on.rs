@@ -13,8 +13,12 @@ fn an_embed_punches_a_hole_in_the_surface_it_sits_on() {
         view! {
             <Frame color=Color32::WHITE>
                 <List spacing=0.0>
-                    <Embed slot={embed} width=120.0 height=80.0 />
-                    <Embed slot={covered} width=120.0 height=80.0 punch=false />
+                    <Frame width=120.0 height=80.0>
+                        <Embed slot={embed} />
+                    </Frame>
+                    <Frame width=120.0 height=80.0>
+                        <Embed slot={covered} punch=false />
+                    </Frame>
                 </List>
             </Frame>
         }

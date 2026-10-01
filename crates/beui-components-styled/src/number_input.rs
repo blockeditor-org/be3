@@ -13,9 +13,9 @@ use beui_core::geometry::Pos2;
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCatcher, Focusable, Frame, IntoProp, List, Memo, NodeRef, Prop, ReadSignal,
-    Show, Text, clone, component_accessibility, create_effect, create_memo, create_signal,
-    focus_ring, set_component_state,
+    Callback, Frame, Interactive, IntoProp, List, Memo, NodeRef, Prop, ReadSignal, Show, Text,
+    clone, component_accessibility, create_effect, create_memo, create_signal, focus_ring,
+    set_component_state,
 };
 
 const DRAG_THRESHOLD: f32 = 2.0;
@@ -201,32 +201,30 @@ pub fn NumberInput(
     view! {
         <List spacing=0.0>
             <Show condition={idle}>
-                <Focusable
+                <Interactive
+                    focusable=true
                     tab_stop
                     focused={refocus}
                     on_focus_change={button_focus}
                     on_activate={open.clone()}
+                    cursor={cursor}
+                    capture_presses=true
+                    on_press={pressed}
+                    on_drag={dragged}
+                    on_click={clicked}
+                    on_hover_change={move |is_hovered: bool| set_hovered.set(is_hovered)}
+                    on_active_change={move |is_active: bool| set_active.set(is_active)}
                 >
-                    <ClickCatcher
-                        cursor={cursor}
-                        capture_presses=true
-                        on_press={pressed}
-                        on_drag={dragged}
-                        on_click={clicked}
-                        on_hover_change={move |is_hovered: bool| set_hovered.set(is_hovered)}
-                        on_active_change={move |is_active: bool| set_active.set(is_active)}
-                    >
-                        <NumberFace
-                            shown_text={face.clone()}
-                            text={face_text}
-                            placeholder={face_placeholder}
-                            hovered={hovered}
-                            active={active}
-                            focused={focused}
-                            disabled={face_off}
-                        />
-                    </ClickCatcher>
-                </Focusable>
+                    <NumberFace
+                        shown_text={face.clone()}
+                        text={face_text}
+                        placeholder={face_placeholder}
+                        hovered={hovered}
+                        active={active}
+                        focused={focused}
+                        disabled={face_off}
+                    />
+                </Interactive>
             </Show>
             <Show condition={editing.clone()}>
                 <TextInput

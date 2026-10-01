@@ -16,6 +16,7 @@ pub mod floating;
 pub mod menu;
 pub mod menu_button;
 pub mod pan_zoom;
+pub mod picture;
 pub mod pointer_lock;
 pub mod popover;
 pub mod pressable;
@@ -67,6 +68,7 @@ pub use menu::{
 };
 pub use menu_button::{MenuButton, MenuButtonHandle};
 pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, pan_zoom_view};
+pub use picture::Picture;
 pub use pointer_lock::{PointerLock, PointerLockHandle};
 pub use popover::{
     Popover, PopoverHandle, PopoverPlacement, PopoverTriggerHandle, popover_open, popover_trigger,

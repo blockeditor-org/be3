@@ -11,9 +11,9 @@ use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Focusable, ForEach, Func, List, Memo, NodeRef, Prop, ReadSignal, RenderFn, Selector,
-    WriteSignal, clone, component_accessibility, create_effect, create_memo, create_selector,
-    create_signal, on_cleanup, set_component_state, untrack,
+    Callback, ForEach, Func, Interactive, List, Memo, NodeRef, Prop, ReadSignal, RenderFn,
+    Selector, WriteSignal, clone, component_accessibility, create_effect, create_memo,
+    create_selector, create_signal, on_cleanup, set_component_state, untrack,
 };
 
 #[derive(Clone, Default, PartialEq)]
@@ -176,8 +176,9 @@ where
         nodes.borrow_mut().remove(&cleanup_key);
     });
     view! {
-        <Focusable
+        <Interactive
             @node_ref=&built
+            focusable=true
             tab_stop={tab_stop.memo(Some(key.clone()))}
             focused={focused.memo(Some(key))}
             on_focus_change={move |focused: bool| {
@@ -197,7 +198,7 @@ where
                 toggle: expand,
                 hover,
             })}
-        </Focusable>
+        </Interactive>
     }
 }
 

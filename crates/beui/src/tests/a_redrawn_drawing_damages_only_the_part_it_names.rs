@@ -1,8 +1,8 @@
 use super::*;
-use crate::base::viewport::ViewportNode;
+use crate::base::drawing::DrawingNode;
 use crate::damage::Region;
 use crate::drawing::Drawing;
-use crate::reactive::{Viewport, view};
+use crate::reactive::{Drawing, draw_gpu, view};
 use crate::renderer::{Draw, DrawAt};
 
 struct Blank;
@@ -21,19 +21,19 @@ fn a_redrawn_drawing_damages_only_the_part_it_names() {
                 <List spacing=0.0>
                     <Frame height=50.0 />
                     <Frame width=120.0 height=100.0>
-                        <Viewport @node_ref=&viewport drawing=None />
+                        <Drawing @node_ref=&viewport draw={draw_gpu(None)} />
                     </Frame>
                 </List>
             }
         }
     });
-    let viewport = kind_of::<ViewportNode>(&document, viewport.get());
+    let viewport = kind_of::<DrawingNode>(&document, viewport.get());
     let mut harness = Harness::new(document);
     let drawing = crate::renderer::drawing(Blank);
     let show = |drawing: Drawing, harness: &mut Harness| {
         harness
             .document_mut()
-            .set_viewport_drawing(viewport, Some(drawing));
+            .set_drawing(viewport, draw_gpu(Some(drawing)));
     };
     show(drawing.clone(), &mut harness);
     harness.frame(Vec::new());

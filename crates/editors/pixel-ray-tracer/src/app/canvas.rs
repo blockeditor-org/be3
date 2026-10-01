@@ -1,10 +1,11 @@
 use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, ClickCatcher, Drawing, Focusable, Frame, ItemSize, List, Picture, clone,
-    component, component_rect, create_memo, view,
+    Canvas, CanvasItem, Drawing, Frame, Interactive, ItemSize, List, clone, component,
+    component_rect, create_memo, view,
 };
 use block_editor_beui::beui::styled::use_theme;
+use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{
     CursorIcon, ImageFit, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, Vec2,
 };
@@ -86,7 +87,8 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
     let theme = use_theme();
 
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             on_key={move |press: KeyPress| {
                 if press.key == Key::Delete || press.key == Key::Backspace {
                     removing.delete_selected();
@@ -94,48 +96,45 @@ pub(crate) fn Artwork(state: Rc<RayState>) -> NodeId {
                 }
                 false
             }}
+            cursor=CursorIcon::Crosshair
+            on_press={on_press}
+            on_drag={on_drag}
+            on_hover_move={on_hover_move}
+            on_active_change={move |active: bool| {
+                if !active {
+                    releasing.release();
+                }
+            }}
         >
-            <ClickCatcher
-                cursor=CursorIcon::Crosshair
-                on_press={on_press}
-                on_drag={on_drag}
-                on_hover_move={on_hover_move}
-                on_active_change={move |active: bool| {
-                    if !active {
-                        releasing.release();
-                    }
-                }}
-            >
-                <Frame color={theme.background.clone()}>
-                    <List spacing=0.0>
-                        <Canvas view={camera} @sizing=ItemSize::Percent(100.0)>
-                            <CanvasItem
-                                x={left.clone()}
-                                y={top.clone()}
-                                width={side.clone()}
-                                height={side.clone()}
-                                @test_id={"pixel_ray_tracer.artwork"}
-                            >
-                                <Picture image={lighting} fit=ImageFit::Fill smooth=false />
-                            </CanvasItem>
-                            <CanvasItem
-                                x={left.clone()}
-                                y={top.clone()}
-                                width={side.clone()}
-                                height={side.clone()}
-                            >
-                                <Frame visible={tracing}>
-                                    <Picture image={rays} fit=ImageFit::Fill smooth=false />
-                                </Frame>
-                            </CanvasItem>
-                            <CanvasItem x={left} y={top} width={side.clone()} height={side}>
-                                <Drawing draw={overlay} />
-                            </CanvasItem>
-                        </Canvas>
-                    </List>
-                </Frame>
-            </ClickCatcher>
-        </Focusable>
+            <Frame color={theme.background.clone()}>
+                <List spacing=0.0>
+                    <Canvas view={camera} @sizing=ItemSize::Percent(100.0)>
+                        <CanvasItem
+                            x={left.clone()}
+                            y={top.clone()}
+                            width={side.clone()}
+                            height={side.clone()}
+                            @test_id={"pixel_ray_tracer.artwork"}
+                        >
+                            <Picture image={lighting} fit=ImageFit::Fill smooth=false />
+                        </CanvasItem>
+                        <CanvasItem
+                            x={left.clone()}
+                            y={top.clone()}
+                            width={side.clone()}
+                            height={side.clone()}
+                        >
+                            <Frame visible={tracing}>
+                                <Picture image={rays} fit=ImageFit::Fill smooth=false />
+                            </Frame>
+                        </CanvasItem>
+                        <CanvasItem x={left} y={top} width={side.clone()} height={side}>
+                            <Drawing draw={overlay} />
+                        </CanvasItem>
+                    </Canvas>
+                </List>
+            </Frame>
+        </Interactive>
     }
 }
 

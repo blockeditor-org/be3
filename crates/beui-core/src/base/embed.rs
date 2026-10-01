@@ -3,7 +3,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2, vec2};
+use crate::geometry::{Rect, Vec2};
 use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
@@ -38,8 +38,6 @@ impl EmbedSlot {
 
 pub struct EmbedNode {
     child: Option<NodeId>,
-    width: Option<f32>,
-    height: Option<f32>,
     punch: bool,
     rotation: f32,
     state: Rc<EmbedState>,
@@ -56,14 +54,10 @@ impl EmbedNode {
 
 impl Element for EmbedNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
-        let inner = match self.child {
+        match self.child {
             Some(child) => crate::layout::measure(doc, painter, child, available),
             None => Vec2::ZERO,
-        };
-        vec2(
-            self.width.unwrap_or(inner.x),
-            self.height.unwrap_or(inner.y),
-        )
+        }
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
@@ -147,8 +141,6 @@ impl Document {
     pub fn create_embed(&mut self, state: Rc<EmbedState>) -> NodeOf<EmbedNode> {
         let embed = self.arena.insert(EmbedNode {
             child: None,
-            width: None,
-            height: None,
             punch: false,
             rotation: 0.0,
             state,
@@ -174,20 +166,5 @@ impl Document {
         if self.arena.get_as::<EmbedNode>(embed).rotation != rotation {
             self.arena.paint_mut_as::<EmbedNode>(embed).rotation = rotation;
         }
-    }
-
-    pub fn set_embed_size(
-        &mut self,
-        embed: NodeOf<EmbedNode>,
-        width: Option<f32>,
-        height: Option<f32>,
-    ) {
-        let node = self.arena.get_as::<EmbedNode>(embed);
-        if node.width == width && node.height == height {
-            return;
-        }
-        let node = self.arena.get_mut_as::<EmbedNode>(embed);
-        node.width = width;
-        node.height = height;
     }
 }

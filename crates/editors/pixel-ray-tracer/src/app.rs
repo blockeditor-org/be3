@@ -2,8 +2,9 @@ use block_editor_beui::be_block::PixelRayTracerContent;
 use std::rc::Rc;
 
 use block_editor_beui::be_block::pixel_ray_tracer::PIXEL_RAY_TRACER_SIZE;
-use block_editor_beui::beui::reactive::{Direction, ItemSize, List, Picture, component, view};
+use block_editor_beui::beui::reactive::{Direction, ItemSize, List, component, view};
 use block_editor_beui::beui::styled::{Body, Button, ButtonVariant, Caption, use_theme};
+use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{Creation, Editor, Side, Sidebar, Toolbar};
 use uuid::Uuid;

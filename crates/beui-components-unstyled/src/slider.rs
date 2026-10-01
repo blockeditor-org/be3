@@ -9,9 +9,8 @@ use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCatcher, Focusable, Memo, Prop, ReadSignal, Render, clone,
-    component_accessibility, component_rect, create_effect, create_memo, create_signal,
-    set_component_state, untrack,
+    Callback, Interactive, Memo, Prop, ReadSignal, Render, clone, component_accessibility,
+    component_rect, create_effect, create_memo, create_signal, set_component_state, untrack,
 };
 
 const STEP: f32 = 0.05;
@@ -156,7 +155,8 @@ pub fn Slider(
 
     let tab_stop = create_memo(clone!(disabled -> move || !disabled.get()));
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             tab_stop={tab_stop}
             on_focus_change={move |focused: bool| {
                 set_focused.set(focused);
@@ -183,20 +183,17 @@ pub fn Slider(
                 }
                 true
             }}
-        >
-            <ClickCatcher
-                cursor=CursorIcon::PointingHand
-                on_press={grabbed}
-                on_drag={move |press: PointerPress| {
-                    set_value(scale.value_at(dragged_to(press), min, max))
-                }}
-                on_active_change={move |dragging: bool| {
-                    set_dragging.set(dragging);
-                    on_drag_change.call(dragging);
-                }}
-                children={content_node}
-            />
-        </Focusable>
+            cursor=CursorIcon::PointingHand
+            on_press={grabbed}
+            on_drag={move |press: PointerPress| {
+                set_value(scale.value_at(dragged_to(press), min, max))
+            }}
+            on_active_change={move |dragging: bool| {
+                set_dragging.set(dragging);
+                on_drag_change.call(dragging);
+            }}
+            children={content_node}
+        />
     }
 }
 

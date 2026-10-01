@@ -1352,22 +1352,18 @@ impl<F> UnitHandle<()> for F {}
 
 pub use crate::components::back::BackHandler;
 pub use crate::components::canvas::{Canvas, CanvasItem};
-pub use crate::components::click_catcher::ClickCatcher;
 pub use crate::components::drawing::Drawing;
 pub use crate::components::embed::Embed;
-pub use crate::components::focusable::Focusable;
 pub use crate::components::frame::Frame;
 pub use crate::components::grid::{Grid, GridCell};
+pub use crate::components::interactive::Interactive;
 pub use crate::components::layers::{Layer, Layers};
 pub use crate::components::offset::Offset;
-pub use crate::components::picture::Picture;
 pub use crate::components::portal::Portal;
-pub use crate::components::stroke::Stroke;
 pub use crate::components::text::{Text, TextItem};
-pub use crate::components::viewport::Viewport;
 pub use crate::components::virtual_list::VirtualList;
 pub use beui_core::base::canvas::CanvasView;
-pub use beui_core::base::drawing::Draw;
+pub use beui_core::base::drawing::{Draw, draw_gpu};
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
 pub use beui_core::rich::{
     CaretHandle, RichLayout, SpanKind, SpanStyle, TextCaret, TextMark, TextSpan,

@@ -2,8 +2,8 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui::reactive::{
-    Callback, Child, ClickCatcher, Focusable, NodeRef, Prop, copy_text, create_effect,
-    set_component_state, untrack, with_document,
+    Callback, Child, Interactive, NodeRef, Prop, copy_text, create_effect, set_component_state,
+    untrack, with_document,
 };
 use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
@@ -424,29 +424,27 @@ pub fn Selectable(
         (state.clone(), state.clone(), state.clone(), state.clone());
     let focused = focusable.clone();
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             @node_ref=&focusable
             tab_stop=false
             on_key={move |press: KeyPress| key(&keyed, press)}
             on_ancestor_key={move |press: KeyPress| key(&ancestor, press)}
+            claims_touch=false
+            capture_at={move |pos: Pos2| {
+                with_document(|document| captured.handle_at(document, pos).is_some())
+            }}
+            on_press={move |event: PointerPress| press(&pressed, &focused, event)}
+            on_drag={move |event: PointerPress| drag(&dragged, event)}
+            on_click_at={move |event: PointerPress| tap(&tapped, &on_menu, event)}
+            on_secondary_press={move |event: PointerPress| long_press(&held, event)}
+            on_active_change={move |active: bool| {
+                if !active {
+                    released.0.grab.set(None);
+                }
+            }}
         >
-            <ClickCatcher
-                claims_touch=false
-                capture_at={move |pos: Pos2| {
-                    with_document(|document| captured.handle_at(document, pos).is_some())
-                }}
-                on_press={move |event: PointerPress| press(&pressed, &focused, event)}
-                on_drag={move |event: PointerPress| drag(&dragged, event)}
-                on_click_at={move |event: PointerPress| tap(&tapped, &on_menu, event)}
-                on_secondary_press={move |event: PointerPress| long_press(&held, event)}
-                on_active_change={move |active: bool| {
-                    if !active {
-                        released.0.grab.set(None);
-                    }
-                }}
-            >
-                {children}
-            </ClickCatcher>
-        </Focusable>
+            {children}
+        </Interactive>
     }
 }

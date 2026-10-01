@@ -1,5 +1,6 @@
 use std::any::Any;
 
+use crate::base::focus::Focus;
 use crate::base::list::Direction;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{
@@ -12,8 +13,9 @@ use crate::callback::{Callback, ClickCallback};
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 
-pub struct ClickCatcherNode {
+pub struct InteractiveNode {
     pub child: Option<NodeId>,
+    pub focus: Option<Focus>,
     pub cursor: Option<CursorIcon>,
     pub scroll_axis: Option<Direction>,
     pub armed: bool,
@@ -52,16 +54,17 @@ pub struct ClickCatcherNode {
     pub intercept_at: Callback<Pos2, bool>,
 }
 
-impl Default for ClickCatcherNode {
+impl Default for InteractiveNode {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ClickCatcherNode {
+impl InteractiveNode {
     pub fn new() -> Self {
         Self {
             child: None,
+            focus: None,
             cursor: None,
             scroll_axis: None,
             armed: false,
@@ -254,7 +257,7 @@ fn fraction(rect: Rect, pos: Pos2) -> Vec2 {
     )
 }
 
-impl Element for ClickCatcherNode {
+impl Element for InteractiveNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         match self.child {
             Some(child) => crate::layout::measure(doc, painter, child, available),
@@ -318,9 +321,19 @@ impl Element for ClickCatcherNode {
         input: &InteractInput,
         id: NodeId,
         rect: Rect,
-        _focus_target: &mut Option<NodeId>,
+        focus_target: &mut Option<NodeId>,
         children: &mut Vec<NodeId>,
     ) {
+        if let Some(focus) = self.focus.as_ref()
+            && input.pointer_over(rect)
+            && ((input.pressed_this_frame && !input.touch_started)
+                || (input.touch_ended && !input.touch_dragged && !input.touch_cancelled))
+        {
+            *focus_target = match focus.press_focus {
+                true => Some(id),
+                false => doc.focused_node(),
+            };
+        }
         if !input.pointer_down && !input.released_this_frame {
             self.armed = false;
             self.dragged = None;
@@ -447,7 +460,11 @@ impl Element for ClickCatcherNode {
     }
 
     fn kind(&self) -> &'static str {
-        "click-catcher"
+        "interactive"
+    }
+
+    fn detail(&self) -> Option<String> {
+        self.focus.as_ref().map(|_| "focusable".to_owned())
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -460,8 +477,10 @@ impl Element for ClickCatcherNode {
 }
 
 impl Document {
-    pub fn create_click_catcher(&mut self) -> NodeOf<ClickCatcherNode> {
-        self.arena.insert(ClickCatcherNode::new())
+    pub fn create_interactive(&mut self, focusable: bool) -> NodeOf<InteractiveNode> {
+        let mut node = InteractiveNode::new();
+        node.focus = focusable.then(Focus::new);
+        self.arena.insert(node)
     }
 
     pub fn capture_pointer(&mut self, captor: NodeId) {
@@ -472,7 +491,7 @@ impl Document {
                     .arena
                     .get(captor)
                     .as_any()
-                    .downcast_ref::<ClickCatcherNode>()
+                    .downcast_ref::<InteractiveNode>()
                     .is_some_and(|catcher| catcher.catches_drag(direction))
         };
         let (vertical, horizontal) = (scrolls(Direction::Vertical), scrolls(Direction::Horizontal));
@@ -480,105 +499,89 @@ impl Document {
         self.touch_scroll_horizontal = horizontal.then_some(captor);
     }
 
-    pub fn set_click_catcher_child(
-        &mut self,
-        click_catcher: NodeOf<ClickCatcherNode>,
-        child: NodeId,
-    ) {
-        if self.arena.get_as::<ClickCatcherNode>(click_catcher).child == Some(child) {
+    pub fn set_interactive_child(&mut self, interactive: NodeOf<InteractiveNode>, child: NodeId) {
+        if self.arena.get_as::<InteractiveNode>(interactive).child == Some(child) {
             return;
         }
-        self.arena
-            .get_mut_as::<ClickCatcherNode>(click_catcher)
-            .child = Some(child);
+        self.arena.get_mut_as::<InteractiveNode>(interactive).child = Some(child);
     }
 
-    pub fn set_click_catcher_cursor(
+    pub fn set_interactive_cursor(
         &mut self,
-        id: NodeOf<ClickCatcherNode>,
+        id: NodeOf<InteractiveNode>,
         cursor: Option<CursorIcon>,
     ) {
-        if self.arena.get_as::<ClickCatcherNode>(id).cursor != cursor {
-            self.arena.touch_mut_as::<ClickCatcherNode>(id).cursor = cursor;
+        if self.arena.get_as::<InteractiveNode>(id).cursor != cursor {
+            self.arena.touch_mut_as::<InteractiveNode>(id).cursor = cursor;
         }
     }
 
-    pub fn set_click_catcher_capture_presses(
+    pub fn set_interactive_capture_presses(
         &mut self,
-        id: NodeOf<ClickCatcherNode>,
+        id: NodeOf<InteractiveNode>,
         capture_presses: bool,
     ) {
-        if self.arena.get_as::<ClickCatcherNode>(id).capture_presses != capture_presses {
+        if self.arena.get_as::<InteractiveNode>(id).capture_presses != capture_presses {
             self.arena
-                .touch_mut_as::<ClickCatcherNode>(id)
+                .touch_mut_as::<InteractiveNode>(id)
                 .capture_presses = capture_presses;
         }
     }
 
-    pub fn set_click_catcher_scroll_axis(
+    pub fn set_interactive_scroll_axis(
         &mut self,
-        id: NodeOf<ClickCatcherNode>,
+        id: NodeOf<InteractiveNode>,
         axis: Option<Direction>,
     ) {
-        if self.arena.get_as::<ClickCatcherNode>(id).scroll_axis != axis {
-            self.arena.touch_mut_as::<ClickCatcherNode>(id).scroll_axis = axis;
+        if self.arena.get_as::<InteractiveNode>(id).scroll_axis != axis {
+            self.arena.touch_mut_as::<InteractiveNode>(id).scroll_axis = axis;
         }
     }
 
-    pub fn set_click_catcher_touch_drags(
-        &mut self,
-        id: NodeOf<ClickCatcherNode>,
-        touch_drags: bool,
-    ) {
-        if self.arena.get_as::<ClickCatcherNode>(id).touch_drags != touch_drags {
-            self.arena.get_mut_as::<ClickCatcherNode>(id).touch_drags = touch_drags;
+    pub fn set_interactive_touch_drags(&mut self, id: NodeOf<InteractiveNode>, touch_drags: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).touch_drags != touch_drags {
+            self.arena.get_mut_as::<InteractiveNode>(id).touch_drags = touch_drags;
         }
     }
 
-    pub fn set_click_catcher_touch_drag_axis(
+    pub fn set_interactive_touch_drag_axis(
         &mut self,
-        id: NodeOf<ClickCatcherNode>,
+        id: NodeOf<InteractiveNode>,
         axis: Option<Direction>,
     ) {
-        if self.arena.get_as::<ClickCatcherNode>(id).touch_drag_axis != axis {
-            self.arena
-                .get_mut_as::<ClickCatcherNode>(id)
-                .touch_drag_axis = axis;
+        if self.arena.get_as::<InteractiveNode>(id).touch_drag_axis != axis {
+            self.arena.get_mut_as::<InteractiveNode>(id).touch_drag_axis = axis;
         }
     }
 
-    pub fn set_click_catcher_claims_touch(
+    pub fn set_interactive_claims_touch(
         &mut self,
-        id: NodeOf<ClickCatcherNode>,
+        id: NodeOf<InteractiveNode>,
         claims_touch: bool,
     ) {
-        if self.arena.get_as::<ClickCatcherNode>(id).claims_touch != claims_touch {
-            self.arena.get_mut_as::<ClickCatcherNode>(id).claims_touch = claims_touch;
+        if self.arena.get_as::<InteractiveNode>(id).claims_touch != claims_touch {
+            self.arena.get_mut_as::<InteractiveNode>(id).claims_touch = claims_touch;
         }
     }
 
-    pub fn set_click_catcher_repeat_drag(
-        &mut self,
-        id: NodeOf<ClickCatcherNode>,
-        repeat_drag: bool,
-    ) {
-        if self.arena.get_as::<ClickCatcherNode>(id).repeat_drag != repeat_drag {
-            self.arena.touch_mut_as::<ClickCatcherNode>(id).repeat_drag = repeat_drag;
+    pub fn set_interactive_repeat_drag(&mut self, id: NodeOf<InteractiveNode>, repeat_drag: bool) {
+        if self.arena.get_as::<InteractiveNode>(id).repeat_drag != repeat_drag {
+            self.arena.touch_mut_as::<InteractiveNode>(id).repeat_drag = repeat_drag;
         }
     }
 
-    pub fn set_click_catcher_key_active(&mut self, id: NodeOf<ClickCatcherNode>, key_active: bool) {
+    pub fn set_interactive_key_active(&mut self, id: NodeOf<InteractiveNode>, key_active: bool) {
         if !self.contains(id) {
             return;
         }
-        let click_catcher = self.arena.touch_mut_as::<ClickCatcherNode>(id);
-        click_catcher.key_active = key_active;
-        let active = click_catcher.is_active();
-        if active == click_catcher.active {
+        let interactive = self.arena.touch_mut_as::<InteractiveNode>(id);
+        interactive.key_active = key_active;
+        let active = interactive.is_active();
+        if active == interactive.active {
             return;
         }
-        click_catcher.active = active;
-        let on_active_change = click_catcher.on_active_change.clone();
+        interactive.active = active;
+        let on_active_change = interactive.on_active_change.clone();
         on_active_change.call(active);
     }
 }

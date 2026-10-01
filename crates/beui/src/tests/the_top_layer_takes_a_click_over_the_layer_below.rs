@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use super::*;
-use crate::reactive::{Align, ClickCatcher, Frame, Layers, view};
+use crate::reactive::{Align, Frame, Interactive, Layers, view};
 
 #[test]
 fn the_top_layer_takes_a_click_over_the_layer_below() {
@@ -12,19 +12,16 @@ fn the_top_layer_takes_a_click_over_the_layer_below() {
         move || {
             view! {
                 <Layers>
-                    <ClickCatcher
-                        capture_presses=true
-                        on_click={move || below.set(below.get() + 1)}
-                    >
+                    <Interactive capture_presses=true on_click={move || below.set(below.get() + 1)}>
                         <Frame width=100.0 height=100.0 />
-                    </ClickCatcher>
+                    </Interactive>
                     <Frame align_horizontal=Align::End align_vertical=Align::Start>
-                        <ClickCatcher
+                        <Interactive
                             capture_presses=true
                             on_click={move || above.set(above.get() + 1)}
                         >
                             <Frame width=20.0 height=20.0 />
-                        </ClickCatcher>
+                        </Interactive>
                     </Frame>
                 </Layers>
             }

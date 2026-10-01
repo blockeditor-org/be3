@@ -18,7 +18,7 @@ use beui_core::color::Color32;
 use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_TAB_GROUP};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCallback, ClickCatcher, Frame, Func, List, Memo, Prop, ReadSignal, RenderFn,
+    Callback, ClickCallback, Frame, Func, Interactive, List, Memo, Prop, ReadSignal, RenderFn,
     Show, Text, clone, create_memo, focus_ring,
 };
 use stack::DockStackBar;
@@ -202,7 +202,7 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
                 _ => {}
             }}
         >
-            <ClickCatcher
+            <Interactive
                 on_middle_click={move || {
                     if closes.get_untracked() {
                         middle.call();
@@ -223,7 +223,7 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
                     close_test_id={close_test_id(entry)}
                     close={move || close.call()}
                 />
-            </ClickCatcher>
+            </Interactive>
         </ContextMenu>
     }
 }

@@ -7,7 +7,7 @@ use beui_core::base::{Direction, ScrollPosition};
 use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCatcher, Memo, Prop, ReadSignal, Render, clone, create_memo, create_signal,
+    Callback, Interactive, Memo, Prop, ReadSignal, Render, clone, create_memo, create_signal,
     untrack,
 };
 
@@ -101,7 +101,7 @@ pub fn Scrollbar(
     let (pressed_at, dragged_at, hovered_at) = (position.clone(), position.clone(), position);
     let (pressed_grab, dragged_grab, active_grab) = (grab.clone(), grab.clone(), grab);
     view! {
-        <ClickCatcher
+        <Interactive
             on_press={move |press: PointerPress| {
                 let position = untrack(|| pressed_at.get());
                 if position.max_offset() <= 0.0 {

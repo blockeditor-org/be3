@@ -6,7 +6,7 @@ use beui_core::input::{CursorIcon, KeyPress, PointerPress};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, ClickCallback, ClickCatcher, Focusable, Prop, ReadSignal, Render, clone,
+    Callback, Child, ClickCallback, Interactive, Prop, ReadSignal, Render, clone,
     component_accessibility, create_memo, create_signal, set_component_state, untrack,
 };
 
@@ -90,7 +90,8 @@ pub fn Button(
     });
 
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             tab_stop
             press_focus
             focused={focus_request}
@@ -102,18 +103,15 @@ pub fn Button(
             }}
             on_activate_change={move |pressed: bool| set_key_active.set(pressed)}
             on_activate={key_click}
-        >
-            <ClickCatcher
-                cursor=CursorIcon::PointingHand
-                capture_presses
-                key_active
-                on_click={click}
-                on_click_at={click_at}
-                on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-                on_active_change={move |active: bool| set_active.set(active)}
-                children={content_node}
-            />
-        </Focusable>
+            cursor=CursorIcon::PointingHand
+            capture_presses
+            key_active
+            on_click={click}
+            on_click_at={click_at}
+            on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
+            on_active_change={move |active: bool| set_active.set(active)}
+            children={content_node}
+        />
     }
 }
 

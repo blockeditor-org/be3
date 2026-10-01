@@ -269,9 +269,9 @@ need:
   components.
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `Grid`, `Text`,
-  `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Focusable`,
-  `ClickCatcher`, `Embed`, `Portal`, `Viewport` — and it stays small because most things are
-  compositions of those.
+  `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`, `Embed`,
+  `Portal`, `BackHandler` — and it stays small because most things are
+  compositions of those. `unstyled::Picture` is one: a `Drawing` with a size.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
   arranging the existing nodes. `Portal` is one: it shows a subtree it does not
@@ -288,7 +288,9 @@ so the closure is replaced only when that page changes, and cull to
 costs the screenful it shows. Reach for it only when there genuinely is no
 arrangement of nodes that says the same thing: a row of labels is a `List` of
 `Text`, not a `Drawing`. It measures to nothing, so it takes its size from
-whatever places it - a `Frame` with a width and a height, or a `CanvasItem`.
+whatever places it - a `Frame` with a width and a height, or a `CanvasItem` -
+unless it is given a `size`, which it measures to, scaled down to the width it
+is offered and keeping its shape, as an image does.
 
 Text is never one of those. `Text` takes `spans` - byte ranges of its string
 with a font, a colour, an underline or a strikethrough each, or a fixed-width
@@ -313,7 +315,7 @@ costs a hash lookup. A `FontId` carries `bold` and `italic` alongside its size
 and family; both are synthesised by FreeType rather than loaded as separate
 faces, and `Text` takes them as props.
 
-`unstyled::Button` shows the split. It composes `Focusable` and `ClickCatcher`,
+`unstyled::Button` shows the split. It is a focusable `Interactive`,
 and owns button semantics, disabled behavior, pointer and keyboard activation,
 and accessibility. Its content closure receives a `ButtonHandle` of reactive
 `hovered`, `active`, and `focused` state. `styled::Button` wraps it and uses
@@ -386,9 +388,6 @@ surface — publishing the rectangle and the clip it was laid out in through the
 `EmbedSlot` it was given and cutting that rectangle out of the surface so what
 is behind shows through. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
-`Viewport` reserves a rectangle the renderer draws into rather than the
-document: it fills the space it is given and paints the `Drawing` it is handed
-in its place (see [Draw with the gpu](#draw-with-the-gpu)).
 `Offset` keeps a run of items along a `direction` and lays them out from an
 offset; it answers no input at all, so nothing scrolls by putting one in a view
 (see [Scrolling](#scrolling)). `VirtualList` is an ordinary box that stands for
@@ -403,7 +402,7 @@ under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `TextArea`,
 `Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Popover`, `Container`,
 `PanZoom`, `PointerLock`, `Dock`, `Draggable`, `DropTarget`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
-`Stack`, `Calendar`, `DateTimeField`, `TimeList` and `ColorArea`. `TextArea` is the multiline one: it owns a
+`Stack`, `Calendar`, `DateTimeField`, `TimeList`, `ColorArea` and `Picture`. `TextArea` is the multiline one: it owns a
 `text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
 document out with a gutter, wrapping, collapsible sections and markdown
 checkboxes, and lays out the inline and block `TextWidget`s the caller
@@ -432,16 +431,16 @@ what a toolbar reaches for where `Select` would imply the choice sticks;
 held still for the long-press delay (`Context::set_long_press_delay`, which a
 test sets to zero rather than waiting) is a secondary press where it rests, so
 every context menu opens on tap-and-hold; the press the finger began is
-cancelled and lifting it is not a click. A `ClickCatcher` hears that
+cancelled and lifting it is not a click. An `Interactive` hears that
 cancellation, and a second finger landing, as `on_cancel`, which is where a
 gesture in progress is dropped rather than committed. A finger dragged across a
-`ClickCatcher` is read as a scroll of whatever holds it that scrolls that way
+`Interactive` is read as a scroll of whatever holds it that scrolls that way
 (where nothing does, it stays the catcher's drag) unless the catcher sets
 `touch_drags`, which a canvas that draws or moves things under the finger does,
 or `touch_drag_axis`, which keeps finger drags along one direction only and
 leaves the other to the scroll around it, as a dock tab in a scrolling tab bar
 does.
-A finger that lands on no control is taken to the nearest `ClickCatcher` that
+A finger that lands on no control is taken to the nearest `Interactive` that
 takes presses within `TOUCH_REACH` of it, for the whole touch, so every control's
 touch zone is bigger than it looks without anything growing; a direct hit always
 wins, so a neighbour never takes a tap aimed at the control beside it. A
@@ -587,8 +586,8 @@ Under both sits the base `Offset`, which is named for what
 it does rather than for what it is used for: it holds a run of items along a
 direction and lays them out from an offset, with no bar, no theme, and no input
 of their own. A wheel, a touch drag and the arrow keys are `unstyled::Scroll`'s,
-which wraps the offset in a `Focusable` for the keys and a `ClickCatcher` for
-the wheel and the drag, keeps the momentum an unfinished fling carries, and
+which wraps the offset in a focusable `Interactive` for the keys, the wheel and
+the drag, keeps the momentum an unfinished fling carries, and
 drives the offset from all three. So reach for `Offset` when something needs its
 content shifted under a viewport and nothing more, and for a `Scroll` whenever
 something needs to scroll.
@@ -1089,15 +1088,18 @@ window that loses the keyboard gives the pointer back.
 ### Draw with the gpu
 
 A viewport whose pixels no arrangement of nodes can produce - a 3D scene, a ray
-tracer, a map - is a `Viewport` node holding a `Drawing`. `Viewport` fills the
-space it is laid out in and paints a `Shape::Drawing` over its rectangle;
-the renderer runs the `Draw` behind that drawing where the shape sits in the
-order everything else is painted in, so nodes written after it still paint over
-it.
+tracer, a map - is a `Drawing` node whose callback paints a gpu `Drawing`:
+`draw_gpu(drawing)` builds one that paints a `Shape::Drawing` over the node's
+rectangle. The renderer runs the `Draw` behind that drawing where the shape sits
+in the order everything else is painted in, so nodes written after it still
+paint over it.
 
 ```rust
 view! {
-    <Viewport drawing={drawing} @sizing=ItemSize::Percent(100.0) />
+    <Drawing
+        draw={Prop::Dynamic(Rc::new(move || draw_gpu(drawing.get())))}
+        @sizing=ItemSize::Percent(100.0)
+    />
 }
 ```
 
@@ -1239,7 +1241,7 @@ focused field into what is left, through every scroll it sits in.
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.
   `Setup` hands over a `Waker`, and whatever the renderer and runner provide:
   `setup.get::<beui::GpuSetup>()` is the wgpu device, queue and surface format,
-  for an app that paints with the gpu itself through a `Viewport`, and on the
+  for an app that paints with the gpu itself through `draw_gpu`, and on the
   desktop `setup.get::<Arc<beui::winit::window::Window>>()` is the window. `Waker::wake`
   can be called from any thread, and asks the runner for another frame: it is
   how work finishing elsewhere is pushed to the ui instead of polled for.
@@ -1627,8 +1629,9 @@ the public component, handles, state readers, and supporting types there.
 Compose it from base components. For an interactive control this normally means:
 
 1. Model controlled values and transient interaction values with signals.
-2. Use `Focusable` for tab order, keyboard events, activation, and focus state.
-3. Use `ClickCatcher` for pointer and touch interaction.
+2. Use `Interactive` for pointer and touch interaction, and give it
+   `focusable=true` for tab order, keyboard events, activation, and focus
+   state. One node does both, so a control is a single `Interactive`.
 4. Publish the correct AccessKit role and state with `component_accessibility`.
 5. Give the caller a `Render<Handle>` or `RenderFn<Handle>` containing the
    reactive state needed to paint the control.
@@ -1646,7 +1649,7 @@ vertical wheel over a horizontal strip passes through to whatever is around it
 and a drag reaches the innermost catcher that scrolls that way.
 `unstyled::Scroll` is built out of those three.
 
-A press normally reaches every `ClickCatcher` under the pointer. A control that
+A press normally reaches every `Interactive` under the pointer. A control that
 must win a press, or that reacts to presses outside its own rect, captures it:
 `capture_presses` claims presses inside the catcher and `capture_at` claims
 presses at positions its callback accepts. Before any node handles a press the
@@ -1842,8 +1845,8 @@ under them has to paint. `paint` must therefore be a function of the node, its
 rectangle, the painter and the rectangles its own layout gave its children -
 anything else it reads goes unnoticed when it changes. What a node damages is
 where its shapes changed, so a repaint that paints the same thing costs no
-pixels. A `Drawing` whose content changed in part hands its `Viewport`
-`drawing.redrawn(region)` rather than a new `Drawing`: only that region, in the
+pixels. A `Drawing` whose content changed in part hands its `Drawing` node
+`draw_gpu(Some(drawing.redrawn(region)))` rather than a new `Drawing`: only that region, in the
 drawing's own coordinates, is damaged (the plugin host does this with the
 rectangles each plugin frame reports it changed). beui's own tests, and every test that drives a plugin through
 `block-ui-test` (which turns on `beui::verify_paint`), paint every frame again

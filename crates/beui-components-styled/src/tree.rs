@@ -21,7 +21,7 @@ use beui_core::icons::{
 use beui_core::input::{CursorIcon, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, ClickCatcher, Direction, Frame, Func, ItemSize, List, Memo, NodeRef, Prop,
+    Align, Callback, Direction, Frame, Func, Interactive, ItemSize, List, Memo, NodeRef, Prop,
     ReadSignal, RenderFn, Show, Spacer, clone, create_effect, create_memo, create_selector,
     create_signal, focus_ring, node_placed, node_rect, set_component_state, with_document,
 };
@@ -336,7 +336,7 @@ where
                     radius=RADIUS
                     padding_horizontal=PADDING_HORIZONTAL
                 >
-                    <ClickCatcher
+                    <Interactive
                         cursor=CursorIcon::PointingHand
                         on_press={pressed}
                         on_drag={dragged}
@@ -348,7 +348,7 @@ where
                         }}
                     >
                         {content.call(face)}
-                    </ClickCatcher>
+                    </Interactive>
                 </Frame>
             </List>
         </Frame>

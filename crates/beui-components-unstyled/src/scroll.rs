@@ -22,10 +22,9 @@ use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
 use beui_core::node::{NodeId, NodeOf};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Callback, Children, ClickCatcher, Focusable, Frame, List, ListChild, Memo, Offset, Prop,
-    ReadSignal, Render, RenderFn, Show, Timer, clone, component_accessibility, create_memo,
-    create_signal, create_timer, focus_ring, on_cleanup, set_component_state, untrack,
-    with_document,
+    Callback, Children, Frame, Interactive, List, ListChild, Memo, Offset, Prop, ReadSignal,
+    Render, RenderFn, Show, Timer, clone, component_accessibility, create_memo, create_signal,
+    create_timer, focus_ring, on_cleanup, set_component_state, untrack, with_document,
 };
 
 const FOCUS_RING_WIDTH: f32 = 2.0;
@@ -431,49 +430,47 @@ fn Scrolling(
     let scroll_to = Callback::new(move |offset: f32| motion.scroll_to(offset));
     view! {
         <List direction={across} spacing={scrollbar.spacing()}>
-            <Focusable
+            <Interactive
+                focusable=true
                 @sizing=ItemSize::Percent(100.0)
                 on_focus_change={move |focused: bool| set_focused.set(focused)}
                 on_key={move |press: KeyPress| keyed.key(press)}
                 on_ancestor_key={move |press: KeyPress| ancestor_keyed.key(press)}
-            >
-                <ClickCatcher
-                    scroll_axis={axis}
-                    intercept_at={move |_: Pos2| tapped.flinging()}
-                    on_press={move |_: PointerPress| stopped.stop_fling()}
-                    on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
-                    on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
-                    on_autoscroll={move |gesture: AutoscrollGesture| {
+                scroll_axis={axis}
+                intercept_at={move |_: Pos2| tapped.flinging()}
+                on_press={move |_: PointerPress| stopped.stop_fling()}
+                on_scroll={move |gesture: ScrollGesture| wheeled.wheel(gesture)}
+                on_scroll_drag={move |gesture: DragGesture| dragged.drag(gesture)}
+                on_autoscroll={move |gesture: AutoscrollGesture| {
                         let marking = (!gesture.ended).then_some(gesture.origin);
                         if untrack(|| origin.get()) != marking {
                             set_origin.set(marking);
                         }
                         autoscrolled.autoscroll(gesture);
                     }}
+            >
+                <Frame
+                    outline={focus_color}
+                    outline_width=FOCUS_RING_WIDTH
+                    outline_offset=FOCUS_RING_INSET
+                    outline_visible={focus_ring(focused)}
                 >
-                    <Frame
-                        outline={focus_color}
-                        outline_width=FOCUS_RING_WIDTH
-                        outline_offset=FOCUS_RING_INSET
-                        outline_visible={focus_ring(focused)}
-                    >
-                        <List direction={content_axis} spacing=0.0>
-                            {node} @sizing=ItemSize::Percent(100.0)
-                            <Show condition={marked.clone()}>
-                                <Overlay
-                                    anchor
-                                    placement=Placement::Around
-                                    mode=OverlayMode::Passive
-                                    traps_focus=false
-                                    open={marked}
-                                >
-                                    {marker.call(marker_axis)}
-                                </Overlay>
-                            </Show>
-                        </List>
-                    </Frame>
-                </ClickCatcher>
-            </Focusable>
+                    <List direction={content_axis} spacing=0.0>
+                        {node} @sizing=ItemSize::Percent(100.0)
+                        <Show condition={marked.clone()}>
+                            <Overlay
+                                anchor
+                                placement=Placement::Around
+                                mode=OverlayMode::Passive
+                                traps_focus=false
+                                open={marked}
+                            >
+                                {marker.call(marker_axis)}
+                            </Overlay>
+                        </Show>
+                    </List>
+                </Frame>
+            </Interactive>
             {scrollbar.beside(position, direction, scroll_to)}
         </List>
     }

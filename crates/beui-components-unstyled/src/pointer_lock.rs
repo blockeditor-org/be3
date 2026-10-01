@@ -5,8 +5,8 @@ use beui_core::geometry::Vec2;
 use beui_core::input::{CursorIcon, Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCatcher, Focusable, Prop, ReadSignal, Render, clone, component_accessibility,
-    create_effect, create_signal, on_cleanup, try_with_document, untrack, with_document,
+    Callback, Interactive, Prop, ReadSignal, Render, clone, component_accessibility, create_effect,
+    create_signal, on_cleanup, try_with_document, untrack, with_document,
 };
 
 pub struct PointerLockHandle {
@@ -75,19 +75,17 @@ pub fn PointerLock(
     });
 
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             on_focus_change={blurred}
             on_activate={engage.clone()}
             on_key={key}
             on_motion={move |motion: Vec2| on_motion.call(motion)}
-        >
-            <ClickCatcher
-                cursor={cursor}
-                on_click={engage}
-                on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-                children={content_node}
-            />
-        </Focusable>
+            cursor={cursor}
+            on_click={engage}
+            on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
+            children={content_node}
+        />
     }
 }
 

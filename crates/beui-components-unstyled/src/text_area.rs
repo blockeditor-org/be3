@@ -31,8 +31,8 @@ use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::{NodeId, Rects};
 use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center};
 use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, Child, ClickCallback, ClickCatcher, Focusable, Frame, List, Memo,
-    NodeRef, Prop, ReadSignal, Render, RenderFn, Show, WriteSignal, clone, component_accessibility,
+    Callback, Canvas, CanvasItem, Child, ClickCallback, Frame, Interactive, List, Memo, NodeRef,
+    Prop, ReadSignal, Render, RenderFn, Show, WriteSignal, clone, component_accessibility,
     component_rect, component_size, create_effect, create_memo, create_signal, create_timer,
     in_new_scope, on_cleanup, pixels_per_point, set_component_state, try_with_document, untrack,
     with_document,
@@ -1279,7 +1279,8 @@ fn Editing(field: Field) -> NodeId {
     let hover_cx = cx.clone();
     let body_cx = cx;
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             focused
             tab_stop
             ime={create_memo(move || !disabled.get())}
@@ -1301,46 +1302,43 @@ fn Editing(field: Field) -> NodeId {
                             || on_key_override.call(press)
                             || keys::key(&key_cx, press)))
             }}
+            cursor
+            repeat_drag={autoscroll}
+            capture_at={move |pos: Pos2| {
+                !capture_cx.disabled.get_untracked() && capture_cx.handle_at(pos).is_some()
+            }}
+            on_press={move |event: PointerPress| press(&press_cx, event)}
+            on_click_at={move |event: PointerPress| tap(&tap_cx, event)}
+            on_drag={move |event: PointerPress| extend(&drag_cx, event)}
+            on_active_change={move |active: bool| release(&release_cx, active)}
+            on_hover_change={move |hovered: bool| on_hover_change.call(hovered)}
+            on_hover_move={move |event: PointerPress| {
+                set_cursor.set(hover_cursor(&hover_cx, event.pos));
+            }}
         >
-            <ClickCatcher
-                cursor
-                repeat_drag={autoscroll}
-                capture_at={move |pos: Pos2| {
-                    !capture_cx.disabled.get_untracked() && capture_cx.handle_at(pos).is_some()
-                }}
-                on_press={move |event: PointerPress| press(&press_cx, event)}
-                on_click_at={move |event: PointerPress| tap(&tap_cx, event)}
-                on_drag={move |event: PointerPress| extend(&drag_cx, event)}
-                on_active_change={move |active: bool| release(&release_cx, active)}
-                on_hover_change={move |hovered: bool| on_hover_change.call(hovered)}
-                on_hover_move={move |event: PointerPress| {
-                    set_cursor.set(hover_cursor(&hover_cx, event.pos));
-                }}
-            >
-                {{
-                    match single_line {
-                        false => view! {
-                            <Lines cx={body_cx} />
-                        },
-                        true => {
-                            let field = view! {
-                                <FieldFrame
-                                    @node_ref=&inner
-                                    color={surface_color}
-                                    report={set_field_rect}
-                                >
-                                    <SingleLine cx={body_cx} />
-                                </FieldFrame>
-                            };
-                            match frame.borrow_mut().take() {
-                                Some(frame) => frame.call(field),
-                                None => field,
-                            }
+            {{
+                match single_line {
+                    false => view! {
+                        <Lines cx={body_cx} />
+                    },
+                    true => {
+                        let field = view! {
+                            <FieldFrame
+                                @node_ref=&inner
+                                color={surface_color}
+                                report={set_field_rect}
+                            >
+                                <SingleLine cx={body_cx} />
+                            </FieldFrame>
+                        };
+                        match frame.borrow_mut().take() {
+                            Some(frame) => frame.call(field),
+                            None => field,
                         }
                     }
-                }}
-            </ClickCatcher>
-        </Focusable>
+                }
+            }}
+        </Interactive>
     }
 }
 

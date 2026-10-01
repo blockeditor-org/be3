@@ -1,14 +1,15 @@
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
+    rc::Rc,
 };
 
 use beui::reactive::{
-    Canvas, CanvasItem, Embed, EmbedSlot, ForEach, Frame, KeyedStore, List, Memo, ReadSignal, Show,
-    Text, Viewport, WriteSignal, component, create_memo, create_signal, view,
+    Canvas, CanvasItem, Drawing, Embed, EmbedSlot, ForEach, Frame, KeyedStore, List, Memo, Prop,
+    ReadSignal, Show, Text, WriteSignal, component, create_memo, create_signal, draw_gpu, view,
 };
 use beui::styled::{Button, ButtonVariant, Caption, Heading, Icon, Spinner, use_theme};
-use beui::{Align, Color32, Drawing, NodeId, Rect, Region, TextAlign, Vec2};
+use beui::{Align, Color32, NodeId, Rect, Region, TextAlign, Vec2};
 
 use crate::host::{self, HostCommand, HostItem, PlacedItem, SurfaceOutput, Ui};
 use crate::plugin_host::{Blit, PluginDrawing};
@@ -46,8 +47,8 @@ struct State {
 #[derive(Clone)]
 pub(crate) struct SurfaceHandle {
     slot: EmbedSlot,
-    drawing: ReadSignal<Option<Drawing>>,
-    set_drawing: WriteSignal<Option<Drawing>>,
+    drawing: ReadSignal<Option<beui::Drawing>>,
+    set_drawing: WriteSignal<Option<beui::Drawing>>,
     items: KeyedStore<u64, PlacedItem>,
     size: ReadSignal<Vec2>,
     set_size: WriteSignal<Vec2>,
@@ -293,7 +294,12 @@ pub(crate) fn HostSurface(id: SurfaceId) -> NodeId {
         <Embed slot={handle.slot.clone()} punch=false>
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                    <Viewport drawing={handle.drawing.clone()} />
+                    <Drawing
+                        draw={Prop::Dynamic(Rc::new({
+                            let drawing = handle.drawing.clone();
+                            move || draw_gpu(drawing.get())
+                        }))}
+                    />
                 </CanvasItem>
                 <ForEach keys={items.keys()}>
                     {move |key: u64| {
