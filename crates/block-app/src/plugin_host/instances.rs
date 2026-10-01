@@ -2,7 +2,7 @@ use be_block::BlockContent as _;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
+    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, BlockTypeDescriptor,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
     CreationOutcome, CursorIcon, DataListing, EditorInstanceId, EditorMessage, EditorRegion,
     FetchResult, FilePick, FileSave, FrameReport, FrameSpec, HostReply, HostRequest, Message,
@@ -74,7 +74,6 @@ struct Instance {
     pending: Vec<Pending>,
     text_pastes: Vec<String>,
     audio: Option<AudioPlayer>,
-    reported_audio: AudioStatus,
     reported_size: Option<Vec2>,
     block_picks: Vec<BlockPickRequest>,
     view: Option<EditorView>,
@@ -246,7 +245,6 @@ impl Instance {
             pending: Vec::new(),
             text_pastes: Vec::new(),
             audio: None,
-            reported_audio: AudioStatus::default(),
             reported_size: None,
             block_picks: Vec::new(),
             view: None,
@@ -1876,18 +1874,13 @@ impl Instances {
                 }));
             }
             let entry = self.entries.get_mut(&instance).unwrap();
-            if let Some(player) = &entry.audio {
-                let status = player.status();
-                if status.playing {
-                    host::request_repaint();
-                }
-                if status != entry.reported_audio {
-                    entry.reported_audio.clone_from(&status);
-                    messages.push(Message::Editor(EditorMessage::AudioStatus {
-                        instance,
-                        status,
-                    }));
-                }
+            if let Some(player) = &entry.audio
+                && player.take_changed()
+            {
+                messages.push(Message::Editor(EditorMessage::AudioStatus {
+                    instance,
+                    status: player.status(),
+                }));
             }
         }
         messages
