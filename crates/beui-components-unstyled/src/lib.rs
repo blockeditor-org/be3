@@ -4,6 +4,7 @@ pub mod button;
 pub mod calendar;
 pub mod choice;
 pub mod color_area;
+pub mod command_palette;
 pub mod container;
 pub mod context_menu;
 pub mod date_time_field;
@@ -43,6 +44,10 @@ pub use calendar::{
 };
 pub use choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, choice_selected};
 pub use color_area::{ColorArea, ColorAreaHandle, color_area_value};
+pub use command_palette::{
+    CommandPalette, CommandRowHandle, command_palette_highlighted, command_palette_row,
+    command_palette_search, command_palette_shown,
+};
 pub use container::{Container, ContainerSize, container_size, narrower_than, shorter_than};
 pub use context_menu::{ContextMenu, context_menu_menu, context_menu_overlay};
 pub use date_time_field::{

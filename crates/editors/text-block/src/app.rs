@@ -10,8 +10,8 @@ mod toolbar;
 
 use beui::NodeId;
 use beui::reactive::{
-    ItemSize, List, NodeRef, Show, clone, component, create_effect, create_memo, create_signal,
-    view,
+    ItemSize, List, NodeRef, Show, action_scope, clone, component, create_effect, create_memo,
+    create_signal, view,
 };
 use block_editor_beui::be_block::TextContent;
 use block_editor_beui::{Creation, Editor};
@@ -23,7 +23,7 @@ use embeds::ResolvedEmbed;
 use import_error::ImportError;
 use state::{DIRECT_EDITOR_WIDTH, Shared, State};
 use surface::TextSurface;
-use toolbar::{EditorMenu, FormatBar};
+use toolbar::{EditorMenu, FormatBar, format_actions};
 
 pub struct TextApp;
 
@@ -47,7 +47,9 @@ pub fn TextEditor(editor: Editor) -> NodeId {
 
     let content = NodeRef::new();
     editor.content(&content);
+    action_scope(&content);
     intrinsic_size(&state);
+    let formats = format_actions(&state);
 
     let hex = state.hex_view.clone();
     let text_shown = create_memo(clone!(hex -> move || !hex.get()));
@@ -72,7 +74,7 @@ pub fn TextEditor(editor: Editor) -> NodeId {
             <ImportError state={state.clone()} />
             <Show condition={text_shown} then={text_surface} />
             <Show condition={hex_shown} then={hex_surface} />
-            <FormatBar state={state.clone()} />
+            <FormatBar state={state.clone()} formats />
         </List>
     }
 }

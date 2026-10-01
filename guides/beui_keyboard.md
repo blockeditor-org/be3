@@ -9,7 +9,7 @@ The styled controls follow the keyboard conventions in the [W3C Authoring Practi
 | Radio groups | One Tab stop, at the selected option or the first option when unselected. Arrows wrap and select; Space selects without clearing an existing selection. Home/End select the first/last option. |
 | Single-select listboxes | One Tab stop. Up/Down select the previous/next option and stop at the ends. Home/End select the first/last option. Typing searches case-insensitive prefixes; repeated letters cycle matches. The search resets after one second or when focus leaves. |
 | Sliders | Right/Up increase and Left/Down decrease by 5% of the track. Home/End select minimum/maximum. Page Up/Down adjust by 20% of the track. Values remain within the range, which is `min` to `max` and defaults to 0 to 1. A curved `scale` keeps the steps even along the track, so they are small where the track is fine and large where it is coarse. |
-| Text inputs | Left/Right, Home/End, Shift-selection, Ctrl/Alt word navigation and deletion, Ctrl+A, Ctrl+C/X, Ctrl+Z, Ctrl+Shift+Z/Ctrl+Y, and Enter to submit. Up and Down move to the start and the end of the text, as they would on the one line of a multiline area. Space inserts text. Paste replaces the selection. A secondary click opens the Copy, Cut, Paste and Select All menu that a touch tap on the selection or the caret handle opens. The desktop runner maps Command to Ctrl on macOS. A multiline text area takes Tab and Shift+Tab to indent; Escape then Tab or Shift+Tab moves the focus out of it instead. |
+| Text inputs | Left/Right, Home/End, Shift-selection, Ctrl/Alt word navigation and deletion, Ctrl+A, Ctrl+C/X, Ctrl+Z, Ctrl+Shift+Z/Ctrl+Y, and Enter to submit. Up and Down move to the start and the end of the text, as they would on the one line of a multiline area. Space inserts text. Paste replaces the selection. A secondary click opens the Copy, Cut, Paste and Select All menu that a touch tap on the selection or the caret handle opens. The desktop runner maps Command to Ctrl on macOS. A multiline text area takes Tab and Shift+Tab to indent; Escape then Tab or Shift+Tab moves the focus out of it instead. It registers Find (Ctrl+F), Find and replace (Ctrl+H), the next and previous match (Ctrl+G, Ctrl+Shift+G), Duplicate the line (Ctrl+Shift+D), Select the next occurrence (Ctrl+D) and folding (Ctrl+Shift+[) as actions, which answer while the focus is in it. |
 | Selectable text | `<SelectableText>` makes the plain text nodes under it selectable together: a mouse drag selects from one text to another in tree order, Shift+click extends the selection, and a click clears it. Ctrl+C copies the selection, joining texts on one line with a space and lines with a line break; Ctrl+A selects everything under it. A secondary click opens a Copy and Select All menu. It is not a Tab stop, and the keys also reach it from a focused control inside it. |
 | Scroll areas | Tab focuses the area. Up/Down scroll by a line; Page Up/Down and Space/Shift+Space scroll by a page; Home/End reach the endpoints. Tabbing to a child or navigating a choice scrolls it into view. Unused Up/Down, Home/End, and Page keys on child controls scroll the nearest containing area. Virtual lists can be paged before tabbing into their realized controls. |
 | Select (dropdown) | Clicking or activating the trigger opens the popup and focuses its search box; typing filters the options by case-insensitive substring. Up/Down/Home/End on the closed trigger also open the popup and move the highlight in that direction. Up/Down move the highlighted option without moving the text caret; Home/End jump to the first/last visible option. Enter confirms the highlighted option and closes the popup. Escape or an outside click closes the popup without changing the selection and returns focus to the trigger. |
@@ -30,10 +30,56 @@ registered with `on_shortcut`, which is offered every key press before the
 focused control sees it, and answers `true` for the ones it takes. Shortcuts
 are consulted only while no menu or dialog is open, since those take the
 document over. That is how the dock's Ctrl+Tab reaches it from inside a text
-input, and it is the only way a component can claim a key it does not have the
-focus for.
+input, and it is the only way a component can claim a key before the focused
+control does.
 
 Tab and Shift+Tab traverse visible controls in tree order and wrap within the document. Hidden panels and collapsed content are excluded. Changing a selection programmatically updates the group's Tab stop and moves focus with the selection when the group already contains focus. Programmatic changes do not pull focus from other controls. Empty groups have no Tab stop, and invalid selection updates are ignored.
+
+## Actions and the command palette
+
+A command a person can run - a button, a menu row, a shortcut, an entry in the
+command palette - is written once, as an `Action`, and everything that offers it
+is handed that action rather than a label, a disabled flag and a callback of
+its own:
+
+```rust
+let group = Action::new("canvas.group", "Group", move || state.run(Group))
+    .glyph(ICON_GROUP_WORK)
+    .shortcut(Chord::ctrl(Key::G))
+    .enabled(can_group)
+    .register();
+view! {
+    <IconButton action={group.clone()} />
+    <MenuItem action={group} />
+}
+```
+
+`register` adds it to the nearest `ActionScope` (or to the document's own,
+outermost one) and removes it when the registering scope goes. `Button`,
+`IconButton`, `ToggleButton`, `ActionRow` and `MenuItem` take an `action` prop:
+they show its label and glyph unless they are given their own, are disabled
+while it is, show its first shortcut in their tooltip, and run it when pressed;
+a `ToggleButton` is pressed while the action is `checked`. An action's `run`
+does nothing while it is disabled.
+
+`action_scope(&node_ref)` makes a scope that is live while the focus is inside
+the node, so an action registered under it - an editor's, or a text area's -
+only answers while the focus is there. A key press the focused control does not
+handle (its `on_key` answers `false`) goes to the live actions, innermost scope
+first, and the first enabled one with a matching `Chord` runs. With nothing
+focused, every scope is live. A chord without Ctrl or Alt does not reach actions
+while the focus is in a text field, so typing a letter into a field never
+switches a canvas tool. Actions are consulted only while no menu or dialog is
+open.
+
+`styled::CommandPalette` lists the actions that are live where the focus was
+when it opened: typing filters them by every word, Up/Down/Page Up/Page Down
+move the highlight over the enabled ones, Enter or a click runs the highlighted
+one, and Escape closes it; disabled actions are listed last and greyed. Closing
+it puts the focus back where it was before the action runs. An editor frame
+opens it with Ctrl+Shift+P, and on a phone from a row of the More sheet, and
+`menu_actions()` (every action registered with
+`in_menu()`) is what fills its More menu and phone sheet.
 
 ## Control props
 

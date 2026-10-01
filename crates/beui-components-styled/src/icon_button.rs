@@ -7,7 +7,10 @@ use crate::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_core::node::NodeId;
-use beui_view::reactive::{ClickCallback, Frame, Prop, clone, create_memo, focus_ring};
+use beui_view::reactive::{
+    Action, ClickCallback, Frame, Prop, action_disabled, action_glyph, action_label,
+    action_tooltip, clone, create_memo, focus_ring,
+};
 
 const PADDING: f32 = 8.0;
 const COMPACT_PADDING: f32 = 2.0;
@@ -46,15 +49,20 @@ impl IconButtonSize {
 
 #[component]
 pub fn IconButton(
-    glyph: Prop<String>,
-    label: Prop<String>,
+    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = ButtonVariant::Secondary)] variant: ButtonVariant,
     #[prop(default = IconButtonSize::Regular)] size: IconButtonSize,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = true)] press_focus: Prop<bool>,
+    action: Option<Action>,
     on_click: ClickCallback,
 ) -> NodeId {
+    let label = action_label(action.as_ref(), label);
+    let glyph = action_glyph(action.as_ref(), glyph);
+    let disabled = action_disabled(action.as_ref(), disabled);
+    let tooltip = action_tooltip(action.as_ref(), label.clone());
     let accessibility = create_memo(clone!(label -> move || {
         let mut node = Node::new(Role::Button);
         node.set_label(label.get());
@@ -63,16 +71,21 @@ pub fn IconButton(
     let disabled = create_memo(move || disabled.get());
     let face = disabled.clone();
     let glyph = create_memo(move || glyph.get());
-    let label = create_memo(clone!(label -> move || label.get()));
+    let tooltip = create_memo(move || tooltip.get());
     view! {
         <unstyled::Button
             disabled
             capture_presses
             press_focus
             accessibility
-            on_click={move || on_click.call()}
+            on_click={move || {
+                if let Some(action) = &action {
+                    action.run();
+                }
+                on_click.call();
+            }}
             content={move |handle| view! {
-                <Tooltip label={label.clone()}>
+                <Tooltip label={tooltip.clone()}>
                     <IconButtonFace
                         handle
                         variant

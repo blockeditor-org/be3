@@ -1,3 +1,4 @@
+mod actions;
 pub mod colors;
 mod completion;
 pub mod keys;
@@ -32,10 +33,10 @@ use beui_core::node::{NodeId, Rects};
 use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center};
 use beui_view::reactive::{
     Callback, Canvas, CanvasItem, Child, ClickCallback, Frame, Interactive, List, Memo, NodeRef,
-    Prop, ReadSignal, Render, RenderFn, Show, WriteSignal, clone, component_accessibility,
-    component_rect, component_size, create_effect, create_memo, create_signal, create_timer,
-    in_new_scope, on_cleanup, pixels_per_point, set_component_state, try_with_document, untrack,
-    with_document,
+    Prop, ReadSignal, Render, RenderFn, Show, WriteSignal, action_scope, clone,
+    component_accessibility, component_rect, component_size, create_effect, create_memo,
+    create_signal, create_timer, in_new_scope, on_cleanup, pixels_per_point, set_component_state,
+    try_with_document, untrack, with_document,
 };
 
 use completion::{Completions, Query, query};
@@ -1204,6 +1205,10 @@ pub fn TextArea(
     let menu = create_memo(clone!(completing -> move || has_menu && completing.get()));
     let menu_cx = cx.clone();
     let menu_render = completion_menu;
+    if multi_line {
+        action_scope(&outer);
+        actions::register(&state, &disabled);
+    }
 
     view! {
         <Frame @node_ref=&outer color={outer_color}>

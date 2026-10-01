@@ -10,18 +10,25 @@ use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, List, Prop, Show, Text, clone, create_memo, focus_ring,
+    Action, Align, Callback, Direction, Frame, List, Prop, Show, Text, action_disabled,
+    action_glyph, action_label, action_pressed, action_tooltip, clone, create_memo, focus_ring,
 };
 
 #[component]
 pub fn ToggleButton(
-    label: Prop<String>,
-    pressed: Prop<bool>,
+    #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = false)] pressed: Prop<bool>,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
+    action: Option<Action>,
     on_change: Callback<bool>,
 ) -> NodeId {
+    let label = action_label(action.as_ref(), label);
+    let glyph = action_glyph(action.as_ref(), glyph);
+    let pressed = action_pressed(action.as_ref(), pressed);
+    let disabled = action_disabled(action.as_ref(), disabled);
+    let tooltip = action_tooltip(action.as_ref(), label.clone());
     let label_text = create_memo(clone!(label -> move || label.get()));
     let icon_only = create_memo(move || icon_only.get());
     let named = create_memo(clone!(icon_only -> move || !icon_only.get()));
@@ -40,10 +47,15 @@ pub fn ToggleButton(
             checked={pressed}
             disabled={disabled}
             accessibility
-            on_change={move |pressed| on_change.call(pressed)}
+            on_change={move |pressed| {
+                if let Some(action) = &action {
+                    action.run();
+                }
+                on_change.call(pressed);
+            }}
         >
             {move |handle| view! {
-                <Tooltip label={label} disabled={named}>
+                <Tooltip label={tooltip} disabled={named}>
                     <ToggleButtonFace
                         handle
                         label={label_text}

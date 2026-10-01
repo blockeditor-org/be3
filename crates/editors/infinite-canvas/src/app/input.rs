@@ -1,6 +1,6 @@
 use block_editor_beui::InteractionMode;
 use block_editor_beui::be_block::canvas::{
-    CanvasEntityKind, CanvasLayerMove, CanvasPoint, CanvasTextStyle, CanvasTransform,
+    CanvasEntityKind, CanvasPoint, CanvasTextStyle, CanvasTransform,
 };
 use block_editor_beui::beui::{CursorIcon, Key, KeyPress, PointerPress};
 use uuid::Uuid;
@@ -362,38 +362,6 @@ impl CanvasState {
             return false;
         }
         let modifiers = press.modifiers;
-        if !modifiers.ctrl && !modifiers.alt {
-            let tool = match press.key {
-                Key::V => Some(Tool::Select),
-                Key::R => Some(Tool::Rectangle),
-                Key::L => Some(Tool::Line),
-                Key::T => Some(Tool::Text),
-                Key::P => Some(Tool::Pen),
-                Key::F => Some(Tool::Artboard),
-                _ => None,
-            };
-            if let Some(tool) = tool {
-                self.set_tool(tool);
-                return true;
-            }
-        }
-        if modifiers.ctrl {
-            let command = match press.key {
-                Key::A if modifiers.shift => Some(CanvasCommand::InvertSelection),
-                Key::A => Some(CanvasCommand::SelectAll),
-                Key::D => Some(CanvasCommand::Duplicate),
-                Key::C => Some(CanvasCommand::Copy),
-                Key::X => Some(CanvasCommand::Cut),
-                Key::V => Some(CanvasCommand::Paste),
-                Key::BracketLeft => Some(CanvasCommand::Reorder(CanvasLayerMove::BackOne)),
-                Key::BracketRight => Some(CanvasCommand::Reorder(CanvasLayerMove::ForwardOne)),
-                _ => None,
-            };
-            if let Some(command) = command {
-                self.run(command);
-                return true;
-            }
-        }
         let nudge = match press.key {
             Key::ArrowLeft => Some((-1.0, 0.0)),
             Key::ArrowRight => Some((1.0, 0.0)),

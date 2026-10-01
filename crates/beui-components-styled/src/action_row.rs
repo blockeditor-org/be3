@@ -5,8 +5,8 @@ use crate::theme::{FONT_BODY, FONT_SMALL, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, ClickCallback, Direction, Frame, ItemSize, List, Prop, Show, Text, clone, create_memo,
-    focus_ring,
+    Action, Align, ClickCallback, Direction, Frame, ItemSize, List, Prop, Show, Text,
+    action_disabled, action_glyph, action_label, clone, create_memo, focus_ring,
 };
 
 const ROW_HEIGHT: f32 = 52.0;
@@ -15,19 +15,28 @@ const SPACING: f32 = 14.0;
 
 #[component]
 pub fn ActionRow(
-    label: Prop<String>,
+    #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = String::new())] detail: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] danger: bool,
+    action: Option<Action>,
     on_click: ClickCallback,
 ) -> NodeId {
+    let label = action_label(action.as_ref(), label);
+    let glyph = action_glyph(action.as_ref(), glyph);
+    let disabled = action_disabled(action.as_ref(), disabled);
     let disabled = create_memo(move || disabled.get());
     let face = disabled.clone();
     view! {
         <unstyled::Button
             disabled
-            on_click={move || on_click.call()}
+            on_click={move || {
+                if let Some(action) = &action {
+                    action.run();
+                }
+                on_click.call();
+            }}
             content={move |handle| view! {
                 <ActionRowFace handle label glyph detail disabled={face.clone()} danger />
             }}

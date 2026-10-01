@@ -19,6 +19,7 @@ mod markdown_is_painted_with_its_styles;
 mod replacing_a_referenced_block_rewrites_its_url;
 mod switching_to_hex_view_shows_the_bytes;
 mod the_intrinsic_size_follows_the_width_it_was_given;
+mod the_palette_and_the_shortcuts_run_the_format_actions;
 mod typing_inserts_text_into_the_document;
 
 fn editor(text: &str) -> BeuiTest<TextApp> {
