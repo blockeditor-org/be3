@@ -895,7 +895,6 @@ dependencies = [
  "beui-core",
  "beui-view",
  "beui_macros",
- "emojis",
  "reactive",
  "text-editor-core",
 ]
@@ -908,6 +907,7 @@ dependencies = [
  "beui-core",
  "beui-view",
  "beui_macros",
+ "emojis",
  "reactive",
  "serde",
  "text-editor-core",

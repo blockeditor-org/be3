@@ -7,7 +7,7 @@ use crate::context_menu::text_menu;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    Completer, CompletionMenu, RemoteTextCursor, TextAreaColors, TextAreaState,
+    Completer, RemoteTextCursor, TextAreaColors, TextAreaState,
     TextWidget,
 };
 use beui_core::base::ItemSize;
@@ -17,7 +17,7 @@ use beui_core::node::NodeId;
 use beui_view::reactive::{
     Callback, Frame, List, NodeRef, Prop, RenderFn, create_memo, set_component_state,
 };
-use emoji::EmojiMenu;
+use emoji::emoji_menu;
 
 use find::FindBar;
 
@@ -66,12 +66,10 @@ pub fn TextArea(
                     block={block}
                     selected_widget={selected_widget}
                     completer={match emoji {
-                        true => emoji::emoji_completer(),
+                        true => unstyled::emoji_completer(),
                         false => Completer::none(),
                     }}
-                    completion_menu={move |menu: CompletionMenu| view! {
-                        <EmojiMenu menu />
-                    }}
+                    completion_menu={emoji_menu()}
                 />
         </List>
     }

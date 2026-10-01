@@ -1,6 +1,7 @@
 mod actions;
 pub mod colors;
 mod completion;
+mod emoji;
 pub mod keys;
 mod lines;
 pub mod rows;
@@ -49,7 +50,8 @@ use rows::{
 use state::{AreaGeometry, Grab};
 
 pub use colors::{SyntaxColors, TextAreaColors};
-pub use completion::{Completer, Completion, CompletionMenu};
+pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
+pub use emoji::{emoji_completer, search_emoji};
 pub use rows::TextWidget;
 pub use state::{TextAreaLayout, TextAreaState};
 
@@ -883,7 +885,7 @@ pub fn TextArea(
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     #[prop(default = Completer::none())] completer: Completer,
-    completion_menu: Option<RenderFn<CompletionMenu>>,
+    completion_menu: Option<CompletionMenu>,
     #[prop(default = TextMenu::default())] menu: TextMenu,
     on_widget_press: Callback<usize, bool>,
     on_menu: Callback<Pos2>,
@@ -1253,12 +1255,12 @@ pub fn TextArea(
                 </Show>
                 <Show condition={menu}>
                     {move || {
-                        let render = menu_render
+                        let menu = menu_render
                             .clone()
                             .expect("a completion menu is only shown when the area was given one");
                         let cx = menu_cx.clone();
                         view! {
-                            <Completions cx render />
+                            <Completions cx menu />
                         }
                     }}
                 </Show>
