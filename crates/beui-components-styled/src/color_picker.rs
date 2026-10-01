@@ -290,29 +290,29 @@ fn ColorFields(picker: Picker, alpha: bool) -> NodeId {
     let opacity = create_memo(clone!(shown -> move || {
         (f64::from(shown.get().alpha()) * 100.0 / 255.0).round()
     }));
-    let hsl = |index: usize, scale: f32| {
+    let hsv = |part: fn(Hsva) -> f32, scale: f32| {
         let color = picker.color.clone();
-        create_memo(move || f64::from((color.get().hsl()[index] * scale).round()))
+        create_memo(move || f64::from((part(color.get()) * scale).round()))
     };
-    let (hue, saturation, lightness) = (hsl(0, 1.0), hsl(1, 100.0), hsl(2, 100.0));
-    let set_hsl = |index: usize, scale: f32| {
+    let hue = hsv(|color| color.hue, 1.0);
+    let saturation = hsv(|color| color.saturation, 100.0);
+    let value = hsv(|color| color.value, 100.0);
+    let set_hsv = |write: fn(&mut Hsva, f32), scale: f32| {
         let picker = picker.clone();
         move |typed: f64| {
-            let held = picker.color.get_untracked();
-            let mut parts = held.hsl();
-            parts[index] = typed as f32 / scale;
-            let [hue, saturation, lightness] = parts;
-            picker.apply(Hsva::from_hsl(
-                hue.clamp(0.0, 359.999),
-                saturation,
-                lightness,
-                held.alpha,
+            let mut next = picker.color.get_untracked();
+            write(&mut next, typed as f32 / scale);
+            picker.apply(Hsva::new(
+                next.hue.clamp(0.0, 359.999),
+                next.saturation,
+                next.value,
+                next.alpha,
             ));
         }
     };
-    let set_hue = set_hsl(0, 1.0);
-    let set_saturation = set_hsl(1, 100.0);
-    let set_lightness = set_hsl(2, 100.0);
+    let set_hue = set_hsv(|color, hue| color.hue = hue, 1.0);
+    let set_saturation = set_hsv(|color, saturation| color.saturation = saturation, 100.0);
+    let set_value = set_hsv(|color, value| color.value = value, 100.0);
     let set_channel = move |index: usize| {
         let picker = picker.clone();
         move |typed: f64| {
@@ -381,14 +381,8 @@ fn ColorFields(picker: Picker, alpha: bool) -> NodeId {
                     label="Saturation percent"
                     on_change={set_saturation}
                 />
-                <ChannelLabel content="L" />
-                <NumberInput
-                    value={lightness}
-                    min=0.0
-                    max=100.0
-                    label="Lightness percent"
-                    on_change={set_lightness}
-                />
+                <ChannelLabel content="V" />
+                <NumberInput value min=0.0 max=100.0 label="Value percent" on_change={set_value} />
             </Grid>
         </List>
     }
