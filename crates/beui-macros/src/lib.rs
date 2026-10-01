@@ -1413,6 +1413,72 @@ fn expand_view(view: &View) -> proc_macro2::TokenStream {
     quote! { ::beui::reactive::Children::from([#(#items),*]) }
 }
 
+#[proc_macro_attribute]
+pub fn sample(attr: TokenStream, item: TokenStream) -> TokenStream {
+    parse_macro_input!(attr as syn::parse::Nothing);
+    let source = written_source(item.clone()).unwrap_or_else(|| item.to_string());
+    let tokens = proc_macro2::TokenStream::from(item.clone());
+    let function = parse_macro_input!(item as ItemFn);
+    let name = &function.sig.ident;
+    let vis = &function.vis;
+    quote! {
+        #tokens
+
+        #[allow(non_snake_case)]
+        #vis mod #name {
+            pub const SOURCE: &str = #source;
+        }
+    }
+    .into()
+}
+
+fn written_source(item: TokenStream) -> Option<String> {
+    let mut pieces = Vec::new();
+    for token in item {
+        let span = token.span();
+        let start = span.start();
+        let end = span.end();
+        pieces.push((
+            (start.line(), start.column()),
+            (end.line(), end.column()),
+            span.source_text()?,
+        ));
+    }
+    let first_column = pieces.first()?.0.1;
+    let shift = pieces
+        .last()
+        .map_or(0, |(start, end, text)| match end.0 > start.0 {
+            true => text
+                .lines()
+                .last()
+                .map_or(0, |line| line.len() - line.trim_start().len()),
+            false => 0,
+        });
+    let mut written = String::new();
+    let mut previous: Option<(usize, usize)> = None;
+    for (start, end, text) in pieces {
+        match previous {
+            Some((line, _)) if start.0 > line => {
+                written.push_str(&"\n".repeat(start.0 - line));
+                let indent = shift + start.1.saturating_sub(first_column);
+                written.push_str(&" ".repeat(indent));
+            }
+            Some((_, column)) => written.push_str(&" ".repeat(start.1.saturating_sub(column))),
+            None => {}
+        }
+        written.push_str(&text);
+        previous = Some(end);
+    }
+    let dedented: Vec<&str> = written
+        .lines()
+        .map(|line| {
+            let indent = line.len() - line.trim_start().len();
+            &line[indent.min(shift)..]
+        })
+        .collect();
+    Some(dedented.join("\n"))
+}
+
 #[cfg(test)]
 mod tests;
 

@@ -13,7 +13,11 @@ this guide follows from that.
 
 The quickest introduction is the component catalog in
 `crates/beui-demo`: a dock whose Components pane opens a page for
-each group of styled components. The
+each group of styled components, and for the unstyled components painted
+by hand. Every sample on a page shows the code it was written with: a
+function marked `#[beui_macros::sample]` (above its `#[component]`) also
+gets a `Name::SOURCE` holding its text exactly as written, so a new sample
+cannot drift from its listing. The
 [reactive guide](reactive.md) is the reference for signals, attribute syntax,
 children and render props, controlled state, keyed lists, scopes, and context;
 this guide is about using beui itself.
