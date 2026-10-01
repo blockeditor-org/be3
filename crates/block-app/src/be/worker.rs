@@ -92,6 +92,7 @@ pub(super) enum Command {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PairingRequest {
     pub(crate) from: u64,
+    pub(crate) workspace: Uuid,
     pub(crate) device: String,
     message: Vec<u8>,
 }
@@ -111,6 +112,7 @@ pub(crate) struct Shared {
     pub(crate) error: Option<String>,
     pub(crate) conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub(crate) pairing: Vec<PairingRequest>,
+    pub(crate) other_keys: HashMap<Uuid, [u8; 32]>,
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
 }
@@ -771,8 +773,8 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                         from,
                         workspace,
                         payload,
-                    }) if workspace == peer.workspace() => {
-                        asked_to_pair(shared, from, &payload);
+                    }) => {
+                        asked_to_pair(&peer, shared, from, workspace, &payload);
                     }
                     Some(_) => {}
                     None => load_graph(&peer, shared).await,
@@ -873,16 +875,26 @@ async fn seal_for_members(peer: &Peer<Store>) -> Result<(), ClientError> {
     Ok(())
 }
 
-fn asked_to_pair(shared: &Arc<Mutex<Shared>>, from: u64, payload: &[u8]) {
+fn asked_to_pair(
+    peer: &Peer<Store>,
+    shared: &Arc<Mutex<Shared>>,
+    from: u64,
+    workspace: Uuid,
+    payload: &[u8],
+) {
     let Ok(be_keys::PairingMessage::Request { message, device }) =
         be_keys::PairingMessage::decode(payload)
     else {
         return;
     };
     let mut held = shared.lock().unwrap();
+    if workspace != peer.workspace() && !held.other_keys.contains_key(&workspace) {
+        return;
+    }
     held.pairing.retain(|request| request.from != from);
     held.pairing.push(PairingRequest {
         from,
+        workspace,
         device,
         message,
     });
@@ -911,12 +923,19 @@ async fn approve_pairing(
             "that is not a pairing code".to_owned(),
         ));
     };
-    let workspace = peer.workspace();
+    let workspace = request.workspace;
+    let content_key = match workspace == peer.workspace() {
+        true => *peer.commits().vault().key().as_bytes(),
+        false => match shared.lock().unwrap().other_keys.get(&workspace) {
+            Some(key) => *key,
+            None => return Ok(()),
+        },
+    };
     let (pairing, message) = be_keys::Pairing::start(&code, workspace.as_bytes());
     let key = pairing
         .finish(&request.message)
         .map_err(|error| ClientError::Encoding(error.to_string()))?;
-    let sealed = key.seal(peer.commits().vault().key().as_bytes());
+    let sealed = key.seal(&content_key);
     let payload = be_keys::PairingMessage::Reply { message, sealed }.encode();
     peer.connection()
         .request(|request| ClientMessage::Pair {

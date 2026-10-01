@@ -98,11 +98,6 @@ Still to do:
 - Keep workspace keys and the session token in the OS keystore (Keychain,
   Android Keystore, libsecret/DPAPI, non-extractable WebCrypto) rather than
   plaintext app state.
-- **Settings › Security**: make a new recovery phrase. `SetRecoveryKey` already
-  reseals and refuses a phrase that would drop a workspace key; the app needs
-  the screen, and it can only reseal the keys this device holds.
-- Pairing reaches only a device whose open workspace is the one asked for. A
-  device could answer for any workspace whose key it holds.
 - Key epochs (with the phase 2 object prefix), so a key can rotate after a
   member leaves.
 
@@ -257,6 +252,19 @@ Today scrolling is mostly fine: rows are virtualized and painting is
 retained. Editing is O(document) many times per keystroke. Fix in this order;
 each item has a work-count test in the style of
 `a_long_text_area_only_builds_the_lines_in_view.rs`.
+
+**Profile before guessing.** The list below comes from reading the code. Before
+working through items 3-8, profile the real app with a document of 10,000
+lines of 200 words each (about 12 MB):
+- Generate it as a text block, open it in the native app, and also measure on
+  Android.
+- Record a CPU profile (`perf` with frame pointers on Linux, or the
+  `performance` module's frame timings) for each of: typing a character,
+  holding an arrow key, clicking, scrolling a page, scrolling to the end, and
+  sitting idle with the caret blinking.
+- Note the p50 and p99 frame times and the top functions for each, in the
+  plan or the PR, and re-order the items below by what the profile shows.
+- Profile again after each item lands.
 
 1. **Anchors (done).** Anchors exist only for positions in use
    (`text_editor_core::AnchorTable`), so finding one no longer scans the text.

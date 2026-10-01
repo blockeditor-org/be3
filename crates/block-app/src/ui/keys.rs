@@ -31,6 +31,12 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
             .join("\n")
     }));
     let busy = create_memo(clone!(recovery -> move || recovery.get().busy));
+    let replacing = create_memo(clone!(recovery -> move || recovery.get().replacing));
+    let first_time = create_memo(clone!(replacing -> move || !replacing.get()));
+    let title = create_memo(clone!(replacing -> move || match replacing.get() {
+        true => "New recovery phrase".to_owned(),
+        false => "Save your recovery phrase".to_owned(),
+    }));
     let error = create_memo(clone!(recovery -> move || recovery.get().error));
     let label = |index: usize| {
         create_memo(clone!(recovery -> move || {
@@ -64,7 +70,12 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
     let submit = confirm.clone();
     view! {
         <Column>
-            <Title content="Save your recovery phrase" />
+            <Title content={title} />
+            <Show condition={replacing.clone()}>
+                <Paragraph
+                    content="Once you save this phrase, your old one stops working. Every workspace key sealed to the old phrase is sealed to this one instead."
+                />
+            </Show>
             <Paragraph
                 content="Your notes are encrypted with a key the server never sees. These twelve words are the only way to open them on a new device when no other device of yours is at hand. Write them down and keep them somewhere safe: nobody can recover them for you."
             />
@@ -97,11 +108,20 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
                     <Spinner />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-                <Button
-                    label="Switch account"
-                    variant=ButtonVariant::Secondary
-                    on_click={|| send(UiCommand::SwitchAccount)}
-                />
+                <Show condition={first_time}>
+                    <Button
+                        label="Switch account"
+                        variant=ButtonVariant::Secondary
+                        on_click={|| send(UiCommand::SwitchAccount)}
+                    />
+                </Show>
+                <Show condition={replacing}>
+                    <Button
+                        label="Cancel"
+                        variant=ButtonVariant::Secondary
+                        on_click={|| send(UiCommand::CancelRecovery)}
+                    />
+                </Show>
                 <Button
                     label="I saved them"
                     variant=ButtonVariant::Primary
@@ -166,7 +186,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Paragraph
                         @sizing=ItemSize::Percent(100.0)
-                        content="Open this workspace on a device that already has it, and it will ask for a code."
+                        content="Open any workspace on a device that already has this one, and it will ask for a code."
                     />
                     <Button
                         label="Show a code"
@@ -209,9 +229,12 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
     let open = create_memo(clone!(pairing -> move || !pairing.get().is_empty()));
     let request = create_memo(clone!(pairing -> move || pairing.get().first().cloned()));
     let message = create_memo(clone!(request -> move || {
+        let (device, workspace) = request
+            .get()
+            .map(|request| (request.device, request.workspace))
+            .unwrap_or_default();
         format!(
-            "A {} device wants to open this workspace. If it is yours, type the code it shows.",
-            request.get().map(|request| request.device).unwrap_or_default()
+            "A {device} device wants to open {workspace}. If it is yours, type the code it shows."
         )
     }));
     let (code, set_code) = create_signal(String::new());

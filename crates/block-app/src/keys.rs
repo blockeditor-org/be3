@@ -16,6 +16,7 @@ pub(crate) struct KeyState {
 struct RecoverySetup {
     phrase: RecoveryPhrase,
     checked: [usize; 3],
+    replacing: bool,
 }
 
 struct PairingWait {
@@ -35,6 +36,7 @@ pub(crate) struct RecoveryView {
     pub(crate) words: Vec<String>,
     pub(crate) checked: Vec<usize>,
     pub(crate) busy: bool,
+    pub(crate) replacing: bool,
     pub(crate) error: Option<String>,
 }
 
@@ -51,9 +53,13 @@ impl KeyState {
         if keys.recovery.is_none() && self.setup.is_none() {
             let phrase = RecoveryPhrase::generate();
             let checked = phrase.checked_positions();
-            self.setup = Some(RecoverySetup { phrase, checked });
+            self.setup = Some(RecoverySetup {
+                phrase,
+                checked,
+                replacing: false,
+            });
         }
-        if keys.recovery.is_some() {
+        if keys.recovery.is_some() && self.setup.as_ref().is_some_and(|setup| !setup.replacing) {
             self.setup = None;
         }
         self.keys = Some(keys);
@@ -63,6 +69,28 @@ impl KeyState {
         self.keys
             .as_ref()
             .is_some_and(|keys| keys.recovery.is_none())
+    }
+
+    pub(crate) fn replacing(&self) -> bool {
+        self.setup.as_ref().is_some_and(|setup| setup.replacing)
+    }
+
+    pub(crate) fn replace_recovery(&mut self) {
+        let phrase = RecoveryPhrase::generate();
+        let checked = phrase.checked_positions();
+        self.error = None;
+        self.setup = Some(RecoverySetup {
+            phrase,
+            checked,
+            replacing: true,
+        });
+    }
+
+    pub(crate) fn cancel_replacing(&mut self) {
+        if self.replacing() && self.saving.is_none() {
+            self.setup = None;
+            self.error = None;
+        }
     }
 
     pub(crate) fn confirm_recovery(
@@ -187,6 +215,12 @@ impl KeyState {
                     self.keys = None;
                     return Some(KeyEvent::RecoverySaved);
                 }
+                Err(error) if self.replacing() => {
+                    self.error = Some(format!(
+                        "{} Unlock every workspace on this device first, so the new phrase can seal its key.",
+                        error.message
+                    ));
+                }
                 Err(error) => self.error = Some(error.message),
             }
         }
@@ -223,6 +257,7 @@ impl KeyState {
                 .map(|setup| setup.checked.to_vec())
                 .unwrap_or_default(),
             busy: self.saving.is_some(),
+            replacing: self.replacing(),
             error: self.error.clone(),
         }
     }
