@@ -2,6 +2,7 @@ use super::*;
 
 mod a_child_display_is_placed_inside_the_clip_it_entered;
 mod a_child_moved_to_the_end_is_the_only_one_that_moves;
+mod a_faded_child_is_masked_toward_the_edges_it_fades_at;
 mod a_scaled_layer_is_clipped_on_the_screen_and_scaled_inside;
 mod a_shape_partly_outside_its_clip_is_cut_with_an_inset;
 mod a_stroked_rect_is_a_border_and_a_filled_one_a_background;

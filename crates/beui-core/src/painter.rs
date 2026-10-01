@@ -1,6 +1,7 @@
 use crate::color::Color32;
 use crate::context::Context;
 use crate::drawing::Drawing;
+use crate::fade::Fade;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Rotation, Vec2};
 use crate::image::Image;
@@ -108,6 +109,7 @@ pub struct Entry {
     pub translation: Vec2,
     pub clip: Rect,
     pub shift: Option<Vec2>,
+    pub fade: Fade,
 }
 
 impl Entry {
@@ -115,6 +117,7 @@ impl Entry {
         translation: Vec2::ZERO,
         clip: Rect::EVERYTHING,
         shift: None,
+        fade: Fade::NONE,
     };
 
     pub fn place(self, rect: Rect) -> Rect {
@@ -129,6 +132,7 @@ impl Entry {
                 Some(shift) => Some(self.translation + shift),
                 None => self.shift,
             },
+            fade: self.fade.within(inner.fade.translate(self.translation)),
         }
     }
 }
@@ -253,6 +257,7 @@ impl Painter {
                 .clip
                 .intersect(self.clip.translate(self.list.translation)),
             shift: self.list.shift,
+            fade: self.list.fade,
         }
     }
 
@@ -273,7 +278,20 @@ impl Painter {
                     .clip
                     .intersect(kept.translate(self.list.translation)),
                 shift: Some(self.list.shift.unwrap_or(Vec2::ZERO) + by),
+                fade: self.list.fade,
             },
+        }
+    }
+
+    pub fn faded(&self, rect: Rect, widths: [f32; 4]) -> Self {
+        let fade = Fade::new(rect, widths).translate(self.list.translation);
+        Self {
+            context: self.context.clone(),
+            list: Entry {
+                fade: self.list.fade.within(fade),
+                ..self.list
+            },
+            ..*self
         }
     }
 
