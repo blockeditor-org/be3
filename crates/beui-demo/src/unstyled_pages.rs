@@ -1435,7 +1435,7 @@ fn PullUpSheet() -> NodeId {
                 <Frame padding_horizontal=PAGE_PADDING padding_vertical=PAGE_PADDING>
                     <List spacing=SECTION_SPACING>
                         <Text
-                            string="Drag the handle down, tap above, or press Escape to close."
+                            string="Swipe the sheet down, tap above, or press Escape to close."
                             color={ink}
                             wrap=true
                         />

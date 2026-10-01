@@ -98,6 +98,7 @@ pub struct OffsetNode {
     pub items: ChildList<NodeId>,
     pub offset: f32,
     pub overscroll: f32,
+    pub fits: bool,
     pub position: Option<ScrollPosition>,
     steered: Cell<bool>,
     anchor: Option<OffsetAnchor>,
@@ -122,6 +123,7 @@ impl OffsetNode {
             items: ChildList::default(),
             offset: 0.0,
             overscroll: 0.0,
+            fits: false,
             position: None,
             steered: Cell::new(false),
             anchor: None,
@@ -321,7 +323,7 @@ fn revealed_offset(direction: Direction, viewport: Rect, item: Rect, offset: f32
 impl Element for OffsetNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         let (_, cross) = self.direction.main_and_cross(available);
-        let content = self
+        let (length, content) = self
             .nodes()
             .into_iter()
             .map(|item| {
@@ -331,10 +333,16 @@ impl Element for OffsetNode {
                     item,
                     self.direction.axes(f32::INFINITY, cross),
                 );
-                self.direction.main_and_cross(size).1
+                self.direction.main_and_cross(size)
             })
-            .fold(0.0_f32, f32::max);
-        self.direction.axes(0.0, content)
+            .fold((0.0_f32, 0.0_f32), |(length, content), (main, across)| {
+                (length + main, content.max(across))
+            });
+        let length = match self.fits {
+            true => length,
+            false => 0.0,
+        };
+        self.direction.axes(length, content)
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
@@ -462,6 +470,12 @@ impl Document {
         node.direction = direction;
         node.anchor = None;
         node.extents = Extents::default();
+    }
+
+    pub fn set_offset_fits(&mut self, offset: NodeOf<OffsetNode>, fits: bool) {
+        if self.arena.get_as::<OffsetNode>(offset).fits != fits {
+            self.arena.get_mut_as::<OffsetNode>(offset).fits = fits;
+        }
     }
 
     pub fn set_offset_fade(&mut self, offset: NodeOf<OffsetNode>, fade: f32) {

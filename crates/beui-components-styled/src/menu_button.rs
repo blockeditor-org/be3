@@ -5,7 +5,6 @@ use crate::action_row::ActionRowFace;
 use crate::button::{ButtonFace, ButtonVariant};
 use crate::context_menu::{menu_panel, menu_row};
 use crate::icon_button::{IconButtonFace, IconButtonSize};
-use crate::scroll::Scroll;
 use crate::sheet::ModalSheet;
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
@@ -192,11 +191,7 @@ fn MenuSheetPanel(handle: MenuSheetHandle) -> NodeId {
             stops={SHEET_STOPS.to_vec()}
             on_close={move || on_close.call()}
         >
-            <Scroll>
-                <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
-                    {menu}
-                </Frame>
-            </Scroll>
+            <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>{menu}</Frame>
         </ModalSheet>
     }
 }

@@ -19,7 +19,7 @@ fn a_narrow_image_folds_its_sidebar_under_the_picture() {
     editor.record();
 
     editor.click("chrome.sidebar");
-    editor.run();
+    editor.settle();
     editor.record();
 
     assert!(

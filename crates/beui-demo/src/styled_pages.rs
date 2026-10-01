@@ -1005,6 +1005,9 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Modal sheet" code={vec![ActionsSheet::SOURCE]}>
                 <ActionsSheet />
             </Sample>
+            <Sample title="Long modal sheet" code={vec![LongSheet::SOURCE]}>
+                <LongSheet />
+            </Sample>
             <Sample
                 title="Fullscreen"
                 code={vec![FullscreenButton::SOURCE, FullscreenBody::SOURCE]}
@@ -1105,6 +1108,50 @@ fn DiscardDialog() -> NodeId {
 
 #[sample]
 #[component]
+fn LongSheet() -> NodeId {
+    let (sheet, set_sheet) = create_signal(false);
+    let (picked, set_picked) = create_signal("Nothing picked".to_owned());
+    let open_sheet = set_sheet.clone();
+    let dismiss_sheet = set_sheet.clone();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Button
+                    label="Pick a row"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || open_sheet.set(true)}
+                />
+            </List>
+            <Caption
+                content="Swipe up on the sheet to raise it, then keep swiping to scroll its rows."
+                wrap=true
+            />
+            <Caption content={picked} />
+            <ModalSheet open={sheet} rest=0.5 on_close={move || dismiss_sheet.set(false)}>
+                <List spacing=0.0>
+                    <ForEach keys={(1..=60).collect::<Vec<usize>>()}>
+                        {move |row: usize| {
+                            let (picked, closing) = (set_picked.clone(), set_sheet.clone());
+                            view! {
+                                <ActionRow
+                                    label={format!("Row {row}")}
+                                    glyph=ICON_EDIT
+                                    on_click={move || {
+                                        picked.set(format!("Picked row {row}"));
+                                        closing.set(false);
+                                    }}
+                                />
+                            }
+                        }}
+                    </ForEach>
+                </List>
+            </ModalSheet>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
 fn ActionsSheet() -> NodeId {
     let (sheet, set_sheet) = create_signal(false);
     let (outcome, set_outcome) = create_signal("No action taken".to_owned());
@@ -1124,7 +1171,7 @@ fn ActionsSheet() -> NodeId {
                 />
             </List>
             <Caption
-                content="A sheet slides up from the bottom; drag its handle, or tap above it to close it."
+                content="A sheet slides up from the bottom; swipe it down, or tap above it, to close it."
                 wrap=true
             />
             <Caption content={outcome} />

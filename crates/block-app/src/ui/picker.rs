@@ -1,7 +1,7 @@
 use be_graph::BlockParent;
 use beui::reactive::{
-    Align, Child, Direction, ForEach, Frame, ItemSize, Justify, List, Memo, Portal, Show, Spacer,
-    Text, clone, component, create_memo, view,
+    Align, Child, Direction, Dynamic, ForEach, Frame, ItemSize, Justify, List, Memo, Portal, Show,
+    Spacer, Text, clone, component, create_memo, view,
 };
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::{
@@ -171,10 +171,6 @@ fn ChooseBody(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>, phone: bool) -> 
         true => None,
         false => Some(PICKER_HEIGHT),
     };
-    let area = match phone {
-        true => ItemSize::Percent(100.0),
-        false => ItemSize::Intrinsic,
-    };
     view! {
         <List spacing=10.0>
             <PlacingFields id={place_id} placing />
@@ -194,10 +190,10 @@ fn ChooseBody(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>, phone: bool) -> 
                     <ChoiceOption label="Link existing" />
                 }}
             />
-            <Frame @sizing={area} height={height}>
+            <Frame height={height}>
                 <List spacing=8.0>
                     <Show condition={tiling}>
-                        <Scroll @sizing=ItemSize::Percent(100.0)>
+                        <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
                             <List spacing=16.0>
                                 <Show condition={no_sections}>
                                     <Caption content={tab_empty} />
@@ -214,7 +210,7 @@ fn ChooseBody(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>, phone: bool) -> 
                                     }}
                                 </ForEach>
                             </List>
-                        </Scroll>
+                        </PickerArea>
                     </Show>
                     <Show condition={linking.clone()}>
                         <TextInput
@@ -227,25 +223,46 @@ fn ChooseBody(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>, phone: bool) -> 
                         />
                     </Show>
                     <Show condition={linking}>
-                        <Scroll @sizing=ItemSize::Percent(100.0)>
-                            <Show condition={no_links}>
-                                <Caption content={empty} />
-                            </Show>
-                            <ForEach keys={link_keys}>
-                                {move |block: Uuid| {
-                                    let links = links.clone();
-                                    let link = create_memo(move || {
-                                        links.get().into_iter().find(|link| link.id == block)
-                                    });
-                                    view! {
-                                        <LinkButton id={link_id.clone()} link />
-                                    }
-                                }}
-                            </ForEach>
-                        </Scroll>
+                        <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
+                            <List spacing=0.0>
+                                <Show condition={no_links}>
+                                    <Caption content={empty} />
+                                </Show>
+                                <ForEach keys={link_keys}>
+                                    {move |block: Uuid| {
+                                        let links = links.clone();
+                                        let link = create_memo(move || {
+                                            links.get().into_iter().find(|link| link.id == block)
+                                        });
+                                        view! {
+                                            <LinkButton id={link_id.clone()} link />
+                                        }
+                                    }}
+                                </ForEach>
+                            </List>
+                        </PickerArea>
                     </Show>
                 </List>
             </Frame>
+        </List>
+    }
+}
+
+#[component]
+fn PickerArea(scrolls: bool, children: Child) -> NodeId {
+    let scrolls = create_memo(move || scrolls);
+    view! {
+        <List spacing=0.0>
+            <Dynamic value={scrolls}>
+                {move |scrolls: bool| match scrolls {
+                    true => view! {
+                        <Scroll @sizing=ItemSize::Percent(100.0)>{children}</Scroll>
+                    },
+                    false => view! {
+                        <List @sizing=ItemSize::Intrinsic spacing=0.0>{children}</List>
+                    },
+                }}
+            </Dynamic>
         </List>
     }
 }

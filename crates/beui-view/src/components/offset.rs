@@ -9,11 +9,13 @@ pub fn Offset(
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
+    #[prop(default = false)] fit: bool,
     #[prop(default = 0.0)] fade: Prop<f32>,
     on_change: Callback<ScrollPosition>,
     children: Children<NodeId>,
 ) -> NodeId {
     let node = create_offset(direction, on_change);
+    with_document(|document| document.set_offset_fits(node, fit));
     children.mount(node);
     create_effect(move || with_document(|document| document.set_offset_value(node, offset.get())));
     create_effect(move || with_document(|document| document.set_offset_fade(node, fade.get())));

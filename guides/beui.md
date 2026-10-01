@@ -275,7 +275,7 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `Grid`, `Text`,
   `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`, `Embed`,
-  `Portal`, `BackHandler` — and it stays small because most things are
+  `Portal`, `BackHandler`, `Shift` — and it stays small because most things are
   compositions of those. `unstyled::Picture` is one: a `Drawing` with a size.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
@@ -395,7 +395,10 @@ is behind shows through. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
 `Offset` keeps a run of items along a `direction` and lays them out from an
 offset; it answers no input at all, so nothing scrolls by putting one in a view
-(see [Scrolling](#scrolling)). `VirtualList` is an ordinary box that stands for
+(see [Scrolling](#scrolling)). With `fit` it measures as long as its items,
+so a box sized by what it holds can still scroll once it is squeezed. `Shift`
+lays its child out moved `by` a vector without moving the space it takes, and
+paints nothing while the child is off the screen, which is how a sheet slides in. `VirtualList` is an ordinary box that stands for
 one item per key, each of an estimated `item_size`, and builds only the ones its slice of
 the viewport reaches (see [Long lists](#long-lists)).
 `Scroll` takes a `direction`, so the same tag is a
@@ -457,8 +460,17 @@ controls inside it keep their reach. A quick
 tap with two or more fingers that did not move is a finger tap, which
 `on_finger_tap` hears the way `on_shortcut` hears keys; the editor frame's top
 bar undoes on two and redoes on three. `Sheet` is the panel that rises from the
-bottom of a narrow screen: its handle drags it between stops, and dragging it
-low or going back closes it.
+bottom of a narrow screen. It scrolls what it holds itself, so what goes in it
+is not wrapped in a vertical `Scroll` (one inside would measure nothing tall): a
+swipe anywhere on it raises it to its top stop before it scrolls the content,
+and lowers it once the content is back at its start. It is never taller than
+what it holds, whatever stop it rests at, and pulled past its top it stretches
+like an overscroll. It slides up as it opens, easing out, and slides down as it
+closes, easing in from however fast it was flicked; a `ModalSheet` stays up
+while it leaves however it was closed, and fades its scrim with it. Let go, it springs to the
+stop nearest where the flick was heading, or closed below the lowest one, and
+its content flings and bounces at its ends as a `Scroll` does; the handle does
+the same for a mouse, and going back closes it.
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, a multiline text
