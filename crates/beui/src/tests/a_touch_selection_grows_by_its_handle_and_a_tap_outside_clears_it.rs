@@ -21,7 +21,11 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let (first, second, region) = (first.get(), second.get(), region.get());
+    let (first, second, region) = (
+        kind_of::<TextNode>(harness.document(), first.get()),
+        second.get(),
+        region.get(),
+    );
     let (top, bottom) = (harness.rect(first), harness.rect(second));
     let on_hello = pos2(top.left() + 4.0, top.center().y);
 

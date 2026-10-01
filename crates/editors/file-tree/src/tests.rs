@@ -133,7 +133,10 @@ fn open_item(document: &Document, node: NodeId, label: &str, open: bool) -> Opti
 }
 
 fn says_within(document: &Document, node: NodeId, words: &str) -> bool {
-    (document.node_kind(node) == "text" && document.text(node).contains(words))
+    document
+        .arena
+        .kind_of(node)
+        .is_some_and(|text| document.text(text).contains(words))
         || document
             .children(node)
             .into_iter()

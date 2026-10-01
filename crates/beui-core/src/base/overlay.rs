@@ -12,7 +12,7 @@ use crate::base::interactive::InteractiveNode;
 use crate::callback::{Callback, NodeRef};
 use crate::current::with_document;
 use crate::document::Document;
-use crate::node::{ClickHandler, Element, InteractInput, NodeId, Rects};
+use crate::node::{ClickHandler, Element, InteractInput, NodeId, NodeOf, Rects};
 
 #[derive(Clone, PartialEq)]
 pub enum OverlayAnchor {
@@ -289,7 +289,7 @@ impl Element for OverlayNode {
 impl Document {
     pub(crate) fn relay_moved_overlays(&mut self) -> bool {
         let rects = Rc::clone(&self.rects);
-        let moved: Vec<NodeId> = self
+        let moved: Vec<NodeOf<OverlayNode>> = self
             .overlay_stack
             .iter()
             .chain(self.passive_overlays.iter())
@@ -298,7 +298,7 @@ impl Document {
                 if !self.contains(*overlay) {
                     return false;
                 }
-                let node = self.arena.get_as::<OverlayNode>(*overlay);
+                let node = self.arena.get_as(*overlay);
                 let OverlayAnchor::Node(anchor) = &node.anchor else {
                     return false;
                 };
@@ -315,8 +315,12 @@ impl Document {
         !moved.is_empty()
     }
 
-    pub fn create_overlay(&mut self, anchor: OverlayAnchor, placement: Placement) -> NodeId {
-        let overlay_cell: Rc<Cell<Option<NodeId>>> = Rc::new(Cell::new(None));
+    pub fn create_overlay(
+        &mut self,
+        anchor: OverlayAnchor,
+        placement: Placement,
+    ) -> NodeOf<OverlayNode> {
+        let overlay_cell: Rc<Cell<Option<NodeOf<OverlayNode>>>> = Rc::new(Cell::new(None));
         let press_cell = overlay_cell.clone();
         let tap_cell = overlay_cell.clone();
         let scrim = self.create_interactive(false);
@@ -338,38 +342,38 @@ impl Document {
         });
         let id = self
             .arena
-            .insert(OverlayNode::new(scrim, anchor, placement));
+            .insert(OverlayNode::new(scrim.id(), anchor, placement));
         overlay_cell.set(Some(id));
         id
     }
 
-    pub fn set_overlay_content(&mut self, overlay: NodeId, content: NodeId) {
+    pub fn set_overlay_content(&mut self, overlay: NodeOf<OverlayNode>, content: NodeId) {
         self.arena.get_mut_as::<OverlayNode>(overlay).content = Some(content);
     }
 
-    pub fn set_overlay_anchor(&mut self, overlay: NodeId, anchor: OverlayAnchor) {
+    pub fn set_overlay_anchor(&mut self, overlay: NodeOf<OverlayNode>, anchor: OverlayAnchor) {
         self.arena.get_mut_as::<OverlayNode>(overlay).anchor = anchor;
     }
 
-    pub fn set_overlay_scrim(&mut self, overlay: NodeId, color: Color32) {
+    pub fn set_overlay_scrim(&mut self, overlay: NodeOf<OverlayNode>, color: Color32) {
         if self.arena.get_as::<OverlayNode>(overlay).dim != color {
             self.arena.paint_mut_as::<OverlayNode>(overlay).dim = color;
         }
     }
 
-    pub fn set_overlay_placement(&mut self, overlay: NodeId, placement: Placement) {
+    pub fn set_overlay_placement(&mut self, overlay: NodeOf<OverlayNode>, placement: Placement) {
         if self.arena.get_as::<OverlayNode>(overlay).placement != placement {
             self.arena.get_mut_as::<OverlayNode>(overlay).placement = placement;
         }
     }
 
-    pub fn set_overlay_traps_focus(&mut self, overlay: NodeId, traps_focus: bool) {
+    pub fn set_overlay_traps_focus(&mut self, overlay: NodeOf<OverlayNode>, traps_focus: bool) {
         if self.arena.get_as::<OverlayNode>(overlay).traps_focus != traps_focus {
             self.arena.touch_mut_as::<OverlayNode>(overlay).traps_focus = traps_focus;
         }
     }
 
-    pub fn set_overlay_mode(&mut self, overlay: NodeId, mode: OverlayMode) {
+    pub fn set_overlay_mode(&mut self, overlay: NodeOf<OverlayNode>, mode: OverlayMode) {
         if self.arena.get_as::<OverlayNode>(overlay).mode == mode {
             return;
         }
@@ -381,13 +385,13 @@ impl Document {
         }
     }
 
-    pub fn overlay_is_floating(&self, overlay: NodeId) -> bool {
+    pub fn overlay_is_floating(&self, overlay: NodeOf<OverlayNode>) -> bool {
         self.contains(overlay)
             && self.arena.get_as::<OverlayNode>(overlay).mode == OverlayMode::Floating
             && self.arena.get_as::<OverlayNode>(overlay).open
     }
 
-    pub fn floating_overlays(&self) -> Vec<NodeId> {
+    pub fn floating_overlays(&self) -> Vec<NodeOf<OverlayNode>> {
         self.passive_overlays
             .iter()
             .copied()
@@ -395,7 +399,7 @@ impl Document {
             .collect()
     }
 
-    pub fn overlays_bottom_up(&self) -> Vec<NodeId> {
+    pub fn overlays_bottom_up(&self) -> Vec<NodeOf<OverlayNode>> {
         let floating = self.floating_overlays();
         let passive = self
             .passive_overlays
@@ -415,9 +419,15 @@ impl Document {
                 .floating_overlays()
                 .into_iter()
                 .rev()
+                .map(NodeOf::id)
                 .chain([root])
                 .collect(),
-            false => self.overlay_stack.iter().rev().copied().collect(),
+            false => self
+                .overlay_stack
+                .iter()
+                .rev()
+                .map(|overlay| overlay.id())
+                .collect(),
         }
     }
 
@@ -433,7 +443,11 @@ impl Document {
     }
 
     pub fn raise_overlay(&mut self, overlay: NodeId) {
-        let Some(index) = self.passive_overlays.iter().position(|id| *id == overlay) else {
+        let Some(index) = self
+            .passive_overlays
+            .iter()
+            .position(|id| id.id() == overlay)
+        else {
             return;
         };
         if index + 1 == self.passive_overlays.len() {
@@ -444,19 +458,23 @@ impl Document {
         self.arena.invalidate_node(raised);
     }
 
-    pub fn overlay_traps_focus(&self, overlay: NodeId) -> bool {
+    pub fn overlay_traps_focus(&self, overlay: NodeOf<OverlayNode>) -> bool {
         self.arena.get_as::<OverlayNode>(overlay).traps_focus
     }
 
-    pub fn set_overlay_on_dismiss(&mut self, overlay: NodeId, handler: impl FnMut() + 'static) {
+    pub fn set_overlay_on_dismiss(
+        &mut self,
+        overlay: NodeOf<OverlayNode>,
+        handler: impl FnMut() + 'static,
+    ) {
         self.arena.touch_mut_as::<OverlayNode>(overlay).on_dismiss = Some(Box::new(handler));
     }
 
     pub fn is_overlay(&self, node: NodeId) -> bool {
-        self.arena.get(node).as_any().is::<OverlayNode>()
+        self.arena.kind_of::<OverlayNode>(node).is_some()
     }
 
-    pub fn set_overlay_back_progress(&mut self, overlay: NodeId, back: BackProgress) {
+    pub fn set_overlay_back_progress(&mut self, overlay: NodeOf<OverlayNode>, back: BackProgress) {
         if self.arena.get_as::<OverlayNode>(overlay).back != back {
             self.arena.get_mut_as::<OverlayNode>(overlay).back = back;
             self.arena.invalidate_node(overlay);
@@ -464,10 +482,12 @@ impl Document {
     }
 
     pub fn is_overlay_open(&self, overlay: NodeId) -> bool {
-        self.arena.get_as::<OverlayNode>(overlay).open
+        self.arena
+            .kind_of::<OverlayNode>(overlay)
+            .is_some_and(|overlay| self.arena.get_as(overlay).open)
     }
 
-    pub fn overlay_content(&self, overlay: NodeId) -> Option<NodeId> {
+    pub fn overlay_content(&self, overlay: NodeOf<OverlayNode>) -> Option<NodeId> {
         self.arena.get_as::<OverlayNode>(overlay).content
     }
 
@@ -497,7 +517,7 @@ impl Document {
             .collect()
     }
 
-    pub fn open_overlay(&mut self, overlay: NodeId) {
+    pub fn open_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
         if self.arena.get_as::<OverlayNode>(overlay).open {
             return;
         }
@@ -509,7 +529,7 @@ impl Document {
         self.arena.invalidate_node(overlay);
     }
 
-    pub fn close_overlay(&mut self, overlay: NodeId) {
+    pub fn close_overlay(&mut self, overlay: NodeOf<OverlayNode>) {
         if let Some(level) = self.overlay_stack.iter().position(|&id| id == overlay) {
             self.close_overlay_at(level);
             return;
@@ -536,13 +556,13 @@ impl Document {
         };
         let above = self.overlay_stack.split_off(level + 1);
         let nested = self.overlays_within(closed, &above);
-        let (nested, kept): (Vec<NodeId>, Vec<NodeId>) =
+        let (nested, kept): (Vec<NodeOf<OverlayNode>>, Vec<NodeOf<OverlayNode>>) =
             above.into_iter().partition(|id| nested.contains(id));
         self.overlay_stack.pop();
         self.overlay_stack.extend(kept);
         for id in std::iter::once(closed).chain(nested) {
             if self.contains(id) {
-                let node = self.arena.get_mut_as::<OverlayNode>(id);
+                let node = self.arena.get_mut_as(id);
                 node.open = false;
                 node.back = BackProgress::default();
             }
@@ -551,7 +571,11 @@ impl Document {
         }
     }
 
-    fn overlays_within(&self, overlay: NodeId, candidates: &[NodeId]) -> Vec<NodeId> {
+    fn overlays_within(
+        &self,
+        overlay: NodeOf<OverlayNode>,
+        candidates: &[NodeOf<OverlayNode>],
+    ) -> Vec<NodeOf<OverlayNode>> {
         if candidates.is_empty() || !self.contains(overlay) {
             return Vec::new();
         }
@@ -561,8 +585,8 @@ impl Document {
             if !self.contains(node) {
                 continue;
             }
-            if candidates.contains(&node) {
-                found.push(node);
+            if let Some(&candidate) = candidates.iter().find(|candidate| candidate.id() == node) {
+                found.push(candidate);
                 if found.len() == candidates.len() {
                     break;
                 }
@@ -572,7 +596,7 @@ impl Document {
         found
     }
 
-    fn call_overlay_dismiss(&mut self, id: NodeId) {
+    fn call_overlay_dismiss(&mut self, id: NodeOf<OverlayNode>) {
         if !self.contains(id) {
             return;
         }
@@ -593,17 +617,17 @@ impl Document {
         }
     }
 
-    pub fn set_overlay_light(&mut self, overlay: NodeId, light: bool) {
+    pub fn set_overlay_light(&mut self, overlay: NodeOf<OverlayNode>, light: bool) {
         if self.arena.get_as::<OverlayNode>(overlay).light != light {
             self.arena.touch_mut_as::<OverlayNode>(overlay).light = light;
         }
     }
 
-    pub fn set_overlay_trigger(&mut self, overlay: NodeId, trigger: Option<NodeRef>) {
+    pub fn set_overlay_trigger(&mut self, overlay: NodeOf<OverlayNode>, trigger: Option<NodeRef>) {
         self.arena.get_mut_as::<OverlayNode>(overlay).trigger = trigger;
     }
 
-    fn on_overlay_trigger(&self, overlay: NodeId, pos: Pos2) -> bool {
+    fn on_overlay_trigger(&self, overlay: NodeOf<OverlayNode>, pos: Pos2) -> bool {
         self.arena
             .get_as::<OverlayNode>(overlay)
             .trigger
@@ -613,13 +637,13 @@ impl Document {
             .is_some_and(|rect| rect.contains_half_open(pos))
     }
 
-    fn overlay_holds(&self, overlay: NodeId, pos: Pos2) -> bool {
+    fn overlay_holds(&self, overlay: NodeOf<OverlayNode>, pos: Pos2) -> bool {
         self.overlay_content(overlay)
             .and_then(|content| self.node_rect(content))
             .is_some_and(|rect| rect.contains_half_open(pos))
     }
 
-    fn light_overlay_misses(&self, overlay: NodeId, pos: Pos2) -> bool {
+    fn light_overlay_misses(&self, overlay: NodeOf<OverlayNode>, pos: Pos2) -> bool {
         self.arena.get_as::<OverlayNode>(overlay).light && !self.overlay_holds(overlay, pos)
     }
 
@@ -640,7 +664,7 @@ impl Document {
                 .all(|overlay| self.light_overlay_misses(*overlay, pos))
     }
 
-    fn dismiss_overlay_if_outside(&mut self, overlay: NodeId, pos: Pos2) {
+    fn dismiss_overlay_if_outside(&mut self, overlay: NodeOf<OverlayNode>, pos: Pos2) {
         let Some(level) = self.overlay_stack.iter().position(|&id| id == overlay) else {
             return;
         };

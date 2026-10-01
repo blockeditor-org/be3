@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use beui::NodeId;
 use beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, ReadSignal, Show, Spacer, WriteSignal, clone,
-    create_effect, create_memo, create_signal, untrack, view,
+    Align, Direction, Frame, Func, ItemSize, List, ReadSignal, Show, Spacer, WriteSignal, clone,
+    component, create_effect, create_memo, create_signal, untrack, view,
 };
 use beui::styled::{Button, ButtonVariant, Caption, use_theme};
 
@@ -114,14 +114,17 @@ impl<T: 'static> FileChooser<T> {
     }
 }
 
-fn file_creation_with<T: 'static>(
-    creation: &Creation,
-    test_id: &str,
+#[component]
+pub fn ContentFileCreation<C>(
+    creation: Creation,
+    id_prefix: String,
     filter: FileFilter,
-    import: impl Fn(PickedFile) -> Result<T, String> + 'static,
-    make: impl Fn(T) -> uuid::Uuid + 'static,
-) -> NodeId {
-    let chooser = FileChooser::new(filter, import);
+    import: Func<PickedFile, Result<C, String>>,
+) -> NodeId
+where
+    C: be_block::BlockContent + 'static,
+{
+    let chooser = FileChooser::new(filter, move |file| import.call(file));
     let host = creation.host().clone();
     chooser.on_reply(
         creation.replies(),
@@ -129,9 +132,10 @@ fn file_creation_with<T: 'static>(
         move |chooser| host.set_creation_ready(chooser.is_chosen()),
     );
     let made = Rc::clone(&chooser);
+    let creating = creation.clone();
     creation.on_create(move || {
         let chosen = made.take().ok_or("no file was chosen")?;
-        Ok(make(chosen))
+        Ok(creating.create(&chosen))
     });
 
     let chosen = chooser.name();
@@ -144,8 +148,8 @@ fn file_creation_with<T: 'static>(
     let busy = chooser.busy();
     let opening = creation.host().clone();
     let choose = move || chooser.open(&opening);
-    let choose_id = format!("{test_id}.choose");
-    let error_id = format!("{test_id}.error");
+    let choose_id = format!("{id_prefix}.choose");
+    let error_id = format!("{id_prefix}.error");
     let theme = use_theme();
     view! {
         <Frame padding_horizontal=PADDING padding_vertical=PADDING>
@@ -172,16 +176,4 @@ fn file_creation_with<T: 'static>(
             </List>
         </Frame>
     }
-}
-
-pub fn content_file_creation<C: be_block::BlockContent>(
-    creation: &Creation,
-    test_id: &str,
-    filter: FileFilter,
-    import: impl Fn(PickedFile) -> Result<C, String> + 'static,
-) -> NodeId {
-    let creating = creation.clone();
-    file_creation_with(creation, test_id, filter, import, move |content: C| {
-        creating.create(&content)
-    })
 }

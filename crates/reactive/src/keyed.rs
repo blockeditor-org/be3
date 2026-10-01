@@ -148,9 +148,21 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
     }
 }
 
+pub fn numbered<K: Clone + Hash + Eq>(keys: Vec<K>) -> Vec<(K, usize)> {
+    let mut seen: HashMap<K, usize> = HashMap::new();
+    keys.into_iter()
+        .map(|key| {
+            let occurrence = seen.entry(key.clone()).or_insert(0);
+            let nth = *occurrence;
+            *occurrence += 1;
+            (key, nth)
+        })
+        .collect()
+}
+
 pub struct KeyedItems<K, V> {
     build: Box<dyn Fn(K) -> V>,
-    entries: RefCell<HashMap<K, (V, Scope)>>,
+    entries: RefCell<HashMap<(K, usize), (V, Scope)>>,
 }
 
 impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
@@ -164,7 +176,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
     pub fn get(&self, key: &K) -> Option<V> {
         self.entries
             .borrow()
-            .get(key)
+            .get(&(key.clone(), 0))
             .map(|(value, _)| value.clone())
     }
 
@@ -172,21 +184,25 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         if let Some(value) = self.get(&key) {
             return value;
         }
+        let built = self.build_scoped(key.clone());
+        let value = built.0.clone();
+        self.entries.borrow_mut().insert((key, 0), built);
+        value
+    }
+
+    fn build_scoped(&self, key: K) -> (V, Scope) {
         let scope = Scope::detached();
-        let built = scope.context().run(|| (self.build)(key.clone()));
-        self.entries
-            .borrow_mut()
-            .insert(key, (built.clone(), scope));
-        built
+        let built = scope.context().run(|| (self.build)(key));
+        (built, scope)
     }
 
     pub fn retain(&self, keys: &[K]) -> Vec<V> {
         let kept: HashSet<&K> = keys.iter().collect();
-        let dropped: Vec<K> = self
+        let dropped: Vec<(K, usize)> = self
             .entries
             .borrow()
             .keys()
-            .filter(|key| !kept.contains(key))
+            .filter(|(key, _)| !kept.contains(key))
             .cloned()
             .collect();
         drop(kept);
@@ -209,20 +225,13 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         let mut entries = self.entries.borrow_mut();
         let mut next = HashMap::with_capacity(keys.len());
         let mut mapped = Vec::with_capacity(keys.len());
-        for key in keys {
-            let entry = match entries.remove(&key) {
+        for numbered in numbered(keys) {
+            let entry = match entries.remove(&numbered) {
                 Some(entry) => entry,
-                None => {
-                    let scope = Scope::detached();
-                    let built = scope.context().run(|| (self.build)(key.clone()));
-                    (built, scope)
-                }
+                None => self.build_scoped(numbered.0.clone()),
             };
             mapped.push(entry.0.clone());
-            assert!(
-                next.insert(key, entry).is_none(),
-                "a keyed list was given the same key twice"
-            );
+            next.insert(numbered, entry);
         }
         let gone = std::mem::replace(&mut *entries, next);
         Mapping {
@@ -234,7 +243,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
 
 pub struct Mapping<K, V> {
     items: Vec<V>,
-    gone: HashMap<K, (V, Scope)>,
+    gone: HashMap<(K, usize), (V, Scope)>,
 }
 
 impl<K, V: Clone> Mapping<K, V> {

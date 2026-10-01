@@ -13,7 +13,7 @@ use crate::pixel_grid::PixelGrid;
 
 use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::rich::{
     CaretHandle, RichLayout, RichOptions, SpanStyle, TextCaret, TextMark, TextSpan, handle_shape,
 };
@@ -131,7 +131,12 @@ impl TextNode {
         self.items
             .iter()
             .copied()
-            .filter(|item| doc.arena.get_as::<TextItemNode>(*item).at.is_none())
+            .filter(|item| {
+                doc.arena
+                    .get_as::<TextItemNode>(NodeOf::assumed(*item))
+                    .at
+                    .is_none()
+            })
             .collect()
     }
 
@@ -201,7 +206,7 @@ impl TextNode {
             }
         }
         for item in self.items.iter().copied() {
-            let Some(at) = doc.arena.get_as::<TextItemNode>(item).at else {
+            let Some(at) = doc.arena.get_as::<TextItemNode>(NodeOf::assumed(item)).at else {
                 continue;
             };
             let size = crate::layout::measure(doc, painter, item, Vec2::splat(f32::INFINITY));
@@ -532,7 +537,7 @@ impl Document {
         content: impl Into<String>,
         font_size: f32,
         color: Color32,
-    ) -> NodeId {
+    ) -> NodeOf<TextNode> {
         self.arena.insert(TextNode {
             content: content.into(),
             font_size,
@@ -557,78 +562,78 @@ impl Document {
         })
     }
 
-    pub fn set_text(&mut self, id: NodeId, content: impl Into<String>) {
+    pub fn set_text(&mut self, id: NodeOf<TextNode>, content: impl Into<String>) {
         let value = content.into();
         if self.arena.get_as::<TextNode>(id).content != value {
             self.arena.get_mut_as::<TextNode>(id).content = value;
         }
     }
 
-    pub fn text(&self, id: NodeId) -> &str {
+    pub fn text(&self, id: NodeOf<TextNode>) -> &str {
         &self.arena.get_as::<TextNode>(id).content
     }
 
-    pub fn set_text_horizontal_align(&mut self, text: NodeId, horizontal: TextAlign) {
+    pub fn set_text_horizontal_align(&mut self, text: NodeOf<TextNode>, horizontal: TextAlign) {
         if self.arena.get_as::<TextNode>(text).horizontal != horizontal {
             self.arena.get_mut_as::<TextNode>(text).horizontal = horizontal;
         }
     }
 
-    pub fn set_text_vertical_align(&mut self, text: NodeId, vertical: TextAlign) {
+    pub fn set_text_vertical_align(&mut self, text: NodeOf<TextNode>, vertical: TextAlign) {
         if self.arena.get_as::<TextNode>(text).vertical != vertical {
             self.arena.get_mut_as::<TextNode>(text).vertical = vertical;
         }
     }
 
-    pub fn set_text_wrap(&mut self, text: NodeId, wrap: bool) {
+    pub fn set_text_wrap(&mut self, text: NodeOf<TextNode>, wrap: bool) {
         if self.arena.get_as::<TextNode>(text).wrap != wrap {
             self.arena.get_mut_as::<TextNode>(text).wrap = wrap;
         }
     }
 
-    pub fn set_text_font_size(&mut self, text: NodeId, font_size: f32) {
+    pub fn set_text_font_size(&mut self, text: NodeOf<TextNode>, font_size: f32) {
         if self.arena.get_as::<TextNode>(text).font_size != font_size {
             self.arena.get_mut_as::<TextNode>(text).font_size = font_size;
         }
     }
 
-    pub fn set_text_line_height(&mut self, text: NodeId, line_height: Option<f32>) {
+    pub fn set_text_line_height(&mut self, text: NodeOf<TextNode>, line_height: Option<f32>) {
         if self.arena.get_as::<TextNode>(text).line_height != line_height {
             self.arena.get_mut_as::<TextNode>(text).line_height = line_height;
         }
     }
 
-    pub fn set_text_monospace(&mut self, text: NodeId, monospace: bool) {
+    pub fn set_text_monospace(&mut self, text: NodeOf<TextNode>, monospace: bool) {
         if self.arena.get_as::<TextNode>(text).monospace != monospace {
             self.arena.get_mut_as::<TextNode>(text).monospace = monospace;
         }
     }
 
-    pub fn set_text_bold(&mut self, text: NodeId, bold: bool) {
+    pub fn set_text_bold(&mut self, text: NodeOf<TextNode>, bold: bool) {
         if self.arena.get_as::<TextNode>(text).bold != bold {
             self.arena.get_mut_as::<TextNode>(text).bold = bold;
         }
     }
 
-    pub fn set_text_italic(&mut self, text: NodeId, italic: bool) {
+    pub fn set_text_italic(&mut self, text: NodeOf<TextNode>, italic: bool) {
         if self.arena.get_as::<TextNode>(text).italic != italic {
             self.arena.get_mut_as::<TextNode>(text).italic = italic;
         }
     }
 
-    pub fn set_text_icon(&mut self, text: NodeId, icon: bool) {
+    pub fn set_text_icon(&mut self, text: NodeOf<TextNode>, icon: bool) {
         if self.arena.get_as::<TextNode>(text).icon != icon {
             self.arena.get_mut_as::<TextNode>(text).icon = icon;
         }
     }
 
-    pub fn set_text_color(&mut self, text: NodeId, color: Color32) {
+    pub fn set_text_color(&mut self, text: NodeOf<TextNode>, color: Color32) {
         if self.arena.get_as::<TextNode>(text).color != color {
             self.arena.paint_mut_as::<TextNode>(text).color = color;
         }
     }
 
-    pub fn set_text_clip(&mut self, text: NodeId, clip: bool) {
+    pub fn set_text_clip(&mut self, text: NodeOf<TextNode>, clip: bool) {
         if self.arena.get_as::<TextNode>(text).clip != clip {
             self.arena.paint_mut_as::<TextNode>(text).clip = clip;
         }
@@ -636,7 +641,7 @@ impl Document {
 
     pub fn set_text_selection_handles(
         &mut self,
-        text: NodeId,
+        text: NodeOf<TextNode>,
         handles: Vec<(usize, CaretHandle, Color32)>,
     ) {
         if self.arena.get_as::<TextNode>(text).handles != handles {
@@ -644,38 +649,42 @@ impl Document {
         }
     }
 
-    pub fn set_text_selection(&mut self, text: NodeId, selection: Option<(Range<usize>, Color32)>) {
+    pub fn set_text_selection(
+        &mut self,
+        text: NodeOf<TextNode>,
+        selection: Option<(Range<usize>, Color32)>,
+    ) {
         if self.arena.get_as::<TextNode>(text).selection != selection {
             self.arena.paint_mut_as::<TextNode>(text).selection = selection;
         }
     }
 
-    pub fn texts_within(&self, root: NodeId) -> Vec<NodeId> {
+    pub fn texts_within(&self, root: NodeId) -> Vec<NodeOf<TextNode>> {
         let mut found = Vec::new();
         let mut pending = vec![root];
         while let Some(id) = pending.pop() {
             if !self.arena.contains(id) || self.node_rect(id).is_none() {
                 continue;
             }
-            let node = self.arena.get(id);
-            if let Some(text) = node.as_any().downcast_ref::<TextNode>() {
-                if !text.icon && !text.content.is_empty() {
-                    found.push(id);
+            if let Some(text) = self.arena.kind_of::<TextNode>(id) {
+                let node = self.arena.get_as(text);
+                if !node.icon && !node.content.is_empty() {
+                    found.push(text);
                 }
                 continue;
             }
-            pending.extend(node.children().into_iter().rev());
+            pending.extend(self.arena.get(id).children().into_iter().rev());
         }
         found
     }
 
-    pub fn set_text_ellipsis(&mut self, text: NodeId, ellipsis: bool) {
+    pub fn set_text_ellipsis(&mut self, text: NodeOf<TextNode>, ellipsis: bool) {
         if self.arena.get_as::<TextNode>(text).ellipsis != ellipsis {
             self.arena.get_mut_as::<TextNode>(text).ellipsis = ellipsis;
         }
     }
 
-    pub fn set_text_underline(&mut self, text: NodeId, underline: bool) {
+    pub fn set_text_underline(&mut self, text: NodeOf<TextNode>, underline: bool) {
         if self.arena.get_as::<TextNode>(text).underline != underline {
             self.arena.paint_mut_as::<TextNode>(text).underline = underline;
         }
@@ -741,14 +750,14 @@ impl Element for TextItemNode {
 }
 
 impl Document {
-    fn text_rich(&mut self, text: NodeId) -> &mut Rich {
+    fn text_rich(&mut self, text: NodeOf<TextNode>) -> &mut Rich {
         self.arena
             .get_mut_as::<TextNode>(text)
             .rich
             .get_or_insert_with(Box::default)
     }
 
-    pub fn set_text_spans(&mut self, text: NodeId, spans: Vec<TextSpan>) {
+    pub fn set_text_spans(&mut self, text: NodeOf<TextNode>, spans: Vec<TextSpan>) {
         let node = self.arena.get_as::<TextNode>(text);
         if node.rich.as_ref().is_some_and(|rich| rich.spans == spans) {
             return;
@@ -756,7 +765,7 @@ impl Document {
         self.text_rich(text).spans = spans;
     }
 
-    pub fn set_text_line_padding(&mut self, text: NodeId, padding: (f32, f32)) {
+    pub fn set_text_line_padding(&mut self, text: NodeOf<TextNode>, padding: (f32, f32)) {
         let node = self.arena.get_as::<TextNode>(text);
         if node
             .rich
@@ -768,7 +777,7 @@ impl Document {
         self.text_rich(text).padding = padding;
     }
 
-    pub fn set_text_marks(&mut self, text: NodeId, marks: Vec<TextMark>) {
+    pub fn set_text_marks(&mut self, text: NodeOf<TextNode>, marks: Vec<TextMark>) {
         let node = self.arena.get_as::<TextNode>(text);
         if node
             .rich
@@ -784,7 +793,7 @@ impl Document {
             .marks = marks;
     }
 
-    pub fn set_text_carets(&mut self, text: NodeId, carets: Vec<TextCaret>) {
+    pub fn set_text_carets(&mut self, text: NodeOf<TextNode>, carets: Vec<TextCaret>) {
         let node = self.arena.get_as::<TextNode>(text);
         if node
             .rich
@@ -803,7 +812,7 @@ impl Document {
         rich.since.set(now);
     }
 
-    pub fn text_marks(&self, text: NodeId) -> &[TextMark] {
+    pub fn text_marks(&self, text: NodeOf<TextNode>) -> &[TextMark] {
         self.arena
             .get_as::<TextNode>(text)
             .rich
@@ -811,7 +820,7 @@ impl Document {
             .map_or(&[], |rich| rich.marks.as_slice())
     }
 
-    pub fn text_carets(&self, text: NodeId) -> &[TextCaret] {
+    pub fn text_carets(&self, text: NodeOf<TextNode>) -> &[TextCaret] {
         self.arena
             .get_as::<TextNode>(text)
             .rich
@@ -819,15 +828,20 @@ impl Document {
             .map_or(&[], |rich| rich.carets.as_slice())
     }
 
-    pub fn text_geometry(&self, text: NodeId) -> TextGeometry {
+    pub fn text_geometry(&self, text: NodeOf<TextNode>) -> TextGeometry {
         TextGeometry {
-            node: text,
+            node: text.id(),
             placed: Rc::clone(&self.arena.get_as::<TextNode>(text).placed),
             rects: Rc::clone(&self.rects),
         }
     }
 
-    pub fn text_caret_rect(&self, text: NodeId, index: usize, width: f32) -> Option<Rect> {
+    pub fn text_caret_rect(
+        &self,
+        text: NodeOf<TextNode>,
+        index: usize,
+        width: f32,
+    ) -> Option<Rect> {
         if let Some(rect) = self.text_geometry(text).caret_rect(index, width) {
             return Some(rect);
         }
@@ -843,7 +857,7 @@ impl Document {
         ))
     }
 
-    pub fn text_index_at(&self, text: NodeId, pos: Pos2) -> Option<usize> {
+    pub fn text_index_at(&self, text: NodeOf<TextNode>, pos: Pos2) -> Option<usize> {
         if let Some(index) = self.text_geometry(text).index_at(pos) {
             return Some(index);
         }
@@ -856,28 +870,28 @@ impl Document {
         Some(index.min(node.content.len()))
     }
 
-    pub fn text_inline_at(&self, text: NodeId, pos: Pos2) -> Option<usize> {
+    pub fn text_inline_at(&self, text: NodeOf<TextNode>, pos: Pos2) -> Option<usize> {
         self.text_geometry(text).inline_at(pos)
     }
 
-    pub fn text_layout(&self, text: NodeId) -> Option<Rc<RichLayout>> {
+    pub fn text_layout(&self, text: NodeOf<TextNode>) -> Option<Rc<RichLayout>> {
         Some(self.text_geometry(text).placement()?.1)
     }
 
-    pub fn create_text_item(&mut self) -> NodeId {
+    pub fn create_text_item(&mut self) -> NodeOf<TextItemNode> {
         self.arena.insert(TextItemNode {
             child: None,
             at: None,
         })
     }
 
-    pub fn set_text_item_child(&mut self, item: NodeId, child: NodeId) {
+    pub fn set_text_item_child(&mut self, item: NodeOf<TextItemNode>, child: NodeId) {
         if self.arena.get_as::<TextItemNode>(item).child != Some(child) {
             self.arena.get_mut_as::<TextItemNode>(item).child = Some(child);
         }
     }
 
-    pub fn set_text_item_at(&mut self, item: NodeId, at: Option<usize>) {
+    pub fn set_text_item_at(&mut self, item: NodeOf<TextItemNode>, at: Option<usize>) {
         if self.arena.get_as::<TextItemNode>(item).at != at {
             self.arena.get_mut_as::<TextItemNode>(item).at = at;
         }

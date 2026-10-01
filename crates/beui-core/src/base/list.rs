@@ -7,7 +7,7 @@ use crate::pixel_grid::PixelGrid;
 use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::base::share::{Part, share, snapped_run};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
@@ -635,7 +635,7 @@ fn distribute(
 }
 
 impl Document {
-    pub fn create_list(&mut self, direction: Direction, spacing: f32) -> NodeId {
+    pub fn create_list(&mut self, direction: Direction, spacing: f32) -> NodeOf<ListNode> {
         self.arena.insert(ListNode {
             direction,
             spacing,
@@ -646,37 +646,42 @@ impl Document {
         })
     }
 
-    pub fn set_list_direction(&mut self, list: NodeId, direction: Direction) {
+    pub fn set_list_direction(&mut self, list: NodeOf<ListNode>, direction: Direction) {
         if self.arena.get_as::<ListNode>(list).direction != direction {
             self.arena.get_mut_as::<ListNode>(list).direction = direction;
         }
     }
 
-    pub fn set_list_spacing(&mut self, list: NodeId, spacing: f32) {
+    pub fn set_list_spacing(&mut self, list: NodeOf<ListNode>, spacing: f32) {
         if self.arena.get_as::<ListNode>(list).spacing != spacing {
             self.arena.get_mut_as::<ListNode>(list).spacing = spacing;
         }
     }
 
-    pub fn set_list_align(&mut self, list: NodeId, align: Align) {
+    pub fn set_list_align(&mut self, list: NodeOf<ListNode>, align: Align) {
         if self.arena.get_as::<ListNode>(list).align != align {
             self.arena.get_mut_as::<ListNode>(list).align = align;
         }
     }
 
-    pub fn set_list_justify(&mut self, list: NodeId, justify: Justify) {
+    pub fn set_list_justify(&mut self, list: NodeOf<ListNode>, justify: Justify) {
         if self.arena.get_as::<ListNode>(list).justify != justify {
             self.arena.get_mut_as::<ListNode>(list).justify = justify;
         }
     }
 
-    pub fn set_list_wrap(&mut self, list: NodeId, wrap: bool) {
+    pub fn set_list_wrap(&mut self, list: NodeOf<ListNode>, wrap: bool) {
         if self.arena.get_as::<ListNode>(list).wrap != wrap {
             self.arena.get_mut_as::<ListNode>(list).wrap = wrap;
         }
     }
 
-    pub fn append_child(&mut self, parent: NodeId, child: NodeId, size: impl Into<Sizing>) {
+    pub fn append_child(
+        &mut self,
+        parent: NodeOf<ListNode>,
+        child: NodeId,
+        size: impl Into<Sizing>,
+    ) {
         let size = size.into();
         self.arena
             .get_mut_as::<ListNode>(parent)
@@ -684,7 +689,7 @@ impl Document {
             .push(ListItem { child, size });
     }
 
-    pub fn remove_child(&mut self, parent: NodeId, child: NodeId) {
+    pub fn remove_child(&mut self, parent: NodeOf<ListNode>, child: NodeId) {
         if !self.arena.get_as::<ListNode>(parent).items.contains(child) {
             return;
         }
@@ -694,7 +699,7 @@ impl Document {
             .remove(child);
     }
 
-    pub fn set_child_size(&mut self, parent: NodeId, child: NodeId, size: Sizing) {
+    pub fn set_child_size(&mut self, parent: NodeOf<ListNode>, child: NodeId, size: Sizing) {
         let current = self
             .arena
             .get_as::<ListNode>(parent)

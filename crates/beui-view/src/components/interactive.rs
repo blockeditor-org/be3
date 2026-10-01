@@ -127,8 +127,8 @@ pub fn Interactive(
         create_effect(move || {
             let wanted = focused.get();
             with_document(|document| match wanted {
-                true => document.focus_focusable(interactive),
-                false if document.focused_node() == Some(interactive) => {
+                true => document.focus_focusable(interactive.id()),
+                false if document.focused_node() == Some(interactive.id()) => {
                     document.update_focus(None)
                 }
                 false => {}
@@ -175,5 +175,5 @@ pub fn Interactive(
     create_effect(move || {
         with_document(|document| document.set_interactive_key_active(interactive, key_active.get()))
     });
-    interactive
+    interactive.id()
 }

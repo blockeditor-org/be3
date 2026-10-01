@@ -182,10 +182,11 @@ pub fn dock_more(on_click: ClickCallback) {
     });
 }
 
-pub fn dock_actions(actions: NodeId) {
+pub fn dock_actions(actions: impl FnOnce() -> NodeId) {
     let Some(DockTabActions { tab, set_actions }) = use_context::<DockTabActions>() else {
         return;
     };
+    let actions = actions();
     set_actions.update(|all| {
         all.insert(tab, actions);
     });
@@ -1564,24 +1565,23 @@ fn DockTabBar(dock: Handle, leaf: LeafId, vertical: bool) -> NodeId {
         Some(state.with(|state| state.active_index(leaf)))
     }));
     let labels = dock.clone();
-    let options = view! {
-        <ForEach keys={entries}>
-            {move |entry: Entry| {
-                let dock = labels.clone();
-                let label = create_memo(move || dock.entry_title(entry));
-                view! {
-                    <ChoiceOption label={label} />
-                }
-            }}
-        </ForEach>
-    };
     let changed = dock.clone();
     let faces = dock.clone();
     view! {
         <Scroll direction @node_ref=&strip>
             <Choice
                 @node_ref=&tab_list
-                options={options}
+                options={view! {
+                    <ForEach keys={entries}>
+                        {move |entry: Entry| {
+                            let dock = labels.clone();
+                            let label = create_memo(move || dock.entry_title(entry));
+                            view! {
+                                <ChoiceOption label={label} />
+                            }
+                        }}
+                    </ForEach>
+                }}
                 selected={selected}
                 kind=ChoiceKind::Tabs
                 direction
@@ -2014,7 +2014,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let moved = dock.clone();
     let (held, stretched, released) = (band.clone(), band.clone(), band);
     let set_stretch = set_overshoot;
-    let window = view! {
+    view! {
         <Overlay
             @node_ref=&overlay
             anchor={anchor}
@@ -2175,8 +2175,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                 </Canvas>
             </Frame>
         </Overlay>
-    };
-    window
+    }
 }
 
 fn grip_reach(frame: &NodeRef, grip: &NodeRef) -> f32 {

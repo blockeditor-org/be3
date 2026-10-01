@@ -17,5 +17,5 @@ pub fn Drawing(draw: Prop<Draw>, #[prop(default = None)] size: Prop<Option<Vec2>
         let size = size.get();
         with_document(|document| document.set_drawing_size(drawing, size));
     });
-    drawing
+    drawing.id()
 }

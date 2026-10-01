@@ -4,7 +4,7 @@ use crate::base::list::Align;
 use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::{Corners, Painter};
 use crate::pixel_grid::PixelGrid;
 
@@ -340,49 +340,49 @@ impl Element for FrameNode {
 }
 
 impl Document {
-    pub fn create_frame(&mut self) -> NodeId {
+    pub fn create_frame(&mut self) -> NodeOf<FrameNode> {
         self.arena.insert(FrameNode::default())
     }
 
-    pub fn set_frame_child(&mut self, frame: NodeId, child: NodeId) {
+    pub fn set_frame_child(&mut self, frame: NodeOf<FrameNode>, child: NodeId) {
         if self.arena.get_as::<FrameNode>(frame).child != Some(child) {
             self.arena.get_mut_as::<FrameNode>(frame).child = Some(child);
         }
     }
 
-    pub fn set_frame_width(&mut self, frame: NodeId, width: Option<f32>) {
+    pub fn set_frame_width(&mut self, frame: NodeOf<FrameNode>, width: Option<f32>) {
         self.update_frame_width(frame, |extent| extent.exact = width);
     }
 
-    pub fn set_frame_min_width(&mut self, frame: NodeId, min_width: Option<f32>) {
+    pub fn set_frame_min_width(&mut self, frame: NodeOf<FrameNode>, min_width: Option<f32>) {
         self.update_frame_width(frame, |extent| extent.min = min_width);
     }
 
-    pub fn set_frame_max_width(&mut self, frame: NodeId, max_width: Option<f32>) {
+    pub fn set_frame_max_width(&mut self, frame: NodeOf<FrameNode>, max_width: Option<f32>) {
         self.update_frame_width(frame, |extent| extent.max = max_width);
     }
 
-    pub fn set_frame_width_fraction(&mut self, frame: NodeId, fraction: Option<f32>) {
+    pub fn set_frame_width_fraction(&mut self, frame: NodeOf<FrameNode>, fraction: Option<f32>) {
         self.update_frame_width(frame, |extent| extent.fraction = fraction);
     }
 
-    pub fn set_frame_height(&mut self, frame: NodeId, height: Option<f32>) {
+    pub fn set_frame_height(&mut self, frame: NodeOf<FrameNode>, height: Option<f32>) {
         self.update_frame_height(frame, |extent| extent.exact = height);
     }
 
-    pub fn set_frame_min_height(&mut self, frame: NodeId, min_height: Option<f32>) {
+    pub fn set_frame_min_height(&mut self, frame: NodeOf<FrameNode>, min_height: Option<f32>) {
         self.update_frame_height(frame, |extent| extent.min = min_height);
     }
 
-    pub fn set_frame_max_height(&mut self, frame: NodeId, max_height: Option<f32>) {
+    pub fn set_frame_max_height(&mut self, frame: NodeOf<FrameNode>, max_height: Option<f32>) {
         self.update_frame_height(frame, |extent| extent.max = max_height);
     }
 
-    pub fn set_frame_height_fraction(&mut self, frame: NodeId, fraction: Option<f32>) {
+    pub fn set_frame_height_fraction(&mut self, frame: NodeOf<FrameNode>, fraction: Option<f32>) {
         self.update_frame_height(frame, |extent| extent.fraction = fraction);
     }
 
-    fn update_frame_width(&mut self, frame: NodeId, change: impl FnOnce(&mut Extent)) {
+    fn update_frame_width(&mut self, frame: NodeOf<FrameNode>, change: impl FnOnce(&mut Extent)) {
         let mut width = self.arena.get_as::<FrameNode>(frame).width;
         change(&mut width);
         if self.arena.get_as::<FrameNode>(frame).width != width {
@@ -390,7 +390,7 @@ impl Document {
         }
     }
 
-    fn update_frame_height(&mut self, frame: NodeId, change: impl FnOnce(&mut Extent)) {
+    fn update_frame_height(&mut self, frame: NodeOf<FrameNode>, change: impl FnOnce(&mut Extent)) {
         let mut height = self.arena.get_as::<FrameNode>(frame).height;
         change(&mut height);
         if self.arena.get_as::<FrameNode>(frame).height != height {
@@ -398,19 +398,24 @@ impl Document {
         }
     }
 
-    pub fn set_frame_aspect_ratio(&mut self, frame: NodeId, ratio: Option<f32>) {
+    pub fn set_frame_aspect_ratio(&mut self, frame: NodeOf<FrameNode>, ratio: Option<f32>) {
         if self.arena.get_as::<FrameNode>(frame).aspect_ratio != ratio {
             self.arena.get_mut_as::<FrameNode>(frame).aspect_ratio = ratio;
         }
     }
 
-    pub fn set_frame_padding(&mut self, frame: NodeId, padding: Sides) {
+    pub fn set_frame_padding(&mut self, frame: NodeOf<FrameNode>, padding: Sides) {
         if self.arena.get_as::<FrameNode>(frame).padding != padding {
             self.arena.get_mut_as::<FrameNode>(frame).padding = padding;
         }
     }
 
-    pub fn set_frame_content_align(&mut self, frame: NodeId, horizontal: Align, vertical: Align) {
+    pub fn set_frame_content_align(
+        &mut self,
+        frame: NodeOf<FrameNode>,
+        horizontal: Align,
+        vertical: Align,
+    ) {
         let node = self.arena.get_as::<FrameNode>(frame);
         if node.align_horizontal == horizontal && node.align_vertical == vertical {
             return;
@@ -420,23 +425,23 @@ impl Document {
         node.align_vertical = vertical;
     }
 
-    pub fn set_frame_style(&mut self, frame: NodeId, style: FrameStyle) {
+    pub fn set_frame_style(&mut self, frame: NodeOf<FrameNode>, style: FrameStyle) {
         if self.arena.get_as::<FrameNode>(frame).style != style {
             self.arena.paint_mut_as::<FrameNode>(frame).style = style;
         }
     }
 
-    pub fn set_frame_color(&mut self, frame: NodeId, color: Color32) {
+    pub fn set_frame_color(&mut self, frame: NodeOf<FrameNode>, color: Color32) {
         if self.arena.get_as::<FrameNode>(frame).style.fill != color {
             self.arena.paint_mut_as::<FrameNode>(frame).style.fill = color;
         }
     }
 
-    pub fn is_visible(&self, frame: NodeId) -> bool {
+    pub fn is_visible(&self, frame: NodeOf<FrameNode>) -> bool {
         self.arena.get_as::<FrameNode>(frame).visible
     }
 
-    pub fn set_visible(&mut self, frame: NodeId, visible: bool) {
+    pub fn set_visible(&mut self, frame: NodeOf<FrameNode>, visible: bool) {
         if self.arena.get_as::<FrameNode>(frame).visible != visible {
             self.arena.get_mut_as::<FrameNode>(frame).visible = visible;
         }

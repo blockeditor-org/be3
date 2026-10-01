@@ -7,7 +7,7 @@ use crate::input::{ImeArea, Key, KeyPress};
 use crate::callback::{Callback, ClickCallback};
 use crate::current::with_document;
 use crate::document::Document;
-use crate::node::{Element, NodeId};
+use crate::node::{Element, NodeId, NodeOf};
 
 pub type KeyCallback = Callback<KeyPress, bool>;
 
@@ -68,7 +68,7 @@ pub fn focus_of(element: &dyn Element) -> Option<&Focus> {
 }
 
 impl Document {
-    pub fn set_focusable_tab_stop(&mut self, focusable: NodeId, tab_stop: bool) {
+    pub fn set_focusable_tab_stop(&mut self, focusable: NodeOf<InteractiveNode>, tab_stop: bool) {
         if !self.contains(focusable) {
             return;
         }
@@ -77,7 +77,11 @@ impl Document {
         }
     }
 
-    pub fn set_focusable_press_focus(&mut self, focusable: NodeId, press_focus: bool) {
+    pub fn set_focusable_press_focus(
+        &mut self,
+        focusable: NodeOf<InteractiveNode>,
+        press_focus: bool,
+    ) {
         if !self.contains(focusable) {
             return;
         }
@@ -87,7 +91,7 @@ impl Document {
         }
     }
 
-    fn focus_mut(&mut self, id: NodeId) -> &mut Focus {
+    fn focus_mut(&mut self, id: NodeOf<InteractiveNode>) -> &mut Focus {
         self.arena
             .touch_mut_as::<InteractiveNode>(id)
             .focus
@@ -126,13 +130,17 @@ impl Document {
         });
     }
 
-    pub fn set_focusable_ime(&mut self, focusable: NodeId, ime: bool) {
+    pub fn set_focusable_ime(&mut self, focusable: NodeOf<InteractiveNode>, ime: bool) {
         if self.contains(focusable) {
             self.focus_mut(focusable).ime = ime;
         }
     }
 
-    pub fn set_focusable_ime_cursor(&mut self, focusable: NodeId, cursor: Option<ImeCursor>) {
+    pub fn set_focusable_ime_cursor(
+        &mut self,
+        focusable: NodeOf<InteractiveNode>,
+        cursor: Option<ImeCursor>,
+    ) {
         if self.contains(focusable) {
             self.focus_mut(focusable).ime_cursor = cursor;
         }
@@ -244,6 +252,7 @@ impl Document {
             .rev()
             .copied()
             .find(|overlay| self.overlay_traps_focus(*overlay))
+            .map(NodeOf::id)
             .or(self.root);
         if let Some(start) = start {
             self.collect_focusables(start, &mut out);
@@ -412,13 +421,12 @@ impl Document {
     }
 }
 
-pub fn focus_within(node: NodeId) {
+pub fn focus_within(node: NodeId) -> bool {
     with_document(|document| {
-        let focusable = document
-            .focusables_within(node)
-            .first()
-            .copied()
-            .expect("focus_within needs a focusable inside the node it is given");
+        let Some(focusable) = document.focusables_within(node).first().copied() else {
+            return false;
+        };
         document.focus_focusable(focusable);
-    });
+        true
+    })
 }

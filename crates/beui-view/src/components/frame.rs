@@ -2,16 +2,17 @@ use beui_macros::component;
 
 use crate::reactive::{Child, Prop, create_effect, with_document};
 use beui_core::base::Align;
+use beui_core::base::frame::FrameNode;
 use beui_core::base::frame::{FrameStyle, Sides};
 use beui_core::color::Color32;
 use beui_core::document::Document;
-use beui_core::node::NodeId;
+use beui_core::node::{NodeId, NodeOf};
 use beui_core::painter::Corners;
 
 fn bind_measurement(
-    frame: NodeId,
+    frame: NodeOf<FrameNode>,
     measurement: Prop<Option<f32>>,
-    set: fn(&mut Document, NodeId, Option<f32>),
+    set: fn(&mut Document, NodeOf<FrameNode>, Option<f32>),
 ) {
     match measurement {
         Prop::Static(None) => {}
@@ -113,5 +114,5 @@ pub fn Frame(
         })
     });
     create_effect(move || with_document(|document| document.set_visible(frame, visible.get())));
-    frame
+    frame.id()
 }

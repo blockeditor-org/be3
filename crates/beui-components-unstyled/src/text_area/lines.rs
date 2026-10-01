@@ -4,6 +4,7 @@ use beui_macros::{component, view};
 
 use beui_core::base::ItemSize;
 use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
+use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
 use beui_core::font::{FontId, TextAlign};
 use beui_core::geometry::Vec2;
@@ -284,7 +285,10 @@ fn RowText(
             && text.borrow().is_none()
             && let Some(id) = node.try_get()
         {
-            *text.borrow_mut() = Some(with_document(|document| document.text_geometry(id)));
+            *text.borrow_mut() = with_document(|document| {
+                let text = document.arena.kind_of::<TextNode>(id)?;
+                Some(document.text_geometry(text))
+            });
         }
     }));
     let display = create_memo(clone!(model -> move || model.get().display.clone()));

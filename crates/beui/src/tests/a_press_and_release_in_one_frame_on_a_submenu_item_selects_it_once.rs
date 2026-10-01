@@ -39,7 +39,7 @@ fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
         document
             .overlay_stack
             .iter()
-            .find_map(|overlay| text_within(document, *overlay, label))
+            .find_map(|overlay| text_within(document, overlay.id(), label))
             .unwrap_or_else(|| panic!("the menu shows {label}"))
     };
     let profiles = find(&harness, "Profiles");

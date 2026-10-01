@@ -167,31 +167,31 @@ fn DockTabFace(handle: DockTabHandle, closable: Func<TabId, bool>) -> NodeId {
     let closing = close.clone();
     let middle = close.clone();
     let closes = closable.clone();
-    let items = match grouped {
-        false => view! {
-            <MenuItem label="Pop out into a window" disabled={stuck} />
-            <MenuItem label="Group with next tab" disabled={alone.clone()} />
-            <MenuItem label="Split with next tab" disabled={alone.clone()} />
-            <MenuItem
-                label="Close tab"
-                disabled={create_memo(clone!(closable -> move || !closable.get()))}
-            />
-            <MenuItem label={pin_label} disabled={homeless} />
-        },
-        true => view! {
-            <MenuItem label="Pop out into a window" disabled={floating} />
-            <MenuItem label="Add next tab to group" disabled={alone.clone()} />
-            <MenuItem label="Split next tab into group" disabled={alone.clone()} />
-            <MenuItem
-                label="Close group"
-                disabled={create_memo(clone!(closable -> move || !closable.get()))}
-            />
-            <MenuItem label="Ungroup" disabled={pinned} />
-        },
+    let (group_label, split_label, close_label) = match grouped {
+        false => ("Group with next tab", "Split with next tab", "Close tab"),
+        true => (
+            "Add next tab to group",
+            "Split next tab into group",
+            "Close group",
+        ),
     };
     view! {
         <ContextMenu
-            items={items}
+            items={view! {
+                <MenuItem label="Pop out into a window" disabled={stuck} />
+                <MenuItem label={group_label} disabled={alone.clone()} />
+                <MenuItem label={split_label} disabled={alone.clone()} />
+                <MenuItem
+                    label={close_label}
+                    disabled={create_memo(clone!(closable -> move || !closable.get()))}
+                />
+                <Show condition={!grouped}>
+                    <MenuItem label={pin_label} disabled={homeless} />
+                </Show>
+                <Show condition={grouped}>
+                    <MenuItem label="Ungroup" disabled={pinned} />
+                </Show>
+            }}
             on_select={move |path: Vec<usize>| match path.first() {
                 Some(0) => float.call(),
                 Some(1) => group.call(),

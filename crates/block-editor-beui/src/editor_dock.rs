@@ -2,8 +2,8 @@ use std::cell::Cell;
 
 use beui::NodeId;
 use beui::reactive::{
-    Callback, Frame, Func, Memo, Prop, ReadSignal, RenderFn, WriteSignal, clone, component,
-    create_effect, create_memo, create_signal, on_cleanup, view,
+    Callback, Frame, Func, ItemSize, List, Memo, Prop, ReadSignal, RenderFn, Show, WriteSignal,
+    clone, component, create_effect, create_memo, create_signal, on_cleanup, view,
 };
 use beui::styled::DockArea;
 use beui::unstyled::{DockMode, DockMores, DockState, TabId};
@@ -53,45 +53,48 @@ pub fn EditorDock(
             }
         })
     });
-    if !editor.host().panes_offered() {
-        return view! {
-            <DockArea
-                state
-                mode
-                home
-                title
-                icon
-                closable
-                content
-                empty={move || empty.call(())}
-                on_change={move |next: DockState| on_change.call(next)}
-                on_close={move |tab: TabId| on_close.call(tab)}
-            />
-        };
+    let local = !editor.host().panes_offered();
+    if !local {
+        let key = NEXT_LINK.with(|next| next.replace(next.get() + 1));
+        let (mores, set_more) = create_signal(DockMores::new());
+        let waking = editor.clone();
+        create_effect(clone!(mores -> move || {
+            mores.with(|_| ());
+            waking.host().waker().wake();
+        }));
+        editor.set_dock(DockLink {
+            key,
+            state: create_memo(clone!(state -> move || state.get())),
+            home: create_memo(clone!(home -> move || home.get())),
+            title: title.clone(),
+            icon: icon.clone(),
+            closable: closable.clone(),
+            mores,
+            set_more,
+            on_change: on_change.clone(),
+            on_close: on_close.clone(),
+            content: content.clone(),
+            empty: empty.clone(),
+        });
+        on_cleanup(move || editor.forget_dock(key));
     }
-    let key = NEXT_LINK.with(|next| next.replace(next.get() + 1));
-    let (mores, set_more) = create_signal(DockMores::new());
-    let waking = editor.clone();
-    create_effect(clone!(mores -> move || {
-        mores.with(|_| ());
-        waking.host().waker().wake();
-    }));
-    editor.set_dock(DockLink {
-        key,
-        state: create_memo(move || state.get()),
-        home: create_memo(move || home.get()),
-        title,
-        icon,
-        closable,
-        mores,
-        set_more,
-        on_change,
-        on_close,
-        content,
-        empty,
-    });
-    on_cleanup(move || editor.forget_dock(key));
     view! {
-        <Frame />
+        <List spacing=0.0>
+            <Show condition={local}>
+                <DockArea
+                    @sizing=ItemSize::Percent(100.0)
+                    state
+                    mode
+                    home
+                    title
+                    icon
+                    closable
+                    content
+                    empty={move || empty.call(())}
+                    on_change={move |next: DockState| on_change.call(next)}
+                    on_close={move |tab: TabId| on_close.call(tab)}
+                />
+            </Show>
+        </List>
     }
 }

@@ -4,7 +4,7 @@ use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::base::share::{Part, share, snapped_run};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -253,7 +253,7 @@ impl Element for GridNode {
 }
 
 impl Document {
-    pub fn create_grid(&mut self) -> NodeId {
+    pub fn create_grid(&mut self) -> NodeOf<GridNode> {
         self.arena.insert(GridNode {
             columns: Vec::new(),
             column_spacing: 0.0,
@@ -262,13 +262,18 @@ impl Document {
         })
     }
 
-    pub fn set_grid_columns(&mut self, grid: NodeId, columns: Vec<Track>) {
+    pub fn set_grid_columns(&mut self, grid: NodeOf<GridNode>, columns: Vec<Track>) {
         if self.arena.get_as::<GridNode>(grid).columns != columns {
             self.arena.get_mut_as::<GridNode>(grid).columns = columns;
         }
     }
 
-    pub fn set_grid_spacing(&mut self, grid: NodeId, column_spacing: f32, row_spacing: f32) {
+    pub fn set_grid_spacing(
+        &mut self,
+        grid: NodeOf<GridNode>,
+        column_spacing: f32,
+        row_spacing: f32,
+    ) {
         let node = self.arena.get_as::<GridNode>(grid);
         if node.column_spacing == column_spacing && node.row_spacing == row_spacing {
             return;
@@ -278,7 +283,7 @@ impl Document {
         node.row_spacing = row_spacing;
     }
 
-    pub fn set_grid_span(&mut self, grid: NodeId, child: NodeId, span: usize) {
+    pub fn set_grid_span(&mut self, grid: NodeOf<GridNode>, child: NodeId, span: usize) {
         let current = self
             .arena
             .get_as::<GridNode>(grid)

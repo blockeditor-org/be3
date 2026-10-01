@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::{format_ident, quote, quote_spanned};
+use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::braced;
 use syn::parenthesized;
 use syn::parse::{Parse, ParseStream};
@@ -439,6 +439,45 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
+fn node_watcher(tokens: proc_macro2::TokenStream) -> Option<proc_macro2::Ident> {
+    const WATCHERS: [&str; 5] = [
+        "set_component_state",
+        "component_accessibility",
+        "component_size",
+        "component_rect",
+        "component_placed",
+    ];
+    tokens.into_iter().find_map(|token| match token {
+        proc_macro2::TokenTree::Ident(ident)
+            if WATCHERS.iter().any(|watcher| ident == *watcher) =>
+        {
+            Some(ident)
+        }
+        proc_macro2::TokenTree::Group(group) => node_watcher(group.stream()),
+        _ => None,
+    })
+}
+
+fn respanned(
+    tokens: proc_macro2::TokenStream,
+    span: proc_macro2::Span,
+) -> proc_macro2::TokenStream {
+    tokens
+        .into_iter()
+        .map(|mut token| {
+            if let proc_macro2::TokenTree::Group(group) = &token {
+                let mut inner =
+                    proc_macro2::Group::new(group.delimiter(), respanned(group.stream(), span));
+                inner.set_span(span);
+                token = proc_macro2::TokenTree::Group(inner);
+            } else {
+                token.set_span(span);
+            }
+            token
+        })
+        .collect()
+}
+
 fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let ItemFn {
         attrs,
@@ -849,7 +888,19 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         }
     };
 
-    let finish = quote! { ::beui::reactive::component(#name, move || #block) };
+    let needs_node = node_watcher(block.to_token_stream()).map(|watcher| {
+        let output_ty = respanned(output_ty.clone(), watcher.span());
+        quote_spanned! {watcher.span()=>
+            fn __watches_its_node<T: ::beui::reactive::WatchedNode + ?::core::marker::Sized>() {}
+            __watches_its_node::<#output_ty>();
+        }
+    });
+    let finish = quote! {
+        ::beui::reactive::component(#name, move || {
+            #needs_node
+            #block
+        })
+    };
 
     Ok(quote! {
         #(#req_trait_defs)*

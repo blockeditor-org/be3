@@ -32,7 +32,7 @@ pub use beui_core::input::{
     InputState, Key, KeyPress, Modifiers, PointerButton, PointerPress, RawInput, ScrollGesture,
     SecondaryDrag, TouchId, TouchPhase, TouchPoint, TouchState, ZoomGesture,
 };
-pub use beui_core::node::{ClickHandler, Handler, NodeId};
+pub use beui_core::node::{ClickHandler, Handler, NodeId, NodeOf};
 pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Corners, Painter, Shape};
 pub use beui_core::performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};

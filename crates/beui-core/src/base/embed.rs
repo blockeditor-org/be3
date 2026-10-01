@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -138,7 +138,7 @@ impl Element for EmbedNode {
 }
 
 impl Document {
-    pub fn create_embed(&mut self, state: Rc<EmbedState>) -> NodeId {
+    pub fn create_embed(&mut self, state: Rc<EmbedState>) -> NodeOf<EmbedNode> {
         let embed = self.arena.insert(EmbedNode {
             child: None,
             punch: false,
@@ -146,23 +146,23 @@ impl Document {
             state,
             own: None,
         });
-        self.arena.touch_mut_as::<EmbedNode>(embed).own = Some(embed);
+        self.arena.touch_mut_as::<EmbedNode>(embed).own = Some(embed.id());
         embed
     }
 
-    pub fn set_embed_child(&mut self, embed: NodeId, child: NodeId) {
+    pub fn set_embed_child(&mut self, embed: NodeOf<EmbedNode>, child: NodeId) {
         if self.arena.get_as::<EmbedNode>(embed).child != Some(child) {
             self.arena.get_mut_as::<EmbedNode>(embed).child = Some(child);
         }
     }
 
-    pub fn set_embed_punch(&mut self, embed: NodeId, punch: bool) {
+    pub fn set_embed_punch(&mut self, embed: NodeOf<EmbedNode>, punch: bool) {
         if self.arena.get_as::<EmbedNode>(embed).punch != punch {
             self.arena.paint_mut_as::<EmbedNode>(embed).punch = punch;
         }
     }
 
-    pub fn set_embed_rotation(&mut self, embed: NodeId, rotation: f32) {
+    pub fn set_embed_rotation(&mut self, embed: NodeOf<EmbedNode>, rotation: f32) {
         if self.arena.get_as::<EmbedNode>(embed).rotation != rotation {
             self.arena.paint_mut_as::<EmbedNode>(embed).rotation = rotation;
         }

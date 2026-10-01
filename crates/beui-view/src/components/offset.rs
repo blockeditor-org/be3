@@ -1,7 +1,7 @@
 use crate::reactive::{Callback, Children, Prop, create_effect, with_document};
 use beui_core::base::list::Direction;
-use beui_core::base::offset::ScrollPosition;
-use beui_core::node::NodeId;
+use beui_core::base::offset::{OffsetNode, ScrollPosition};
+use beui_core::node::{NodeId, NodeOf};
 use beui_macros::component;
 
 #[component]
@@ -22,10 +22,13 @@ pub fn Offset(
         };
         with_document(|document| document.reveal_offset_index(node, index));
     });
-    node
+    node.id()
 }
 
-fn create_offset(direction: Prop<Direction>, on_change: Callback<ScrollPosition>) -> NodeId {
+fn create_offset(
+    direction: Prop<Direction>,
+    on_change: Callback<ScrollPosition>,
+) -> NodeOf<OffsetNode> {
     let offset = with_document(|document| {
         let offset = document.create_offset();
         document.set_offset_on_change(offset, move |position| on_change.call(position));

@@ -1,4 +1,5 @@
 use super::*;
+use crate::base::overlay::OverlayNode;
 use crate::reactive::{NodeRef, view};
 use crate::styled::ContextMenu;
 
@@ -36,7 +37,10 @@ fn right_click_opens_a_context_menu_at_the_cursor_position() {
     let inner = menu;
     let content = unstyled::context_menu_menu(harness.document(), inner);
     assert_eq!(unstyled::menu_list_len(harness.document(), content), 2);
-    let overlay = unstyled::context_menu_overlay(harness.document(), inner);
+    let overlay = kind_of::<OverlayNode>(
+        harness.document(),
+        unstyled::context_menu_overlay(harness.document(), inner),
+    );
     let panel = harness
         .document()
         .overlay_content(overlay)

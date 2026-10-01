@@ -20,7 +20,7 @@ pub fn Embed(
         }
         embed
     });
-    slot.0.node.set(Some(embed));
+    slot.0.node.set(Some(embed.id()));
     create_effect(move || {
         let punch = punch.get();
         with_document(|document| document.set_embed_punch(embed, punch));
@@ -29,5 +29,5 @@ pub fn Embed(
         let rotation = rotation.get();
         with_document(|document| document.set_embed_rotation(embed, rotation));
     });
-    embed
+    embed.id()
 }

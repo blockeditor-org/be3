@@ -9,7 +9,7 @@ use crate::painter::Painter;
 
 use crate::callback::Callback;
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, Rects, SpaceId};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects, SpaceId};
 use ::reactive::settle;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -429,11 +429,11 @@ pub fn item_rect(direction: Direction, rect: Rect, start: f32, length: f32) -> R
 }
 
 impl Document {
-    pub fn create_offset(&mut self) -> NodeId {
+    pub fn create_offset(&mut self) -> NodeOf<OffsetNode> {
         self.arena.insert(OffsetNode::new())
     }
 
-    pub fn set_offset_direction(&mut self, offset: NodeId, direction: Direction) {
+    pub fn set_offset_direction(&mut self, offset: NodeOf<OffsetNode>, direction: Direction) {
         if self.arena.get_as::<OffsetNode>(offset).direction == direction {
             return;
         }
@@ -443,15 +443,15 @@ impl Document {
         node.extents = Extents::default();
     }
 
-    pub fn offset_value(&self, offset: NodeId) -> f32 {
+    pub fn offset_value(&self, offset: NodeOf<OffsetNode>) -> f32 {
         self.arena.get_as::<OffsetNode>(offset).offset
     }
 
-    pub fn offset_position(&self, offset: NodeId) -> Option<ScrollPosition> {
+    pub fn offset_position(&self, offset: NodeOf<OffsetNode>) -> Option<ScrollPosition> {
         self.arena.get_as::<OffsetNode>(offset).position
     }
 
-    pub fn set_offset_value(&mut self, offset: NodeId, value: f32) {
+    pub fn set_offset_value(&mut self, offset: NodeOf<OffsetNode>, value: f32) {
         let node = self.arena.get_as::<OffsetNode>(offset);
         node.steered.set(true);
         if node.offset == value && node.anchor.is_none() {
@@ -462,7 +462,7 @@ impl Document {
         node.anchor = None;
     }
 
-    pub fn drive_offset(&mut self, offset: NodeId, value: f32) {
+    pub fn drive_offset(&mut self, offset: NodeOf<OffsetNode>, value: f32) {
         if self.arena.get_as::<OffsetNode>(offset).offset == value {
             return;
         }
@@ -471,29 +471,29 @@ impl Document {
         node.anchor = None;
     }
 
-    pub fn take_offset_steered(&self, offset: NodeId) -> bool {
+    pub fn take_offset_steered(&self, offset: NodeOf<OffsetNode>) -> bool {
         self.arena
             .get_as::<OffsetNode>(offset)
             .steered
             .replace(false)
     }
 
-    pub fn set_offset_overscroll(&mut self, offset: NodeId, overscroll: f32) {
+    pub fn set_offset_overscroll(&mut self, offset: NodeOf<OffsetNode>, overscroll: f32) {
         if self.arena.get_as::<OffsetNode>(offset).overscroll == overscroll {
             return;
         }
         self.arena.get_mut_as::<OffsetNode>(offset).overscroll = overscroll;
     }
 
-    pub fn first_offset_within(&self, id: NodeId) -> Option<NodeId> {
+    pub fn first_offset_within(&self, id: NodeId) -> Option<NodeOf<OffsetNode>> {
         if !self.contains(id) {
             return None;
         }
-        let element = self.arena.get(id);
-        if element.as_any().is::<OffsetNode>() {
-            return Some(id);
+        if let Some(offset) = self.arena.kind_of::<OffsetNode>(id) {
+            return Some(offset);
         }
-        element
+        self.arena
+            .get(id)
             .children()
             .into_iter()
             .find_map(|child| self.first_offset_within(child))
@@ -518,7 +518,7 @@ impl Document {
 
     pub fn set_offset_on_change(
         &mut self,
-        offset: NodeId,
+        offset: NodeOf<OffsetNode>,
         handler: impl FnMut(ScrollPosition) + 'static,
     ) {
         self.arena
@@ -529,14 +529,14 @@ impl Document {
 }
 
 impl Document {
-    pub fn reveal_offset_index(&mut self, offset: NodeId, index: usize) {
+    pub fn reveal_offset_index(&mut self, offset: NodeOf<OffsetNode>, index: usize) {
         let Some(&item) = self.arena.get_as::<OffsetNode>(offset).items.get(index) else {
             return;
         };
         self.reveal_offset_item(offset, item);
     }
 
-    fn reveal_offset_item(&mut self, offset: NodeId, item: NodeId) {
+    fn reveal_offset_item(&mut self, offset: NodeOf<OffsetNode>, item: NodeId) {
         let (Some(viewport), Some(item)) = (self.node_rect(offset), self.node_rect(item)) else {
             return;
         };
@@ -561,8 +561,8 @@ impl Document {
             return;
         }
         for id in path.into_iter().rev().skip(1) {
-            if self.arena.get(id).as_any().is::<OffsetNode>() {
-                self.reveal_offset_item(id, node);
+            if let Some(offset) = self.arena.kind_of::<OffsetNode>(id) {
+                self.reveal_offset_item(offset, node);
                 return;
             }
         }
@@ -578,9 +578,9 @@ impl Document {
         }
         for pair in path.windows(2).rev() {
             let (offset, item) = (pair[0], pair[1]);
-            if !self.arena.get(offset).as_any().is::<OffsetNode>() {
+            let Some(offset) = self.arena.kind_of::<OffsetNode>(offset) else {
                 continue;
-            }
+            };
             let Some(rect) = self.node_rect(offset) else {
                 continue;
             };
@@ -588,7 +588,7 @@ impl Document {
             let revealed = element
                 .as_any_mut()
                 .downcast_mut::<OffsetNode>()
-                .and_then(|node| node.revealing(self, painter, offset, rect, item, focused));
+                .and_then(|node| node.revealing(self, painter, offset.id(), rect, item, focused));
             self.arena.put_back(offset, element);
             if let Some(revealed) = revealed {
                 self.set_offset_value(offset, revealed);

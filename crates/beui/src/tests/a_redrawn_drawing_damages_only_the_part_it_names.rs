@@ -1,4 +1,5 @@
 use super::*;
+use crate::base::drawing::DrawingNode;
 use crate::damage::Region;
 use crate::drawing::Drawing;
 use crate::reactive::{Drawing, draw_gpu, view};
@@ -26,7 +27,7 @@ fn a_redrawn_drawing_damages_only_the_part_it_names() {
             }
         }
     });
-    let viewport = viewport.get();
+    let viewport = kind_of::<DrawingNode>(&document, viewport.get());
     let mut harness = Harness::new(document);
     let drawing = crate::renderer::drawing(Blank);
     let show = |drawing: Drawing, harness: &mut Harness| {

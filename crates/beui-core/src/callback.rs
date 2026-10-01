@@ -19,12 +19,15 @@ impl NodeRef {
 
     pub fn fill(&self, node: NodeId) {
         self.0.set(Some(node));
+        crate::current::try_with_document(|document| {
+            document.register_node_ref(node, Rc::downgrade(&self.0));
+        });
     }
 
     pub fn get(&self) -> NodeId {
         self.0
             .get()
-            .expect("node_ref read before the node it points at was built")
+            .expect("node_ref read while the node it points at is not built")
     }
 
     pub fn try_get(&self) -> Option<NodeId> {

@@ -9,7 +9,7 @@ mod selector;
 mod signal;
 
 pub use computation::{Effect, create_effect};
-pub use keyed::{KeyedItems, KeyedStore, Mapping};
+pub use keyed::{KeyedItems, KeyedStore, Mapping, numbered};
 pub use memo::{Memo, create_memo};
 pub use reactive_macros::Store;
 pub use runtime::{ZoneGuard, batch, enter_zone, forget_zone, settle, untrack, zone_pending};

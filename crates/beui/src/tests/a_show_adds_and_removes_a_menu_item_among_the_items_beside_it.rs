@@ -82,8 +82,8 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
 }
 
 fn label_within(document: &Document, node: NodeId) -> Option<String> {
-    if document.node_kind(node) == "text" {
-        return Some(document.text(node).to_owned());
+    if let Some(text) = document.arena.kind_of::<TextNode>(node) {
+        return Some(document.text(text).to_owned());
     }
     document
         .children(node)

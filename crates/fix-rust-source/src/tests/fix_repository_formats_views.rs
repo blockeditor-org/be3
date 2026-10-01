@@ -9,7 +9,8 @@ fn fix_repository_formats_views() {
     fs::create_dir_all(&source).unwrap();
     fs::write(
         source.join("lib.rs"),
-        r#"pub fn build() -> NodeId {
+        r#"#[component]
+pub fn Build() -> NodeId {
     view! {
         <Frame color={surface} outline={border} outline_width=BORDER_WIDTH radius=CARD_RADIUS padding=PADDING>
             {children}

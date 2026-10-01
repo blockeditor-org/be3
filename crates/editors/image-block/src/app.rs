@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::view;
-use block_editor_beui::{Creation, Editor, FileFilter, PickedFile, content_file_creation};
+use block_editor_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
 
 mod picture;
 mod ui;
@@ -24,7 +24,9 @@ impl block_editor_beui::BeuiApp for ImageApp {
     }
 
     fn creation_view(creation: Creation) -> NodeId {
-        content_file_creation::<ImageContent>(&creation, "image", filter(), imported)
+        view! {
+            <ContentFileCreation creation id_prefix="image" filter={filter()} import={imported} />
+        }
     }
 }
 

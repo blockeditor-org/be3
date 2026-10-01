@@ -342,8 +342,49 @@ fn DemoShell() -> NodeId {
                             },
                             Some(page) => view! {
                                 <Container>
-                                    {move |_| view! {
-                                        <PagePanel page />
+                                    {move |_| match page {
+                                        Page::Docking => view! {
+                                            <DockingPage />
+                                        },
+                                        Page::Text => view! {
+                                            <TextPage />
+                                        },
+                                        Page::Buttons => view! {
+                                            <ButtonsPage />
+                                        },
+                                        Page::Inputs => view! {
+                                            <InputsPage />
+                                        },
+                                        Page::Choices => view! {
+                                            <ChoicesPage />
+                                        },
+                                        Page::Pickers => view! {
+                                            <PickersPage />
+                                        },
+                                        Page::Menus => view! {
+                                            <MenusPage />
+                                        },
+                                        Page::Overlays => view! {
+                                            <OverlaysPage />
+                                        },
+                                        Page::Rows => view! {
+                                            <RowsPage />
+                                        },
+                                        Page::Tree => view! {
+                                            <TreePage />
+                                        },
+                                        Page::Layout => view! {
+                                            <LayoutPage />
+                                        },
+                                        Page::Editor => view! {
+                                            <EditorPage />
+                                        },
+                                        Page::Canvas => view! {
+                                            <CanvasPage />
+                                        },
+                                        Page::Themes => view! {
+                                            <ThemesPage />
+                                        },
                                     }}
                                 </Container>
                             },
@@ -461,54 +502,6 @@ fn EmptyPanel() -> NodeId {
 }
 
 #[component]
-fn PagePanel(page: Page) -> NodeId {
-    match page {
-        Page::Docking => view! {
-            <DockingPage />
-        },
-        Page::Text => view! {
-            <TextPage />
-        },
-        Page::Buttons => view! {
-            <ButtonsPage />
-        },
-        Page::Inputs => view! {
-            <InputsPage />
-        },
-        Page::Choices => view! {
-            <ChoicesPage />
-        },
-        Page::Pickers => view! {
-            <PickersPage />
-        },
-        Page::Menus => view! {
-            <MenusPage />
-        },
-        Page::Overlays => view! {
-            <OverlaysPage />
-        },
-        Page::Rows => view! {
-            <RowsPage />
-        },
-        Page::Tree => view! {
-            <TreePage />
-        },
-        Page::Layout => view! {
-            <LayoutPage />
-        },
-        Page::Editor => view! {
-            <EditorPage />
-        },
-        Page::Canvas => view! {
-            <CanvasPage />
-        },
-        Page::Themes => view! {
-            <ThemesPage />
-        },
-    }
-}
-
-#[component]
 fn ScrollPage(children: Child) -> NodeId {
     view! {
         <Scroll>
@@ -550,12 +543,14 @@ fn DockingPage() -> NodeId {
     let counted = create_memo(clone!(count -> move || format!("{} edits", count.get())));
     let moved = create_memo(clone!(count -> move || count.get() > 0));
     let editing = set_count.clone();
-    dock_actions(view! {
-        <IconButton
-            glyph=ICON_EDIT
-            label="Edit"
-            on_click={move || editing.update(|count| *count += 1)}
-        />
+    dock_actions(move || {
+        view! {
+            <IconButton
+                glyph=ICON_EDIT
+                label="Edit"
+                on_click={move || editing.update(|count| *count += 1)}
+            />
+        }
     });
     view! {
         <ScrollPage>
@@ -1109,20 +1104,19 @@ fn MenusPage() -> NodeId {
     let (copied, set_copied) = create_signal(false);
     let nothing_copied = create_memo(move || !copied.get());
     let more = set_sort_text.clone();
-    let items = view! {
-        <unstyled::MenuItem label="Copy" />
-        <unstyled::MenuItem label="Paste" disabled={nothing_copied} />
-        <unstyled::MenuItem label="Share">
-            <unstyled::MenuItem label="Email" />
-            <unstyled::MenuItem label="Link" />
-        </unstyled::MenuItem>
-    };
     view! {
         <ScrollPage>
             <List spacing=PAGE_SPACING>
                 <Section title="Context menu">
                     <ContextMenu
-                        items
+                        items={view! {
+                            <unstyled::MenuItem label="Copy" />
+                            <unstyled::MenuItem label="Paste" disabled={nothing_copied} />
+                            <unstyled::MenuItem label="Share">
+                                <unstyled::MenuItem label="Email" />
+                                <unstyled::MenuItem label="Link" />
+                            </unstyled::MenuItem>
+                        }}
                         on_select={move |path: Vec<usize>| {
                             let label = match path.as_slice() {
                                 [0] => {

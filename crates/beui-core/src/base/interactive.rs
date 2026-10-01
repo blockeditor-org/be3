@@ -11,7 +11,7 @@ use crate::painter::Painter;
 
 use crate::callback::{Callback, ClickCallback};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, Rects};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 
 pub struct InteractiveNode {
     pub child: Option<NodeId>,
@@ -477,7 +477,7 @@ impl Element for InteractiveNode {
 }
 
 impl Document {
-    pub fn create_interactive(&mut self, focusable: bool) -> NodeId {
+    pub fn create_interactive(&mut self, focusable: bool) -> NodeOf<InteractiveNode> {
         let mut node = InteractiveNode::new();
         node.focus = focusable.then(Focus::new);
         self.arena.insert(node)
@@ -499,20 +499,28 @@ impl Document {
         self.touch_scroll_horizontal = horizontal.then_some(captor);
     }
 
-    pub fn set_interactive_child(&mut self, interactive: NodeId, child: NodeId) {
+    pub fn set_interactive_child(&mut self, interactive: NodeOf<InteractiveNode>, child: NodeId) {
         if self.arena.get_as::<InteractiveNode>(interactive).child == Some(child) {
             return;
         }
         self.arena.get_mut_as::<InteractiveNode>(interactive).child = Some(child);
     }
 
-    pub fn set_interactive_cursor(&mut self, id: NodeId, cursor: Option<CursorIcon>) {
+    pub fn set_interactive_cursor(
+        &mut self,
+        id: NodeOf<InteractiveNode>,
+        cursor: Option<CursorIcon>,
+    ) {
         if self.arena.get_as::<InteractiveNode>(id).cursor != cursor {
             self.arena.touch_mut_as::<InteractiveNode>(id).cursor = cursor;
         }
     }
 
-    pub fn set_interactive_capture_presses(&mut self, id: NodeId, capture_presses: bool) {
+    pub fn set_interactive_capture_presses(
+        &mut self,
+        id: NodeOf<InteractiveNode>,
+        capture_presses: bool,
+    ) {
         if self.arena.get_as::<InteractiveNode>(id).capture_presses != capture_presses {
             self.arena
                 .touch_mut_as::<InteractiveNode>(id)
@@ -520,37 +528,49 @@ impl Document {
         }
     }
 
-    pub fn set_interactive_scroll_axis(&mut self, id: NodeId, axis: Option<Direction>) {
+    pub fn set_interactive_scroll_axis(
+        &mut self,
+        id: NodeOf<InteractiveNode>,
+        axis: Option<Direction>,
+    ) {
         if self.arena.get_as::<InteractiveNode>(id).scroll_axis != axis {
             self.arena.touch_mut_as::<InteractiveNode>(id).scroll_axis = axis;
         }
     }
 
-    pub fn set_interactive_touch_drags(&mut self, id: NodeId, touch_drags: bool) {
+    pub fn set_interactive_touch_drags(&mut self, id: NodeOf<InteractiveNode>, touch_drags: bool) {
         if self.arena.get_as::<InteractiveNode>(id).touch_drags != touch_drags {
             self.arena.get_mut_as::<InteractiveNode>(id).touch_drags = touch_drags;
         }
     }
 
-    pub fn set_interactive_touch_drag_axis(&mut self, id: NodeId, axis: Option<Direction>) {
+    pub fn set_interactive_touch_drag_axis(
+        &mut self,
+        id: NodeOf<InteractiveNode>,
+        axis: Option<Direction>,
+    ) {
         if self.arena.get_as::<InteractiveNode>(id).touch_drag_axis != axis {
             self.arena.get_mut_as::<InteractiveNode>(id).touch_drag_axis = axis;
         }
     }
 
-    pub fn set_interactive_claims_touch(&mut self, id: NodeId, claims_touch: bool) {
+    pub fn set_interactive_claims_touch(
+        &mut self,
+        id: NodeOf<InteractiveNode>,
+        claims_touch: bool,
+    ) {
         if self.arena.get_as::<InteractiveNode>(id).claims_touch != claims_touch {
             self.arena.get_mut_as::<InteractiveNode>(id).claims_touch = claims_touch;
         }
     }
 
-    pub fn set_interactive_repeat_drag(&mut self, id: NodeId, repeat_drag: bool) {
+    pub fn set_interactive_repeat_drag(&mut self, id: NodeOf<InteractiveNode>, repeat_drag: bool) {
         if self.arena.get_as::<InteractiveNode>(id).repeat_drag != repeat_drag {
             self.arena.touch_mut_as::<InteractiveNode>(id).repeat_drag = repeat_drag;
         }
     }
 
-    pub fn set_interactive_key_active(&mut self, id: NodeId, key_active: bool) {
+    pub fn set_interactive_key_active(&mut self, id: NodeOf<InteractiveNode>, key_active: bool) {
         if !self.contains(id) {
             return;
         }

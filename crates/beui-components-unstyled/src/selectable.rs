@@ -5,11 +5,12 @@ use beui::reactive::{
     Callback, Child, Interactive, NodeRef, Prop, copy_text, create_effect, set_component_state,
     untrack, with_document,
 };
+use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{Key, KeyPress, PointerPress};
-use beui_core::node::NodeId;
+use beui_core::node::{NodeId, NodeOf};
 use beui_core::rich::{CaretHandle, handle_center};
 use beui_macros::{component, view};
 
@@ -18,7 +19,7 @@ const CARET_WIDTH: f32 = 2.0;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Caret {
-    text: NodeId,
+    text: NodeOf<TextNode>,
     index: usize,
 }
 
@@ -40,12 +41,12 @@ struct Inner {
     handle_color: Cell<Color32>,
     touch: Cell<bool>,
     grab: Cell<Option<Grab>>,
-    painted: RefCell<Vec<NodeId>>,
-    handled: RefCell<Vec<NodeId>>,
+    painted: RefCell<Vec<NodeOf<TextNode>>>,
+    handled: RefCell<Vec<NodeOf<TextNode>>>,
 }
 
 impl SelectableState {
-    fn texts(&self, document: &Document) -> Vec<NodeId> {
+    fn texts(&self, document: &Document) -> Vec<NodeOf<TextNode>> {
         self.0
             .region
             .try_get()
@@ -78,7 +79,7 @@ impl SelectableState {
         ))
     }
 
-    fn ordered(&self, texts: &[NodeId]) -> Option<(Caret, Caret, usize, usize)> {
+    fn ordered(&self, texts: &[NodeOf<TextNode>]) -> Option<(Caret, Caret, usize, usize)> {
         let (anchor, focus) = (self.0.anchor.get()?, self.0.focus.get()?);
         let at = |caret: Caret| texts.iter().position(|text| *text == caret.text);
         let (from, to) = (at(anchor)?, at(focus)?);
@@ -103,7 +104,7 @@ impl SelectableState {
             && (start != end)
     }
 
-    fn ranges(&self, document: &Document) -> Vec<(NodeId, std::ops::Range<usize>)> {
+    fn ranges(&self, document: &Document) -> Vec<(NodeOf<TextNode>, std::ops::Range<usize>)> {
         let texts = self.texts(document);
         let Some((start, end, from, to)) = self.ordered(&texts) else {
             return Vec::new();
@@ -172,7 +173,7 @@ impl SelectableState {
                 document.set_text_selection_handles(text, Vec::new());
             }
         }
-        let mut handled: Vec<NodeId> = Vec::new();
+        let mut handled: Vec<NodeOf<TextNode>> = Vec::new();
         for (_, caret) in &handles {
             if !handled.contains(&caret.text) {
                 handled.push(caret.text);

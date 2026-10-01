@@ -18,7 +18,7 @@ use crate::input::{BackEdge, Key, KeyPress};
 use crate::display::Display;
 use crate::interact::{self, Keys};
 use crate::layout;
-use crate::node::{Arena, NodeId, NodeMap, Placed, Rects, SpaceId};
+use crate::node::{Arena, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId};
 use crate::paint::{self, PaintCache};
 use crate::painter::{Entry, Painter, PainterState, Shape};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
@@ -47,10 +47,10 @@ pub struct Document {
     inspector_requested: bool,
     screen_pointer: Option<Pos2>,
     placement: Option<(Rect, Option<Placement>)>,
-    pub portal_holders: std::collections::HashMap<NodeId, NodeId>,
-    pub overlay_stack: Vec<NodeId>,
-    pub passive_overlays: Vec<NodeId>,
-    pub back_handlers: Vec<NodeId>,
+    pub portal_holders: std::collections::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
+    pub overlay_stack: Vec<NodeOf<crate::base::overlay::OverlayNode>>,
+    pub passive_overlays: Vec<NodeOf<crate::base::overlay::OverlayNode>>,
+    pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
     pub back_gesture: Option<(NodeId, BackEdge)>,
     timers: RefCell<crate::timer::Timers>,
     scale: (::reactive::ReadSignal<f32>, ::reactive::WriteSignal<f32>),
@@ -103,6 +103,7 @@ pub struct Document {
     zone: u64,
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_scopes: HashMap<NodeId, Vec<::reactive::Scope>>,
+    node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
     sizes: NodeMap<Vec<SizeWatcher>>,
     placements: NodeMap<Vec<PlacementWatcher>>,
     placed: NodeMap<(::reactive::ReadSignal<bool>, ::reactive::WriteSignal<bool>)>,
@@ -294,6 +295,7 @@ impl Document {
             zone: NEXT_ZONE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             extensions: HashMap::new(),
             node_scopes: HashMap::new(),
+            node_refs: HashMap::new(),
             sizes: NodeMap::default(),
             placements: NodeMap::default(),
             placed: NodeMap::default(),
@@ -455,17 +457,23 @@ impl Document {
         self.node_scopes.entry(node).or_default().push(scope);
     }
 
+    pub fn register_node_ref(&mut self, node: NodeId, cell: Weak<Cell<Option<NodeId>>>) {
+        let refs = self.node_refs.entry(node).or_default();
+        refs.retain(|cell| cell.strong_count() > 0);
+        refs.push(cell);
+    }
+
     pub fn children(&self, id: NodeId) -> Vec<NodeId> {
         self.arena.get(id).children()
     }
 
-    pub fn open_child_slot<H: ChildHost>(&mut self, node: NodeId) -> SlotId {
+    pub fn open_child_slot<H: ChildHost>(&mut self, node: NodeOf<H>) -> SlotId {
         self.arena.get_mut_as::<H>(node).children().open()
     }
 
     pub fn fill_child_slot<H: ChildHost>(
         &mut self,
-        node: NodeId,
+        node: NodeOf<H>,
         slot: SlotId,
         items: Vec<H::Stored>,
     ) {
@@ -474,7 +482,7 @@ impl Document {
         host.children_changed();
     }
 
-    pub fn append_child_item<H: ChildHost>(&mut self, node: NodeId, item: H::Stored) {
+    pub fn append_child_item<H: ChildHost>(&mut self, node: NodeOf<H>, item: H::Stored) {
         self.arena.get_mut_as::<H>(node).children().push(item);
     }
 
@@ -486,7 +494,8 @@ impl Document {
         self.arena.get(id).detail()
     }
 
-    pub fn node_rect(&self, id: NodeId) -> Option<Rect> {
+    pub fn node_rect(&self, id: impl Into<NodeId>) -> Option<Rect> {
+        let id = id.into();
         self.rects.get(&id)
     }
 
@@ -560,7 +569,8 @@ impl Document {
         named.first().copied()
     }
 
-    pub fn contains(&self, id: NodeId) -> bool {
+    pub fn contains(&self, id: impl Into<NodeId>) -> bool {
+        let id = id.into();
         self.arena.contains(id)
     }
 
@@ -634,7 +644,7 @@ impl Document {
         let held: Vec<NodeId> = borrowed
             .iter()
             .copied()
-            .filter(|child| self.portal_holders.get(child) == Some(&id))
+            .filter(|child| self.portal_holders.get(child).map(|portal| portal.id()) == Some(id))
             .collect();
         self.release_portal(id, &borrowed);
         for child in held {
@@ -650,9 +660,9 @@ impl Document {
         element.detached();
         self.arena.put_back(id, element);
         self.arena.remove(id);
-        self.overlay_stack.retain(|overlay| *overlay != id);
-        self.passive_overlays.retain(|overlay| *overlay != id);
-        self.back_handlers.retain(|handler| *handler != id);
+        self.overlay_stack.retain(|overlay| overlay.id() != id);
+        self.passive_overlays.retain(|overlay| overlay.id() != id);
+        self.back_handlers.retain(|handler| handler.id() != id);
         self.paint_cache.borrow_mut().forget(id);
         self.sizes.remove(&id);
         self.placements.remove(&id);
@@ -671,6 +681,13 @@ impl Document {
             self.drop_test_id(id, &test_id);
         }
         scopes.extend(self.node_scopes.remove(&id).unwrap_or_default());
+        for cell in self.node_refs.remove(&id).unwrap_or_default() {
+            if let Some(cell) = cell.upgrade()
+                && cell.get() == Some(id)
+            {
+                cell.set(None);
+            }
+        }
         if self.root == Some(id) {
             self.root = None;
         }

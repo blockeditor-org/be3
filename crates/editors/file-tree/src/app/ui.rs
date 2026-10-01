@@ -138,7 +138,17 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let phone_exporter = Rc::clone(&exporter);
     let phone_inspect = inspect.clone();
     let covered = create_memo(clone!(inspecting -> move || inspecting.get().is_some()));
-    let node = view! {
+    create_effect(move || {
+        let landed = arrival(
+            &dropping.0,
+            &dropping.1,
+            &dropping.2,
+            &dropping.3,
+            &dropping.4,
+        );
+        set_landing.set(landed);
+    });
+    view! {
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
                 <Toolbar shown={toolbar}>
@@ -207,18 +217,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                 <Inspector inspecting={inspecting} set_inspecting={set_inspecting} />
             </List>
         </Frame>
-    };
-    create_effect(move || {
-        let landed = arrival(
-            &dropping.0,
-            &dropping.1,
-            &dropping.2,
-            &dropping.3,
-            &dropping.4,
-        );
-        set_landing.set(landed);
-    });
-    node
+    }
 }
 
 #[component]
@@ -393,19 +392,6 @@ fn TreeRow(
     let uninspectable = create_memo(clone!(row -> move || {
         !row.get().is_some_and(|row| row.inspection.is_some())
     }));
-    let items = view! {
-        <MenuItem label="Add" disabled={add} />
-        <MenuItem label="Set parent" disabled={edit.clone()}>
-            <MenuItem label="Root" disabled={rooted} />
-            <MenuItem label="Orphaned" disabled={orphaned} />
-        </MenuItem>
-        <MenuItem label="Rename" disabled={edit.clone()} />
-        <MenuItem label="Share" disabled={edit} />
-        <MenuItem label="Unlink" disabled={unlinkable} />
-        <MenuItem label={delete_label} disabled={deletable} />
-        <MenuItem label="Inspect" disabled={uninspectable} />
-        <MenuItem label="Export" disabled={unexportable} />
-    };
     let theme = use_theme();
     let glyph_color = theme.text_muted.clone();
     let generated_color = theme.text_muted.clone();
@@ -415,7 +401,23 @@ fn TreeRow(
         false => theme.text.get(),
     }));
     view! {
-        <ContextMenu child_size=ItemSize::Percent(100.0) items={items} on_select={chose}>
+        <ContextMenu
+            child_size=ItemSize::Percent(100.0)
+            items={view! {
+                <MenuItem label="Add" disabled={add} />
+                <MenuItem label="Set parent" disabled={edit.clone()}>
+                    <MenuItem label="Root" disabled={rooted} />
+                    <MenuItem label="Orphaned" disabled={orphaned} />
+                </MenuItem>
+                <MenuItem label="Rename" disabled={edit.clone()} />
+                <MenuItem label="Share" disabled={edit} />
+                <MenuItem label="Unlink" disabled={unlinkable} />
+                <MenuItem label={delete_label} disabled={deletable} />
+                <MenuItem label="Inspect" disabled={uninspectable} />
+                <MenuItem label="Export" disabled={unexportable} />
+            }}
+            on_select={chose}
+        >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Show condition={has_glyph}>
                     <IconSized glyph={glyph} font_size=FONT_SMALL color={glyph_color} />
