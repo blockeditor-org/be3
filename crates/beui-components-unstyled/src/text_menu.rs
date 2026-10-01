@@ -4,31 +4,14 @@ use text_editor_core::{CopyMode, EditorCommand};
 
 use crate::ContextMenu;
 use crate::MenuItem;
-use crate::MenuRowHandle;
 use crate::TextAreaState;
+use crate::context_menu::MenuStyle;
 use beui_core::base::ItemSize;
 use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Child, ClickCallback, ForEach, List, Prop, RenderFn, clone, copy_text,
-    create_memo, request_paste,
+    Child, ClickCallback, ForEach, Prop, clone, copy_text, create_memo, request_paste,
 };
-
-#[derive(Clone, Default)]
-pub struct TextMenu(Option<(RenderFn<MenuRowHandle>, RenderFn<Child>)>);
-
-impl TextMenu {
-    pub fn new(
-        row: impl Fn(MenuRowHandle) -> NodeId + 'static,
-        panel: impl Fn(Child) -> NodeId + 'static,
-    ) -> Self {
-        Self(Some((RenderFn::new(row), RenderFn::new(panel))))
-    }
-
-    pub fn is_some(&self) -> bool {
-        self.0.is_some()
-    }
-}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum MenuAction {
@@ -52,7 +35,7 @@ impl MenuAction {
 #[component]
 pub fn TextContextMenu(
     state: TextAreaState,
-    menu: TextMenu,
+    menu: MenuStyle,
     open_at: Prop<Option<Pos2>>,
     #[prop(default = false)] masked: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -75,17 +58,8 @@ pub fn TextContextMenu(
         }
     }));
     let chosen = actions.clone();
-    let no_menu = menu.0.is_none();
-    let (row, panel) = menu.0.unwrap_or_else(|| {
-        (
-            RenderFn::new(|_| {
-                view! {
-                    <List spacing=0.0 />
-                }
-            }),
-            RenderFn::new(|content| content),
-        )
-    });
+    let no_menu = !menu.is_some();
+    let (row, panel) = menu.parts();
     let off = create_memo(move || no_menu || disabled.get());
     view! {
         <ContextMenu

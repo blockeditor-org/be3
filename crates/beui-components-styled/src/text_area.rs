@@ -3,7 +3,7 @@ pub mod find;
 
 use beui_macros::{component, view};
 
-use crate::context_menu::text_menu;
+use crate::context_menu::menu_style;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
@@ -62,7 +62,7 @@ pub fn TextArea(
                     on_widget_press={move |widget: usize| on_widget_press.call(widget)}
                     on_key_override={move |press: KeyPress| on_key_override.call(press)}
                     on_focus_change={move |focused: bool| on_focus_change.call(focused)}
-                    menu={text_menu()}
+                    menu={menu_style()}
                     block={block}
                     selected_widget={selected_widget}
                     completer={match emoji {

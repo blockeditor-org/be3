@@ -23,7 +23,8 @@ use text_editor_core::{
 use beui_macros::{component, view};
 
 use crate::Scroll;
-use crate::text_menu::{TextContextMenu, TextMenu};
+use crate::context_menu::MenuStyle;
+use crate::text_menu::TextContextMenu;
 use beui_core::base::text::TextGeometry;
 use beui_core::base::{ImeCursor, ItemSize, ScrollPosition};
 use beui_core::color::Color32;
@@ -886,7 +887,7 @@ pub fn TextArea(
     selected_widget: Option<RenderFn<usize>>,
     #[prop(default = Completer::none())] completer: Completer,
     completion_menu: Option<CompletionMenu>,
-    #[prop(default = TextMenu::default())] menu: TextMenu,
+    #[prop(default = MenuStyle::default())] menu: MenuStyle,
     on_widget_press: Callback<usize, bool>,
     on_menu: Callback<Pos2>,
     on_key_override: Callback<KeyPress, bool>,

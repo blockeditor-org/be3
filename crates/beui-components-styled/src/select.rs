@@ -1,7 +1,7 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use crate::context_menu::text_menu;
+use crate::context_menu::menu_style;
 use crate::scroll::scrollbar_style;
 use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
@@ -60,7 +60,7 @@ pub fn Select(
             search_content={|handle| view! {
                 <SearchField handle />
             }}
-            search_menu={text_menu()}
+            search_menu={menu_style()}
             scrollbar={scrollbar_style()}
             trigger={move |handle| view! {
                 <SelectTrigger options={trigger_options} handle />

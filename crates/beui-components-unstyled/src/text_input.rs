@@ -22,7 +22,8 @@ use crate::menu_list_len;
 use crate::menu_list_row_button;
 use crate::text_area_index_at;
 use crate::text_area_shown;
-use crate::text_menu::{TextContextMenu, TextMenu};
+use crate::context_menu::MenuStyle;
+use crate::text_menu::TextContextMenu;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
@@ -64,7 +65,7 @@ pub fn TextInput(
     caret_color: Prop<Color32>,
     padding_horizontal: Prop<f32>,
     #[prop(default = 0.0)] padding_vertical: Prop<f32>,
-    #[prop(default = TextMenu::default())] menu: TextMenu,
+    #[prop(default = MenuStyle::default())] menu: MenuStyle,
     on_change: Callback<String>,
     on_submit: Callback<String>,
     on_hover_change: Callback<bool>,

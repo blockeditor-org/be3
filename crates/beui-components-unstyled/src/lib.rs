@@ -55,7 +55,7 @@ pub use command_palette::{
     command_palette_search, command_palette_shown,
 };
 pub use container::{Container, ContainerSize, container_size, narrower_than, shorter_than};
-pub use context_menu::{ContextMenu, context_menu_menu, context_menu_overlay};
+pub use context_menu::{ContextMenu, MenuStyle, context_menu_menu, context_menu_overlay};
 pub use date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts, date_time_field_text,
     date_time_field_value,
@@ -114,7 +114,7 @@ pub use text_input::{
     text_input_index_at, text_input_menu_row, text_input_selection, text_input_shown,
     text_input_text, text_input_value,
 };
-pub use text_menu::{TextContextMenu, TextMenu};
+pub use text_menu::TextContextMenu;
 pub use time_list::{TimeList, TimeOptionHandle, time_list_selected};
 pub use toggle::{Toggle, ToggleHandle, toggle_checked};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};

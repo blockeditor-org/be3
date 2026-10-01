@@ -20,7 +20,7 @@ use crate as unstyled;
 use crate::button::ButtonHandle;
 use crate::scroll::ScrollbarStyle;
 use crate::text_input::TextInputHandle;
-use crate::text_menu::TextMenu;
+use crate::context_menu::MenuStyle;
 
 pub struct CommandRowHandle {
     pub label: Prop<String>,
@@ -64,7 +64,7 @@ pub fn CommandPalette(
     search_caret_color: Prop<Color32>,
     search_padding_horizontal: Prop<f32>,
     search_content: Option<Render<TextInputHandle>>,
-    #[prop(default = TextMenu::default())] search_menu: TextMenu,
+    #[prop(default = MenuStyle::default())] search_menu: MenuStyle,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     row: Option<RenderFn<CommandRowHandle>>,
     #[prop(children)] panel: Option<Render<Child>>,
