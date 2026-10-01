@@ -1,4 +1,5 @@
 pub use beui;
+pub use beui::{FileFilter, PickedFile};
 pub use block_editor_plugin;
 pub use block_editor_plugin::*;
 
@@ -19,7 +20,7 @@ pub mod version_control;
 
 use be_block::presence::PresenceColor;
 
-pub use beui_frame::{BarItem, bar_item, phone_layout};
+pub use beui_frame::phone_layout;
 pub use block_link::{BlockDisplay, BlockLink, watch_block_label};
 pub use child::{ChildBlock, ChildHandle as ChildBlockHandle};
 pub use chrome::{

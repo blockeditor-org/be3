@@ -9,6 +9,7 @@ use beui_core::node::NodeId;
 
 use beui_core::base::focus::ImeCursor;
 use beui_core::base::interactive::InteractiveNode;
+use beui_core::interact::forward::ForwardedInput;
 use beui_macros::component;
 
 #[component]
@@ -24,6 +25,7 @@ pub fn Interactive(
     on_activate: ClickCallback,
     on_step: Callback<f32>,
     on_text: Callback<String>,
+    #[prop(default = true)] takes_text: bool,
     on_preedit: Callback<String>,
     on_key: Callback<KeyPress, bool>,
     on_ancestor_key: Callback<KeyPress, bool>,
@@ -55,6 +57,8 @@ pub fn Interactive(
     on_zoom: Callback<ZoomGesture>,
     capture_at: Callback<Pos2, bool>,
     intercept_at: Callback<Pos2, bool>,
+    on_forward: Callback<ForwardedInput>,
+    forward_at: Callback<Pos2, bool>,
     children: Option<Child>,
 ) -> NodeId {
     assert!(
@@ -78,7 +82,9 @@ pub fn Interactive(
             focus.on_activate_change = on_activate_change;
             focus.on_activate = on_activate;
             focus.on_step = on_step;
-            focus.on_text = on_text;
+            if takes_text {
+                focus.on_text = on_text;
+            }
             focus.on_preedit = on_preedit;
             focus.on_key = on_key;
             focus.on_ancestor_key = on_ancestor_key;
@@ -103,6 +109,8 @@ pub fn Interactive(
         node.on_zoom = on_zoom;
         node.capture_at = capture_at;
         node.intercept_at = intercept_at;
+        node.on_forward = on_forward;
+        node.forward_at = forward_at;
         if let Some(child) = children {
             document.set_interactive_child(interactive, child);
         }

@@ -5,10 +5,10 @@ use std::{
 };
 
 use be_block::{BlockContent, BlockMetadata, LiveEdit, Merge, Undo};
-use be_client::{ClientError, Credentials, Journaled, Live, Peer, PeerConfig, Saved};
+use be_client::{ClientError, Conflict, Credentials, Journaled, Live, Peer, PeerConfig, Saved};
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
-use be_protocol::{AccessEntry, BlockSummary, ServerMessage};
+use be_protocol::{AccessEntry, BlockSummary, ClientMessage, ServerMessage};
 use be_store::ContentKey;
 use futures_util::future::{Either, LocalBoxFuture, select};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -82,7 +82,22 @@ pub(super) enum Command {
         command: block_plugin_api::VersionCommand,
     },
     WatchVersion(Uuid),
+    ApprovePairing {
+        from: u64,
+        code: String,
+    },
+    DismissPairing(u64),
 }
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PairingRequest {
+    pub(crate) from: u64,
+    pub(crate) workspace: Uuid,
+    pub(crate) device: String,
+    message: Vec<u8>,
+}
+
+const PAIRING_REQUEST_LIMIT: usize = 4;
 
 #[derive(Default)]
 pub(crate) struct Shared {
@@ -95,8 +110,18 @@ pub(crate) struct Shared {
     pub(crate) unsealed: usize,
     pub(crate) connected: bool,
     pub(crate) error: Option<String>,
+    pub(crate) conflicts: HashMap<Uuid, Vec<Conflict>>,
+    pub(crate) pairing: Vec<PairingRequest>,
+    pub(crate) other_keys: HashMap<Uuid, [u8; 32]>,
     pub(crate) version_watch: std::collections::HashSet<Uuid>,
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
+    pub(crate) touched: std::collections::HashSet<Uuid>,
+}
+
+impl Shared {
+    pub(crate) fn touch(&mut self, block: Uuid) {
+        self.touched.insert(block);
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -216,6 +241,8 @@ pub(super) trait Session {
     ) -> LocalBoxFuture<'_, Result<(), ClientError>>;
 
     fn take_presence(&mut self) -> Option<Vec<Presence>>;
+
+    fn take_conflicts(&mut self) -> Vec<Conflict>;
 
     fn published_elsewhere(
         &mut self,
@@ -371,6 +398,10 @@ where
 
     fn take_presence(&mut self) -> Option<Vec<Presence>> {
         take_presence(&mut self.live)
+    }
+
+    fn take_conflicts(&mut self) -> Vec<Conflict> {
+        self.live.take_conflicts()
     }
 
     fn published_elsewhere(
@@ -543,6 +574,10 @@ where
         take_presence(&mut self.live)
     }
 
+    fn take_conflicts(&mut self) -> Vec<Conflict> {
+        self.live.take_conflicts()
+    }
+
     fn published_elsewhere(
         &mut self,
         head: CommitId,
@@ -676,6 +711,9 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     crate::host::wake();
     let mut events = peer.connection().subscribe();
     let mut gone = peer.connection().closed();
+    if let Err(error) = seal_for_members(&peer).await {
+        record(shared, error);
+    }
     load_graph(&peer, shared).await;
     let mut sessions: HashMap<Uuid, Box<dyn Session>> = HashMap::new();
     for (block, content_type) in open.clone() {
@@ -737,6 +775,13 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                     }
                     Some(ServerMessage::HeadChanged { block, head, .. }) => {
                         shared.lock().unwrap().graph.set_head(block, Some(head));
+                    }
+                    Some(ServerMessage::Paired {
+                        from,
+                        workspace,
+                        payload,
+                    }) => {
+                        asked_to_pair(&peer, shared, from, workspace, &payload);
                     }
                     Some(_) => {}
                     None => load_graph(&peer, shared).await,
@@ -810,6 +855,106 @@ async fn wait(
     }
 }
 
+async fn seal_for_members(peer: &Peer<Store>) -> Result<(), ClientError> {
+    let workspace = peer.workspace();
+    let listed = peer
+        .connection()
+        .request(|request| ClientMessage::ListMemberKeys { request, workspace })
+        .await?;
+    let ServerMessage::MemberKeys { members, .. } = listed else {
+        return Err(ClientError::Unexpected);
+    };
+    let key = peer.commits().vault().key();
+    for member in members {
+        let Some(recovery) = member.recovery.filter(|_| !member.sealed) else {
+            continue;
+        };
+        let sealed = be_keys::RecoveryPublic(recovery).seal(key.as_bytes());
+        peer.connection()
+            .request(|request| ClientMessage::PutWorkspaceKey {
+                request,
+                workspace,
+                account: member.account,
+                sealed,
+            })
+            .await?;
+    }
+    Ok(())
+}
+
+fn asked_to_pair(
+    peer: &Peer<Store>,
+    shared: &Arc<Mutex<Shared>>,
+    from: u64,
+    workspace: Uuid,
+    payload: &[u8],
+) {
+    let Ok(be_keys::PairingMessage::Request { message, device }) =
+        be_keys::PairingMessage::decode(payload)
+    else {
+        return;
+    };
+    let mut held = shared.lock().unwrap();
+    if workspace != peer.workspace() && !held.other_keys.contains_key(&workspace) {
+        return;
+    }
+    held.pairing.retain(|request| request.from != from);
+    held.pairing.push(PairingRequest {
+        from,
+        workspace,
+        device,
+        message,
+    });
+    if held.pairing.len() > PAIRING_REQUEST_LIMIT {
+        held.pairing.remove(0);
+    }
+    drop(held);
+    crate::host::wake();
+}
+
+async fn approve_pairing(
+    peer: &Peer<Store>,
+    shared: &Arc<Mutex<Shared>>,
+    from: u64,
+    code: &str,
+) -> Result<(), ClientError> {
+    let request = {
+        let mut held = shared.lock().unwrap();
+        let Some(index) = held.pairing.iter().position(|request| request.from == from) else {
+            return Ok(());
+        };
+        held.pairing.remove(index)
+    };
+    let Some(code) = be_keys::normalize_code(code) else {
+        return Err(ClientError::Encoding(
+            "that is not a pairing code".to_owned(),
+        ));
+    };
+    let workspace = request.workspace;
+    let content_key = match workspace == peer.workspace() {
+        true => *peer.commits().vault().key().as_bytes(),
+        false => match shared.lock().unwrap().other_keys.get(&workspace) {
+            Some(key) => *key,
+            None => return Ok(()),
+        },
+    };
+    let (pairing, message) = be_keys::Pairing::start(&code, workspace.as_bytes());
+    let key = pairing
+        .finish(&request.message)
+        .map_err(|error| ClientError::Encoding(error.to_string()))?;
+    let sealed = key.seal(&content_key);
+    let payload = be_keys::PairingMessage::Reply { message, sealed }.encode();
+    peer.connection()
+        .request(|request| ClientMessage::Pair {
+            request,
+            to: Some(from),
+            workspace,
+            payload,
+        })
+        .await?;
+    Ok(())
+}
+
 async fn rejoin(
     peer: &Arc<Peer<Store>>,
     sessions: &mut HashMap<Uuid, Box<dyn Session>>,
@@ -852,6 +997,7 @@ fn set_busy(shared: &Arc<Mutex<Shared>>, block: Uuid, busy: bool, error: Option<
     state.status.busy = busy;
     state.status.error = error;
     state.revision += 1;
+    held.touch(block);
 }
 
 async fn apply(
@@ -866,6 +1012,22 @@ async fn apply(
     match command {
         Command::WatchVersion(block) => {
             Versions::watch(shared, block);
+            false
+        }
+        Command::ApprovePairing { from, code } => {
+            if let Err(error) = approve_pairing(peer, shared, from, &code).await {
+                record(shared, error);
+            }
+            crate::host::wake();
+            false
+        }
+        Command::DismissPairing(from) => {
+            shared
+                .lock()
+                .unwrap()
+                .pairing
+                .retain(|request| request.from != from);
+            crate::host::wake();
             false
         }
         Command::Version { block, command } => {
@@ -908,6 +1070,7 @@ async fn apply(
             held.blocks.remove(&block);
             held.histories.remove(&block);
             held.presence.remove(&block);
+            held.touch(block);
             true
         }
         Command::Operate(block, origin, operation) => {
@@ -1107,6 +1270,7 @@ async fn refresh(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uu
 }
 
 pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
+    let metadata = peer.metadata(summary);
     Node {
         id: summary.id,
         content_type: summary.content_type,
@@ -1114,7 +1278,8 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         parent: summary.parent,
         access: summary.access,
         references: summary.references.clone(),
-        metadata: peer.metadata(summary),
+        unreadable_metadata: metadata.is_err(),
+        metadata: metadata.unwrap_or_default(),
         head: summary.head,
         version: summary.version,
     }
@@ -1139,12 +1304,23 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         let history = session.history();
         if held.histories.get(block) != Some(&history) {
             held.histories.insert(*block, history);
+            held.touch(*block);
             changed = true;
         }
         if let Some(presence) = session.take_presence() {
             held.presence_revision += 1;
             let revision = held.presence_revision;
             held.presence.insert(*block, (revision, presence));
+            held.touch(*block);
+            changed = true;
+        }
+        let conflicts = session.take_conflicts();
+        if !conflicts.is_empty() {
+            let count: usize = conflicts.iter().map(|conflict| conflict.count).sum();
+            held.error = Some(format!(
+                "block {block} merged with {count} conflicting change(s); both versions are kept in its history"
+            ));
+            held.conflicts.entry(*block).or_default().extend(conflicts);
             changed = true;
         }
         held.graph.set_head(*block, session.head());
@@ -1154,6 +1330,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
                 *block,
                 Content::new(session.content_type(), session.bytes()),
             );
+            held.touch(*block);
             changed = true;
             continue;
         };
@@ -1164,6 +1341,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             content.record(entry);
         }
         content.bytes = session.bytes();
+        held.touch(*block);
         changed = true;
     }
     changed
@@ -1173,7 +1351,7 @@ async fn connect(config: &Config, store: Store) -> Result<Peer<Store>, ClientErr
     Peer::connect(
         PeerConfig::new(
             config.socket_url(),
-            ContentKey::from_bytes(config.content_key()),
+            ContentKey::from_bytes(config.content_key),
             Credentials::Token(config.token.clone()),
         )
         .workspace(Some(config.workspace)),

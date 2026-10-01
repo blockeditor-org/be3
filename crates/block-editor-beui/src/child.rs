@@ -1,7 +1,7 @@
 use beui::NodeId;
 use beui::reactive::{
-    Callback, Embed, EmbedSlot, IntoProp, Prop, ReadSignal, Render, clone, component, create_memo,
-    view,
+    Action, Callback, Embed, EmbedSlot, IntoProp, Memo, Prop, ReadSignal, Render, clone, component,
+    create_memo, view,
 };
 use block_plugin_api::{BarAction, ChildLayer, ChildMode, TopBar, ViewChange};
 
@@ -10,6 +10,7 @@ use crate::{ChildState, ChildTarget, Editor};
 #[derive(Clone)]
 pub struct ChildHandle {
     pub state: ReadSignal<ChildState>,
+    pub menu: Memo<Vec<Action>>,
 }
 
 #[component]
@@ -48,7 +49,30 @@ pub fn ChildBlock(
         on_view_change,
         on_bar,
     );
-    let handle = ChildHandle { state };
+    let entries = create_memo(clone!(state -> move || {
+        state.with(|state| (state.child, state.menu.clone()))
+    }));
+    let host = editor.host().clone();
+    let menu = create_memo(move || {
+        let (child, entries) = entries.get();
+        let Some(child) = child else {
+            return Vec::new();
+        };
+        entries
+            .into_iter()
+            .map(|entry| {
+                let host = host.clone();
+                let id = entry.id.clone();
+                Action::new(entry.id, entry.label, move || {
+                    host.pick_child_menu(child, id.clone());
+                })
+                .glyph(&entry.glyph)
+                .enabled(entry.enabled)
+                .detached()
+            })
+            .collect()
+    });
+    let handle = ChildHandle { state, menu };
     let children = content.map(|content| content.call(handle));
     view! {
         <Embed slot={slot} punch={punch} rotation={turn} children={children} />

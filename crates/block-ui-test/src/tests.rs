@@ -1,28 +1,24 @@
 use beui::NodeId;
 use beui::reactive::{Frame, ReadSignal, Text, component, create_memo, view};
-use block_editor_beui::be_block::FILES_EDITOR;
 use block_editor_beui::{
     BeuiApp, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget, Editor, EditorHost,
 };
 use uuid::Uuid;
 
-use crate::{BeuiTest, ContentStore};
+use crate::BeuiTest;
 
 mod a_child_block_hears_what_its_childs_bar_asked_for;
 mod a_child_block_reports_its_placement_and_follows_its_status;
 mod a_shortcut_on_punctuation_reaches_the_editor;
-mod clearing_the_name_gives_the_block_back_its_derived_name;
 mod ctrl_z_in_a_text_field_is_left_to_the_field;
-mod ctrl_z_undoes_the_block_through_the_top_bar;
+mod ctrl_z_undoes_the_block_through_the_frames_undo;
 mod tapping_with_two_fingers_undoes_and_three_redoes;
-mod the_parent_opens_the_phone_more_sheet_and_hears_when_it_closes;
-mod the_top_bar_offers_close_only_to_a_framed_child;
-mod the_top_bar_renames_its_block;
-mod the_top_bar_shrinks_its_name_to_keep_its_buttons_on_a_narrow_screen;
-mod undo_in_the_top_bar_asks_the_host_for_a_block_it_cannot_open;
+mod the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked;
+mod the_menu_offers_close_only_to_a_framed_child;
+mod the_menu_opens_the_command_palette;
+mod undo_in_the_menu_asks_the_host_for_a_block_it_cannot_open;
 
 const SLIDE: Uuid = Uuid::from_u128(0x0001);
-const FILE_TREE: Uuid = FILES_EDITOR;
 const SLIDE_TYPE: Uuid = Uuid::from_u128(0x0002);
 
 struct ChildApp;
@@ -79,32 +75,6 @@ fn status(test: &BeuiTest<ChildApp>) -> String {
         .expect("the status text has content")
         .trim_matches('"')
         .to_owned()
-}
-
-fn named_editor() -> (BeuiTest<ChildApp>, ContentStore, Uuid) {
-    let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    host.set_block_type(FILE_TREE);
-    let mut test = BeuiTest::new(Editor::new(host, block)).with_top_bar(false);
-    test.run();
-    let store = test.store();
-    (test, store, block)
-}
-
-fn name(store: &ContentStore, block: Uuid) -> Option<String> {
-    store
-        .block(block)
-        .filter(|info| info.named_by_hand)
-        .and_then(|info| info.name)
-}
-
-fn shown_name(test: &BeuiTest<ChildApp>) -> String {
-    let input = test
-        .document()
-        .find_test_id("editor.name")
-        .expect("the top bar has a name field");
-    beui::styled::text_input_value(test.document(), input)
 }
 
 fn undoable_editor() -> (BeuiTest<ChildApp>, Uuid) {

@@ -21,7 +21,7 @@ use native as platform;
 use web as platform;
 
 pub(crate) use graph::{Graph, Node, Query, Scope};
-pub(crate) use worker::{History, Presence, Shared};
+pub(crate) use worker::{History, PairingRequest, Presence, Shared};
 
 use worker::Command;
 
@@ -30,6 +30,8 @@ pub(crate) struct Config {
     pub(crate) token: String,
     pub(crate) account: Uuid,
     pub(crate) workspace: Uuid,
+    pub(crate) content_key: [u8; 32],
+    pub(crate) other_keys: Vec<(Uuid, [u8; 32])>,
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) data_dir: PathBuf,
 }
@@ -38,13 +40,7 @@ impl Config {
     fn socket_url(&self) -> String {
         crate::accounts::socket_url(&self.server_url)
     }
-
-    fn content_key(&self) -> [u8; 32] {
-        *be_store::Hash::of_parts(&[CONTENT_KEY_LABEL, self.workspace.as_bytes()]).as_bytes()
-    }
 }
-
-const CONTENT_KEY_LABEL: &[u8] = b"be3.workspace.content-key.v1";
 
 const LOG_LIMIT: usize = 512;
 
@@ -125,6 +121,7 @@ pub(crate) struct Status {
     pub(crate) blocks: usize,
     pub(crate) wakes: u64,
     pub(crate) unsealed: usize,
+    pub(crate) conflicts: usize,
     pub(crate) error: Option<String>,
 }
 
@@ -323,7 +320,10 @@ fn stack() -> &'static Mutex<Option<Stack>> {
 pub(crate) fn start(config: Config) {
     stop();
     let (commands, receiver) = unbounded_channel();
-    let shared = Arc::new(Mutex::new(Shared::default()));
+    let shared = Arc::new(Mutex::new(Shared {
+        other_keys: config.other_keys.iter().copied().collect(),
+        ..Shared::default()
+    }));
     let changed = Arc::new(Condvar::new());
     let account = config.account;
     let workspace = config.workspace;
@@ -485,6 +485,7 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             access: be_graph::Access::Edit,
             references: source.references.clone(),
             metadata: metadata.clone(),
+            unreadable_metadata: false,
             head: None,
             version: 0,
         });
@@ -518,6 +519,26 @@ pub(crate) fn content(block: Uuid) -> Option<Content> {
     with_shared(|shared| shared.blocks.get(&block).cloned())?
 }
 
+pub(crate) fn content_revision(block: Uuid) -> Option<u64> {
+    with_shared(|shared| shared.blocks.get(&block).map(|content| content.revision))?
+}
+
+pub(crate) fn describe_block(block: Uuid) -> Option<Described> {
+    with_shared(|shared| shared.blocks.get(&block).and_then(describe_of))?
+}
+
+pub(crate) fn pairing_requests() -> Vec<PairingRequest> {
+    with_shared(|shared| shared.pairing.clone()).unwrap_or_default()
+}
+
+pub(crate) fn approve_pairing(from: u64, code: String) {
+    send(Command::ApprovePairing { from, code });
+}
+
+pub(crate) fn dismiss_pairing(from: u64) {
+    send(Command::DismissPairing(from));
+}
+
 pub(crate) fn status() -> Status {
     with_shared(|shared| Status {
         running: true,
@@ -525,6 +546,7 @@ pub(crate) fn status() -> Status {
         blocks: shared.blocks.len(),
         wakes: shared.wakes,
         unsealed: shared.unsealed,
+        conflicts: shared.conflicts.values().map(Vec::len).sum(),
         error: shared.error.clone(),
     })
     .unwrap_or_default()
@@ -588,6 +610,10 @@ pub(crate) fn graph_revision() -> u64 {
     with_shared(|shared| shared.graph.revision).unwrap_or_default()
 }
 
+pub(crate) fn take_touched() -> std::collections::HashSet<Uuid> {
+    with_shared_mut(|shared| std::mem::take(&mut shared.touched)).unwrap_or_default()
+}
+
 pub(crate) fn graph_loaded() -> bool {
     with_shared(|shared| shared.graph.loaded).unwrap_or_default()
 }
@@ -646,6 +672,7 @@ pub(crate) fn create(
             access: be_graph::Access::Edit,
             references: Vec::new(),
             metadata: metadata.clone(),
+            unreadable_metadata: false,
             head: None,
             version: 0,
         });
@@ -665,6 +692,14 @@ pub(crate) fn set_parent(block: Uuid, parent: be_graph::BlockParent) {
 }
 
 pub(crate) fn set_metadata(block: Uuid, metadata: be_block::BlockMetadata) {
+    if node(block).is_some_and(|node| node.unreadable_metadata) {
+        with_shared_mut(|shared| {
+            shared.error = Some(format!(
+                "block {block} has metadata this version cannot read, so it was left unchanged"
+            ));
+        });
+        return;
+    }
     with_shared_mut(|shared| {
         shared
             .graph
@@ -678,11 +713,7 @@ pub(crate) fn set_name(block: Uuid, name: Option<String>) {
         return;
     };
     metadata.named_by_hand = name.is_some();
-    metadata.name = name.or_else(|| {
-        content(block)
-            .and_then(|content| describe_of(&content))
-            .and_then(|described| described.name)
-    });
+    metadata.name = name.or_else(|| describe_block(block).and_then(|described| described.name));
     set_metadata(block, metadata);
 }
 

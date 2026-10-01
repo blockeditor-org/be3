@@ -1,13 +1,13 @@
 use std::{
     borrow::Cow,
     ops::Range,
-    sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
+    sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::CursorPosition;
+use crate::{AnchorTable, ChangeLog, CursorPosition, TextChange};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TextLanguage {
@@ -133,6 +133,8 @@ pub trait Document {
 
     fn revision(&self) -> u64;
 
+    fn changes_since(&self, revision: u64) -> Option<TextChange>;
+
     fn set_language(&self, language: TextLanguage);
 
     fn set_indentation(&self, indentation: TextIndentation);
@@ -194,10 +196,12 @@ pub struct TextBuffer {
 
 struct BufferState {
     bytes: Vec<u8>,
-    anchors: Vec<Anchor>,
+    anchors: Mutex<AnchorTable>,
     language: TextLanguage,
     indentation: TextIndentation,
     revision: u64,
+    changes: ChangeLog,
+    pending: TextChange,
     undo: Vec<BufferHistoryEntry>,
     redo: Vec<BufferHistoryEntry>,
     group_open: bool,
@@ -205,21 +209,22 @@ struct BufferState {
 
 struct BufferHistoryEntry {
     bytes: Vec<u8>,
-    anchors: Vec<Anchor>,
+    anchors: AnchorTable,
     cursors: Vec<CursorPosition>,
 }
 
 impl TextBuffer {
     pub fn new(bytes: impl AsRef<[u8]>) -> Self {
         let bytes = bytes.as_ref().to_vec();
-        let anchors = bytes.iter().map(|_| Anchor::new()).collect();
         Self {
             state: RwLock::new(BufferState {
                 bytes,
-                anchors,
+                anchors: Mutex::default(),
                 language: TextLanguage::default(),
                 indentation: TextIndentation::default(),
                 revision: 0,
+                changes: ChangeLog::default(),
+                pending: TextChange::NONE,
                 undo: Vec::new(),
                 redo: Vec::new(),
                 group_open: false,
@@ -241,10 +246,20 @@ impl TextBuffer {
 }
 
 impl BufferState {
+    fn anchors(&self) -> std::sync::MutexGuard<'_, AnchorTable> {
+        self.anchors
+            .lock()
+            .expect("the text buffer's anchors were poisoned")
+    }
+
+    fn anchor(&self, index: usize) -> Option<Anchor> {
+        (index < self.bytes.len()).then(|| self.anchors().anchor(index))
+    }
+
     fn snapshot(&self, cursors: Vec<CursorPosition>) -> BufferHistoryEntry {
         BufferHistoryEntry {
             bytes: self.bytes.clone(),
-            anchors: self.anchors.clone(),
+            anchors: self.anchors().clone(),
             cursors,
         }
     }
@@ -252,9 +267,14 @@ impl BufferState {
     fn restore(&mut self, entry: BufferHistoryEntry) -> BufferHistoryEntry {
         let inverse = self.snapshot(entry.cursors);
         self.bytes = entry.bytes;
-        self.anchors = entry.anchors;
-        self.revision += 1;
+        self.anchors = Mutex::new(entry.anchors);
+        self.bump(None);
         inverse
+    }
+
+    fn bump(&mut self, change: Option<TextChange>) {
+        self.revision += 1;
+        self.changes.record(self.revision, change);
     }
 }
 
@@ -269,16 +289,21 @@ impl Document for TextBuffer {
         self.read_state().revision
     }
 
+    fn changes_since(&self, revision: u64) -> Option<TextChange> {
+        let state = self.read_state();
+        state.changes.since(revision, state.revision)
+    }
+
     fn set_language(&self, language: TextLanguage) {
         let mut state = self.write_state();
         state.language = language;
-        state.revision += 1;
+        state.bump(None);
     }
 
     fn set_indentation(&self, indentation: TextIndentation) {
         let mut state = self.write_state();
         state.indentation = indentation;
-        state.revision += 1;
+        state.bump(None);
     }
 
     fn edit(&self, cursors: Vec<CursorPosition>, edit: &mut dyn FnMut(&mut dyn DocumentEdit)) {
@@ -292,7 +317,8 @@ impl Document for TextBuffer {
         if !transaction.edited {
             return;
         }
-        state.revision += 1;
+        let change = std::mem::replace(&mut state.pending, TextChange::NONE);
+        state.bump(Some(change));
         state.redo.clear();
         if !state.group_open || state.undo.is_empty() {
             state.undo.push(before);
@@ -339,14 +365,11 @@ impl DocumentRead for BufferRead<'_> {
     }
 
     fn anchor(&self, index: usize) -> Option<Anchor> {
-        self.state.anchors.get(index).copied()
+        self.state.anchor(index)
     }
 
     fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
-        self.state
-            .anchors
-            .iter()
-            .position(|candidate| *candidate == anchor)
+        self.state.anchors().index(anchor)
     }
 
     fn language(&self) -> TextLanguage {
@@ -373,14 +396,11 @@ impl DocumentRead for BufferEdit<'_> {
     }
 
     fn anchor(&self, index: usize) -> Option<Anchor> {
-        self.state.anchors.get(index).copied()
+        self.state.anchor(index)
     }
 
     fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
-        self.state
-            .anchors
-            .iter()
-            .position(|candidate| *candidate == anchor)
+        self.state.anchors().index(anchor)
     }
 
     fn language(&self) -> TextLanguage {
@@ -408,7 +428,13 @@ impl DocumentEdit for BufferEdit<'_> {
             .splice(index..index + delete, insert.iter().copied());
         self.state
             .anchors
-            .splice(index..index + delete, insert.iter().map(|_| Anchor::new()));
+            .get_mut()
+            .expect("the text buffer's anchors were poisoned")
+            .splice(index, delete, insert.len());
+        self.state.pending =
+            self.state
+                .pending
+                .then(TextChange::replace(index, delete, insert.len()));
         self.edited = true;
     }
 }

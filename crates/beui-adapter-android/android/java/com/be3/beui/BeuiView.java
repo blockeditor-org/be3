@@ -186,6 +186,10 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
         post(() -> ((Activity) getContext()).finish());
     }
 
+    public void pickFile(long id, String mimeTypes) {
+        post(() -> ((BeuiActivity) getContext()).pickFile(id, mimeTypes));
+    }
+
     static final class Host extends FrameLayout {
         private final AccessibilityManager accessibility;
 
@@ -235,4 +239,6 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     static native void nativeDelete(int before, int after);
 
     static native void nativeMove(int by);
+
+    static native void nativeFilePicked(long id, String name, byte[] data, String error);
 }

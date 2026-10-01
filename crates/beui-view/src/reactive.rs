@@ -1350,6 +1350,11 @@ pub trait UnitHandle<H> {}
 
 impl<F> UnitHandle<()> for F {}
 
+pub use crate::actions::{
+    Action, ActionBuilder, ActionScope, Chord, action_disabled, action_glyph, action_label,
+    action_pressed, action_scope, action_tooltip, active_actions, active_actions_from,
+    menu_actions,
+};
 pub use crate::components::back::BackHandler;
 pub use crate::components::canvas::{Canvas, CanvasItem};
 pub use crate::components::drawing::Drawing;
@@ -1359,12 +1364,18 @@ pub use crate::components::grid::{Grid, GridCell};
 pub use crate::components::interactive::Interactive;
 pub use crate::components::layers::{Layer, Layers};
 pub use crate::components::offset::Offset;
+pub use crate::components::overlay::Overlay;
 pub use crate::components::portal::Portal;
+pub use crate::components::shift::Shift;
 pub use crate::components::text::{Text, TextItem};
 pub use crate::components::virtual_list::VirtualList;
+pub use crate::file_picker::{
+    FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,
+};
 pub use beui_core::base::canvas::CanvasView;
 pub use beui_core::base::drawing::{Draw, draw_gpu};
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
+pub use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 pub use beui_core::rich::{
     CaretHandle, RichLayout, SpanKind, SpanStyle, TextCaret, TextMark, TextSpan,
 };

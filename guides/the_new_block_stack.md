@@ -153,12 +153,18 @@ postcard frames.
 - Graph announcements are per member too: when a block changes, every
   connected member of the workspace is sent the `BlockChanged` their own access
   lets them see, or a `BlockRemoved` when it no longer does.
-- Accounts live here. `Register` (refused with `--disable-registration`),
-  `Login`, `Authenticate` with a token and `Logout`; workspaces are created
+- Accounts live here. `Register` (refused unless the server runs with
+  `--allow-registration`; the app's embedded server and the dev targets do),
+  `Login` (refused unless the server runs with `--allow-login`, so a server
+  on the internet takes only the tokens of devices already signed in),
+  `Authenticate` with a token and `Logout`; workspaces are created
   through it, and an administrator can `Invite` an email that the invitee sees
   with `ListInvitations` and answers with `RespondInvitation`.
-  `--add-account EMAIL NAME PASSWORD WORKSPACE` provisions an account and its
-  workspace from the command line.
+  `--add-account EMAIL NAME WORKSPACE` provisions an account and its workspace
+  from the command line, reading the password from standard input. Password
+  checks run off the database lock, a few at a time, and an email with five
+  failed sign-ins in a row is locked out for a time that doubles with each
+  further failure.
 - The graph is cached per workspace in memory and dropped on any error so it
   reloads from the database rather than drifting.
 
@@ -254,6 +260,14 @@ now merges unsaved work into anything it fast-forwards or merges onto, and when
 it changes the owner's content outside the operation stream, the next `Sealed`
 tells the followers to reload the head. Only an owner ever seals or reconciles
 in the app's worker: a follower's edits are the owner's to save.
+
+A merge that conflicts first writes the owner's unsaved side as a commit of its
+own (`Peer::stash`), so the merge commit has both sides as parents and neither
+is lost, and records a `Conflict` that the worker collects with
+`take_conflicts`. A session message or operation this version cannot decode
+marks the session incompatible. On a follower that also marks it diverged,
+because its copy may now be wrong, and a diverged session refuses to edit or
+seal.
 
 ## Adding a content type
 
@@ -458,8 +472,8 @@ account: it embeds be-server (`crates/block-app/src/platform/native.rs`) on an
 ephemeral port with a data directory under the app's, and signs in to it like
 any other server. An account on another server connects to that server's URL
 instead, and the web build always does (`./scripts/buck run
-//crates/block-app:web-serve` starts be-server with `--disable-registration`
-beside it).
+//crates/block-app:web-serve` starts be-server beside it, closed to new
+accounts).
 
 Tests start their own server on an ephemeral port; see `Harness` in
 `crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`. The app's
@@ -514,12 +528,14 @@ once nothing is pending.
 A block's name lives in its metadata (`be_block::BlockMetadata`: `name`,
 `named_by_hand`, `derived` and, for a dynamic artifact, the `ArtifactSource` it
 was made from), which the peer seals with the content key before the server
-stores it (`Peer::seal_metadata`). `be::set_name` names a block by hand, and
+stores it (`Peer::seal_metadata`). Metadata that does not decode is an error, never
+a default: the mirror marks that node `unreadable_metadata`, and
+`be::set_metadata` refuses to write over it. `be::set_name` names a block by hand, and
 clearing it hands the name back to the content, which renames the block the
 next time an editor sees a revision. `be::describe_implicitly` is the automatic
 name: whenever an instance that may edit a block is sent a new revision of it,
 the host derives `BlockContent::name` from the content and writes it, unless the
-name was set by hand. The file tree, the block picker and the top bar read the
+name was set by hand. The file tree, the block picker and the tabs read the
 name out of the mirror, so a block nobody has open keeps the name it was last
 given.
 
@@ -722,12 +738,36 @@ it), registers, logs in and out, lists and creates workspaces, and invites and
 answers invitations. What comes back is an account id and a token, and the
 app's peer connects with `Credentials::Token` for the workspace it opens.
 
-The content key is not a secret yet. `Config::content_key` derives it as a hash
-of a fixed label and the workspace id, so every device of a workspace reads the
-same bytes without exchanging anything, and so could anyone who knows the
-workspace id, the server included. Content, commits and block metadata are all
-sealed with it, so "the server cannot read it" is true of the design and not
-yet of the key; the key wrapping below is what replaces it.
+### Keys
+
+Each workspace has a random content key (`Config::content_key`) that seals its
+content, commits, block metadata and session traffic. The server never holds it
+in the clear. `crates/be-keys` holds the cryptography.
+
+- **On the device.** The app keeps each workspace's key in its app state, per
+  account (`AppStateStore::workspace_key`). A workspace with no key there opens
+  on the unlock screen (`crates/block-app/src/keys.rs`, `ui/keys.rs`) instead of
+  starting the peer.
+- **Recovery.** Each account has a twelve-word recovery phrase, shown once and
+  checked by typing three of its words. The phrase derives an X25519 key pair,
+  and the server stores only the public half (`SetRecoveryKey`). Each member's
+  copy of a workspace key is sealed to that public key (`PutWorkspaceKey`,
+  `GetKeys`), so a new device opens a workspace with the phrase alone. A new
+  phrase (the workspace menu's New recovery phrase) has to reseal every key the
+  old one sealed, which the server checks, so it can only be made on a device
+  that holds all of them.
+- **Sealing for members.** When the worker connects, it seals the workspace key
+  for every member that has a recovery key and no sealed copy
+  (`ListMemberKeys`), which covers the creator and anyone invited since. The
+  server only ever inserts a sealed key, never replaces one, so a member cannot
+  overwrite another's.
+- **Adding a device.** The new device shows an eight-character code. The user
+  types it on a device that holds the key and has any workspace of the account
+  open (the worker gets every key the device holds), and the two run SPAKE2
+  keyed by the code over the server's relay (`Pair`, delivered as `Paired` to
+  the account's other connections). The open device seals the key under the
+  agreed secret, so the server would have to guess the code to read or replace
+  it. It gets one guess, because a wrong code ends the request.
 
 ### Presence
 
@@ -757,13 +797,16 @@ same way rather than joining it to the peer's `UserActive` entry.
 ### Editors with their own model
 
 The text editor cannot hand its state to a projection: `text_editor_core` wants
-a `Document` with an anchor per byte, so a cursor stays on its character while
-other people type. `text_block::document::BlockDocument` keeps the bytes and
-their anchors itself, turns each local edit into `TextOp::Delete` and
-`TextOp::Insert` that the editor pushes into its `ContentProjection` every
-frame, and adopts a change from elsewhere by diffing the projection's text
-against its own: unchanged bytes keep their anchors, and only inserted bytes get
-new ones. Its undo is its own too, because it has to give the text core back its
+a `Document` that hands out anchors, so a cursor stays on its character while
+other people type. An anchor names one byte and dies with it. Only the bytes
+something holds a position on have one: `text_editor_core::AnchorTable` makes
+them on demand and moves them on every edit, so its cost follows the cursors and
+undo steps, not the length of the text. `text_block::document::BlockDocument`
+keeps the bytes and their table itself, turns each local edit into
+`TextOp::Delete` and `TextOp::Insert` that the editor pushes into its
+`ContentProjection` every frame, and adopts a change from elsewhere by diffing
+the projection's text against its own: anchors on unchanged bytes move with
+them, and the rest are dropped. Its undo is its own too, because it has to give the text core back its
 cursors. Each step remembers the anchors either side of the text it replaced
 and both versions of that text, so undo finds the text wherever it has moved to
 and skips it when someone else has changed it since.
@@ -813,10 +856,9 @@ pixel art export regenerate this way.
   that wants.
 - Reconnecting rejoins from the server's head, so operations a session had not
   sealed when the socket dropped are gone.
-- The content key is derived from the workspace id (see Reaching the server), so
-  it protects nothing from the server yet. Keys are passed in whole
-  (`ContentKey`); there is no per-recipient key wrapping, so sharing a block
-  across accounts or workspaces does not share a key of its own.
+- A workspace has one key for its whole life. Removing a member does not
+  rotate it, and sealed objects carry no key id to rotate by. Sharing a block
+  across workspaces does not share a key of its own.
 - Sessions relay through the server. Direct peer connections are a latency
   optimisation on the same protocol and can come later.
 - The server learns the shape of the graph, object sizes and timings. It never

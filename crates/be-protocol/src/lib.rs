@@ -98,6 +98,7 @@ pub enum ErrorCode {
     WorkspaceNotFound,
     RegistrationDisabled,
     InvitationNotFound,
+    LoginDisabled,
 }
 
 impl fmt::Display for ErrorCode {
@@ -283,6 +284,46 @@ pub enum ClientMessage {
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
+    GetKeys {
+        request: u64,
+    },
+    SetRecoveryKey {
+        request: u64,
+        public: [u8; 32],
+        sealed: Vec<SealedKey>,
+    },
+    PutWorkspaceKey {
+        request: u64,
+        workspace: Uuid,
+        account: Uuid,
+        #[serde(with = "serde_bytes")]
+        sealed: Vec<u8>,
+    },
+    ListMemberKeys {
+        request: u64,
+        workspace: Uuid,
+    },
+    Pair {
+        request: u64,
+        to: Option<ClientId>,
+        workspace: Uuid,
+        #[serde(with = "serde_bytes")]
+        payload: Vec<u8>,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SealedKey {
+    pub workspace: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub sealed: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct MemberKey {
+    pub account: Uuid,
+    pub recovery: Option<[u8; 32]>,
+    pub sealed: bool,
 }
 
 impl ClientMessage {
@@ -323,7 +364,12 @@ impl ClientMessage {
             | Self::LeaveSession { request, .. }
             | Self::ClaimOwnership { request, .. }
             | Self::Heartbeat { request, .. }
-            | Self::Relay { request, .. } => *request,
+            | Self::Relay { request, .. }
+            | Self::GetKeys { request }
+            | Self::SetRecoveryKey { request, .. }
+            | Self::PutWorkspaceKey { request, .. }
+            | Self::ListMemberKeys { request, .. }
+            | Self::Pair { request, .. } => *request,
         }
     }
 }
@@ -437,6 +483,21 @@ pub enum ServerMessage {
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
+    Keys {
+        request: u64,
+        recovery: Option<[u8; 32]>,
+        sealed: Vec<SealedKey>,
+    },
+    MemberKeys {
+        request: u64,
+        members: Vec<MemberKey>,
+    },
+    Paired {
+        from: ClientId,
+        workspace: Uuid,
+        #[serde(with = "serde_bytes")]
+        payload: Vec<u8>,
+    },
 }
 
 impl ServerMessage {
@@ -458,13 +519,16 @@ impl ServerMessage {
             | Self::History { request, .. }
             | Self::Collected { request, .. }
             | Self::AccessList { request, .. }
-            | Self::Session { request, .. } => Some(*request),
+            | Self::Session { request, .. }
+            | Self::Keys { request, .. }
+            | Self::MemberKeys { request, .. } => Some(*request),
             Self::HeadChanged { .. }
             | Self::BlockDeleted { .. }
             | Self::BlockChanged { .. }
             | Self::BlockRemoved { .. }
             | Self::SessionChanged { .. }
-            | Self::Relayed { .. } => None,
+            | Self::Relayed { .. }
+            | Self::Paired { .. } => None,
         }
     }
 }

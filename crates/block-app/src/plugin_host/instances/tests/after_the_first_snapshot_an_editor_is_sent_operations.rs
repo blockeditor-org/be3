@@ -15,8 +15,7 @@ fn counted(block: Uuid, expected: i64) {
 }
 
 fn content_messages(instances: &mut Instances) -> Vec<EditorMessage> {
-    instances
-        .next_screens(PASS)
+    next_screens(instances)
         .opened
         .into_iter()
         .filter_map(|message| match message {
@@ -41,7 +40,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
         None,
     );
     let mut instances = placed_on(block, CounterContent::CONTENT_TYPE);
-    instances.next_screens(PASS);
+    next_screens(&mut instances);
     counted(block, 0);
     assert!(matches!(
         content_messages(&mut instances).as_slice(),

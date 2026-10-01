@@ -39,6 +39,11 @@ fn has_stop() {
         ),
         (
             CursorLeftRightStop::UnicodeGraphemeCluster,
+            0,
+            "|a|\n|e\u{301}|\r\n|🇷🇸|🇮🇴|\n|".as_bytes(),
+        ),
+        (
+            CursorLeftRightStop::UnicodeGraphemeCluster,
             4,
             b"|    |    |",
         ),

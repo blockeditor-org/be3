@@ -2,11 +2,11 @@ use std::cell::Cell;
 
 use beui::NodeId;
 use beui::reactive::{
-    Callback, Frame, Func, ItemSize, List, Memo, Prop, ReadSignal, RenderFn, Show, WriteSignal,
-    clone, component, create_effect, create_memo, create_signal, on_cleanup, view,
+    Action, Callback, Frame, Func, ItemSize, List, Memo, Prop, ReadSignal, RenderFn, Show,
+    WriteSignal, clone, component, create_effect, create_memo, create_signal, on_cleanup, view,
 };
 use beui::styled::DockArea;
-use beui::unstyled::{DockMode, DockMores, DockState, TabId};
+use beui::unstyled::{DockMenus, DockMode, DockState, TabId};
 
 use crate::Editor;
 
@@ -18,8 +18,8 @@ pub(crate) struct DockLink {
     pub(crate) title: Func<TabId, String>,
     pub(crate) icon: Func<TabId, String>,
     pub(crate) closable: Func<TabId, bool>,
-    pub(crate) mores: ReadSignal<DockMores>,
-    pub(crate) set_more: WriteSignal<DockMores>,
+    pub(crate) menus: ReadSignal<DockMenus>,
+    pub(crate) set_menu: WriteSignal<DockMenus>,
     pub(crate) on_change: Callback<DockState>,
     pub(crate) on_close: Callback<TabId>,
     pub(crate) content: RenderFn<TabId>,
@@ -56,10 +56,14 @@ pub fn EditorDock(
     let local = !editor.host().panes_offered();
     if !local {
         let key = NEXT_LINK.with(|next| next.replace(next.get() + 1));
-        let (mores, set_more) = create_signal(DockMores::new());
+        let (menus, set_menu) = create_signal(DockMenus::new());
         let waking = editor.clone();
-        create_effect(clone!(mores -> move || {
-            mores.with(|_| ());
+        create_effect(clone!(menus -> move || {
+            let listed: Vec<Memo<Vec<Action>>> =
+                menus.with(|menus| menus.values().map(|(_, items)| items.clone()).collect());
+            for items in listed {
+                crate::beui_frame::menu_entries(&items.get());
+            }
             waking.host().waker().wake();
         }));
         editor.set_dock(DockLink {
@@ -69,8 +73,8 @@ pub fn EditorDock(
             title: title.clone(),
             icon: icon.clone(),
             closable: closable.clone(),
-            mores,
-            set_more,
+            menus,
+            set_menu,
             on_change: on_change.clone(),
             on_close: on_close.clone(),
             content: content.clone(),

@@ -41,15 +41,29 @@ pub struct ScrollHandle {
 }
 
 #[derive(Clone, Default)]
-pub struct ScrollbarStyle(Option<(f32, RenderFn<ScrollHandle, ListChild>)>);
+pub struct ScrollbarStyle {
+    bar: Option<(f32, RenderFn<ScrollHandle, ListChild>)>,
+    fade: f32,
+}
 
 impl ScrollbarStyle {
     pub fn new(spacing: f32, bar: impl Fn(ScrollHandle) -> ListChild + 'static) -> Self {
-        Self(Some((spacing, RenderFn::new(bar))))
+        Self {
+            bar: Some((spacing, RenderFn::new(bar))),
+            fade: 0.0,
+        }
+    }
+
+    pub fn fading(self, fade: f32) -> Self {
+        Self { fade, ..self }
+    }
+
+    pub fn fade(&self) -> f32 {
+        self.fade
     }
 
     fn spacing(&self) -> f32 {
-        self.0.as_ref().map_or(0.0, |(spacing, _)| *spacing)
+        self.bar.as_ref().map_or(0.0, |(spacing, _)| *spacing)
     }
 
     fn beside(
@@ -58,7 +72,7 @@ impl ScrollbarStyle {
         direction: Prop<Direction>,
         scroll_to: Callback<f32>,
     ) -> Children<ListChild> {
-        match &self.0 {
+        match &self.bar {
             None => Children::default(),
             Some((_, bar)) => Children::from(bar.call(ScrollHandle {
                 position,
@@ -489,6 +503,7 @@ pub fn Scroll(
     children: Children<NodeId>,
 ) -> NodeId {
     let content_direction = direction.clone();
+    let fade = scrollbar.fade();
     let marker = marker.unwrap_or_else(|| {
         Render::new(|_| {
             view! {
@@ -510,6 +525,7 @@ pub fn Scroll(
                         offset
                         reveal
                         direction={content_direction}
+                        fade
                         on_change={move |position: ScrollPosition| report.call(position)}
                     >
                         {children}

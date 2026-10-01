@@ -1,4 +1,11 @@
-use std::{error::Error, fmt, io, path::PathBuf, sync::Arc};
+use std::{
+    error::Error,
+    fmt, io,
+    net::SocketAddr,
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use be_protocol::{
     ClientMessage, ErrorCode, MAX_FRAME_BYTES, ServerMessage, WorkspaceRole, decode, encode,
@@ -8,14 +15,19 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::{TcpListener, TcpStream},
-    sync::{mpsc, oneshot},
+    sync::{Semaphore, mpsc},
 };
 use tokio_tungstenite::{
-    accept_async_with_config,
-    tungstenite::{Message, protocol::WebSocketConfig},
+    accept_hdr_async_with_config,
+    tungstenite::{
+        Message,
+        handshake::server::{Callback, ErrorResponse, Request, Response},
+        protocol::WebSocketConfig,
+    },
 };
 use uuid::Uuid;
 
+pub mod backup;
 pub mod blocks;
 pub mod schema;
 pub mod sessions;
@@ -86,31 +98,25 @@ impl From<tokio_tungstenite::tungstenite::Error> for ServerError {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ServerConfig {
     pub allow_registration: bool,
+    pub allow_login: bool,
 }
 
-impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
-            allow_registration: true,
-        }
-    }
+impl ServerConfig {
+    pub const OPEN: Self = Self {
+        allow_registration: true,
+        allow_login: true,
+    };
 }
 
-pub async fn serve(listener: TcpListener, data_dir: impl Into<PathBuf>) -> Result<(), ServerError> {
-    let (_shutdown, receiver) = oneshot::channel();
-    serve_until_shutdown(listener, data_dir, receiver).await
-}
-
-pub async fn serve_until_shutdown(
-    listener: TcpListener,
-    data_dir: impl Into<PathBuf>,
-    shutdown: oneshot::Receiver<()>,
-) -> Result<(), ServerError> {
-    serve_with_config(listener, data_dir, ServerConfig::default(), shutdown).await
-}
+const MAX_CONNECTIONS: usize = 1024;
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+const PING_INTERVAL: Duration = Duration::from_secs(30);
+const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+const OUTBOUND_LIMIT: usize = 4096;
+const ACCEPT_RETRY: Duration = Duration::from_millis(100);
 
 pub async fn serve_with_config(
     listener: TcpListener,
@@ -121,18 +127,36 @@ pub async fn serve_with_config(
     let store = Arc::new(ServerStore::open(data_dir.into())?);
     let hub = Arc::new(WatchHub::new());
     let registry = Arc::new(SessionRegistry::new());
+    let slots = Arc::new(Semaphore::new(MAX_CONNECTIONS));
     tokio::pin!(shutdown);
     loop {
         tokio::select! {
-            _ = &mut shutdown => return Ok(()),
+            _ = &mut shutdown => {
+                store.checkpoint().await?;
+                return Ok(());
+            }
             accepted = listener.accept() => {
-                let (stream, _) = accepted?;
+                let (stream, peer) = match accepted {
+                    Ok(accepted) => accepted,
+                    Err(error) => {
+                        tracing::warn!(%error, "accepting a connection failed");
+                        tokio::time::sleep(ACCEPT_RETRY).await;
+                        continue;
+                    }
+                };
+                let Ok(slot) = Arc::clone(&slots).try_acquire_owned() else {
+                    tracing::warn!(%peer, "refusing a connection: the server is full");
+                    continue;
+                };
                 let _ = stream.set_nodelay(true);
                 let store = Arc::clone(&store);
                 let hub = Arc::clone(&hub);
                 let registry = Arc::clone(&registry);
                 tokio::spawn(async move {
-                    let _ = handle_connection(stream, store, hub, registry, config).await;
+                    if let Err(error) = handle_connection(stream, peer, store, hub, registry, config).await {
+                        tracing::debug!(%peer, %error, "a connection ended with an error");
+                    }
+                    drop(slot);
                 });
             }
         }
@@ -150,22 +174,47 @@ struct Connection {
     config: ServerConfig,
 }
 
+struct Forwarded(Arc<std::sync::Mutex<Option<String>>>);
+
+impl Callback for Forwarded {
+    fn on_request(self, request: &Request, response: Response) -> Result<Response, ErrorResponse> {
+        *self.0.lock().unwrap() = request
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.split(',').next())
+            .map(|value| value.trim().to_owned());
+        Ok(response)
+    }
+}
+
 async fn handle_connection(
     stream: TcpStream,
+    peer: SocketAddr,
     store: Arc<ServerStore>,
     hub: Arc<WatchHub>,
     registry: Arc<SessionRegistry>,
     config: ServerConfig,
 ) -> Result<(), ServerError> {
-    let socket = accept_async_with_config(
+    let forwarded = Arc::new(std::sync::Mutex::new(None));
+    let handshake = accept_hdr_async_with_config(
         stream,
+        Forwarded(Arc::clone(&forwarded)),
         Some(WebSocketConfig {
             max_frame_size: Some(MAX_FRAME_BYTES),
             max_message_size: Some(MAX_FRAME_BYTES),
             ..WebSocketConfig::default()
         }),
-    )
-    .await?;
+    );
+    let socket = tokio::time::timeout(HANDSHAKE_TIMEOUT, handshake)
+        .await
+        .map_err(|_| ServerError::Socket("the websocket handshake timed out".into()))??;
+    let client = forwarded
+        .lock()
+        .unwrap()
+        .take()
+        .unwrap_or_else(|| peer.ip().to_string());
+    tracing::debug!(%client, "connected");
     serve_socket(socket, store, hub, registry, config).await
 }
 
@@ -180,7 +229,9 @@ where
     S: AsyncRead + AsyncWrite + Unpin + Send,
 {
     let (mut sink, mut source) = socket.split();
-    let (sender, mut outbound) = mpsc::unbounded_channel();
+    let (sender, mut outbound) = mpsc::channel(OUTBOUND_LIMIT);
+    let mut pings = tokio::time::interval(PING_INTERVAL);
+    let mut heard = Instant::now();
     let client = hub.register(sender).await;
     let mut connection = Connection {
         store,
@@ -204,9 +255,17 @@ where
                     .await?;
                     continue;
                 }
+                _ = pings.tick() => {
+                    if heard.elapsed() > IDLE_TIMEOUT {
+                        return Ok(());
+                    }
+                    sink.send(Message::Ping(Vec::new())).await?;
+                    continue;
+                }
                 message = source.next() => message,
             };
             let Some(frame) = frame else { return Ok(()) };
+            heard = Instant::now();
             match frame? {
                 Message::Binary(bytes) => {
                     let response = match decode::<ClientMessage>(&bytes) {
@@ -260,12 +319,13 @@ where
 }
 
 impl Connection {
-    fn authenticated(
+    async fn authenticated(
         &mut self,
         request: u64,
         profile: store::Profile,
         token: String,
     ) -> ServerMessage {
+        self.hub.join_account(self.client, profile.account).await;
         self.account = Some(profile.account);
         self.token = Some(token.clone());
         ServerMessage::Authenticated {
@@ -313,20 +373,33 @@ impl Connection {
                     .store
                     .register(&email, &display_name, &password)
                     .await?;
-                Ok(self.authenticated(request, profile, token))
+                Ok(self.authenticated(request, profile, token).await)
             }
             ClientMessage::Login {
                 request,
                 email,
                 password,
             } => {
-                let (profile, token) = self.store.login(&email, &password).await?;
-                Ok(self.authenticated(request, profile, token))
+                if !self.config.allow_login {
+                    tracing::warn!(email, "refused a sign-in: sign-ins are off");
+                    return Err(ServerError::Refused(
+                        ErrorCode::LoginDisabled,
+                        "this server is not accepting sign-ins with a password; use a device that \
+                         is already signed in, or ask its operator to allow sign-ins for a while"
+                            .into(),
+                    ));
+                }
+                let (profile, token) = self
+                    .store
+                    .login(&email, &password)
+                    .await
+                    .inspect_err(|error| tracing::warn!(email, %error, "a sign-in failed"))?;
+                Ok(self.authenticated(request, profile, token).await)
             }
             ClientMessage::Authenticate { request, token } => {
                 let profile = self.store.resolve_token(&token).await?;
                 self.token = Some(token.clone());
-                Ok(self.authenticated(request, profile, token))
+                Ok(self.authenticated(request, profile, token).await)
             }
             ClientMessage::Logout { request } => {
                 if let Some(token) = self.token.take() {
@@ -334,6 +407,7 @@ impl Connection {
                 }
                 self.account = None;
                 self.identity = None;
+                self.hub.leave_account(self.client).await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::Invite {
@@ -703,6 +777,64 @@ impl Connection {
                             .send_all(&participants, self.client, &message)
                             .await;
                     }
+                }
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::GetKeys { request } => {
+                let (recovery, sealed) = self.store.keys(self.account()?).await?;
+                Ok(ServerMessage::Keys {
+                    request,
+                    recovery,
+                    sealed,
+                })
+            }
+            ClientMessage::SetRecoveryKey {
+                request,
+                public,
+                sealed,
+            } => {
+                self.store
+                    .set_recovery_key(self.account()?, public, sealed)
+                    .await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::PutWorkspaceKey {
+                request,
+                workspace,
+                account,
+                sealed,
+            } => {
+                self.store
+                    .put_workspace_key(self.account()?, workspace, account, sealed)
+                    .await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::ListMemberKeys { request, workspace } => {
+                let members = self.store.member_keys(self.account()?, workspace).await?;
+                Ok(ServerMessage::MemberKeys { request, members })
+            }
+            ClientMessage::Pair {
+                request,
+                to,
+                workspace,
+                payload,
+            } => {
+                let account = self.account()?;
+                self.store.membership(account, workspace).await?;
+                let message = ServerMessage::Paired {
+                    from: self.client,
+                    workspace,
+                    payload,
+                };
+                let sent = self
+                    .hub
+                    .send_account(account, self.client, to, &message)
+                    .await;
+                if to.is_some() && sent == 0 {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "that device is no longer connected".into(),
+                    ));
                 }
                 Ok(ServerMessage::Ok { request })
             }

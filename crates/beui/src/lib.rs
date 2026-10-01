@@ -19,6 +19,7 @@ pub use beui_core::document::{
 };
 pub use beui_core::draw::{Quad, Quads, Turn, quads};
 pub use beui_core::drawing::Drawing;
+pub use beui_core::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest, PickedFile};
 pub use beui_core::filter::{ColorVision, Filter, MAX_BLUR};
 pub use beui_core::font::{
     FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,
@@ -32,6 +33,7 @@ pub use beui_core::input::{
     InputState, Key, KeyPress, Modifiers, PointerButton, PointerPress, RawInput, ScrollGesture,
     SecondaryDrag, TouchId, TouchPhase, TouchPoint, TouchState, ZoomGesture,
 };
+pub use beui_core::interact::forward::ForwardedInput;
 pub use beui_core::node::{ClickHandler, Handler, NodeId, NodeOf};
 pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Corners, Painter, Shape};

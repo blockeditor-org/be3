@@ -1,27 +1,29 @@
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use beui::NodeId;
 use beui::reactive::{
-    Align, Direction, Frame, Func, ItemSize, List, ReadSignal, Show, Spacer, WriteSignal, clone,
-    component, create_effect, create_memo, create_signal, untrack, view,
+    Align, Direction, FileFilter, FilePicker, Frame, Func, ItemSize, List, PickedFile, ReadSignal,
+    Show, Spacer, WriteSignal, clone, component, create_file_picker, create_memo, create_signal,
+    view,
 };
 use beui::styled::{Button, ButtonVariant, Caption, use_theme};
 
-use crate::{Creation, EditorHost, FileFilter, FilePicker, PickedFile};
+use crate::Creation;
 
 const PADDING: f32 = 14.0;
 const SPACING: f32 = 10.0;
 
 type Import<T> = Box<dyn Fn(PickedFile) -> Result<T, String>>;
 
+type Chosen<T> = Box<dyn Fn(&FileChooser<T>)>;
+
 pub struct FileChooser<T> {
     filter: FileFilter,
     import: Import<T>,
-    picker: RefCell<FilePicker>,
+    picker: FilePicker,
     chosen: RefCell<Option<T>>,
-    busy: ReadSignal<bool>,
-    set_busy: WriteSignal<bool>,
+    on_chosen: RefCell<Option<Chosen<T>>>,
     name: ReadSignal<Option<String>>,
     set_name: WriteSignal<Option<String>>,
     error: ReadSignal<Option<String>>,
@@ -33,25 +35,30 @@ impl<T: 'static> FileChooser<T> {
         filter: FileFilter,
         import: impl Fn(PickedFile) -> Result<T, String> + 'static,
     ) -> Rc<Self> {
-        let (busy, set_busy) = create_signal(false);
         let (name, set_name) = create_signal(None::<String>);
         let (error, set_error) = create_signal(None::<String>);
-        Rc::new(Self {
-            filter,
-            import: Box::new(import),
-            picker: RefCell::new(FilePicker::default()),
-            chosen: RefCell::new(None),
-            busy,
-            set_busy,
-            name,
-            set_name,
-            error,
-            set_error,
+        Rc::new_cyclic(|chooser: &Weak<Self>| {
+            let chooser = chooser.clone();
+            Self {
+                filter,
+                import: Box::new(import),
+                picker: create_file_picker(move |picked| {
+                    if let Some(chooser) = chooser.upgrade() {
+                        chooser.picked(picked);
+                    }
+                }),
+                chosen: RefCell::new(None),
+                on_chosen: RefCell::new(None),
+                name,
+                set_name,
+                error,
+                set_error,
+            }
         })
     }
 
     pub fn busy(&self) -> ReadSignal<bool> {
-        self.busy.clone()
+        self.picker.picking()
     }
 
     pub fn name(&self) -> ReadSignal<Option<String>> {
@@ -62,20 +69,18 @@ impl<T: 'static> FileChooser<T> {
         self.error.clone()
     }
 
-    pub fn open(&self, host: &EditorHost) {
+    pub fn open(&self) {
         self.set_error.set(None);
-        self.picker.borrow_mut().open(host, self.filter.clone());
-        self.set_busy.set(true);
+        self.picker.open(self.filter.clone());
     }
 
-    pub fn poll(&self, host: &EditorHost) {
-        let result = self.picker.borrow_mut().poll(host);
-        self.set_busy.set(self.picker.borrow().is_open());
-        let Some(result) = result else {
-            return;
-        };
-        let name = result.as_ref().ok().map(|file| file.name.clone());
-        match result.and_then(&self.import) {
+    pub fn on_chosen(&self, chosen: impl Fn(&Self) + 'static) {
+        *self.on_chosen.borrow_mut() = Some(Box::new(chosen));
+    }
+
+    fn picked(&self, picked: Result<PickedFile, String>) {
+        let name = picked.as_ref().ok().map(|file| file.name.clone());
+        match picked.and_then(&self.import) {
             Ok(value) => {
                 self.set_name.set(name);
                 *self.chosen.borrow_mut() = Some(value);
@@ -87,22 +92,9 @@ impl<T: 'static> FileChooser<T> {
                 self.set_error.set(Some(error));
             }
         }
-    }
-
-    pub fn on_reply(
-        self: &Rc<Self>,
-        replies: ReadSignal<u64>,
-        host: EditorHost,
-        replied: impl Fn(&Self) + 'static,
-    ) {
-        let chooser = Rc::clone(self);
-        create_effect(move || {
-            replies.get();
-            untrack(|| {
-                chooser.poll(&host);
-                replied(&chooser);
-            });
-        });
+        if let Some(chosen) = self.on_chosen.borrow().as_ref() {
+            chosen(self);
+        }
     }
 
     pub fn take(&self) -> Option<T> {
@@ -126,11 +118,7 @@ where
 {
     let chooser = FileChooser::new(filter, move |file| import.call(file));
     let host = creation.host().clone();
-    chooser.on_reply(
-        creation.replies(),
-        creation.host().clone(),
-        move |chooser| host.set_creation_ready(chooser.is_chosen()),
-    );
+    chooser.on_chosen(move |chooser| host.set_creation_ready(chooser.is_chosen()));
     let made = Rc::clone(&chooser);
     let creating = creation.clone();
     creation.on_create(move || {
@@ -146,8 +134,7 @@ where
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let busy = chooser.busy();
-    let opening = creation.host().clone();
-    let choose = move || chooser.open(&opening);
+    let choose = move || chooser.open();
     let choose_id = format!("{id_prefix}.choose");
     let error_id = format!("{id_prefix}.error");
     let theme = use_theme();

@@ -1,9 +1,10 @@
 use std::{
     collections::HashMap,
     fs,
-    io::ErrorKind,
+    io::{ErrorKind, Write},
     path::{Path, PathBuf},
     sync::{Arc, RwLock},
+    time::Duration,
 };
 
 use crate::{StoreError, hash::Hash};
@@ -92,7 +93,34 @@ impl FileStore {
     pub fn open(root: impl Into<PathBuf>) -> Result<Self, StoreError> {
         let root = root.into();
         fs::create_dir_all(&root)?;
-        Ok(Self { root })
+        let store = Self { root };
+        store.remove_abandoned_writes()?;
+        Ok(store)
+    }
+
+    fn remove_abandoned_writes(&self) -> Result<(), StoreError> {
+        for shard in fs::read_dir(&self.root)? {
+            let shard = shard?;
+            if !shard.file_type()?.is_dir() {
+                continue;
+            }
+            for entry in fs::read_dir(shard.path())? {
+                let entry = entry?;
+                let abandoned = entry
+                    .path()
+                    .extension()
+                    .is_some_and(|extension| extension == "partial")
+                    && entry
+                        .metadata()?
+                        .modified()?
+                        .elapsed()
+                        .is_ok_and(|age| age >= ABANDONED_WRITE_AGE);
+                if abandoned {
+                    remove_if_present(&entry.path())?;
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn root(&self) -> &Path {
@@ -109,20 +137,35 @@ impl ObjectStore for FileStore {
     fn put(&self, bytes: &[u8]) -> Result<Hash, StoreError> {
         let hash = Hash::of(bytes);
         let path = self.path(hash);
-        if path.exists() {
-            return Ok(hash);
+        match fs::metadata(&path) {
+            Ok(held) if held.len() == bytes.len() as u64 => return Ok(hash),
+            Ok(_) => {}
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
         }
         let directory = path.parent().ok_or(StoreError::InvalidPath)?;
-        fs::create_dir_all(directory)?;
+        if !directory.exists() {
+            fs::create_dir_all(directory)?;
+            sync_directory(&self.root)?;
+        }
         let temporary = directory.join(format!("{}.partial", uuid::Uuid::new_v4()));
-        fs::write(&temporary, bytes)?;
+        let mut file = fs::File::create(&temporary)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        drop(file);
         fs::rename(&temporary, &path)?;
+        sync_directory(directory)?;
         Ok(hash)
     }
 
     fn get(&self, hash: Hash) -> Result<Option<Vec<u8>>, StoreError> {
-        match fs::read(self.path(hash)) {
-            Ok(bytes) => Ok(Some(bytes)),
+        let path = self.path(hash);
+        match fs::read(&path) {
+            Ok(bytes) if Hash::of(&bytes) == hash => Ok(Some(bytes)),
+            Ok(_) => {
+                remove_if_present(&path)?;
+                Ok(None)
+            }
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
             Err(error) => Err(error.into()),
         }
@@ -133,11 +176,7 @@ impl ObjectStore for FileStore {
     }
 
     fn remove(&self, hash: Hash) -> Result<(), StoreError> {
-        match fs::remove_file(self.path(hash)) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
-            Err(error) => Err(error.into()),
-        }
+        remove_if_present(&self.path(hash))
     }
 
     fn len(&self, hash: Hash) -> Result<Option<usize>, StoreError> {
@@ -147,6 +186,27 @@ impl ObjectStore for FileStore {
             Err(error) => Err(error.into()),
         }
     }
+}
+
+const ABANDONED_WRITE_AGE: Duration = Duration::from_secs(60 * 60);
+
+fn remove_if_present(path: &Path) -> Result<(), StoreError> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+#[cfg(unix)]
+fn sync_directory(directory: &Path) -> Result<(), StoreError> {
+    fs::File::open(directory)?.sync_all()?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn sync_directory(_directory: &Path) -> Result<(), StoreError> {
+    Ok(())
 }
 
 impl<S: ObjectStore + ?Sized> ObjectStore for Arc<S> {

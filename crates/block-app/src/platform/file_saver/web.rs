@@ -1,13 +1,9 @@
-use std::sync::mpsc::Receiver;
-
 use wasm_bindgen::JsCast;
 
-use super::{SaveResult, SavedFile};
+use super::{Deliver, SaveResult, SavedFile};
 
-pub(super) fn save(file: SavedFile) -> Receiver<SaveResult> {
-    let (sender, receiver) = crate::host::waking_channel();
-    let _ = sender.send(download(&file).map(|()| true));
-    receiver
+pub(super) fn save(file: SavedFile, deliver: Deliver<SaveResult>) {
+    deliver.send(download(&file).map(|()| true));
 }
 
 fn download(file: &SavedFile) -> Result<(), String> {

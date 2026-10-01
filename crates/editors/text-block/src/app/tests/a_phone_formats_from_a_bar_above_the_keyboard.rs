@@ -40,10 +40,9 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
     editor.run();
     assert!(!editor.shown("text.format.bold"));
 
-    editor.set_more(true);
-    assert!(
-        editor
-            .label("editor.more.item.1")
-            .ends_with("Find and replace")
+    assert_eq!(
+        editor.menu_entry("text.replace").label,
+        "Find and replace",
+        "the text area's own commands are in the frame's menu"
     );
 }

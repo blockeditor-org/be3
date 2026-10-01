@@ -1,7 +1,7 @@
 use be_graph::BlockParent;
 use beui::reactive::{
-    Align, Child, Direction, ForEach, Frame, ItemSize, Justify, List, Memo, Portal, Show, Spacer,
-    Text, clone, component, create_memo, view,
+    Align, Child, Direction, Dynamic, ForEach, Frame, ItemSize, Justify, List, Memo, Portal, Show,
+    Spacer, Text, clone, component, create_memo, view,
 };
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::{
@@ -18,7 +18,7 @@ use crate::block_picker::{
     ChooseView, CreateView, LinkRow, PickerAction, PickerCommand, PickerTab, PickerView, Placing,
     Tile, TileSection, creation_surface,
 };
-use crate::surfaces::{self, HostSurface, SurfaceId};
+use crate::surfaces::{self, HostedSurface, SurfaceId};
 
 const TILE_WIDTH: f32 = 132.0;
 const TILE_HEIGHT: f32 = 124.0;
@@ -171,10 +171,6 @@ fn ChooseBody(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>, phone: bool) -> 
         true => None,
         false => Some(PICKER_HEIGHT),
     };
-    let area = match phone {
-        true => ItemSize::Percent(100.0),
-        false => ItemSize::Intrinsic,
-    };
     view! {
         <List spacing=10.0>
             <PlacingFields id={place_id} placing />
@@ -194,11 +190,11 @@ fn ChooseBody(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>, phone: bool) -> 
                     <ChoiceOption label="Link existing" />
                 }}
             />
-            <Frame @sizing={area} height={height}>
+            <Frame height={height}>
                 <List spacing=8.0>
                     <Show condition={tiling}>
                         {move || clone!(no_sections section_keys sections tab_empty tile_id -> view! {
-                            <Scroll @sizing=ItemSize::Percent(100.0)>
+                            <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
                                 <List spacing=16.0>
                                     <Show condition={no_sections}>
                                         <Caption content={tab_empty.clone()} />
@@ -215,7 +211,7 @@ fn ChooseBody(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>, phone: bool) -> 
                                         }}
                                     </ForEach>
                                 </List>
-                            </Scroll>
+                            </PickerArea>
                         })}
                     </Show>
                     <Show condition={linking.clone()}>
@@ -232,26 +228,47 @@ fn ChooseBody(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>, phone: bool) -> 
                     </Show>
                     <Show condition={linking}>
                         {move || clone!(empty link_id link_keys links no_links -> view! {
-                            <Scroll @sizing=ItemSize::Percent(100.0)>
-                                <Show condition={no_links}>
-                                    <Caption content={empty.clone()} />
-                                </Show>
-                                <ForEach keys={link_keys}>
-                                    {move |block: Uuid| {
-                                        let links = links.clone();
-                                        let link = create_memo(move || {
-                                            links.get().into_iter().find(|link| link.id == block)
-                                        });
-                                        view! {
-                                            <LinkButton id={link_id.clone()} link />
-                                        }
-                                    }}
-                                </ForEach>
-                            </Scroll>
+                            <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
+                                <List spacing=0.0>
+                                    <Show condition={no_links}>
+                                        <Caption content={empty.clone()} />
+                                    </Show>
+                                    <ForEach keys={link_keys}>
+                                        {move |block: Uuid| {
+                                            let links = links.clone();
+                                            let link = create_memo(move || {
+                                                links.get().into_iter().find(|link| link.id == block)
+                                            });
+                                            view! {
+                                                <LinkButton id={link_id.clone()} link />
+                                            }
+                                        }}
+                                    </ForEach>
+                                </List>
+                            </PickerArea>
                         })}
                     </Show>
                 </List>
             </Frame>
+        </List>
+    }
+}
+
+#[component]
+fn PickerArea(scrolls: bool, children: Child) -> NodeId {
+    let scrolls = create_memo(move || scrolls);
+    view! {
+        <List spacing=0.0>
+            <Dynamic value={scrolls}>
+                {move |scrolls: bool| match scrolls {
+                    true => view! {
+                        <Scroll @sizing=ItemSize::Percent(100.0)>{children}</Scroll>
+                    },
+                    false => view! {
+                        <List @sizing=ItemSize::Intrinsic spacing=0.0>{children}</List>
+                    },
+                }}
+            </Dynamic>
         </List>
     }
 }
@@ -273,7 +290,7 @@ fn PlacingFields(id: Memo<Uuid>, placing: Memo<Option<Placing>>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || clone!(id keys name places chosen naming -> view! {
+                {move || clone!(chosen id keys name naming places -> view! {
                     <List spacing=8.0>
                         <Caption content="Name" />
                         <TextInput
@@ -537,13 +554,13 @@ fn CreateBody(id: Memo<Uuid>, create: Memo<Option<CreateView>>, surface: Surface
     let not_ready =
         create_memo(clone!(create -> move || !create.get().is_some_and(|create| create.ready)));
     let dialog = create_memo(move || create.get().is_some_and(|create| create.dialog));
-    let height = surfaces::handle(surface).height();
+    let height = surfaces::height(surface);
     let (create_id, cancel_id) = (id.clone(), id);
     view! {
         <List spacing=10.0>
             <Show condition={dialog}>
                 <Frame height={height.clone()}>
-                    <HostSurface id=surface />
+                    <HostedSurface id=surface />
                 </Frame>
             </Show>
             <Separator />

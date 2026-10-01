@@ -167,6 +167,13 @@ impl Document {
         Some(ImeArea { rect, cursor })
     }
 
+    pub fn focus_types(&self) -> bool {
+        self.focused.is_some_and(|focused| {
+            focus_of(self.arena.get(focused))
+                .is_some_and(|node| node.ime && !node.on_text.is_empty())
+        })
+    }
+
     pub fn focus_takes_text(&self) -> bool {
         self.focused.is_some_and(|focused| {
             focus_of(self.arena.get(focused)).is_some_and(|node| !node.on_text.is_empty())
@@ -244,7 +251,7 @@ impl Document {
         self.update_focus(None);
     }
 
-    fn focusables(&self) -> Vec<NodeId> {
+    pub(crate) fn focusables(&self) -> Vec<NodeId> {
         let mut out = Vec::new();
         let start = self
             .overlay_stack

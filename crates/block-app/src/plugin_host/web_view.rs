@@ -1,7 +1,9 @@
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::Receiver;
 
 use beui::Rect;
 use block_plugin_api::{WebViewCommand, WebViewEvent};
+
+use crate::host::{WakingSender, waking_channel};
 
 #[cfg(all(
     feature = "web-view",
@@ -47,7 +49,7 @@ pub(super) struct Bounds {
 pub(super) struct WebViewHost {
     view: Option<WebView>,
     events: Receiver<WebViewEvent>,
-    sender: Sender<WebViewEvent>,
+    sender: WakingSender<WebViewEvent>,
     pending: Vec<WebViewCommand>,
     bounds: Option<Bounds>,
     visible: bool,
@@ -57,7 +59,7 @@ pub(super) struct WebViewHost {
 
 impl Default for WebViewHost {
     fn default() -> Self {
-        let (sender, events) = mpsc::channel();
+        let (sender, events) = waking_channel();
         Self {
             view: None,
             events,
@@ -88,14 +90,13 @@ impl WebViewHost {
             None => self.set_visible(false, events),
         }
         while let Ok(event) = self.events.try_recv() {
+            if let WebViewEvent::Address(address) = &event {
+                if self.address.as_ref() == Some(address) {
+                    continue;
+                }
+                self.address = Some(address.clone());
+            }
             events.push(event);
-        }
-        let address = self.view.as_ref().and_then(WebView::url);
-        if let Some(address) = address
-            && self.address.as_deref() != Some(address.as_str())
-        {
-            self.address = Some(address.clone());
-            events.push(WebViewEvent::Address(address));
         }
     }
 

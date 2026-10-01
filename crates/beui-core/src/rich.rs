@@ -1,3 +1,4 @@
+use std::f32::consts::{FRAC_PI_4, SQRT_2};
 use std::ops::Range;
 
 use crate::color::Color32;
@@ -109,30 +110,40 @@ pub fn handle_center(caret: Rect, handle: CaretHandle) -> Vec2 {
     match handle {
         CaretHandle::Start => anchor + vec2(-HANDLE_RADIUS, HANDLE_RADIUS),
         CaretHandle::End => anchor + vec2(HANDLE_RADIUS, HANDLE_RADIUS),
-        CaretHandle::Middle => anchor + vec2(0.0, HANDLE_RADIUS),
+        CaretHandle::Middle => anchor + vec2(caret.width() / 2.0, HANDLE_RADIUS * SQRT_2),
     }
 }
 
-pub fn handle_shape(caret: Rect, handle: CaretHandle) -> (Rect, Corners) {
+pub fn handle_shape(caret: Rect, handle: CaretHandle) -> (Rect, Corners, f32) {
     let center = handle_center(caret, handle);
     let rect = Rect::from_center_size(pos2(center.x, center.y), Vec2::splat(HANDLE_RADIUS * 2.0));
     let round = Corners::all(HANDLE_RADIUS);
-    let corners = match handle {
-        CaretHandle::Start => Corners {
-            top_right: 0.0,
-            ..round
-        },
-        CaretHandle::End => Corners {
-            top_left: 0.0,
-            ..round
-        },
-        CaretHandle::Middle => Corners {
-            top_left: HANDLE_RADIUS / 2.0,
-            top_right: HANDLE_RADIUS / 2.0,
-            ..round
-        },
-    };
-    (rect, corners)
+    match handle {
+        CaretHandle::Start => (
+            rect,
+            Corners {
+                top_right: 0.0,
+                ..round
+            },
+            0.0,
+        ),
+        CaretHandle::End => (
+            rect,
+            Corners {
+                top_left: 0.0,
+                ..round
+            },
+            0.0,
+        ),
+        CaretHandle::Middle => (
+            rect,
+            Corners {
+                top_left: 0.0,
+                ..round
+            },
+            FRAC_PI_4,
+        ),
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -293,7 +304,7 @@ impl Builder<'_> {
         }
     }
 
-    fn breakpoint(&self, runs: &[RichRun], from: usize, to: usize, wrap: f32) -> Option<usize> {
+    fn stops(&self, runs: &[RichRun]) -> Vec<(usize, f32)> {
         let mut stops = Vec::new();
         for run in runs {
             match run.text() {
@@ -304,14 +315,27 @@ impl Builder<'_> {
                 }
             }
         }
+        stops.retain(|(byte, _)| self.text.is_char_boundary(*byte));
+        stops.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+        stops
+    }
+
+    fn breakpoint(
+        &self,
+        stops: &[(usize, f32)],
+        from: usize,
+        to: usize,
+        origin: f32,
+        wrap: f32,
+    ) -> Option<usize> {
         let bytes = self.text.as_bytes();
-        let mut candidates: Vec<(usize, f32)> = stops
-            .into_iter()
-            .filter(|(byte, x)| {
-                *byte > from && *byte < to && *x <= wrap && self.text.is_char_boundary(*byte)
-            })
+        let first = stops.partition_point(|(byte, _)| *byte <= from);
+        let candidates: Vec<(usize, f32)> = stops[first..]
+            .iter()
+            .take_while(|(byte, _)| *byte < to)
+            .map(|(byte, x)| (*byte, x - origin))
+            .filter(|(_, x)| *x <= wrap)
             .collect();
-        candidates.sort_by_key(|(byte, _)| *byte);
         let good = candidates
             .iter()
             .rev()
@@ -355,16 +379,28 @@ impl RichLayout {
         loop {
             let end = text[start..].find('\n').map_or(text.len(), |at| start + at);
             let mut from = start;
+            let whole = builder.runs(start, end);
+            let total = whole.last().map_or(0.0, |run| run.x + run.width);
+            let stops = match total > options.wrap_width {
+                true => builder.stops(&whole),
+                false => Vec::new(),
+            };
+            let mut whole = Some(whole);
             loop {
-                let runs = builder.runs(from, end);
-                let width = runs.last().map_or(0.0, |run| run.x + run.width);
-                let broken = match width > options.wrap_width {
-                    true => builder.breakpoint(&runs, from, end, options.wrap_width),
+                let origin = match from == start {
+                    true => 0.0,
+                    false => stops
+                        .get(stops.partition_point(|(byte, _)| *byte < from))
+                        .map_or(0.0, |(_, x)| *x),
+                };
+                let broken = match total - origin > options.wrap_width {
+                    true => builder.breakpoint(&stops, from, end, origin, options.wrap_width),
                     false => None,
                 };
-                let (to, runs) = match broken {
-                    Some(to) => (to, builder.runs(from, to)),
-                    None => (end, runs),
+                let (to, runs) = match (broken, from == start) {
+                    (Some(to), _) => (to, builder.runs(from, to)),
+                    (None, true) => (end, whole.take().unwrap_or_default()),
+                    (None, false) => (end, builder.runs(from, end)),
                 };
                 let line = line(from..to, runs, top, strut, options.padding);
                 top += line.height;

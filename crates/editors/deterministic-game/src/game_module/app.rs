@@ -38,7 +38,6 @@ impl block_editor_beui::BeuiApp for GameModuleApp {
 pub(crate) fn filter() -> FileFilter {
     FileFilter::new(
         "Game modules",
-        "Game",
         GameModuleContent::FILE_EXTENSIONS,
         GameModuleContent::MIME_TYPES,
     )

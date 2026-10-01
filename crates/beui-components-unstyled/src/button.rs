@@ -32,12 +32,14 @@ pub fn Button(
     #[prop(default = false)] focused: Prop<bool>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
+    on_press: Callback<PointerPress>,
     on_key: Callback<KeyPress, bool>,
     on_text: Callback<String>,
     on_focus_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let focus_request = focused;
+    let takes_text = !on_text.is_empty();
     let (hovered, set_hovered) = create_signal(false);
     let (active, set_active) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
@@ -97,6 +99,7 @@ pub fn Button(
             focused={focus_request}
             on_key={move |press| on_key.call(press)}
             on_text={move |text| on_text.call(text)}
+            takes_text
             on_focus_change={move |has_focus: bool| {
                 set_focused.set(has_focus);
                 on_focus_change.call(has_focus);
@@ -108,6 +111,7 @@ pub fn Button(
             key_active
             on_click={click}
             on_click_at={click_at}
+            on_press={move |press| on_press.call(press)}
             on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
             on_active_change={move |active: bool| set_active.set(active)}
             children={content_node}

@@ -9,5 +9,6 @@ pub mod layers;
 pub mod offset;
 pub mod overlay;
 pub mod portal;
+pub mod shift;
 pub mod text;
 pub mod virtual_list;

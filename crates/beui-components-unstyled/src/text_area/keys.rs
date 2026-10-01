@@ -1,6 +1,6 @@
 use text_editor_core::{
-    CopyMode, CursorHorizontalPositionMetric, CursorLeftRightStop, EditorCommand, FindDirection,
-    LRDirection, MarkdownCommand, MoveMode, SyntaxNodeDirection, UDDirection, VerticalMoveMode,
+    CopyMode, CursorHorizontalPositionMetric, CursorLeftRightStop, EditorCommand, LRDirection,
+    MoveMode, SyntaxNodeDirection, UDDirection, VerticalMoveMode,
 };
 
 use beui_core::input::{Key, KeyPress};
@@ -172,37 +172,11 @@ fn command(cx: &Context, press: KeyPress) -> bool {
             false => LRDirection::Right,
         })),
         Key::A if command => state.execute(EditorCommand::SelectAll),
-        Key::B if command => {
-            state.execute(EditorCommand::Markdown(MarkdownCommand::Bold));
-        }
-        Key::I if command => {
-            state.execute(EditorCommand::Markdown(MarkdownCommand::Italic));
-        }
         Key::Z if command => state.execute(match modifiers.shift {
             true => EditorCommand::Redo,
             false => EditorCommand::Undo,
         }),
         Key::Y if command => state.execute(EditorCommand::Redo),
-        Key::F if command => state.open_find(false),
-        Key::H if command => state.open_find(true),
-        Key::G if command => {
-            state.find_step(match modifiers.shift {
-                true => FindDirection::Previous,
-                false => FindDirection::Next,
-            });
-        }
-        Key::D if command && modifiers.shift => {
-            state.execute(EditorCommand::DuplicateLine(UDDirection::Down));
-        }
-        Key::D if command => {
-            state.execute(EditorCommand::DuplicateCursor(LRDirection::Right));
-        }
-        Key::BracketLeft if command && modifiers.shift => {
-            state.execute(match state.cursor_line_collapsed() {
-                true => EditorCommand::Uncollapse,
-                false => EditorCommand::Collapse,
-            });
-        }
         _ => return false,
     }
     true

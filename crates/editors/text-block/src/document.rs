@@ -1,11 +1,12 @@
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use block_editor_beui::Waker;
 use block_editor_beui::be_block::block_url::{BLOCK_URL_MAX_BYTES, parse_block_urls};
 use block_editor_beui::be_block::{self, TextContent, TextOp};
 use similar::{Algorithm, DiffOp, capture_diff_slices};
 use text_editor_core::{
-    Anchor, CursorPosition, Document, DocumentEdit, DocumentRead, TextIndentation, TextLanguage,
+    Anchor, AnchorTable, ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead,
+    TextChange, TextIndentation, TextLanguage,
 };
 use uuid::Uuid;
 
@@ -17,9 +18,9 @@ struct Replace {
     left: Option<Anchor>,
     right: Option<Anchor>,
     before: Vec<u8>,
-    before_anchors: Vec<Anchor>,
+    before_anchors: Vec<(usize, Anchor)>,
     after: Vec<u8>,
-    after_anchors: Vec<Anchor>,
+    after_anchors: Vec<(usize, Anchor)>,
 }
 
 struct Group {
@@ -30,10 +31,11 @@ struct Group {
 #[derive(Default)]
 struct State {
     bytes: Vec<u8>,
-    anchors: Vec<Anchor>,
+    anchors: Mutex<AnchorTable>,
     language: TextLanguage,
     indentation: TextIndentation,
     revision: u64,
+    changes: ChangeLog,
     outgoing: Vec<TextOp>,
     undo: Vec<Group>,
     redo: Vec<Group>,
@@ -42,17 +44,31 @@ struct State {
 }
 
 impl State {
-    fn splice(&mut self, index: usize, delete: usize, bytes: &[u8], anchors: &[Anchor]) -> Replace {
-        let left = index.checked_sub(1).map(|previous| self.anchors[previous]);
-        let right = self.anchors.get(index + delete).copied();
+    fn anchors(&self) -> MutexGuard<'_, AnchorTable> {
+        self.anchors
+            .lock()
+            .expect("the text document's anchors were poisoned")
+    }
+
+    fn anchor(&self, index: usize) -> Option<Anchor> {
+        (index < self.bytes.len()).then(|| self.anchors().anchor(index))
+    }
+
+    fn bump(&mut self, change: Option<TextChange>) {
+        self.revision += 1;
+        self.changes.record(self.revision, change);
+    }
+
+    fn splice(&mut self, index: usize, delete: usize, bytes: &[u8]) -> Replace {
+        let left = index
+            .checked_sub(1)
+            .and_then(|previous| self.anchor(previous));
+        let right = self.anchor(index + delete);
         let before: Vec<u8> = self
             .bytes
             .splice(index..index + delete, bytes.iter().copied())
             .collect();
-        let before_anchors: Vec<Anchor> = self
-            .anchors
-            .splice(index..index + delete, anchors.iter().copied())
-            .collect();
+        let before_anchors = self.anchors().splice(index, delete, bytes.len());
         if delete > 0 {
             self.outgoing
                 .push(TextOp::delete(index as u64, delete as u64));
@@ -63,23 +79,23 @@ impl State {
                 bytes: bytes.to_vec(),
             });
         }
-        self.revision += 1;
+        self.bump(Some(TextChange::replace(index, delete, bytes.len())));
         Replace {
             left,
             right,
             before,
             before_anchors,
             after: bytes.to_vec(),
-            after_anchors: anchors.to_vec(),
+            after_anchors: Vec::new(),
         }
     }
 
     fn index_of(&self, anchor: Anchor) -> Option<usize> {
-        self.anchors.iter().position(|held| *held == anchor)
+        self.anchors().index(anchor)
     }
 
-    fn step(&mut self, replace: &Replace, forward: bool) {
-        let (expected, wanted, anchors) = match forward {
+    fn step(&mut self, replace: &mut Replace, forward: bool) {
+        let (expected, wanted, restored) = match forward {
             true => (&replace.before, &replace.after, &replace.after_anchors),
             false => (&replace.after, &replace.before, &replace.before_anchors),
         };
@@ -100,42 +116,68 @@ impl State {
         if end < start || self.bytes[start..end] != expected[..] {
             return;
         }
-        self.splice(start, end - start, wanted, anchors);
+        let wanted = wanted.clone();
+        let restored = restored.clone();
+        let stepped = self.splice(start, end - start, &wanted);
+        self.anchors().restore(start, &restored);
+        match forward {
+            true => replace.before_anchors = stepped.before_anchors,
+            false => replace.after_anchors = stepped.before_anchors,
+        }
     }
 
     fn adopt(&mut self, content: &TextContent) -> bool {
         let mut changed = false;
+        let mut settings = false;
         let language = editor_language(content.language());
         if self.language != language {
             self.language = language;
-            changed = true;
+            settings = true;
         }
         let indentation = editor_indentation(content.indentation());
         if self.indentation != indentation {
             self.indentation = indentation;
-            changed = true;
+            settings = true;
         }
+        changed |= settings;
         let incoming = content.bytes();
+        let mut change = Some(TextChange::NONE);
         if self.bytes != incoming {
-            let mut anchors = Vec::with_capacity(incoming.len());
-            for operation in capture_diff_slices(Algorithm::Myers, &self.bytes, incoming) {
-                match operation {
-                    DiffOp::Equal { old_index, len, .. } => {
-                        anchors.extend_from_slice(&self.anchors[old_index..old_index + len]);
-                    }
-                    DiffOp::Insert { new_len, .. } | DiffOp::Replace { new_len, .. } => {
-                        anchors.extend((0..new_len).map(|_| Anchor::new()));
-                    }
-                    DiffOp::Delete { .. } => {}
-                }
+            let operations = capture_diff_slices(Algorithm::Myers, &self.bytes, incoming);
+            let unequal = |operation: &&DiffOp| !matches!(operation, DiffOp::Equal { .. });
+            if let (Some(first), Some(last)) = (
+                operations.iter().find(unequal),
+                operations.iter().rev().find(unequal),
+            ) {
+                change = Some(TextChange {
+                    start: first.old_range().start,
+                    old_end: last.old_range().end,
+                    new_end: last.new_range().end,
+                });
             }
+            let kept: Vec<(usize, usize, usize)> = operations
+                .into_iter()
+                .filter_map(|operation| match operation {
+                    DiffOp::Equal {
+                        old_index,
+                        new_index,
+                        len,
+                    } => Some((old_index, new_index, len)),
+                    _ => None,
+                })
+                .collect();
+            self.anchors().remap(|index| {
+                let run = kept.partition_point(|(old, _, len)| old + len <= index);
+                kept.get(run)
+                    .filter(|(old, _, _)| *old <= index)
+                    .map(|(old, new, _)| new + (index - old))
+            });
             self.bytes = incoming.to_vec();
-            self.anchors = anchors;
             self.external = true;
             changed = true;
         }
         if changed {
-            self.revision += 1;
+            self.bump(change.filter(|_| !settings));
         }
         changed
     }
@@ -211,10 +253,15 @@ impl Document for BlockDocument {
         self.read_state().revision
     }
 
+    fn changes_since(&self, revision: u64) -> Option<TextChange> {
+        let state = self.read_state();
+        state.changes.since(revision, state.revision)
+    }
+
     fn set_language(&self, language: TextLanguage) {
         let mut state = self.write_state();
         state.language = language;
-        state.revision += 1;
+        state.bump(None);
         state
             .outgoing
             .push(TextOp::SetLanguage(block_language(language)));
@@ -224,7 +271,7 @@ impl Document for BlockDocument {
     fn set_indentation(&self, indentation: TextIndentation) {
         let mut state = self.write_state();
         state.indentation = indentation;
-        state.revision += 1;
+        state.bump(None);
         state
             .outgoing
             .push(TextOp::SetIndentation(block_indentation(indentation)));
@@ -260,8 +307,8 @@ impl Document for BlockDocument {
     fn undo(&self) -> Option<Vec<CursorPosition>> {
         let mut state = self.write_state();
         state.group_open = false;
-        let group = state.undo.pop()?;
-        for replace in group.replaces.iter().rev() {
+        let mut group = state.undo.pop()?;
+        for replace in group.replaces.iter_mut().rev() {
             state.step(replace, false);
         }
         let cursors = group.cursors.clone();
@@ -273,8 +320,8 @@ impl Document for BlockDocument {
     fn redo(&self) -> Option<Vec<CursorPosition>> {
         let mut state = self.write_state();
         state.group_open = false;
-        let group = state.redo.pop()?;
-        for replace in &group.replaces {
+        let mut group = state.redo.pop()?;
+        for replace in &mut group.replaces {
             state.step(replace, true);
         }
         let cursors = group.cursors.clone();
@@ -298,7 +345,7 @@ impl DocumentRead for Read<'_> {
     }
 
     fn anchor(&self, index: usize) -> Option<Anchor> {
-        self.state.anchors.get(index).copied()
+        self.state.anchor(index)
     }
 
     fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
@@ -329,7 +376,7 @@ impl DocumentRead for Edit<'_> {
     }
 
     fn anchor(&self, index: usize) -> Option<Anchor> {
-        self.state.anchors.get(index).copied()
+        self.state.anchor(index)
     }
 
     fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
@@ -356,8 +403,7 @@ impl DocumentEdit for Edit<'_> {
         if delete == 0 && insert.is_empty() {
             return;
         }
-        let anchors: Vec<Anchor> = insert.iter().map(|_| Anchor::new()).collect();
-        let replace = self.state.splice(index, delete, insert, &anchors);
+        let replace = self.state.splice(index, delete, insert);
         self.replaces.push(replace);
     }
 }

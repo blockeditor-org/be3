@@ -41,7 +41,12 @@ fn pane_messages_round_trip() {
                     title: "Files".into(),
                     icon: "folder".into(),
                     closable: false,
-                    more: true,
+                    menu: vec![MenuEntry {
+                        id: "editor.share".into(),
+                        label: "Share".into(),
+                        glyph: String::new(),
+                        enabled: false,
+                    }],
                 }],
                 tree: tree.clone(),
                 arrangement: 3,
@@ -53,9 +58,10 @@ fn pane_messages_round_trip() {
             instance: EditorInstanceId(2),
             layout: None,
         }),
-        Message::Editor(EditorMessage::PaneMore {
+        Message::Editor(EditorMessage::PaneMenuPick {
             instance: EditorInstanceId(2),
             pane: PaneId(1),
+            id: "editor.share".into(),
         }),
         Message::Editor(EditorMessage::ShowPane {
             instance: EditorInstanceId(2),
@@ -76,6 +82,10 @@ fn pane_messages_round_trip() {
             instance: EditorInstanceId(2),
             region: EditorRegion::Pane(PaneId(3)),
             generation: 1,
+            size: Size {
+                width: 300.0,
+                height: 200.0,
+            },
             children: Vec::new(),
             occluders: Vec::new(),
         }),

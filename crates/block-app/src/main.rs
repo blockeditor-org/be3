@@ -3,10 +3,12 @@ mod app_state;
 mod be;
 mod block_label;
 mod block_picker;
+mod compositor;
 mod debug;
 mod editors;
 mod files;
 mod host;
+mod keys;
 mod panic_guard;
 mod performance;
 mod platform;
@@ -17,7 +19,7 @@ mod surfaces;
 mod ui;
 
 use beui::styled::DocumentTheme;
-use std::{collections::HashMap, error::Error};
+use std::{collections::HashMap, error::Error, rc::Rc};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::{io, path::PathBuf};
@@ -34,7 +36,7 @@ use block_plugin_api::{
 };
 use editors::{
     ArtifactSession, ArtifactStatus, BlockLabel, EditorAccess, EditorAction, EditorRegistry,
-    PluginEditor, SidebarDragSource, direct_editor_tab_ui,
+    PluginEditor, SidebarDragSource,
 };
 use root_settings::RootSettings;
 use share::ShareDialog;
@@ -139,6 +141,7 @@ impl Shell {
     fn new(app: BlockApp) -> Self {
         let mut view = None;
         let document = beui::reactive::build(|| {
+            compositor::install();
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
             view = Some(store.clone());
@@ -180,20 +183,16 @@ impl beui::App for Shell {
         let view = self.app.view();
         let store = self.view.clone();
         beui::reactive::with_reactive_scope(&mut self.document, move || {
+            compositor::notify();
             store.set(view);
-            surfaces::commit();
         });
         #[cfg(target_arch = "wasm32")]
         plugin_host::place_screens(
-            &surfaces::shown_blits(),
+            &plugin_host::shown_blits(),
             context.pixels_per_point() / context.native_pixels_per_point(),
             self.document.theme().background,
         );
-        host::filter_document_input(context);
         self.document.show(context, rect);
-        if surfaces::read_placements() {
-            context.request_repaint();
-        }
         let commands = ui::take_commands();
         if !commands.is_empty() {
             for command in commands {
@@ -251,10 +250,8 @@ struct BlockApp {
     shown_pane: Option<(u64, PaneId)>,
     ui_settings: Option<Uuid>,
     block_types: HashMap<Uuid, Uuid>,
-    registry: EditorRegistry,
-    editors: HashMap<Uuid, PluginEditor>,
-
-    editor_access: HashMap<Uuid, Access>,
+    registry: Rc<EditorRegistry>,
+    editors: compositor::Editors,
 
     watched_artifacts: Vec<Uuid>,
     dynamic_artifact_sessions: HashMap<Uuid, Box<dyn ArtifactSession>>,
@@ -283,6 +280,8 @@ struct BlockApp {
     pending_error_action: Option<ErrorAction>,
     inspector_requested: Option<bool>,
     dev_workspace: bool,
+    keys: keys::KeyState,
+    workspace_key: Option<[u8; 32]>,
 }
 
 type Account = SavedAccount;
@@ -301,7 +300,7 @@ enum WorkspaceOperation {
 }
 
 enum WorkspaceResult {
-    Loaded(Vec<Workspace>, Vec<WorkspaceInvitation>),
+    Loaded(Vec<Workspace>, Vec<WorkspaceInvitation>, accounts::Keys),
     Created(Workspace),
     Responded,
     Invited,
@@ -406,6 +405,8 @@ impl BlockApp {
             ServerLocation::Local => url.clone(),
             ServerLocation::Remote(remote) => remote.clone(),
         };
+        let registry = Rc::new(EditorRegistry::new());
+        let editors = compositor::Editors::install(Rc::clone(&registry), client_id);
         Ok(Self {
             app_state,
             client_id,
@@ -436,9 +437,8 @@ impl BlockApp {
             shown_pane: None,
             ui_settings: None,
             block_types: HashMap::new(),
-            registry: EditorRegistry::new(),
-            editors: HashMap::new(),
-            editor_access: HashMap::new(),
+            registry,
+            editors,
             watched_artifacts: Vec::new(),
             dynamic_artifact_sessions: HashMap::new(),
             dynamic_artifact_errors: HashMap::new(),
@@ -462,6 +462,8 @@ impl BlockApp {
             pending_error_action: None,
             inspector_requested: None,
             dev_workspace: false,
+            keys: keys::KeyState::default(),
+            workspace_key: None,
         })
     }
 
@@ -643,11 +645,10 @@ impl BlockApp {
         let receiver = platform::spawn_request(async move {
             match operation {
                 WorkspaceOperation::Load => {
-                    accounts::workspaces(url, token)
-                        .await
-                        .map(|(workspaces, invitations)| {
-                            WorkspaceResult::Loaded(workspaces, invitations)
-                        })
+                    let (workspaces, invitations) =
+                        accounts::workspaces(url.clone(), token.clone()).await?;
+                    let keys = accounts::keys(url, token).await?;
+                    Ok(WorkspaceResult::Loaded(workspaces, invitations, keys))
                 }
                 WorkspaceOperation::Create(name) => accounts::create_workspace(url, token, name)
                     .await
@@ -678,11 +679,23 @@ impl BlockApp {
         };
         self.pending_workspace_request = None;
         match result {
-            Ok(WorkspaceResult::Loaded(workspaces, invitations)) => {
+            Ok(WorkspaceResult::Loaded(workspaces, invitations, keys)) => {
                 self.workspaces = workspaces;
                 self.invitations = invitations;
                 self.workspaces_loaded = true;
                 self.workspaces_load_failed = false;
+                self.keys.loaded(keys);
+                if self.keys.needs_recovery() {
+                    if self.dev_workspace {
+                        let held = self.held_keys();
+                        self.keys.skip_confirmation(
+                            self.server_url.clone(),
+                            self.account.token.clone(),
+                            held,
+                        );
+                    }
+                    return;
+                }
                 if let Some(last_workspace_id) = self.account.last_workspace_id
                     && let Some(workspace) = self
                         .workspaces
@@ -697,6 +710,14 @@ impl BlockApp {
             Ok(WorkspaceResult::Created(workspace)) => {
                 self.workspaces.push(workspace.clone());
                 self.workspace_created += 1;
+                let key = *be_store::ContentKey::random().as_bytes();
+                if let Err(error) =
+                    self.app_state
+                        .set_workspace_key(&self.account, workspace.id, key)
+                {
+                    self.workspace_error = Some(error.to_string());
+                    return;
+                }
                 self.open_workspace(workspace);
             }
             Ok(WorkspaceResult::Responded) => {
@@ -809,8 +830,8 @@ impl BlockApp {
     fn open_workspace(&mut self, workspace: Workspace) {
         be::stop();
         self.block_types.clear();
-        self.registry = EditorRegistry::new();
-        self.editors.clear();
+        self.registry = Rc::new(EditorRegistry::new());
+        self.editors.reset(Rc::clone(&self.registry));
         self.watched_artifacts.clear();
         self.dynamic_artifact_sessions.clear();
         self.dynamic_artifact_errors.clear();
@@ -822,6 +843,14 @@ impl BlockApp {
         self.shell = None;
         self.shell_panes = None;
         self.ui_settings = None;
+        self.keys.cancel_pairing();
+        self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
+            Ok(key) => key,
+            Err(error) => {
+                self.workspace_error = Some(error.to_string());
+                None
+            }
+        };
         self.workspace = Some(workspace.clone());
         self.account.last_workspace_id = Some(workspace.id);
         if let Some(saved) = self
@@ -836,6 +865,38 @@ impl BlockApp {
             .set_last_workspace(&self.account, Some(workspace.id))
         {
             self.workspace_error = Some(error.to_string());
+        }
+    }
+
+    fn held_keys(&self) -> Vec<(Uuid, [u8; 32])> {
+        self.app_state
+            .workspace_keys(&self.account)
+            .unwrap_or_default()
+    }
+
+    fn poll_keys(&mut self) {
+        match self.keys.poll() {
+            Some(keys::KeyEvent::RecoverySaved) if self.workspace.is_some() => {}
+            Some(keys::KeyEvent::RecoverySaved) => {
+                self.workspaces_loaded = false;
+                self.workspaces_load_failed = false;
+                self.begin_workspace_request(WorkspaceOperation::Load);
+            }
+            Some(keys::KeyEvent::Unlocked(workspace, key)) => self.unlocked(workspace, key),
+            None => {}
+        }
+    }
+
+    fn unlocked(&mut self, workspace: Uuid, key: [u8; 32]) {
+        if let Err(error) = self
+            .app_state
+            .set_workspace_key(&self.account, workspace, key)
+        {
+            self.workspace_error = Some(error.to_string());
+            return;
+        }
+        if self.workspace.as_ref().map(|open| open.id) == Some(workspace) {
+            self.workspace_key = Some(key);
         }
     }
 
@@ -868,8 +929,8 @@ impl BlockApp {
         };
         be::stop();
         self.block_types.clear();
-        self.registry = EditorRegistry::new();
-        self.editors.clear();
+        self.registry = Rc::new(EditorRegistry::new());
+        self.editors.reset(Rc::clone(&self.registry));
         self.watched_artifacts.clear();
         self.dynamic_artifact_sessions.clear();
         self.dynamic_artifact_errors.clear();
@@ -898,13 +959,14 @@ impl BlockApp {
         self.shell = None;
         self.shell_panes = None;
         self.ui_settings = None;
+        self.keys = keys::KeyState::default();
+        self.workspace_key = None;
         self.account = account;
         self.server_url = server_url;
         self.signed_in = true;
         if let Err(error) = self.app_state.set_active_account(&self.account) {
             self.account_error = Some(error.to_string());
         }
-        host::clear_focus();
     }
 
     fn close_requested(&mut self) -> bool {
@@ -939,19 +1001,20 @@ impl BlockApp {
         self.block_types.get(&id).copied().or_else(|| {
             be::node(id)
                 .map(|node| node.content_type)
-                .or_else(|| self.editors.get(&id).map(|editor| editor.block_type()))
+                .or_else(|| self.with_editor(id, |editor| editor.block_type()))
         })
     }
 
     fn ensure_editor(&mut self, id: Uuid) -> bool {
-        if self.editors.contains_key(&id) {
+        if self.editors.with(|open| open.contains_key(&id)) {
             return true;
         }
         let Some(block_type) = self.block_type_of(id) else {
             return false;
         };
         self.block_types.insert(id, block_type);
-        self.editors.insert(id, self.registry.open(id, block_type));
+        let editor = self.registry.open(id, block_type);
+        self.editors.with(|open| open.insert(id, editor));
         true
     }
 
@@ -1056,9 +1119,8 @@ impl BlockApp {
                         Some(true)
                     }
                     Some(SidebarDragSource::Block(source)) => self
-                        .editors
-                        .get(&source)
-                        .and_then(|editor| editor.delete_child(transfer.child)),
+                        .with_editor(source, |editor| editor.delete_child(transfer.child))
+                        .flatten(),
                 };
                 if ready != Some(true) {
                     self.pending_transfers.push(transfer);
@@ -1068,9 +1130,8 @@ impl BlockApp {
             }
 
             let ready = transfer.destination.map_or(Some(true), |destination| {
-                self.editors
-                    .get(&destination)
-                    .and_then(|editor| editor.add_child(transfer.child))
+                self.with_editor(destination, |editor| editor.add_child(transfer.child))
+                    .flatten()
             });
             if ready != Some(true) {
                 self.pending_transfers.push(transfer);
@@ -1130,9 +1191,10 @@ impl BlockApp {
                 continue;
             }
             let replaced = self
-                .editors
-                .get(&copy.container)
-                .and_then(|editor| editor.replace_child(copy.source, copy_id));
+                .with_editor(copy.container, |editor| {
+                    editor.replace_child(copy.source, copy_id)
+                })
+                .flatten();
             if replaced != Some(true) {
                 self.pending_copies.push(copy);
                 continue;
@@ -1149,9 +1211,9 @@ impl BlockApp {
 
     fn editor_access(&self, id: Uuid) -> Access {
         let ceiling = self.editor_access_ceiling(id);
-        self.editor_access
-            .get(&id)
-            .map_or(ceiling, |chosen| (*chosen).min(ceiling))
+        self.editors
+            .simulated(id)
+            .map_or(ceiling, |chosen| chosen.min(ceiling))
     }
 
     fn forget_dynamic_artifact_dialogs(&mut self, id: Uuid) {
@@ -1168,16 +1230,16 @@ impl BlockApp {
         let id = self.root_settings.ensure_profile(self.client_id)?;
         if let Some(previous) = self.shell.filter(|previous| *previous != id) {
             self.shell = None;
-            let open: Vec<Uuid> = self.editors.keys().copied().collect();
+            let open: Vec<Uuid> = self.editors.with(|open| open.keys().copied().collect());
             for editor in open {
                 self.close_editor(editor);
             }
             self.block_types.remove(&previous);
         }
         self.block_types.insert(id, WORKSPACE_EDITOR);
-        if !self.editors.contains_key(&id) {
+        if !self.editors.with(|open| open.contains_key(&id)) {
             let editor = self.registry.open(id, WORKSPACE_EDITOR).viewed_by(Some(id));
-            self.editors.insert(id, editor);
+            self.editors.with(|open| open.insert(id, editor));
         }
         self.shell = Some(id);
         Some(id)
@@ -1185,21 +1247,21 @@ impl BlockApp {
 
     fn show_in_shell(&mut self, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
         self.block_types.insert(id, block_type);
-        let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) else {
-            return;
-        };
-        shell.show_block(id, block_type, via);
+        if let Some(shell) = self.shell {
+            self.with_editor(shell, |shell| shell.show_block(id, block_type, via));
+        }
     }
     fn close_editor(&mut self, id: Uuid) {
         if self.shell == Some(id) {
             return;
         }
-        self.editor_access.remove(&id);
+        self.editors
+            .with_simulated(|simulated| simulated.remove(&id));
         self.dynamic_artifact_sessions.remove(&id);
         self.dynamic_artifact_errors.remove(&id);
         self.forget_dynamic_artifact_dialogs(id);
         self.watched_artifacts.retain(|watched| *watched != id);
-        if let Some(mut editor) = self.editors.remove(&id) {
+        if let Some(mut editor) = self.editors.with(|open| open.remove(&id)) {
             editor.tab_closed();
         }
     }
@@ -1230,72 +1292,70 @@ impl BlockApp {
         }
     }
 
+    fn with_editor<R>(&self, id: Uuid, act: impl FnOnce(&mut PluginEditor) -> R) -> Option<R> {
+        self.editors.with(|open| open.get_mut(&id).map(act))
+    }
+
     fn show_shell(&mut self) {
         let Some(shell) = self.ensure_shell() else {
             return;
         };
-        for editor in self.editors.values_mut() {
-            editor.set_tab_active(false);
-        }
-        let Some(mut editor) = self.editors.remove(&shell) else {
+        compositor::set_shell(Some(shell));
+        let Some((panes, shown, focus, watch)) = self.with_editor(shell, |editor| {
+            (
+                editor.panes(),
+                editor.take_shown_panes(),
+                editor.take_focus_report(),
+                editor.take_artifact_watch(),
+            )
+        }) else {
             return;
         };
-        editor.set_tab_active(true);
-        let access = self.editor_access(shell);
-        let action = {
-            let mut editors = EditorAccess::new(
-                shell,
-                access,
-                self.client_id,
-                &self.registry,
-                &mut self.editors,
-                &self.editor_access,
-            );
-            let main = surfaces::with(SurfaceId::Main, |ui| {
-                direct_editor_tab_ui(&mut editor, ui, &mut editors)
-            })
-            .flatten();
-            let panes: Vec<PaneId> = editor
-                .panes()
-                .map(|layout| {
-                    let listed = layout.panes.iter().map(|info| info.pane);
-                    let empty = layout.empty.then_some(block_plugin_api::EMPTY_PANE);
-                    listed.chain(empty).collect()
-                })
-                .unwrap_or_default();
-            let mut action = main;
-            for pane in &panes {
-                let acted = surfaces::with(SurfaceId::Pane(pane.0), |ui| {
-                    editor.pane_ui(ui, &mut editors, *pane)
-                })
-                .flatten();
-                action = action.or(acted);
-            }
-            surfaces::keep_panes(&panes.iter().map(|pane| pane.0).collect::<Vec<_>>());
-            action
-        };
-        self.shell_panes = editor.panes();
-        for pane in editor.take_shown_panes() {
+        self.shell_panes = panes;
+        for pane in shown {
             let count = self.shown_pane.map_or(0, |(count, _)| count) + 1;
             self.shown_pane = Some((count, pane));
         }
-        let focus = editor.take_focus_report();
-        let watch = editor.take_artifact_watch();
-        self.editors.insert(shell, editor);
         if let Some(focus) = focus {
             plugin_host::set_focus(focus.block, focus.via);
         }
         if let Some(watch) = watch {
             self.watch_artifacts(watch);
         }
-        for (id, editor) in self.editors.iter_mut() {
-            if *id != shell {
-                editor.finish_frame();
+        if host::key_pressed(beui::Key::Escape) {
+            let presenting: Vec<Uuid> = self.editors.with(|open| {
+                open.values()
+                    .filter(|editor| editor.presenting_now())
+                    .map(PluginEditor::id)
+                    .collect()
+            });
+            for id in presenting {
+                self.with_editor(id, PluginEditor::stop_presenting_now);
             }
         }
-        if let Some(action) = action {
+        for action in self.serve_block_picks() {
             self.handle_editor_action(action);
         }
+        for action in compositor::take_actions() {
+            self.handle_editor_action(action);
+        }
+    }
+
+    fn serve_block_picks(&mut self) -> Vec<EditorAction> {
+        let ids: Vec<Uuid> = self.editors.with(|open| open.keys().copied().collect());
+        let mut actions = Vec::new();
+        for id in ids {
+            let Some(mut editor) = self.editors.with(|open| open.remove(&id)) else {
+                continue;
+            };
+            let action = self.editors.with(|open| {
+                let mut editors = EditorAccess::new(id, self.client_id, &self.registry, open);
+                editor.serve_block_pick(&mut editors)
+            });
+            self.editors.with(|open| open.insert(id, editor));
+            actions.extend(action);
+        }
+        actions
     }
 
     fn poll_artifacts(&mut self) {
@@ -1367,15 +1427,14 @@ impl BlockApp {
             }
             states.push(state);
         }
-        if let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) {
-            shell.set_artifact_states(states);
+        if let Some(shell) = self.shell {
+            self.with_editor(shell, |shell| shell.set_artifact_states(states));
         }
         self.show_artifact_settings();
     }
 
     fn show_artifact_settings(&mut self) {
         let Some(id) = self.dynamic_artifact_settings_open else {
-            surfaces::set_height(SurfaceId::ArtifactSettings, None);
             return;
         };
         let descriptor = artifact_of(id);
@@ -1390,10 +1449,13 @@ impl BlockApp {
             .entry(id)
             .or_insert_with(|| descriptor.data.clone());
         surfaces::set_height(SurfaceId::ArtifactSettings, Some(session.settings_height()));
-        let registry = &self.registry;
-        surfaces::with(SurfaceId::ArtifactSettings, |ui| {
-            session.settings_ui(ui, registry, draft);
-        });
+        surfaces::host(
+            SurfaceId::ArtifactSettings,
+            Some(session.settings_region(&self.registry)),
+        );
+        if let Some(edited) = session.take_draft() {
+            *draft = edited;
+        }
         self.dynamic_artifact_sessions.insert(id, session);
     }
 
@@ -1495,8 +1557,12 @@ impl BlockApp {
                     AccessLevel::Edit => Access::Edit,
                 };
                 match access == Access::Edit {
-                    true => self.editor_access.remove(&id),
-                    false => self.editor_access.insert(id, access),
+                    true => self
+                        .editors
+                        .with_simulated(|simulated| simulated.remove(&id)),
+                    false => self
+                        .editors
+                        .with_simulated(|simulated| simulated.insert(id, access)),
                 };
             }
             BlockCommand::Delete {
@@ -1569,9 +1635,20 @@ impl BlockApp {
         if let Some(account) = self.scheduled_account_switch.take() {
             self.switch_account(account);
         }
+        self.poll_keys();
         if self.workspace.is_none() {
             be::stop();
             self.load_workspaces_if_needed();
+            self.poll_reauth_request();
+            performance::end_frame();
+            return;
+        }
+        if self.workspace_key.is_none() {
+            be::stop();
+            if !self.workspaces_loaded {
+                self.load_workspaces_if_needed();
+            }
+            self.poll_workspace_request();
             self.poll_reauth_request();
             performance::end_frame();
             return;
@@ -1594,6 +1671,9 @@ impl BlockApp {
         let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id) else {
             return;
         };
+        let Some(content_key) = self.workspace_key else {
+            return;
+        };
         if be::installed_for(self.account.id, workspace) {
             return;
         }
@@ -1602,6 +1682,12 @@ impl BlockApp {
             token: self.account.token.clone(),
             account: self.account.id,
             workspace,
+            content_key,
+            other_keys: self
+                .held_keys()
+                .into_iter()
+                .filter(|(held, _)| *held != workspace)
+                .collect(),
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: self.data_dir.join("be-objects"),
         });
@@ -1772,20 +1858,52 @@ impl BlockApp {
                 detached,
                 focused,
             } => {
-                if let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) {
-                    shell.arrange_panes(arrangement, tree, detached, focused);
+                if let Some(shell) = self.shell {
+                    self.with_editor(shell, |shell| {
+                        shell.arrange_panes(arrangement, tree, detached, focused)
+                    });
                 }
             }
             UiCommand::ClosePane(pane) => {
-                if let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) {
-                    shell.close_pane(pane);
+                if let Some(shell) = self.shell {
+                    self.with_editor(shell, |shell| shell.close_pane(pane));
                 }
             }
-            UiCommand::PaneMore(pane) => {
-                if let Some(shell) = self.shell.and_then(|shell| self.editors.get(&shell)) {
-                    shell.pane_more(pane);
+            UiCommand::PaneMenuPick(pane, id) => {
+                if let Some(shell) = self.shell {
+                    self.with_editor(shell, |shell| shell.pick_pane_menu(pane, id));
                 }
             }
+            UiCommand::ConfirmRecovery(words) => {
+                let held = self.held_keys();
+                self.keys.confirm_recovery(
+                    &words,
+                    self.server_url.clone(),
+                    self.account.token.clone(),
+                    held,
+                );
+            }
+            UiCommand::UnlockWithPhrase(phrase) => {
+                if let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id)
+                    && let Some(key) = self.keys.unlock_with_phrase(workspace, &phrase)
+                {
+                    self.unlocked(workspace, key);
+                }
+            }
+            UiCommand::StartPairing => {
+                if let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id) {
+                    self.keys.start_pairing(
+                        self.server_url.clone(),
+                        self.account.token.clone(),
+                        workspace,
+                    );
+                }
+            }
+            UiCommand::CancelPairing => self.keys.cancel_pairing(),
+            UiCommand::NewRecoveryPhrase => self.keys.replace_recovery(),
+            UiCommand::CancelRecovery => self.keys.cancel_replacing(),
+            UiCommand::ApprovePairing(from, code) => be::approve_pairing(from, code),
+            UiCommand::DismissPairing(from) => be::dismiss_pairing(from),
         }
     }
 
@@ -1793,7 +1911,10 @@ impl BlockApp {
         let screen = match (&self.error, self.signed_in, &self.workspace) {
             (Some(_), _, _) => ui::Screen::Error,
             (None, false, _) => ui::Screen::Accounts,
+            (None, true, _) if self.keys.replacing() => ui::Screen::Recovery,
+            (None, true, None) if self.keys.needs_recovery() => ui::Screen::Recovery,
             (None, true, None) => ui::Screen::Workspaces,
+            (None, true, Some(_)) if self.workspace_key.is_none() => ui::Screen::Unlock,
             (None, true, Some(_)) => ui::Screen::Workspace,
         };
         let changes_saved = match screen {
@@ -1820,6 +1941,7 @@ impl BlockApp {
             error: ui::ErrorView {
                 message: self.error.clone().unwrap_or_default(),
                 pending: self.pending_error_action,
+                unsaved: be::status().unsealed,
             },
             accounts: accounts.clone(),
             account_error: self.account_error.clone(),
@@ -1833,6 +1955,28 @@ impl BlockApp {
                     .flatten(),
             },
             account: ui::AccountRow::of(&self.account, true),
+            recovery: self.keys.recovery_view(),
+            unlock: self
+                .workspace
+                .as_ref()
+                .map(|workspace| self.keys.unlock_view(workspace.id, &workspace.name))
+                .unwrap_or_default(),
+            pairing: match screen {
+                ui::Screen::Workspace => be::pairing_requests()
+                    .into_iter()
+                    .map(|request| ui::PairingRow {
+                        from: request.from,
+                        device: request.device,
+                        workspace: self
+                            .workspaces
+                            .iter()
+                            .find(|workspace| workspace.id == request.workspace)
+                            .map(|workspace| workspace.name.clone())
+                            .unwrap_or_else(|| "another workspace".to_owned()),
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            },
             workspaces: ui::WorkspacesView {
                 state: match (self.workspaces_loaded, self.workspaces_load_failed) {
                     (true, _) => ui::WorkspacesState::Loaded,
@@ -1915,15 +2059,16 @@ impl BlockApp {
                 layout: self.shell_panes.clone(),
                 shown: self.shown_pane,
             },
-            presenting: surfaces::handle(SurfaceId::Presenting)
-                .shown()
-                .get_untracked(),
+            presenting: self
+                .editors
+                .with(|open| open.values().any(PluginEditor::presenting_now)),
             debug: debug::view(),
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     fn restart(&mut self) {
+        be::flush();
         be::stop();
         match Self::new(Some(self.data_dir.clone())) {
             Ok(fresh) => *self = fresh,
@@ -1933,6 +2078,7 @@ impl BlockApp {
 
     #[cfg(target_arch = "wasm32")]
     fn restart(&mut self) {
+        be::flush();
         be::stop();
         match Self::new() {
             Ok(fresh) => *self = fresh,

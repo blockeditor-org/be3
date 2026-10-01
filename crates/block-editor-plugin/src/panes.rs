@@ -1,14 +1,16 @@
+use block_plugin_api::EditorInstanceId;
 use block_plugin_api::{ScreenLayout, ScreenPlacement, SurfaceRect};
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::time::Duration;
 
 use crate::plugin::PaintTarget;
-use crate::screens::Screens;
+use crate::screens::{Dirty, Screens};
 
 pub(crate) struct Panes {
     generation: Option<u64>,
     format: wgpu::TextureFormat,
     presented: VecDeque<u64>,
+    repainting: HashSet<EditorInstanceId>,
 }
 
 const REMEMBERED_PRESENTS: usize = 4;
@@ -25,6 +27,7 @@ impl Panes {
             format,
             generation: None,
             presented: VecDeque::new(),
+            repainting: HashSet::new(),
         }
     }
 
@@ -32,15 +35,30 @@ impl Panes {
         let mut repaint = Duration::MAX;
         let mut changed = self.generation != Some(layout.generation);
         self.generation = Some(layout.generation);
+        let dirty = match changed {
+            true => {
+                screens.take_dirty();
+                Dirty::Everything
+            }
+            false => screens.take_dirty(),
+        };
+        let repainting = std::mem::take(&mut self.repainting);
         let mut placed: Vec<ScreenPlacement> = Vec::new();
         for placement in &layout.screens {
             let Some(session) = screens.session(placement.instance) else {
                 continue;
             };
-            let frame = session.run(placement.region, layout.generation);
-            changed |= frame.changed;
-            repaint = repaint.min(frame.repaint_after.unwrap_or(Duration::MAX));
             placed.push(*placement);
+            if !dirty.contains(placement.instance) && !repainting.contains(&placement.instance) {
+                continue;
+            }
+            let frame = session.run(placement.region, layout.generation);
+            screens.ran(placement.instance);
+            changed |= frame.changed;
+            if let Some(after) = frame.repaint_after {
+                repaint = repaint.min(after);
+                self.repainting.insert(placement.instance);
+            }
         }
         Ran {
             changed,

@@ -877,7 +877,7 @@ fn Failure(failed: Memo<bool>, reason: Memo<String>) -> NodeId {
 pub(crate) fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
     let phone = workspace.phone.clone();
     let top_bar = create_memo(move || match phone.get() {
-        true => TopBar::Phone { more: false },
+        true => TopBar::Phone,
         false => TopBar::Hidden,
     });
     let failure = workspace.error.clone();

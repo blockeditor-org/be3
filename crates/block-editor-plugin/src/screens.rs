@@ -3,7 +3,11 @@ use block_plugin_api::{
     EditorRegion, Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry};
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 use uuid::Uuid;
 
 use crate::{
@@ -23,6 +27,27 @@ pub(crate) struct Screens {
     block_types: Rc<BlockCatalog>,
     surface: Option<SurfaceSpec>,
     panes: bool,
+    dirty: Arc<Mutex<HashSet<EditorInstanceId>>>,
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    everything: bool,
+    reporting: HashSet<EditorInstanceId>,
+    reporting_everything: bool,
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) enum Dirty {
+    Everything,
+    Instances(HashSet<EditorInstanceId>),
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Dirty {
+    pub(crate) fn contains(&self, instance: EditorInstanceId) -> bool {
+        match self {
+            Self::Everything => true,
+            Self::Instances(instances) => instances.contains(&instance),
+        }
+    }
 }
 
 impl Screens {
@@ -36,23 +61,66 @@ impl Screens {
             block_types: Rc::new(BlockCatalog::default()),
             surface: None,
             panes: false,
+            dirty: Arc::default(),
+            everything: true,
+            reporting: HashSet::new(),
+            reporting_everything: true,
         }
     }
 
     pub(crate) fn adopt(&mut self, instance: EditorInstanceId, session: EditorSession) {
         self.sessions.insert(instance, session);
+        self.touch_everything();
+    }
+
+    fn touch_everything(&mut self) {
+        self.everything = true;
+        self.reporting_everything = true;
+    }
+
+    pub(crate) fn ran(&mut self, instance: EditorInstanceId) {
+        self.reporting.insert(instance);
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn take_dirty(&mut self) -> Dirty {
+        let dirty =
+            std::mem::take(&mut *self.dirty.lock().unwrap_or_else(|held| held.into_inner()));
+        match std::mem::take(&mut self.everything) {
+            true => Dirty::Everything,
+            false => Dirty::Instances(dirty),
+        }
+    }
+
+    fn mark(&mut self, instance: EditorInstanceId) {
+        if self.sessions.contains_key(&instance) {
+            self.dirty
+                .lock()
+                .unwrap_or_else(|held| held.into_inner())
+                .insert(instance);
+            self.reporting.insert(instance);
+        }
     }
 
     fn open(&mut self, instance: EditorInstanceId, block_type: Uuid) -> &mut EditorSession {
         let apps = &self.apps;
-        let waker = &self.waker;
+        let marks = Arc::clone(&self.dirty);
+        let inner = self.waker.clone();
+        let waker = Waker::default();
+        waker.install(move || {
+            marks
+                .lock()
+                .unwrap_or_else(|held| held.into_inner())
+                .insert(instance);
+            inner.wake();
+        });
         self.sessions.entry(instance).or_insert_with(|| {
             let open = apps
                 .iter()
                 .find(|(declared, _)| *declared == block_type)
                 .map(|(_, open)| *open)
                 .unwrap_or_else(|| panic!("this plugin has no editor for block type {block_type}"));
-            EditorSession::new(instance, waker.clone(), open)
+            EditorSession::new(instance, waker, open)
         })
     }
 
@@ -382,9 +450,14 @@ impl Screens {
                     session.close_pane(*pane);
                 }
             }
-            Message::Editor(EditorMessage::PaneMore { instance, pane }) => {
+            Message::Editor(EditorMessage::PaneMenuPick { instance, pane, id }) => {
                 if let Some(session) = self.sessions.get_mut(instance) {
-                    session.pane_more(*pane);
+                    session.pick_pane_menu(*pane, id.clone());
+                }
+            }
+            Message::Editor(EditorMessage::MenuPick { instance, id }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.pick_menu(id.clone());
                 }
             }
             Message::Editor(EditorMessage::Close { instance }) => {
@@ -500,13 +573,43 @@ impl Screens {
             }
             _ => return false,
         }
+        match message {
+            Message::Input(batch) => match self.screen(batch.screen) {
+                Some((instance, _)) => self.mark(instance),
+                None => return false,
+            },
+            Message::ChildStatuses(statuses) => {
+                for status in statuses {
+                    self.mark(status.instance);
+                }
+            }
+            Message::Editor(EditorMessage::Close { .. }) | Message::Screens(_) => {
+                self.touch_everything();
+            }
+            Message::Editor(editor) => {
+                if !self.sessions.contains_key(&editor.instance()) {
+                    return false;
+                }
+                self.mark(editor.instance());
+            }
+            _ => self.touch_everything(),
+        }
         true
     }
 
     pub(crate) fn outbound(&mut self) -> Vec<Message> {
         let mut messages = Vec::from_iter(crate::fonts::take_missing());
-        for session in self.sessions.values_mut() {
-            messages.extend(session.outbound());
+        let woken = self
+            .dirty
+            .lock()
+            .unwrap_or_else(|held| held.into_inner())
+            .clone();
+        let everything = std::mem::take(&mut self.reporting_everything);
+        let reporting = std::mem::take(&mut self.reporting);
+        for (instance, session) in &mut self.sessions {
+            if everything || reporting.contains(instance) || woken.contains(instance) {
+                messages.extend(session.outbound());
+            }
         }
         messages
     }

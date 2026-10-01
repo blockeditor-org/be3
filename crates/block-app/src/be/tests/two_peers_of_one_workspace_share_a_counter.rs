@@ -18,6 +18,8 @@ fn two_peers_of_one_workspace_share_a_counter() {
         token: harness.token.clone(),
         account: harness.account,
         workspace: harness.workspace,
+        content_key: harness.content_key,
+        other_keys: Vec::new(),
         data_dir: elsewhere.clone(),
     });
     open(block, CounterContent::CONTENT_TYPE);

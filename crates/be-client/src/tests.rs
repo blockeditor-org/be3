@@ -10,19 +10,23 @@ use uuid::Uuid;
 use super::*;
 
 mod a_follower_replaces_an_image_and_the_owner_takes_it;
+mod a_follower_stops_saving_after_a_message_it_cannot_read;
 mod a_follower_takes_over_and_keeps_editing_without_a_merge;
 mod a_follower_that_falls_behind_catches_up;
 mod a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save;
 mod a_large_image_streams_without_downloading_all_of_it;
 mod a_second_follower_keeps_following_after_the_owner_leaves;
 mod a_stale_save_is_rejected_with_the_head_to_merge_against;
+mod an_edit_too_large_to_relay_is_saved_as_a_commit;
 mod an_idle_session_catches_up_with_a_publish_from_outside_it;
 mod an_image_round_trips_without_being_re_encoded;
 mod an_offline_edit_elsewhere_merges_cleanly;
 mod an_offline_rewrite_conflicts_instead_of_interleaving;
 mod an_unsaved_edit_survives_a_publish_from_outside_the_session;
+mod an_unsaved_rewrite_that_conflicts_keeps_both_versions_in_history;
 mod history_is_thinned_but_the_head_and_bookmarks_survive;
 mod metadata_is_sealed_on_the_server_and_opened_by_members;
+mod metadata_that_does_not_decode_is_an_error_rather_than_blank;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod references_declared_by_content_reach_the_graph;
 mod the_journal_says_how_each_peer_saw_its_content_change;
@@ -43,7 +47,13 @@ impl Harness {
         let (shutdown, receiver) = oneshot::channel();
         let data_dir = directory.clone();
         let handle = tokio::spawn(async move {
-            let _ = be_server::serve_until_shutdown(listener, data_dir, receiver).await;
+            let _ = be_server::serve_with_config(
+                listener,
+                data_dir,
+                be_server::ServerConfig::OPEN,
+                receiver,
+            )
+            .await;
         });
         Self {
             url: format!("ws://{address}"),

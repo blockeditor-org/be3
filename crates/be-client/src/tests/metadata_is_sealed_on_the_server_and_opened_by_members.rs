@@ -26,7 +26,10 @@ async fn metadata_is_sealed_on_the_server_and_opened_by_members() {
 
     let listed = laptop.list_blocks().await.unwrap();
     let summary = listed.iter().find(|summary| summary.id == block).unwrap();
-    assert_eq!(laptop.metadata(summary).name.as_deref(), Some("Groceries"));
+    assert_eq!(
+        laptop.metadata(summary).unwrap().name.as_deref(),
+        Some("Groceries")
+    );
 
     harness.stop().await;
 }

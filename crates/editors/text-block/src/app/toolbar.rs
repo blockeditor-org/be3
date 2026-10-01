@@ -1,18 +1,18 @@
+use beui::Key;
 use beui::NodeId;
 use beui::icons::{
-    ICON_ADD_BOX, ICON_CHECKLIST, ICON_CODE, ICON_DATA_ARRAY, ICON_FIND_REPLACE, ICON_FORMAT_BOLD,
-    ICON_FORMAT_ITALIC, ICON_FORMAT_LIST_BULLETED, ICON_FORMAT_LIST_NUMBERED,
-    ICON_FORMAT_STRIKETHROUGH, ICON_IMAGE, ICON_KEYBOARD_HIDE, ICON_LINK, ICON_SETTINGS,
-    ICON_TITLE,
+    ICON_ADD_BOX, ICON_CHECKLIST, ICON_CODE, ICON_DATA_ARRAY, ICON_FORMAT_BOLD, ICON_FORMAT_ITALIC,
+    ICON_FORMAT_LIST_BULLETED, ICON_FORMAT_LIST_NUMBERED, ICON_FORMAT_STRIKETHROUGH, ICON_IMAGE,
+    ICON_KEYBOARD_HIDE, ICON_LINK, ICON_SETTINGS, ICON_TITLE,
 };
 use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, clone, component,
-    create_memo, create_signal, view, with_document,
+    Action, Align, Chord, Direction, ForEach, Frame, ItemSize, List, Show, WriteSignal, clone,
+    component, create_memo, create_signal, view, with_document,
 };
 use beui::styled::{Body, Dialog, IconButton, NumberInput, Select, Separator, Switch, use_theme};
 use beui::unstyled::{ChoiceOption, Scroll};
 use block_editor_beui::BlockParent;
-use block_editor_beui::{BlockFilter, bar_item, block_ui::BlockLabel};
+use block_editor_beui::{BlockFilter, block_ui::BlockLabel};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
 use super::state::Shared;
@@ -26,7 +26,7 @@ const FORMAT_PADDING: f32 = 6.0;
 #[component]
 pub(crate) fn EditorMenu(state: Shared) -> NodeId {
     let (settings, set_settings) = create_signal(false);
-    bar_items(&state, set_settings.clone());
+    menu_actions(&state, set_settings.clone());
     let hex = state.hex_view.clone();
     let text_view = create_memo(clone!(hex -> move || !hex.get()));
     let hex_view = create_memo(move || hex.get());
@@ -49,35 +49,136 @@ pub(crate) fn EditorMenu(state: Shared) -> NodeId {
     }
 }
 
-fn bar_items(state: &Shared, set_settings: WriteSignal<bool>) {
-    let never = create_memo(|| false);
+fn menu_actions(state: &Shared, set_settings: WriteSignal<bool>) {
     let hex = state.hex_view.clone();
-    let in_hex = create_memo(move || hex.get());
-    bar_item(
+    let in_text = create_memo(clone!(hex -> move || !hex.get()));
+    Action::new(
+        "text.hex",
         "Toggle hex view",
-        ICON_DATA_ARRAY,
-        never.clone(),
         clone!(state -> move || state.toggle_hex_view()),
-    );
-    bar_item(
-        "Find and replace",
-        ICON_FIND_REPLACE,
-        in_hex.clone(),
-        clone!(state -> move || state.text.open_find(true)),
-    );
-    bar_item(
+    )
+    .glyph(ICON_DATA_ARRAY)
+    .checked(create_memo(move || hex.get()))
+    .in_menu()
+    .register();
+    Action::new(
+        "text.insert-block",
         "Insert a block",
-        ICON_ADD_BOX,
-        in_hex,
         clone!(state -> move || pick_block(&state)),
-    );
-    bar_item("Text settings", ICON_SETTINGS, never, move || {
+    )
+    .glyph(ICON_ADD_BOX)
+    .enabled(in_text)
+    .in_menu()
+    .register();
+    Action::new("text.settings", "Text settings", move || {
         set_settings.set(true)
-    });
+    })
+    .glyph(ICON_SETTINGS)
+    .in_menu()
+    .register();
+}
+
+const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [
+    (
+        "text.format.heading",
+        "Heading",
+        ICON_TITLE,
+        MarkdownCommand::Heading(2),
+        None,
+    ),
+    (
+        "text.format.bold",
+        "Bold",
+        ICON_FORMAT_BOLD,
+        MarkdownCommand::Bold,
+        Some(Chord::ctrl(Key::B)),
+    ),
+    (
+        "text.format.italic",
+        "Italic",
+        ICON_FORMAT_ITALIC,
+        MarkdownCommand::Italic,
+        Some(Chord::ctrl(Key::I)),
+    ),
+    (
+        "text.format.bulleted-list",
+        "Bulleted list",
+        ICON_FORMAT_LIST_BULLETED,
+        MarkdownCommand::BulletedList,
+        None,
+    ),
+    (
+        "text.format.checklist",
+        "Checklist",
+        ICON_CHECKLIST,
+        MarkdownCommand::Checklist,
+        None,
+    ),
+    (
+        "text.format.link",
+        "Link",
+        ICON_LINK,
+        MarkdownCommand::Link,
+        None,
+    ),
+    (
+        "text.format.strikethrough",
+        "Strikethrough",
+        ICON_FORMAT_STRIKETHROUGH,
+        MarkdownCommand::Strikethrough,
+        None,
+    ),
+    (
+        "text.format.inline-code",
+        "Inline code",
+        ICON_CODE,
+        MarkdownCommand::InlineCode,
+        None,
+    ),
+    (
+        "text.format.numbered-list",
+        "Numbered list",
+        ICON_FORMAT_LIST_NUMBERED,
+        MarkdownCommand::NumberedList,
+        None,
+    ),
+    (
+        "text.format.image",
+        "Image",
+        ICON_IMAGE,
+        MarkdownCommand::Image,
+        None,
+    ),
+];
+
+pub(crate) fn format_actions(state: &Shared) -> Vec<Action> {
+    let content = state.text.content();
+    let hex = state.hex_view.clone();
+    let markdown = create_memo(clone!(state -> move || {
+        content.get();
+        !hex.get() && state.text.language() == TextLanguage::Markdown
+    }));
+    FORMATS
+        .iter()
+        .map(|(id, label, glyph, command, chord)| {
+            let command = *command;
+            let mut action = Action::new(
+                *id,
+                *label,
+                clone!(state -> move || state.text.execute(EditorCommand::Markdown(command))),
+            )
+            .glyph(glyph)
+            .enabled(markdown.clone());
+            if let Some(chord) = chord {
+                action = action.shortcut(*chord);
+            }
+            action.register()
+        })
+        .collect()
 }
 
 #[component]
-pub(crate) fn FormatBar(state: Shared) -> NodeId {
+pub(crate) fn FormatBar(state: Shared, formats: Vec<Action>) -> NodeId {
     let theme = use_theme();
     let typing = state.typing.clone();
     let hex = state.hex_view.clone();
@@ -90,9 +191,9 @@ pub(crate) fn FormatBar(state: Shared) -> NodeId {
         state.text.language() == TextLanguage::Markdown
     }));
     let controls = move || {
-        let state = state.clone();
+        let formats = formats.clone();
         view! {
-            <MarkdownControls state />
+            <MarkdownControls formats />
         }
     };
     let bar = move || {
@@ -140,79 +241,16 @@ pub(crate) fn FormatBar(state: Shared) -> NodeId {
 }
 
 #[component]
-fn MarkdownControls(state: Shared) -> NodeId {
-    let buttons: Vec<(&str, &str, &str, MarkdownCommand)> = vec![
-        (
-            ICON_TITLE,
-            "Heading",
-            "text.format.heading",
-            MarkdownCommand::Heading(2),
-        ),
-        (
-            ICON_FORMAT_BOLD,
-            "Bold",
-            "text.format.bold",
-            MarkdownCommand::Bold,
-        ),
-        (
-            ICON_FORMAT_ITALIC,
-            "Italic",
-            "text.format.italic",
-            MarkdownCommand::Italic,
-        ),
-        (
-            ICON_FORMAT_LIST_BULLETED,
-            "Bulleted list",
-            "text.format.bulleted-list",
-            MarkdownCommand::BulletedList,
-        ),
-        (
-            ICON_CHECKLIST,
-            "Checklist",
-            "text.format.checklist",
-            MarkdownCommand::Checklist,
-        ),
-        (ICON_LINK, "Link", "text.format.link", MarkdownCommand::Link),
-        (
-            ICON_FORMAT_STRIKETHROUGH,
-            "Strikethrough",
-            "text.format.strikethrough",
-            MarkdownCommand::Strikethrough,
-        ),
-        (
-            ICON_CODE,
-            "Inline code",
-            "text.format.inline-code",
-            MarkdownCommand::InlineCode,
-        ),
-        (
-            ICON_FORMAT_LIST_NUMBERED,
-            "Numbered list",
-            "text.format.numbered-list",
-            MarkdownCommand::NumberedList,
-        ),
-        (
-            ICON_IMAGE,
-            "Image",
-            "text.format.image",
-            MarkdownCommand::Image,
-        ),
-    ];
-    let count = buttons.len();
+fn MarkdownControls(formats: Vec<Action>) -> NodeId {
+    let count = formats.len();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
             <ForEach keys={(0..count).collect::<Vec<usize>>()}>
                 {move |index: usize| {
-                    let (glyph, label, id, command) = buttons[index];
+                    let action = formats[index].clone();
+                    let id = action.id().to_owned();
                     view! {
-                        <MarkdownButton
-                            state={state.clone()}
-                            glyph={glyph.to_owned()}
-                            label={label.to_owned()}
-                            id={id.to_owned()}
-                            command
-                            press_focus=false
-                        />
+                        <IconButton @test_id={id} action press_focus=false />
                     }
                 }}
             </ForEach>
@@ -346,26 +384,6 @@ fn TextSettings(state: Shared) -> NodeId {
                 })}
             </Show>
         </List>
-    }
-}
-
-#[component]
-fn MarkdownButton(
-    state: Shared,
-    glyph: String,
-    label: String,
-    id: String,
-    command: MarkdownCommand,
-    #[prop(default = true)] press_focus: bool,
-) -> NodeId {
-    view! {
-        <IconButton
-            glyph={glyph}
-            label={label}
-            press_focus
-            @test_id={id}
-            on_click={move || state.text.execute(EditorCommand::Markdown(command))}
-        />
     }
 }
 

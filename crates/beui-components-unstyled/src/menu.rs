@@ -8,24 +8,29 @@ use beui_view::components::overlay::Overlay;
 use crate as unstyled;
 use crate::button::ButtonHandle;
 use beui_view::reactive::{
-    Callback, Child, ChildScope, ChildValue, Children, Interactive, IntoProp, List, Memo, NodeRef,
-    Prop, ReadSignal, RenderFn, Run, Scope, Selector, Show, WriteSignal, clone, create_effect,
-    create_memo, create_selector, create_signal, set_component_state,
+    Action, Callback, Child, ChildScope, ChildValue, Children, Interactive, IntoProp, List, Memo,
+    NodeRef, Prop, ReadSignal, RenderFn, Run, Scope, Selector, Show, WriteSignal, action_disabled,
+    action_glyph, action_label, clone, create_effect, create_memo, create_selector, create_signal,
+    set_component_state,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
 
 pub struct MenuRowHandle {
     pub label: Prop<String>,
+    pub glyph: Prop<String>,
     pub disabled: Prop<bool>,
     pub has_submenu: Prop<bool>,
     pub hovered: ReadSignal<bool>,
+    pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
 }
 
 pub struct MenuItem {
     label: Memo<String>,
+    glyph: Memo<String>,
     disabled: Memo<bool>,
+    action: Option<Action>,
     children: Run<MenuItem>,
     scope: ChildScope,
 }
@@ -44,13 +49,20 @@ beui_view::value_child_type!(MenuItem);
 
 #[component]
 pub fn MenuItem(
-    label: Prop<String>,
+    #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
+    action: Option<Action>,
     children: Children<MenuItem>,
 ) -> MenuItem {
+    let label = action_label(action.as_ref(), label);
+    let glyph = action_glyph(action.as_ref(), glyph);
+    let disabled = action_disabled(action.as_ref(), disabled);
     MenuItem {
         label: create_memo(move || label.get()),
+        glyph: create_memo(move || glyph.get()),
         disabled: create_memo(move || disabled.get()),
+        action,
         children: children.into_run(),
         scope: ChildScope::default(),
     }
@@ -218,6 +230,7 @@ fn MenuRow(
         )
     };
     let disabled = item.disabled.clone();
+    let action = item.action.clone();
     let children = item.children.clone();
     let has_children = create_memo(clone!(children -> move || !children.is_empty()));
     let row_has_children = has_children.clone();
@@ -237,9 +250,11 @@ fn MenuRow(
             });
             row.call(MenuRowHandle {
                 label: item.label.clone().into_prop(),
+                glyph: item.glyph.clone().into_prop(),
                 disabled: item.disabled.clone().into_prop(),
                 has_submenu: row_has_children.into_prop(),
                 hovered: handle.hovered,
+                active: handle.active,
                 focused: handle.focused,
             })
         }
@@ -271,6 +286,9 @@ fn MenuRow(
                     }
                     if !open_submenu(&click_state, index) {
                         select(&click_state, vec![index]);
+                        if let Some(action) = &action {
+                            action.run();
+                        }
                     }
                 }}
                 on_key={move |press: KeyPress| key(&key_state, index, parent.clone(), press)}

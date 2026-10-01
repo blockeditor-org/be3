@@ -32,7 +32,7 @@ fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
     );
 
     with_reactive_scope(harness.document_mut(), move || set_open.set(true));
-    harness.frame(Vec::new());
+    harness.settle();
     let body = harness.rect(content.get());
     assert_eq!(
         body.height(),

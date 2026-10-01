@@ -98,12 +98,14 @@ pub struct OffsetNode {
     pub items: ChildList<NodeId>,
     pub offset: f32,
     pub overscroll: f32,
+    pub fits: bool,
     pub position: Option<ScrollPosition>,
     steered: Cell<bool>,
     anchor: Option<OffsetAnchor>,
     extents: Extents,
     pub on_change: Callback<ScrollPosition>,
     pub reported: Option<ScrollPosition>,
+    pub fade: f32,
     translation: Vec2,
     host: Option<NodeId>,
 }
@@ -121,12 +123,14 @@ impl OffsetNode {
             items: ChildList::default(),
             offset: 0.0,
             overscroll: 0.0,
+            fits: false,
             position: None,
             steered: Cell::new(false),
             anchor: None,
             extents: Extents::default(),
             on_change: Callback::empty(),
             reported: None,
+            fade: 0.0,
             translation: Vec2::ZERO,
             host: None,
         }
@@ -284,6 +288,21 @@ impl OffsetNode {
     }
 }
 
+impl OffsetNode {
+    fn fade_widths(&self, rect: Rect) -> [f32; 4] {
+        let Some(position) = self.position.filter(|_| self.fade > 0.0) else {
+            return [0.0; 4];
+        };
+        let reach = self.fade.min(self.direction.main(rect.size()) / 2.0);
+        let before = position.offset.clamp(0.0, reach);
+        let after = (position.max_offset() - position.offset).clamp(0.0, reach);
+        match self.direction {
+            Direction::Horizontal => [before, 0.0, after, 0.0],
+            Direction::Vertical => [0.0, before, 0.0, after],
+        }
+    }
+}
+
 fn revealed_offset(direction: Direction, viewport: Rect, item: Rect, offset: f32) -> Option<f32> {
     let length = direction.main(viewport.size());
     let start = direction.main(item.min - viewport.min) + offset;
@@ -304,7 +323,7 @@ fn revealed_offset(direction: Direction, viewport: Rect, item: Rect, offset: f32
 impl Element for OffsetNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         let (_, cross) = self.direction.main_and_cross(available);
-        let content = self
+        let (length, content) = self
             .nodes()
             .into_iter()
             .map(|item| {
@@ -314,10 +333,16 @@ impl Element for OffsetNode {
                     item,
                     self.direction.axes(f32::INFINITY, cross),
                 );
-                self.direction.main_and_cross(size).1
+                self.direction.main_and_cross(size)
             })
-            .fold(0.0_f32, f32::max);
-        self.direction.axes(0.0, content)
+            .fold((0.0_f32, 0.0_f32), |(length, content), (main, across)| {
+                (length + main, content.max(across))
+            });
+        let length = match self.fits {
+            true => length,
+            false => 0.0,
+        };
+        self.direction.axes(length, content)
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
@@ -356,7 +381,11 @@ impl Element for OffsetNode {
         let Some(host) = self.host else {
             return;
         };
-        let entered = painter.shifted(Some(SpaceId::inside(host, 1)), self.translation, rect);
+        let entered = painter.faded(rect, self.fade_widths(rect)).shifted(
+            Some(SpaceId::inside(host, 1)),
+            self.translation,
+            rect,
+        );
         for item in self.items.iter() {
             if rects.contains_key(item) {
                 crate::paint::paint(doc, &entered, rects, *item);
@@ -441,6 +470,19 @@ impl Document {
         node.direction = direction;
         node.anchor = None;
         node.extents = Extents::default();
+    }
+
+    pub fn set_offset_fits(&mut self, offset: NodeOf<OffsetNode>, fits: bool) {
+        if self.arena.get_as::<OffsetNode>(offset).fits != fits {
+            self.arena.get_mut_as::<OffsetNode>(offset).fits = fits;
+        }
+    }
+
+    pub fn set_offset_fade(&mut self, offset: NodeOf<OffsetNode>, fade: f32) {
+        if self.arena.get_as::<OffsetNode>(offset).fade == fade {
+            return;
+        }
+        self.arena.paint_mut_as::<OffsetNode>(offset).fade = fade;
     }
 
     pub fn offset_value(&self, offset: NodeOf<OffsetNode>) -> f32 {

@@ -15,8 +15,7 @@ fn counted(block: Uuid, expected: i64) {
 }
 
 fn about(instances: &mut Instances, block: Uuid) -> Vec<EditorMessage> {
-    instances
-        .next_screens(PASS)
+    next_screens(instances)
         .opened
         .into_iter()
         .filter_map(|message| match message {
@@ -43,7 +42,7 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
         None,
     );
     let mut instances = placed_on(own, CounterContent::CONTENT_TYPE);
-    instances.next_screens(PASS);
+    next_screens(&mut instances);
 
     assert!(instances.editor_message(EditorMessage::WatchContent {
         instance: INSTANCE,
@@ -58,7 +57,7 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
             },
         ],
     }));
-    instances.next_screens(PASS);
+    next_screens(&mut instances);
     counted(other, 0);
     assert!(matches!(
         about(&mut instances, other).as_slice(),

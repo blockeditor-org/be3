@@ -17,7 +17,7 @@ fn crossing_the_phone_width_keeps_the_block_on_show() {
     let (mut fixture, opened) = editor_sized(Some(Vec2::new(390.0, 800.0)));
     show(&mut fixture, opened, None);
     let phone = placement(&fixture, opened);
-    assert_eq!(phone.top_bar, TopBar::Phone { more: false });
+    assert_eq!(phone.top_bar, TopBar::Phone);
 
     fixture.test.set_size(Vec2::new(1200.0, 800.0));
     fixture.settle();
@@ -36,5 +36,5 @@ fn crossing_the_phone_width_keeps_the_block_on_show() {
     fixture.settle();
     let narrowed = placement(&fixture, opened);
     assert_eq!(narrowed.child, phone.child);
-    assert_eq!(narrowed.top_bar, TopBar::Phone { more: false });
+    assert_eq!(narrowed.top_bar, TopBar::Phone);
 }

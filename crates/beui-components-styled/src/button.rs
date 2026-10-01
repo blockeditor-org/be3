@@ -8,7 +8,8 @@ use beui_components_unstyled as unstyled;
 use beui_core::base::TextAlign;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo, focus_ring,
+    Action, Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, action_disabled,
+    action_glyph, action_label, clone, create_memo, focus_ring,
 };
 
 const GLYPH_SPACING: f32 = 6.0;
@@ -59,18 +60,27 @@ impl ButtonVariant {
 
 #[component]
 pub fn Button(
-    label: Prop<String>,
+    #[prop(default = String::new())] label: Prop<String>,
     variant: ButtonVariant,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
+    action: Option<Action>,
     on_click: ClickCallback,
 ) -> NodeId {
+    let label = action_label(action.as_ref(), label);
+    let glyph = action_glyph(action.as_ref(), glyph);
+    let disabled = action_disabled(action.as_ref(), disabled);
     let disabled = create_memo(move || disabled.get());
     let face = disabled.clone();
     view! {
         <unstyled::Button
             disabled
-            on_click={move || on_click.call()}
+            on_click={move || {
+                if let Some(action) = &action {
+                    action.run();
+                }
+                on_click.call();
+            }}
             content={move |handle| view! {
                 <ButtonFace handle variant label glyph disabled={face.clone()} />
             }}

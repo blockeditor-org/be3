@@ -1,34 +1,32 @@
-use std::sync::{Mutex, OnceLock, mpsc::Receiver};
+use std::sync::{Mutex, OnceLock};
 
 use jni::{
-    EnvUnowned, Outcome,
+    Env, EnvUnowned, Outcome,
     errors::Error as JniError,
     jni_sig, jni_str,
     objects::{JClass, JObject, JString, JValue},
     vm::JavaVM,
 };
 
-use super::{SaveResult, SavedFile};
-use crate::host::WakingSender;
+use super::{Deliver, SaveResult, SavedFile};
 
-static PENDING: OnceLock<Mutex<Option<WakingSender<SaveResult>>>> = OnceLock::new();
+static PENDING: OnceLock<Mutex<Option<Deliver<SaveResult>>>> = OnceLock::new();
 
-fn pending() -> &'static Mutex<Option<WakingSender<SaveResult>>> {
+fn pending() -> &'static Mutex<Option<Deliver<SaveResult>>> {
     PENDING.get_or_init(Default::default)
 }
 
-pub(super) fn save(file: SavedFile) -> Receiver<SaveResult> {
-    let (sender, receiver) = crate::host::waking_channel();
+pub(super) fn save(file: SavedFile, deliver: Deliver<SaveResult>) {
     let Ok(mut pending) = pending().lock() else {
-        let _ = sender.send(Err("Saving files is unavailable".into()));
-        return receiver;
+        deliver.send(Err("Saving files is unavailable".into()));
+        return;
     };
-    *pending = Some(sender.clone());
-    if let Err(error) = start(&file) {
-        *pending = None;
-        let _ = sender.send(Err(error));
+    *pending = Some(deliver);
+    if let Err(error) = start(&file)
+        && let Some(deliver) = pending.take()
+    {
+        deliver.send(Err(error));
     }
-    receiver
 }
 
 fn start(file: &SavedFile) -> Result<(), String> {
@@ -37,7 +35,7 @@ fn start(file: &SavedFile) -> Result<(), String> {
     let started = vm
         .attach_current_thread_for_scope(|env| {
             let activity = unsafe { JObject::from_raw(env, context.context().cast()) };
-            let class = super::super::file_picker::main_activity(env, &activity)?;
+            let class = main_activity(env, &activity)?;
             let name = env.new_string(&file.name)?;
             let mime_type = env.new_string(&file.mime_type)?;
             let data = env.byte_array_from_slice(&file.data)?;
@@ -80,10 +78,35 @@ pub extern "system" fn Java_com_be3_block_MainActivity_nativeFileSaved(
         Outcome::Ok(result) => result,
         Outcome::Err(_) | Outcome::Panic(_) => Err("The file could not be saved".to_owned()),
     };
-    let Ok(mut pending) = pending().lock() else {
-        return;
+    let deliver = match pending().lock() {
+        Ok(mut pending) => pending.take(),
+        Err(_) => return,
     };
-    if let Some(sender) = pending.take() {
-        let _ = sender.send(result);
+    if let Some(deliver) = deliver {
+        deliver.send(result);
     }
+}
+
+fn main_activity<'local>(
+    env: &mut Env<'local>,
+    activity: &JObject<'local>,
+) -> Result<JClass<'local>, JniError> {
+    let class_loader = env
+        .call_method(
+            activity,
+            jni_str!("getClassLoader"),
+            jni_sig!("()Ljava/lang/ClassLoader;"),
+            &[],
+        )?
+        .l()?;
+    let class_name = env.new_string("com.be3.block.MainActivity")?;
+    let class = env
+        .call_method(
+            &class_loader,
+            jni_str!("loadClass"),
+            jni_sig!("(Ljava/lang/String;)Ljava/lang/Class;"),
+            &[JValue::Object(&class_name)],
+        )?
+        .l()?;
+    env.cast_local::<JClass<'local>>(class)
 }

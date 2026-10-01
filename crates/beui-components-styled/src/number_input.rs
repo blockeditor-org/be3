@@ -1,57 +1,23 @@
-use std::cell::Cell;
-use std::rc::Rc;
-
-use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
 use crate::text_input::TextInput;
 use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, use_theme};
+use beui_components_unstyled as unstyled;
+use beui_components_unstyled::{NumberDrag, NumberFaceHandle, NumberFieldHandle};
 use beui_core::base::TextAlign;
 use beui_core::document::Document;
-use beui_core::geometry::Pos2;
-use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Frame, Interactive, IntoProp, List, Memo, NodeRef, Prop, ReadSignal, Show, Text,
-    clone, component_accessibility, create_effect, create_memo, create_signal, focus_ring,
-    set_component_state,
+    Callback, Frame, NodeRef, Prop, Text, clone, create_memo, focus_ring, set_component_state,
 };
-
-const DRAG_THRESHOLD: f32 = 2.0;
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
 const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 
-struct Field {
-    field: NodeRef,
-    face: NodeRef,
-    editing: ReadSignal<bool>,
-}
-
-#[derive(Clone, Copy, PartialEq)]
-pub enum NumberDrag {
-    Off,
-    Linear { speed: f64 },
-    Logarithmic { factor: f64 },
-}
-
-impl NumberDrag {
-    fn applied(self, start: f64, points: f64) -> Option<f64> {
-        match self {
-            NumberDrag::Off => None,
-            NumberDrag::Linear { speed } => Some(start + points * speed),
-            NumberDrag::Logarithmic { factor } if factor > 1.0 => {
-                let base = factor.ln();
-                let exponent = start.max(f64::MIN_POSITIVE).ln() / base;
-                Some(factor.powf(exponent + points))
-            }
-            NumberDrag::Logarithmic { .. } => None,
-        }
-    }
-}
+struct FaceText(NodeRef);
 
 #[component]
 pub fn NumberInput(
@@ -65,201 +31,63 @@ pub fn NumberInput(
     on_change: Callback<f64>,
     on_preview: Callback<Option<f64>>,
 ) -> NodeId {
-    let (text, set_text) = create_signal(format_number(value.peek()));
-    let (editing, set_editing) = create_signal(false);
-    let (refocus, set_refocus) = create_signal(false);
-    let (hovered, set_hovered) = create_signal(false);
-    let (active, set_active) = create_signal(false);
-    let (focused, set_focused) = create_signal(false);
-    create_effect(clone!(value text set_text -> move || {
-        let next = value.get();
-        let held = text.get_untracked();
-        if parse(&held) != Some(next) {
-            set_text.set(format_number(next));
-        }
-    }));
-    let off = create_memo(clone!(disabled -> move || disabled.get()));
-    let idle = create_memo(clone!(editing -> move || !editing.get()));
-    let cursor = create_memo(clone!(off -> move || {
-        match drag != NumberDrag::Off && !off.get() {
-            true => CursorIcon::ResizeHorizontal,
-            false => CursorIcon::Default,
-        }
-    }));
-    let accessibility = create_memo(clone!(label text off -> move || {
-        let mut node = Node::new(Role::SpinButton);
-        let label = label.get();
-        if !label.is_empty() {
-            node.set_label(label);
-        }
-        node.set_value(text.get());
-        if off.get() {
-            node.set_disabled();
-        }
-        node
-    }));
-    component_accessibility(accessibility);
-
-    let held: Rc<Cell<Option<(Pos2, f64, bool)>>> = Rc::default();
-    let pressed = clone!(held value off -> move |press: PointerPress| {
-        if off.get_untracked() {
-            return;
-        }
-        held.set(Some((press.pos, value.peek(), false)));
-    });
-    let changed = on_change.clone();
-    let dragged = clone!(held set_text -> move |at: PointerPress| {
-        let Some((origin, start, moved)) = held.get() else {
-            return;
-        };
-        let points = at.pos.x - origin.x;
-        if !moved && points.abs() < DRAG_THRESHOLD {
-            return;
-        }
-        let Some(next) = drag.applied(start, f64::from(points)) else {
-            return;
-        };
-        held.set(Some((origin, start, true)));
-        let next = next.clamp(min, max);
-        set_text.set(format_number(next));
-        changed.call(next);
-    });
-    let open = clone!(off set_editing -> move || {
-        if !off.get_untracked() {
-            set_editing.set(true);
-        }
-    });
-    let clicked = clone!(held open -> move || {
-        if let Some((_, _, moved)) = held.take()
-            && !moved
-        {
-            open();
-        }
-    });
-
-    let previewed = on_preview.clone();
-    let edited = clone!(set_text editing -> move |typed: String| {
-        if !editing.get_untracked() {
-            return;
-        }
-        set_text.set(typed.clone());
-        previewed.call(parse(&typed).map(|parsed| parsed.clamp(min, max)));
-    });
-    let finish = clone!(value text set_text editing set_editing -> move |keep: bool| {
-        if !editing.get_untracked() {
-            return;
-        }
-        set_editing.set(false);
-        let typed = parse(&text.get_untracked())
-            .filter(|_| keep)
-            .map(|typed| typed.clamp(min, max));
-        let shown = value.peek();
-        match typed {
-            Some(typed) if typed != shown => {
-                set_text.set(format_number(typed));
-                on_change.call(typed);
-            }
-            _ => set_text.set(format_number(shown)),
-        }
-        on_preview.call(None);
-    });
-    let submitted = clone!(finish set_refocus -> move |_: String| {
-        set_refocus.set(true);
-        finish(true);
-    });
-    let focus_changed = clone!(finish -> move |focused: bool| {
-        if !focused {
-            finish(true);
-        }
-    });
-    let escaped = clone!(set_refocus -> move |press: KeyPress| {
-        if press.key != Key::Escape {
-            return false;
-        }
-        set_refocus.set(true);
-        finish(false);
-        true
-    });
-    let button_focus = move |has_focus: bool| {
-        set_focused.set(has_focus);
-        if !has_focus {
-            set_refocus.set(false);
-        }
-    };
-    let tab_stop = off.clone().into_prop().map(|off: bool| !off);
-
-    let face_text = text.clone();
+    let shown = NodeRef::new();
+    set_component_state(FaceText(shown.clone()));
+    let (field_label, field_disabled) = (label.clone(), disabled.clone());
     let face_placeholder = placeholder.clone();
-    let face_off = off.clone();
-    let field = NodeRef::new();
-    let face = NodeRef::new();
-    set_component_state(Field {
-        field: field.clone(),
-        face: face.clone(),
-        editing: editing.clone(),
-    });
     view! {
-        <List spacing=0.0>
-            <Show condition={idle}>
-                {move || clone!(active face face_off face_placeholder face_text focused hovered set_active set_hovered -> view! {
-                    <Interactive
-                        focusable=true
-                        tab_stop={tab_stop.clone()}
-                        focused={refocus.clone()}
-                        on_focus_change={button_focus.clone()}
-                        on_activate={open.clone()}
-                        cursor={cursor.clone()}
-                        capture_presses=true
-                        on_press={pressed.clone()}
-                        on_drag={dragged.clone()}
-                        on_click={clicked.clone()}
-                        on_hover_change={move |is_hovered: bool| set_hovered.set(is_hovered)}
-                        on_active_change={move |is_active: bool| set_active.set(is_active)}
-                    >
-                        <NumberFace
-                            shown_text={face.clone()}
-                            text={face_text}
-                            placeholder={face_placeholder}
-                            hovered={hovered}
-                            active={active}
-                            focused={focused}
-                            disabled={face_off}
-                        />
-                    </Interactive>
-                })}
-            </Show>
-            <Show condition={editing.clone()}>
-                <TextInput
-                    @node_ref=&field
-                    value={text.clone()}
-                    label={label.clone()}
-                    placeholder={placeholder.clone()}
-                    disabled={disabled.clone()}
-                    focused={editing.clone()}
-                    select_on_focus=true
-                    on_change={edited.clone()}
-                    on_submit={submitted.clone()}
-                    on_focus_change={focus_changed.clone()}
-                    on_key_override={escaped.clone()}
-                />
-            </Show>
-        </List>
+        <unstyled::NumberInput
+            value
+            min
+            max
+            label
+            disabled
+            drag
+            face={move |handle: NumberFaceHandle| view! {
+                <NumberFace handle shown placeholder={face_placeholder} />
+            }}
+            field={move |handle: NumberFieldHandle| {
+                let NumberFieldHandle {
+                    text,
+                    editing,
+                    on_change,
+                    on_submit,
+                    on_focus_change,
+                    on_key,
+                } = handle;
+                view! {
+                    <TextInput
+                        value={text}
+                        label={field_label}
+                        placeholder
+                        disabled={field_disabled}
+                        focused={editing}
+                        select_on_focus=true
+                        on_change={move |typed| on_change.call(typed)}
+                        on_submit={move |typed| on_submit.call(typed)}
+                        on_focus_change={move |focused| on_focus_change.call(focused)}
+                        on_key_override={move |press| on_key.call(press)}
+                    />
+                }
+            }}
+            on_change={move |value| on_change.call(value)}
+            on_preview={move |value| on_preview.call(value)}
+        />
     }
 }
 
 #[component]
-fn NumberFace(
-    shown_text: NodeRef,
-    text: ReadSignal<String>,
-    placeholder: Prop<String>,
-    hovered: ReadSignal<bool>,
-    active: ReadSignal<bool>,
-    focused: ReadSignal<bool>,
-    disabled: Memo<bool>,
-) -> NodeId {
+fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String>) -> NodeId {
+    let NumberFaceHandle {
+        text,
+        hovered,
+        active,
+        focused,
+        disabled,
+    } = handle;
     let theme = use_theme();
     let placeholder = create_memo(move || placeholder.get());
-    let shown = create_memo(clone!(text placeholder -> move || {
+    let string = create_memo(clone!(text placeholder -> move || {
         let text = text.get();
         match text.is_empty() {
             true => placeholder.get(),
@@ -293,8 +121,8 @@ fn NumberFace(
                 padding_horizontal=PADDING_HORIZONTAL
             >
                 <Text
-                    @node_ref=&shown_text
-                    string={shown}
+                    @node_ref=&shown
+                    string={string}
                     font_size=FONT_BODY
                     color={color}
                     align=TextAlign::Center
@@ -306,32 +134,10 @@ fn NumberFace(
 }
 
 pub fn number_input_field(document: &Document, input: NodeId) -> Option<NodeId> {
-    let state = document.component_state::<Field>(input);
-    state.editing.get_untracked().then(|| state.field.get())
+    unstyled::number_input_field(document, input)
 }
 
 pub fn number_input_text(document: &Document, input: NodeId) -> Option<NodeId> {
-    let state = document.component_state::<Field>(input);
-    (!state.editing.get_untracked()).then(|| state.face.get())
-}
-
-fn parse(text: &str) -> Option<f64> {
-    let trimmed = text.trim();
-    match trimmed.is_empty() {
-        true => None,
-        false => trimmed
-            .parse::<f64>()
-            .ok()
-            .filter(|value| value.is_finite()),
-    }
-}
-
-fn format_number(value: f64) -> String {
-    if !value.is_finite() {
-        return String::new();
-    }
-    if value == value.trunc() && value.abs() < 1e15 {
-        return format!("{}", value as i64);
-    }
-    format!("{value}")
+    unstyled::number_input_face(document, input)?;
+    Some(document.component_state::<FaceText>(input).0.get())
 }

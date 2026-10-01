@@ -110,6 +110,10 @@ it until the deadline, which is the stall a person would see in the app.
 
     editor.settle_until("the lighting to land", |editor| editor.shown("scene.lit"));
 
+settle() is the same wait for the editor's own animations, such as a sheet sliding in:
+it paints until a frame stops asking to be painted again at once. Call it before a
+snapshot or record() of something that animates in.
+
 Wait for the work rather than for a number of frames: a few more run() calls is the same
 race with a wider margin, which is how one of these hid.
 

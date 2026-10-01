@@ -16,13 +16,14 @@ use block_editor_beui::be_block::canvas::{
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::beui::reactive::{
-    CanvasView, Memo, ReadSignal, WriteSignal, create_effect, create_signal, untrack,
+    CanvasView, FilePick, Memo, ReadSignal, WriteSignal, create_effect, create_signal, pick_file,
+    untrack,
 };
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
 use block_editor_beui::{
-    BlockFilter, ChildState, Drag, Editor, FileDrop, FilePicker, ImagePaster, InteractionMode,
-    PastedImage, ResizeMode,
+    BlockFilter, ChildState, Drag, Editor, FileDrop, ImagePaster, InteractionMode, PastedImage,
+    ResizeMode,
 };
 use block_editor_beui::{BlockParent, BlockQuery, narrow_chrome, sheet_control};
 use serde::{Deserialize, Serialize};
@@ -106,7 +107,6 @@ pub(crate) enum CanvasCommand {
     Unlock,
     Group,
     Ungroup,
-    Reorder(CanvasLayerMove),
     Copy,
     Cut,
     Paste,
@@ -228,7 +228,6 @@ pub(crate) struct CanvasState {
     preview: bool,
     content: Rc<ContentProjection<CanvasContent>>,
     dependencies: BlockList,
-    image_picker: RefCell<FilePicker>,
     paster: RefCell<ImagePaster>,
     pending_image_center: Cell<Option<CanvasPoint>>,
     pending_file_drop: Cell<Option<CanvasPoint>>,
@@ -300,7 +299,6 @@ impl CanvasState {
             editor: editor.clone(),
             preview,
             content,
-            image_picker: RefCell::new(FilePicker::default()),
             paster: RefCell::new(ImagePaster::default()),
             pending_image_center: Cell::new(None),
             pending_file_drop: Cell::new(None),
@@ -639,8 +637,8 @@ impl CanvasState {
         entity
     }
 
-    pub(crate) fn context_position(&self) -> Option<CanvasPoint> {
-        self.context_position.get()
+    pub(crate) fn take_context_position(&self) -> Option<CanvasPoint> {
+        self.context_position.take()
     }
 
     pub(crate) fn note_context_position(&self, at: Option<CanvasPoint>) {
@@ -1090,7 +1088,6 @@ impl CanvasState {
             CanvasCommand::Unlock => self.set_selection_locked(false),
             CanvasCommand::Group => self.group_selection(),
             CanvasCommand::Ungroup => self.ungroup_selection(),
-            CanvasCommand::Reorder(movement) => self.reorder(movement),
             CanvasCommand::Copy => {
                 self.copy_selection();
             }
@@ -1175,11 +1172,14 @@ impl CanvasState {
         self.put_down_tool();
     }
 
-    pub(crate) fn open_image_picker(&self, center: Option<CanvasPoint>) {
+    pub(crate) fn open_image_picker(self: &Rc<Self>, center: Option<CanvasPoint>) {
         self.pending_image_center.set(center);
-        self.image_picker
-            .borrow_mut()
-            .open(self.editor.host(), image_filter());
+        let state = Rc::downgrade(self);
+        pick_file(image_filter(), move |pick| {
+            if let Some(state) = state.upgrade() {
+                state.take_image_pick(pick);
+            }
+        });
     }
 
     pub(crate) fn open_component_picker(self: &Rc<Self>) {
@@ -1768,10 +1768,7 @@ impl CanvasState {
             untrack(|| state.take_files(drop));
         });
         let state = Rc::clone(self);
-        self.editor.on_reply(move || {
-            state.take_image_pick();
-            state.take_paste(false);
-        });
+        self.editor.on_reply(move || state.take_paste(false));
         if self.preview {
             return;
         }
@@ -1851,14 +1848,9 @@ impl CanvasState {
         });
     }
 
-    fn take_image_pick(&self) {
-        let picked = self
-            .image_picker
-            .borrow_mut()
-            .poll(self.editor.host())
-            .map(|file| file.map(imported_image));
-        match picked {
-            Some(Ok(image)) => {
+    fn take_image_pick(&self, pick: FilePick) {
+        match pick.map(|file| file.map(imported_image)) {
+            Ok(Some(image)) => {
                 self.set_import_error.set(None);
                 let center = self
                     .pending_image_center
@@ -1867,11 +1859,11 @@ impl CanvasState {
                 self.add_imported_image(image, center);
                 self.put_down_tool();
             }
-            Some(Err(error)) => {
+            Err(error) => {
                 self.pending_image_center.set(None);
                 self.set_import_error.set(Some(error));
             }
-            None => {}
+            Ok(None) => self.pending_image_center.set(None),
         }
     }
 

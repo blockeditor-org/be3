@@ -10,6 +10,7 @@ use crate::accessibility::{self, AccessibilityTree};
 use crate::base::child_list::{ChildHost, SlotId};
 use crate::context::{Context, Moved};
 use crate::damage::{Damage, Region};
+use crate::file_picker::{FileFilter, FilePick, FilePickId};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
@@ -26,7 +27,16 @@ use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
 
 pub type Shortcut = dyn Fn(KeyPress) -> bool;
+type PickedCallback = Box<dyn FnOnce(FilePick)>;
 pub type FingerTap = dyn Fn(usize) -> bool;
+pub type UnhandledKey = dyn Fn(UnhandledKeyPress) -> bool;
+
+#[derive(Clone, Debug)]
+pub struct UnhandledKeyPress {
+    pub press: KeyPress,
+    pub focus_path: Vec<NodeId>,
+    pub typing: bool,
+}
 
 pub trait Tools: Any {
     fn show(&mut self, document: &mut Document, ctx: &Context, rect: Rect);
@@ -59,14 +69,18 @@ pub struct Document {
     reattached: Cell<bool>,
     shortcuts: RefCell<Vec<Weak<Shortcut>>>,
     finger_taps: RefCell<Vec<Weak<FingerTap>>>,
+    unhandled_keys: RefCell<Vec<Weak<UnhandledKey>>>,
     pub touch_scroll_vertical: Option<NodeId>,
     pub touch_shift: crate::geometry::Vec2,
     pub touch_scroll_horizontal: Option<NodeId>,
     pub wheel_latch: Option<(NodeId, Instant, Option<crate::geometry::Pos2>)>,
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub pointer_capture: Option<NodeId>,
+    pub forward: crate::interact::forward::Routing,
     pub drags: Rc<crate::drag_board::Board>,
     paste_requested: bool,
+    unsent_file_picks: Vec<(FileFilter, PickedCallback)>,
+    waiting_file_picks: Vec<(FilePickId, PickedCallback)>,
     test_ids: HashMap<String, Vec<NodeId>>,
     node_test_ids: HashMap<NodeId, Vec<String>>,
     layout_revision: u64,
@@ -251,14 +265,18 @@ impl Document {
             reattached: Cell::new(false),
             shortcuts: RefCell::new(Vec::new()),
             finger_taps: RefCell::new(Vec::new()),
+            unhandled_keys: RefCell::new(Vec::new()),
             touch_scroll_vertical: None,
             touch_shift: crate::geometry::Vec2::ZERO,
             touch_scroll_horizontal: None,
             wheel_latch: None,
             autoscroll: None,
             pointer_capture: None,
+            forward: Default::default(),
             drags: Rc::default(),
             paste_requested: false,
+            unsent_file_picks: Vec::new(),
+            waiting_file_picks: Vec::new(),
             test_ids: HashMap::new(),
             node_test_ids: HashMap::new(),
             layout_revision: 0,
@@ -412,6 +430,36 @@ impl Document {
         let live: Vec<Rc<FingerTap>> = taps.iter().filter_map(Weak::upgrade).collect();
         drop(taps);
         live.into_iter().any(|tap| tap(fingers))
+    }
+
+    pub fn register_unhandled_key(&self, handler: Weak<UnhandledKey>) {
+        self.unhandled_keys.borrow_mut().push(handler);
+    }
+
+    pub fn focus_ancestry(&self) -> Vec<NodeId> {
+        let mut path = Vec::new();
+        let mut next = self.focused_node();
+        while let Some(id) = next {
+            path.push(id);
+            next = self.arena.parent(id);
+        }
+        path
+    }
+
+    pub fn key_unhandled(&self, press: KeyPress) -> bool {
+        let mut handlers = self.unhandled_keys.borrow_mut();
+        handlers.retain(|handler| handler.strong_count() > 0);
+        let live: Vec<Rc<UnhandledKey>> = handlers.iter().filter_map(Weak::upgrade).collect();
+        drop(handlers);
+        if live.is_empty() {
+            return false;
+        }
+        let unhandled = UnhandledKeyPress {
+            press,
+            focus_path: self.focus_ancestry(),
+            typing: self.focus_types(),
+        };
+        live.into_iter().any(|handler| handler(unhandled.clone()))
     }
 
     pub fn key_shortcut(&self, press: KeyPress) -> bool {
@@ -625,13 +673,52 @@ impl Document {
         self.paste_requested = true;
     }
 
+    pub fn pick_file(&mut self, filter: FileFilter, picked: impl FnOnce(FilePick) + 'static) {
+        self.unsent_file_picks.push((filter, Box::new(picked)));
+    }
+
+    fn send_file_picks(&mut self, ctx: &Context) {
+        for (filter, picked) in std::mem::take(&mut self.unsent_file_picks) {
+            let id = ctx.pick_file(filter);
+            self.waiting_file_picks.push((id, picked));
+        }
+    }
+
+    fn deliver_file_picks(&mut self, ctx: &Context) {
+        if self.waiting_file_picks.is_empty() {
+            return;
+        }
+        let mut delivered = Vec::new();
+        for (id, picked) in std::mem::take(&mut self.waiting_file_picks) {
+            match ctx.take_file_pick(id) {
+                Some(pick) => delivered.push((picked, pick)),
+                None => self.waiting_file_picks.push((id, picked)),
+            }
+        }
+        if delivered.is_empty() {
+            return;
+        }
+        let context = self.reactive_scope().context();
+        let _guard = crate::current::install(self);
+        context.run(|| {
+            for (picked, pick) in delivered {
+                picked(pick);
+            }
+        });
+    }
+
     pub fn remove_node(&mut self, id: NodeId) {
+        let mut dropped = Vec::new();
         if !self.delivering {
-            self.forget_placement(id);
+            let rects = Rc::clone(&self.rects);
+            self.drop_placement(id, &rects, &mut dropped);
         }
         let mut scopes = Vec::new();
         self.detach_subtree(id, &mut scopes);
         drop(scopes);
+        for node in dropped {
+            self.release_placement(node);
+        }
     }
 
     fn detach_subtree(&mut self, id: NodeId, scopes: &mut Vec<::reactive::Scope>) {
@@ -831,6 +918,7 @@ impl Document {
             let _guard = crate::current::install(self);
             context.run(|| crate::current::with_document(|document| document.run_timers()));
         }
+        self.deliver_file_picks(ctx);
 
         if pointer || !keys.ignored() {
             FrameMeasurement::measure(&mut measurement.timings.interaction, || {
@@ -940,6 +1028,7 @@ impl Document {
             ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
         }
         ctx.show_painting(&self.painting);
+        self.send_file_picks(ctx);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             if !ctx.accessibility_active() {
                 let mut tree = self.accessibility_tree.borrow_mut();

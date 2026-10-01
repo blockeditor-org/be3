@@ -11,6 +11,7 @@ mod a_different_key_produces_different_objects;
 mod a_file_store_persists_objects_across_reopening;
 mod a_manifest_round_trips_through_the_vault;
 mod a_ranged_read_only_fetches_overlapping_chunks;
+mod a_truncated_object_reads_as_missing_and_a_put_repairs_it;
 mod chunking_is_content_defined;
 mod identical_content_deduplicates_across_writes;
 mod tampered_bytes_fail_to_open;

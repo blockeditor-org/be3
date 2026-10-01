@@ -58,11 +58,17 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
         Some(ErrorAction::DeleteServerDatabase) => "Delete local server database?".to_owned(),
         None => String::new(),
     }));
+    let unsaved = create_memo(clone!(view -> move || view.error.get().unsaved));
     let confirmation = create_memo(move || {
         match pending.get() {
         Some(ErrorAction::DeleteClientDatabase) => {
-            "This removes every saved account on this device. You will need to sign in again."
-                .to_owned()
+            let accounts =
+                "This removes every saved account and workspace key on this device. You will need to sign in again, and unlock each workspace with your recovery phrase or another device.";
+            match unsaved.get() {
+                0 => accounts.to_owned(),
+                1 => format!("{accounts} One block has changes that have not reached the server yet, and they will be lost."),
+                count => format!("{accounts} {count} blocks have changes that have not reached the server yet, and they will be lost."),
+            }
         }
         #[cfg(not(target_arch = "wasm32"))]
         Some(ErrorAction::DeleteServerDatabase) => {

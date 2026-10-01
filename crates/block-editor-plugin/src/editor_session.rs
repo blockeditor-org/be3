@@ -3,12 +3,15 @@ use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion,
     FrameChrome, FrameReport, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
-    Message, Occluder, PaneId, PaneLayout, PaneTree, RegionSize, ScreenPlacement, ScreenRequest,
-    Size, ViewChange, ViewportMetrics, WebViewEvent,
+    MenuEntry, Message, Occluder, PaneId, PaneLayout, PaneTree, RegionSize, ScreenPlacement,
+    ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 use uuid::Uuid;
 
 #[cfg(target_arch = "wasm32")]
@@ -33,6 +36,7 @@ pub struct EditorSession {
     replacements: Vec<(u64, bool)>,
     generation: u64,
     sent_panes: Option<PaneLayout>,
+    sent_menu: Vec<MenuEntry>,
 }
 
 struct ArtifactState {
@@ -76,7 +80,8 @@ struct RegionState {
     reported_ime: Option<Option<ImeArea>>,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
-    reported_children: Option<(Vec<ChildPlacement>, Vec<Occluder>)>,
+    laid_out: Size,
+    reported_children: Option<(Size, Vec<ChildPlacement>, Vec<Occluder>)>,
 }
 
 impl EditorSession {
@@ -101,6 +106,7 @@ impl EditorSession {
             replacements: Vec::new(),
             generation: 0,
             sent_panes: None,
+            sent_menu: Vec::new(),
         }
     }
 
@@ -129,8 +135,12 @@ impl EditorSession {
         self.host.push_pane_event(0, PaneEvent::Closed(pane));
     }
 
-    pub fn pane_more(&mut self, pane: PaneId) {
-        self.host.push_pane_event(0, PaneEvent::More(pane));
+    pub fn pick_pane_menu(&mut self, pane: PaneId, id: String) {
+        self.host.push_pane_event(0, PaneEvent::MenuPick(pane, id));
+    }
+
+    pub fn pick_menu(&self, id: String) {
+        self.host.push_menu_pick(id);
     }
 
     fn pane_messages(&mut self) -> Vec<Message> {
@@ -526,6 +536,21 @@ impl EditorSession {
                 action,
             }));
         }
+        let menu = self.host.menu();
+        if self.sent_menu != menu {
+            self.sent_menu = menu.clone();
+            messages.push(Message::Editor(EditorMessage::Menu {
+                instance,
+                entries: menu,
+            }));
+        }
+        for (child, id) in self.host.take_child_menu_picks() {
+            messages.push(Message::Editor(EditorMessage::ChildMenuPick {
+                instance,
+                child,
+                id,
+            }));
+        }
         for shown in self.host.take_shown_presence() {
             let Some(block) = shown.block.or(self.own_block) else {
                 continue;
@@ -770,16 +795,18 @@ impl EditorSession {
         let generation = self.generation;
         let mut messages = Vec::new();
         for (region, state) in &mut self.regions {
-            let current = bounded(&state.children, &state.occluders);
+            let (children, occluders) = bounded(&state.children, &state.occluders);
+            let current = (state.laid_out, children, occluders);
             if state.reported_children.as_ref() == Some(&current) {
                 continue;
             }
             state.reported_children = Some(current.clone());
-            let (children, occluders) = current;
+            let (size, children, occluders) = current;
             messages.push(ChildPlacements {
                 instance,
                 region: *region,
                 generation,
+                size,
                 children,
                 occluders,
             });
@@ -788,7 +815,7 @@ impl EditorSession {
     }
 
     fn retain_child_statuses(&self) {
-        let live: Vec<ChildId> = self
+        let live: HashSet<ChildId> = self
             .regions
             .values()
             .flat_map(|state| state.children.iter().map(|child| child.child))
@@ -898,6 +925,10 @@ impl EditorSession {
             .unwrap_or(content);
         if let (Some(state), Some(screen)) = (self.regions.get_mut(&region), screen) {
             state.children = placed;
+            state.laid_out = Size {
+                width: host.width(),
+                height: host.height(),
+            };
             state.occluders = occluders;
             state.cursor = frame.cursor;
             state.ime = frame.ime.map(|ime| ImeArea {
@@ -976,3 +1007,6 @@ fn bounded(
             .collect(),
     )
 }
+
+#[cfg(test)]
+mod tests;

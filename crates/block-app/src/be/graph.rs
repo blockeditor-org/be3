@@ -18,6 +18,7 @@ pub(crate) struct Node {
     pub(crate) access: Access,
     pub(crate) references: Vec<Uuid>,
     pub(crate) metadata: BlockMetadata,
+    pub(crate) unreadable_metadata: bool,
     pub(crate) head: Option<CommitId>,
     pub(crate) version: u64,
 }

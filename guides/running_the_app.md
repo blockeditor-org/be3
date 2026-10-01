@@ -20,8 +20,8 @@ to `~/.cache/be3/dev/app.log`.
 
 What the launcher passes the app is available to any native run:
 - `--dev-workspace`: sign in to the first local account, registering `dev@localhost` with
-  the password `dev-password` if there is none, and open the last workspace, or the first
-  one, or a new one called Dev.
+  the password `dev-password` if there is none, save a recovery phrase without asking, and
+  open the last workspace, or the first one, or a new one called Dev.
 - `--accessibility-tree=PATH`: write the accessibility tree to PATH (see below).
 
 ## Seeing what is on screen

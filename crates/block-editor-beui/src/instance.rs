@@ -7,7 +7,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use beui::reactive::provide_context;
-use beui::unstyled::{DockState, DockTabMore, TabId, Tree};
+use beui::unstyled::{DockState, DockTabMenu, TabId, Tree, dock_menu_items};
 use beui_plugin_input::panes::{dock_tree, pane_of, pane_tree, tab_of};
 use block_editor_plugin::{
     Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Ime, Instance, PaneEvent,
@@ -15,7 +15,7 @@ use block_editor_plugin::{
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect, wgpu};
-use block_plugin_api::{CursorIcon, ImeInput, InputEvent, PointerButton, WheelUnit};
+use block_plugin_api::{CursorIcon, FilePick, ImeInput, InputEvent, PointerButton, WheelUnit};
 use block_plugin_api::{EMPTY_PANE, PaneId, PaneInfo, PaneLayout};
 use uuid::Uuid;
 
@@ -56,6 +56,7 @@ struct BeuiRegion {
     frame: beui::Rect,
     look: Option<(Option<beui::Filter>, f32)>,
     pending: Option<Damage>,
+    file_picks: Vec<(u64, beui::FilePickId)>,
     #[cfg(target_arch = "wasm32")]
     history: VecDeque<Option<Damage>>,
 }
@@ -131,6 +132,7 @@ impl BeuiRegion {
             frame: beui::Rect::NOTHING,
             look: None,
             pending: None,
+            file_picks: Vec::new(),
             #[cfg(target_arch = "wasm32")]
             history: VecDeque::new(),
         }
@@ -310,7 +312,9 @@ impl<A: BeuiApp> BeuiInstance<A> {
                     self.detached.retain(|detached| *detached != tab);
                     actions.push(PaneAction::Close(tab));
                 }
-                PaneEvent::More(pane) => actions.push(PaneAction::More(tab_of(pane))),
+                PaneEvent::MenuPick(pane, id) => {
+                    actions.push(PaneAction::MenuPick(tab_of(pane), id));
+                }
             }
         }
         actions
@@ -346,7 +350,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
                     title: link.title.call(*tab),
                     icon: link.icon.call(*tab),
                     closable: link.closable.call(*tab),
-                    more: link.mores.with_untracked(|mores| mores.contains_key(tab)),
+                    menu: beui_frame::menu_entries(&dock_menu_items(&link.menus, Some(*tab))),
                 })
                 .collect()
         });
@@ -395,9 +399,9 @@ impl<A: BeuiApp> BeuiInstance<A> {
             return;
         }
         let content = link.content.clone();
-        let set_more = link.set_more.clone();
+        let set_menu = link.set_menu.clone();
         let document = beui::reactive::build(move || {
-            provide_context(DockTabMore { tab, set_more });
+            provide_context(DockTabMenu { tab, set_menu });
             content.call(tab)
         });
         self.panes.insert(pane, document);
@@ -419,7 +423,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
 enum PaneAction {
     Change(DockState),
     Close(TabId),
-    More(TabId),
+    MenuPick(TabId, String),
 }
 
 impl<A: BeuiApp> Instance for BeuiInstance<A> {
@@ -539,6 +543,10 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             EditorRegion::Pane(pane) => self.panes.remove(&pane),
             _ => None,
         };
+        let picks = match region.region {
+            EditorRegion::Frame => self.host.take_menu_picks(),
+            _ => Vec::new(),
+        };
         let state = self
             .regions
             .entry(region.region)
@@ -552,6 +560,14 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         });
         let events = std::mem::take(&mut state.events);
         let context = state.context.clone();
+        let host = &self.host;
+        state.file_picks.retain(|(request, id)| {
+            let Some(pick) = host.take_pick(*request) else {
+                return true;
+            };
+            context.file_picked(*id, picked(pick));
+            false
+        });
         let frame = region.rect.scaled(ratio);
         let spec = &region.spec;
         let drawn = region.chrome_drawn();
@@ -572,7 +588,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         let mut content = None;
         let mut painted = Vec::new();
         let mut floating = Vec::new();
-        let output = context.run(beui::RawInput { events }, |context| match region.region {
+        let mut output = context.run(beui::RawInput { events }, |context| match region.region {
             EditorRegion::Frame if views.creating => content = views.creation(context, frame),
             EditorRegion::Frame => {
                 let chrome = state
@@ -584,11 +600,14 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                     shown: drawn && (spec.top_bar.shown() || spec.content.is_some()),
                     closable: spec.content.is_some(),
                     on_phone: spec.top_bar.phone(),
-                    more: spec.top_bar.more(),
                 };
+                let menu = chrome.menu();
                 let editor = views.editor.clone();
                 beui::reactive::with_reactive_scope(chrome.document_mut(), || {
                     set_bar.set(bar);
+                    for id in &picks {
+                        beui_frame::run_menu_pick(&menu, id);
+                    }
                     if let Some(link) = &link {
                         for action in actions {
                             match action {
@@ -600,12 +619,14 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                                     }
                                     link.on_close.call(tab);
                                 }
-                                PaneAction::More(tab) => {
-                                    let press = link.mores.with_untracked(|mores| {
-                                        mores.get(&tab).map(|(_, press)| press.clone())
-                                    });
-                                    if let Some(press) = press {
-                                        press.call();
+                                PaneAction::MenuPick(tab, id) => {
+                                    let picked = beui::reactive::untrack(|| {
+                                        dock_menu_items(&link.menus, Some(tab))
+                                    })
+                                    .into_iter()
+                                    .find(|action| action.id() == id);
+                                    if let Some(action) = picked {
+                                        beui::reactive::untrack(|| action.run());
                                     }
                                 }
                             }
@@ -651,6 +672,14 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         }
         if output.paste_requested {
             self.host.request_paste();
+        }
+        for request in std::mem::take(&mut output.file_picks) {
+            let asked = self.host.pick_file(block_plugin_api::FileFilter {
+                name: request.filter.name,
+                extensions: request.filter.extensions,
+                mime_types: request.filter.mime_types,
+            });
+            state.file_picks.push((asked, request.id));
         }
         let unscale = ratio.recip();
         let mut result = Frame {
@@ -949,3 +978,11 @@ fn beui_cursor(cursor: beui::CursorIcon) -> CursorIcon {
 
 #[cfg(test)]
 mod tests;
+
+fn picked(pick: FilePick) -> beui::FilePick {
+    match pick {
+        FilePick::Chosen { name, data } => Ok(Some(beui::PickedFile { name, data })),
+        FilePick::Cancelled => Ok(None),
+        FilePick::Failed(error) => Err(error),
+    }
+}

@@ -2,24 +2,25 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui::reactive::{
-    ClickCallback, Frame, Func, ItemSize, List, Memo, Show, clone, component, component_rect,
+    Action, Frame, Func, ItemSize, Layers, List, Memo, Show, clone, component, component_rect,
     create_effect, create_memo, create_signal, on_cleanup, untrack, view,
 };
 use beui::styled::DockArea;
 use beui::styled::theme::NARROW_WIDTH;
 use beui::unstyled::{
-    DockMode, DockState, DockTree, DockTreeEntry, GroupId, TabId, Tree, dock_more, narrower_than,
+    DockMode, DockState, DockTree, DockTreeEntry, GroupId, TabId, Tree, dock_menu, narrower_than,
 };
 use beui::{NodeId, Rect, pos2, vec2};
 use beui_plugin_input::panes::{dock_tree_with, pane_tree_with};
-use block_plugin_api::{EMPTY_PANE, PaneId, PaneLayout, PaneTree};
+use block_plugin_api::{EMPTY_PANE, MenuEntry, PaneId, PaneLayout, PaneTree};
 
 use super::debug::{
     ClientPanel, DebugCommand, DebugWindow, PerformancePanel, PluginsPanel, VersionPanel,
 };
 use super::dialogs::{AboutPanel, InvitePanel};
 use super::{AppViewStore, UiCommand, send};
-use crate::surfaces::{HostSurface, SurfaceId};
+use crate::compositor::HeadlessShell;
+use crate::surfaces::{MainSurface, PluginPane};
 
 const WORKSPACE: TabId = TabId::new(1);
 const PANE_TABS: u64 = 1 << 40;
@@ -274,17 +275,17 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
         });
     }));
     let area = component_rect();
-    create_effect(clone!(panes -> move || {
+    let headless = create_memo(move || {
         let area = area.get();
-        let headless = panes.with(Option::is_some).then(|| {
-            Rect::from_min_size(
-                pos2(area.min.x, -HEADLESS_OFFSET),
-                vec2(area.width().max(1.0), 1.0),
-            )
-        });
-        crate::surfaces::set_headless(headless);
+        Rect::from_min_size(
+            pos2(area.min.x, -HEADLESS_OFFSET),
+            vec2(area.width().max(1.0), 1.0),
+        )
+    });
+    let shell = crate::compositor::shell();
+    let headless_shell = create_memo(clone!(panes -> move || {
+        panes.with(Option::is_some).then(|| shell.get()).flatten()
     }));
-    on_cleanup(|| crate::surfaces::set_headless(None));
     for tool in Tool::ALL {
         let open = tool.open(&view);
         create_effect(clone!(set_state -> move || {
@@ -352,108 +353,123 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
         None => tab != WORKSPACE,
     });
     view! {
-        <List spacing=0.0>
-            <Show condition={lone}>
-                <HostSurface @sizing=ItemSize::Percent(100.0) id=SurfaceId::Main />
-            </Show>
-            <Show condition={tiled}>
-                {move || clone!(claimed emptied set_state view wanting -> view! {
-                    <DockArea
-                        @sizing=ItemSize::Percent(100.0)
-                        state={state.clone()}
-                        mode={mode.clone()}
-                        home={home.clone()}
-                        title={title.clone()}
-                        icon={icon.clone()}
-                        group_title={group_title.clone()}
-                        closable={closable.clone()}
-                        on_change={move |next: DockState| set_state.set(next)}
-                        on_close={|tab: TabId| {
-                            if let Some(tool) = Tool::of(tab) {
-                                tool.close();
-                            }
-                            if let Some(pane) = tab_pane(tab) {
-                                send(UiCommand::ClosePane(pane));
-                            }
-                        }}
-                        empty={move || {
-                            let offered = emptied.with(|layout| {
-                                layout.as_ref().is_some_and(|layout| layout.empty)
-                            });
-                            if !offered || claimed.replace(true) {
-                                return view! {
-                                    <Frame />
-                                };
-                            }
-                            let released = Rc::clone(&claimed);
-                            on_cleanup(move || released.set(false));
-                            view! {
-                                <HostSurface id=SurfaceId::Pane(EMPTY_PANE.0) />
-                            }
-                        }}
-                    >
-                        {move |tab: TabId| {
-                            let view = view.clone();
-                            let debug = view.debug.clone();
-                            if let Some(pane) = tab_pane(tab) {
-                                let wanting = wanting.clone();
-                                let more = create_memo(move || wanting(pane).is_some_and(|info| info.more));
-                                return view! {
-                                    <PaneSurface pane={pane} more={more} />
-                                };
-                            }
-                            match Tool::of(tab) {
-                                None => view! {
-                                    <HostSurface id=SurfaceId::Main />
-                                },
-                                Some(Tool::Debug(DebugWindow::Client)) => {
-                                    let client = create_memo(move || debug.get().client);
-                                    view! {
-                                        <ClientPanel client />
-                                    }
+        <Layers>
+            <HeadlessShell shell={headless_shell} rect={headless} />
+            <List spacing=0.0>
+                <Show condition={lone}>
+                    <MainSurface @sizing=ItemSize::Percent(100.0) />
+                </Show>
+                <Show condition={tiled}>
+                    {move || clone!(claimed emptied set_state view wanting -> view! {
+                        <DockArea
+                            @sizing=ItemSize::Percent(100.0)
+                            state={state.clone()}
+                            mode={mode.clone()}
+                            home={home.clone()}
+                            title={title.clone()}
+                            icon={icon.clone()}
+                            group_title={group_title.clone()}
+                            closable={closable.clone()}
+                            on_change={move |next: DockState| set_state.set(next)}
+                            on_close={|tab: TabId| {
+                                if let Some(tool) = Tool::of(tab) {
+                                    tool.close();
                                 }
-                                Some(Tool::Debug(DebugWindow::Performance)) => {
-                                    let performance = create_memo(move || debug.get().performance);
-                                    view! {
-                                        <PerformancePanel performance />
-                                    }
+                                if let Some(pane) = tab_pane(tab) {
+                                    send(UiCommand::ClosePane(pane));
                                 }
-                                Some(Tool::Debug(DebugWindow::Plugins)) => {
-                                    let plugins = create_memo(move || debug.get().plugins);
-                                    view! {
-                                        <PluginsPanel plugins />
-                                    }
+                            }}
+                            empty={move || {
+                                let offered = emptied.with(|layout| {
+                                    layout.as_ref().is_some_and(|layout| layout.empty)
+                                });
+                                if !offered || claimed.replace(true) {
+                                    return view! {
+                                        <Frame />
+                                    };
                                 }
-                                Some(Tool::Debug(DebugWindow::Version)) => {
-                                    let version = create_memo(move || debug.get().version);
-                                    view! {
-                                        <VersionPanel version />
-                                    }
+                                let released = Rc::clone(&claimed);
+                                on_cleanup(move || released.set(false));
+                                view! {
+                                    <PluginPane pane={EMPTY_PANE.0} />
                                 }
-                                Some(Tool::Invite) => view! {
-                                    <InvitePanel view />
-                                },
-                                Some(Tool::About) => view! {
-                                    <AboutPanel />
-                                },
-                            }
-                        }}
-                    </DockArea>
-                })}
-            </Show>
-        </List>
+                            }}
+                        >
+                            {move |tab: TabId| {
+                                let view = view.clone();
+                                let debug = view.debug.clone();
+                                if let Some(pane) = tab_pane(tab) {
+                                    let wanting = wanting.clone();
+                                    let menu = create_memo(move || {
+                                        wanting(pane).map(|info| info.menu).unwrap_or_default()
+                                    });
+                                    return view! {
+                                        <PaneSurface pane={pane} menu={menu} />
+                                    };
+                                }
+                                match Tool::of(tab) {
+                                    None => view! {
+                                        <MainSurface />
+                                    },
+                                    Some(Tool::Debug(DebugWindow::Client)) => {
+                                        let client = create_memo(move || debug.get().client);
+                                        view! {
+                                            <ClientPanel client />
+                                        }
+                                    }
+                                    Some(Tool::Debug(DebugWindow::Performance)) => {
+                                        let performance = create_memo(move || debug.get().performance);
+                                        view! {
+                                            <PerformancePanel performance />
+                                        }
+                                    }
+                                    Some(Tool::Debug(DebugWindow::Plugins)) => {
+                                        let plugins = create_memo(move || debug.get().plugins);
+                                        view! {
+                                            <PluginsPanel plugins />
+                                        }
+                                    }
+                                    Some(Tool::Debug(DebugWindow::Version)) => {
+                                        let version = create_memo(move || debug.get().version);
+                                        view! {
+                                            <VersionPanel version />
+                                        }
+                                    }
+                                    Some(Tool::Invite) => view! {
+                                        <InvitePanel view />
+                                    },
+                                    Some(Tool::About) => view! {
+                                        <AboutPanel />
+                                    },
+                                }
+                            }}
+                        </DockArea>
+                    })}
+                </Show>
+            </List>
+        </Layers>
     }
 }
 
 #[component]
-fn PaneSurface(pane: PaneId, more: Memo<bool>) -> NodeId {
-    create_effect(move || {
-        if more.get() {
-            dock_more(ClickCallback::new(move || send(UiCommand::PaneMore(pane))));
-        }
+fn PaneSurface(pane: PaneId, menu: Memo<Vec<MenuEntry>>) -> NodeId {
+    let actions = create_memo(move || {
+        menu.get()
+            .into_iter()
+            .map(|entry| {
+                let id = entry.id.clone();
+                Action::new(entry.id, entry.label, move || {
+                    send(UiCommand::PaneMenuPick(pane, id.clone()));
+                })
+                .glyph(&entry.glyph)
+                .enabled(entry.enabled)
+                .detached()
+            })
+            .collect()
     });
+    dock_menu(actions);
     view! {
-        <HostSurface id=SurfaceId::Pane(pane.0) />
+        <PluginPane pane={pane.0} />
     }
 }
 

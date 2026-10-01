@@ -1,10 +1,10 @@
-use crate::beui_frame::bar_item;
 use beui::NodeId;
 use beui::icons::ICON_TUNE;
 use beui::reactive::{
-    Align, Child, Children, Direction, ForEach, Frame, ItemSize, List, ListChild, Memo, Portal,
-    Prop, ReadSignal, Render, Show, WriteSignal, clone, component, component_size, create_effect,
-    create_memo, create_signal, on_cleanup, provide_context, untrack, use_context, view,
+    Action, Align, Child, Children, Direction, ForEach, Frame, ItemSize, List, ListChild, Memo,
+    Portal, Prop, ReadSignal, Render, Show, WriteSignal, clone, component, component_size,
+    create_effect, create_memo, create_signal, on_cleanup, provide_context, untrack, use_context,
+    view,
 };
 use beui::styled::theme::BORDER_WIDTH;
 pub use beui::styled::theme::NARROW_WIDTH;
@@ -152,12 +152,12 @@ pub(crate) fn ChromeRoot(
 
 #[component]
 fn PanelItem(set_open: WriteSignal<bool>) -> NodeId {
-    bar_item(
-        "Open the side panel",
-        ICON_TUNE,
-        create_memo(|| false),
-        move || set_open.set(true),
-    );
+    Action::new("chrome.open-panel", "Open the side panel", move || {
+        set_open.set(true)
+    })
+    .glyph(ICON_TUNE)
+    .in_menu()
+    .register();
     view! {
         <List spacing=0.0 />
     }
@@ -190,11 +190,9 @@ pub fn Sidebar(
 ) -> NodeId {
     view! {
         <SidebarFrame side shown width>
-            <Scroll>
-                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                    <List spacing=SPACING children={children} />
-                </Frame>
-            </Scroll>
+            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                <List spacing=SPACING children={children} />
+            </Frame>
         </SidebarFrame>
     }
 }
@@ -218,9 +216,9 @@ fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame visible={leading} width=BORDER_WIDTH color={theme.border.clone()} />
             <Frame visible={docked} width={width} color={theme.surface.clone()}>
-                <List spacing=0.0>
-                    <Portal @sizing=ItemSize::Percent(100.0) node={held} />
-                </List>
+                <Scroll>
+                    <Portal node={held} />
+                </Scroll>
             </Frame>
             <Frame visible={trailing} width=BORDER_WIDTH color={theme.border.clone()} />
         </List>

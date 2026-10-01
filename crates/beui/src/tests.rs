@@ -2,6 +2,7 @@ use super::*;
 
 mod a_back_gesture_slides_a_dialog_and_closes_it;
 mod a_back_handler_slides_its_content_and_goes_back_while_enabled;
+mod a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put;
 mod a_baseline_row_lines_up_text_of_different_sizes;
 mod a_button_that_leaves_focus_alone_keeps_the_keyboard_on_the_text;
 mod a_calendar_jumps_to_a_month_from_its_months_view;
@@ -13,14 +14,20 @@ mod a_canvas_lays_out_only_the_items_the_view_can_see;
 mod a_canvas_places_its_items_at_the_view_it_is_given;
 mod a_canvas_without_a_view_places_its_items_from_its_own_corner;
 mod a_capturing_button_takes_the_press_from_the_row_it_sits_in;
+mod a_catcher_in_a_dialog_hears_a_press_on_it;
+mod a_catcher_that_lost_its_release_lets_go_of_the_pointer;
+mod a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer;
+mod a_catcher_under_an_open_dialog_hears_no_press;
 mod a_clearable_text_input_empties_from_its_clear_button;
 mod a_click_catcher_that_takes_touch_drags_keeps_a_vertical_finger_drag;
 mod a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked;
 mod a_clicked_number_input_selects_its_text_until_enter;
+mod a_closed_sheet_gives_its_space_back;
 mod a_closure_child_receives_the_handle_its_slot_hands_over;
 mod a_colon_in_a_text_area_offers_emoji_that_enter_inserts;
 mod a_color_input_opens_its_picker_from_the_swatch;
 mod a_color_input_reports_the_hex_it_was_typed;
+mod a_color_input_takes_a_hex_typed_without_a_hash_and_keeps_its_opacity;
 mod a_component_can_return_a_show_for_its_parent_to_lay_out;
 mod a_component_function_returns_its_base_node;
 mod a_component_that_builds_no_node_owns_its_scope_through_the_value;
@@ -46,14 +53,18 @@ mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
 mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
 mod a_dynamic_child_can_fill_its_available_height;
+mod a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it;
 mod a_finger_beside_the_bar_between_two_panes_drags_it;
 mod a_finger_dragged_across_a_color_area_picks_rather_than_scrolls;
 mod a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped;
 mod a_finger_drags_a_draggable_down_where_nothing_scrolls;
 mod a_finger_moves_a_window_up_and_down_by_its_bar;
+mod a_finger_swiping_a_sheet_raises_it_before_scrolling_what_it_holds;
 mod a_finger_swiping_along_a_tab_bar_moves_no_tab;
+mod a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
 mod a_floating_overlay_follows_an_anchor_that_only_moves;
+mod a_focused_forwarding_catcher_takes_the_keys_from_the_document;
 mod a_focused_text_input_asks_for_the_keyboard;
 mod a_for_each_gives_a_scroll_items_of_its_own;
 mod a_for_each_keeps_its_rows_between_the_children_beside_it;
@@ -69,9 +80,11 @@ mod a_frame_with_a_max_width_stops_growing_at_it_but_still_shrinks;
 mod a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it;
 mod a_gap_before_one_child_replaces_the_rows_spacing;
 mod a_grid_lines_its_cells_up_in_shared_columns;
+mod a_grip_touch_cancelled_by_a_second_finger_lets_the_sheet_go;
 mod a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves;
 mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
+mod a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it;
 mod a_justified_row_places_its_leftover_space;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
@@ -82,6 +95,7 @@ mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
 mod a_middle_click_on_a_dock_tab_closes_it;
 mod a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling;
 mod a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it;
+mod a_modal_sheet_slides_in_and_out;
 mod a_multi_root_view_fills_a_children_prop_in_order;
 mod a_narrow_inspector_puts_its_close_button_beside_its_tabs;
 mod a_nested_container_reports_its_own_width_not_the_windows;
@@ -98,6 +112,7 @@ mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
 mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
 mod a_portal_shows_a_subtree_it_does_not_own;
+mod a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released;
 mod a_quick_flick_on_the_simulated_trackpad_moves_the_cursor_without_clicking;
 mod a_quick_tap_with_several_fingers_is_a_finger_tap;
 mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
@@ -106,6 +121,7 @@ mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
 mod a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint;
 mod a_rect_watched_inside_a_scroll_follows_it_as_it_scrolls;
 mod a_redrawn_drawing_damages_only_the_part_it_names;
+mod a_released_sheet_springs_to_its_stop_or_closed;
 mod a_removed_nodes_slot_is_reused_under_a_new_id;
 mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_row_replaced_by_narrower_rows_leaves_nothing_of_it_behind_the_copy;
@@ -120,7 +136,11 @@ mod a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch;
 mod a_second_swipe_during_a_fling_keeps_scrolling;
 mod a_select_following_its_prop_does_not_report_a_change;
 mod a_selected_radio_option_marks_its_ring_with_the_accent_colour;
+mod a_selection_across_text_with_spans_is_painted;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
+mod a_sheet_is_never_taller_than_what_it_holds;
+mod a_sheet_pulled_past_its_top_stretches_and_springs_back;
+mod a_shifted_child_in_a_scrolled_view_still_paints;
 mod a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus;
 mod a_show_adds_and_removes_a_menu_item_among_the_items_beside_it;
 mod a_show_adds_and_removes_a_tab_among_the_tabs_beside_it;
@@ -135,6 +155,7 @@ mod a_spinner_hidden_by_a_show_stops_asking_for_frames;
 mod a_split_button_runs_its_action_or_opens_its_menu;
 mod a_stack_becomes_a_column_when_its_container_gets_narrow;
 mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
+mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
 mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
@@ -182,6 +203,7 @@ mod an_embed_in_a_tab_no_longer_shown_forgets_where_it_was;
 mod an_embed_punches_a_hole_in_the_surface_it_sits_on;
 mod an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed;
 mod an_embed_reports_a_rect_on_the_pixel_grid;
+mod an_embed_reports_its_placement_when_it_moves;
 mod an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in;
 mod an_embed_taken_out_of_the_tree_forgets_where_it_was;
 mod an_empty_field_shows_its_placeholder_until_something_is_typed;
@@ -275,6 +297,7 @@ mod escape_closes_an_open_select_popup_and_returns_focus_to_the_trigger;
 mod escape_closes_the_emoji_menu_until_the_colon_is_typed_again;
 mod escape_discards_what_was_typed_into_a_number_input;
 mod evicting_a_virtual_scroll_row_disposes_its_effects;
+mod f6_moves_the_focus_between_forwarding_catchers;
 mod finding_a_node_by_its_test_id;
 mod flashing_changed_elements_outlines_the_node_that_changed;
 mod flashing_repaints_outlines_only_the_region_whose_shapes_changed;
@@ -282,6 +305,7 @@ mod flashing_repaints_paints_no_fill;
 mod flicking_across_the_screen_reader_reads_the_next_item;
 mod flipping_a_switch_can_replace_the_items_of_a_scroll;
 mod for_each_reuses_nodes_for_keys_that_persist_across_an_update;
+mod forwarded_input_reaches_only_the_topmost_catcher_under_it;
 mod grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was;
 mod grabbing_the_bar_between_two_panes_off_centre_moves_it_only_as_far_as_the_pointer;
 mod holding_a_finger_down_opens_a_context_menu;
@@ -300,6 +324,8 @@ mod jumping_up_a_virtual_scroll_only_builds_the_items_in_view;
 mod keys_without_alt_reach_the_control_the_screen_reader_focused;
 mod layers_stack_their_children_in_one_box_sized_to_the_largest;
 mod lifting_the_fingers_off_a_trackpad_scroll_carries_it_on;
+mod line_starts_and_checkboxes_follow_edits;
+mod measuring_after_an_edit_matches_measuring_afresh;
 mod middle_clicking_a_scroll_scrolls_it_towards_the_pointer;
 mod moving_a_dock_tab_to_another_pane_keeps_its_panel;
 mod nested_lists_measure_each_node_a_bounded_number_of_times;
@@ -308,6 +334,7 @@ mod one_child_can_align_itself_apart_from_its_row;
 mod opening_a_menu_button_damages_only_the_button_and_its_menu;
 mod opening_a_menu_damages_only_where_it_appears;
 mod opening_a_select_focuses_its_search_box_and_highlights_the_selected_option;
+mod overscrolling_a_sheet_bounces_its_content_back;
 mod overscrolling_squishes_the_scrollbar_thumb_against_the_end;
 mod painting_never_has_to_move_a_rect_onto_the_pixel_grid;
 mod painting_skips_the_elements_outside_the_damaged_region;
@@ -388,6 +415,7 @@ mod the_caret_of_a_text_input_paints_two_points_wide;
 mod the_click_that_ends_autoscroll_presses_nothing;
 mod the_color_areas_thumb_shows_a_grab_cursor;
 mod the_components_tab_lists_components_instead_of_base_nodes;
+mod the_find_bar_counts_matches_as_the_query_is_typed_and_steps_between_them;
 mod the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it;
 mod the_frame_output_reports_the_region_whose_shapes_changed;
 mod the_innermost_drop_target_that_accepts_the_payload_takes_the_drop;
@@ -600,6 +628,23 @@ impl Harness {
         self.touch(TouchPhase::End, *last);
     }
 
+    pub(crate) fn finger_drag_and_hold(&mut self, from: Pos2, to: Pos2) {
+        const STEP: f32 = 10.0;
+        const HOLD_FRAMES: usize = 12;
+        self.touch(TouchPhase::Start, from);
+        let steps = ((to - from).length() / STEP).ceil().max(1.0) as usize;
+        for step in 1..=steps {
+            self.touch(
+                TouchPhase::Move,
+                from + (to - from) * (step as f32 / steps as f32),
+            );
+        }
+        for _ in 0..HOLD_FRAMES {
+            self.touch(TouchPhase::Move, to);
+        }
+        self.touch(TouchPhase::End, to);
+    }
+
     pub(crate) fn scroll(&mut self, pos: Pos2, delta: Vec2, modifiers: Modifiers) {
         self.frame(vec![
             Event::PointerMoved(pos),
@@ -729,6 +774,10 @@ impl Harness {
 
     pub(crate) fn document(&self) -> &Document {
         &self.document
+    }
+
+    pub(crate) fn context(&self) -> &Context {
+        &self.context
     }
 
     pub(crate) fn document_mut(&mut self) -> &mut Document {
@@ -1318,6 +1367,34 @@ pub(crate) fn flashed(output: &crate::FrameOutput, bounds: Rect, color: Color32)
     })
 }
 
+pub(crate) const SHEET_ROWS: usize = 20;
+pub(crate) const SHEET_ROW_HEIGHT: f32 = 60.0;
+
+pub(crate) fn sheet_of_rows(rest: f32, sheet: &NodeRef, closed: &Rc<Cell<usize>>) -> Document {
+    let (sheet, closed) = (sheet.clone(), closed.clone());
+    build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @sizing=ItemSize::Percent(100.0) />
+                <styled::Sheet
+                    @node_ref=&sheet
+                    extent=600.0
+                    rest
+                    on_close={move || closed.set(closed.get() + 1)}
+                >
+                    <List spacing=0.0>
+                        <ForEach keys={indices(SHEET_ROWS)}>
+                            {|_: usize| view! {
+                                <Frame height=SHEET_ROW_HEIGHT />
+                            }}
+                        </ForEach>
+                    </List>
+                </styled::Sheet>
+            </List>
+        }
+    })
+}
+
 pub(crate) fn indices(count: usize) -> Vec<usize> {
     (0..count).collect()
 }
@@ -1603,7 +1680,6 @@ mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
 mod a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath;
 mod a_separator_keeps_the_length_it_is_given_where_its_row_centres_it;
 mod a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions;
-mod a_stacked_dock_bar_shows_more_for_a_tab_that_asks_and_presses_it;
 mod a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels;
 mod a_vertical_separator_rules_down_the_row_it_sits_in;
 mod a_window_without_room_for_the_app_beside_the_inspector_uses_the_tab_bar;
@@ -1647,4 +1723,12 @@ fn Rows(count: usize) -> DynamicSegment<NodeId> {
         </ForEach>
     }
 }
+mod a_disabled_action_ignores_its_shortcut_and_disables_its_button;
+mod a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone;
+mod an_action_shortcut_runs_in_the_scope_that_holds_the_focus;
 mod moving_the_pointer_ends_the_wheel_latch;
+mod the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones;
+
+mod a_stacked_dock_bar_shows_the_menu_its_tab_hands_it;
+mod a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_down;
+mod a_touch_opens_a_menu_buttons_menu_as_a_sheet_and_a_click_as_a_dropdown;
