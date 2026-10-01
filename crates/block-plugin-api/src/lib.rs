@@ -11,10 +11,10 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 62;
+pub const PROTOCOL_VERSION: u16 = 63;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
-pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
+pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_MESSAGES: usize = 256;
@@ -57,9 +57,7 @@ pub enum TopBar {
     #[default]
     Hidden,
     Shown,
-    Phone {
-        more: bool,
-    },
+    Phone,
 }
 
 impl TopBar {
@@ -68,18 +66,21 @@ impl TopBar {
     }
 
     pub fn phone(self) -> bool {
-        matches!(self, Self::Phone { .. })
-    }
-
-    pub fn more(self) -> bool {
-        matches!(self, Self::Phone { more: true })
+        matches!(self, Self::Phone)
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BarAction {
-    CloseMore,
     Details,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MenuEntry {
+    pub id: String,
+    pub label: String,
+    pub glyph: String,
+    pub enabled: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -263,6 +264,7 @@ pub struct ChildPlacements {
     pub instance: EditorInstanceId,
     pub region: EditorRegion,
     pub generation: u64,
+    pub size: Size,
     pub children: Vec<ChildPlacement>,
     pub occluders: Vec<Occluder>,
 }
@@ -300,6 +302,7 @@ pub struct ChildStatus {
     pub capabilities: EditorCapabilities,
     pub resize: ResizeMode,
     pub error: Option<String>,
+    pub menu: Vec<MenuEntry>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -450,7 +453,7 @@ pub struct PaneInfo {
     pub title: String,
     pub icon: String,
     pub closable: bool,
-    pub more: bool,
+    pub menu: Vec<MenuEntry>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -682,6 +685,19 @@ pub enum EditorMessage {
     BarAction {
         instance: EditorInstanceId,
         action: BarAction,
+    },
+    Menu {
+        instance: EditorInstanceId,
+        entries: Vec<MenuEntry>,
+    },
+    MenuPick {
+        instance: EditorInstanceId,
+        id: String,
+    },
+    ChildMenuPick {
+        instance: EditorInstanceId,
+        child: ChildId,
+        id: String,
     },
     Close {
         instance: EditorInstanceId,
@@ -968,9 +984,10 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         pane: PaneId,
     },
-    PaneMore {
+    PaneMenuPick {
         instance: EditorInstanceId,
         pane: PaneId,
+        id: String,
     },
     VersionControl {
         instance: EditorInstanceId,
@@ -1005,6 +1022,9 @@ impl EditorMessage {
             | Self::Resized { instance, .. }
             | Self::LeaveFrame { instance, .. }
             | Self::BarAction { instance, .. }
+            | Self::Menu { instance, .. }
+            | Self::MenuPick { instance, .. }
+            | Self::ChildMenuPick { instance, .. }
             | Self::Close { instance, .. }
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
@@ -1060,7 +1080,7 @@ impl EditorMessage {
             | Self::ShowPane { instance, .. }
             | Self::PanesArranged { instance, .. }
             | Self::ClosePane { instance, .. }
-            | Self::PaneMore { instance, .. }
+            | Self::PaneMenuPick { instance, .. }
             | Self::VersionControl { instance, .. }
             | Self::VersionStatus { instance, .. } => *instance,
         }
@@ -1076,26 +1096,8 @@ pub enum PerformanceMeasurement {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileFilter {
     pub name: String,
-    pub default_file_name: String,
     pub extensions: Vec<String>,
     pub mime_types: Vec<String>,
-}
-
-impl FileFilter {
-    pub fn new(
-        name: &str,
-        default_file_name: &str,
-        extensions: &[&str],
-        mime_types: &[&str],
-    ) -> Self {
-        let owned = |values: &[&str]| values.iter().map(|value| (*value).to_owned()).collect();
-        Self {
-            name: name.to_owned(),
-            default_file_name: default_file_name.to_owned(),
-            extensions: owned(extensions),
-            mime_types: owned(mime_types),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1609,7 +1611,8 @@ impl EditorMessage {
             | Self::Blocks { .. }
             | Self::PanesArranged { .. }
             | Self::ClosePane { .. }
-            | Self::PaneMore { .. }
+            | Self::PaneMenuPick { .. }
+            | Self::MenuPick { .. }
             | Self::VersionStatus { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
             | Self::Focused { .. }
@@ -1622,6 +1625,8 @@ impl EditorMessage {
             | Self::Present { .. }
             | Self::LeaveFrame { .. }
             | Self::BarAction { .. }
+            | Self::Menu { .. }
+            | Self::ChildMenuPick { .. }
             | Self::GrabCursor { .. }
             | Self::WebView { .. }
             | Self::WebViewCommand { .. }
@@ -2246,6 +2251,7 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                 if let Some(error) = &status.error {
                     string(error)?;
                 }
+                menu(&status.menu)?;
             }
             Ok(())
         }
@@ -2421,8 +2427,16 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             collection(layout.panes.len())?;
             collection(layout.tree.items.len())?;
             strings(layout.panes.iter().map(|pane| &pane.title))?;
-            strings(layout.panes.iter().map(|pane| &pane.icon))
+            strings(layout.panes.iter().map(|pane| &pane.icon))?;
+            for pane in &layout.panes {
+                menu(&pane.menu)?;
+            }
+            Ok(())
         }
+        EditorMessage::Menu { entries, .. } => menu(entries),
+        EditorMessage::MenuPick { id, .. }
+        | EditorMessage::ChildMenuPick { id, .. }
+        | EditorMessage::PaneMenuPick { id, .. } => string(id),
         EditorMessage::PanesArranged { tree, detached, .. } => {
             collection(tree.items.len())?;
             collection(detached.len())
@@ -2450,7 +2464,6 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
     match request {
         HostRequest::PickFile(filter) => {
             string(&filter.name)?;
-            string(&filter.default_file_name)?;
             collection(filter.extensions.len())?;
             collection(filter.mime_types.len())?;
             strings(filter.extensions.iter().chain(&filter.mime_types))
@@ -2507,6 +2520,16 @@ fn descriptor(data: &[u8]) -> Result<(), DecodeError> {
     }
 }
 
+fn menu(entries: &[MenuEntry]) -> Result<(), DecodeError> {
+    collection(entries.len())?;
+    for entry in entries {
+        string(&entry.id)?;
+        string(&entry.label)?;
+        string(&entry.glyph)?;
+    }
+    Ok(())
+}
+
 fn collection(length: usize) -> Result<(), DecodeError> {
     if length > MAX_COLLECTION_ITEMS {
         Err(DecodeError::LimitExceeded("collection"))
@@ -2521,6 +2544,28 @@ fn string(value: &str) -> Result<(), DecodeError> {
     } else {
         Ok(())
     }
+}
+
+pub fn paste_events(text: &str) -> Vec<InputEvent> {
+    text_pieces(text, MAX_TEXT_BYTES)
+        .into_iter()
+        .map(InputEvent::Paste)
+        .collect()
+}
+
+fn text_pieces(text: &str, limit: usize) -> Vec<String> {
+    let mut pieces = Vec::new();
+    let mut rest = text;
+    while !rest.is_empty() {
+        let mut end = rest.len().min(limit);
+        while !rest.is_char_boundary(end) {
+            end -= 1;
+        }
+        let (piece, after) = rest.split_at(end);
+        pieces.push(piece.to_owned());
+        rest = after;
+    }
+    pieces
 }
 
 fn text(value: &str) -> Result<(), DecodeError> {

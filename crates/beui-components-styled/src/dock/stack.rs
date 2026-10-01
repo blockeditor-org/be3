@@ -4,17 +4,18 @@ use beui_macros::{component, view};
 use crate::action_row::ActionRow;
 use crate::border::Separator;
 use crate::button::ButtonVariant;
-use crate::icon_button::IconButton;
+use crate::dock::DockMenu;
+use crate::icon_button::{IconButton, IconButtonSize};
 use crate::list_row::ListRow;
 use crate::scroll::Scroll;
-use crate::sheet::{ModalSheet, SHEET_STOPS};
+use crate::sheet::ModalSheet;
 use crate::text::{Caption, Heading, Icon};
 use crate::theme::{CARD_RADIUS, FONT_BODY, FONT_SMALL, use_theme};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{DockStackHandle, TabId};
+use beui_components_unstyled::{DockStackHandle, SHEET_STOPS, TabId};
 use beui_core::base::{Align, Direction, ItemSize, TextAlign};
 use beui_core::color::Color32;
-use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_HOME, ICON_MORE_VERT};
+use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_HOME};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     ClickCallback, Dynamic, ForEach, Frame, Func, List, Memo, Portal, Show, Text, WriteSignal,
@@ -50,7 +51,7 @@ struct Switching {
 }
 
 #[component]
-pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>) -> NodeId {
+pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
     let DockStackHandle {
         shown,
         title,
@@ -59,13 +60,13 @@ pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>)
         away,
         tabs,
         actions,
-        more,
-        press_more,
+        menu,
         titles,
         icons,
         back,
         show,
         close,
+        closable,
     } = handle;
     let theme = use_theme();
     let (open, set_open) = create_signal(false);
@@ -121,15 +122,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>)
                         </List>
                     </Frame>
                     <Portal node={actions} />
-                    <Show condition={more}>
-                        <IconButton
-                            @test_id={"dock.more"}
-                            glyph=ICON_MORE_VERT
-                            label="More"
-                            variant=ButtonVariant::Ghost
-                            on_click={move || press_more.call()}
-                        />
-                    </Show>
+                    <DockMenu menu size=IconButtonSize::Regular />
                     <Show condition={counted}>
                         <DockTabCount count on_click={move || opening.set(true)} />
                     </Show>

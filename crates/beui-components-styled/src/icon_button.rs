@@ -100,7 +100,7 @@ pub fn IconButton(
 }
 
 #[component]
-fn IconButtonFace(
+pub(crate) fn IconButtonFace(
     handle: unstyled::ButtonHandle,
     variant: ButtonVariant,
     size: IconButtonSize,

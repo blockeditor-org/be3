@@ -227,13 +227,7 @@ pub fn galley(text: &str, font: FontId) -> Option<Galley> {
 
 pub fn line_starts(bytes: &[u8]) -> Vec<usize> {
     std::iter::once(0)
-        .chain(
-            bytes
-                .iter()
-                .enumerate()
-                .filter(|(_, byte)| **byte == b'\n')
-                .map(|(at, _)| at + 1),
-        )
+        .chain(memchr::memchr_iter(b'\n', bytes).map(|at| at + 1))
         .collect()
 }
 
@@ -407,8 +401,14 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             .iter()
             .any(|range| range.start < range.end && range.contains(&byte))
     };
+    let held = start.min(bytes.len().saturating_sub(1));
+    let held_styles = highlight.styles_in(held..(end + 1).min(bytes.len()));
     let style_at = |index: usize| {
-        let mut style = highlight.style_at(index.min(bytes.len().saturating_sub(1)));
+        let index_read = index.min(bytes.len().saturating_sub(1));
+        let mut style = match index_read.checked_sub(held) {
+            Some(offset) if offset < held_styles.len() => held_styles[offset],
+            _ => highlight.style_at(index_read),
+        };
         if inputs
             .widgets
             .iter()
@@ -599,11 +599,7 @@ fn finish(mut builder: Builder, body: SpanStyle) -> Row {
     builder.row.line_height = height + padding.0 + padding.1;
     let highlight = builder.inputs.snapshot.highlight();
     let (start, end) = (builder.row.start, builder.row.end);
-    builder.row.code_block = !builder.row.placeholder
-        && highlight
-            .markdown_code_blocks()
-            .iter()
-            .any(|block| block.start <= end && block.end > start);
+    builder.row.code_block = !builder.row.placeholder && highlight.in_code_block(start..end);
     if builder.row.code_block {
         return builder.row;
     }
@@ -678,7 +674,7 @@ pub struct TableInputs<'a> {
 pub fn table_spacers(inputs: &TableInputs) -> TableSpacers {
     let mut spacers = HashMap::new();
     let snapshot = inputs.snapshot;
-    for table in snapshot.highlight().markdown_tables() {
+    for table in &snapshot.highlight().markdown_tables() {
         let rows: Vec<(usize, Vec<Cell>, f32)> = table
             .rows
             .iter()

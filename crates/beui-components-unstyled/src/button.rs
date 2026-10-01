@@ -32,6 +32,7 @@ pub fn Button(
     #[prop(default = false)] focused: Prop<bool>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
+    on_press: Callback<PointerPress>,
     on_key: Callback<KeyPress, bool>,
     on_text: Callback<String>,
     on_focus_change: Callback<bool>,
@@ -110,6 +111,7 @@ pub fn Button(
             key_active
             on_click={click}
             on_click_at={click_at}
+            on_press={move |press| on_press.call(press)}
             on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
             on_active_change={move |active: bool| set_active.set(active)}
             children={content_node}

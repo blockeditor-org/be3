@@ -11,6 +11,10 @@ fn active_child(instances: &mut Instances) {
         instance: INSTANCE,
         region: REGION,
         generation: 1,
+        size: block_plugin_api::Size {
+            width: SIZE.x,
+            height: SIZE.y,
+        },
         children: vec![ChildPlacement {
             child: CHILD,
             block_id: [0; 16],

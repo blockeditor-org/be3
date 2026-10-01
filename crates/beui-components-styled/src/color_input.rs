@@ -6,9 +6,9 @@ use crate::text_input::TextInput;
 use crate::theme::{RADIUS, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{PopoverHandle, PopoverTriggerHandle};
+use beui_components_unstyled::{HexText, PopoverHandle, PopoverTriggerHandle};
 use beui_core::base::{Align, Direction};
-use beui_core::color::{Color32, format_hex};
+use beui_core::color::Color32;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Callback, Frame, ItemSize, List, Memo, Prop, clone, create_effect, create_memo, create_signal,
@@ -36,27 +36,14 @@ pub fn ColorInput(
     let shown = create_memo(clone!(current previewed -> move || {
         previewed.get().unwrap_or_else(|| current.get())
     }));
-    let (text, set_text) = create_signal(format_color_for(current.get_untracked(), alpha));
-    create_effect(clone!(shown text set_text -> move || {
-        let next = shown.get();
-        let held = text.get_untracked();
-        if parse_color(&held) != Some(next) {
-            set_text.set(format_color_for(next, alpha));
-        }
-    }));
     let report = clone!(current set_current -> move |color: Color32| {
         if color != current.get_untracked() {
             set_current.set(color);
             on_change.call(color);
         }
     });
-    let typed_report = report.clone();
-    let edited = move |typed: String| {
-        set_text.set(typed.clone());
-        if let Some(parsed) = parse_color(&typed) {
-            typed_report(parsed);
-        }
-    };
+    let hex = HexText::new(shown.clone(), alpha, Callback::new(report.clone()));
+    let (edit, submit) = (hex.clone(), hex.clone());
     let label = create_memo(move || label.get());
     let picker_label = create_memo(clone!(label -> move || match label.get() {
         label if label.is_empty() => "Choose a color".to_owned(),
@@ -89,11 +76,12 @@ pub fn ColorInput(
             </unstyled::Popover>
             <TextInput
                 @sizing=ItemSize::Percent(100.0)
-                value={text}
+                value={hex.text()}
                 label={label}
-                placeholder={if alpha { "#RRGGBBAA" } else { "#RRGGBB" }}
+                placeholder={hex.placeholder()}
                 disabled={disabled}
-                on_change={edited}
+                on_change={move |typed: String| edit.edit(typed)}
+                on_submit={move |typed: String| submit.submit(typed)}
             />
         </List>
     }
@@ -119,24 +107,5 @@ fn SwatchTrigger(
                 <ColorSwatch color width=SWATCH_WIDTH height=SWATCH_HEIGHT />
             </Frame>
         </Tooltip>
-    }
-}
-
-fn format_color_for(color: Color32, alpha: bool) -> String {
-    match alpha {
-        true => format_color(color),
-        false => format_hex(color, false),
-    }
-}
-
-pub fn format_color(color: Color32) -> String {
-    format_hex(color, true)
-}
-
-pub fn parse_color(text: &str) -> Option<Color32> {
-    let digits = text.trim().strip_prefix('#')?;
-    match digits.len() {
-        6 | 8 => beui_core::color::parse_hex(digits),
-        _ => None,
     }
 }

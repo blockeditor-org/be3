@@ -596,7 +596,11 @@ fn scrolled(old: &Painted, new: &Painted) -> Option<Moving> {
             damaged.push(within(entry.place(child.bounds).translate(by)));
         }
     }
-    for rect in fixed(new) {
+    for rect in fixed(new)
+        .into_iter()
+        .chain(first.1.fade.bands())
+        .chain(last.1.fade.bands())
+    {
         damaged.push(within(rect));
         damaged.push(within(rect.translate(by)));
     }

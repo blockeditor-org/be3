@@ -17,6 +17,35 @@ struct State {
     content: NodeRef,
 }
 
+#[derive(Clone, Default)]
+pub struct MenuStyle(Option<(RenderFn<MenuRowHandle>, RenderFn<Child>)>);
+
+impl MenuStyle {
+    pub fn new(
+        row: impl Fn(MenuRowHandle) -> NodeId + 'static,
+        panel: impl Fn(Child) -> NodeId + 'static,
+    ) -> Self {
+        Self(Some((RenderFn::new(row), RenderFn::new(panel))))
+    }
+
+    pub fn is_some(&self) -> bool {
+        self.0.is_some()
+    }
+
+    pub fn parts(self) -> (RenderFn<MenuRowHandle>, RenderFn<Child>) {
+        self.0.unwrap_or_else(|| {
+            (
+                RenderFn::new(|_| {
+                    view! {
+                        <List spacing=0.0 />
+                    }
+                }),
+                RenderFn::new(|content| content),
+            )
+        })
+    }
+}
+
 #[component]
 pub fn ContextMenu(
     children: Child,

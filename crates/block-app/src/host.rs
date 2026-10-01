@@ -10,7 +10,8 @@ use std::{
 };
 
 use beui::{
-    CursorIcon, Document, Event, ImeArea, Key, Modifiers, PointerButton, Pos2, Rect, Vec2, Waker,
+    CursorIcon, Document, Event, FileFilter, FilePick, FilePickId, ImeArea, Key, Modifiers,
+    PointerButton, Pos2, Rect, Vec2, Waker,
 };
 use block_plugin_api::{EditorInstanceId, EditorRegion};
 use uuid::Uuid;
@@ -115,6 +116,7 @@ struct Output {
     ime: Option<ImeArea>,
     fullscreen: Option<bool>,
     copied: Option<String>,
+    file_picks: Vec<(FileFilter, PickSlot)>,
     grab: Option<bool>,
     repaint: bool,
     repaint_after: Option<Duration>,
@@ -142,6 +144,7 @@ struct Host {
     drag: Option<DragPayload>,
     grabbed: bool,
     commands: Vec<HostCommand>,
+    waiting_picks: Vec<(FilePickId, PickSlot)>,
     output: Output,
 }
 
@@ -168,6 +171,7 @@ impl Default for Host {
             drag: None,
             grabbed: false,
             commands: Vec::new(),
+            waiting_picks: Vec::new(),
             output: Output::default(),
         }
     }
@@ -264,6 +268,20 @@ impl Default for Frame {
 }
 
 pub(crate) fn begin(context: &beui::Context, document: &Document) {
+    let mut picked = Vec::new();
+    with(|host| {
+        host.waiting_picks
+            .retain_mut(|(id, slot)| match context.take_file_pick(*id) {
+                Some(pick) => {
+                    picked.extend(slot.take().map(|deliver| (deliver, pick)));
+                    false
+                }
+                None => true,
+            });
+    });
+    for (deliver, pick) in picked {
+        deliver(pick);
+    }
     let mut frame = context.screen_input(|input| {
         let touch = &input.touch;
         Frame {
@@ -469,6 +487,10 @@ pub(crate) fn end(context: &beui::Context) {
     if let Some(text) = output.copied {
         context.copy_text(text);
     }
+    for (filter, slot) in output.file_picks {
+        let id = context.pick_file(filter);
+        with(|host| host.waiting_picks.push((id, slot)));
+    }
     if let Some(grab) = output.grab
         && with(|host| std::mem::replace(&mut host.grabbed, grab)) != grab
     {
@@ -625,6 +647,16 @@ pub(crate) fn set_grab(grab: bool) {
 
 pub(crate) fn copy_text(text: String) {
     with(|host| host.output.copied = Some(text));
+}
+
+type PickSlot = Option<Box<dyn FnOnce(FilePick)>>;
+
+pub(crate) fn pick_file(filter: FileFilter, deliver: impl FnOnce(FilePick) + 'static) {
+    with(|host| {
+        host.output
+            .file_picks
+            .push((filter, Some(Box::new(deliver))))
+    });
 }
 
 pub(crate) fn request_repaint() {

@@ -45,7 +45,7 @@ pub fn ActionRow(
 }
 
 #[component]
-fn ActionRowFace(
+pub(crate) fn ActionRowFace(
     handle: unstyled::ButtonHandle,
     label: Prop<String>,
     glyph: Prop<String>,

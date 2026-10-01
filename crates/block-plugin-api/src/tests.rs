@@ -71,6 +71,7 @@ fn region_screen(
     }
 }
 
+mod a_paste_over_the_text_limit_arrives_in_pieces;
 mod artifact_messages_round_trip;
 mod artifact_watch_messages_round_trip;
 mod audio_messages_round_trip;
@@ -101,6 +102,7 @@ mod grabbing_the_cursor_round_trips;
 mod history_messages_round_trip;
 mod ime_messages_round_trip;
 mod manifest_validation;
+mod menus_and_their_picks_round_trip;
 mod multiplexed_messages_round_trip;
 mod open_block_request_round_trips;
 mod open_messages_round_trip;

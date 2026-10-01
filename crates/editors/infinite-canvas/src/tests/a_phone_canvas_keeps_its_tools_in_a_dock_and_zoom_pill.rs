@@ -26,16 +26,7 @@ fn a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill() {
     );
     editor.snapshot("a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill");
 
-    editor.set_more(true);
-    assert!(
-        editor
-            .label("editor.more.item.canvas.delete")
-            .ends_with("Delete")
-    );
-    let handle = editor.rect_of("sheet.handle").center();
-    editor.drag(handle, handle - Vec2::new(0.0, 400.0));
-    editor.run();
-    editor.click("editor.more.item.canvas.delete");
-    editor.run();
+    assert_eq!(editor.menu_entry("canvas.delete").label, "Delete");
+    editor.pick_menu("canvas.delete");
     assert!(entities(&editor).is_empty());
 }

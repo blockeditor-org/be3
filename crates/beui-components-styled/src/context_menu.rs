@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use crate::text::IconSized;
 use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{MenuItem, MenuRowHandle, TextInputMenu};
+use beui_components_unstyled::{MenuItem, MenuRowHandle, MenuStyle};
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
@@ -65,8 +65,8 @@ pub fn menu_panel() -> beui_view::reactive::RenderFn<Child> {
     })
 }
 
-pub fn text_input_menu() -> TextInputMenu {
-    TextInputMenu::new(
+pub fn menu_style() -> MenuStyle {
+    MenuStyle::new(
         |handle| {
             view! {
                 <MenuRow handle />
@@ -88,6 +88,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
         has_submenu,
         hovered,
         focused,
+        ..
     } = handle;
     let theme = use_theme();
     let color = create_memo(clone!(theme -> move || {

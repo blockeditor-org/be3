@@ -301,6 +301,9 @@ fn configuration() -> Config {
     config.shared_memory(true);
     config.wasm_bulk_memory(true);
     config.wasm_exceptions(true);
+    if std::env::var_os("BE3_PERF_MAP").is_some() {
+        config.profiler(wasmtime::ProfilingStrategy::PerfMap);
+    }
     config
 }
 

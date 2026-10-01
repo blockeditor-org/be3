@@ -4,7 +4,6 @@ use block_editor_beui::{FileFilter, PickedFile};
 pub(crate) fn image_filter() -> FileFilter {
     FileFilter::new(
         "Images",
-        "Image",
         ImageContent::FILE_EXTENSIONS,
         ImageContent::MIME_TYPES,
     )

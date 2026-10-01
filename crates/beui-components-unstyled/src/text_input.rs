@@ -5,37 +5,36 @@ use std::sync::Arc;
 
 use accesskit::{Node, Role};
 
-use text_editor_core::{CopyMode, EditorCommand, TextBuffer, TextLanguage};
+use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Vec2};
 use beui_core::input::KeyPress;
 
-use crate::ContextMenu;
-use crate::MenuItem;
-use crate::MenuRowHandle;
 use crate::SyntaxColors;
 use crate::TextArea;
 use crate::TextAreaColors;
 use crate::TextAreaState;
+use crate::context_menu::MenuStyle;
 use crate::context_menu_menu;
 use crate::context_menu_overlay;
 use crate::menu_list_len;
 use crate::menu_list_row_button;
 use crate::text_area_index_at;
 use crate::text_area_shown;
+use crate::text_menu::TextContextMenu;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
 use beui_view::reactive::{
-    Callback, Child, ForEach, Frame, List, Memo, NodeRef, Prop, ReadSignal, Render, RenderFn,
-    clone, copy_text, create_effect, create_memo, create_signal, request_paste,
-    set_component_state,
+    Callback, Child, Frame, Memo, NodeRef, Prop, ReadSignal, Render, clone, create_effect,
+    create_memo, create_signal, set_component_state,
 };
 
 const FONT_SIZE: f32 = 14.0;
 const PLACEHOLDER_COLOR: Color32 = Color32::from_gray(140);
+const SELECTION_COLOR: Color32 = Color32::from_rgba_unmultiplied(120, 160, 255, 90);
 
 pub struct TextInputHandle {
     pub field: Child,
@@ -44,33 +43,29 @@ pub struct TextInputHandle {
     pub disabled: Memo<bool>,
 }
 
-#[derive(Clone, Default)]
-pub struct TextInputMenu(Option<(RenderFn<MenuRowHandle>, RenderFn<Child>)>);
-
-impl TextInputMenu {
-    pub fn new(
-        row: impl Fn(MenuRowHandle) -> NodeId + 'static,
-        panel: impl Fn(Child) -> NodeId + 'static,
-    ) -> Self {
-        Self(Some((RenderFn::new(row), RenderFn::new(panel))))
-    }
+#[derive(Clone)]
+pub struct TextInputStyle {
+    pub font_size: Prop<f32>,
+    pub color: Prop<Color32>,
+    pub placeholder_color: Prop<Color32>,
+    pub selection_color: Prop<Color32>,
+    pub caret_color: Prop<Color32>,
+    pub padding_horizontal: Prop<f32>,
+    pub padding_vertical: Prop<f32>,
+    pub menu: MenuStyle,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-enum MenuAction {
-    Copy,
-    Cut,
-    Paste,
-    SelectAll,
-}
-
-impl MenuAction {
-    fn label(self) -> &'static str {
-        match self {
-            MenuAction::Copy => "Copy",
-            MenuAction::Cut => "Cut",
-            MenuAction::Paste => "Paste",
-            MenuAction::SelectAll => "Select All",
+impl Default for TextInputStyle {
+    fn default() -> Self {
+        Self {
+            font_size: Prop::Static(FONT_SIZE),
+            color: Prop::Static(Color32::WHITE),
+            placeholder_color: Prop::Static(PLACEHOLDER_COLOR),
+            selection_color: Prop::Static(SELECTION_COLOR),
+            caret_color: Prop::Static(Color32::WHITE),
+            padding_horizontal: Prop::Static(0.0),
+            padding_vertical: Prop::Static(0.0),
+            menu: MenuStyle::default(),
         }
     }
 }
@@ -91,14 +86,7 @@ pub fn TextInput(
     #[prop(default = false)] select_on_focus: Prop<bool>,
     #[prop(children)] content: Option<Render<TextInputHandle>>,
     placeholder: Prop<String>,
-    #[prop(default = FONT_SIZE)] font_size: Prop<f32>,
-    #[prop(default = Color32::WHITE)] color: Prop<Color32>,
-    #[prop(default = PLACEHOLDER_COLOR)] placeholder_color: Prop<Color32>,
-    selection_color: Prop<Color32>,
-    caret_color: Prop<Color32>,
-    padding_horizontal: Prop<f32>,
-    #[prop(default = 0.0)] padding_vertical: Prop<f32>,
-    #[prop(default = TextInputMenu::default())] menu: TextInputMenu,
+    #[prop(default = TextInputStyle::default())] style: TextInputStyle,
     on_change: Callback<String>,
     on_submit: Callback<String>,
     on_hover_change: Callback<bool>,
@@ -106,6 +94,16 @@ pub fn TextInput(
     on_key_override: Callback<KeyPress, bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
+    let TextInputStyle {
+        font_size,
+        color,
+        placeholder_color,
+        selection_color,
+        caret_color,
+        padding_horizontal,
+        padding_vertical,
+        menu,
+    } = style;
     let initial = value.peek();
     let state = plain_text(&initial);
     let (hovered, set_hovered) = create_signal(false);
@@ -149,32 +147,7 @@ pub fn TextInput(
     });
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::TextInput)));
 
-    let cursors = state.cursors();
-    let actions = create_memo(clone!(state masked -> move || {
-        cursors.get();
-        let selected = state.selection_ranges().iter().any(|range| !range.is_empty());
-        match selected && !masked.get() {
-            true => vec![
-                MenuAction::Copy,
-                MenuAction::Cut,
-                MenuAction::Paste,
-                MenuAction::SelectAll,
-            ],
-            false => vec![MenuAction::Paste, MenuAction::SelectAll],
-        }
-    }));
-    let chosen = actions.clone();
-    let no_menu = menu.0.is_none();
-    let (row, panel) = menu.0.unwrap_or_else(|| {
-        (
-            RenderFn::new(|_| {
-                view! {
-                    <List spacing=0.0 />
-                }
-            }),
-            RenderFn::new(|content| content),
-        )
-    });
+    let no_menu = !menu.is_some();
     let menu_off = create_memo(clone!(disabled -> move || no_menu || disabled.get()));
     let open_menu = clone!(menu_off set_menu_at -> move |at: Pos2| {
         if !menu_off.get_untracked() {
@@ -184,6 +157,7 @@ pub fn TextInput(
     let submit_state = state.clone();
     let focus_state = state.clone();
     let menu_state = state.clone();
+    let masked_menu = masked.clone();
     let close_menu = set_menu_at.clone();
     let field_disabled = disabled.clone();
     let handle_focused = is_focused.clone();
@@ -219,31 +193,14 @@ pub fn TextInput(
                     <Frame padding_horizontal padding_vertical>{field}</Frame>
                 };
                 view! {
-                    <ContextMenu
+                    <TextContextMenu
                         @node_ref=&menu_node
-                        row
-                        panel
+                        state={menu_state}
+                        menu
+                        masked={masked_menu}
                         disabled={menu_off}
                         open_at={menu_at}
-                        open_at_focuses=false
                         on_close={move || close_menu.set(None)}
-                        items={view! {
-                            <ForEach keys={actions}>
-                                {move |action: MenuAction| view! {
-                                    <MenuItem label={action.label().to_owned()} />
-                                }}
-                            </ForEach>
-                        }}
-                        on_select={move |path: Vec<usize>| {
-                            let Some(action) = path
-                                .first()
-                                .and_then(|index| chosen.get_untracked().get(*index).copied())
-                            else {
-                                return;
-                            };
-                            menu_state.focus();
-                            menu_action(&menu_state, action);
-                        }}
                     >
                         {match content {
                             Some(build) => build.call(TextInputHandle {
@@ -254,7 +211,7 @@ pub fn TextInput(
                             }),
                             None => field,
                         }}
-                    </ContextMenu>
+                    </TextContextMenu>
                 }
             }}
         />
@@ -279,23 +236,6 @@ fn text_of(state: &TextAreaState) -> String {
         return String::new();
     };
     String::from_utf8_lossy(&read.slice(0..read.len())).into_owned()
-}
-
-fn menu_action(state: &TextAreaState, action: MenuAction) {
-    match action {
-        MenuAction::Copy | MenuAction::Cut => {
-            let mode = match action {
-                MenuAction::Cut => CopyMode::Cut,
-                _ => CopyMode::Copy,
-            };
-            let text = state.copy(mode);
-            if !text.is_empty() {
-                copy_text(text);
-            }
-        }
-        MenuAction::Paste => request_paste(),
-        MenuAction::SelectAll => state.execute(EditorCommand::SelectAll),
-    }
 }
 
 fn input(document: &Document, input: NodeId) -> &Input {

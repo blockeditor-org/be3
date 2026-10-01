@@ -1364,12 +1364,17 @@ pub use crate::components::grid::{Grid, GridCell};
 pub use crate::components::interactive::Interactive;
 pub use crate::components::layers::{Layer, Layers};
 pub use crate::components::offset::Offset;
+pub use crate::components::overlay::Overlay;
 pub use crate::components::portal::Portal;
 pub use crate::components::text::{Text, TextItem};
 pub use crate::components::virtual_list::VirtualList;
+pub use crate::file_picker::{
+    FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,
+};
 pub use beui_core::base::canvas::CanvasView;
 pub use beui_core::base::drawing::{Draw, draw_gpu};
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
+pub use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 pub use beui_core::rich::{
     CaretHandle, RichLayout, SpanKind, SpanStyle, TextCaret, TextMark, TextSpan,
 };

@@ -1,5 +1,7 @@
 #![cfg(target_arch = "wasm32")]
 
+mod file_picker;
+
 use std::cell::{Cell, RefCell};
 use std::error::Error;
 use std::future::Future;
@@ -179,7 +181,7 @@ impl Runner {
             (events, !pending.is_empty())
         });
         let app = &mut self.app;
-        let output = self.context.run(RawInput { events }, |context| {
+        let mut output = self.context.run(RawInput { events }, |context| {
             app.update(context, Rect::from_min_size(Pos2::ZERO, screen));
         });
         if let Some(accessibility) = &mut self.accessibility {
@@ -188,6 +190,9 @@ impl Runner {
 
         if let Some(text) = &output.copied_text {
             let _ = window.navigator().clipboard().write_text(text);
+        }
+        for request in std::mem::take(&mut output.file_picks) {
+            file_picker::open(&self.context, request);
         }
         if output.paste_requested {
             let read = window.navigator().clipboard().read_text();

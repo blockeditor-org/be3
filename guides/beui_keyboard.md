@@ -77,9 +77,10 @@ when it opened: typing filters them by every word, Up/Down/Page Up/Page Down
 move the highlight over the enabled ones, Enter or a click runs the highlighted
 one, and Escape closes it; disabled actions are listed last and greyed. Closing
 it puts the focus back where it was before the action runs. An editor frame
-opens it with Ctrl+Shift+P, and on a phone from a row of the More sheet, and
+opens it with Ctrl+Shift+P and from a row of its menu, and
 `menu_actions()` (every action registered with
-`in_menu()`) is what fills its More menu and phone sheet.
+`in_menu()`) is what fills that menu, which the dock shows behind its More
+button.
 
 ## Control props
 

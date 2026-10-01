@@ -19,7 +19,7 @@ use beui_view::reactive::{
 use crate as unstyled;
 use crate::button::ButtonHandle;
 use crate::scroll::ScrollbarStyle;
-use crate::text_input::{TextInputHandle, TextInputMenu};
+use crate::text_input::{TextInputHandle, TextInputStyle};
 
 pub struct CommandRowHandle {
     pub label: Prop<String>,
@@ -56,14 +56,8 @@ pub fn CommandPalette(
     list_height: Prop<f32>,
     #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
     search_placeholder: Prop<String>,
-    search_font_size: Prop<f32>,
-    search_color: Prop<Color32>,
-    search_placeholder_color: Prop<Color32>,
-    search_selection_color: Prop<Color32>,
-    search_caret_color: Prop<Color32>,
-    search_padding_horizontal: Prop<f32>,
     search_content: Option<Render<TextInputHandle>>,
-    #[prop(default = TextInputMenu::default())] search_menu: TextInputMenu,
+    #[prop(default = TextInputStyle::default())] search_style: TextInputStyle,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     row: Option<RenderFn<CommandRowHandle>>,
     #[prop(children)] panel: Option<Render<Child>>,
@@ -137,13 +131,7 @@ pub fn CommandPalette(
                         value={query}
                         focused={searching}
                         placeholder={search_placeholder}
-                        font_size={search_font_size}
-                        color={search_color}
-                        placeholder_color={search_placeholder_color}
-                        selection_color={search_selection_color}
-                        caret_color={search_caret_color}
-                        padding_horizontal={search_padding_horizontal}
-                        menu={search_menu}
+                        style={search_style}
                         accessibility={accessibility}
                         content={search_content.unwrap_or_else(|| Render::new(|handle: TextInputHandle| handle.field))}
                         on_change={move |text: String| filter(&filter_state, &text)}

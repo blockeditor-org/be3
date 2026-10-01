@@ -1,6 +1,7 @@
 #![cfg(not(any(target_os = "android", target_arch = "wasm32")))]
 
 mod clipboard;
+mod file_picker;
 
 pub use winit;
 
@@ -32,6 +33,7 @@ use beui_core::input::{
 };
 use beui_renderer_wgpu::present::{Gpu, GpuSetup, OpenDevice, Presented, Target, create_gpu};
 use clipboard::Clipboard;
+use file_picker::FilePicker;
 
 const LINE_HEIGHT: f32 = 40.0;
 const TOUCH_CURSOR_SIZE: u16 = 20;
@@ -98,6 +100,7 @@ pub fn run_with(
         error: None,
         next_update: None,
         clipboard: Clipboard::new(),
+        file_picker: FilePicker::new(),
         event_loop_proxy: event_loop.create_proxy(),
         accessibility_active: false,
         accessibility_dump,
@@ -137,6 +140,7 @@ struct Runner {
     error: Option<String>,
     next_update: Option<Instant>,
     clipboard: Clipboard,
+    file_picker: FilePicker,
     event_loop_proxy: EventLoopProxy<UserEvent>,
     accessibility_active: bool,
     accessibility_dump: Option<AccessibilityDump>,
@@ -198,11 +202,12 @@ impl Runner {
         let scale = self.context.pixels_per_point();
         let screen = vec2(physical.x / scale, physical.y / scale);
 
+        self.file_picker.deliver(&self.context);
         let raw = RawInput {
             events: next_batch(&mut self.events),
         };
         let app = &mut self.app;
-        let output = self.context.run(raw, |context| {
+        let mut output = self.context.run(raw, |context| {
             app.update(context, safe_rect(screen, SafeArea::default(), scale));
         });
         if self.accessibility_active {
@@ -216,6 +221,12 @@ impl Runner {
 
         if let Some(text) = &output.copied_text {
             self.clipboard.set(text.clone());
+        }
+        for request in std::mem::take(&mut output.file_picks) {
+            let proxy = self.event_loop_proxy.clone();
+            self.file_picker.open(request, move || {
+                let _ = proxy.send_event(UserEvent::Wake);
+            });
         }
         if output.paste_requested
             && let Some(text) = self.clipboard.get()

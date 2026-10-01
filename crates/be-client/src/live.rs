@@ -17,6 +17,7 @@ use uuid::Uuid;
 use crate::{ClientError, Peer, Saved};
 
 const JOURNAL_LIMIT: usize = 1024;
+const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Journaled<Op> {
@@ -227,6 +228,15 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         self.visible.apply(&operation);
         self.journal(Journaled::Edited(operation.clone()));
         let payload = C::encode_operation(&operation);
+        if payload.len() > LARGEST_RELAYED_OPERATION {
+            return match self.replace(self.visible.clone()).await? {
+                true => Ok(()),
+                false => Err(ClientError::Refused(
+                    be_protocol::ErrorCode::InvalidRequest,
+                    "a large edit could not be saved; the block kept changing under it".into(),
+                )),
+            };
+        }
         match &mut self.role {
             Role::Owner(sequencer) => {
                 let id = be_session::OpId {

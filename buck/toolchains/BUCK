@@ -121,6 +121,7 @@ cxx_tools_info_toolchain(
         "-fno-exceptions",
         "-fno-rtti",
         "-DHB_NO_MT",
+        "-msimd128",
         "-O2",
         "-w",
     ],
@@ -137,6 +138,7 @@ cxx_tools_info_toolchain(
         "-fno-exceptions",
         "-fno-rtti",
         "-DHB_NO_MT",
+        "-msimd128",
         "-O2",
         "-w",
     ],
@@ -197,12 +199,18 @@ pinned_rust_toolchain(
             "prelude//cpu:wasm32": ["-Copt-level=2", "-Cdebuginfo=0"],
         }),
         "root//buck/constraints:release": _release,
-    }) + select({
+    })
+    + select({
         "DEFAULT": [],
         "prelude//cpu:wasm32": ["-Cstrip=debuginfo"],
         # Packed, macOS's default, runs dsymutil after the link, which is
         # Apple's and not something a Linux worker has.
         "prelude//os:macos": ["-Csplit-debuginfo=unpacked"],
+    })
+    + select({
+        "DEFAULT": [],
+        # Plugins only: a game runs in wasmi, which takes no SIMD.
+        "prelude//os:wasi": ["-Ctarget-feature=+simd128"],
     }),
     rustc_target_triple = per_cross_platform(
         "x86_64-unknown-linux-gnu",
