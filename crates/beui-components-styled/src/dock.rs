@@ -71,6 +71,17 @@ pub fn DockArea(
             }
         })
     });
+    let theme = use_theme();
+    let fill = create_memo(clone!(mode -> move || match mode.get() {
+        DockMode::Tiled => Color32::TRANSPARENT,
+        DockMode::Stacked => theme.background.get(),
+    }));
+    let content = RenderFn::new(move |tab: TabId| {
+        let body = content.call(tab);
+        view! {
+            <Frame color={fill.clone()}>{body}</Frame>
+        }
+    });
     view! {
         <unstyled::Dock
             state
@@ -172,9 +183,9 @@ fn DockTabChrome(
     let fill = create_memo(clone!(theme selected hovered -> move || {
         match (selected.get(), hovered.get() || active.get(), dragged.get()) {
             (_, _, true) => theme.accent_soft.get(),
-            (true, _, false) => theme.surface.get(),
+            (true, _, false) => theme.background.get(),
             (false, true, false) => theme.hover.get(),
-            (false, false, false) => theme.background.get(),
+            (false, false, false) => theme.surface.get(),
         }
     }));
     let label = create_memo(clone!(theme selected -> move || match selected.get() {
@@ -264,7 +275,9 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
                 />
             </Show>
             <Show condition={bar.is_none()}>
-                <Frame color={theme.surface.clone()} @sizing=ItemSize::Percent(100.0)>{body}</Frame>
+                <Frame color={theme.background.clone()} @sizing=ItemSize::Percent(100.0)>
+                    {body}
+                </Frame>
             </Show>
         </List>
     }
@@ -335,7 +348,7 @@ fn DockChrome(
     let side_close = close.clone();
     view! {
         <Frame
-            color={theme.surface.clone()}
+            color={theme.background.clone()}
             outline={outline}
             outline_width=CHROME_BORDER
             outline_visible=true
@@ -381,7 +394,7 @@ fn DockTitleBar(
     let titled = tabs.is_none();
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.surface.clone()}
             padding_vertical=BAR_PADDING
             padding_horizontal=BAR_PADDING
         >
@@ -414,7 +427,7 @@ fn DockSideBar(
     let titled = tabs.is_none();
     view! {
         <Frame
-            color={theme.background.clone()}
+            color={theme.surface.clone()}
             padding_vertical=BAR_PADDING
             padding_horizontal=BAR_PADDING
         >

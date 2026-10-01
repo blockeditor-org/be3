@@ -708,12 +708,17 @@ impl Document {
     }
 
     pub fn remove_node(&mut self, id: NodeId) {
+        let mut dropped = Vec::new();
         if !self.delivering {
-            self.forget_placement(id);
+            let rects = Rc::clone(&self.rects);
+            self.drop_placement(id, &rects, &mut dropped);
         }
         let mut scopes = Vec::new();
         self.detach_subtree(id, &mut scopes);
         drop(scopes);
+        for node in dropped {
+            self.release_placement(node);
+        }
     }
 
     fn detach_subtree(&mut self, id: NodeId, scopes: &mut Vec<::reactive::Scope>) {
