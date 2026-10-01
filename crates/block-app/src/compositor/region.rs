@@ -77,8 +77,8 @@ pub(crate) fn PluginRegion(
     let placed: Rc<Cell<Option<EmbedPlacement>>> = Rc::new(Cell::new(None));
     let place: Rc<dyn Fn(Option<EmbedPlacement>)> = Rc::new(
         clone!(plugin_id frame view -> move |placement: Option<EmbedPlacement>| {
-            if let Some(placement) = placement {
-                plugin_host::place_region(
+            match placement {
+                Some(placement) => plugin_host::place_region(
                     &plugin_id,
                     instance,
                     region,
@@ -88,7 +88,8 @@ pub(crate) fn PluginRegion(
                     },
                     frame.peek(),
                     view.peek(),
-                );
+                ),
+                None => plugin_host::unplace_region(&plugin_id, instance, region),
             }
         }),
     );

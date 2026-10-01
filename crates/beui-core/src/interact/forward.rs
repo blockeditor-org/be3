@@ -57,8 +57,14 @@ fn deepest(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2) -> Option<NodeI
 pub fn sink_at(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option<NodeId> {
     if doc.modal_open() {
         for overlay in doc.overlay_stack.iter().rev() {
-            if let Some(found) = deepest(doc, rects, overlay.id(), pos) {
+            if let Some(found) = doc
+                .overlay_content(*overlay)
+                .and_then(|content| deepest(doc, rects, content, pos))
+            {
                 return Some(found);
+            }
+            if !doc.light_overlay_misses(*overlay, pos) {
+                return None;
             }
         }
         return match doc.pointer_passes_under_overlays(pos) {
@@ -222,6 +228,21 @@ pub(super) fn route(
             | Event::Focus(false) => deliver(focused, event),
             Event::Focus(true) | Event::Back(_) => {}
         }
+    }
+    let held = ctx.input(|input| {
+        [
+            (input.pointer.primary_down, PointerButton::Primary),
+            (input.pointer.secondary_down, PointerButton::Secondary),
+            (input.pointer.middle_down, PointerButton::Middle),
+        ]
+    });
+    for (down, button) in held {
+        if !down {
+            routing.buttons &= !button_mask(button);
+        }
+    }
+    if routing.buttons == 0 {
+        routing.captor = None;
     }
     let pointed = events
         .iter()

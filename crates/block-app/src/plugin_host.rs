@@ -34,7 +34,7 @@ pub(crate) use runtime::place_screens;
 pub(crate) use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, forward_region, frames, mount_region,
     place_region, region_damage, region_drawing, region_placed, region_view, take_changed,
-    take_region_actions, unmount_region,
+    take_region_actions, unmount_region, unplace_region,
 };
 pub(crate) use runtime::{
     arrange_panes, artifact, artifact_draft, aspect_ratio, block_picked, close, close_pane,

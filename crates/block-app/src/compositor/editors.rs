@@ -189,7 +189,7 @@ impl Nesting {
 struct TabContext {
     stack: Memo<Vec<Uuid>>,
     top_bar: Prop<TopBar>,
-    portal: WriteSignal<Option<NodeId>>,
+    portals: WriteSignal<Vec<(Uuid, NodeId)>>,
     exit: Rc<dyn Fn()>,
 }
 
@@ -327,7 +327,7 @@ fn TabFrame(block: Uuid, top_bar: Prop<TopBar>) -> NodeId {
         }
         stack
     }));
-    let (portal, set_portal) = create_signal(None::<NodeId>);
+    let (portals, set_portals) = create_signal(Vec::<(Uuid, NodeId)>::new());
     let exit: Rc<dyn Fn()> = Rc::new(clone!(editors stack -> move || {
         let stack = stack.get_untracked();
         let parent = match stack.len() {
@@ -340,9 +340,18 @@ fn TabFrame(block: Uuid, top_bar: Prop<TopBar>) -> NodeId {
     provide_context(TabContext {
         stack: stack.clone(),
         top_bar: top_bar.clone(),
-        portal: set_portal,
+        portals: set_portals,
         exit,
     });
+    let shown = create_memo(clone!(stack portals -> move || {
+        portals.with(|held| {
+            stack
+                .get()
+                .into_iter()
+                .filter(|id| held.iter().any(|(block, _)| block == id))
+                .collect::<Vec<_>>()
+        })
+    }));
     let chrome = create_memo(clone!(stack -> move || match stack.get().is_empty() {
         true => Chrome::Drawn,
         false => Chrome::None,
@@ -357,7 +366,18 @@ fn TabFrame(block: Uuid, top_bar: Prop<TopBar>) -> NodeId {
                 embedded=false
                 passive=false
             />
-            <Portal node={portal} />
+            <ForEach keys={shown}>
+                {move |id: Uuid| {
+                    let node = create_memo(clone!(portals -> move || {
+                        portals.with(|held| {
+                            held.iter().find(|(block, _)| *block == id).map(|(_, node)| *node)
+                        })
+                    }));
+                    view! {
+                        <Portal node={node} />
+                    }
+                }}
+            </ForEach>
         </Layers>
     }
 }
@@ -487,6 +507,32 @@ fn BlockFrame(
     #[prop(default = ChildReporter::default())] reporter: ChildReporter,
 ) -> NodeId {
     let any = super::any();
+    if !presented {
+        let counted = Rc::new(Cell::new(false));
+        create_effect(clone!(any counted -> move || {
+            any.get();
+            if counted.get() {
+                return;
+            }
+            let shown = editors().with(|open| match open.get_mut(&block) {
+                Some(editor) => {
+                    editor.shown(true);
+                    true
+                }
+                None => false,
+            });
+            counted.set(shown);
+        }));
+        on_cleanup(move || {
+            if counted.get() {
+                editors().with(|open| {
+                    if let Some(editor) = open.get_mut(&block) {
+                        editor.shown(false);
+                    }
+                });
+            }
+        });
+    }
     let shown = create_memo(move || {
         any.get();
         presented
@@ -652,23 +698,10 @@ fn BlockFrameView(
         view: on_view_change,
         bar: on_bar_action,
     } = reporter;
-    let editors = editors();
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     provide_context(nesting.within(block, access));
     let plugin_id = region_editor.plugin_id().to_owned();
     let instance = region_editor.instance;
-    editors.with(|open| {
-        if let Some(editor) = open.get_mut(&block) {
-            editor.shown(true);
-        }
-    });
-    on_cleanup(clone!(editors -> move || {
-        editors.with(|open| {
-            if let Some(editor) = open.get_mut(&block) {
-                editor.shown(false);
-            }
-        });
-    }));
     let framed = create_memo(clone!(content -> move || content.get().is_some()));
     create_effect(clone!(plugin_id framed -> move || {
         let _ = framed.get();
@@ -1039,8 +1072,15 @@ fn HostedChild(
                                             reporter
                                         />
                                     };
-                                    tab.portal.set(Some(node));
-                                    on_cleanup(move || tab.portal.set(None));
+                                    tab.portals.update(|held| {
+                                        held.retain(|(block, _)| *block != id);
+                                        held.push((id, node));
+                                    });
+                                    on_cleanup(move || {
+                                        tab.portals.update(|held| {
+                                            held.retain(|entry| *entry != (id, node));
+                                        });
+                                    });
                                     view! {
                                         <Frame />
                                     }

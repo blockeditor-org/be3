@@ -1108,6 +1108,15 @@ pub(crate) fn unmount_region(plugin_id: &str, instance: EditorInstanceId, region
     with(plugin_id, |runtime| {
         runtime.instances.unmount(instance, region)
     });
+    mark(plugin_id);
+    host::request_repaint();
+}
+
+pub(crate) fn unplace_region(plugin_id: &str, instance: EditorInstanceId, region: EditorRegion) {
+    with(plugin_id, |runtime| {
+        runtime.instances.unplace(instance, region)
+    });
+    mark(plugin_id);
     host::request_repaint();
 }
 

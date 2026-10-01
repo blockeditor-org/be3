@@ -456,6 +456,13 @@ struct Screen {
     frame_revoked: HashSet<ChildId>,
 }
 
+impl Screen {
+    fn unplace(&mut self) {
+        self.placement = None;
+        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0);
+    }
+}
+
 #[derive(Default, PartialEq)]
 struct ChildTable {
     generation: u64,
@@ -720,9 +727,16 @@ impl Instances {
         if let Some(screen) = self.screen_mut(instance, region) {
             screen.mounted = screen.mounted.saturating_sub(1);
             if screen.mounted == 0 {
-                screen.placement = None;
-                screen.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0);
+                screen.unplace();
             }
+        }
+    }
+
+    pub(super) fn unplace(&mut self, instance: EditorInstanceId, region: EditorRegion) {
+        if let Some(screen) = self.screen_mut(instance, region)
+            && screen.mounted <= 1
+        {
+            screen.unplace();
         }
     }
 
