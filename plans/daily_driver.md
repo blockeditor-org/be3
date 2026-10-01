@@ -16,50 +16,21 @@ From that point on:
 - Deleting the client or server database stops being an acceptable fix.
 
 The phases are ordered so that nothing written after the format freeze
-(phase 2) has to be rewritten. Phase 1 is small and should land first,
-because it fixes bugs that can lose data today.
+(phase 2) has to be rewritten.
 
-## Phase 1: Stop silent data loss
+## Phase 1: Stop silent data loss (done)
 
-Small, independent fixes.
-
-- **`BlockMetadata` decodes to the default when it fails**
-  (`be-block/src/metadata.rs:43-45`, `be-client/src/peer.rs:265-267`).
-  - Adding any field would therefore blank every block's name and `local_id`,
-    and the next `set_metadata` would write the blanks back.
-  - Make a decode failure an error that blocks writes to that block.
-- **Writes are not durable.**
-  - `FileStore::put` (`be-store/src/store.rs:109-121`) renames a temporary
-    file without `sync_all` on the file or its directory.
-  - `put` skips paths that already exist, so a truncated object is never
-    repaired.
-  - Done: fsync the file, then the directory. Re-verify the hash when a
-    write is skipped and when the server reads an object. Remove stale
-    `.partial` files on startup.
-- **The server deletes object files before its transaction commits**
-  (`be-server/src/blocks.rs:676-678`, `:707-709`). Delete them after the
-  commit.
-- **`PruneHistory` ignores `pinned`** (`blocks.rs:427-456`). It should keep
-  pinned commits.
-- **The crash screen offers to delete databases after any panic**
-  (`main.rs:1940-1973`, `ui/onboarding.rs:48-134`).
-  - Deleting the local server database can stay, because local workspaces
-    are only for testing.
-  - "Delete client database" must not delete unsynced work. Once phase 5
-    adds a local outbox, the client database holds edits the server has not
-    seen yet.
-  - Done: the client reset refuses, or warns with a count, while anything is
-    unsynced.
-- **Live merges throw away conflicts.**
-  - `live.reconcile()` drops the `MergeResult` (`be/worker.rs:274`, `:453`,
-    `:562`).
-  - A conflicted model document is published with only a count, and the
-    count is discarded.
-  - Done: a conflicted merge is recorded where the UI can show it (phase 5)
-    instead of vanishing.
-- **Live sessions drop operations they cannot decode** (`be-client/src/live.rs:272-274`,
-  `:292-294`, `:423-425`). Mixed-version peers therefore diverge silently.
-  Report these, and stop applying edits to that block.
+Landed. What it left open:
+- The server changes its in-memory object refcounts before the transaction
+  commits. A failed commit leaves them out of step with the database until
+  a restart.
+- A conflicted merge keeps the unsaved side as a commit (`Peer::stash`),
+  but the server does not count that commit's objects as held. Phase 7 must
+  hold them before any collection runs.
+- A corrupt object on the server is only noticed when it is read, because
+  `has` checks that the file exists, not that it is intact.
+- Conflicts and diverged sessions are reported only through the status
+  error and the debug window. Phase 5 adds the UI.
 
 ## Phase 2: Freeze the formats
 
@@ -432,11 +403,10 @@ Nice to have later:
 
 ## Suggested order
 
-1. Phase 1, in small PRs.
-2. Phases 3 and 6.1 (keys and anchors), because they change what is
+1. Phases 3 and 6.1 (keys and anchors), because they change what is
    written or sent.
-3. Phase 2, the freeze, with golden fixtures.
-4. Phase 4. Start the server, and take backups from day one.
-5. Phases 5 and 7 in parallel. Start real use when offline open, the status
+2. Phase 2, the freeze, with golden fixtures.
+3. Phase 4. Start the server, and take backups from day one.
+4. Phases 5 and 7 in parallel. Start real use when offline open, the status
    indicator, Move to…, search and export exist.
-6. The rest of phase 6, measured against the benchmark.
+5. The rest of phase 6, measured against the benchmark.
