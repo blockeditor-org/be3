@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use beui::{Pos2, Rect, Vec2, vec2};
+use beui::{Rect, Vec2, vec2};
 use block_plugin_api::{
     BlockTypeDescriptor, ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId,
     EditorRegion, FrameSpec, InteractionMode, PluginManifest, ResizeMode, ScreenId,
@@ -28,12 +28,18 @@ mod web_view;
 pub(crate) use instances::EditorView;
 pub(crate) use presenter::{Blit, PluginDrawing};
 #[cfg(target_arch = "wasm32")]
+pub(crate) use presenter::take_shown;
+#[cfg(target_arch = "wasm32")]
 pub(crate) use runtime::place_screens;
 pub(crate) use runtime::{
+    RegionPlacement, RegionSlot, RegionView, back_region, forward_region, frames, mount_region,
+    place_region, region_drawing, region_view, take_changed, take_region_actions,
+    unmount_region,
+};
+pub(crate) use runtime::{
     arrange_panes, artifact, artifact_draft, aspect_ratio, block_picked, close, close_pane,
-    commit_creation, cover_frame, creation, creation_ready, editor_ui, flush, frame_child,
-    frame_rects, hold, install, intrinsic_size, kill, pane_more, panes, poll, present, presenting,
-    preview, regenerate_artifact, region_size, replace_child, report_child_bars,
+    commit_creation, creation, creation_ready, editor_ui, flush, frame_child,
+    frame_rects, hold, install, intrinsic_size, kill, pane_more, panes, poll, present, presenting, regenerate_artifact, region_size, replace_child, report_child_bars,
     report_child_views, report_children, resized, revoke_frame_child, running, set_artifact_states,
     set_focus, set_presence_visible, show_block, take_artifact_outcome, take_artifact_watch,
     take_bar_actions, take_block_pick, take_created, take_focus_report, take_leaving,
@@ -53,6 +59,7 @@ pub(crate) fn cache_in(directory: std::path::PathBuf) {
 
 pub(crate) const MAX_LIVE_CHILDREN: usize = 16;
 
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct HostChild {
     pub(crate) child: ChildId,
     pub(crate) frame_owner: bool,
@@ -79,17 +86,9 @@ impl HostChild {
         matches!(self.mode, ChildMode::Active | ChildMode::Live)
     }
 
-    pub(crate) fn is_preview(&self) -> bool {
-        matches!(self.mode, ChildMode::Preview)
-    }
 }
 
-pub(crate) struct PreviewPresentation {
-    pub(crate) drawn: bool,
-    pub(crate) size: Vec2,
-    pub(crate) children: Vec<HostChild>,
-}
-
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct HostChildStatus {
     pub(crate) child: ChildId,
     pub(crate) available: bool,
@@ -157,17 +156,6 @@ pub(crate) struct ScreenStatus {
     pub(crate) drawn: bool,
     pub(crate) children: usize,
     pub(crate) child_generation: u64,
-}
-
-pub(crate) struct PreviewSlot<'a> {
-    pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
-    pub(crate) client_id: Uuid,
-    pub(crate) block_id: Uuid,
-    pub(crate) block_type: Uuid,
-    pub(crate) instance: EditorInstanceId,
-    pub(crate) corners: [Pos2; 4],
-    pub(crate) opacity: f32,
 }
 
 pub(crate) fn preview_size(size: Vec2, scale_factor: f32) -> Vec2 {

@@ -1,8 +1,8 @@
-use beui::{Pos2, Rect, Vec2, vec2};
+use beui::{Vec2, vec2};
 use block_plugin_api::{
-    BlockPick, BlockTypeDescriptor, ChildMode, ChildRect, EditorCapabilities, EditorInstanceId,
-    EditorManifest, EditorRegion, FrameChrome, FrameSpec, InteractionMode, PaneId, PaneLayout,
-    PaneTree, PluginManifest, ResizeMode, ViewChange,
+    BlockPick, BlockTypeDescriptor, EditorCapabilities, EditorInstanceId, EditorManifest,
+    EditorRegion, FrameSpec, InteractionMode, PaneId, PaneLayout, PaneTree, PluginManifest,
+    ResizeMode,
 };
 use std::sync::{
     Arc,
@@ -13,89 +13,17 @@ use uuid::Uuid;
 pub(crate) mod discovery;
 
 use super::{
-    ArtifactSession, ArtifactStatus, BlockRenderContext, BlockTypeEntry, Chrome, CreationStep,
-    DirectEditorCapabilities, DirectEditorInteraction, DirectEditorResize, DirectEditorViewport,
-    DirectEditorViewportCommand, DirectEditorViewportInput, EditorAccess, EditorAction,
-    EditorRegistry, FocusReport, FrameSlot, PendingCreation, embedded_editor_ui, frame_child_ui,
-    own_frame_child_ui, paint_block_fallback, rect_corners,
+    ArtifactSession, ArtifactStatus, BlockTypeEntry, CreationStep, DirectEditorCapabilities,
+    DirectEditorInteraction, DirectEditorResize, EditorAccess, EditorAction, EditorRegistry,
+    FocusReport, PendingCreation,
 };
 use crate::{
     block_picker::BlockPicker,
-    host::{self, HostItem, Target, Ui},
+    host::{self, Ui},
     plugin_host::{
-        ArtifactSlot, ArtifactState, CreationSlot, CreationState, EditorBlock, EditorView,
-        HostChild, HostChildStatus, InstanceRole,
+        ArtifactSlot, ArtifactState, CreationSlot, CreationState, EditorBlock, InstanceRole,
     },
 };
-
-fn child_interaction(editors: &EditorAccess<'_>, block_id: Uuid) -> InteractionMode {
-    match editors.direct_editor_interaction(block_id) {
-        Some(DirectEditorInteraction::Live) => InteractionMode::Live,
-        Some(DirectEditorInteraction::Playback) => InteractionMode::Playback,
-        Some(DirectEditorInteraction::Preview) | None => InteractionMode::Preview,
-    }
-}
-
-fn rotated_corners(rect: Rect, rotation: f32) -> [Pos2; 4] {
-    let corners = rect_corners(rect);
-    if rotation == 0.0 {
-        return corners;
-    }
-    let (sin, cos) = rotation.sin_cos();
-    let center = rect.center();
-    corners.map(|corner| {
-        let offset = corner - center;
-        center
-            + vec2(
-                offset.x * cos - offset.y * sin,
-                offset.x * sin + offset.y * cos,
-            )
-    })
-}
-
-fn collect_view_changes(
-    child: block_plugin_api::ChildId,
-    viewport: &mut DirectEditorViewport,
-    views: &mut Vec<(block_plugin_api::ChildId, ViewChange)>,
-) {
-    for command in viewport.drain() {
-        let change = match command {
-            DirectEditorViewportCommand::Pan(delta) => ViewChange::Pan {
-                x: delta.x,
-                y: delta.y,
-            },
-            DirectEditorViewportCommand::Zoom { factor, anchor } => ViewChange::Zoom {
-                factor,
-                anchor: anchor.map(|anchor| (anchor.x, anchor.y)),
-            },
-            DirectEditorViewportCommand::Fit => ViewChange::Fit,
-            DirectEditorViewportCommand::ResumeAutoFit => ViewChange::ResumeAutoFit,
-            DirectEditorViewportCommand::AutoFit(_) => continue,
-        };
-        views.push((child, change));
-    }
-}
-
-fn child_capabilities(editors: &EditorAccess<'_>, block_id: Uuid) -> EditorCapabilities {
-    let Some(capabilities) = editors.direct_editor_capabilities(block_id) else {
-        return EditorCapabilities::default();
-    };
-    EditorCapabilities {
-        rotation: capabilities.allow_rotation,
-        preserve_aspect_ratio: capabilities.preserve_aspect_ratio,
-        pan_and_zoom: capabilities.supports_pan_and_zoom,
-        max_zoom: capabilities.max_zoom,
-    }
-}
-
-fn child_resize(editors: &EditorAccess<'_>, block_id: Uuid) -> ResizeMode {
-    match editors.direct_editor_resize(block_id) {
-        Some(DirectEditorResize::Horizontal) => ResizeMode::Horizontal,
-        Some(DirectEditorResize::Vertical) => ResizeMode::Vertical,
-        Some(DirectEditorResize::Both) => ResizeMode::Both,
-        Some(DirectEditorResize::None) | None => ResizeMode::None,
-    }
-}
 
 pub(super) fn block_type_descriptors(
     types: impl IntoIterator<Item = (uuid::Uuid, BlockTypeEntry)>,
@@ -254,7 +182,6 @@ impl PendingCreation for PluginCreation {
     }
 }
 
-const CHILD_UNAVAILABLE: &str = "the block is already open above this editor";
 const CREATION_DIALOG_HEIGHT: f32 = 96.0;
 const UNSUPPORTED_EDITOR_SIZE: Vec2 = vec2(400.0, 120.0);
 
@@ -267,10 +194,8 @@ pub(crate) struct PluginEditor {
     opened: bool,
     block_pick: Option<PendingBlockPick>,
     fullscreen: bool,
-    active_this_frame: bool,
     presence_active: bool,
-    main_region_id: Option<Target>,
-    framed: bool,
+    shown: u32,
 }
 
 struct PendingBlockPick {
@@ -353,10 +278,8 @@ impl PluginEditor {
             opened: false,
             block_pick: None,
             fullscreen: false,
-            active_this_frame: false,
             presence_active: false,
-            main_region_id: None,
-            framed: false,
+            shown: 0,
         }
     }
 
@@ -408,364 +331,6 @@ impl PluginEditor {
         }
     }
 
-    fn presenting_ui(&mut self, editors: &mut EditorAccess<'_>) -> Option<EditorAction> {
-        let entered = !std::mem::replace(&mut self.fullscreen, true);
-        if entered {
-            host::set_fullscreen(true);
-        }
-        if host::key_pressed(beui::Key::Escape) {
-            self.stop_presenting();
-            return None;
-        }
-        let action = crate::surfaces::with(crate::surfaces::SurfaceId::Presenting, |ui| {
-            let size = ui.rect().size();
-            self.frame_ui(ui, editors, FrameSpec::default(), size, None)
-        })
-        .flatten();
-        if entered && let Some(target) = self.main_region_id {
-            host::request_focus(target);
-        }
-        action
-    }
-
-    fn unsupported_ui(&self, ui: &mut Ui) -> Option<EditorAction> {
-        let rect = ui.rect();
-        ui.item(
-            ("unsupported", self.id),
-            rect,
-            HostItem::Unsupported {
-                block: self.id,
-                block_type: self.block_type,
-            },
-        );
-        None
-    }
-
-    fn set_framed(&mut self, framed: bool) {
-        if self.framed == framed {
-            return;
-        }
-        self.framed = framed;
-        let Some(plugin) = &self.plugin else {
-            return;
-        };
-        crate::plugin_host::hold(&plugin.identity.id, self.instance, EditorRegion::Frame);
-    }
-
-    fn frame_editor_ui(
-        &mut self,
-        ui: &mut Ui,
-        editors: &mut EditorAccess<'_>,
-        viewport: &mut DirectEditorViewport,
-        chrome: bool,
-    ) -> Option<EditorAction> {
-        if self.plugin.is_none() {
-            return self.unsupported_ui(ui);
-        }
-        self.set_framed(false);
-        self.active_this_frame = true;
-        self.opened = true;
-        if self.presenting() {
-            return self.presenting_ui(editors);
-        }
-        self.stop_presenting();
-        let rect = ui.rect();
-        if self.capabilities().pan_and_zoom {
-            viewport.auto_fit(self.id);
-        }
-        let view = self.capabilities().pan_and_zoom.then(|| EditorView {
-            rect: viewport
-                .content_rect()
-                .unwrap_or(rect)
-                .translate(-rect.min.to_vec2()),
-            scale: viewport.scale(),
-        });
-        let frame = FrameSpec {
-            chrome: match chrome {
-                true => FrameChrome::Drawn,
-                false => FrameChrome::None,
-            },
-            content: None,
-            top_bar: block_plugin_api::TopBar::Hidden,
-        };
-        let action = self.frame_ui(ui, editors, frame, rect.size(), view);
-        self.take_view_changes(rect, viewport);
-        action
-    }
-
-    fn frame_ui(
-        &mut self,
-        ui: &mut Ui,
-        editors: &mut EditorAccess<'_>,
-        frame: FrameSpec,
-        size: Vec2,
-        view: Option<EditorView>,
-    ) -> Option<EditorAction> {
-        self.region_ui(ui, editors, EditorRegion::Frame, Some(frame), size, view)
-    }
-
-    fn region_ui(
-        &mut self,
-        ui: &mut Ui,
-        editors: &mut EditorAccess<'_>,
-        region: EditorRegion,
-        frame: Option<FrameSpec>,
-        size: Vec2,
-        view: Option<EditorView>,
-    ) -> Option<EditorAction> {
-        let plugin = self.plugin.clone()?;
-        if !matches!(region, EditorRegion::Pane(_))
-            && !self
-                .manifest()
-                .is_some_and(|editor| editor.regions.contains(&region))
-        {
-            return None;
-        }
-        self.opened = true;
-        let presentation = crate::plugin_host::editor_ui(
-            ui,
-            crate::plugin_host::EditorSlot {
-                plugin: &plugin,
-                block_types: editors.registry().plugin_block_types(),
-                client_id: editors.client_id(),
-                role: InstanceRole::Editor(EditorBlock {
-                    id: self.id,
-                    block_type: self.block_type,
-                    view_block: self.view_block,
-                }),
-                instance: self.instance,
-                region,
-                frame,
-                size,
-                view,
-            },
-        );
-        if region == EditorRegion::Frame {
-            self.main_region_id = presentation.id;
-        }
-        let mut action = presentation
-            .command
-            .map(|(id, command)| EditorAction::Command { id, command })
-            .or_else(|| {
-                presentation
-                    .drag
-                    .map(|(id, block_type)| EditorAction::DragBlock { id, block_type })
-            })
-            .or_else(|| {
-                presentation
-                    .open
-                    .map(|(id, block_type, via)| EditorAction::OpenBlock {
-                        id,
-                        block_type,
-                        via,
-                    })
-            });
-        let mut statuses = Vec::new();
-        let mut views = Vec::new();
-        let mut bars = Vec::new();
-        let mut child_viewport = DirectEditorViewport::new();
-        child_viewport.set_gestures_read(self.capabilities().pan_and_zoom);
-        for child in presentation
-            .children
-            .iter()
-            .filter(|child| child.is_below() && !child.frame_owner)
-        {
-            let next = self.child_ui(
-                ui,
-                editors,
-                child,
-                &mut child_viewport,
-                &mut statuses,
-                &mut views,
-            );
-            bars.extend(
-                child_viewport
-                    .take_bar_actions()
-                    .into_iter()
-                    .map(|action| (child.child, action)),
-            );
-            action = action.or(next);
-        }
-        presentation.present(ui);
-        if region == EditorRegion::Frame
-            && let Some(rect) = presentation.loading_rect
-        {
-            ui.item(
-                ("plugin-loading", self.instance.0),
-                rect,
-                HostItem::Notice {
-                    text: "Loading plugin…".to_owned(),
-                    spinner: true,
-                },
-            );
-        }
-        for child in presentation
-            .children
-            .iter()
-            .filter(|child| !child.is_below() || child.frame_owner)
-        {
-            let next = self.child_ui(
-                ui,
-                editors,
-                child,
-                &mut child_viewport,
-                &mut statuses,
-                &mut views,
-            );
-            bars.extend(
-                child_viewport
-                    .take_bar_actions()
-                    .into_iter()
-                    .map(|action| (child.child, action)),
-            );
-            action = action.or(next);
-        }
-        presentation.present_floating(ui);
-        presentation.report(statuses);
-        crate::plugin_host::report_child_views(&plugin.identity.id, self.instance, region, views);
-        crate::plugin_host::report_child_bars(&plugin.identity.id, self.instance, region, bars);
-        if region == EditorRegion::Frame {
-            action = action.or(self.block_pick_ui(editors));
-        }
-        action
-    }
-
-    fn child_ui(
-        &self,
-        ui: &mut Ui,
-        editors: &mut EditorAccess<'_>,
-        child: &HostChild,
-        viewport: &mut DirectEditorViewport,
-        statuses: &mut Vec<HostChildStatus>,
-        views: &mut Vec<(block_plugin_api::ChildId, ViewChange)>,
-    ) -> Option<EditorAction> {
-        editors.ensure(child.block_id, child.block_type, child.view_block);
-        let available = editors.is_open(child.block_id);
-        if let Some(size) = child.intrinsic {
-            editors.set_direct_editor_intrinsic_size(child.block_id, size);
-        }
-        let hovered = host::pointer()
-            .is_some_and(|position| child.rect.contains(position) && child.clip.contains(position));
-        let mut action = None;
-        let used: Option<Vec2> = None;
-        if available && child.is_preview() {
-            let bounds = ui.rect();
-            let mut clipped = ui.child(bounds, child.clip);
-            let rendered = editors.render(
-                child.block_id,
-                &mut clipped,
-                BlockRenderContext {
-                    corners: rotated_corners(child.rect, child.rotation),
-                    opacity: child.opacity,
-                },
-            );
-            if !rendered {
-                paint_block_fallback(
-                    &mut clipped,
-                    (self.instance.0, child.child.0),
-                    child.rect,
-                    child.block_id,
-                    editors,
-                );
-            }
-        } else if available && child.frame_owner && child.own_frame {
-            action = own_frame_child_ui(
-                ui,
-                editors,
-                child.block_id,
-                child.top_bar,
-                child.rect,
-                child.clip,
-                viewport,
-            );
-            collect_view_changes(child.child, viewport, views);
-        } else if available && child.frame_owner && editors.is_frame_child(child.block_id) {
-            action = frame_child_ui(
-                ui,
-                editors,
-                child.block_id,
-                child.rect,
-                child.clip,
-                viewport,
-            );
-            collect_view_changes(child.child, viewport, views);
-        } else if available {
-            let mut ui = ui.passive(child.mode == ChildMode::Passive);
-            action = embedded_editor_ui(
-                &mut ui,
-                editors,
-                child.block_id,
-                child.rect,
-                child.clip,
-                viewport,
-            );
-            collect_view_changes(child.child, viewport, views);
-        }
-        statuses.push(HostChildStatus {
-            child: child.child,
-            available,
-            intrinsic: match used {
-                Some(size) => Some(size),
-                None => available
-                    .then(|| editors.direct_editor_intrinsic_size(child.block_id))
-                    .flatten(),
-            },
-            aspect_ratio: editors.preview_aspect_ratio(child.block_id),
-            hovered,
-            active: available && child.is_active(),
-            interaction: child_interaction(editors, child.block_id),
-            capabilities: child_capabilities(editors, child.block_id),
-            resize: child_resize(editors, child.block_id),
-            error: (!available).then(|| CHILD_UNAVAILABLE.to_owned()),
-        });
-        action
-    }
-
-    fn preview_children_ui(
-        &self,
-        ui: &mut Ui,
-        editors: &mut EditorAccess<'_>,
-        presentation: &crate::plugin_host::PreviewPresentation,
-        corners: [Pos2; 4],
-        opacity: f32,
-    ) {
-        let Some(plugin) = &self.plugin else {
-            return;
-        };
-        if presentation.children.is_empty() {
-            return;
-        }
-        let mut statuses = Vec::new();
-        for child in &presentation.children {
-            editors.ensure(child.block_id, child.block_type, child.view_block);
-            let available = editors.is_open(child.block_id);
-            if available && child.is_preview() && presentation.drawn {
-                let corners = mapped_corners(corners, presentation.size, child.rect);
-                editors.render(child.block_id, ui, BlockRenderContext { corners, opacity });
-            }
-            statuses.push(HostChildStatus {
-                child: child.child,
-                available,
-                intrinsic: available
-                    .then(|| editors.direct_editor_intrinsic_size(child.block_id))
-                    .flatten(),
-                aspect_ratio: editors.preview_aspect_ratio(child.block_id),
-                hovered: false,
-                active: false,
-                interaction: child_interaction(editors, child.block_id),
-                capabilities: child_capabilities(editors, child.block_id),
-                resize: child_resize(editors, child.block_id),
-                error: (!available).then(|| CHILD_UNAVAILABLE.to_owned()),
-            });
-        }
-        crate::plugin_host::report_children(
-            &plugin.identity.id,
-            self.instance,
-            EditorRegion::Preview,
-            statuses,
-        );
-    }
-
     fn block_pick_ui(&mut self, editors: &mut EditorAccess<'_>) -> Option<EditorAction> {
         let plugin = self.plugin.as_ref()?;
         serve_block_pick(
@@ -776,34 +341,6 @@ impl PluginEditor {
             vec![self.id],
             be_graph::BlockParent::Block(self.id),
         )
-    }
-
-    fn take_bar_actions(&mut self, viewport: &mut DirectEditorViewport) {
-        let Some(plugin) = &self.plugin else {
-            return;
-        };
-        for action in crate::plugin_host::take_bar_actions(&plugin.identity.id, self.instance) {
-            viewport.push_bar_action(action);
-        }
-    }
-
-    fn take_view_changes(&mut self, rect: Rect, viewport: &mut DirectEditorViewport) {
-        let Some(plugin) = &self.plugin else {
-            return;
-        };
-        if !self.capabilities().pan_and_zoom {
-            return;
-        }
-        for change in crate::plugin_host::take_view_changes(&plugin.identity.id, self.instance) {
-            match change {
-                ViewChange::Pan { x, y } => viewport.pan(vec2(x, y)),
-                ViewChange::Zoom { factor, anchor } => {
-                    viewport.change_zoom(factor, anchor.map(|(x, y)| rect.min + vec2(x, y)))
-                }
-                ViewChange::Fit => viewport.fit(),
-                ViewChange::ResumeAutoFit => viewport.resume_auto_fit(),
-            }
-        }
     }
 
     fn close(&mut self) {
@@ -817,6 +354,55 @@ impl PluginEditor {
 
     pub(crate) fn id(&self) -> Uuid {
         self.id
+    }
+
+    pub(crate) fn plugin(&self) -> Option<&Arc<PluginManifest>> {
+        self.plugin.as_ref()
+    }
+
+    pub(crate) fn instance(&self) -> EditorInstanceId {
+        self.instance
+    }
+
+    pub(crate) fn role(&self) -> InstanceRole {
+        InstanceRole::Editor(EditorBlock {
+            id: self.id,
+            block_type: self.block_type,
+            view_block: self.view_block,
+        })
+    }
+
+    pub(crate) fn has_region(&self, region: EditorRegion) -> bool {
+        matches!(region, EditorRegion::Pane(_))
+            || self
+                .manifest()
+                .is_some_and(|editor| editor.regions.contains(&region))
+    }
+
+    pub(crate) fn serve_block_pick(&mut self, editors: &mut EditorAccess<'_>) -> Option<EditorAction> {
+        self.block_pick_ui(editors)
+    }
+
+    pub(crate) fn stop_presenting_now(&mut self) {
+        self.stop_presenting();
+    }
+
+    pub(crate) fn presenting_now(&self) -> bool {
+        self.presenting()
+    }
+
+    pub(crate) fn shown(&mut self, shown: bool) {
+        match shown {
+            true => {
+                self.opened = true;
+                self.shown += 1;
+            }
+            false => self.shown = self.shown.saturating_sub(1),
+        }
+        self.sync_active_presence(self.shown > 0);
+        if self.shown == 0 {
+            self.stop_presenting();
+        }
     }
 
     pub(crate) fn block_type(&self) -> Uuid {
@@ -853,39 +439,6 @@ impl PluginEditor {
         crate::be::change_child(self.id, self.block_type, change)
     }
 
-    pub(crate) fn render(
-        &mut self,
-        ui: &mut Ui,
-        context: BlockRenderContext,
-        editors: &mut EditorAccess<'_>,
-    ) -> bool {
-        let Some(plugin) = self.plugin.clone() else {
-            return false;
-        };
-        if !self
-            .manifest()
-            .is_some_and(|editor| editor.regions.contains(&EditorRegion::Preview))
-        {
-            return false;
-        }
-        self.opened = true;
-        let presentation = crate::plugin_host::preview(
-            ui,
-            crate::plugin_host::PreviewSlot {
-                plugin: &plugin,
-                block_types: editors.registry().plugin_block_types(),
-                client_id: editors.client_id(),
-                block_id: self.id,
-                block_type: self.block_type,
-                instance: self.instance,
-                corners: context.corners,
-                opacity: context.opacity,
-            },
-        );
-        self.preview_children_ui(ui, editors, &presentation, context.corners, context.opacity);
-        presentation.drawn
-    }
-
     pub(crate) fn render_aspect_ratio(&self) -> Option<f32> {
         let plugin = self.plugin.as_ref()?;
         crate::plugin_host::aspect_ratio(&plugin.identity.id, self.instance)
@@ -898,18 +451,6 @@ impl PluginEditor {
             preserve_aspect_ratio: capabilities.preserve_aspect_ratio,
             supports_pan_and_zoom: capabilities.pan_and_zoom,
             max_zoom: capabilities.max_zoom,
-        }
-    }
-
-    pub(crate) fn direct_editor_fills_viewport(&self) -> bool {
-        self.capabilities().pan_and_zoom
-    }
-
-    pub(crate) fn direct_editor_viewport_input(&self) -> DirectEditorViewportInput {
-        if self.capabilities().pan_and_zoom {
-            DirectEditorViewportInput::Viewport
-        } else {
-            DirectEditorViewportInput::Background
         }
     }
 
@@ -944,18 +485,6 @@ impl PluginEditor {
             crate::plugin_host::intrinsic_size(&plugin.identity.id, self.instance)
                 .unwrap_or_else(|| vec2(420.0, 240.0)),
         )
-    }
-
-    pub(crate) fn set_direct_editor_intrinsic_size(&mut self, size: Vec2) -> bool {
-        let Some(plugin) = &self.plugin else {
-            return false;
-        };
-        crate::plugin_host::resized(&plugin.identity.id, self.instance, size);
-        false
-    }
-
-    pub(crate) fn direct_editor_owns_frame(&self) -> bool {
-        self.plugin.is_some()
     }
 
     pub(crate) fn show_block(&self, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
@@ -1023,133 +552,11 @@ impl PluginEditor {
         }
     }
 
-    pub(crate) fn pane_ui(
-        &mut self,
-        ui: &mut Ui,
-        editors: &mut EditorAccess<'_>,
-        pane: PaneId,
-    ) -> Option<EditorAction> {
-        let size = ui.rect().size();
-        self.region_ui(
-            ui,
-            editors,
-            EditorRegion::Pane(pane),
-            Some(FrameSpec::default()),
-            size,
-            None,
-        )
-    }
-
     pub(crate) fn set_artifact_states(&self, states: Vec<block_plugin_api::ArtifactState>) {
         let Some(plugin) = &self.plugin else {
             return;
         };
         crate::plugin_host::set_artifact_states(&plugin.identity.id, self.instance, states);
-    }
-
-    pub(crate) fn direct_editor_frame_child(&mut self) -> Option<Uuid> {
-        let plugin = self.plugin.as_ref()?;
-        crate::plugin_host::frame_child(&plugin.identity.id, self.instance)
-    }
-
-    pub(crate) fn clear_direct_editor_frame_child(&mut self) {
-        let Some(plugin) = &self.plugin else {
-            return;
-        };
-        crate::plugin_host::revoke_frame_child(&plugin.identity.id, self.instance);
-    }
-
-    pub(crate) fn take_direct_editor_frame_exit(&mut self) -> bool {
-        let Some(plugin) = &self.plugin else {
-            return false;
-        };
-        crate::plugin_host::take_leaving(&plugin.identity.id, self.instance)
-    }
-
-    pub(crate) fn direct_editor_frame_ui(
-        &mut self,
-        ui: &mut Ui,
-        editors: &mut EditorAccess<'_>,
-        slot: &FrameSlot,
-        viewport: &mut DirectEditorViewport,
-    ) -> Option<EditorAction> {
-        self.set_framed(slot.content.is_some());
-        self.active_this_frame = true;
-        self.opened = true;
-        if self.presenting() {
-            return self.presenting_ui(editors);
-        }
-        self.stop_presenting();
-        let rect = slot.frame;
-        if self.capabilities().pan_and_zoom {
-            viewport.auto_fit(self.id);
-        }
-        let view = self.capabilities().pan_and_zoom.then(|| EditorView {
-            rect: viewport
-                .content_rect()
-                .unwrap_or(rect)
-                .translate(-rect.min.to_vec2()),
-            scale: viewport.scale(),
-        });
-        let frame = FrameSpec {
-            chrome: match slot.chrome {
-                Chrome::Drawn => FrameChrome::Drawn,
-                Chrome::None => FrameChrome::None,
-            },
-            content: slot.content.map(|content| {
-                let content = content.translate(-rect.min.to_vec2());
-                ChildRect {
-                    x: content.min.x,
-                    y: content.min.y,
-                    width: content.width(),
-                    height: content.height(),
-                }
-            }),
-            top_bar: slot.top_bar,
-        };
-        let action = self.frame_ui(ui, editors, frame, rect.size(), view);
-        self.take_view_changes(rect, viewport);
-        self.take_bar_actions(viewport);
-        if slot.content.is_some()
-            && slot.chrome == Chrome::Drawn
-            && let Some(plugin) = &self.plugin
-        {
-            crate::plugin_host::cover_frame(&plugin.identity.id, self.instance, rect);
-        }
-        action
-    }
-
-    pub(crate) fn direct_editor_viewport_rect(&self, frame: Rect) -> Rect {
-        let Some(plugin) = &self.plugin else {
-            return frame;
-        };
-        crate::plugin_host::frame_rects(&plugin.identity.id, self.instance)
-            .map(|rects| rects.content.translate(frame.min.to_vec2()))
-            .filter(|content| content.is_positive())
-            .unwrap_or(frame)
-    }
-
-    pub(crate) fn direct_editor_ui(
-        &mut self,
-        ui: &mut Ui,
-        editors: &mut EditorAccess<'_>,
-        viewport: &mut DirectEditorViewport,
-    ) -> Option<EditorAction> {
-        self.frame_editor_ui(ui, editors, viewport, false)
-    }
-
-    pub(crate) fn set_tab_active(&mut self, active: bool) {
-        if active {
-            self.active_this_frame = true;
-        }
-    }
-
-    pub(crate) fn finish_frame(&mut self) {
-        let active = std::mem::take(&mut self.active_this_frame);
-        self.sync_active_presence(active);
-        if !active {
-            self.stop_presenting();
-        }
     }
 
     pub(crate) fn tab_closed(&mut self) {
@@ -1298,19 +705,3 @@ impl ArtifactSession for PluginArtifact {
 }
 
 const ARTIFACT_SETTINGS_HEIGHT: f32 = 72.0;
-
-fn mapped_corners(corners: [Pos2; 4], size: Vec2, rect: Rect) -> [Pos2; 4] {
-    let horizontal = corners[1] - corners[0];
-    let vertical = corners[3] - corners[0];
-    let at = |x: f32, y: f32| {
-        corners[0]
-            + horizontal * (x / size.x.max(f32::EPSILON))
-            + vertical * (y / size.y.max(f32::EPSILON))
-    };
-    [
-        at(rect.min.x, rect.min.y),
-        at(rect.max.x, rect.min.y),
-        at(rect.max.x, rect.max.y),
-        at(rect.min.x, rect.max.y),
-    ]
-}

@@ -33,15 +33,36 @@ pub fn wants_forward(element: &dyn Element) -> bool {
         .is_some_and(|catcher| !catcher.on_forward.is_empty())
 }
 
+fn deepest(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2) -> Option<NodeId> {
+    if !rects
+        .visible(&id)
+        .is_some_and(|rect| rect.contains_half_open(pos))
+    {
+        return None;
+    }
+    let node = doc.arena.get(id);
+    for child in node.children().into_iter().rev() {
+        if let Some(found) = deepest(doc, rects, child, pos) {
+            return Some(found);
+        }
+    }
+    let catcher = node.as_any().downcast_ref::<InteractiveNode>()?;
+    if catcher.on_forward.is_empty() {
+        return None;
+    }
+    let local = pos - rects.get(&id)?.min.to_vec2();
+    (catcher.forward_at.is_empty() || catcher.forward_at.call(local)).then_some(id)
+}
+
 pub fn sink_at(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option<NodeId> {
     if doc.modal_open() {
         for overlay in doc.overlay_stack.iter().rev() {
-            if let Some(found) = super::deepest(doc, rects, overlay.id(), pos, &wants_forward) {
+            if let Some(found) = deepest(doc, rects, overlay.id(), pos) {
                 return Some(found);
             }
         }
         return match doc.pointer_passes_under_overlays(pos) {
-            true => super::deepest(doc, rects, root, pos, &wants_forward),
+            true => deepest(doc, rects, root, pos),
             false => None,
         };
     }
@@ -53,10 +74,10 @@ pub fn sink_at(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option
             .visible(&content)
             .is_some_and(|rect| rect.contains_half_open(pos))
         {
-            return super::deepest(doc, rects, content, pos, &wants_forward);
+            return deepest(doc, rects, content, pos);
         }
     }
-    super::deepest(doc, rects, root, pos, &wants_forward)
+    deepest(doc, rects, root, pos)
 }
 
 fn button_mask(button: PointerButton) -> u8 {

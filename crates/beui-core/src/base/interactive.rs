@@ -53,6 +53,7 @@ pub struct InteractiveNode {
     pub capture_at: Callback<Pos2, bool>,
     pub intercept_at: Callback<Pos2, bool>,
     pub on_forward: Callback<crate::interact::forward::ForwardedInput>,
+    pub forward_at: Callback<Pos2, bool>,
 }
 
 impl Default for InteractiveNode {
@@ -103,6 +104,7 @@ impl InteractiveNode {
             capture_at: Callback::empty(),
             intercept_at: Callback::empty(),
             on_forward: Callback::empty(),
+            forward_at: Callback::empty(),
         }
     }
 

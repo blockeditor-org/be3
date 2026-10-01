@@ -1,5 +1,5 @@
 use std::{
-    cell::{Cell, RefCell},
+    cell::RefCell,
     collections::HashMap,
     rc::Rc,
 };
@@ -11,6 +11,7 @@ use beui::reactive::{
 use beui::styled::{Button, ButtonVariant, Caption, Heading, Icon, Spinner, use_theme};
 use beui::{Align, Color32, NodeId, Rect, Region, TextAlign, Vec2};
 
+use crate::compositor::{PaneSurface, PresentingSurface, ShellSurface};
 use crate::host::{self, HostCommand, HostItem, PlacedItem, SurfaceOutput, Ui};
 use crate::plugin_host::{Blit, PluginDrawing};
 
@@ -90,7 +91,6 @@ impl SurfaceHandle {
 thread_local! {
     static STATES: RefCell<HashMap<SurfaceId, State>> = RefCell::new(HashMap::new());
     static HANDLES: RefCell<HashMap<SurfaceId, SurfaceHandle>> = RefCell::new(HashMap::new());
-    static HEADLESS: Cell<Option<Rect>> = const { Cell::new(None) };
 }
 
 pub(crate) fn create_handles() {
@@ -118,19 +118,6 @@ fn ids() -> Vec<SurfaceId> {
         HANDLES.with(|handles| handles.borrow().keys().copied().collect());
     ids.sort();
     ids
-}
-
-pub(crate) fn keep_panes(panes: &[u64]) {
-    let kept = |id: &SurfaceId| match id {
-        SurfaceId::Pane(pane) => panes.contains(pane),
-        _ => true,
-    };
-    HANDLES.with(|handles| handles.borrow_mut().retain(|id, _| kept(id)));
-    STATES.with(|states| states.borrow_mut().retain(|id, _| kept(id)));
-}
-
-pub(crate) fn set_headless(rect: Option<Rect>) {
-    HEADLESS.with(|headless| headless.set(rect));
 }
 
 fn with_state<R>(id: SurfaceId, act: impl FnOnce(&mut State) -> R) -> R {
@@ -252,18 +239,12 @@ fn local(damage: &[Rect], origin: beui::Pos2) -> Region {
 
 pub(crate) fn read_placements() -> bool {
     let mut moved = false;
-    let headless = HEADLESS.with(Cell::get);
     for id in ids() {
-        let placement = headless
-            .filter(|_| id == SurfaceId::Main)
-            .map(|rect| (rect, rect))
-            .or_else(|| {
-                handle(id)
-                    .slot
-                    .placement()
-                    .filter(|placement| placement.rect.is_positive())
-                    .map(|placement| (placement.rect, placement.clip))
-            });
+        let placement = handle(id)
+            .slot
+            .placement()
+            .filter(|placement| placement.rect.is_positive())
+            .map(|placement| (placement.rect, placement.clip));
         let shown = handle(id).shown.get_untracked();
         with_state(id, |state| {
             let next = if shown || id == SurfaceId::Main {
@@ -280,6 +261,23 @@ pub(crate) fn read_placements() -> bool {
 
 #[component]
 pub(crate) fn HostSurface(id: SurfaceId) -> NodeId {
+    match id {
+        SurfaceId::Main => {
+            let shell = crate::compositor::shell();
+            let shell = create_memo(move || shell.get());
+            return view! { <ShellSurface shell /> };
+        }
+        SurfaceId::Pane(pane) => {
+            let shell = crate::compositor::shell();
+            let shell = create_memo(move || shell.get());
+            let pane = block_plugin_api::PaneId(pane);
+            return view! { <PaneSurface shell pane /> };
+        }
+        SurfaceId::Presenting => {
+            return view! { <PresentingSurface /> };
+        }
+        _ => {}
+    }
     let handle = handle(id);
     let items = handle.items.clone();
     let width = create_memo({
@@ -341,7 +339,7 @@ fn HostItemView(item: ReadSignal<PlacedItem>) -> CanvasItem {
 }
 
 #[component]
-fn HostItemFace(content: Memo<HostItem>) -> NodeId {
+pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     let kind = content.get_untracked();
     let text = create_memo({
         let content = content.clone();

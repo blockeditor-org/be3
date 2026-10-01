@@ -10,7 +10,7 @@ use std::{
 };
 
 use beui::{
-    CursorIcon, Document, Event, ImeArea, Key, Modifiers, PointerButton, Pos2, Rect, Vec2, Waker,
+    CursorIcon, Document, Event, ImeArea, Key, Modifiers, PointerButton, Pos2, Rect, Waker,
 };
 use block_plugin_api::{EditorInstanceId, EditorRegion};
 use uuid::Uuid;
@@ -89,24 +89,12 @@ pub(crate) enum HostCommand {
 pub(crate) struct Input {
     pub(crate) events: Vec<Event>,
     pub(crate) pointer: Option<Pos2>,
-    pub(crate) delta: Vec2,
     pub(crate) modifiers: Modifiers,
     pub(crate) primary_pressed: bool,
     pub(crate) primary_released: bool,
     pub(crate) primary_down: bool,
-    pub(crate) middle_down: bool,
-    pub(crate) scroll: Vec2,
-    pub(crate) zoom: f32,
-    pub(crate) pinch: Option<Pinch>,
     pub(crate) files_hovered: bool,
     pub(crate) files_dropped: Vec<beui::DroppedFile>,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct Pinch {
-    pub(crate) center: Pos2,
-    pub(crate) zoom: f32,
-    pub(crate) pan: Vec2,
 }
 
 #[derive(Default)]
@@ -224,10 +212,6 @@ struct Frame {
     pressed: bool,
     released: bool,
     down: bool,
-    middle: bool,
-    scroll: Vec2,
-    zoom: f32,
-    pinch: Option<Pinch>,
     touch_started: bool,
     touch_position: Option<Pos2>,
     floating: Vec<Rect>,
@@ -247,10 +231,6 @@ impl Default for Frame {
             pressed: false,
             released: false,
             down: false,
-            middle: false,
-            scroll: Vec2::ZERO,
-            zoom: 1.0,
-            pinch: None,
             touch_started: false,
             touch_position: None,
             floating: Vec::new(),
@@ -273,14 +253,6 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
             pressed: input.pointer.primary_pressed,
             released: input.pointer.primary_released,
             down: input.pointer.primary_down,
-            middle: input.pointer.middle_down,
-            scroll: input.scroll_delta,
-            zoom: input.zoom_factor,
-            pinch: touch.pinch_center().map(|center| Pinch {
-                center,
-                zoom: touch.pinch(),
-                pan: touch.pinch_pan(),
-            }),
             touch_started: touch.started(),
             touch_position: touch.primary_pos(),
             ..Frame::default()
@@ -339,10 +311,6 @@ fn start(mut frame: Frame) {
                 _ => {}
             }
         }
-        let delta = match (host.pointer, frame.pointer) {
-            (Some(previous), Some(current)) => current - previous,
-            _ => Vec2::ZERO,
-        };
         if frame.pointer.is_some() {
             host.pointer = frame.pointer;
         }
@@ -358,15 +326,10 @@ fn start(mut frame: Frame) {
         host.input = Input {
             events: frame.events,
             pointer,
-            delta,
             modifiers: frame.modifiers,
             primary_pressed: frame.pressed,
             primary_released: frame.released,
             primary_down: frame.down,
-            middle_down: frame.middle,
-            scroll: frame.scroll,
-            zoom: frame.zoom,
-            pinch: frame.pinch,
             files_hovered: host.files_hovering,
             files_dropped,
         };
@@ -383,11 +346,6 @@ fn finish() -> Output {
         }
         std::mem::take(&mut host.output)
     })
-}
-
-#[cfg(test)]
-pub(crate) fn repaint_requested() -> bool {
-    with(|host| host.output.repaint)
 }
 
 #[cfg(test)]
@@ -515,10 +473,6 @@ pub(crate) fn input<R>(read: impl FnOnce(&Input) -> R) -> R {
 
 pub(crate) fn pointer() -> Option<Pos2> {
     input(|input| input.pointer)
-}
-
-pub(crate) fn key_down(key: Key) -> bool {
-    with(|host| host.keys_down.contains(&key))
 }
 
 pub(crate) fn key_pressed(key: Key) -> bool {
@@ -729,32 +683,12 @@ impl<'a> Ui<'a> {
         }
     }
 
-    pub(crate) fn passive(&mut self, passive: bool) -> Ui<'_> {
-        Ui {
-            output: self.output,
-            rect: self.rect,
-            clip: self.clip,
-            layer: self.layer,
-            passive: self.passive || passive,
-        }
-    }
-
     pub(crate) fn rect(&self) -> Rect {
         self.rect
     }
 
     pub(crate) fn clip(&self) -> Rect {
         self.clip
-    }
-
-    pub(crate) fn child(&mut self, rect: Rect, clip: Rect) -> Ui<'_> {
-        Ui {
-            output: self.output,
-            rect,
-            clip: clip.intersect(self.clip),
-            layer: self.layer,
-            passive: self.passive,
-        }
     }
 
     pub(crate) fn blit(&mut self, blit: Blit) {

@@ -149,6 +149,154 @@ impl InputAdapter {
         })]
     }
 
+    pub(super) fn forward(&mut self, input: &beui::ForwardedInput, screen: ScreenId) -> Vec<Message> {
+        let rect = input.rect;
+        let mut output = Vec::new();
+        if input.focused != self.focused {
+            output.push(InputEvent::Focus(input.focused));
+            self.focused = input.focused;
+            if !input.focused {
+                self.captured = false;
+                self.pressed_buttons = 0;
+                self.captured_touches.clear();
+            }
+        }
+        for event in &input.events {
+            self.forward_event(event, rect, input.modifiers, &mut output);
+        }
+        if !input.hovered && self.pressed_buttons == 0 {
+            self.captured = false;
+            self.leave(&mut output);
+        }
+        let shortcut_down = super::clipboard::paste_shortcut_down();
+        let shortcut_pressed = shortcut_down && !self.paste_shortcut_down;
+        self.paste_shortcut_down = shortcut_down;
+        if input.focused && shortcut_pressed {
+            output.push(InputEvent::Paste(String::new()));
+        }
+        match output.is_empty() {
+            true => Vec::new(),
+            false => vec![Message::Input(InputBatch {
+                screen,
+                events: output,
+            })],
+        }
+    }
+
+    fn forward_event(
+        &mut self,
+        event: &Event,
+        rect: Rect,
+        modifiers: beui::Modifiers,
+        output: &mut Vec<InputEvent>,
+    ) {
+        match event {
+            Event::PointerMoved(position) => {
+                self.pointer_inside = true;
+                let position = *position - rect.min;
+                output.push(InputEvent::PointerMoved {
+                    x: position.x,
+                    y: position.y,
+                });
+            }
+            Event::PointerGone => self.leave(output),
+            Event::PointerMotion(delta) => output.push(InputEvent::PointerMotion {
+                x: delta.x,
+                y: delta.y,
+            }),
+            Event::PointerButton {
+                pos,
+                button,
+                pressed,
+                modifiers,
+            } => {
+                let button_mask = 1 << host::pointer_button_index(*button);
+                self.pressed_buttons = match pressed {
+                    true => self.pressed_buttons | button_mask,
+                    false => self.pressed_buttons & !button_mask,
+                };
+                self.captured = self.pressed_buttons != 0;
+                let position = *pos - rect.min;
+                push_modifiers(&mut self.modifiers, *modifiers, output);
+                output.push(InputEvent::PointerButton {
+                    button: beui_plugin_input::pointer_button(*button),
+                    pressed: *pressed,
+                    x: position.x,
+                    y: position.y,
+                });
+            }
+            Event::Scroll(delta) => {
+                push_modifiers(&mut self.modifiers, modifiers, output);
+                output.push(InputEvent::Wheel {
+                    x: delta.x,
+                    y: delta.y,
+                    unit: WheelUnit::Pixels,
+                });
+            }
+            Event::ScrollEnded => output.push(InputEvent::WheelEnded),
+            Event::Zoom(factor) => output.push(InputEvent::Zoom { factor: *factor }),
+            Event::Touch {
+                id,
+                phase,
+                pos,
+                force,
+            } => {
+                let position = *pos - rect.min;
+                output.push(InputEvent::Touch {
+                    device: id.device,
+                    finger: id.finger,
+                    phase: beui_plugin_input::touch_phase(*phase),
+                    x: position.x,
+                    y: position.y,
+                    force: *force,
+                });
+                if *phase == beui::TouchPhase::Cancel && self.pressed_buttons & 1 != 0 {
+                    self.pressed_buttons &= !1;
+                    self.captured = self.pressed_buttons != 0;
+                    output.push(InputEvent::PointerButton {
+                        button: PointerButton::Primary,
+                        pressed: false,
+                        x: position.x,
+                        y: position.y,
+                    });
+                }
+            }
+            Event::Key {
+                key,
+                pressed,
+                repeat,
+                modifiers,
+            } => {
+                push_modifiers(&mut self.modifiers, *modifiers, output);
+                output.push(InputEvent::Key {
+                    key: beui_plugin_input::protocol_key(*key),
+                    pressed: *pressed,
+                    repeat: *repeat,
+                });
+            }
+            Event::Modifiers(modifiers) => push_modifiers(&mut self.modifiers, *modifiers, output),
+            Event::Text(text) => output.push(InputEvent::Text(text.clone())),
+            Event::Ime(ime) => output.push(InputEvent::Ime(match ime {
+                beui::ImeEvent::Enabled => ImeInput::Enabled,
+                beui::ImeEvent::Preedit(text) => ImeInput::Preedit(text.clone()),
+                beui::ImeEvent::Commit(text) => ImeInput::Commit(text.clone()),
+                beui::ImeEvent::Disabled => ImeInput::Disabled,
+            })),
+            Event::Focus(false) if self.focused => {
+                self.focused = false;
+                self.captured = false;
+                self.pressed_buttons = 0;
+                self.captured_touches.clear();
+                output.push(InputEvent::Focus(false));
+            }
+            _ => {}
+        }
+    }
+
+    pub(super) fn back(&self, gesture: beui::BackGesture) -> InputEvent {
+        InputEvent::Back(beui_plugin_input::back_phase(gesture))
+    }
+
     fn leave(&mut self, output: &mut Vec<InputEvent>) {
         if self.pointer_inside && !self.captured {
             self.pointer_inside = false;

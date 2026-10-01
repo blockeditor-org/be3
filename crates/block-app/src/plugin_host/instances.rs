@@ -441,6 +441,7 @@ struct Screen {
     placement: Option<Placement>,
     request: ScreenRequest,
     last_seen: u64,
+    mounted: u32,
     presented: Option<(Rect, Rect)>,
     holding: bool,
     used: Option<Vec2>,
@@ -489,6 +490,13 @@ pub(super) struct Holes {
 }
 
 impl Holes {
+    pub(super) fn parts(&self) -> Vec<(Rect, Vec<Rect>)> {
+        self.holes
+            .iter()
+            .map(|hole| (hole.rect, hole.occluders.clone()))
+            .collect()
+    }
+
     pub(super) fn cover(&mut self, rects: &[Rect]) {
         for rect in rects {
             self.holes.push(Hole {
@@ -695,6 +703,7 @@ impl Instances {
                     frame: frame.clone(),
                 },
                 last_seen: pass,
+                mounted: 0,
                 presented: None,
                 holding: false,
                 used: None,
@@ -717,6 +726,161 @@ impl Instances {
         screen.request.frame = frame;
         screen.last_seen = pass;
         screen.request.screen
+    }
+
+    pub(super) fn mount(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        client_id: Uuid,
+        role: InstanceRole,
+        block_types: &Arc<Vec<BlockTypeDescriptor>>,
+    ) {
+        self.report(
+            instance,
+            region,
+            client_id,
+            role,
+            block_types,
+            None,
+            Vec2::ZERO,
+            Rect::ZERO,
+            1.0,
+            0,
+        );
+        if let Some(screen) = self.screen_mut(instance, region) {
+            screen.mounted += 1;
+        }
+        self.resized = true;
+    }
+
+    pub(super) fn unmount(&mut self, instance: EditorInstanceId, region: EditorRegion) {
+        if let Some(screen) = self.screen_mut(instance, region) {
+            screen.mounted = screen.mounted.saturating_sub(1);
+            if screen.mounted == 0 {
+                screen.placement = None;
+                screen.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0);
+            }
+        }
+        self.resized = true;
+    }
+
+    pub(super) fn has_mounted(&self) -> bool {
+        self.entries
+            .values()
+            .any(|entry| entry.screens.values().any(|screen| screen.mounted > 0))
+    }
+
+    pub(super) fn place_mounted(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        frame: Option<FrameSpec>,
+        size: Vec2,
+        visible: Rect,
+        scale_factor: f32,
+    ) {
+        let Some(screen) = self.screen_mut(instance, region) else {
+            return;
+        };
+        let metrics = viewport_metrics(size, visible, scale_factor);
+        if screen.request.metrics != metrics || screen.request.frame != frame {
+            screen.request.metrics = metrics;
+            screen.request.frame = frame;
+            self.resized = true;
+        }
+    }
+
+    pub(super) fn placement(
+        &self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<Placement> {
+        self.entries
+            .get(&instance)?
+            .screens
+            .get(&region)?
+            .placement
+    }
+
+    pub(super) fn screen_id(
+        &self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<ScreenId> {
+        Some(self.entries.get(&instance)?.screens.get(&region)?.request.screen)
+    }
+
+    pub(super) fn back(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        gesture: beui::BackGesture,
+    ) -> Vec<Message> {
+        let Some(screen) = self.screen_mut(instance, region) else {
+            return Vec::new();
+        };
+        vec![Message::Input(block_plugin_api::InputBatch {
+            screen: screen.request.screen,
+            events: vec![screen.input.back(gesture)],
+        })]
+    }
+
+    pub(super) fn mounted(&self, instance: EditorInstanceId, region: EditorRegion) -> bool {
+        self.entries
+            .get(&instance)
+            .and_then(|entry| entry.screens.get(&region))
+            .is_some_and(|screen| screen.mounted > 0)
+    }
+
+    fn screen_mut(&mut self, instance: EditorInstanceId, region: EditorRegion) -> Option<&mut Screen> {
+        self.entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.screens.get_mut(&region))
+    }
+
+    pub(super) fn forward(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+        input: &beui::ForwardedInput,
+    ) -> (Vec<Message>, bool) {
+        let announced = &self.announced;
+        let Some(screen) = self
+            .entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.screens.get_mut(&region))
+        else {
+            return (Vec::new(), false);
+        };
+        if !announced.contains(&screen.request.screen) {
+            return (Vec::new(), false);
+        }
+        let id = screen.request.screen;
+        let pressed = input.events.iter().any(|event| {
+            matches!(
+                event,
+                beui::Event::PointerButton { pressed: true, .. }
+                    | beui::Event::Touch {
+                        phase: beui::TouchPhase::Start,
+                        ..
+                    }
+            )
+        });
+        let escaped = input.focused
+            && input.events.iter().any(|event| {
+                matches!(
+                    event,
+                    beui::Event::Key {
+                        key: beui::Key::Escape,
+                        pressed: true,
+                        ..
+                    }
+                )
+            });
+        let messages = screen.input.forward(input, id);
+        let revoked = (escaped || (pressed && input.hovered)) && self.revoke_active(instance, region);
+        (messages, revoked)
     }
 
     pub(super) fn take_resized(&mut self) -> bool {
@@ -950,7 +1114,7 @@ impl Instances {
                 .screens
                 .values()
                 .filter(|screen| {
-                    screen.last_seen >= pass
+                    (screen.mounted > 0 || screen.last_seen >= pass)
                         && screen.request.metrics.pixel_width > 0
                         && screen.request.metrics.pixel_height > 0
                 })
@@ -1300,19 +1464,21 @@ impl Instances {
         (children, holes)
     }
 
-    pub(super) fn revoke_active(&mut self, instance: EditorInstanceId, region: EditorRegion) {
+    pub(super) fn revoke_active(&mut self, instance: EditorInstanceId, region: EditorRegion) -> bool {
         let Some(screen) = self
             .entries
             .get_mut(&instance)
             .and_then(|entry| entry.screens.get_mut(&region))
         else {
-            return;
+            return false;
         };
+        let mut revoked = false;
         for child in &screen.children.children {
             if child.mode == ChildMode::Active {
-                screen.revoked.insert(child.child);
+                revoked |= screen.revoked.insert(child.child);
             }
         }
+        revoked
     }
 
     pub(super) fn take_leaving(&mut self, instance: EditorInstanceId) -> bool {
@@ -1458,7 +1624,7 @@ impl Instances {
                             scale_factor: metrics.scale_factor,
                             used: screen.used,
                             placement,
-                            drawn: screen.last_seen >= pass,
+                            drawn: screen.mounted > 0 || screen.last_seen >= pass,
                             children: screen.children.children.len(),
                             child_generation: screen.children.generation,
                         }
@@ -1576,7 +1742,7 @@ impl Instances {
             let rect = entry.web_view_rect.and_then(|(region, rect)| {
                 let screen = entry.screens.get(&region)?;
                 let placement = screen.placement?;
-                let live = placement.pass == pass && screen.last_seen == pass;
+                let live = screen.mounted > 0 || (placement.pass == pass && screen.last_seen == pass);
                 let origin = placement.rect.min.to_vec2();
                 let stretch = vec2(
                     ratio(placement.rect.width(), screen.request.metrics.logical_width),
@@ -1774,7 +1940,8 @@ impl Instances {
             .flat_map(|(instance, entry)| {
                 entry.screens.iter().filter_map(move |(region, screen)| {
                     let placement = screen.placement?;
-                    let live = placement.pass == pass
+                    let live = screen.mounted == 0
+                        && placement.pass == pass
                         && screen.last_seen == pass
                         && announced.contains(&screen.request.screen);
                     live.then_some((*instance, *region, screen.request.screen, placement))

@@ -58,6 +58,7 @@ pub fn Interactive(
     capture_at: Callback<Pos2, bool>,
     intercept_at: Callback<Pos2, bool>,
     on_forward: Callback<ForwardedInput>,
+    forward_at: Callback<Pos2, bool>,
     children: Option<Child>,
 ) -> NodeId {
     assert!(
@@ -109,6 +110,7 @@ pub fn Interactive(
         node.capture_at = capture_at;
         node.intercept_at = intercept_at;
         node.on_forward = on_forward;
+        node.forward_at = forward_at;
         if let Some(child) = children {
             document.set_interactive_child(interactive, child);
         }

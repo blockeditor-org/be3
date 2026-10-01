@@ -336,7 +336,7 @@ struct Regions {
 }
 
 pub(crate) struct PluginDrawing {
-    blits: Vec<Blit>,
+    blits: RefCell<Vec<Blit>>,
     regions: RefCell<Option<Regions>>,
     placed: RefCell<Vec<Option<u32>>>,
 }
@@ -344,10 +344,113 @@ pub(crate) struct PluginDrawing {
 impl PluginDrawing {
     pub(crate) fn new(blits: Vec<Blit>) -> Self {
         Self {
-            blits,
+            blits: RefCell::new(blits),
             regions: RefCell::new(None),
             placed: RefCell::new(Vec::new()),
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Piece {
+    pub(crate) local: Rect,
+    pub(crate) source: Rect,
+}
+
+pub(crate) struct RegionDrawing {
+    template: Blit,
+    pieces: Vec<Piece>,
+    held: Option<Rect>,
+    rotation: f32,
+    drawing: PluginDrawing,
+}
+
+impl RegionDrawing {
+    pub(super) fn new(
+        template: Blit,
+        pieces: Vec<Piece>,
+        held: Option<Rect>,
+        rotation: f32,
+    ) -> Self {
+        Self {
+            template,
+            pieces,
+            held,
+            rotation,
+            drawing: PluginDrawing::new(Vec::new()),
+        }
+    }
+
+    fn blits(&self, at: &DrawAt) -> Vec<Blit> {
+        let scale = at.pixels_per_point.max(f32::EPSILON);
+        let laid = Rect::from_min_max(
+            pos2(at.rect[0] / scale, at.rect[1] / scale),
+            pos2(at.rect[2] / scale, at.rect[3] / scale),
+        );
+        let rect = self.held.unwrap_or(laid);
+        let center = rect.center();
+        let (sin, cos) = self.rotation.sin_cos();
+        let turn = |point: Pos2| {
+            let offset = point - center;
+            center + vec2(offset.x * cos - offset.y * sin, offset.x * sin + offset.y * cos)
+        };
+        let at_fraction = |x: f32, y: f32| {
+            turn(pos2(
+                rect.min.x + rect.width() * x,
+                rect.min.y + rect.height() * y,
+            ))
+        };
+        self.pieces
+            .iter()
+            .map(|piece| {
+                let local = piece.local;
+                let corners = [
+                    at_fraction(local.min.x, local.min.y),
+                    at_fraction(local.max.x, local.min.y),
+                    at_fraction(local.max.x, local.max.y),
+                    at_fraction(local.min.x, local.max.y),
+                ];
+                Blit {
+                    quad: Quad {
+                        rect: Rect::from_points(&corners),
+                        corners,
+                        opacity: self.template.quad.opacity,
+                    },
+                    source: piece.source,
+                    ..self.template.clone()
+                }
+            })
+            .collect()
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static SHOWN: RefCell<Vec<Blit>> = const { RefCell::new(Vec::new()) };
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn take_shown() -> Vec<Blit> {
+    SHOWN.with(|shown| std::mem::take(&mut *shown.borrow_mut()))
+}
+
+impl beui::Draw for RegionDrawing {
+    fn prepare(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        at: DrawAt,
+    ) {
+        let blits = self.blits(&at);
+        #[cfg(target_arch = "wasm32")]
+        SHOWN.with(|shown| shown.borrow_mut().extend(blits.iter().cloned()));
+        *self.drawing.blits.borrow_mut() = blits;
+        self.drawing.prepare(device, queue, encoder, at);
+    }
+
+    fn paint(&self, pass: &mut wgpu::RenderPass<'_>, at: DrawAt) {
+        self.drawing.paint(pass, at);
     }
 }
 
@@ -359,10 +462,11 @@ impl beui::Draw for PluginDrawing {
         _encoder: &mut wgpu::CommandEncoder,
         at: DrawAt,
     ) {
+        let blits = self.blits.borrow();
         PRESENTER.with(|presenter| {
             let mut presenter = presenter.borrow_mut();
             let Some(presenter) = presenter.as_mut() else {
-                for blit in &self.blits {
+                for blit in blits.iter() {
                     blit.status.set(PresenterState::Unsupported(
                         "The active renderer has no plugin surface presenter.".to_owned(),
                     ));
@@ -370,7 +474,7 @@ impl beui::Draw for PluginDrawing {
                 return;
             };
             let mut regions = self.regions.borrow_mut();
-            let needed = self.blits.len().max(1);
+            let needed = blits.len().max(1);
             if regions
                 .as_ref()
                 .is_none_or(|regions| regions.capacity < needed)
@@ -403,7 +507,7 @@ impl beui::Draw for PluginDrawing {
             let regions = regions.as_ref().expect("the regions were just created");
             let mut placed = self.placed.borrow_mut();
             placed.clear();
-            for (index, blit) in self.blits.iter().enumerate() {
+            for (index, blit) in blits.iter().enumerate() {
                 let (frames, region) = {
                     let mut shared = blit.shared.borrow_mut();
                     let frames = shared.take_frames();
@@ -463,7 +567,8 @@ impl beui::Draw for PluginDrawing {
                 return;
             };
             let placed = self.placed.borrow();
-            for (blit, offset) in self.blits.iter().zip(placed.iter()) {
+            let blits = self.blits.borrow();
+            for (blit, offset) in blits.iter().zip(placed.iter()) {
                 if let Some(offset) = offset {
                     platform.paint(pass, blit.surface, &regions.group, *offset);
                 }

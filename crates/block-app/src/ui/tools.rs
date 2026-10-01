@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui::reactive::{
-    ClickCallback, Frame, Func, ItemSize, List, Memo, Show, clone, component, component_rect,
+    ClickCallback, Frame, Func, ItemSize, Layers, List, Memo, Show, clone, component, component_rect,
     create_effect, create_memo, create_signal, on_cleanup, untrack, view,
 };
 use beui::styled::DockArea;
@@ -19,6 +19,7 @@ use super::debug::{
 };
 use super::dialogs::{AboutPanel, InvitePanel};
 use super::{AppViewStore, UiCommand, send};
+use crate::compositor::HeadlessShell;
 use crate::surfaces::{HostSurface, SurfaceId};
 
 const WORKSPACE: TabId = TabId::new(1);
@@ -274,17 +275,17 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
         });
     }));
     let area = component_rect();
-    create_effect(clone!(panes -> move || {
+    let headless = create_memo(move || {
         let area = area.get();
-        let headless = panes.with(Option::is_some).then(|| {
-            Rect::from_min_size(
-                pos2(area.min.x, -HEADLESS_OFFSET),
-                vec2(area.width().max(1.0), 1.0),
-            )
-        });
-        crate::surfaces::set_headless(headless);
+        Rect::from_min_size(
+            pos2(area.min.x, -HEADLESS_OFFSET),
+            vec2(area.width().max(1.0), 1.0),
+        )
+    });
+    let shell = crate::compositor::shell();
+    let headless_shell = create_memo(clone!(panes -> move || {
+        panes.with(Option::is_some).then(|| shell.get()).flatten()
     }));
-    on_cleanup(|| crate::surfaces::set_headless(None));
     for tool in Tool::ALL {
         let open = tool.open(&view);
         create_effect(clone!(set_state -> move || {
@@ -352,6 +353,8 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
         None => tab != WORKSPACE,
     });
     view! {
+        <Layers>
+        <HeadlessShell shell={headless_shell} rect={headless} />
         <List spacing=0.0>
             <Show condition={lone}>
                 <HostSurface @sizing=ItemSize::Percent(100.0) id=SurfaceId::Main />
@@ -440,6 +443,7 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
                 </DockArea>
             </Show>
         </List>
+        </Layers>
     }
 }
 
