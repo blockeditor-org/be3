@@ -758,7 +758,7 @@ fn rim(shape: &Shape) -> Option<Rect> {
             rotation,
             ..
         } if *stroke_width > 0.0 && !rotation.turns() => {
-            Some(rect.shrink(stroke_width + corner_radius + 1.0))
+            Some(rect.shrink(stroke_width + corner_radius.largest() + 1.0))
         }
         _ => None,
     }
@@ -786,7 +786,7 @@ pub fn covers(shape: &Shape, viewport: Rect) -> bool {
     *stroke_width == 0.0
         && !rotation.turns()
         && clip.contains_rect(viewport)
-        && rect.shrink(*corner_radius).contains_rect(viewport)
+        && rect.shrink(corner_radius.largest()).contains_rect(viewport)
 }
 
 fn absolute(rect: Rect, state: PainterState) -> Rect {

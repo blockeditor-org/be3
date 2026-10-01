@@ -212,6 +212,15 @@ impl Parser<'_> {
                 let close = matching(self.tokens, self.index)?;
                 self.index = close + 1;
             }
+            while self.at(0, ".") {
+                self.index += 1;
+                self.identifier()?;
+                if !self.at(0, "(") {
+                    return None;
+                }
+                let close = matching(self.tokens, self.index)?;
+                self.index = close + 1;
+            }
         }
         Some(self.tokens[start].range.start..self.tokens[self.index - 1].range.end)
     }

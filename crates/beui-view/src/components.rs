@@ -5,6 +5,8 @@ pub mod drawing;
 pub mod embed;
 pub mod focusable;
 pub mod frame;
+pub mod grid;
+pub mod layers;
 pub mod offset;
 pub mod overlay;
 pub mod picture;

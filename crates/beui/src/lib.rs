@@ -8,7 +8,9 @@ pub use beui_components_styled as styled;
 pub use beui_components_unstyled as unstyled;
 pub use beui_components_unstyled::datetime;
 pub use beui_core::app::{App, Setup, Waker};
-pub use beui_core::base::{Align, Direction, ImeCursor, ItemSize, ScrollPosition, focus_within};
+pub use beui_core::base::{
+    Align, Direction, ImeCursor, ItemSize, Justify, ScrollPosition, Sizing, Track, focus_within,
+};
 pub use beui_core::color::{Color32, Hsva, format_hex, parse_hex};
 pub use beui_core::context::{Context, FrameOutput, InputSimulation, Moved, RendererInfo};
 pub use beui_core::damage::Region;
@@ -32,7 +34,7 @@ pub use beui_core::input::{
 };
 pub use beui_core::node::{ClickHandler, Handler, NodeId};
 pub use beui_core::page::{Page, PageShape};
-pub use beui_core::painter::{Painter, Shape};
+pub use beui_core::painter::{Corners, Painter, Shape};
 pub use beui_core::performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_font_freetype::system::SystemFonts;

@@ -17,8 +17,8 @@ fn enabling_touch_emulation_in_the_inspector_does_not_paint_a_pointer() {
         shape,
         crate::painter::Shape::Rect {
             rect,
-            corner_radius: 10.0,
+            corner_radius,
             ..
-        } if rect.size() == Vec2::splat(20.0)
+        } if rect.size() == Vec2::splat(20.0) && corner_radius.largest() == 10.0
     )));
 }

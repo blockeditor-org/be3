@@ -970,7 +970,7 @@ pub fn scale_shape(shape: &mut Shape, scale: f32) {
             ..
         } => {
             *rect = rect.scaled(scale);
-            *corner_radius *= scale;
+            *corner_radius = corner_radius.scaled(scale);
             *stroke_width *= scale;
             *rotation = rotation.scaled(scale);
             *clip = clip.scaled(scale);

@@ -4,9 +4,9 @@ use syn::braced;
 use syn::parenthesized;
 use syn::parse::{Parse, ParseStream};
 use syn::{
-    Attribute, Expr, ExprCall, ExprLit, ExprPath, ExprReference, ExprUnary, FnArg, GenericArgument,
-    Ident, ItemFn, Lit, Pat, PatType, Path, PathArguments, ReturnType, Token, Type, UnOp,
-    parse_macro_input,
+    Attribute, Expr, ExprCall, ExprLit, ExprMethodCall, ExprPath, ExprReference, ExprUnary, FnArg,
+    GenericArgument, Ident, ItemFn, Lit, Pat, PatType, Path, PathArguments, ReturnType, Token,
+    Type, UnOp, parse_macro_input,
 };
 
 struct Prop {
@@ -924,6 +924,25 @@ struct ViewAttr {
     value: Expr,
 }
 
+fn parse_method_chain(input: ParseStream, mut value: Expr) -> syn::Result<Expr> {
+    while input.peek(Token![.]) {
+        let dot_token = input.parse::<Token![.]>()?;
+        let method: Ident = input.parse()?;
+        let args;
+        let paren_token = parenthesized!(args in input);
+        value = Expr::MethodCall(ExprMethodCall {
+            attrs: Vec::new(),
+            receiver: Box::new(value),
+            dot_token,
+            method,
+            turbofish: None,
+            paren_token,
+            args: args.parse_terminated(Expr::parse, Token![,])?,
+        });
+    }
+    Ok(value)
+}
+
 fn parse_unbraced_value(input: ParseStream) -> syn::Result<Expr> {
     if input.peek(Token![&]) {
         let and_token = input.parse::<Token![&]>()?;
@@ -978,17 +997,20 @@ fn parse_unbraced_value(input: ParseStream) -> syn::Result<Expr> {
             qself: None,
             path,
         });
-        if input.peek(syn::token::Paren) {
-            let args;
-            let paren_token = parenthesized!(args in input);
-            return Ok(Expr::Call(ExprCall {
-                attrs: Vec::new(),
-                func: Box::new(func),
-                paren_token,
-                args: args.parse_terminated(Expr::parse, Token![,])?,
-            }));
-        }
-        return Ok(func);
+        let value = match input.peek(syn::token::Paren) {
+            true => {
+                let args;
+                let paren_token = parenthesized!(args in input);
+                Expr::Call(ExprCall {
+                    attrs: Vec::new(),
+                    func: Box::new(func),
+                    paren_token,
+                    args: args.parse_terminated(Expr::parse, Token![,])?,
+                })
+            }
+            false => func,
+        };
+        return parse_method_chain(input, value);
     }
 
     Err(input.error(

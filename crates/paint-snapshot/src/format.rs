@@ -37,6 +37,7 @@ pub enum Content {
     Callback([f32; 4]),
     RoundedRect(RoundedRect),
     Glyph(Glyph),
+    CorneredRect(RoundedRect, [f32; 4]),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]

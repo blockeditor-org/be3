@@ -1,0 +1,6 @@
+use super::*;
+
+mod a_part_that_reaches_its_max_hands_the_rest_to_the_others;
+mod parts_share_by_weight_when_nothing_clamps;
+mod parts_stay_at_their_min_when_the_total_is_short;
+mod sharing_matches_a_step_by_step_fill_across_many_parts;

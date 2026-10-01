@@ -7,11 +7,60 @@ use crate::image::Image;
 use crate::node::{NodeId, SpaceId};
 use crate::pixel_grid::PixelGrid;
 
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub struct Corners {
+    pub top_left: f32,
+    pub top_right: f32,
+    pub bottom_right: f32,
+    pub bottom_left: f32,
+}
+
+impl Corners {
+    pub fn all(radius: f32) -> Self {
+        Self {
+            top_left: radius,
+            top_right: radius,
+            bottom_right: radius,
+            bottom_left: radius,
+        }
+    }
+
+    pub fn to_array(self) -> [f32; 4] {
+        [
+            self.top_left,
+            self.top_right,
+            self.bottom_right,
+            self.bottom_left,
+        ]
+    }
+
+    pub fn largest(self) -> f32 {
+        self.to_array().into_iter().fold(0.0, f32::max)
+    }
+
+    pub fn scaled(self, scale: f32) -> Self {
+        let [top_left, top_right, bottom_right, bottom_left] =
+            self.to_array().map(|radius| radius * scale);
+        Self {
+            top_left,
+            top_right,
+            bottom_right,
+            bottom_left,
+        }
+    }
+}
+
+impl From<f32> for Corners {
+    fn from(radius: f32) -> Self {
+        Self::all(radius)
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub enum Shape {
     Rect {
         rect: Rect,
-        corner_radius: f32,
+        corner_radius: Corners,
         stroke_width: f32,
         color: Color32,
         rotation: Rotation,
@@ -294,13 +343,13 @@ impl Painter {
         self.context.layout(&text.into(), font, layout)
     }
 
-    pub fn rect_filled(&self, rect: Rect, corner_radius: f32, color: Color32) {
+    pub fn rect_filled(&self, rect: Rect, corner_radius: impl Into<Corners>, color: Color32) {
         if color.alpha() == 0 {
             return;
         }
         self.push(Shape::Rect {
             rect,
-            corner_radius,
+            corner_radius: corner_radius.into(),
             stroke_width: 0.0,
             color,
             rotation: self.rotation,
@@ -308,13 +357,19 @@ impl Painter {
         });
     }
 
-    pub fn rect_stroke(&self, rect: Rect, corner_radius: f32, width: f32, color: Color32) {
+    pub fn rect_stroke(
+        &self,
+        rect: Rect,
+        corner_radius: impl Into<Corners>,
+        width: f32,
+        color: Color32,
+    ) {
         if color.alpha() == 0 || width <= 0.0 {
             return;
         }
         self.push(Shape::Rect {
             rect,
-            corner_radius,
+            corner_radius: corner_radius.into(),
             stroke_width: width,
             color,
             rotation: self.rotation,

@@ -75,6 +75,7 @@ pub struct Document {
     pub deferred_reveals: Vec<NodeId>,
     constrained: HashSet<NodeId>,
     measurements: NodeMap<Vec<(Vec2, Vec2)>>,
+    baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
     layout_parent: Option<NodeId>,
     placed_children: NodeMap<Vec<NodeId>>,
     placing: Vec<NodeId>,
@@ -136,6 +137,21 @@ const REMEMBERED_MEASUREMENTS: usize = 4;
 
 fn same_size(left: Vec2, right: Vec2) -> bool {
     left.x.to_bits() == right.x.to_bits() && left.y.to_bits() == right.y.to_bits()
+}
+
+fn still_fits(offered: Vec2, size: Vec2, available: Vec2) -> bool {
+    axis_still_fits(offered.x, size.x, available.x)
+        && axis_still_fits(offered.y, size.y, available.y)
+}
+
+fn axis_still_fits(offered: f32, size: f32, available: f32) -> bool {
+    if offered.to_bits() == available.to_bits() {
+        return true;
+    }
+    match offered.is_finite() {
+        true => available.is_finite() && size <= available && available <= offered,
+        false => available.to_bits() == size.to_bits(),
+    }
 }
 
 fn constrained(held: Vec2, available: Vec2) -> Vec2 {
@@ -247,6 +263,7 @@ impl Document {
             deferred_reveals: Vec::new(),
             constrained: HashSet::new(),
             measurements: NodeMap::default(),
+            baselines: NodeMap::default(),
             layout_parent: None,
             placed_children: NodeMap::default(),
             placing: Vec::new(),
@@ -624,6 +641,7 @@ impl Document {
         self.placements.remove(&id);
         self.placed.remove(&id);
         self.measurements.remove(&id);
+        self.baselines.remove(&id);
         self.component_states.remove(&id);
         self.component_names.remove(&id);
         self.placed_children.remove(&id);
@@ -1239,12 +1257,16 @@ impl Document {
     pub fn measured(&mut self, id: NodeId, available: Vec2) -> Option<Vec2> {
         if self.arena.stale(id) {
             self.measurements.remove(&id);
+            self.baselines.remove(&id);
             return None;
         }
-        self.measurements
-            .get(&id)?
-            .iter()
+        let held = self.measurements.get(&id)?;
+        held.iter()
             .find(|(offered, _)| same_size(*offered, available))
+            .or_else(|| {
+                held.iter()
+                    .find(|(offered, size)| still_fits(*offered, *size, available))
+            })
             .map(|(_, size)| *size)
     }
 
@@ -1265,6 +1287,35 @@ impl Document {
             held.remove(0);
         }
         held.push((available, size));
+    }
+
+    pub fn measured_baseline(&self, id: NodeId, available: Vec2) -> Option<Option<f32>> {
+        if self.arena.stale(id) {
+            return None;
+        }
+        self.baselines
+            .get(&id)?
+            .iter()
+            .find(|(offered, _)| same_size(*offered, available))
+            .map(|(_, baseline)| *baseline)
+    }
+
+    pub fn remember_baseline(
+        &mut self,
+        id: NodeId,
+        available: Vec2,
+        baseline: Option<f32>,
+        watermark: u64,
+    ) {
+        if self.arena.layout_revision != watermark || self.arena.stale(id) {
+            return;
+        }
+        let held = self.baselines.get_or_default(id);
+        held.retain(|(offered, _)| !same_size(*offered, available));
+        if held.len() >= REMEMBERED_MEASUREMENTS {
+            held.remove(0);
+        }
+        held.push((available, baseline));
     }
 
     pub fn note_measured(&self, reused: bool) {

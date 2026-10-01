@@ -1345,9 +1345,9 @@ impl Renderer {
             } => plain(Instance {
                 rect,
                 clip,
-                uv: [0.0; 4],
+                uv: corner_radius,
                 color: self.encode(color),
-                params: [corner_radius, stroke_width, 0.0, 0.0],
+                params: [0.0, stroke_width, 0.0, 0.0],
                 turn: turn(rotation),
             }),
             Quad::Glyph {
@@ -1413,9 +1413,9 @@ impl Renderer {
                 instance: Instance {
                     rect,
                     clip,
-                    uv: [0.0; 4],
+                    uv: [corner_radius; 4],
                     color: [0.0, 0.0, 0.0, 1.0],
-                    params: [corner_radius, 0.0, 0.0, 0.0],
+                    params: [0.0, 0.0, 0.0, 0.0],
                     turn: turn(rotation),
                 },
             },

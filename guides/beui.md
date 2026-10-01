@@ -264,7 +264,7 @@ need:
 - **Need new behavior?** Add an unstyled component composed from base
   components.
 - **Tempted to add a base component?** Almost always, add an unstyled one
-  instead. The base layer is small on purpose — `Frame`, `List`, `Text`,
+  instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `Grid`, `Text`,
   `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Focusable`,
   `ClickCatcher`, `Embed`, `Portal`, `Viewport` — and it stays small because most things are
   compositions of those.
@@ -320,17 +320,55 @@ Pure presentation components such as styled text and cards compose base
 components directly, because they have no interaction behavior to delegate.
 
 The main base building blocks are `List`, `Frame`, `Text`, `Offset`, and
-`VirtualList`. `List` is the only box that arranges siblings: it takes a
+`VirtualList`. `List` arranges siblings in a line: it takes a
 `direction`, which is vertical unless the tag says otherwise, an `align` for
-the cross axis, and `spacing`. Nothing wraps it, so a row is written
-`<List direction=Direction::Horizontal spacing=8.0>` and a row that centres its
-children adds `align=Align::Center`; a one-line alias per combination is what
-`Row`, `Column` and `CenteredRow` were, and reading the props beats remembering
-which names exist. `Frame` combines optional sizing, an aspect ratio it centres
+the cross axis, a `justify` for the main axis, and `spacing`. Nothing wraps it,
+so a row is written `<List direction=Direction::Horizontal spacing=8.0>` and a
+row that centres its children adds `align=Align::Center`; a one-line alias per
+combination is what `Row`, `Column` and `CenteredRow` were, and reading the
+props beats remembering which names exist. `justify` places whatever main-axis
+space the children leave (`Start`, `Center`, `End`, `SpaceBetween`,
+`SpaceAround`, `SpaceEvenly`), so pushing the last item of a toolbar to the
+far end needs no spacer. `Align::Baseline` lines a row's children up on the
+first baseline of their text, which a node reports through
+`Element::baseline`; a column treats it as `Start`. `wrap=true` flows
+children onto more lines: a child too wide for a line by itself is measured
+against the line's width, so long text wraps inside it, and each line's
+`Percent` children share that line's leftover.
+
+A child's `@sizing` is an `ItemSize` - `Intrinsic`, `Fixed` or `Percent`, the
+last a weight in the bounded space left over - or a `Sizing` built from one:
+`.min(..)` and `.max(..)` bound its length, `.shrink(weight)` lets it give up
+length down to its `min` when the row overflows (the label beside a fixed-size
+button), `.align(..)` overrides the list's `align` for that child, and
+`.gap(..)` replaces the list's `spacing` before it:
+`@sizing=ItemSize::Percent(100.0).max(320.0)`.
+
+`Frame` combines optional sizing, an aspect ratio it centres
 its box within, padding, fill, outline, and visibility on one retained node.
-Its `width`, `max_width`, `height` and `aspect_ratio` each take an optional
-measurement, so a signal behind one can hand it back to nothing and leave that
-axis measuring intrinsically again.
+Its `width`, `min_width`, `max_width`, `height`, `min_height`, `max_height`
+and `aspect_ratio` each take an optional measurement, so a signal behind one
+can hand it back to nothing and leave that axis measuring intrinsically again;
+`width_fraction` and `height_fraction` take that share of the space the frame
+is offered, when that space is bounded. `padding_horizontal` and
+`padding_vertical` pad both sides of an axis and `padding_left`,
+`padding_top`, `padding_right` and `padding_bottom` override one side.
+`align_horizontal` and `align_vertical` place a child smaller than the frame
+inside it rather than stretching it over the frame, which is how a badge sits
+in a corner. `radius` rounds every corner and `radius_top_left` and its
+siblings override one.
+`Layers` lays every child over the same box, sized to the largest, later
+children on top: content over a background, a badge over an icon. A child that
+should not fill the box goes in a `Frame` that aligns it. Pointer input is the
+same as anywhere else - every catcher under the pointer hears it unless the
+top one sets `capture_presses`.
+`Grid` lines cells up in shared columns, filling them row by row: `columns`
+is a `Track` per column (`Fixed`, `Intrinsic` - as wide as its widest cell -
+or `Fraction`, a weight in what is left), with `column_spacing` and
+`row_spacing`, and each row is as tall as its tallest cell. A cell that spans
+several columns is written `<GridCell span=2>`. It is for forms and property
+panels whose labels should share one width, not for a list of rows, which is
+a `List` or a `VirtualList`.
 `Text` carries its own decoration too: `underline` is painted from the galley's
 baseline, so switching it on never moves anything. `Portal` shows a subtree that belongs to
 someone else: it takes a `NodeId`, lays it out and paints it where the portal
@@ -1383,7 +1421,7 @@ namespace so a component can name its props whatever it likes:
   resolving.
 - `@node_ref` fills a `NodeRef` when enclosing code genuinely needs the
   resulting `NodeId`.
-- `@sizing` selects the child's `ItemSize` among its siblings in a list, and
+- `@sizing` selects the child's `ItemSize` or `Sizing` among its siblings in a list, and
   only a list accepts it. Children are intrinsic by default; fixed children
   reserve a logical-point size, and percent children share the remaining
   bounded space by weight. On the single root of a `view!` it builds a
@@ -1422,7 +1460,7 @@ a fragment written among siblings takes the places between them, and how
 `Show`, `Dynamic`, `Keyed` and `ForEach` fill a parent they do not own. `List`,
 `Stack`, `Scroll` and `Canvas` all keep their children that way.
 
-Use `Frame`'s `width` and `height` props to constrain a component's own size,
+Use `Frame`'s `width` and `height` props (and their `min_`/`max_` forms) to constrain a component's own size,
 `max_width` for a box that fills the room it is given but stops at a limit, and
 `@sizing` to describe how it participates among siblings in a `List`. Say a
 width once: a `Frame` nested inside one that carries the width
@@ -1704,7 +1742,27 @@ scrolled out of view releases its rows. A node that is laid out again gets
 Measurements are memoised per available size and dropped whenever the node or
 something under it changes its layout, so measuring a child repeatedly within a
 pass is cheap, but a `measure` that is not a pure function of the node and its
-constraint will return a stale answer.
+constraint will return a stale answer. A memoised size also answers a smaller
+offer it still fits: a node measured at a bounded width `a` to `s` answers any
+bounded width between `s` and `a` with `s`, and a node measured at an unbounded
+width answers an offer of exactly `s` with `s` (likewise for height). That is
+what keeps a list from measuring a child again at the length it just measured,
+so `measure` has to agree - offering a node more room than its size must not
+change its size unless that room is unbounded.
+
+`baseline` answers where the node's first line of text sits below its top when
+it is offered a size, for a row aligned to `Align::Baseline`. It defaults to
+none; `Text` answers from its first line, a node that wraps one child forwards
+the child's answer through `beui_core::layout::baseline` (adding whatever it
+shifts the child down by), and the answers are memoised beside the
+measurements.
+
+Layout stays linear in the number of nodes: a node measures each child a
+bounded number of times per pass, and anything it computes across its children
+is linear too - `base::share` hands a length out by weight between minimums and
+maximums in linear time, and is what a list's shrinking and percent children
+and a grid's fraction columns use. `nested_lists_measure_each_node_a_bounded_number_of_times`
+holds a deep tree of lists to that.
 
 A setter reaches its node through one of three arena accessors, chosen by what
 reads the field. `get_mut_as` is for anything `measure` or `layout` reads: the

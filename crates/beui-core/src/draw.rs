@@ -11,7 +11,7 @@ pub enum Quad {
         rect: [f32; 4],
         clip: [f32; 4],
         color: Color32,
-        corner_radius: f32,
+        corner_radius: [f32; 4],
         stroke_width: f32,
         turn: Turn,
     },
@@ -173,7 +173,7 @@ pub fn push_quads(
                 rect,
                 clip,
                 color: *color,
-                corner_radius: corner_radius * pixels_per_point,
+                corner_radius: corner_radius.scaled(pixels_per_point).to_array(),
                 stroke_width,
                 turn,
             });
