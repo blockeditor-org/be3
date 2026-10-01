@@ -431,7 +431,7 @@ fn DemoShell() -> NodeId {
                                 <CatalogPanel set_state active />
                             },
                             Some(page) => view! {
-                                <Container>
+                                <Container @test_id={format!("demo.page.{}", page.title())}>
                                     {move |_| match page {
                                         Page::Docking => view! {
                                             <DockingPage />
