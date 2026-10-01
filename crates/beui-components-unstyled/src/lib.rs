@@ -26,6 +26,7 @@ pub mod scroll;
 pub mod scrollbar;
 pub mod select;
 pub mod selectable;
+pub mod sheet;
 pub mod slider;
 pub mod stack;
 pub mod text_area;
@@ -86,6 +87,7 @@ pub use select::{
     select_option_button, select_search, select_selected, select_trigger,
 };
 pub use selectable::{Selectable, SelectableState, copy_selection, select_all, selectable_text};
+pub use sheet::{ModalSheet, SHEET_STOPS, Sheet, SheetGripHandle};
 pub use slider::{Slider, SliderHandle, SliderScale, slider_value};
 pub use stack::Stack;
 pub use text_area::text_area_handles;
