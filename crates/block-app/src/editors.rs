@@ -403,6 +403,30 @@ impl<'a> EditorAccess<'a> {
         self.with_editor(id, |editor, _| editor.direct_editor_frame_child())?
     }
 
+    fn chrome_owner(&mut self, id: Uuid) -> Uuid {
+        let mut stack = Vec::new();
+        let mut child = self.direct_editor_frame_child(id);
+        while let Some(next) = child {
+            if next == id || stack.contains(&next) {
+                break;
+            }
+            stack.push(next);
+            child = self.direct_editor_frame_child(next);
+        }
+        stack.last().copied().unwrap_or(id)
+    }
+
+    pub fn frame_menu(&mut self, id: Uuid) -> Vec<block_plugin_api::MenuEntry> {
+        let owner = self.chrome_owner(id);
+        self.with_editor(owner, |editor, _| editor.menu())
+            .unwrap_or_default()
+    }
+
+    pub fn pick_frame_menu(&mut self, id: Uuid, pick: String) {
+        let owner = self.chrome_owner(id);
+        self.with_editor(owner, |editor, _| editor.pick_menu(pick));
+    }
+
     pub fn is_frame_child(&self, id: Uuid) -> bool {
         tab_frame().is_some_and(|tab| tab.stack.contains(&id))
     }

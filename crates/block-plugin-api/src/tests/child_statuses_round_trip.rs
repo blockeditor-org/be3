@@ -19,6 +19,12 @@ fn child_statuses_round_trip() {
             capabilities: EditorCapabilities::default(),
             resize: ResizeMode::Both,
             error: None,
+            menu: vec![MenuEntry {
+                id: "editor.rename".into(),
+                label: "Rename".into(),
+                glyph: "edit".into(),
+                enabled: true,
+            }],
         },
         ChildStatus {
             instance: EditorInstanceId(4),
@@ -33,6 +39,7 @@ fn child_statuses_round_trip() {
             capabilities: EditorCapabilities::default(),
             resize: ResizeMode::Both,
             error: Some("the block is already open above this editor".into()),
+            menu: Vec::new(),
         },
     ]);
     assert_eq!(
@@ -53,6 +60,7 @@ fn child_statuses_round_trip() {
         capabilities: EditorCapabilities::default(),
         resize: ResizeMode::Both,
         error: Some("x".repeat(MAX_STRING_BYTES + 1)),
+        menu: Vec::new(),
     }]);
     assert_eq!(
         encode_frame(&oversized),

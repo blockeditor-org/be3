@@ -63,7 +63,7 @@ pub use fullscreen::Fullscreen;
 pub use icon_button::{IconButton, IconButtonSize};
 pub use link::Link;
 pub use list_row::ListRow;
-pub use menu_button::MenuButton;
+pub use menu_button::{IconMenuButton, MenuButton, menu_sheet};
 pub use number_input::{NumberDrag, NumberInput, number_input_field, number_input_text};
 pub use popover::Popover;
 pub use progress::Progress;

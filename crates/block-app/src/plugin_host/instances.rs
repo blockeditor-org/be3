@@ -81,6 +81,8 @@ struct Instance {
     reported_view: Option<EditorView>,
     view_changes: Vec<ViewChange>,
     bar_actions: Vec<block_plugin_api::BarAction>,
+    menu: Vec<block_plugin_api::MenuEntry>,
+    child_menu_picks: Vec<(ChildId, String)>,
     presenting: bool,
     reported_presenting: bool,
     grabbed: bool,
@@ -253,6 +255,8 @@ impl Instance {
             reported_view: None,
             view_changes: Vec::new(),
             bar_actions: Vec::new(),
+            menu: Vec::new(),
+            child_menu_picks: Vec::new(),
             presenting: false,
             reported_presenting: false,
             grabbed: false,
@@ -823,6 +827,35 @@ impl Instances {
             .unwrap_or_default()
     }
 
+    pub(super) fn menu(&self, instance: EditorInstanceId) -> Vec<block_plugin_api::MenuEntry> {
+        self.entries
+            .get(&instance)
+            .map(|entry| entry.menu.clone())
+            .unwrap_or_default()
+    }
+
+    pub(super) fn menu_pick(&mut self, instance: EditorInstanceId, id: String) -> Vec<Message> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Message::Editor(EditorMessage::MenuPick { instance, id })]
+    }
+
+    pub(super) fn take_child_menu_picks(
+        &mut self,
+        instance: EditorInstanceId,
+        children: &[ChildId],
+    ) -> Vec<(ChildId, String)> {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return Vec::new();
+        };
+        let (taken, kept) = std::mem::take(&mut entry.child_menu_picks)
+            .into_iter()
+            .partition(|(child, _)| children.contains(child));
+        entry.child_menu_picks = kept;
+        taken
+    }
+
     pub(super) fn take_view_changes(&mut self, instance: EditorInstanceId) -> Vec<ViewChange> {
         self.entries
             .get_mut(&instance)
@@ -1388,6 +1421,7 @@ impl Instances {
                 capabilities: status.capabilities,
                 resize: status.resize,
                 error: status.error,
+                menu: status.menu,
             };
             if screen.reported_statuses.get(&status.child) == Some(&status) {
                 continue;
@@ -2409,6 +2443,24 @@ impl Instances {
                 entry.bar_actions.push(action);
                 true
             }
+            EditorMessage::Menu { instance, entries } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.menu = entries;
+                true
+            }
+            EditorMessage::ChildMenuPick {
+                instance,
+                child,
+                id,
+            } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.child_menu_picks.push((child, id));
+                true
+            }
             EditorMessage::ChangeView { instance, change } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
@@ -2535,11 +2587,20 @@ impl Instances {
         vec![Message::Editor(EditorMessage::ClosePane { instance, pane })]
     }
 
-    pub(super) fn pane_more(&mut self, instance: EditorInstanceId, pane: PaneId) -> Vec<Message> {
+    pub(super) fn pane_menu_pick(
+        &mut self,
+        instance: EditorInstanceId,
+        pane: PaneId,
+        id: String,
+    ) -> Vec<Message> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
-        vec![Message::Editor(EditorMessage::PaneMore { instance, pane })]
+        vec![Message::Editor(EditorMessage::PaneMenuPick {
+            instance,
+            pane,
+            id,
+        })]
     }
 
     pub(super) fn take_artifact_watch(&mut self, instance: EditorInstanceId) -> Option<Vec<Uuid>> {

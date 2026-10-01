@@ -10,8 +10,8 @@ use block_editor_beui::{
 };
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, ChildId, ChildRect, EditorMessage, FrameChrome, FrameReport,
-    HelloAccepted, InputBatch, Message, PROTOCOL_VERSION, ScreenId, ScreenRequest, ScreenSet,
-    SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
+    HelloAccepted, InputBatch, MenuEntry, Message, PROTOCOL_VERSION, ScreenId, ScreenRequest,
+    ScreenSet, SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
@@ -44,6 +44,7 @@ pub struct BeuiTest<A: BeuiApp> {
     frames: Vec<Vec<Event>>,
     inbox: Vec<Message>,
     sent: Vec<EditorMessage>,
+    menu: Vec<MenuEntry>,
     output: Option<beui::FrameOutput>,
     recording: Option<snapshot::Snapshot>,
     viewport: Option<Viewport>,
@@ -202,6 +203,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             frames: Vec::new(),
             inbox: Vec::new(),
             sent: Vec::new(),
+            menu: Vec::new(),
             output: None,
             recording: None,
             viewport: None,
@@ -328,7 +330,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn on_phone(self) -> Self {
-        self.with_bar(false, TopBar::Phone { more: false })
+        self.with_bar(false, TopBar::Phone)
     }
 
     fn with_bar(mut self, closable: bool, top_bar: TopBar) -> Self {
@@ -347,13 +349,23 @@ impl<A: BeuiApp> BeuiTest<A> {
         self
     }
 
-    pub fn set_more(&mut self, more: bool) {
-        let frame = self
-            .frame
-            .as_mut()
-            .expect("only an editor's frame has a bar");
-        frame.top_bar = TopBar::Phone { more };
-        self.place();
+    pub fn menu(&self) -> &[MenuEntry] {
+        &self.menu
+    }
+
+    pub fn menu_entry(&self, id: &str) -> MenuEntry {
+        self.menu
+            .iter()
+            .find(|entry| entry.id == id)
+            .cloned()
+            .unwrap_or_else(|| panic!("the menu offers no {id:?}"))
+    }
+
+    pub fn pick_menu(&mut self, id: &str) {
+        self.inbox.push(Message::Editor(EditorMessage::MenuPick {
+            instance: INSTANCE,
+            id: id.to_owned(),
+        }));
         self.run();
     }
 
@@ -609,6 +621,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             capabilities: block_editor_beui::EditorCapabilities::default(),
             resize: block_editor_beui::ResizeMode::None,
             error: None,
+            menu: Vec::new(),
         });
     }
 
@@ -731,6 +744,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                         self.intrinsic = size.map(|size| Vec2::new(size.width, size.height));
                     }
                     EditorMessage::ArtifactEdited { data, .. } => self.draft.clone_from(data),
+                    EditorMessage::Menu { entries, .. } => self.menu.clone_from(entries),
                     _ => {}
                 }
                 self.sent.push(message);
@@ -763,6 +777,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn take_view_changes(&mut self) -> Vec<ViewChange> {
         self.take_where(|message| match message {
             EditorMessage::ChangeView { change, .. } => Some(*change),
+            _ => None,
+        })
+    }
+
+    pub fn take_child_menu_picks(&mut self) -> Vec<(ChildId, String)> {
+        self.take_where(|message| match message {
+            EditorMessage::ChildMenuPick { child, id, .. } => Some((*child, id.clone())),
             _ => None,
         })
     }

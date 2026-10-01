@@ -27,7 +27,7 @@ fn Tidy(editor: Editor) -> NodeId {
 }
 
 #[test]
-fn the_phone_more_sheet_opens_the_command_palette() {
+fn the_menu_opens_the_command_palette() {
     let host = EditorHost::default();
     host.set_editable(true);
     let mut test = BeuiTest::<PaletteApp>::new(Editor::new(host, Uuid::new_v4()))
@@ -35,13 +35,7 @@ fn the_phone_more_sheet_opens_the_command_palette() {
         .on_phone();
     assert!(!test.shown("command-palette.search"));
 
-    test.set_more(true);
-    test.click("editor.more.palette");
-    test.run();
-    assert!(
-        !test.shown("editor.more.rename"),
-        "the sheet closes for the palette"
-    );
+    test.pick_menu("editor.palette");
     assert!(test.shown("command-palette.search"));
 
     test.text("tidy");

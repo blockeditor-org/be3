@@ -1,4 +1,7 @@
-use block_editor_beui::{BarAction, TopBar};
+use block_editor_beui::{
+    BarAction, ChildStatus, EditorCapabilities, EditorInstanceId, EditorRegion, InteractionMode,
+    MenuEntry, ResizeMode, TopBar,
+};
 
 use super::*;
 
@@ -21,6 +24,10 @@ fn bar(fixture: &mut Fixture, id: Uuid, action: BarAction) {
     fixture.settle();
 }
 
+fn placement_instance() -> EditorInstanceId {
+    EditorInstanceId(0)
+}
+
 fn tap(fixture: &mut Fixture, test_id: &str) {
     fixture.test.click(test_id);
     fixture.settle();
@@ -34,7 +41,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     show(&mut fixture, first, None);
     assert_eq!(
         top_bar(&fixture, first),
-        Some(TopBar::Phone { more: false }),
+        Some(TopBar::Phone),
         "an opened block fills the phone and leaves its bar to the dock"
     );
 
@@ -77,16 +84,51 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     );
     assert_eq!(fixture.shown(), vec![second], "and leaves the file on show");
 
-    tap(&mut fixture, "dock.more");
-    assert_eq!(
-        top_bar(&fixture, second),
-        Some(TopBar::Phone { more: true }),
-        "the dock bar's more button opens the block's own sheet"
+    assert!(
+        !fixture.test.shown("dock.menu"),
+        "the dock bar offers no menu before the block hands one over"
     );
-    bar(&mut fixture, second, BarAction::CloseMore);
+    let child = placed(&fixture, second)
+        .expect("the block is on show")
+        .child;
+    fixture.test.report_children(|placement| ChildStatus {
+        instance: placement_instance(),
+        region: EditorRegion::Frame,
+        child: placement.child,
+        available: true,
+        intrinsic: None,
+        aspect_ratio: None,
+        hovered: false,
+        active: false,
+        interaction: InteractionMode::Live,
+        capabilities: EditorCapabilities::default(),
+        resize: ResizeMode::None,
+        error: None,
+        menu: match placement.child == child {
+            true => vec![MenuEntry {
+                id: "editor.rename".into(),
+                label: "Rename".into(),
+                glyph: String::new(),
+                enabled: true,
+            }],
+            false => Vec::new(),
+        },
+    });
+    fixture.settle();
+    tap(&mut fixture, "dock.menu");
+    let document = fixture.test.document();
+    let root = document.root().expect("the workspace has a root");
+    let rename = text_within(document, root, "Rename").expect("the dock's menu lists Rename");
+    let at = document
+        .node_rect(rename)
+        .expect("the row is laid out")
+        .center();
+    fixture.test.click_at(at);
+    fixture.settle();
     assert_eq!(
-        top_bar(&fixture, second),
-        Some(TopBar::Phone { more: false })
+        fixture.test.take_child_menu_picks(),
+        [(child, "editor.rename".to_owned())],
+        "the dock bar's menu is the block's own, and picking from it reaches the block"
     );
 
     bar(&mut fixture, second, BarAction::Details);

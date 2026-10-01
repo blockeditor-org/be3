@@ -23,7 +23,7 @@ fn layout(panes: &[u64], arrangement: u64) -> PaneLayout {
                 title: format!("Pane {pane}"),
                 icon: String::new(),
                 closable: true,
-                more: false,
+                menu: Vec::new(),
             })
             .collect(),
         tree: PaneTree { items },

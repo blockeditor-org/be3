@@ -39,51 +39,68 @@ fn text(test: &BeuiTest<ActionApp>, id: &str) -> String {
         .to_owned()
 }
 
+fn ids(test: &BeuiTest<ActionApp>) -> Vec<String> {
+    test.menu().iter().map(|entry| entry.id.clone()).collect()
+}
+
+const MENU: [&str; 7] = [
+    "editor.undo",
+    "editor.redo",
+    "editor.rename",
+    "editor.share",
+    "editor.palette",
+    "tidy.up",
+    "editor.details",
+];
+
 #[test]
-fn the_parent_opens_the_phone_more_sheet_and_hears_when_it_closes() {
+fn the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked() {
     let block = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
     let mut test = BeuiTest::<ActionApp>::new(Editor::new(host, block))
         .with_size(Vec2::new(390.0, 800.0))
         .on_phone();
+    assert_eq!(ids(&test), MENU, "the frame hands its parent its menu");
+    assert!(test.menu_entry("tidy.up").enabled);
     assert!(
-        !test.shown("editor.name"),
-        "a phone draws no bar of its own"
+        !test.menu_entry("editor.undo").enabled,
+        "nothing has been done to undo"
     );
-    assert!(!test.shown("editor.more.rename"));
 
-    test.set_more(true);
-    assert!(
-        test.shown("editor.more.rename"),
-        "the parent opens the sheet"
-    );
-    test.click("editor.more.item.tidy.up");
-    test.run();
+    test.pick_menu("tidy.up");
     assert_eq!(
         text(&test, "tidy.state"),
         "tidy",
         "the editor's own item runs"
     );
-    assert!(
-        !test.shown("editor.more.rename"),
-        "running an item closes the sheet"
-    );
-    assert_eq!(test.take_bar_actions(), [BarAction::CloseMore]);
 
-    test.set_more(false);
-    test.set_more(true);
-    test.click("editor.more.rename");
-    test.run();
+    test.pick_menu("editor.rename");
     assert_eq!(test.take_block_commands(), [(block, BlockCommand::Rename)]);
-    assert_eq!(test.take_bar_actions(), [BarAction::CloseMore]);
 
-    test.set_more(false);
-    test.set_more(true);
-    test.click("editor.more.details");
-    test.run();
+    test.pick_menu("editor.details");
+    assert_eq!(test.take_bar_actions(), [BarAction::Details]);
+
+    let desktop = BeuiTest::<ActionApp>::new(Editor::new(
+        {
+            let host = EditorHost::default();
+            host.set_editable(true);
+            host
+        },
+        block,
+    ))
+    .with_top_bar(false);
     assert_eq!(
-        test.take_bar_actions(),
-        [BarAction::CloseMore, BarAction::Details]
+        desktop
+            .menu()
+            .iter()
+            .map(|entry| entry.id.clone())
+            .collect::<Vec<_>>(),
+        MENU,
+        "a desktop frame offers the same menu as a phone"
+    );
+    assert!(
+        !desktop.shown("editor.name"),
+        "a desktop frame draws no bar of its own"
     );
 }

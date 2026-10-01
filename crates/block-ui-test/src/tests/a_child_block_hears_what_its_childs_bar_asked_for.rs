@@ -26,7 +26,7 @@ fn BarParent(editor: Editor) -> NodeId {
                     block={target}
                     mode=ChildMode::Live
                     own_frame=true
-                    top_bar={TopBar::Phone { more: true }}
+                    top_bar={TopBar::Phone}
                     on_bar={move |action: BarAction| hear.set(format!("{action:?}"))}
                 />
             </Frame>
@@ -41,9 +41,9 @@ fn a_child_block_hears_what_its_childs_bar_asked_for() {
     let mut test = BeuiTest::<BarApp>::new(Editor::new(host, Uuid::new_v4()));
     test.run();
     let placement = test.children()[0];
-    assert_eq!(placement.top_bar, TopBar::Phone { more: true });
+    assert_eq!(placement.top_bar, TopBar::Phone);
 
-    test.child_bar(placement.child, BarAction::CloseMore);
+    test.child_bar(placement.child, BarAction::Details);
     test.run();
 
     let node = test
@@ -52,6 +52,6 @@ fn a_child_block_hears_what_its_childs_bar_asked_for() {
         .expect("the heard text is in the tree");
     assert_eq!(
         test.document().node_detail(node).as_deref(),
-        Some("\"CloseMore\"")
+        Some("\"Details\"")
     );
 }

@@ -32,12 +32,12 @@ pub(crate) use runtime::place_screens;
 pub(crate) use runtime::{
     arrange_panes, artifact, artifact_draft, aspect_ratio, block_picked, close, close_pane,
     commit_creation, cover_frame, creation, creation_ready, editor_ui, flush, frame_child,
-    frame_rects, hold, install, intrinsic_size, kill, pane_more, panes, poll, present, presenting,
-    preview, regenerate_artifact, region_size, replace_child, report_child_bars,
-    report_child_views, report_children, resized, revoke_frame_child, running, set_artifact_states,
-    set_focus, set_presence_visible, show_block, take_artifact_outcome, take_artifact_watch,
-    take_bar_actions, take_block_pick, take_created, take_focus_report, take_leaving,
-    take_shown_panes, take_view_changes,
+    frame_rects, hold, install, intrinsic_size, kill, menu, menu_pick, pane_menu_pick, panes, poll,
+    present, presenting, preview, regenerate_artifact, region_size, replace_child,
+    report_child_bars, report_child_views, report_children, resized, revoke_frame_child, running,
+    set_artifact_states, set_focus, set_presence_visible, show_block, take_artifact_outcome,
+    take_artifact_watch, take_bar_actions, take_block_pick, take_child_menu_picks, take_created,
+    take_focus_report, take_leaving, take_shown_panes, take_view_changes,
 };
 #[cfg(all(
     feature = "web-view",
@@ -101,6 +101,7 @@ pub(crate) struct HostChildStatus {
     pub(crate) capabilities: EditorCapabilities,
     pub(crate) resize: ResizeMode,
     pub(crate) error: Option<String>,
+    pub(crate) menu: Vec<block_plugin_api::MenuEntry>,
 }
 
 pub(crate) struct BlockPickRequest {

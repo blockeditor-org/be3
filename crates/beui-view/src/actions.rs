@@ -111,6 +111,10 @@ fn key_label(key: Key) -> String {
     symbol.to_owned()
 }
 
+thread_local! {
+    static DETACHED: Cell<u64> = const { Cell::new(1 << 63) };
+}
+
 struct ActionData {
     key: Cell<u64>,
     id: String,
@@ -241,8 +245,8 @@ impl ActionBuilder {
         self
     }
 
-    pub fn register(self) -> Action {
-        let action = Action(Rc::new(ActionData {
+    fn into_action(self) -> Action {
+        Action(Rc::new(ActionData {
             key: Cell::new(0),
             id: self.id,
             label: self.label,
@@ -252,7 +256,18 @@ impl ActionBuilder {
             checked: self.checked,
             menu: self.menu,
             run: self.run,
-        }));
+        }))
+    }
+
+    pub fn detached(self) -> Action {
+        let action = self.into_action();
+        let key = DETACHED.with(|next| next.replace(next.get() + 1));
+        action.0.key.set(key);
+        action
+    }
+
+    pub fn register(self) -> Action {
+        let action = self.into_action();
         let registry = registry();
         let scope = use_context::<ActionScope>()
             .map_or_else(|| Rc::clone(&registry.0.global), |scope| scope.0);

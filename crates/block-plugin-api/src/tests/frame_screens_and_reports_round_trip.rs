@@ -11,7 +11,7 @@ fn frame_screens_and_reports_round_trip() {
             width: 300.0,
             height: 200.0,
         }),
-        top_bar: TopBar::Phone { more: true },
+        top_bar: TopBar::Phone,
     });
     let screens = Message::Screens(ScreenSet {
         request_id: 3,
