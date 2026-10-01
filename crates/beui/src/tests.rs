@@ -1319,7 +1319,6 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
             <styled::DockArea
                 @node_ref=&built
                 state={state}
-                inset=false
                 title={Func::new(|tab: unstyled::TabId| format!("Tab {}", tab.value()))}
                 on_change={move |next: unstyled::DockState| set_state.set(next)}
                 on_close={move |_: unstyled::TabId| {}}

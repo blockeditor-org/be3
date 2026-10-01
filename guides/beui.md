@@ -802,8 +802,7 @@ body instead of a panel; `empty_panes` finds them and `remove_empty_panes`
 gives their room back, which is how the workspace keeps an empty pane beside
 Files that says nothing is open rather than a tab that says so.
 
-Tiled, `DockArea` keeps its panes inset from its own edges; `inset=false` lets
-them reach the edges, for a dock that already sits inside a pane of another.
+Tiled, `DockArea` keeps its panes inset from its own edges.
 `mode=DockMode::Stacked` draws the same state as one screen: the focused tab
 fills the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
 the state is kept, so switching back to `DockMode::Tiled` restores the layout.

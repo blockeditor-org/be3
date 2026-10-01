@@ -362,7 +362,6 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
                     state={state}
                     mode={mode}
                     home={home}
-                    inset=false
                     title={title}
                     icon={icon}
                     group_title={group_title}
