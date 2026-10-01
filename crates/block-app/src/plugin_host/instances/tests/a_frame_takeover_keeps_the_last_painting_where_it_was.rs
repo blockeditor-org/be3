@@ -42,7 +42,6 @@ fn a_frame_takeover_keeps_the_last_painting_where_it_was() {
         .expect("the painting made for the card is kept on the card");
 
     assert_eq!(held.rect, CARD);
-    assert_eq!(held.clip, CARD);
     assert_eq!(held.drawn, card);
 
     assert!(

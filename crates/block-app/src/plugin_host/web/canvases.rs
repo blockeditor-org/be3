@@ -5,7 +5,7 @@ use block_plugin_api::ScreenId;
 use wasm_bindgen::JsCast;
 
 use super::adapter::WebProtocolAdapter;
-use crate::plugin_host::Blit;
+use crate::plugin_host::presenter::Blit;
 
 const LAYER: &str = "plugins";
 

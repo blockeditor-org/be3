@@ -3,6 +3,7 @@ mod app_state;
 mod be;
 mod block_label;
 mod block_picker;
+mod compositor;
 mod debug;
 mod editors;
 mod files;
@@ -15,7 +16,6 @@ mod plugin_host;
 mod root_settings;
 mod share;
 mod surfaces;
-mod compositor;
 mod ui;
 
 use beui::styled::DocumentTheme;
@@ -185,19 +185,14 @@ impl beui::App for Shell {
         beui::reactive::with_reactive_scope(&mut self.document, move || {
             compositor::notify();
             store.set(view);
-            surfaces::commit();
         });
         #[cfg(target_arch = "wasm32")]
         plugin_host::place_screens(
-            &[surfaces::shown_blits(), plugin_host::take_shown()].concat(),
+            &plugin_host::shown_blits(),
             context.pixels_per_point() / context.native_pixels_per_point(),
             self.document.theme().background,
         );
-        host::filter_document_input(context);
         self.document.show(context, rect);
-        if surfaces::read_placements() {
-            context.request_repaint();
-        }
         let commands = ui::take_commands();
         if !commands.is_empty() {
             for command in commands {
@@ -972,7 +967,6 @@ impl BlockApp {
         if let Err(error) = self.app_state.set_active_account(&self.account) {
             self.account_error = Some(error.to_string());
         }
-        host::clear_focus();
     }
 
     fn close_requested(&mut self) -> bool {
@@ -1197,7 +1191,9 @@ impl BlockApp {
                 continue;
             }
             let replaced = self
-                .with_editor(copy.container, |editor| editor.replace_child(copy.source, copy_id))
+                .with_editor(copy.container, |editor| {
+                    editor.replace_child(copy.source, copy_id)
+                })
                 .flatten();
             if replaced != Some(true) {
                 self.pending_copies.push(copy);
@@ -1259,7 +1255,8 @@ impl BlockApp {
         if self.shell == Some(id) {
             return;
         }
-        self.editors.with_simulated(|simulated| simulated.remove(&id));
+        self.editors
+            .with_simulated(|simulated| simulated.remove(&id));
         self.dynamic_artifact_sessions.remove(&id);
         self.dynamic_artifact_errors.remove(&id);
         self.forget_dynamic_artifact_dialogs(id);
@@ -1438,7 +1435,6 @@ impl BlockApp {
 
     fn show_artifact_settings(&mut self) {
         let Some(id) = self.dynamic_artifact_settings_open else {
-            surfaces::set_height(SurfaceId::ArtifactSettings, None);
             return;
         };
         let descriptor = artifact_of(id);
@@ -1453,10 +1449,13 @@ impl BlockApp {
             .entry(id)
             .or_insert_with(|| descriptor.data.clone());
         surfaces::set_height(SurfaceId::ArtifactSettings, Some(session.settings_height()));
-        let registry = &self.registry;
-        surfaces::with(SurfaceId::ArtifactSettings, |ui| {
-            session.settings_ui(ui, registry, draft);
-        });
+        surfaces::host(
+            SurfaceId::ArtifactSettings,
+            Some(session.settings_region(&self.registry)),
+        );
+        if let Some(edited) = session.take_draft() {
+            *draft = edited;
+        }
         self.dynamic_artifact_sessions.insert(id, session);
     }
 
@@ -1558,8 +1557,12 @@ impl BlockApp {
                     AccessLevel::Edit => Access::Edit,
                 };
                 match access == Access::Edit {
-                    true => self.editors.with_simulated(|simulated| simulated.remove(&id)),
-                    false => self.editors.with_simulated(|simulated| simulated.insert(id, access)),
+                    true => self
+                        .editors
+                        .with_simulated(|simulated| simulated.remove(&id)),
+                    false => self
+                        .editors
+                        .with_simulated(|simulated| simulated.insert(id, access)),
                 };
             }
             BlockCommand::Delete {
@@ -1856,7 +1859,9 @@ impl BlockApp {
                 focused,
             } => {
                 if let Some(shell) = self.shell {
-                    self.with_editor(shell, |shell| shell.arrange_panes(arrangement, tree, detached, focused));
+                    self.with_editor(shell, |shell| {
+                        shell.arrange_panes(arrangement, tree, detached, focused)
+                    });
                 }
             }
             UiCommand::ClosePane(pane) => {
@@ -2054,9 +2059,9 @@ impl BlockApp {
                 layout: self.shell_panes.clone(),
                 shown: self.shown_pane,
             },
-            presenting: surfaces::handle(SurfaceId::Presenting)
-                .shown()
-                .get_untracked(),
+            presenting: self
+                .editors
+                .with(|open| open.values().any(PluginEditor::presenting_now)),
             debug: debug::view(),
         }
     }

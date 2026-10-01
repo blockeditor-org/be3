@@ -21,7 +21,7 @@ use super::picker::PickerDialogs;
 use super::share::ShareWindow;
 use super::tools::WorkspaceDock;
 use super::{AppViewStore, StatusView, UiCommand, send};
-use crate::surfaces::{HostSurface, SurfaceId};
+use crate::compositor::PresentingSurface;
 
 const STATUS_PADDING_HORIZONTAL: f32 = 12.0;
 const STATUS_PADDING_VERTICAL: f32 = 4.0;
@@ -73,7 +73,7 @@ fn WorkspaceBody(view: AppViewStore) -> NodeId {
             </ModalSheet>
             <Show condition={presenting}>
                 <Frame @sizing=ItemSize::Percent(100.0) color=Color32::BLACK>
-                    <HostSurface id=SurfaceId::Presenting />
+                    <PresentingSurface />
                 </Frame>
             </Show>
             <Dialogs view={view.clone()} />

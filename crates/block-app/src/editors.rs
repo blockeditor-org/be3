@@ -8,7 +8,7 @@ use block_plugin_api::{EditorManifest, PluginManifest, TemplateCategory};
 use uuid::Uuid;
 
 pub(crate) use crate::block_label::BlockLabel;
-use crate::host::Ui;
+use crate::surfaces::HostedRegion;
 
 pub(crate) use self::plugin::PluginEditor;
 
@@ -125,7 +125,8 @@ struct ArtifactProvider(Arc<PluginManifest>);
 
 pub(super) trait ArtifactSession {
     fn poll(&mut self, registry: &EditorRegistry, data: &[u8]) -> ArtifactStatus;
-    fn settings_ui(&mut self, ui: &mut Ui, registry: &EditorRegistry, draft: &mut Vec<u8>);
+    fn settings_region(&mut self, registry: &EditorRegistry) -> HostedRegion;
+    fn take_draft(&mut self) -> Option<Vec<u8>>;
     fn settings_height(&self) -> f32;
     fn summary(&self, draft: &[u8]) -> Option<String>;
     fn cancel_settings(&mut self);
@@ -141,7 +142,8 @@ pub(super) enum ArtifactStatus {
 }
 
 pub(super) trait PendingCreation {
-    fn ui(&mut self, ui: &mut Ui, editors: &mut EditorAccess<'_>) -> CreationStep;
+    fn region(&self, editors: &EditorAccess<'_>) -> Option<HostedRegion>;
+    fn step(&mut self, editors: &mut EditorAccess<'_>) -> CreationStep;
     fn height(&self) -> Option<f32>;
     fn create(&mut self) -> Result<Option<Uuid>, String>;
 }
@@ -338,4 +340,3 @@ impl EditorRegistry {
         )
     }
 }
-

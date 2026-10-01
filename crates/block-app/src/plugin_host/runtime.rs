@@ -8,22 +8,20 @@ use std::{
 
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, DEFAULT_SURFACE_SIDE, EditorInstanceId,
-    EditorMessage, EditorRegion, HostSession, MAX_QUEUED_MESSAGES, Message, PaneId, PaneLayout,
-    FrameSpec, PaneTree, PluginManifest, PresentedFrame, ScreenId, ScreenLayout, ScreenRequest, SessionState,
+    ArtifactDescription, BlockPick, DEFAULT_SURFACE_SIDE, EditorInstanceId, EditorMessage,
+    EditorRegion, FrameSpec, HostSession, MAX_QUEUED_MESSAGES, Message, PaneId, PaneLayout,
+    PaneTree, PluginManifest, PresentedFrame, ScreenId, ScreenLayout, ScreenRequest, SessionState,
     SurfaceFormat, SurfaceRect, SurfaceSpec, Theme, ViewChange,
 };
 use uuid::Uuid;
 
-use crate::host::{self, HostItem, Target, Ui};
+use crate::host;
 
 use super::{
-    ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState,
-    EditorSlot, HostChild, HostChildStatus, InstanceRole,
-    RuntimeStatus, SurfaceStatus,
+    ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
+    HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Platform, ShownFrame},
-    input,
-    instances::{EditorView, Focus, FrameOverlay, Instances, Placement},
+    instances::{EditorView, Focus, Instances, Placement},
     presenter::{
         self, Blit, MAX_SURFACES, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing,
         Shared,
@@ -50,7 +48,6 @@ struct Host {
     runtimes: HashMap<String, Runtime>,
     focus: Focus,
     grabbed: bool,
-    overlay: FrameOverlay,
 }
 
 impl Host {
@@ -60,7 +57,6 @@ impl Host {
             runtimes: HashMap::new(),
             focus: Focus::default(),
             grabbed: false,
-            overlay: FrameOverlay::default(),
         }
     }
 
@@ -264,15 +260,11 @@ impl Runtime {
         self.pump();
     }
 
-    fn begin_frame(&mut self, pass: u64, overlay: &FrameOverlay) {
+    fn begin_frame(&mut self, pass: u64) {
         if self.error.is_some() || self.pass + 1 < pass {
             return;
         }
-        let mut messages = match self.pass + 1 == pass {
-            true => self.instances.frame_input(self.pass, overlay),
-            false => Vec::new(),
-        };
-        messages.extend(self.instances.drive_web_views(self.pass));
+        let mut messages = self.instances.drive_web_views(self.pass);
         self.needed |= !messages.is_empty();
         if self.session.granted_surface().is_some() && self.frame_due() {
             self.requested_at = Some(self.now());
@@ -449,36 +441,6 @@ impl Runtime {
         }
     }
 
-    fn present(
-        &mut self,
-        screen: ScreenId,
-        quad: Quad,
-        source: Rect,
-        drawn: Option<(u32, u32)>,
-    ) -> Blit {
-        self.presented = true;
-        let scale = host::screen_scale();
-        Blit {
-            surface: self.surface,
-            status: self.status.clone(),
-            shared: Rc::clone(&self.shared),
-            screen,
-            quad: Quad {
-                rect: quad.rect.scaled(scale),
-                corners: quad
-                    .corners
-                    .map(|corner| pos2(corner.x * scale, corner.y * scale)),
-                opacity: quad.opacity,
-            },
-            source,
-            drawn,
-            placed: self
-                .layout
-                .placement(screen)
-                .map(|placement| [placement.x, placement.y, placement.width, placement.height]),
-        }
-    }
-
     fn flush(&mut self) {
         self.pump();
         let presented = std::mem::take(&mut self.presented) || self.instances.has_mounted();
@@ -546,222 +508,6 @@ pub(crate) fn install(setup: &beui::Setup) {
 
 pub(crate) struct HostFrame {
     pub(crate) content: Rect,
-}
-
-pub(crate) struct EditorPresentation {
-    plugin_id: String,
-    screen: Option<ScreenId>,
-    quad: Option<Quad>,
-    clip: Rect,
-    drawn: Option<(u32, u32)>,
-    floating: Vec<Rect>,
-}
-
-impl EditorPresentation {
-    fn empty(plugin_id: &str) -> Self {
-        Self {
-            plugin_id: plugin_id.to_owned(),
-            screen: None,
-            quad: None,
-            clip: Rect::ZERO,
-            drawn: None,
-            floating: Vec::new(),
-        }
-    }
-
-    fn blit(&self, ui: &mut Ui, rects: &[Rect]) {
-        let (Some(screen), Some(quad)) = (self.screen, self.quad) else {
-            return;
-        };
-        let base = quad.rect;
-        if !base.is_positive() {
-            return;
-        }
-        with(&self.plugin_id, |runtime| {
-            for rect in rects {
-                let piece = rect.intersect(base).intersect(self.clip);
-                if !piece.is_positive() {
-                    continue;
-                }
-                let source = Rect::from_min_max(
-                    pos2(
-                        (piece.min.x - base.min.x) / base.width(),
-                        (piece.min.y - base.min.y) / base.height(),
-                    ),
-                    pos2(
-                        (piece.max.x - base.min.x) / base.width(),
-                        (piece.max.y - base.min.y) / base.height(),
-                    ),
-                );
-                ui.blit(runtime.present(screen, Quad::upright(piece), source, self.drawn));
-            }
-        });
-    }
-
-    pub(crate) fn present(&self, ui: &mut Ui) {
-        let Some(quad) = self.quad else {
-            return;
-        };
-        let base = match self.floating.is_empty() {
-            true => vec![quad.rect],
-            false => super::pieces::subtract(quad.rect, &self.floating),
-        };
-        self.blit(ui, &base);
-    }
-
-}
-
-pub(crate) fn editor_ui(ui: &mut Ui, slot: EditorSlot<'_>) -> EditorPresentation {
-    let EditorSlot {
-        plugin,
-        block_types,
-        client_id,
-        role,
-        instance,
-        region,
-        frame,
-        size,
-        view,
-    } = slot;
-    let rect = Rect::from_min_size(ui.rect().min, size);
-    HOST.with(|host| {
-        let mut host = host.borrow_mut();
-        let runtime = match host.runtime(plugin) {
-            Ok(runtime) => runtime,
-            Err(error) => {
-                ui.item(
-                    ("plugin-error", instance.0, region),
-                    rect,
-                    HostItem::Error {
-                        text: error,
-                        restart: None,
-                    },
-                );
-                return EditorPresentation::empty(&plugin.identity.id);
-            }
-        };
-        if let Some(error) = runtime.error.clone() {
-            ui.item(
-                ("plugin-error", instance.0, region),
-                rect,
-                HostItem::Error {
-                    text: error,
-                    restart: Some(plugin.identity.id.clone()),
-                },
-            );
-            return EditorPresentation::empty(&plugin.identity.id);
-        }
-        let pass = runtime.pass;
-        let target = Target { instance, region };
-        let clip = ui.clip();
-        ui.register(target, rect);
-        if runtime
-            .instances
-            .frame_report(instance, region)
-            .is_some_and(|report| report.handles_back)
-        {
-            host::offer_back(target);
-        }
-        let cropped = Quad::upright(rect).crop_to(clip);
-        let visible = cropped
-            .as_ref()
-            .map_or(Rect::ZERO, |(_, source)| scale_rect(*source, rect.size()));
-        let screen = runtime.instances.report(
-            instance,
-            region,
-            client_id,
-            role,
-            block_types,
-            frame,
-            rect.size(),
-            visible,
-            host::pixels_per_point(),
-            pass,
-        );
-        if runtime.instances.take_resized() {
-            host::request_repaint();
-        }
-        if let Some(view) = view {
-            runtime.instances.set_view(instance, view);
-        }
-        let drawn = runtime
-            .layout
-            .placement(screen)
-            .map(|placement| (placement.width, placement.height));
-        let held = runtime.instances.held(
-            instance,
-            region,
-            cropped.as_ref().map(|(quad, _)| quad.rect),
-            clip,
-            drawn,
-        );
-        let (_, holes) = runtime
-            .instances
-            .host_children(instance, region, rect, clip);
-        runtime.instances.place(
-            instance,
-            region,
-            Placement {
-                target,
-                rect,
-                clip,
-                pass,
-            },
-        );
-        let over_hole = host::pointer().is_some_and(|position| holes.contains(position));
-        let drag = input::block_drag(rect.intersect(clip)).filter(|_| !over_hole);
-        let hovering = drag.as_ref().is_some_and(|drag| !drag.dropped);
-        let messages = runtime.instances.drag(instance, region, drag);
-        runtime.send(messages);
-        let files = input::file_drop(rect.intersect(clip)).filter(|_| !over_hole);
-        let messages = runtime.instances.file_drop(instance, region, files);
-        runtime.send(messages);
-        if hovering && runtime.instances.drag_accepted(instance) {
-            host::set_cursor(beui::CursorIcon::Alias);
-        } else if host::hovered(target)
-            && !over_hole
-            && let Some(cursor) = runtime.instances.cursor(instance, region)
-        {
-            host::set_cursor(cursor);
-        }
-        if host::focused(target)
-            && let Some(ime) = runtime.instances.ime(instance, region, rect)
-        {
-            host::set_ime(ime);
-        }
-        EditorPresentation {
-            plugin_id: plugin.identity.id.clone(),
-            screen: Some(screen),
-            quad: match held {
-                Some(held) => Some(Quad::upright(held.rect)),
-                None => cropped.map(|(quad, _)| quad),
-            },
-            clip: match held {
-                Some(held) => held.clip,
-                None => clip,
-            },
-            drawn: held.map(|held| held.drawn),
-            floating: match held {
-                Some(_) => Vec::new(),
-                None => runtime
-                    .instances
-                    .frame_report(instance, region)
-                    .map(|report| {
-                        report
-                            .floating
-                            .iter()
-                            .map(|floating| {
-                                Rect::from_min_size(
-                                    pos2(floating.x, floating.y) + rect.min.to_vec2(),
-                                    vec2(floating.width, floating.height),
-                                )
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-            },
-        }
-    })
 }
 
 pub(crate) fn report_child_views(
@@ -921,12 +667,17 @@ pub(crate) fn poll() {
     let touched = crate::be::take_touched();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
-        let overlay = std::mem::take(&mut host.overlay);
+        let pressed = host::pressed_at();
         for runtime in host.runtimes.values_mut() {
+            if let Some(position) = pressed
+                && runtime.instances.pressed_at(position)
+            {
+                mark(&runtime.plugin.identity.id);
+            }
             runtime.instances.touch(&touched);
             runtime.detect_error();
             runtime.pump();
-            runtime.begin_frame(pass, &overlay);
+            runtime.begin_frame(pass);
         }
         let grabbed = host
             .runtimes
@@ -1324,7 +1075,9 @@ pub(crate) fn mount_region(slot: RegionSlot<'_>) {
 }
 
 pub(crate) fn unmount_region(plugin_id: &str, instance: EditorInstanceId, region: EditorRegion) {
-    with(plugin_id, |runtime| runtime.instances.unmount(instance, region));
+    with(plugin_id, |runtime| {
+        runtime.instances.unmount(instance, region)
+    });
     host::request_repaint();
 }
 
@@ -1366,7 +1119,6 @@ pub(crate) fn place_region(
             instance,
             region,
             Placement {
-                target: Target { instance, region },
                 rect,
                 clip,
                 pass: runtime.pass,
@@ -1513,7 +1265,9 @@ pub(crate) fn region_view(
         let held = runtime
             .instances
             .held(instance, region, Some(visible), clip, drawn);
-        let (children, holes) = runtime.instances.host_children(instance, region, rect, clip);
+        let (children, holes) = runtime
+            .instances
+            .host_children(instance, region, rect, clip);
         let report = runtime.instances.frame_report(instance, region);
         let floating_rects: Vec<Rect> = match held {
             Some(_) => Vec::new(),
@@ -1563,7 +1317,12 @@ pub(crate) fn region_view(
             drawn: held.map(|held| held.drawn),
             children,
             holes: holes.parts(),
-            cursor: runtime.instances.cursor(instance, region),
+            cursor: match runtime.instances.dragging(instance, region)
+                && runtime.instances.drag_accepted(instance)
+            {
+                true => Some(beui::CursorIcon::Alias),
+                false => runtime.instances.cursor(instance, region),
+            },
             ime: runtime.instances.ime(instance, region, rect),
             handles_back,
             grabbed: runtime.instances.grabbing(),
@@ -1622,6 +1381,39 @@ pub(crate) fn region_drawing(
             view.held,
             rotation,
         )))
+    })
+    .flatten()
+}
+
+pub(crate) fn region_placed(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+) -> Option<[u32; 4]> {
+    with(plugin_id, |runtime| {
+        let screen = runtime.instances.screen_id(instance, region)?;
+        runtime
+            .layout
+            .placement(screen)
+            .map(|placement| [placement.x, placement.y, placement.width, placement.height])
+    })
+    .flatten()
+}
+
+pub(crate) fn region_damage(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    view: &RegionView,
+    pieces: &[Piece],
+    rotation: f32,
+) -> Option<Vec<Rect>> {
+    if view.held.is_some() || rotation != 0.0 {
+        return None;
+    }
+    with(plugin_id, |runtime| {
+        let screen = runtime.instances.screen_id(instance, region)?;
+        runtime.template(screen, view.drawn).damage(pieces)
     })
     .flatten()
 }

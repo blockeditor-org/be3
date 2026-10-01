@@ -3,7 +3,7 @@ use std::sync::Arc;
 use beui::{Rect, Vec2, vec2};
 use block_plugin_api::{
     BlockTypeDescriptor, ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId,
-    EditorRegion, FrameSpec, InteractionMode, PluginManifest, ResizeMode, ScreenId,
+    EditorRegion, InteractionMode, PluginManifest, ResizeMode, ScreenId,
 };
 use uuid::Uuid;
 
@@ -26,24 +26,24 @@ mod web;
 mod web_view;
 
 pub(crate) use instances::EditorView;
-pub(crate) use presenter::{Blit, PluginDrawing};
+pub(crate) use presenter::Piece;
 #[cfg(target_arch = "wasm32")]
-pub(crate) use presenter::take_shown;
+pub(crate) use presenter::shown as shown_blits;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use runtime::place_screens;
 pub(crate) use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, forward_region, frames, mount_region,
-    place_region, region_drawing, region_view, take_changed, take_region_actions,
-    unmount_region,
+    place_region, region_damage, region_drawing, region_placed, region_view, take_changed,
+    take_region_actions, unmount_region,
 };
 pub(crate) use runtime::{
     arrange_panes, artifact, artifact_draft, aspect_ratio, block_picked, close, close_pane,
-    commit_creation, creation, creation_ready, editor_ui, flush, frame_child,
-    frame_rects, hold, install, intrinsic_size, kill, pane_more, panes, poll, present, presenting, regenerate_artifact, region_size, replace_child, report_child_bars,
-    report_child_views, report_children, resized, revoke_frame_child, running, set_artifact_states,
-    set_focus, set_presence_visible, show_block, take_artifact_outcome, take_artifact_watch,
-    take_bar_actions, take_block_pick, take_created, take_focus_report, take_leaving,
-    take_shown_panes, take_view_changes,
+    commit_creation, creation, creation_ready, flush, frame_child, frame_rects, hold, install,
+    intrinsic_size, kill, pane_more, panes, poll, present, presenting, regenerate_artifact,
+    region_size, replace_child, report_child_bars, report_child_views, report_children, resized,
+    revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible, show_block,
+    take_artifact_outcome, take_artifact_watch, take_bar_actions, take_block_pick, take_created,
+    take_focus_report, take_leaving, take_shown_panes, take_view_changes,
 };
 #[cfg(all(
     feature = "web-view",
@@ -85,7 +85,6 @@ impl HostChild {
     pub(crate) fn is_active(&self) -> bool {
         matches!(self.mode, ChildMode::Active | ChildMode::Live)
     }
-
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -181,18 +180,6 @@ pub(crate) enum CreationState {
     Starting,
     Ready,
     Failed(String),
-}
-
-pub(crate) struct EditorSlot<'a> {
-    pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
-    pub(crate) client_id: Uuid,
-    pub(crate) role: InstanceRole,
-    pub(crate) instance: EditorInstanceId,
-    pub(crate) region: EditorRegion,
-    pub(crate) frame: Option<FrameSpec>,
-    pub(crate) size: Vec2,
-    pub(crate) view: Option<EditorView>,
 }
 
 #[derive(Clone, Copy)]

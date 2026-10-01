@@ -19,10 +19,12 @@ use super::{
 };
 use crate::{
     block_picker::BlockPicker,
-    host::{self, Ui},
+    compositor::RegionEditor,
+    host,
     plugin_host::{
         ArtifactSlot, ArtifactState, CreationSlot, CreationState, EditorBlock, InstanceRole,
     },
+    surfaces::HostedRegion,
 };
 
 pub(super) fn block_type_descriptors(
@@ -85,23 +87,18 @@ impl PluginCreation {
         InstanceRole::Creation(self.target.editor, self.target.template)
     }
 
-    fn dialog_ui(&mut self, ui: &mut Ui, editors: &mut EditorAccess<'_>) {
-        let height = self.height().unwrap_or(CREATION_DIALOG_HEIGHT);
-        crate::plugin_host::editor_ui(
-            ui,
-            crate::plugin_host::EditorSlot {
-                plugin: &self.plugin,
-                block_types: editors.registry().plugin_block_types(),
-                client_id: editors.client_id(),
+    fn hosted(&self, editors: &EditorAccess<'_>) -> HostedRegion {
+        HostedRegion {
+            editor: RegionEditor {
+                plugin: Arc::clone(&self.plugin),
                 role: self.role(),
                 instance: self.instance,
-                region: EditorRegion::Frame,
-                frame: Some(FrameSpec::default()),
-                size: vec2(ui.rect().width(), height),
-                view: None,
+                block_types: Arc::clone(editors.registry().plugin_block_types()),
+                client_id: editors.client_id(),
             },
-        )
-        .present(ui);
+            region: EditorRegion::Frame,
+            frame: Some(FrameSpec::default()),
+        }
     }
 }
 
@@ -114,10 +111,13 @@ impl Drop for PluginCreation {
 }
 
 impl PendingCreation for PluginCreation {
-    fn ui(&mut self, ui: &mut Ui, editors: &mut EditorAccess<'_>) -> CreationStep {
+    fn region(&self, editors: &EditorAccess<'_>) -> Option<HostedRegion> {
+        self.target.dialog.then(|| self.hosted(editors))
+    }
+
+    fn step(&mut self, editors: &mut EditorAccess<'_>) -> CreationStep {
         self.opened = true;
         if self.target.dialog {
-            self.dialog_ui(ui, editors);
             serve_block_pick(
                 &self.plugin.identity.id,
                 self.instance,
@@ -379,7 +379,10 @@ impl PluginEditor {
                 .is_some_and(|editor| editor.regions.contains(&region))
     }
 
-    pub(crate) fn serve_block_pick(&mut self, editors: &mut EditorAccess<'_>) -> Option<EditorAction> {
+    pub(crate) fn serve_block_pick(
+        &mut self,
+        editors: &mut EditorAccess<'_>,
+    ) -> Option<EditorAction> {
         self.block_pick_ui(editors)
     }
 
@@ -647,29 +650,23 @@ impl ArtifactSession for PluginArtifact {
         }
     }
 
-    fn settings_ui(&mut self, ui: &mut Ui, registry: &EditorRegistry, draft: &mut Vec<u8>) {
+    fn settings_region(&mut self, registry: &EditorRegistry) -> HostedRegion {
         self.opened = true;
-        let height = self.settings_height();
-        crate::plugin_host::editor_ui(
-            ui,
-            crate::plugin_host::EditorSlot {
-                plugin: &self.plugin,
-                block_types: registry.plugin_block_types(),
-                client_id: self.client_id,
+        HostedRegion {
+            editor: RegionEditor {
+                plugin: Arc::clone(&self.plugin),
                 role: InstanceRole::Artifact(self.source_type, self.block),
                 instance: self.instance,
-                region: EditorRegion::ArtifactSettings,
-                frame: None,
-                size: vec2(ui.rect().width(), height),
-                view: None,
+                block_types: Arc::clone(registry.plugin_block_types()),
+                client_id: self.client_id,
             },
-        )
-        .present(ui);
-        if let Some(edited) =
-            crate::plugin_host::artifact_draft(&self.plugin.identity.id, self.instance)
-        {
-            *draft = edited;
+            region: EditorRegion::ArtifactSettings,
+            frame: None,
         }
+    }
+
+    fn take_draft(&mut self) -> Option<Vec<u8>> {
+        crate::plugin_host::artifact_draft(&self.plugin.identity.id, self.instance)
     }
 
     fn settings_height(&self) -> f32 {

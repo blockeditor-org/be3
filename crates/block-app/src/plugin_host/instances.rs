@@ -23,8 +23,7 @@ use super::{
 };
 use crate::{
     editors::plugin::discovery,
-    host::{self, Target},
-    performance,
+    host, performance,
     platform::{FileFilter, SavedFile, http, pick_file, save_file},
     plugin_host::web_view::WebViewHost,
 };
@@ -43,7 +42,6 @@ pub(super) struct Instances {
     sent_block_types: bool,
     network: Vec<String>,
     plugin_id: String,
-    resized: bool,
     replies: Replies,
     epoch: u64,
     graph_seen: Option<u64>,
@@ -232,7 +230,6 @@ pub(crate) struct Focus {
 #[derive(Clone, Copy)]
 pub(super) struct Held {
     pub(super) rect: Rect,
-    pub(super) clip: Rect,
     pub(super) drawn: (u32, u32),
 }
 
@@ -430,7 +427,6 @@ impl Instance {
 
 #[derive(Clone, Copy)]
 pub(super) struct Placement {
-    pub(super) target: Target,
     pub(super) rect: Rect,
     pub(super) clip: Rect,
     pub(super) pass: u64,
@@ -469,21 +465,6 @@ struct Hole {
     occluders: Vec<Rect>,
 }
 
-#[derive(Clone, Default)]
-pub(super) struct FrameOverlay {
-    pub(super) owner: Option<EditorInstanceId>,
-    pub(super) rects: Vec<Rect>,
-}
-
-impl FrameOverlay {
-    pub(super) fn covering(&self, instance: EditorInstanceId) -> &[Rect] {
-        match self.owner == Some(instance) {
-            true => &[],
-            false => &self.rects,
-        }
-    }
-}
-
 #[derive(Default)]
 pub(super) struct Holes {
     holes: Vec<Hole>,
@@ -495,25 +476,6 @@ impl Holes {
             .iter()
             .map(|hole| (hole.rect, hole.occluders.clone()))
             .collect()
-    }
-
-    pub(super) fn cover(&mut self, rects: &[Rect]) {
-        for rect in rects {
-            self.holes.push(Hole {
-                rect: *rect,
-                occluders: Vec::new(),
-            });
-        }
-    }
-
-    pub(super) fn contains(&self, position: beui::Pos2) -> bool {
-        self.holes.iter().any(|hole| {
-            hole.rect.contains(position)
-                && !hole
-                    .occluders
-                    .iter()
-                    .any(|occluder| occluder.contains(position))
-        })
     }
 }
 
@@ -719,9 +681,6 @@ impl Instances {
             }
         });
         let metrics = viewport_metrics(size, visible, scale_factor);
-        if screen.request.metrics != metrics || screen.request.frame != frame {
-            self.resized = true;
-        }
         screen.request.metrics = metrics;
         screen.request.frame = frame;
         screen.last_seen = pass;
@@ -751,7 +710,6 @@ impl Instances {
         if let Some(screen) = self.screen_mut(instance, region) {
             screen.mounted += 1;
         }
-        self.resized = true;
     }
 
     pub(super) fn unmount(&mut self, instance: EditorInstanceId, region: EditorRegion) {
@@ -762,7 +720,6 @@ impl Instances {
                 screen.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0);
             }
         }
-        self.resized = true;
     }
 
     pub(super) fn has_mounted(&self) -> bool {
@@ -787,7 +744,6 @@ impl Instances {
         if screen.request.metrics != metrics || screen.request.frame != frame {
             screen.request.metrics = metrics;
             screen.request.frame = frame;
-            self.resized = true;
         }
     }
 
@@ -796,11 +752,7 @@ impl Instances {
         instance: EditorInstanceId,
         region: EditorRegion,
     ) -> Option<Placement> {
-        self.entries
-            .get(&instance)?
-            .screens
-            .get(&region)?
-            .placement
+        self.entries.get(&instance)?.screens.get(&region)?.placement
     }
 
     pub(super) fn screen_id(
@@ -808,7 +760,14 @@ impl Instances {
         instance: EditorInstanceId,
         region: EditorRegion,
     ) -> Option<ScreenId> {
-        Some(self.entries.get(&instance)?.screens.get(&region)?.request.screen)
+        Some(
+            self.entries
+                .get(&instance)?
+                .screens
+                .get(&region)?
+                .request
+                .screen,
+        )
     }
 
     pub(super) fn back(
@@ -817,7 +776,13 @@ impl Instances {
         region: EditorRegion,
         gesture: beui::BackGesture,
     ) -> Vec<Message> {
-        let Some(screen) = self.screen_mut(instance, region) else {
+        let announced = &self.announced;
+        let Some(screen) = self
+            .entries
+            .get_mut(&instance)
+            .and_then(|entry| entry.screens.get_mut(&region))
+            .filter(|screen| announced.contains(&screen.request.screen))
+        else {
             return Vec::new();
         };
         vec![Message::Input(block_plugin_api::InputBatch {
@@ -833,7 +798,11 @@ impl Instances {
             .is_some_and(|screen| screen.mounted > 0)
     }
 
-    fn screen_mut(&mut self, instance: EditorInstanceId, region: EditorRegion) -> Option<&mut Screen> {
+    fn screen_mut(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<&mut Screen> {
         self.entries
             .get_mut(&instance)
             .and_then(|entry| entry.screens.get_mut(&region))
@@ -878,13 +847,16 @@ impl Instances {
                     }
                 )
             });
-        let messages = screen.input.forward(input, id);
-        let revoked = (escaped || (pressed && input.hovered)) && self.revoke_active(instance, region);
-        (messages, revoked)
-    }
-
-    pub(super) fn take_resized(&mut self) -> bool {
-        std::mem::take(&mut self.resized)
+        let mut messages = screen.input.forward(input, id);
+        let dragging = screen.dragging;
+        let files = super::input::file_drop(input, screen.file_dropping);
+        let drag = super::input::block_drag(input);
+        let changed = dragging != drag.as_ref().is_some_and(|drag| !drag.dropped);
+        messages.extend(self.drag(instance, region, drag));
+        messages.extend(self.file_drop(instance, region, files));
+        let revoked =
+            (escaped || (pressed && input.hovered)) && self.revoke_active(instance, region);
+        (messages, revoked || changed)
     }
 
     pub(super) fn hold(&mut self, instance: EditorInstanceId, region: EditorRegion) {
@@ -915,9 +887,9 @@ impl Instances {
         );
         let stale = drawn.filter(|drawn| *drawn != requested);
         if screen.holding
-            && let (Some(drawn), Some((rect, clip))) = (stale, screen.presented)
+            && let (Some(drawn), Some((rect, _))) = (stale, screen.presented)
         {
-            return Some(Held { rect, clip, drawn });
+            return Some(Held { rect, drawn });
         }
         screen.holding = false;
         if let Some(rect) = rect {
@@ -1322,6 +1294,13 @@ impl Instances {
         }
     }
 
+    pub(super) fn dragging(&self, instance: EditorInstanceId, region: EditorRegion) -> bool {
+        self.entries
+            .get(&instance)
+            .and_then(|entry| entry.screens.get(&region))
+            .is_some_and(|screen| screen.dragging)
+    }
+
     pub(super) fn drag_accepted(&self, instance: EditorInstanceId) -> bool {
         self.entries
             .get(&instance)
@@ -1464,7 +1443,31 @@ impl Instances {
         (children, holes)
     }
 
-    pub(super) fn revoke_active(&mut self, instance: EditorInstanceId, region: EditorRegion) -> bool {
+    pub(super) fn pressed_at(&mut self, position: beui::Pos2) -> bool {
+        let outside: Vec<(EditorInstanceId, EditorRegion)> = self
+            .entries
+            .iter()
+            .flat_map(|(instance, entry)| {
+                entry.screens.iter().filter_map(move |(region, screen)| {
+                    let placement = screen.placement?;
+                    let away = screen.mounted > 0
+                        && !placement.rect.intersect(placement.clip).contains(position);
+                    away.then_some((*instance, *region))
+                })
+            })
+            .collect();
+        let mut revoked = false;
+        for (instance, region) in outside {
+            revoked |= self.revoke_active(instance, region);
+        }
+        revoked
+    }
+
+    pub(super) fn revoke_active(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> bool {
         let Some(screen) = self
             .entries
             .get_mut(&instance)
@@ -1742,7 +1745,8 @@ impl Instances {
             let rect = entry.web_view_rect.and_then(|(region, rect)| {
                 let screen = entry.screens.get(&region)?;
                 let placement = screen.placement?;
-                let live = screen.mounted > 0 || (placement.pass == pass && screen.last_seen == pass);
+                let live =
+                    screen.mounted > 0 || (placement.pass == pass && screen.last_seen == pass);
                 let origin = placement.rect.min.to_vec2();
                 let stretch = vec2(
                     ratio(placement.rect.width(), screen.request.metrics.logical_width),
@@ -1930,76 +1934,6 @@ impl Instances {
         {
             screen.placement = Some(placement);
         }
-    }
-
-    pub(super) fn frame_input(&mut self, pass: u64, overlay: &FrameOverlay) -> Vec<Message> {
-        let announced = &self.announced;
-        let mut placed: Vec<_> = self
-            .entries
-            .iter()
-            .flat_map(|(instance, entry)| {
-                entry.screens.iter().filter_map(move |(region, screen)| {
-                    let placement = screen.placement?;
-                    let live = screen.mounted == 0
-                        && placement.pass == pass
-                        && screen.last_seen == pass
-                        && announced.contains(&screen.request.screen);
-                    live.then_some((*instance, *region, screen.request.screen, placement))
-                })
-            })
-            .collect();
-        placed.sort_by_key(|(instance, _, screen, _)| (instance.0, screen.0));
-        let cycle = if host::consume_key(beui::Modifiers::SHIFT, beui::Key::F6) {
-            Some(true)
-        } else if host::consume_key(beui::Modifiers::NONE, beui::Key::F6) {
-            Some(false)
-        } else {
-            None
-        };
-        if let Some(backward) = cycle {
-            cycle_focus(
-                placed.iter().map(|(_, _, _, placement)| placement),
-                backward,
-            );
-        }
-        let mut messages = Vec::new();
-        for (instance, region, screen, placement) in placed {
-            let (_, mut holes) =
-                self.host_children(instance, region, placement.rect, placement.clip);
-            holes.cover(overlay.covering(instance));
-            let focused = host::focused(placement.target);
-            let hovered = host::hovered(placement.target);
-            messages.extend(self.input(instance, region, |input| {
-                input.update(
-                    placement.target,
-                    placement.rect,
-                    hovered,
-                    focused,
-                    screen,
-                    &holes,
-                )
-            }));
-            let over_hole = host::pointer().is_some_and(|position| holes.contains(position));
-            let dismissed = host::key_pressed(beui::Key::Escape)
-                || host::input(|input| input.primary_pressed && !over_hole);
-            if dismissed {
-                self.revoke_active(instance, region);
-            }
-        }
-        messages
-    }
-
-    fn input(
-        &mut self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        update: impl FnOnce(&mut InputAdapter) -> Vec<Message>,
-    ) -> Vec<Message> {
-        self.entries
-            .get_mut(&instance)
-            .and_then(|entry| entry.screens.get_mut(&region))
-            .map(|screen| update(&mut screen.input))
-            .unwrap_or_default()
     }
 
     pub(super) fn touch(&mut self, blocks: &HashSet<Uuid>) {
@@ -2840,29 +2774,6 @@ fn allowed(url: &str, hosts: &[String]) -> bool {
     };
     let host = rest.split(['/', '?', '#']).next().unwrap_or_default();
     hosts.iter().any(|allowed| allowed == host)
-}
-
-fn cycle_focus<'a>(placements: impl Iterator<Item = &'a Placement>, backward: bool) {
-    let mut order: Vec<_> = placements
-        .filter(|placement| placement.rect.width() > 0.0 && placement.rect.height() > 0.0)
-        .map(|placement| (placement.rect.min, placement.target))
-        .collect();
-    if order.is_empty() {
-        return;
-    }
-    order.sort_by(|(a, _), (b, _)| a.y.total_cmp(&b.y).then(a.x.total_cmp(&b.x)));
-    let focused = host::focus();
-    let current = order
-        .iter()
-        .position(|(_, target)| Some(*target) == focused);
-    let count = order.len();
-    let next = match (current, backward) {
-        (Some(index), false) => (index + 1) % count,
-        (Some(index), true) => (index + count - 1) % count,
-        (None, false) => 0,
-        (None, true) => count - 1,
-    };
-    host::request_focus(order[next].1);
 }
 
 #[cfg(test)]

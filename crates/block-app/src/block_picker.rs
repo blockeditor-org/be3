@@ -2,7 +2,6 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 
 use be_graph::BlockParent;
-use beui::Rect;
 use block_plugin_api::TemplateCategory;
 use uuid::Uuid;
 
@@ -11,7 +10,6 @@ use crate::{
         BlockLabel, CreationStep, EditorAccess, EditorRegistry, PendingCreation,
         plugin::CreationTarget,
     },
-    host::{SurfaceOutput, Ui},
     surfaces::{self, SurfaceId},
 };
 
@@ -397,13 +395,9 @@ impl BlockPicker {
         let mut pending = self.pending_block.take()?;
         let surface = creation_surface(self.depth);
         surfaces::set_height(surface, pending.creation.height());
+        surfaces::host(surface, pending.creation.region(editors));
         DEPTH.set(self.depth + 1);
-        let step =
-            surfaces::with(surface, |ui| pending.creation.ui(ui, editors)).unwrap_or_else(|| {
-                let mut scratch = SurfaceOutput::default();
-                let mut ui = Ui::new(&mut scratch, Rect::ZERO, Rect::ZERO, 1);
-                pending.creation.ui(&mut ui, editors)
-            });
+        let step = pending.creation.step(editors);
         DEPTH.set(self.depth);
         if matches!(step, CreationStep::Working) {
             pending.creating = true;

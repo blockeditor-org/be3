@@ -11,17 +11,22 @@ use beui::reactive::{ReadSignal, WriteSignal, create_signal, on_cleanup};
 use crate::editors::EditorAction;
 
 pub(crate) use editors::{Editors, HeadlessShell, PaneSurface, PresentingSurface, ShellSurface};
+pub(crate) use region::{ChildView, PluginRegion, RegionEditor};
+
+type Listeners = HashMap<String, Vec<(u64, WriteSignal<u64>)>>;
+type ShellSignal = (
+    ReadSignal<Option<uuid::Uuid>>,
+    WriteSignal<Option<uuid::Uuid>>,
+);
 
 thread_local! {
-    static LISTENERS: RefCell<HashMap<String, Vec<(u64, WriteSignal<u64>)>>> =
-        RefCell::new(HashMap::new());
+    static LISTENERS: RefCell<Listeners> = RefCell::new(HashMap::new());
     static NEXT_LISTENER: Cell<u64> = const { Cell::new(0) };
     static ACTIONS: RefCell<Vec<EditorAction>> = const { RefCell::new(Vec::new()) };
     static ANY: RefCell<Option<(ReadSignal<u64>, WriteSignal<u64>)>> = const { RefCell::new(None) };
     static CHANGED: Cell<bool> = const { Cell::new(false) };
     static PENDING_SHELL: Cell<Option<Option<uuid::Uuid>>> = const { Cell::new(None) };
-    static SHELL: RefCell<Option<(ReadSignal<Option<uuid::Uuid>>, WriteSignal<Option<uuid::Uuid>>)>> =
-        const { RefCell::new(None) };
+    static SHELL: RefCell<Option<ShellSignal>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn install() {
@@ -97,11 +102,12 @@ pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
 
 pub(crate) fn notify() {
     apply_shell();
+    crate::surfaces::apply();
     let changed = crate::plugin_host::take_changed();
-    if !changed.is_empty() || CHANGED.with(|flag| flag.replace(false)) {
-        if let Some((_, write)) = ANY.with(|any| any.borrow().clone()) {
-            write.update(|revision| *revision += 1);
-        }
+    if (!changed.is_empty() || CHANGED.with(|flag| flag.replace(false)))
+        && let Some((_, write)) = ANY.with(|any| any.borrow().clone())
+    {
+        write.update(|revision| *revision += 1);
     }
     for plugin_id in changed {
         let writers: Vec<WriteSignal<u64>> = LISTENERS.with(|listeners| {

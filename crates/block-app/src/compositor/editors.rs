@@ -6,21 +6,19 @@ use std::{
 
 use be_graph::Access;
 use beui::reactive::{
-    Canvas, CanvasItem, ForEach, Frame, Interactive, Layers, Memo, Portal, Prop, ReadSignal,
-    WriteSignal, clone, component, component_rect, create_effect, create_memo,
+    Canvas, CanvasItem, Dynamic, ForEach, Frame, Interactive, Layers, Memo, Portal, Prop,
+    ReadSignal, Show, WriteSignal, clone, component, component_rect, create_effect, create_memo,
     create_signal, on_cleanup, provide_context, use_context, view,
 };
 use beui::{NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use block_plugin_api::{
-    BarAction, ChildId, ChildMode, ChildRect, EditorRegion, FrameChrome, FrameSpec, PaneId,
-    TopBar, ViewChange,
+    BarAction, ChildId, ChildMode, ChildRect, EditorInstanceId, EditorRegion, FrameChrome,
+    FrameSpec, PaneId, TopBar, ViewChange,
 };
 use uuid::Uuid;
 
 use super::region::{ChildView, PluginRegion, RegionEditor};
-use crate::editors::{
-    BlockLabel, Chrome, EditorRegistry, PluginEditor, editor_access_ceiling,
-};
+use crate::editors::{BlockLabel, Chrome, EditorRegistry, PluginEditor, editor_access_ceiling};
 use crate::host::HostItem;
 use crate::plugin_host::{
     self, EditorView, HostChild, HostChildStatus, RegionPlacement, RegionSlot,
@@ -45,8 +43,13 @@ thread_local! {
     static EDITORS: RefCell<Option<Editors>> = const { RefCell::new(None) };
 }
 
-pub(crate) fn editors() -> Option<Editors> {
-    EDITORS.with(|editors| editors.borrow().clone())
+pub(crate) fn editors() -> Editors {
+    EDITORS.with(|editors| {
+        editors
+            .borrow()
+            .clone()
+            .expect("the editors are installed before the document is built")
+    })
 }
 
 impl Editors {
@@ -63,7 +66,8 @@ impl Editors {
 
     pub(crate) fn reset(&self, registry: Rc<EditorRegistry>) {
         *self.0.registry.borrow_mut() = registry;
-        let closed: Vec<PluginEditor> = self.with(|open| open.drain().map(|(_, editor)| editor).collect());
+        let closed: Vec<PluginEditor> =
+            self.with(|open| open.drain().map(|(_, editor)| editor).collect());
         drop(closed);
         self.0.simulated.borrow_mut().clear();
         super::changed();
@@ -119,9 +123,7 @@ impl Editors {
             plugin: handle.plugin.clone()?,
             role: handle.role,
             instance: handle.instance,
-            block_types: Rc::clone(&self.registry())
-                .plugin_block_types()
-                .clone(),
+            block_types: Rc::clone(&self.registry()).plugin_block_types().clone(),
             client_id: self.client_id(),
         })
     }
@@ -153,7 +155,9 @@ impl Handle {
     }
 
     fn plugin_id(&self) -> Option<&str> {
-        self.plugin.as_ref().map(|plugin| plugin.identity.id.as_str())
+        self.plugin
+            .as_ref()
+            .map(|plugin| plugin.identity.id.as_str())
     }
 }
 
@@ -237,9 +241,7 @@ pub(crate) fn PaneSurface(shell: Memo<Option<Uuid>>, pane: PaneId) -> NodeId {
 
 #[component]
 pub(crate) fn PresentingSurface() -> NodeId {
-    let Some(editors) = editors() else {
-        return view! { <Frame /> };
-    };
+    let editors = editors();
     let any = super::any();
     let presenting = create_memo(clone!(editors -> move || {
         any.get();
@@ -276,31 +278,41 @@ pub(crate) fn PresentingSurface() -> NodeId {
 
 #[component]
 fn BlockRegion(block: Uuid, region: EditorRegion) -> NodeId {
-    let Some(editors) = editors() else {
-        return view! { <Frame /> };
-    };
+    let editors = editors();
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     provide_context(nesting.within(block, nesting.access));
-    let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle))
-    else {
-        return view! { <Frame /> };
-    };
+    let any = super::any();
+    let keys = create_memo(clone!(editors -> move || {
+        any.get();
+        region_key(&editors, block, false).into_iter().collect::<Vec<_>>()
+    }));
     let child_view = child_view(block, region);
     view! {
-        <PluginRegion
-            editor={region_editor}
-            region
-            frame={Some(FrameSpec::default())}
-            child_view
-        />
+        <Layers>
+            <ForEach keys={keys}>
+                {move |_key: RegionKey| {
+                    let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
+                        return view! {
+                            <Frame />
+                        };
+                    };
+                    view! {
+                        <PluginRegion
+                            editor={region_editor}
+                            region
+                            frame={Some(FrameSpec::default())}
+                            child_view={Rc::clone(&child_view)}
+                        />
+                    }
+                }}
+            </ForEach>
+        </Layers>
     }
 }
 
 #[component]
 fn TabFrame(block: Uuid, top_bar: Prop<TopBar>) -> NodeId {
-    let Some(editors) = editors() else {
-        return view! { <Frame /> };
-    };
+    let editors = editors();
     let any = super::any();
     let stack = create_memo(clone!(editors any -> move || {
         any.get();
@@ -449,7 +461,7 @@ fn BlockFrame(
         any.get();
         presented
             || editors()
-                .and_then(|editors| editors.with(|open| open.get(&block).map(|editor| !editor.presenting_now())))
+                .with(|open| open.get(&block).map(|editor| !editor.presenting_now()))
                 .unwrap_or(true)
     });
     let keys = create_memo(move || shown.get().then_some(block).into_iter().collect::<Vec<_>>());
@@ -474,9 +486,131 @@ fn BlockFrame(
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct RegionKey {
+    plugin: String,
+    instance: EditorInstanceId,
+}
+
+fn region_key(editors: &Editors, block: Uuid, preview: bool) -> Option<RegionKey> {
+    let handle = editors.handle(block)?;
+    if preview && !handle.preview {
+        return None;
+    }
+    Some(RegionKey {
+        plugin: handle.plugin_id()?.to_owned(),
+        instance: handle.instance,
+    })
+}
+
+#[derive(Clone, PartialEq)]
+enum Resolution {
+    NoAccess,
+    Missing,
+    Unsupported(Uuid),
+    Ready { region: RegionKey, access: Access },
+}
+
+#[component]
+fn Notice(item: HostItem) -> NodeId {
+    let content = create_memo(move || item.clone());
+    view! {
+        <Frame align_horizontal=beui::Align::Center align_vertical=beui::Align::Center>
+            <HostItemFace content />
+        </Frame>
+    }
+}
+
 #[component]
 fn BlockFrameBody(
     block: Uuid,
+    chrome: Prop<Chrome>,
+    content: Prop<Option<Rect>>,
+    top_bar: Prop<TopBar>,
+    embedded: bool,
+    passive: Prop<bool>,
+    reporter: ChildReporter,
+) -> NodeId {
+    let editors = editors();
+    let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
+    let any = super::any();
+    let resolution = create_memo(clone!(editors nesting -> move || {
+        any.get();
+        let access = editors.access(block, nesting.access);
+        if !access.can_view() {
+            return Resolution::NoAccess;
+        }
+        let Some(handle) = editors.handle(block) else {
+            return Resolution::Missing;
+        };
+        match region_key(&editors, block, false) {
+            Some(region) => Resolution::Ready { region, access },
+            None => Resolution::Unsupported(handle.block_type),
+        }
+    }));
+    view! {
+        <Layers>
+            <Dynamic value={resolution}>
+                {move |resolution: Resolution| {
+                    match resolution {
+                        Resolution::NoAccess => {
+                            let item = HostItem::Notice {
+                                text: "No access".to_owned(),
+                                spinner: false,
+                            };
+                            view! {
+                                <Notice item />
+                            }
+                        }
+                        Resolution::Missing => view! {
+                            <Frame />
+                        },
+                        Resolution::Unsupported(block_type) => {
+                            let item = HostItem::Unsupported { block, block_type };
+                            view! {
+                                <Notice item />
+                            }
+                        }
+                        Resolution::Ready { access, .. } => {
+                            let editors = self::editors();
+                            let Some(handle) = editors.handle(block) else {
+                                return view! {
+                                    <Frame />
+                                };
+                            };
+                            let Some(region_editor) = editors.region(&handle) else {
+                                return view! {
+                                    <Frame />
+                                };
+                            };
+                            view! {
+                                <BlockFrameView
+                                    block
+                                    access
+                                    handle
+                                    region_editor
+                                    chrome={chrome.clone()}
+                                    content={content.clone()}
+                                    top_bar={top_bar.clone()}
+                                    embedded
+                                    passive={passive.clone()}
+                                    reporter={reporter.clone()}
+                                />
+                            }
+                        }
+                    }
+                }}
+            </Dynamic>
+        </Layers>
+    }
+}
+
+#[component]
+fn BlockFrameView(
+    block: Uuid,
+    access: Access,
+    handle: Handle,
+    region_editor: RegionEditor,
     chrome: Prop<Chrome>,
     content: Prop<Option<Rect>>,
     top_bar: Prop<TopBar>,
@@ -488,37 +622,9 @@ fn BlockFrameBody(
         view: on_view_change,
         bar: on_bar_action,
     } = reporter;
-    let Some(editors) = editors() else {
-        return view! { <Frame /> };
-    };
+    let editors = editors();
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
-    let access = editors.access(block, nesting.access);
-    if !access.can_view() {
-        let notice = create_memo(|| HostItem::Notice {
-            text: "No access".to_owned(),
-            spinner: false,
-        });
-        return view! {
-            <Frame align_horizontal=beui::Align::Center align_vertical=beui::Align::Center>
-                <HostItemFace content={notice} />
-            </Frame>
-        };
-    }
     provide_context(nesting.within(block, access));
-    let Some(handle) = editors.handle(block) else {
-        return view! { <Frame /> };
-    };
-    let Some(region_editor) = editors.region(&handle) else {
-        let unsupported = create_memo(move || HostItem::Unsupported {
-            block,
-            block_type: handle.block_type,
-        });
-        return view! {
-            <Frame align_horizontal=beui::Align::Center align_vertical=beui::Align::Center>
-                <HostItemFace content={unsupported} />
-            </Frame>
-        };
-    };
     let plugin_id = region_editor.plugin_id().to_owned();
     let instance = region_editor.instance;
     editors.with(|open| {
@@ -541,7 +647,8 @@ fn BlockFrameBody(
     let revision = super::listen(&plugin_id);
     let rect = component_rect();
     let read_only = !access.can_edit();
-    let pan_and_zoom = handle.pan_and_zoom && !embedded;
+    let placed = embedded || content.peek().is_some();
+    let pan_and_zoom = handle.pan_and_zoom && !placed;
     let max_zoom = handle.max_zoom.map_or(MAX_ZOOM, |zoom| zoom as f32);
     let (viewport, set_viewport) = create_signal(
         VIEWPORTS
@@ -567,68 +674,74 @@ fn BlockFrameBody(
             .unwrap_or(vec2(420.0, 240.0));
         vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
     }));
-    let command: Rc<dyn Fn(Command)> = Rc::new(clone!(viewport set_viewport viewport_rect content_size on_view_change -> move |command: Command| {
-        if !pan_and_zoom {
-            if let Some(report) = &on_view_change {
-                report(match command {
-                    Command::Pan(delta) => ViewChange::Pan { x: delta.x, y: delta.y },
-                    Command::Zoom { factor, anchor } => ViewChange::Zoom {
+    let command: Rc<dyn Fn(Command)> = Rc::new(
+        clone!(viewport set_viewport viewport_rect content_size on_view_change -> move |command: Command| {
+            if !pan_and_zoom {
+                if let Some(report) = &on_view_change {
+                    report(match command {
+                        Command::Pan(delta) => ViewChange::Pan { x: delta.x, y: delta.y },
+                        Command::Zoom { factor, anchor } => ViewChange::Zoom {
+                            factor,
+                            anchor: anchor.map(|anchor| (anchor.x, anchor.y)),
+                        },
+                        Command::Fit => ViewChange::Fit,
+                        Command::ResumeAutoFit => ViewChange::ResumeAutoFit,
+                    });
+                }
+                return;
+            }
+            let mut state = viewport.get_untracked();
+            settle(&mut state, command, viewport_rect.get_untracked(), content_size.get_untracked(), max_zoom);
+            if state != viewport.get_untracked() {
+                set_viewport.set(state);
+            }
+        }),
+    );
+    create_effect(
+        clone!(viewport set_viewport viewport_rect content_size -> move || {
+            if !pan_and_zoom {
+                return;
+            }
+            let rect = viewport_rect.get();
+            let content = content_size.get();
+            let mut state = viewport.get_untracked();
+            if let Some(previous) = state.center.replace(rect.center()) {
+                state.pan += previous - rect.center();
+            }
+            if state.auto_fit.is_none() {
+                state.auto_fit = Some(true);
+            }
+            if state.auto_fit == Some(true) {
+                fit(&mut state, rect.size().max(Vec2::splat(1.0)), content);
+            }
+            if state != viewport.get_untracked() {
+                set_viewport.set(state);
+            }
+        }),
+    );
+    create_effect(
+        clone!(plugin_id revision command on_bar_action rect -> move || {
+            revision.get();
+            let rect = rect.get_untracked();
+            for change in plugin_host::take_view_changes(&plugin_id, instance) {
+                command(match change {
+                    ViewChange::Pan { x, y } => Command::Pan(vec2(x, y)),
+                    ViewChange::Zoom { factor, anchor } => Command::Zoom {
                         factor,
-                        anchor: anchor.map(|anchor| (anchor.x, anchor.y)),
+                        anchor: anchor.map(|(x, y)| rect.min + vec2(x, y)),
                     },
-                    Command::Fit => ViewChange::Fit,
-                    Command::ResumeAutoFit => ViewChange::ResumeAutoFit,
+                    ViewChange::Fit => Command::Fit,
+                    ViewChange::ResumeAutoFit => Command::ResumeAutoFit,
                 });
             }
-            return;
-        }
-        let mut state = viewport.get_untracked();
-        settle(&mut state, command, viewport_rect.get_untracked(), content_size.get_untracked(), max_zoom);
-        if state != viewport.get_untracked() {
-            set_viewport.set(state);
-        }
-    }));
-    create_effect(clone!(viewport set_viewport viewport_rect content_size -> move || {
-        if !pan_and_zoom {
-            return;
-        }
-        let rect = viewport_rect.get();
-        let content = content_size.get();
-        let mut state = viewport.get_untracked();
-        if let Some(previous) = state.center.replace(rect.center()) {
-            state.pan += previous - rect.center();
-        }
-        if state.auto_fit.is_none() {
-            state.auto_fit = Some(true);
-        }
-        if state.auto_fit == Some(true) {
-            fit(&mut state, rect.size().max(Vec2::splat(1.0)), content);
-        }
-        if state != viewport.get_untracked() {
-            set_viewport.set(state);
-        }
-    }));
-    create_effect(clone!(plugin_id revision command on_bar_action rect -> move || {
-        revision.get();
-        let rect = rect.get_untracked();
-        for change in plugin_host::take_view_changes(&plugin_id, instance) {
-            command(match change {
-                ViewChange::Pan { x, y } => Command::Pan(vec2(x, y)),
-                ViewChange::Zoom { factor, anchor } => Command::Zoom {
-                    factor,
-                    anchor: anchor.map(|(x, y)| rect.min + vec2(x, y)),
-                },
-                ViewChange::Fit => Command::Fit,
-                ViewChange::ResumeAutoFit => Command::ResumeAutoFit,
-            });
-        }
-        let actions = plugin_host::take_bar_actions(&plugin_id, instance);
-        if let Some(report) = &on_bar_action {
-            for action in actions {
-                report(action);
+            let actions = plugin_host::take_bar_actions(&plugin_id, instance);
+            if let Some(report) = &on_bar_action {
+                for action in actions {
+                    report(action);
+                }
             }
-        }
-    }));
+        }),
+    );
     if let Some(tab) = use_context::<TabContext>() {
         create_effect(clone!(plugin_id revision -> move || {
             revision.get();
@@ -644,12 +757,31 @@ fn BlockFrameBody(
             content_size.get() * state.zoom,
         )
     }));
-    let editor_view = create_memo(clone!(rect content_rect viewport -> move || {
-        pan_and_zoom.then(|| EditorView {
-            rect: content_rect.get().translate(-rect.get().min.to_vec2()),
-            scale: viewport.get().zoom,
-        })
-    }));
+    let editor_view = create_memo(
+        clone!(plugin_id revision rect content content_rect viewport -> move || {
+            if !handle.pan_and_zoom {
+                return None;
+            }
+            let origin = rect.get().min;
+            if !placed {
+                return Some(EditorView {
+                    rect: content_rect.get().translate(-origin.to_vec2()),
+                    scale: viewport.get().zoom,
+                });
+            }
+            revision.get();
+            let shown = content.get().unwrap_or(rect.get());
+            let scale = plugin_host::intrinsic_size(&plugin_id, instance)
+                .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
+                .map_or(1.0, |intrinsic| {
+                    (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
+                });
+            Some(EditorView {
+                rect: shown.translate(-origin.to_vec2()),
+                scale,
+            })
+        }),
+    );
     let frame = create_memo(clone!(chrome content top_bar rect -> move || {
         let origin = rect.get().min;
         Some(FrameSpec {
@@ -714,11 +846,13 @@ fn BlockFrameBody(
 }
 
 fn child_view(parent: Uuid, region: EditorRegion) -> ChildView {
-    Rc::new(move |key: ChildId, child: Memo<Option<HostChild>>, rect: Memo<Rect>| {
-        view! {
-            <HostedChild parent region key child rect />
-        }
-    })
+    Rc::new(
+        move |key: ChildId, child: Memo<Option<HostChild>>, rect: Memo<Rect>| {
+            view! {
+                <HostedChild parent region key child rect />
+            }
+        },
+    )
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -739,9 +873,7 @@ fn HostedChild(
     child: Memo<Option<HostChild>>,
     rect: Memo<Rect>,
 ) -> NodeId {
-    let Some(editors) = editors() else {
-        return view! { <Frame /> };
-    };
+    let editors = editors();
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     let tab = use_context::<TabContext>();
     let any = super::any();
@@ -821,8 +953,84 @@ fn HostedChild(
                 <Layers>
                     <ForEach keys={keys}>
                         {move |(id, kind): (Uuid, Kind)| {
-                            view! {
-                                <ChildContent id kind child={child.clone()} parent region key />
+                            let reporter = reporter_for(parent, region, key);
+                            let child = child.clone();
+                            match kind {
+                                Kind::Missing | Kind::Unavailable => view! {
+                                    <Frame />
+                                },
+                                Kind::Preview => {
+                                    let rotation = create_memo(clone!(child -> move || {
+                                        child.get().map_or(0.0, |child| child.rotation)
+                                    }));
+                                    let opacity = create_memo(clone!(child -> move || {
+                                        child.get().map_or(1.0, |child| child.opacity)
+                                    }));
+                                    view! {
+                                        <BlockPreview
+                                            block=id
+                                            rotation={rotation}
+                                            opacity={opacity}
+                                        />
+                                    }
+                                }
+                                Kind::OwnFrame => {
+                                    let top_bar = create_memo(clone!(child -> move || {
+                                        child.get().map_or(TopBar::Hidden, |child| child.top_bar)
+                                    }));
+                                    view! {
+                                        <TabFrame block=id top_bar={top_bar} />
+                                    }
+                                }
+                                Kind::FrameChild => {
+                                    let Some(tab) = use_context::<TabContext>() else {
+                                        return view! {
+                                            <Frame />
+                                        };
+                                    };
+                                    let content = create_memo(clone!(child -> move || {
+                                        child.get().map(|child| child.rect.intersect(child.clip))
+                                    }));
+                                    let chrome = create_memo(clone!(tab -> move || {
+                                        match tab.stack.get().last() == Some(&id) {
+                                            true => Chrome::Drawn,
+                                            false => Chrome::None,
+                                        }
+                                    }));
+                                    let top_bar = tab.top_bar.clone();
+                                    let node = view! {
+                                        <BlockFrame
+                                            block=id
+                                            chrome={chrome}
+                                            content={content}
+                                            top_bar={top_bar}
+                                            embedded=false
+                                            passive=false
+                                            reporter
+                                        />
+                                    };
+                                    tab.portal.set(Some(node));
+                                    on_cleanup(move || tab.portal.set(None));
+                                    view! {
+                                        <Frame />
+                                    }
+                                }
+                                Kind::Embedded => {
+                                    let passive = create_memo(clone!(child -> move || {
+                                        child.get().is_none_or(|child| child.mode == ChildMode::Passive)
+                                    }));
+                                    view! {
+                                        <BlockFrame
+                                            block=id
+                                            chrome=Chrome::None
+                                            content=None
+                                            top_bar=TopBar::Hidden
+                                            embedded=true
+                                            passive={passive}
+                                            reporter
+                                        />
+                                    }
+                                }
                             }
                         }}
                     </ForEach>
@@ -834,8 +1042,8 @@ fn HostedChild(
 
 fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChildStatus {
     let handle = editors.handle(child.block_id);
-    let (interaction, capabilities, resize, intrinsic, aspect_ratio) = editors.with(|open| {
-        match open.get_mut(&child.block_id) {
+    let (interaction, capabilities, resize, intrinsic, aspect_ratio) =
+        editors.with(|open| match open.get_mut(&child.block_id) {
             Some(editor) if available => (
                 match editor.direct_editor_interaction() {
                     crate::editors::DirectEditorInteraction::Live => {
@@ -877,17 +1085,15 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
                 None,
                 None,
             ),
-        }
-    });
+        });
     let _ = handle;
     HostChildStatus {
         child: child.child,
         available,
         intrinsic,
         aspect_ratio,
-        hovered: crate::host::pointer().is_some_and(|position| {
-            child.rect.contains(position) && child.clip.contains(position)
-        }),
+        hovered: crate::host::pointer()
+            .is_some_and(|position| child.rect.contains(position) && child.clip.contains(position)),
         active: available && child.is_active(),
         interaction,
         capabilities,
@@ -896,130 +1102,82 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
     }
 }
 
-#[component]
-fn ChildContent(
-    id: Uuid,
-    kind: Kind,
-    child: Memo<Option<HostChild>>,
-    parent: Uuid,
-    region: EditorRegion,
-    key: ChildId,
-) -> NodeId {
-    let report_to = editors().and_then(|editors| editors.handle(parent));
+fn reporter_for(parent: Uuid, region: EditorRegion, key: ChildId) -> ChildReporter {
+    let report_to = editors().handle(parent);
     let on_view_change: Option<Rc<dyn Fn(ViewChange)>> = report_to.clone().and_then(|parent| {
         let plugin_id = parent.plugin_id()?.to_owned();
         Some(Rc::new(move |change: ViewChange| {
-            plugin_host::report_child_views(&plugin_id, parent.instance, region, vec![(key, change)]);
+            plugin_host::report_child_views(
+                &plugin_id,
+                parent.instance,
+                region,
+                vec![(key, change)],
+            );
         }) as Rc<dyn Fn(ViewChange)>)
     });
     let on_bar_action: Option<Rc<dyn Fn(BarAction)>> = report_to.and_then(|parent| {
         let plugin_id = parent.plugin_id()?.to_owned();
         Some(Rc::new(move |action: BarAction| {
-            plugin_host::report_child_bars(&plugin_id, parent.instance, region, vec![(key, action)]);
+            plugin_host::report_child_bars(
+                &plugin_id,
+                parent.instance,
+                region,
+                vec![(key, action)],
+            );
         }) as Rc<dyn Fn(BarAction)>)
     });
-    let reporter = ChildReporter {
+    ChildReporter {
         view: on_view_change,
         bar: on_bar_action,
-    };
-    match kind {
-        Kind::Missing | Kind::Unavailable => view! { <Frame /> },
-        Kind::Preview => {
-            let rotation = create_memo(clone!(child -> move || child.get().map_or(0.0, |child| child.rotation)));
-            let opacity = create_memo(clone!(child -> move || child.get().map_or(1.0, |child| child.opacity)));
-            view! {
-                <BlockPreview block=id rotation={rotation} opacity={opacity} />
-            }
-        }
-        Kind::OwnFrame => {
-            let top_bar = create_memo(clone!(child -> move || {
-                child.get().map_or(TopBar::Hidden, |child| child.top_bar)
-            }));
-            view! {
-                <TabFrame block=id top_bar={top_bar} />
-            }
-        }
-        Kind::FrameChild => {
-            let Some(tab) = use_context::<TabContext>() else {
-                return view! { <Frame /> };
-            };
-            let chrome = create_memo(clone!(tab -> move || {
-                match tab.stack.get().last() == Some(&id) {
-                    true => Chrome::Drawn,
-                    false => Chrome::None,
-                }
-            }));
-            let content = create_memo(clone!(child -> move || {
-                child.get().map(|child| child.rect.intersect(child.clip))
-            }));
-            let top_bar = tab.top_bar.clone();
-            let node = view! {
-                <BlockFrame
-                    block=id
-                    chrome={chrome}
-                    content={content}
-                    top_bar={top_bar}
-                    embedded=false
-                    passive=false
-                    reporter={reporter.clone()}
-                />
-            };
-            tab.portal.set(Some(node));
-            on_cleanup(move || tab.portal.set(None));
-            view! { <Frame /> }
-        }
-        Kind::Embedded => {
-            let passive = create_memo(clone!(child -> move || {
-                child.get().is_none_or(|child| child.mode == ChildMode::Passive)
-            }));
-            view! {
-                <BlockFrame
-                    block=id
-                    chrome=Chrome::None
-                    content=None
-                    top_bar=TopBar::Hidden
-                    embedded=true
-                    passive={passive}
-                    reporter={reporter.clone()}
-                />
-            }
-        }
     }
 }
 
 #[component]
 fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId {
-    let Some(editors) = editors() else {
-        return view! { <Frame /> };
-    };
-    let handle = editors.handle(block);
-    let region_editor = handle
-        .as_ref()
-        .filter(|handle| handle.preview)
-        .and_then(|handle| editors.region(handle));
-    let Some(region_editor) = region_editor else {
-        let label = create_memo(clone!(editors -> move || {
-            let label = crate::be::node(block).map(|node| BlockLabel::for_node(&editors.registry(), &node));
-            HostItem::Fallback {
-                name: label
-                    .as_ref()
-                    .map_or_else(|| "Loading…".to_owned(), |label| label.name.clone()),
-                automatic: label.as_ref().is_some_and(|label| label.automatic),
-                icon: label.and_then(|label| label.icon).map(str::to_owned),
-            }
-        }));
-        return view! { <HostItemFace content={label} /> };
-    };
+    let editors = editors();
+    let any = super::any();
+    let keys = create_memo(clone!(editors any -> move || {
+        any.get();
+        region_key(&editors, block, true).into_iter().collect::<Vec<_>>()
+    }));
+    let fallback = create_memo(clone!(keys -> move || keys.with(Vec::is_empty)));
+    let label = create_memo(clone!(editors -> move || {
+        any.get();
+        let label = crate::be::node(block).map(|node| BlockLabel::for_node(&editors.registry(), &node));
+        HostItem::Fallback {
+            name: label
+                .as_ref()
+                .map_or_else(|| "Loading…".to_owned(), |label| label.name.clone()),
+            automatic: label.as_ref().is_some_and(|label| label.automatic),
+            icon: label.and_then(|label| label.icon).map(str::to_owned),
+        }
+    }));
     let child_view = child_view(block, EditorRegion::Preview);
     view! {
-        <PluginRegion
-            editor={region_editor}
-            region=EditorRegion::Preview
-            passive=true
-            rotation={rotation}
-            opacity={opacity}
-            child_view
-        />
+        <Layers>
+            <Show condition={fallback}>
+                <HostItemFace content={label.clone()} />
+            </Show>
+            <ForEach keys={keys}>
+                {move |_key: RegionKey| {
+                    let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
+                        return view! {
+                            <Frame />
+                        };
+                    };
+                    view! {
+                        <PluginRegion
+                            editor={region_editor}
+                            region=EditorRegion::Preview
+                            passive=true
+                            rotation={rotation.clone()}
+                            opacity={opacity.clone()}
+                            child_view={Rc::clone(&child_view)}
+                        />
+                    }
+                }}
+            </ForEach>
+        </Layers>
     }
 }
 
@@ -1044,13 +1202,27 @@ pub(super) fn statuses(reports: &ChildReports) -> Vec<HostChildStatus> {
 
 #[component]
 pub(crate) fn HeadlessShell(shell: Memo<Option<Uuid>>, rect: Memo<Rect>) -> NodeId {
-    let keys = create_memo(move || shell.get().into_iter().collect::<Vec<_>>());
+    let editors = editors();
+    let any = super::any();
+    let keys = create_memo(clone!(editors -> move || {
+        any.get();
+        shell
+            .get()
+            .and_then(|block| Some((block, region_key(&editors, block, false)?)))
+            .into_iter()
+            .collect::<Vec<_>>()
+    }));
     view! {
         <Layers>
             <ForEach keys={keys}>
-                {move |block: Uuid| {
+                {move |(block, _): (Uuid, RegionKey)| {
+                    let Some(editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
+                        return view! {
+                            <Frame />
+                        };
+                    };
                     view! {
-                        <HeadlessRegion block rect={rect.clone()} />
+                        <HeadlessRegion editor rect={rect.clone()} />
                     }
                 }}
             </ForEach>
@@ -1059,14 +1231,7 @@ pub(crate) fn HeadlessShell(shell: Memo<Option<Uuid>>, rect: Memo<Rect>) -> Node
 }
 
 #[component]
-fn HeadlessRegion(block: Uuid, rect: Memo<Rect>) -> NodeId {
-    let editor = editors().and_then(|editors| {
-        let handle = editors.handle(block)?;
-        editors.region(&handle)
-    });
-    let Some(editor) = editor else {
-        return view! { <Frame /> };
-    };
+fn HeadlessRegion(editor: RegionEditor, rect: Memo<Rect>) -> NodeId {
     let instance = editor.instance;
     let plugin_id = editor.plugin_id().to_owned();
     plugin_host::mount_region(RegionSlot {
@@ -1091,5 +1256,7 @@ fn HeadlessRegion(block: Uuid, rect: Memo<Rect>) -> NodeId {
             None,
         );
     });
-    view! { <Frame /> }
+    view! {
+        <Frame />
+    }
 }
