@@ -17,6 +17,8 @@ use uuid::Uuid;
 
 use super::*;
 
+mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
+mod a_bunny_storage_zone_holds_a_backup;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
 mod a_server_refuses_new_accounts_unless_told_to_allow_them;
 mod a_session_hands_ownership_over_without_a_merge;
@@ -29,6 +31,7 @@ mod blocks_publish_and_read_back_through_the_server;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
 mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
+mod old_database_backups_thin_out_by_age;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
 mod pruning_history_keeps_pinned_commits;
 mod relayed_session_traffic_passes_through_the_server_sealed;
@@ -47,7 +50,10 @@ struct Harness {
 
 impl Harness {
     async fn start() -> Self {
-        let directory = std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()));
+        Self::at(std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()))).await
+    }
+
+    async fn at(directory: PathBuf) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let (shutdown, receiver) = oneshot::channel();

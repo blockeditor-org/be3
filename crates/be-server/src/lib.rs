@@ -27,6 +27,7 @@ use tokio_tungstenite::{
 };
 use uuid::Uuid;
 
+pub mod backup;
 pub mod blocks;
 pub mod schema;
 pub mod sessions;

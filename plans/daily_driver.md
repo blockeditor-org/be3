@@ -96,7 +96,7 @@ own copy does not already give it, and pairing hands the key over directly.
 What it leaves for a public release is in `plans/public_release.md`.
 
 
-## Phase 4: A server you can leave running
+## Phase 4: A server you can leave running (done)
 
 Landed:
 - Registration is closed unless `--allow-registration` is given, and
@@ -104,51 +104,18 @@ Landed:
 - Password checks run off the database lock, at most four at a time, with a
   dummy hash for unknown emails. An email is locked out after five failed
   sign-ins, for 30 seconds doubling to an hour.
-- A 10-second handshake timeout, server pings with a 90-second idle timeout, a
-  bounded outbound queue that drops a client that stops reading, a cap of 1024
-  connections, and accept errors that no longer stop the server.
-- `tracing` logs (`RUST_LOG`), with the forwarded address of each connection
-  and every failed sign-in, and SIGTERM stops the server after a WAL
-  checkpoint.
+- A handshake timeout, server pings with an idle timeout, a bounded outbound
+  queue, a connection cap, and accept errors that no longer stop the server.
+- `tracing` logs, and SIGTERM stops the server after a WAL checkpoint.
+- `be-server backup`, `restore` and `verify`, to a directory or a Bunny Storage
+  zone, with the database sealed by a backup key and old snapshots thinned.
+- systemd units, a Caddyfile and `guides/hosting.md`.
 
-Still to do here:
-- A systemd unit and a short `guides/hosting.md` for the existing VPS: Caddy
-  terminates TLS and be-server binds to 127.0.0.1.
-
-Token expiry, changing a password, per-IP limits, storage quotas, a health
-endpoint and a config file wait for a public release
-(`plans/public_release.md`).
-
-- **Backups, to Bunny Storage.**
-  - `be-server backup`:
-    1. `VACUUM INTO` the database.
-    2. Upload the snapshot under a dated name.
-    3. Upload the objects added since the last run, and never delete any.
-    - Objects are immutable and the database snapshot is taken first, so
-      the copy is consistent.
-    - Uploads use Bunny's storage HTTP API (a `PUT` per file with the zone's
-      access key).
-    - A local list of uploaded hashes avoids listing the zone each run.
-  - The snapshot itself is not end-to-end encrypted: it holds accounts,
-    password hashes and the block graph. Encrypt it with a backup key before
-    upload. Objects are already ciphertext.
-  - Run it hourly from a systemd timer. Keep 48 hourly, 30 daily and 12
-    monthly database snapshots. They are small, and the objects are shared
-    by all of them.
-  - The zone's access key on the VPS can also delete backups. Enable
-    replication to a second Bunny region, and keep an occasional pulled copy
-    on a machine the VPS cannot reach.
-  - `be-server verify` checks every referenced object exists and hashes
-    correctly. Run it after each backup.
-  - **Done when** a restore drill from backup into an empty data directory
-    opens the workspace, and that drill is a test.
-  - The data is end-to-end encrypted, so the backup is useless without the
-    recovery key (phase 3). Say this in the hosting guide.
-- **Garbage collection stays off.**
-  - `CollectDetached` and `PruneHistory` are never called by the app. That
-    is the safe default until trash and history (phase 7) define what may be
-    reclaimed.
-  - Unpublished objects are never collected either. Note it and watch disk.
+Garbage collection stays off: the app never sends `CollectDetached` or
+`PruneHistory`, and unpublished objects are never collected, until trash and
+history (phase 7) define what may be reclaimed. Token expiry, changing a
+password, per-IP limits, storage quotas, a health endpoint and a config file
+wait for a public release (`plans/public_release.md`).
 
 ## Phase 5: Offline and flaky connections
 
@@ -339,7 +306,7 @@ and deleting a database stops being a fix.
 
 ## Suggested order
 
-1. Phase 4. Start the server, and take backups from day one.
+1. Start the server on the VPS (`guides/hosting.md`), with backups from day one.
 2. The profiling at the start of phase 6.
 3. Phase 2, versioning the formats, whenever it is convenient.
 4. Phases 5 and 7 in parallel. Start real use when offline open, the status

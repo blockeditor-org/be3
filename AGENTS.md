@@ -9,6 +9,7 @@ Guides:
 - guides/beui.md
 - guides/beui_keyboard.md
 - guides/buck2.md
+- guides/hosting.md
 - guides/pan_and_zoom.md
 - guides/reactive.md
 - guides/running_on_android.md

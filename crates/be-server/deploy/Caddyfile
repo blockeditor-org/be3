@@ -1,0 +1,14 @@
+notes.example.com {
+	handle /api* {
+		reverse_proxy 127.0.0.1:9090
+	}
+	handle {
+		header {
+			Cross-Origin-Opener-Policy same-origin
+			Cross-Origin-Embedder-Policy require-corp
+		}
+		file_server {
+			root /srv/be3-web
+		}
+	}
+}
