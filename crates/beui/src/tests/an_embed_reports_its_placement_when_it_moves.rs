@@ -35,7 +35,10 @@ fn an_embed_reports_its_placement_when_it_moves() {
     harness.frame(Vec::new());
     assert_eq!(
         *placed.borrow(),
-        [Some(Rect::from_min_size(pos2(10.0, 20.0), vec2(30.0, 40.0)))],
+        [Some(Rect::from_min_size(
+            pos2(10.0, 20.0),
+            vec2(30.0, 40.0)
+        ))],
         "a placement that did not change is not reported again"
     );
 

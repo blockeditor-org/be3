@@ -4,7 +4,7 @@ use crate::base::interactive::InteractiveNode;
 use crate::context::Context;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect};
-use crate::input::{Event, Modifiers, PointerButton, TouchPhase};
+use crate::input::{Event, Key, Modifiers, PointerButton, TouchPhase};
 use crate::node::{Element, NodeId, Rects};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -80,6 +80,28 @@ pub fn sink_at(doc: &Document, rects: &Rects, root: NodeId, pos: Pos2) -> Option
     deepest(doc, rects, root, pos)
 }
 
+fn cycle_focus(doc: &mut Document, step: isize) -> bool {
+    let sinks: Vec<NodeId> = doc
+        .focusables()
+        .into_iter()
+        .filter(|id| wants_forward(doc.arena.get(*id)))
+        .collect();
+    if sinks.is_empty() {
+        return false;
+    }
+    let count = sinks.len() as isize;
+    let next = match doc
+        .focused_node()
+        .and_then(|focused| sinks.iter().position(|sink| *sink == focused))
+    {
+        Some(index) => (index as isize + step).rem_euclid(count),
+        None if step >= 0 => 0,
+        None => count - 1,
+    };
+    doc.focus_focusable(sinks[next as usize]);
+    true
+}
+
 fn button_mask(button: PointerButton) -> u8 {
     1 << match button {
         PointerButton::Primary => 0,
@@ -103,7 +125,21 @@ pub(super) fn route(
     pointer: bool,
     keys: super::Keys,
 ) {
-    let events = ctx.input(|input| input.events.clone());
+    let mut events = ctx.input(|input| input.events.clone());
+    let cycle = events.iter().rev().find_map(|event| match event {
+        Event::Key {
+            key: Key::F6,
+            pressed: true,
+            modifiers,
+            ..
+        } => Some(if modifiers.shift { -1 } else { 1 }),
+        _ => None,
+    });
+    if let Some(step) = cycle.filter(|_| !keys.ignored())
+        && cycle_focus(doc, step)
+    {
+        events.retain(|event| !matches!(event, Event::Key { key: Key::F6, .. }));
+    }
     let modifiers = ctx.input(|input| input.modifiers);
     let position = ctx.input(|input| input.pointer.interact_pos());
     let mut routing = std::mem::take(&mut doc.forward);
@@ -187,12 +223,20 @@ pub(super) fn route(
             Event::Focus(true) | Event::Back(_) => {}
         }
     }
+    let pointed = events
+        .iter()
+        .any(|event| matches!(event, Event::PointerMoved(_) | Event::PointerButton { .. }));
+    if pointed
+        && let Some(hovered) = alive(doc, hovered)
+        && !routed.iter().any(|(sink, _)| *sink == hovered)
+    {
+        routed.push((hovered, Vec::new()));
+    }
     for changed in [routing.hovered, hovered, routing.focused, focused]
         .into_iter()
         .flatten()
     {
-        if alive(doc, Some(changed)).is_some() && !routed.iter().any(|(sink, _)| *sink == changed)
-        {
+        if alive(doc, Some(changed)).is_some() && !routed.iter().any(|(sink, _)| *sink == changed) {
             let moved = (routing.hovered == Some(changed)) != (hovered == Some(changed))
                 || (routing.focused == Some(changed)) != (focused == Some(changed));
             if moved {

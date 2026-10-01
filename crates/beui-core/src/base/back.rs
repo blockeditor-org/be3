@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use crate::base::overlay::OverlayNode;
-use crate::callback::ClickCallback;
+use crate::callback::{Callback, ClickCallback};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
 use crate::input::{BackEdge, BackGesture};
@@ -32,6 +32,7 @@ pub struct BackNode {
     enabled: bool,
     progress: BackProgress,
     on_back: ClickCallback,
+    on_gesture: Callback<BackGesture>,
 }
 
 impl Element for BackNode {
@@ -102,12 +103,14 @@ impl Document {
         &mut self,
         child: NodeId,
         on_back: ClickCallback,
+        on_gesture: Callback<BackGesture>,
     ) -> NodeOf<BackNode> {
         let id = self.arena.insert(BackNode {
             child: Some(child),
             enabled: true,
             progress: BackProgress::default(),
             on_back,
+            on_gesture,
         });
         self.back_handlers.push(id);
         id
@@ -140,6 +143,19 @@ impl Document {
     }
 
     pub fn back(&mut self, gesture: BackGesture) {
+        let target = match (gesture, self.back_gesture) {
+            (BackGesture::Started { .. }, _) | (_, None) => self.back_target(),
+            (_, Some((target, _))) => Some(target),
+        };
+        if let Some(on_gesture) = target.and_then(|target| self.gesture_taker(target)) {
+            self.back_gesture = match gesture {
+                BackGesture::Started { edge } => target.map(|target| (target, edge)),
+                BackGesture::Progressed(_) => self.back_gesture,
+                BackGesture::Cancelled | BackGesture::Invoked => None,
+            };
+            on_gesture.call(gesture);
+            return;
+        }
         match gesture {
             BackGesture::Started { edge } => {
                 self.end_back_gesture();
@@ -165,6 +181,15 @@ impl Document {
                 }
             }
         }
+    }
+
+    fn gesture_taker(&self, target: NodeId) -> Option<Callback<BackGesture>> {
+        if !self.contains(target) {
+            return None;
+        }
+        let handler = self.arena.kind_of::<BackNode>(target)?;
+        let on_gesture = &self.arena.get_as(handler).on_gesture;
+        (!on_gesture.is_empty()).then(|| on_gesture.clone())
     }
 
     fn end_back_gesture(&mut self) {
