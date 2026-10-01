@@ -1,4 +1,4 @@
-use std::{cell::RefCell, sync::Arc, sync::mpsc::Sender};
+use std::{cell::RefCell, sync::Arc};
 
 use beui::winit::window::Window;
 
@@ -9,23 +9,29 @@ use wry::{
 };
 
 use super::Bounds;
+use crate::host::WakingSender;
 
 const HISTORY_SCRIPT: &str = r#"
 (() => {
     const send = (kind, value) => window.ipc.postMessage(`${kind}:${value}`);
+    const address = () => send("address", location.href);
     const pushState = history.pushState.bind(history);
     const replaceState = history.replaceState.bind(history);
 
     history.pushState = (...args) => {
         const result = pushState(...args);
         send("push", location.href);
+        address();
         return result;
     };
     history.replaceState = (...args) => {
         const result = replaceState(...args);
         send("replace", location.href);
+        address();
         return result;
     };
+    window.addEventListener("hashchange", address);
+    window.addEventListener("popstate", address);
     history.go = (delta = 0) => send("history", Number(delta) || 0);
     history.back = () => send("history", -1);
     history.forward = () => send("history", 1);
@@ -45,7 +51,7 @@ pub(super) struct WebView {
 }
 
 impl WebView {
-    pub(super) fn new(url: &str, events: &Sender<WebViewEvent>) -> Result<Self, String> {
+    pub(super) fn new(url: &str, events: &WakingSender<WebViewEvent>) -> Result<Self, String> {
         let Some(parent) = PARENT.with(|parent| parent.borrow().clone()) else {
             return Err("The embedded browser has no window to live in.".to_owned());
         };
@@ -68,6 +74,7 @@ impl WebView {
                 true
             })
             .with_on_page_load_handler(move |event, url| {
+                let _ = page_events.send(WebViewEvent::Address(url.clone()));
                 if matches!(event, PageLoadEvent::Finished) {
                     let _ = page_events.send(WebViewEvent::Finished(url));
                 }
@@ -87,10 +94,6 @@ impl WebView {
             .build_as_child(&*parent)
             .map(|webview| Self { webview })
             .map_err(|error| error.to_string())
-    }
-
-    pub(super) fn url(&self) -> Option<String> {
-        self.webview.url().ok()
     }
 
     pub(super) fn load_url(&self, url: &str) -> Result<(), String> {
@@ -131,6 +134,7 @@ fn ipc_event(message: &str) -> Option<WebViewEvent> {
         "push" => Some(WebViewEvent::Push(value.into())),
         "replace" => Some(WebViewEvent::Replace(value.into())),
         "history" => value.parse().ok().map(WebViewEvent::History),
+        "address" => Some(WebViewEvent::Address(value.into())),
         _ => None,
     }
 }
