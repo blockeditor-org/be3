@@ -1370,7 +1370,7 @@ impl Instances {
             return Vec::new();
         };
         let mut changed = Vec::new();
-        let live: Vec<ChildId> = statuses.iter().map(|status| status.child).collect();
+        let live: HashSet<ChildId> = statuses.iter().map(|status| status.child).collect();
         for status in statuses {
             let status = ChildStatus {
                 instance,
