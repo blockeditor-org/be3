@@ -14,6 +14,7 @@ fn the_code_of_a_sample_can_be_selected() {
         pos2(code.right() - 1.0, line),
     );
     test.frame(Vec::new());
+    test.snapshot("code_selected");
 
     let region = test
         .document()

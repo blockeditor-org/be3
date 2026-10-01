@@ -13,6 +13,7 @@ mod the_demo_leaves_a_pane_saying_nothing_is_open;
 mod the_demo_opens_every_page_from_its_catalog;
 mod the_demo_pages_scroll_rather_than_spilling_off_a_small_window;
 mod the_demo_paints_with_only_the_fonts_beui_carries;
+mod the_overlay_sample_closes_on_escape_and_a_click_outside;
 
 const TODAY: (i32, u8, u8) = (2026, 1, 15);
 const WIDE: Vec2 = Vec2::new(1100.0, 800.0);

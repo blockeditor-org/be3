@@ -1,7 +1,7 @@
 use super::*;
 use beui::KeyPress;
 use beui::reactive::{
-    Dynamic, Grid, GridCell, Interactive, Layers, NodeRef, Overlay, OverlayMode, Placement, Track,
+    Dynamic, Grid, GridCell, Interactive, Layers, NodeRef, Overlay, Placement, Track,
 };
 
 const SWATCH: f32 = 72.0;
@@ -560,7 +560,10 @@ fn AnchoredOverlay() -> NodeId {
     let ink = theme.text.clone();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Interactive on_click={move || set_open.update(|open| *open = !*open)}>
+            <Interactive
+                @test_id="demo.overlay.trigger"
+                on_click={move || set_open.update(|open| *open = !*open)}
+            >
                 <Frame
                     @node_ref=&target
                     color={face}
@@ -568,18 +571,18 @@ fn AnchoredOverlay() -> NodeId {
                     padding_horizontal=16.0
                     padding_vertical=10.0
                 >
-                    <Text string="Toggle the overlay" color={ink} />
+                    <Text string="Open the overlay" color={ink} />
                 </Frame>
             </Interactive>
             <Overlay
                 anchor=&anchor
                 placement=Placement::BelowStart
-                mode=OverlayMode::Floating
                 open={open}
                 on_dismiss={move || dismiss.set(false)}
             >
                 <Frame padding_vertical=4.0>
                     <Frame
+                        @test_id="demo.overlay.panel"
                         width=PANEL_WIDTH
                         color={theme.surface_raised.clone()}
                         outline={theme.border.clone()}

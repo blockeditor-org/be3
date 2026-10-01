@@ -359,6 +359,19 @@ fn open(state: &mut DockState, tab: TabId) {
     state.show(tab);
 }
 
+fn active_page(state: &DockState) -> Option<Page> {
+    state
+        .recent_tabs()
+        .into_iter()
+        .filter(|tab| *tab != CATALOG)
+        .find(|tab| {
+            state
+                .find(*tab)
+                .is_some_and(|position| state.active_tab(position.leaf) == Some(*tab))
+        })
+        .and_then(Page::of)
+}
+
 fn tab_title(tab: TabId) -> String {
     match Page::of(tab) {
         Some(page) => page.title().to_owned(),
@@ -387,6 +400,7 @@ fn DemoShell() -> NodeId {
         }
     }));
     let catalog_state = set_state.clone();
+    let active = create_selector(clone!(state -> move || active_page(&state.get())));
     let toolbar_state = set_state.clone();
     view! {
         <Frame color={theme.background.clone()}>
@@ -411,9 +425,10 @@ fn DemoShell() -> NodeId {
                 >
                     {move |tab: TabId| {
                         let set_state = catalog_state.clone();
+                        let active = active.clone();
                         match Page::of(tab) {
                             None => view! {
-                                <CatalogPanel set_state />
+                                <CatalogPanel set_state active />
                             },
                             Some(page) => view! {
                                 <Container>
@@ -558,7 +573,7 @@ fn DemoToolbar(
 }
 
 #[component]
-fn CatalogPanel(set_state: WriteSignal<DockState>) -> NodeId {
+fn CatalogPanel(set_state: WriteSignal<DockState>, active: Selector<Option<Page>>) -> NodeId {
     let unstyled_state = set_state.clone();
     let base_state = set_state.clone();
     view! {
@@ -570,18 +585,21 @@ fn CatalogPanel(set_state: WriteSignal<DockState>) -> NodeId {
                         summary="Components painted with the theme"
                         pages={STYLED_PAGES.to_vec()}
                         set_state
+                        active={active.clone()}
                     />
                     <CatalogGroup
                         title="Unstyled"
                         summary="Behaviour only: you paint them"
                         pages={UNSTYLED_PAGES.to_vec()}
                         set_state=unstyled_state
+                        active={active.clone()}
                     />
                     <CatalogGroup
                         title="Base"
                         summary="The nodes everything is built from"
                         pages={BASE_PAGES.to_vec()}
                         set_state=base_state
+                        active
                     />
                 </List>
             </Frame>
@@ -595,6 +613,7 @@ fn CatalogGroup(
     summary: &'static str,
     pages: Vec<Page>,
     set_state: WriteSignal<DockState>,
+    active: Selector<Option<Page>>,
 ) -> NodeId {
     view! {
         <List spacing=0.0>
@@ -607,8 +626,9 @@ fn CatalogGroup(
             <ForEach keys={pages}>
                 {move |page: Page| {
                     let set_state = set_state.clone();
+                    let selected = active.memo(Some(page));
                     view! {
-                        <CatalogRow page set_state />
+                        <CatalogRow page set_state selected />
                     }
                 }}
             </ForEach>
@@ -617,10 +637,11 @@ fn CatalogGroup(
 }
 
 #[component]
-fn CatalogRow(page: Page, set_state: WriteSignal<DockState>) -> NodeId {
+fn CatalogRow(page: Page, set_state: WriteSignal<DockState>, selected: Memo<bool>) -> NodeId {
     view! {
         <ListRow
             @test_id={format!("demo.catalog.{}", page.title())}
+            selected
             on_click={move || {
                 set_state.update(|state| {
                     open(state, page.tab());
