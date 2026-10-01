@@ -260,12 +260,13 @@ where
 }
 
 impl Connection {
-    fn authenticated(
+    async fn authenticated(
         &mut self,
         request: u64,
         profile: store::Profile,
         token: String,
     ) -> ServerMessage {
+        self.hub.join_account(self.client, profile.account).await;
         self.account = Some(profile.account);
         self.token = Some(token.clone());
         ServerMessage::Authenticated {
@@ -313,7 +314,7 @@ impl Connection {
                     .store
                     .register(&email, &display_name, &password)
                     .await?;
-                Ok(self.authenticated(request, profile, token))
+                Ok(self.authenticated(request, profile, token).await)
             }
             ClientMessage::Login {
                 request,
@@ -321,12 +322,12 @@ impl Connection {
                 password,
             } => {
                 let (profile, token) = self.store.login(&email, &password).await?;
-                Ok(self.authenticated(request, profile, token))
+                Ok(self.authenticated(request, profile, token).await)
             }
             ClientMessage::Authenticate { request, token } => {
                 let profile = self.store.resolve_token(&token).await?;
                 self.token = Some(token.clone());
-                Ok(self.authenticated(request, profile, token))
+                Ok(self.authenticated(request, profile, token).await)
             }
             ClientMessage::Logout { request } => {
                 if let Some(token) = self.token.take() {
@@ -334,6 +335,7 @@ impl Connection {
                 }
                 self.account = None;
                 self.identity = None;
+                self.hub.leave_account(self.client).await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::Invite {
@@ -703,6 +705,64 @@ impl Connection {
                             .send_all(&participants, self.client, &message)
                             .await;
                     }
+                }
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::GetKeys { request } => {
+                let (recovery, sealed) = self.store.keys(self.account()?).await?;
+                Ok(ServerMessage::Keys {
+                    request,
+                    recovery,
+                    sealed,
+                })
+            }
+            ClientMessage::SetRecoveryKey {
+                request,
+                public,
+                sealed,
+            } => {
+                self.store
+                    .set_recovery_key(self.account()?, public, sealed)
+                    .await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::PutWorkspaceKey {
+                request,
+                workspace,
+                account,
+                sealed,
+            } => {
+                self.store
+                    .put_workspace_key(self.account()?, workspace, account, sealed)
+                    .await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::ListMemberKeys { request, workspace } => {
+                let members = self.store.member_keys(self.account()?, workspace).await?;
+                Ok(ServerMessage::MemberKeys { request, members })
+            }
+            ClientMessage::Pair {
+                request,
+                to,
+                workspace,
+                payload,
+            } => {
+                let account = self.account()?;
+                self.store.membership(account, workspace).await?;
+                let message = ServerMessage::Paired {
+                    from: self.client,
+                    workspace,
+                    payload,
+                };
+                let sent = self
+                    .hub
+                    .send_account(account, self.client, to, &message)
+                    .await;
+                if to.is_some() && sent == 0 {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "that device is no longer connected".into(),
+                    ));
                 }
                 Ok(ServerMessage::Ok { request })
             }

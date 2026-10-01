@@ -16,6 +16,7 @@ use beui::{Color32, NodeId};
 
 use super::debug::{DebugCommand, DebugWindow};
 use super::dialogs::Dialogs;
+use super::keys::PairingDialog;
 use super::picker::PickerDialogs;
 use super::share::ShareWindow;
 use super::tools::WorkspaceDock;
@@ -76,6 +77,7 @@ fn WorkspaceBody(view: AppViewStore) -> NodeId {
                 </Frame>
             </Show>
             <Dialogs view={view.clone()} />
+            <PairingDialog view={view.clone()} />
             <ShareWindow view={view.clone()} />
             <PickerDialogs view={view.clone()} />
         </List>

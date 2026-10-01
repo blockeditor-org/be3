@@ -7,6 +7,7 @@ mod debug;
 mod editors;
 mod files;
 mod host;
+mod keys;
 mod panic_guard;
 mod performance;
 mod platform;
@@ -283,6 +284,8 @@ struct BlockApp {
     pending_error_action: Option<ErrorAction>,
     inspector_requested: Option<bool>,
     dev_workspace: bool,
+    keys: keys::KeyState,
+    workspace_key: Option<[u8; 32]>,
 }
 
 type Account = SavedAccount;
@@ -301,7 +304,7 @@ enum WorkspaceOperation {
 }
 
 enum WorkspaceResult {
-    Loaded(Vec<Workspace>, Vec<WorkspaceInvitation>),
+    Loaded(Vec<Workspace>, Vec<WorkspaceInvitation>, accounts::Keys),
     Created(Workspace),
     Responded,
     Invited,
@@ -462,6 +465,8 @@ impl BlockApp {
             pending_error_action: None,
             inspector_requested: None,
             dev_workspace: false,
+            keys: keys::KeyState::default(),
+            workspace_key: None,
         })
     }
 
@@ -643,11 +648,10 @@ impl BlockApp {
         let receiver = platform::spawn_request(async move {
             match operation {
                 WorkspaceOperation::Load => {
-                    accounts::workspaces(url, token)
-                        .await
-                        .map(|(workspaces, invitations)| {
-                            WorkspaceResult::Loaded(workspaces, invitations)
-                        })
+                    let (workspaces, invitations) =
+                        accounts::workspaces(url.clone(), token.clone()).await?;
+                    let keys = accounts::keys(url, token).await?;
+                    Ok(WorkspaceResult::Loaded(workspaces, invitations, keys))
                 }
                 WorkspaceOperation::Create(name) => accounts::create_workspace(url, token, name)
                     .await
@@ -678,11 +682,23 @@ impl BlockApp {
         };
         self.pending_workspace_request = None;
         match result {
-            Ok(WorkspaceResult::Loaded(workspaces, invitations)) => {
+            Ok(WorkspaceResult::Loaded(workspaces, invitations, keys)) => {
                 self.workspaces = workspaces;
                 self.invitations = invitations;
                 self.workspaces_loaded = true;
                 self.workspaces_load_failed = false;
+                self.keys.loaded(keys);
+                if self.keys.needs_recovery() {
+                    if self.dev_workspace {
+                        let held = self.held_keys();
+                        self.keys.skip_confirmation(
+                            self.server_url.clone(),
+                            self.account.token.clone(),
+                            held,
+                        );
+                    }
+                    return;
+                }
                 if let Some(last_workspace_id) = self.account.last_workspace_id
                     && let Some(workspace) = self
                         .workspaces
@@ -697,6 +713,14 @@ impl BlockApp {
             Ok(WorkspaceResult::Created(workspace)) => {
                 self.workspaces.push(workspace.clone());
                 self.workspace_created += 1;
+                let key = *be_store::ContentKey::random().as_bytes();
+                if let Err(error) =
+                    self.app_state
+                        .set_workspace_key(&self.account, workspace.id, key)
+                {
+                    self.workspace_error = Some(error.to_string());
+                    return;
+                }
                 self.open_workspace(workspace);
             }
             Ok(WorkspaceResult::Responded) => {
@@ -822,6 +846,14 @@ impl BlockApp {
         self.shell = None;
         self.shell_panes = None;
         self.ui_settings = None;
+        self.keys.cancel_pairing();
+        self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
+            Ok(key) => key,
+            Err(error) => {
+                self.workspace_error = Some(error.to_string());
+                None
+            }
+        };
         self.workspace = Some(workspace.clone());
         self.account.last_workspace_id = Some(workspace.id);
         if let Some(saved) = self
@@ -836,6 +868,37 @@ impl BlockApp {
             .set_last_workspace(&self.account, Some(workspace.id))
         {
             self.workspace_error = Some(error.to_string());
+        }
+    }
+
+    fn held_keys(&self) -> Vec<(Uuid, [u8; 32])> {
+        self.app_state
+            .workspace_keys(&self.account)
+            .unwrap_or_default()
+    }
+
+    fn poll_keys(&mut self) {
+        match self.keys.poll() {
+            Some(keys::KeyEvent::RecoverySaved) => {
+                self.workspaces_loaded = false;
+                self.workspaces_load_failed = false;
+                self.begin_workspace_request(WorkspaceOperation::Load);
+            }
+            Some(keys::KeyEvent::Unlocked(workspace, key)) => self.unlocked(workspace, key),
+            None => {}
+        }
+    }
+
+    fn unlocked(&mut self, workspace: Uuid, key: [u8; 32]) {
+        if let Err(error) = self
+            .app_state
+            .set_workspace_key(&self.account, workspace, key)
+        {
+            self.workspace_error = Some(error.to_string());
+            return;
+        }
+        if self.workspace.as_ref().map(|open| open.id) == Some(workspace) {
+            self.workspace_key = Some(key);
         }
     }
 
@@ -898,6 +961,8 @@ impl BlockApp {
         self.shell = None;
         self.shell_panes = None;
         self.ui_settings = None;
+        self.keys = keys::KeyState::default();
+        self.workspace_key = None;
         self.account = account;
         self.server_url = server_url;
         self.signed_in = true;
@@ -1569,9 +1634,20 @@ impl BlockApp {
         if let Some(account) = self.scheduled_account_switch.take() {
             self.switch_account(account);
         }
+        self.poll_keys();
         if self.workspace.is_none() {
             be::stop();
             self.load_workspaces_if_needed();
+            self.poll_reauth_request();
+            performance::end_frame();
+            return;
+        }
+        if self.workspace_key.is_none() {
+            be::stop();
+            if !self.workspaces_loaded {
+                self.load_workspaces_if_needed();
+            }
+            self.poll_workspace_request();
             self.poll_reauth_request();
             performance::end_frame();
             return;
@@ -1594,6 +1670,9 @@ impl BlockApp {
         let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id) else {
             return;
         };
+        let Some(content_key) = self.workspace_key else {
+            return;
+        };
         if be::installed_for(self.account.id, workspace) {
             return;
         }
@@ -1602,6 +1681,7 @@ impl BlockApp {
             token: self.account.token.clone(),
             account: self.account.id,
             workspace,
+            content_key,
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: self.data_dir.join("be-objects"),
         });
@@ -1786,6 +1866,34 @@ impl BlockApp {
                     shell.pane_more(pane);
                 }
             }
+            UiCommand::ConfirmRecovery(words) => {
+                let held = self.held_keys();
+                self.keys.confirm_recovery(
+                    &words,
+                    self.server_url.clone(),
+                    self.account.token.clone(),
+                    held,
+                );
+            }
+            UiCommand::UnlockWithPhrase(phrase) => {
+                if let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id)
+                    && let Some(key) = self.keys.unlock_with_phrase(workspace, &phrase)
+                {
+                    self.unlocked(workspace, key);
+                }
+            }
+            UiCommand::StartPairing => {
+                if let Some(workspace) = self.workspace.as_ref().map(|workspace| workspace.id) {
+                    self.keys.start_pairing(
+                        self.server_url.clone(),
+                        self.account.token.clone(),
+                        workspace,
+                    );
+                }
+            }
+            UiCommand::CancelPairing => self.keys.cancel_pairing(),
+            UiCommand::ApprovePairing(from, code) => be::approve_pairing(from, code),
+            UiCommand::DismissPairing(from) => be::dismiss_pairing(from),
         }
     }
 
@@ -1793,7 +1901,9 @@ impl BlockApp {
         let screen = match (&self.error, self.signed_in, &self.workspace) {
             (Some(_), _, _) => ui::Screen::Error,
             (None, false, _) => ui::Screen::Accounts,
+            (None, true, None) if self.keys.needs_recovery() => ui::Screen::Recovery,
             (None, true, None) => ui::Screen::Workspaces,
+            (None, true, Some(_)) if self.workspace_key.is_none() => ui::Screen::Unlock,
             (None, true, Some(_)) => ui::Screen::Workspace,
         };
         let changes_saved = match screen {
@@ -1834,6 +1944,22 @@ impl BlockApp {
                     .flatten(),
             },
             account: ui::AccountRow::of(&self.account, true),
+            recovery: self.keys.recovery_view(),
+            unlock: self
+                .workspace
+                .as_ref()
+                .map(|workspace| self.keys.unlock_view(workspace.id, &workspace.name))
+                .unwrap_or_default(),
+            pairing: match screen {
+                ui::Screen::Workspace => be::pairing_requests()
+                    .into_iter()
+                    .map(|request| ui::PairingRow {
+                        from: request.from,
+                        device: request.device,
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            },
             workspaces: ui::WorkspacesView {
                 state: match (self.workspaces_loaded, self.workspaces_load_failed) {
                     (true, _) => ui::WorkspacesState::Loaded,

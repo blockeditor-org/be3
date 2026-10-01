@@ -1,0 +1,20 @@
+[package]
+name = "be-keys"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+bip39 = { version = "2", default-features = false, features = ["std"] }
+chacha20poly1305 = "0.10"
+hkdf = "0.12"
+postcard = { version = "1", features = ["use-std"] }
+rand = "0.9"
+serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
+sha2 = "0.10"
+spake2 = "0.4"
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+
+[lints]
+workspace = true

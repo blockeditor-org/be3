@@ -15,6 +15,7 @@ mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_held_block_stays_open_when_its_editors_close;
+mod a_new_device_gets_the_key_by_typing_its_code_on_an_open_one;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
 mod an_edit_made_across_a_takeover_is_kept;
@@ -42,6 +43,7 @@ pub(crate) struct Harness {
     account: Uuid,
     token: String,
     workspace: Uuid,
+    content_key: [u8; 32],
     _one_stack: std::sync::MutexGuard<'static, ()>,
 }
 
@@ -85,6 +87,7 @@ impl Harness {
             account,
             token,
             workspace,
+            content_key: *be_store::ContentKey::random().as_bytes(),
             _one_stack: one_stack,
         }
     }
@@ -117,6 +120,7 @@ impl Harness {
             token: self.token.clone(),
             account: self.account,
             workspace: self.workspace,
+            content_key: self.content_key,
             data_dir,
         }
     }
@@ -126,7 +130,7 @@ impl Harness {
         let peer = be_client::Peer::connect(
             be_client::PeerConfig::new(
                 config.socket_url(),
-                be_store::ContentKey::from_bytes(config.content_key()),
+                be_store::ContentKey::from_bytes(config.content_key),
                 be_client::Credentials::Token(self.token.clone()),
             )
             .workspace(Some(self.workspace)),

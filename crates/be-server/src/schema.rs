@@ -98,6 +98,18 @@ pub fn initialize(connection: &Connection) -> Result<(), ServerError> {
             count           INTEGER NOT NULL CHECK (count >= 0)
         );
 
+        CREATE TABLE IF NOT EXISTS recovery_keys (
+            account_id      TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+            public          BLOB NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS workspace_keys (
+            workspace_id    TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+            account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+            sealed          BLOB NOT NULL,
+            PRIMARY KEY (workspace_id, account_id)
+        );
+
         CREATE INDEX IF NOT EXISTS block_edges_reference
             ON block_edges (workspace_id, reference_id);
         ",

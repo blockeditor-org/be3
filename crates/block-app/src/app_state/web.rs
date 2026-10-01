@@ -5,6 +5,15 @@ use super::{AppStateError, SavedAccount};
 const ACCOUNTS_KEY: &str = "block.accounts";
 const ACTIVE_KEY: &str = "block.active-account";
 const CLIENT_ID_KEY: &str = "block.client-id";
+const WORKSPACE_KEYS_KEY: &str = "block.workspace-keys";
+
+#[derive(serde::Deserialize, serde::Serialize)]
+struct StoredKey {
+    server: String,
+    account: Uuid,
+    workspace: Uuid,
+    key: [u8; 32],
+}
 
 pub struct AppStateStore {
     storage: web_sys::Storage,
@@ -58,6 +67,9 @@ impl AppStateStore {
         let mut accounts = self.accounts()?;
         accounts.retain(|account| account.server != saved.server || account.id != saved.id);
         self.write(ACCOUNTS_KEY, &accounts)?;
+        let mut keys = self.stored_keys()?;
+        keys.retain(|stored| stored.server != saved.server.key() || stored.account != saved.id);
+        self.write(WORKSPACE_KEYS_KEY, &keys)?;
         if self.active_account()?.as_ref() == Some(&(saved.server.key().into(), saved.id)) {
             self.clear_active_account()?;
         }
@@ -81,7 +93,7 @@ impl AppStateStore {
     }
 
     pub fn clear(&self) -> Result<(), AppStateError> {
-        for key in [ACCOUNTS_KEY, ACTIVE_KEY, CLIENT_ID_KEY] {
+        for key in [ACCOUNTS_KEY, ACTIVE_KEY, CLIENT_ID_KEY, WORKSPACE_KEYS_KEY] {
             self.storage
                 .remove_item(key)
                 .map_err(|_| AppStateError::from(format!("failed to clear {key}")))?;
@@ -108,6 +120,55 @@ impl AppStateStore {
         };
         account.last_workspace_id = workspace_id;
         self.write(ACCOUNTS_KEY, &accounts)
+    }
+
+    fn stored_keys(&self) -> Result<Vec<StoredKey>, AppStateError> {
+        Ok(self.read(WORKSPACE_KEYS_KEY)?.unwrap_or_default())
+    }
+
+    pub fn workspace_key(
+        &self,
+        saved: &SavedAccount,
+        workspace: Uuid,
+    ) -> Result<Option<[u8; 32]>, AppStateError> {
+        Ok(self
+            .workspace_keys(saved)?
+            .into_iter()
+            .find(|(stored, _)| *stored == workspace)
+            .map(|(_, key)| key))
+    }
+
+    pub fn workspace_keys(
+        &self,
+        saved: &SavedAccount,
+    ) -> Result<Vec<(Uuid, [u8; 32])>, AppStateError> {
+        Ok(self
+            .stored_keys()?
+            .into_iter()
+            .filter(|stored| stored.server == saved.server.key() && stored.account == saved.id)
+            .map(|stored| (stored.workspace, stored.key))
+            .collect())
+    }
+
+    pub fn set_workspace_key(
+        &self,
+        saved: &SavedAccount,
+        workspace: Uuid,
+        key: [u8; 32],
+    ) -> Result<(), AppStateError> {
+        let mut keys = self.stored_keys()?;
+        keys.retain(|stored| {
+            stored.server != saved.server.key()
+                || stored.account != saved.id
+                || stored.workspace != workspace
+        });
+        keys.push(StoredKey {
+            server: saved.server.key().to_owned(),
+            account: saved.id,
+            workspace,
+            key,
+        });
+        self.write(WORKSPACE_KEYS_KEY, &keys)
     }
 
     pub fn client_id(&self) -> Result<Uuid, AppStateError> {

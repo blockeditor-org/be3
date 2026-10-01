@@ -21,7 +21,7 @@ use native as platform;
 use web as platform;
 
 pub(crate) use graph::{Graph, Node, Query, Scope};
-pub(crate) use worker::{History, Presence, Shared};
+pub(crate) use worker::{History, PairingRequest, Presence, Shared};
 
 use worker::Command;
 
@@ -30,6 +30,7 @@ pub(crate) struct Config {
     pub(crate) token: String,
     pub(crate) account: Uuid,
     pub(crate) workspace: Uuid,
+    pub(crate) content_key: [u8; 32],
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) data_dir: PathBuf,
 }
@@ -38,13 +39,7 @@ impl Config {
     fn socket_url(&self) -> String {
         crate::accounts::socket_url(&self.server_url)
     }
-
-    fn content_key(&self) -> [u8; 32] {
-        *be_store::Hash::of_parts(&[CONTENT_KEY_LABEL, self.workspace.as_bytes()]).as_bytes()
-    }
 }
-
-const CONTENT_KEY_LABEL: &[u8] = b"be3.workspace.content-key.v1";
 
 const LOG_LIMIT: usize = 512;
 
@@ -518,6 +513,18 @@ pub(crate) fn seed(block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
 
 pub(crate) fn content(block: Uuid) -> Option<Content> {
     with_shared(|shared| shared.blocks.get(&block).cloned())?
+}
+
+pub(crate) fn pairing_requests() -> Vec<PairingRequest> {
+    with_shared(|shared| shared.pairing.clone()).unwrap_or_default()
+}
+
+pub(crate) fn approve_pairing(from: u64, code: String) {
+    send(Command::ApprovePairing { from, code });
+}
+
+pub(crate) fn dismiss_pairing(from: u64) {
+    send(Command::DismissPairing(from));
 }
 
 pub(crate) fn status() -> Status {

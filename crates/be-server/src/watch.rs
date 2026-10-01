@@ -15,6 +15,7 @@ pub struct WatchHub {
     clients: Mutex<HashMap<u64, UnboundedSender<ServerMessage>>>,
     watchers: Mutex<HashMap<Uuid, HashSet<u64>>>,
     workspaces: Mutex<HashMap<u64, Identity>>,
+    accounts: Mutex<HashMap<u64, Uuid>>,
 }
 
 impl WatchHub {
@@ -45,6 +46,43 @@ impl WatchHub {
                 watchers.remove(&block);
             }
         }
+    }
+
+    pub async fn join_account(&self, client: u64, account: Uuid) {
+        self.accounts.lock().await.insert(client, account);
+    }
+
+    pub async fn leave_account(&self, client: u64) {
+        self.accounts.lock().await.remove(&client);
+        self.workspaces.lock().await.remove(&client);
+    }
+
+    pub async fn send_account(
+        &self,
+        account: Uuid,
+        from: u64,
+        to: Option<u64>,
+        message: &ServerMessage,
+    ) -> usize {
+        let targets: Vec<u64> = self
+            .accounts
+            .lock()
+            .await
+            .iter()
+            .filter(|(client, owner)| {
+                **owner == account && **client != from && to.is_none_or(|to| to == **client)
+            })
+            .map(|(client, _)| *client)
+            .collect();
+        let clients = self.clients.lock().await;
+        let mut sent = 0;
+        for target in targets {
+            if let Some(sender) = clients.get(&target) {
+                let _ = sender.send(message.clone());
+                sent += 1;
+            }
+        }
+        sent
     }
 
     pub async fn join_workspace(&self, client: u64, identity: Identity) {
@@ -80,6 +118,7 @@ impl WatchHub {
 
     pub async fn remove(&self, client: u64) {
         self.workspaces.lock().await.remove(&client);
+        self.accounts.lock().await.remove(&client);
         self.clients.lock().await.remove(&client);
         let mut watchers = self.watchers.lock().await;
         watchers.retain(|_, clients| {

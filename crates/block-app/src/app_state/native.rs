@@ -35,6 +35,13 @@ impl AppStateStore {
             CREATE TABLE IF NOT EXISTS app_settings (
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS workspace_keys (
+                server_key   TEXT NOT NULL,
+                account_id   TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                key          BLOB NOT NULL,
+                PRIMARY KEY (server_key, account_id, workspace_id)
             );",
         )?;
         Ok(Self { connection })
@@ -104,6 +111,10 @@ impl AppStateStore {
             "DELETE FROM saved_accounts WHERE server_key = ?1 AND account_id = ?2",
             params![saved.server.key(), saved.id.to_string()],
         )?;
+        self.connection.execute(
+            "DELETE FROM workspace_keys WHERE server_key = ?1 AND account_id = ?2",
+            params![saved.server.key(), saved.id.to_string()],
+        )?;
         if self.active_account()?.as_ref() == Some(&(saved.server.key().into(), saved.id)) {
             self.clear_active_account()?;
         }
@@ -144,6 +155,72 @@ impl AppStateStore {
                 saved.server.key(),
                 saved.id.to_string(),
                 workspace_id.map(|id| id.to_string())
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn workspace_key(
+        &self,
+        saved: &SavedAccount,
+        workspace: Uuid,
+    ) -> Result<Option<[u8; 32]>, AppStateError> {
+        let key: Option<Vec<u8>> = self
+            .connection
+            .query_row(
+                "SELECT key FROM workspace_keys
+                 WHERE server_key = ?1 AND account_id = ?2 AND workspace_id = ?3",
+                params![
+                    saved.server.key(),
+                    saved.id.to_string(),
+                    workspace.to_string()
+                ],
+                |row| row.get(0),
+            )
+            .optional()?;
+        key.map(|key| {
+            key.try_into()
+                .map_err(|_| AppStateError::from("a stored workspace key is corrupt".to_owned()))
+        })
+        .transpose()
+    }
+
+    pub fn workspace_keys(
+        &self,
+        saved: &SavedAccount,
+    ) -> Result<Vec<(Uuid, [u8; 32])>, AppStateError> {
+        let mut statement = self.connection.prepare(
+            "SELECT workspace_id, key FROM workspace_keys WHERE server_key = ?1 AND account_id = ?2",
+        )?;
+        let rows = statement
+            .query_map(params![saved.server.key(), saved.id.to_string()], |row| {
+                Ok((parse_uuid(row.get(0)?)?, row.get::<_, Vec<u8>>(1)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows.into_iter()
+            .map(|(workspace, key)| {
+                let key = key.try_into().map_err(|_| {
+                    AppStateError::from("a stored workspace key is corrupt".to_owned())
+                })?;
+                Ok((workspace, key))
+            })
+            .collect()
+    }
+
+    pub fn set_workspace_key(
+        &self,
+        saved: &SavedAccount,
+        workspace: Uuid,
+        key: [u8; 32],
+    ) -> Result<(), AppStateError> {
+        self.connection.execute(
+            "INSERT OR REPLACE INTO workspace_keys (server_key, account_id, workspace_id, key)
+             VALUES (?1, ?2, ?3, ?4)",
+            params![
+                saved.server.key(),
+                saved.id.to_string(),
+                workspace.to_string(),
+                key.to_vec()
             ],
         )?;
         Ok(())
