@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use super::*;
 
+mod a_large_buffer_only_anchors_the_positions_in_use;
+mod anchors_follow_edits_and_die_with_their_bytes;
 mod atomic_units_are_single_cursor_units;
 mod collapse_and_uncollapse_affect_touched_lines;
 mod collapsed_section_reveals_temporarily_around_the_cursor;

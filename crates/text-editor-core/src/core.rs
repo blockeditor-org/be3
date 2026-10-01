@@ -2503,7 +2503,7 @@ fn has_stop(
                         .then_some(BetweenCharsStop::Both);
                 }
             }
-            grapheme_boundaries(bytes)[index].then_some(BetweenCharsStop::Both)
+            is_grapheme_boundary(bytes, index).then_some(BetweenCharsStop::Both)
         }
         CursorLeftRightStop::Word => {
             let left = ascii_classification(left);
@@ -2586,6 +2586,25 @@ fn ascii_classification(byte: u8) -> AsciiClassification {
 
 fn is_utf8_leading_byte(byte: u8) -> bool {
     byte <= 0x7f || (0xc2..=0xf4).contains(&byte)
+}
+
+fn is_grapheme_boundary(bytes: &[u8], index: usize) -> bool {
+    if index == 0 || index >= bytes.len() {
+        return true;
+    }
+    let (left, right) = (bytes[index - 1], bytes[index]);
+    if right.is_ascii() {
+        return !(left == b'\r' && right == b'\n');
+    }
+    let start = bytes[..index]
+        .iter()
+        .rposition(|byte| *byte == b'\n')
+        .map_or(0, |newline| newline + 1);
+    let end = bytes[index..]
+        .iter()
+        .position(|byte| *byte == b'\n')
+        .map_or(bytes.len(), |newline| index + newline);
+    grapheme_boundaries(&bytes[start..end])[index - start]
 }
 
 fn grapheme_boundaries(bytes: &[u8]) -> Vec<bool> {
