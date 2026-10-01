@@ -50,7 +50,7 @@ fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
                 {move |tab: TabId| {
                     let id = tab.value();
                     if tab != HOME {
-                        dock_actions(view! {
+                        dock_actions(move || view! {
                             <Frame @test_id={format!("action.{id}")} width=24.0 height=24.0 />
                         });
                     }

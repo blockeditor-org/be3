@@ -65,12 +65,23 @@ fn lookup(document: &Document) -> NodeId {
     let error = fix(&root, true).unwrap_err().to_string();
 
     assert!(error.contains("component attribute: crates/widget/src/lib.rs:1 `helper`"));
-    assert!(error.contains("component view: crates/widget/src/lib.rs:7 `Twice` builds more than one"));
+    assert!(
+        error.contains("component view: crates/widget/src/lib.rs:7 `Twice` builds more than one")
+    );
     assert!(error.contains("component view: crates/widget/src/lib.rs:19 `Trailing` must end"));
     assert!(error.contains("memo write: crates/widget/src/lib.rs:30"));
-    assert!(!error.contains("`Rows`"), "a view inside a row builder is the row's own");
-    assert!(!error.contains("`Nested`"), "a view inside the view is part of it");
-    assert!(!error.contains("`lookup`"), "a function that only finds a node builds nothing");
+    assert!(
+        !error.contains("`Rows`"),
+        "a view inside a row builder is the row's own"
+    );
+    assert!(
+        !error.contains("`Nested`"),
+        "a view inside the view is part of it"
+    );
+    assert!(
+        !error.contains("`lookup`"),
+        "a function that only finds a node builds nothing"
+    );
 
     fs::remove_dir_all(root).unwrap();
 }

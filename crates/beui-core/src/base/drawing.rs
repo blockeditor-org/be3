@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 pub type Draw = Rc<dyn Fn(&Painter, Rect)>;

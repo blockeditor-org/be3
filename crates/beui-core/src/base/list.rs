@@ -7,7 +7,7 @@ use crate::pixel_grid::PixelGrid;
 use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::base::share::{Part, share, snapped_run};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
@@ -676,7 +676,12 @@ impl Document {
         }
     }
 
-    pub fn append_child(&mut self, parent: NodeOf<ListNode>, child: NodeId, size: impl Into<Sizing>) {
+    pub fn append_child(
+        &mut self,
+        parent: NodeOf<ListNode>,
+        child: NodeId,
+        size: impl Into<Sizing>,
+    ) {
         let size = size.into();
         self.arena
             .get_mut_as::<ListNode>(parent)

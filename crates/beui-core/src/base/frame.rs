@@ -4,7 +4,7 @@ use crate::base::list::Align;
 use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::{Corners, Painter};
 use crate::pixel_grid::PixelGrid;
 
@@ -410,7 +410,12 @@ impl Document {
         }
     }
 
-    pub fn set_frame_content_align(&mut self, frame: NodeOf<FrameNode>, horizontal: Align, vertical: Align) {
+    pub fn set_frame_content_align(
+        &mut self,
+        frame: NodeOf<FrameNode>,
+        horizontal: Align,
+        vertical: Align,
+    ) {
         let node = self.arena.get_as::<FrameNode>(frame);
         if node.align_horizontal == horizontal && node.align_vertical == vertical {
             return;

@@ -4,7 +4,7 @@ use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::base::share::{Part, share, snapped_run};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -268,7 +268,12 @@ impl Document {
         }
     }
 
-    pub fn set_grid_spacing(&mut self, grid: NodeOf<GridNode>, column_spacing: f32, row_spacing: f32) {
+    pub fn set_grid_spacing(
+        &mut self,
+        grid: NodeOf<GridNode>,
+        column_spacing: f32,
+        row_spacing: f32,
+    ) {
         let node = self.arena.get_as::<GridNode>(grid);
         if node.column_spacing == column_spacing && node.row_spacing == row_spacing {
             return;

@@ -3,7 +3,7 @@ use std::any::Any;
 use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 pub struct StrokeNode {

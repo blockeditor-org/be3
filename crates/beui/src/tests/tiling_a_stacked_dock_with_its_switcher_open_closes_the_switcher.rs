@@ -26,7 +26,7 @@ fn Docked() -> NodeId {
         >
             {move |tab: TabId| {
                 let id = tab.value();
-                dock_actions(view! {
+                dock_actions(move || view! {
                     <Frame @test_id={format!("action.{id}")} width=24.0 height=24.0 />
                 });
                 view! {

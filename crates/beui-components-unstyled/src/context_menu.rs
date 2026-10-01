@@ -64,20 +64,6 @@ pub fn ContextMenu(
         requested.set(true);
     });
     let items = items.into_run();
-    let menu = panel.call(view! {
-        <MenuList
-            @node_ref=&content
-            items={items}
-            row
-            panel={panel.clone()}
-            active
-            on_select={move |path: Vec<usize>| {
-                on_select.call(path);
-                close.set(false);
-                on_close.call();
-            }}
-        />
-    });
     view! {
         <ClickCatcher
             on_secondary_press={move |press: PointerPress| {
@@ -102,7 +88,20 @@ pub fn ContextMenu(
                         dismissed.call();
                     }}
                 >
-                    {menu}
+                    {panel.call(view! {
+                        <MenuList
+                            @node_ref=&content
+                            items={items}
+                            row
+                            panel={panel.clone()}
+                            active
+                            on_select={move |path: Vec<usize>| {
+                                on_select.call(path);
+                                close.set(false);
+                                on_close.call();
+                            }}
+                        />
+                    })}
                 </Overlay>
             </List>
         </ClickCatcher>

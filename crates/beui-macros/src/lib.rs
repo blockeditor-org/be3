@@ -440,14 +440,17 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 fn node_watcher(tokens: proc_macro2::TokenStream) -> Option<proc_macro2::Ident> {
-    const WATCHERS: [&str; 4] = [
+    const WATCHERS: [&str; 5] = [
         "set_component_state",
         "component_accessibility",
         "component_size",
         "component_rect",
+        "component_placed",
     ];
     tokens.into_iter().find_map(|token| match token {
-        proc_macro2::TokenTree::Ident(ident) if WATCHERS.iter().any(|watcher| ident == *watcher) => {
+        proc_macro2::TokenTree::Ident(ident)
+            if WATCHERS.iter().any(|watcher| ident == *watcher) =>
+        {
             Some(ident)
         }
         proc_macro2::TokenTree::Group(group) => node_watcher(group.stream()),

@@ -1,11 +1,11 @@
 use std::any::Any;
 
+use crate::base::overlay::OverlayNode;
 use crate::callback::ClickCallback;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
 use crate::input::{BackEdge, BackGesture};
-use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
-use crate::base::overlay::OverlayNode;
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 const SHIFT_FRACTION: f32 = 0.1;
@@ -98,7 +98,11 @@ impl Element for BackNode {
 }
 
 impl Document {
-    pub fn create_back_handler(&mut self, child: NodeId, on_back: ClickCallback) -> NodeOf<BackNode> {
+    pub fn create_back_handler(
+        &mut self,
+        child: NodeId,
+        on_back: ClickCallback,
+    ) -> NodeOf<BackNode> {
         let id = self.arena.insert(BackNode {
             child: Some(child),
             enabled: true,

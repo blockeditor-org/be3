@@ -15,7 +15,11 @@ fn a_keyed_mapping_builds_a_row_for_each_repeat_of_a_key() {
     });
 
     assert_eq!(items.map(vec![1, 2, 1]).items(), [10, 20, 10]);
-    assert_eq!(builds.get(), 3, "each repeat of a key gets a row of its own");
+    assert_eq!(
+        builds.get(),
+        3,
+        "each repeat of a key gets a row of its own"
+    );
 
     assert_eq!(items.map(vec![1, 1, 2]).items(), [10, 10, 20]);
     assert_eq!(

@@ -35,8 +35,8 @@ inputs changes. `./scripts/buck run //:verify` reports a function outside an
 `impl` that writes a `view!` and returns a node or a child value without the
 attribute. `#[component]` is also what makes the function usable as a tag,
 gives it `@test_id`, `@node_ref` and `@sizing`, and makes
-`component_state`, `component_accessibility` and `component_size` available
-inside it.
+`component_state`, `component_accessibility`, `component_size`,
+`component_rect` and `component_placed` available inside it.
 
 A component that returns its own type implements `ChildValue` to name the node
 the scope hangs on, and `IntoChild` for the slot that takes it, as
@@ -49,7 +49,7 @@ the owner tree does the rest. That is how an item made of data rather than
 nodes — a label, a key, a callback — can still be a component, with its own
 scope, context, memos and cleanups, and still be written as a tag. Such a
 component has nothing for `component_state`, `component_accessibility`,
-`component_size` or `component_rect` to watch, so naming any of them in its body
+`component_size`, `component_rect` or `component_placed` to watch, so naming any of them in its body
 does not compile, and `@test_id` and `@node_ref` on its tag do not compile either,
 because they only take a component whose output implements `BuildsNode`.
 `unstyled::MenuItem` is one: a menu item is a label, a disabled flag and its

@@ -389,12 +389,10 @@ fn DesktopBar(
     let changed = Rc::clone(&typed);
     let blurred = Rc::clone(&typed);
     let shared = editor.clone();
-    let items = use_context::<BarItems>().map(|items| items.items);
-    let offered = create_memo(move || {
-        items
-            .as_ref()
-            .is_some_and(|items| items.with(|items| !items.is_empty()))
-    });
+    let items =
+        use_context::<BarItems>().map_or_else(|| create_signal(Vec::new()).0, |bar| bar.items);
+    let listed = items.clone();
+    let offered = create_memo(move || listed.with(|items| !items.is_empty()));
     view! {
         <Toolbar shown={shown} spacing=BAR_SPACING fit=true>
             <IconButton
@@ -445,7 +443,7 @@ fn DesktopBar(
                 on_click={move || shared.host().share_block(shared.block_id())}
             />
             <Show condition={offered}>
-                <MoreMenu />
+                <MoreMenu items />
             </Show>
             <Show condition={closable}>
                 <Button
@@ -460,12 +458,7 @@ fn DesktopBar(
 }
 
 #[component]
-fn MoreMenu() -> NodeId {
-    let Some(BarItems { items, .. }) = use_context::<BarItems>() else {
-        return view! {
-            <List spacing=0.0 />
-        };
-    };
+fn MoreMenu(items: ReadSignal<Vec<(u64, BarItem)>>) -> NodeId {
     let keys = create_memo(clone!(items -> move || {
         items.with(|items| items.iter().map(|(key, _)| *key).collect::<Vec<u64>>())
     }));

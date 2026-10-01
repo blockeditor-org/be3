@@ -2,10 +2,10 @@ use beui_macros::component;
 
 use crate::reactive::{Child, Prop, create_effect, with_document};
 use beui_core::base::Align;
+use beui_core::base::frame::FrameNode;
 use beui_core::base::frame::{FrameStyle, Sides};
 use beui_core::color::Color32;
 use beui_core::document::Document;
-use beui_core::base::frame::FrameNode;
 use beui_core::node::{NodeId, NodeOf};
 use beui_core::painter::Corners;
 

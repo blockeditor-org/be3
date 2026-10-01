@@ -22,7 +22,11 @@ fn a_removed_nodes_slot_is_reused_under_a_new_id() {
         middle.id().index(),
         "a node made after a frame takes the slot a removed node gave up"
     );
-    assert_ne!(replacement.id(), middle.id(), "the reused slot hands out a new id");
+    assert_ne!(
+        replacement.id(),
+        middle.id(),
+        "the reused slot hands out a new id"
+    );
     assert!(
         !harness.document().contains(middle),
         "the removed node's id no longer names a node"

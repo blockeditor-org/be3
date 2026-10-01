@@ -9,7 +9,7 @@ use crate::painter::Painter;
 
 use crate::callback::Callback;
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, Rects, SpaceId, NodeOf};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects, SpaceId};
 use ::reactive::settle;
 
 #[derive(Clone, Copy, PartialEq, Debug)]

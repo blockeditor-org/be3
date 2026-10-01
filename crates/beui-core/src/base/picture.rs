@@ -4,7 +4,7 @@ use crate::color::Color32;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::image::{Image, ImageFit, Thumbhash};
-use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 pub struct PictureNode {
@@ -132,7 +132,11 @@ impl Document {
         }
     }
 
-    pub fn set_picture_thumbhash(&mut self, picture: NodeOf<PictureNode>, thumbhash: Option<Thumbhash>) {
+    pub fn set_picture_thumbhash(
+        &mut self,
+        picture: NodeOf<PictureNode>,
+        thumbhash: Option<Thumbhash>,
+    ) {
         if self.arena.get_as::<PictureNode>(picture).thumbhash != thumbhash {
             let node = self.arena.get_mut_as::<PictureNode>(picture);
             node.placeholder = thumbhash.as_ref().and_then(Thumbhash::decode);

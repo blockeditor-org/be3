@@ -7,7 +7,7 @@ use crate::base::list::Direction;
 use crate::base::offset::item_rect;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 use ::reactive::{KeyedItems, ScopeContext, numbered, owner_scope, settle};
 
@@ -472,7 +472,12 @@ impl Document {
         list: NodeOf<VirtualListNode<(K, usize)>>,
         direction: Direction,
     ) {
-        if self.arena.get_as::<VirtualListNode<(K, usize)>>(list).direction == direction {
+        if self
+            .arena
+            .get_as::<VirtualListNode<(K, usize)>>(list)
+            .direction
+            == direction
+        {
             return;
         }
         let node = self.arena.get_mut_as::<VirtualListNode<(K, usize)>>(list);

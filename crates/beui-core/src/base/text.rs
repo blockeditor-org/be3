@@ -13,7 +13,7 @@ use crate::pixel_grid::PixelGrid;
 
 use crate::base::child_list::{ChildHost, ChildItem, ChildList};
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::rich::{
     CaretHandle, RichLayout, RichOptions, SpanStyle, TextCaret, TextMark, TextSpan, handle_shapes,
 };
@@ -131,7 +131,12 @@ impl TextNode {
         self.items
             .iter()
             .copied()
-            .filter(|item| doc.arena.get_as::<TextItemNode>(NodeOf::assumed(*item)).at.is_none())
+            .filter(|item| {
+                doc.arena
+                    .get_as::<TextItemNode>(NodeOf::assumed(*item))
+                    .at
+                    .is_none()
+            })
             .collect()
     }
 
@@ -646,7 +651,11 @@ impl Document {
         }
     }
 
-    pub fn set_text_selection(&mut self, text: NodeOf<TextNode>, selection: Option<(Range<usize>, Color32)>) {
+    pub fn set_text_selection(
+        &mut self,
+        text: NodeOf<TextNode>,
+        selection: Option<(Range<usize>, Color32)>,
+    ) {
         if self.arena.get_as::<TextNode>(text).selection != selection {
             self.arena.paint_mut_as::<TextNode>(text).selection = selection;
         }
@@ -829,7 +838,12 @@ impl Document {
         }
     }
 
-    pub fn text_caret_rect(&self, text: NodeOf<TextNode>, index: usize, width: f32) -> Option<Rect> {
+    pub fn text_caret_rect(
+        &self,
+        text: NodeOf<TextNode>,
+        index: usize,
+        width: f32,
+    ) -> Option<Rect> {
         if let Some(rect) = self.text_geometry(text).caret_rect(index, width) {
             return Some(rect);
         }

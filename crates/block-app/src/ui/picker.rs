@@ -1,7 +1,7 @@
 use be_graph::BlockParent;
 use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Portal, Show, Spacer, Text, clone,
-    component, create_memo, view,
+    Align, Child, Direction, ForEach, Frame, ItemSize, List, Memo, Portal, Show, Spacer, Text,
+    clone, component, create_memo, view,
 };
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::{
@@ -462,19 +462,32 @@ fn CreateDialog(
     phone: Memo<bool>,
 ) -> NodeId {
     let open = create_memo(clone!(create -> move || create.get().is_some()));
-    let wide = create_memo(clone!(open phone -> move || open.get() && !phone.get()));
-    let narrow = create_memo(clone!(open phone -> move || open.get() && phone.get()));
     let title = create_memo(clone!(create -> move || {
         format!(
             "New {}",
             create.get().map(|create| create.title).unwrap_or_default()
         )
     }));
-    let body = view! {
-        <CreateBody id={id.clone()} create surface />
-    };
-    let in_dialog = create_memo(clone!(wide -> move || wide.get().then_some(body)));
-    let in_sheet = create_memo(clone!(narrow -> move || narrow.get().then_some(body)));
+    let cancel = id.clone();
+    view! {
+        <CreateFrames id={cancel} open phone title>
+            <CreateBody id create surface />
+        </CreateFrames>
+    }
+}
+
+#[component]
+fn CreateFrames(
+    id: Memo<Uuid>,
+    open: Memo<bool>,
+    phone: Memo<bool>,
+    title: Memo<String>,
+    children: Child,
+) -> NodeId {
+    let wide = create_memo(clone!(open phone -> move || open.get() && !phone.get()));
+    let narrow = create_memo(clone!(open phone -> move || open.get() && phone.get()));
+    let in_dialog = create_memo(clone!(wide -> move || wide.get().then_some(children)));
+    let in_sheet = create_memo(clone!(narrow -> move || narrow.get().then_some(children)));
     let (dismiss, closing) = (id.clone(), id);
     let sheet_title = title.clone();
     view! {

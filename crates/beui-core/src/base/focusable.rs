@@ -9,7 +9,7 @@ use crate::painter::Painter;
 use crate::callback::{Callback, ClickCallback};
 use crate::current::with_document;
 use crate::document::Document;
-use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 
 pub type KeyCallback = Callback<KeyPress, bool>;
 
@@ -149,7 +149,11 @@ impl Document {
         }
     }
 
-    pub fn set_focusable_press_focus(&mut self, focusable: NodeOf<FocusableNode>, press_focus: bool) {
+    pub fn set_focusable_press_focus(
+        &mut self,
+        focusable: NodeOf<FocusableNode>,
+        press_focus: bool,
+    ) {
         if !self.contains(focusable) {
             return;
         }
@@ -197,7 +201,11 @@ impl Document {
         }
     }
 
-    pub fn set_focusable_ime_cursor(&mut self, focusable: NodeOf<FocusableNode>, cursor: Option<ImeCursor>) {
+    pub fn set_focusable_ime_cursor(
+        &mut self,
+        focusable: NodeOf<FocusableNode>,
+        cursor: Option<ImeCursor>,
+    ) {
         if self.contains(focusable) {
             self.arena
                 .touch_mut_as::<FocusableNode>(focusable)

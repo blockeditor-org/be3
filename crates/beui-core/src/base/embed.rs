@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
-use crate::node::{Element, InteractInput, NodeId, Rects, NodeOf};
+use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -176,7 +176,12 @@ impl Document {
         }
     }
 
-    pub fn set_embed_size(&mut self, embed: NodeOf<EmbedNode>, width: Option<f32>, height: Option<f32>) {
+    pub fn set_embed_size(
+        &mut self,
+        embed: NodeOf<EmbedNode>,
+        width: Option<f32>,
+        height: Option<f32>,
+    ) {
         let node = self.arena.get_as::<EmbedNode>(embed);
         if node.width == width && node.height == height {
             return;

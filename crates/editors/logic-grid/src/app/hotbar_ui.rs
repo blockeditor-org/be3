@@ -303,12 +303,6 @@ fn HotbarSlotButton(session: Rc<Session>, path: Vec<usize>) -> NodeId {
         Some(2) => session.update(|model| model.remove_hotbar_folder(&path)),
         _ => {}
     });
-    let items = view! {
-        <MenuItem label="Remove from hotbar" disabled={not_component} />
-        <MenuItem label="Open folder" disabled={not_folder} />
-        <MenuItem label="Remove folder" disabled={not_removable} />
-    };
-
     let (hovered, set_hovered) = create_signal(false);
     let disabled = create_memo(clone!(shown -> move || {
         shown.get().is_none_or(|slot| slot.disabled)
@@ -350,7 +344,15 @@ fn HotbarSlotButton(session: Rc<Session>, path: Vec<usize>) -> NodeId {
     );
     view! {
         <SlotDrop session={session} target={target} folder=false>
-            <ContextMenu items={items} disabled={menu_disabled} on_select={chose}>
+            <ContextMenu
+                items={view! {
+                    <MenuItem label="Remove from hotbar" disabled={not_component} />
+                    <MenuItem label="Open folder" disabled={not_folder} />
+                    <MenuItem label="Remove folder" disabled={not_removable} />
+                }}
+                disabled={menu_disabled}
+                on_select={chose}
+            >
                 <Tooltip label={label}>
                     <Focusable on_activate={on_activate}>
                         <ClickCatcher on_hover_change={move |over: bool| set_hovered.set(over)}>
@@ -578,14 +580,17 @@ fn ScalePicker(session: Rc<Session>, output: bool) -> NodeId {
             false => model.tool.scale = scale,
         });
     };
-    let options = view! {
-        <ForEach keys={SCALES.to_vec()}>
-            {move |value: u8| view! {
-                <ChoiceOption label={format!("{value}x")} />
-            }}
-        </ForEach>
-    };
     view! {
-        <Tabs options={options} selected={selected} on_change={chose} />
+        <Tabs
+            options={view! {
+                <ForEach keys={SCALES.to_vec()}>
+                    {move |value: u8| view! {
+                        <ChoiceOption label={format!("{value}x")} />
+                    }}
+                </ForEach>
+            }}
+            selected={selected}
+            on_change={chose}
+        />
     }
 }

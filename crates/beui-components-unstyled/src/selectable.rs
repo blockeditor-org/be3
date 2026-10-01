@@ -5,11 +5,11 @@ use beui::reactive::{
     Callback, Child, ClickCatcher, Focusable, NodeRef, Prop, copy_text, create_effect,
     set_component_state, untrack, with_document,
 };
+use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{Key, KeyPress, PointerPress};
-use beui_core::base::text::TextNode;
 use beui_core::node::{NodeId, NodeOf};
 use beui_core::rich::{CaretHandle, handle_center};
 use beui_macros::{component, view};

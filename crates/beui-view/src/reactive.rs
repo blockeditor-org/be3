@@ -37,6 +37,7 @@ struct ComponentContext {
     accessibility: RefCell<Option<accesskit::Node>>,
     size: RefCell<Option<(ReadSignal<Vec2>, WriteSignal<Vec2>)>>,
     placement: RefCell<Option<(ReadSignal<Rect>, WriteSignal<Rect>)>>,
+    placed: RefCell<Option<(ReadSignal<bool>, WriteSignal<bool>)>>,
 }
 
 pub fn build(f: impl FnOnce() -> NodeId) -> Document {
@@ -154,6 +155,12 @@ pub fn component<T: ChildValue>(name: &'static str, f: impl FnOnce() -> T) -> T 
     let accessibility = context.accessibility.take();
     let size = context.size.take();
     let placement = context.placement.take();
+    let placed = context.placed.take();
+    if let (Some(root), Some((_, write))) = (anchor, placed.as_ref()) {
+        let watched = with_document(|document| document.watch_placed(root));
+        let write = write.clone();
+        scope.run(|| create_effect(move || write.set(watched.get())));
+    }
     match anchor {
         Some(root) => with_document(|document| {
             document.name_component(root, name);
@@ -171,9 +178,14 @@ pub fn component<T: ChildValue>(name: &'static str, f: impl FnOnce() -> T) -> T 
             }
         }),
         None => assert!(
-            states.is_empty() && accessibility.is_none() && size.is_none() && placement.is_none(),
+            states.is_empty()
+                && accessibility.is_none()
+                && size.is_none()
+                && placement.is_none()
+                && placed.is_none(),
             "a component that builds no node has nothing for `component_state`, \
-             `component_accessibility`, `component_size` or `component_rect` to watch"
+             `component_accessibility`, `component_size`, `component_rect` or \
+             `component_placed` to watch"
         ),
     }
     value.adopt_scope(scope);
@@ -196,6 +208,19 @@ pub fn component_size() -> ReadSignal<Vec2> {
     }
     let (read, write) = create_signal(Vec2::ZERO);
     component.size.replace(Some((read.clone(), write)));
+    read
+}
+
+pub fn component_placed() -> ReadSignal<bool> {
+    let component = current_component();
+    if let Some(target) = component.target.get() {
+        return node_placed(target);
+    }
+    if let Some((read, _)) = component.placed.borrow().as_ref() {
+        return read.clone();
+    }
+    let (read, write) = create_signal(false);
+    component.placed.replace(Some((read.clone(), write)));
     read
 }
 
@@ -523,7 +548,7 @@ pub trait BuildsNode {
 }
 
 #[diagnostic::on_unimplemented(
-    message = "a `{Self}` is no node, so `component_state`, `component_accessibility`, `component_size` and `component_rect` have nothing to watch",
+    message = "a `{Self}` is no node, so `component_state`, `component_accessibility`, `component_size`, `component_rect` and `component_placed` have nothing to watch",
     label = "call it from a component that returns the node it builds"
 )]
 pub trait WatchedNode {}

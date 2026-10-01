@@ -12,7 +12,7 @@ use crate::base::click_catcher::ClickCatcherNode;
 use crate::callback::{Callback, NodeRef};
 use crate::current::with_document;
 use crate::document::Document;
-use crate::node::{ClickHandler, Element, InteractInput, NodeId, Rects, NodeOf};
+use crate::node::{ClickHandler, Element, InteractInput, NodeId, NodeOf, Rects};
 
 #[derive(Clone, PartialEq)]
 pub enum OverlayAnchor {
@@ -315,7 +315,11 @@ impl Document {
         !moved.is_empty()
     }
 
-    pub fn create_overlay(&mut self, anchor: OverlayAnchor, placement: Placement) -> NodeOf<OverlayNode> {
+    pub fn create_overlay(
+        &mut self,
+        anchor: OverlayAnchor,
+        placement: Placement,
+    ) -> NodeOf<OverlayNode> {
         let overlay_cell: Rc<Cell<Option<NodeOf<OverlayNode>>>> = Rc::new(Cell::new(None));
         let press_cell = overlay_cell.clone();
         let tap_cell = overlay_cell.clone();
@@ -418,7 +422,12 @@ impl Document {
                 .map(NodeOf::id)
                 .chain([root])
                 .collect(),
-            false => self.overlay_stack.iter().rev().map(|overlay| overlay.id()).collect(),
+            false => self
+                .overlay_stack
+                .iter()
+                .rev()
+                .map(|overlay| overlay.id())
+                .collect(),
         }
     }
 
@@ -434,7 +443,11 @@ impl Document {
     }
 
     pub fn raise_overlay(&mut self, overlay: NodeId) {
-        let Some(index) = self.passive_overlays.iter().position(|id| id.id() == overlay) else {
+        let Some(index) = self
+            .passive_overlays
+            .iter()
+            .position(|id| id.id() == overlay)
+        else {
             return;
         };
         if index + 1 == self.passive_overlays.len() {
@@ -449,7 +462,11 @@ impl Document {
         self.arena.get_as::<OverlayNode>(overlay).traps_focus
     }
 
-    pub fn set_overlay_on_dismiss(&mut self, overlay: NodeOf<OverlayNode>, handler: impl FnMut() + 'static) {
+    pub fn set_overlay_on_dismiss(
+        &mut self,
+        overlay: NodeOf<OverlayNode>,
+        handler: impl FnMut() + 'static,
+    ) {
         self.arena.touch_mut_as::<OverlayNode>(overlay).on_dismiss = Some(Box::new(handler));
     }
 

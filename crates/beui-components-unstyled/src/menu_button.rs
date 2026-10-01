@@ -36,18 +36,6 @@ pub fn MenuButton(
     let button = NodeRef::new();
     let items = items.into_run();
     let shown = open.clone();
-    let menu = panel.call(view! {
-        <MenuList
-            items={items}
-            row
-            panel={panel.clone()}
-            active={open.clone()}
-            on_select={clone!(set_open -> move |path: Vec<usize>| {
-                on_select.call(path);
-                set_open.set(false);
-            })}
-        />
-    });
     view! {
         <List spacing=0.0>
             <unstyled::Button
@@ -70,7 +58,18 @@ pub fn MenuButton(
                 open={shown}
                 on_dismiss={clone!(set_open -> move || set_open.set(false))}
             >
-                {menu}
+                {panel.call(view! {
+                    <MenuList
+                        items={items}
+                        row
+                        panel={panel.clone()}
+                        active={open.clone()}
+                        on_select={clone!(set_open -> move |path: Vec<usize>| {
+                            on_select.call(path);
+                            set_open.set(false);
+                        })}
+                    />
+                })}
             </Overlay>
         </List>
     }

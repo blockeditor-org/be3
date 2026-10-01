@@ -11,7 +11,7 @@ use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Focusable, ForEach, Func, List, Memo, Prop, ReadSignal, RenderFn, Selector,
+    Callback, Focusable, ForEach, Func, List, Memo, NodeRef, Prop, ReadSignal, RenderFn, Selector,
     WriteSignal, clone, component_accessibility, create_effect, create_memo, create_selector,
     create_signal, on_cleanup, set_component_state, untrack,
 };
@@ -48,7 +48,7 @@ struct State<K> {
 
 type Handle<K> = Rc<State<K>>;
 
-type Nodes<K> = Rc<RefCell<HashMap<K, NodeId>>>;
+type Nodes<K> = Rc<RefCell<HashMap<K, NodeRef>>>;
 
 #[component]
 pub fn Tree<K>(
@@ -170,8 +170,14 @@ where
     });
     let activating = chosen.clone();
     let (has_focus, set_has_focus) = create_signal(false);
-    let built = view! {
+    let built = NodeRef::new();
+    nodes.borrow_mut().insert(nodes_key, built.clone());
+    on_cleanup(move || {
+        nodes.borrow_mut().remove(&cleanup_key);
+    });
+    view! {
         <Focusable
+            @node_ref=&built
             tab_stop={tab_stop.memo(Some(key.clone()))}
             focused={focused.memo(Some(key))}
             on_focus_change={move |focused: bool| {
@@ -192,12 +198,7 @@ where
                 hover,
             })}
         </Focusable>
-    };
-    nodes.borrow_mut().insert(nodes_key, built);
-    on_cleanup(move || {
-        nodes.borrow_mut().remove(&cleanup_key);
-    });
-    built
+    }
 }
 
 pub fn tree_row_node<K>(document: &Document, tree: NodeId, key: &K) -> Option<NodeId>
@@ -209,7 +210,7 @@ where
         .nodes
         .borrow()
         .get(key)
-        .copied()
+        .and_then(NodeRef::try_get)
 }
 
 pub fn tree_focused<K>(document: &Document, tree: NodeId) -> Option<K>
