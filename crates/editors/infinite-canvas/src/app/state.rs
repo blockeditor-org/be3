@@ -106,7 +106,6 @@ pub(crate) enum CanvasCommand {
     Unlock,
     Group,
     Ungroup,
-    Reorder(CanvasLayerMove),
     Copy,
     Cut,
     Paste,
@@ -639,8 +638,8 @@ impl CanvasState {
         entity
     }
 
-    pub(crate) fn context_position(&self) -> Option<CanvasPoint> {
-        self.context_position.get()
+    pub(crate) fn take_context_position(&self) -> Option<CanvasPoint> {
+        self.context_position.take()
     }
 
     pub(crate) fn note_context_position(&self, at: Option<CanvasPoint>) {
@@ -1090,7 +1089,6 @@ impl CanvasState {
             CanvasCommand::Unlock => self.set_selection_locked(false),
             CanvasCommand::Group => self.group_selection(),
             CanvasCommand::Ungroup => self.ungroup_selection(),
-            CanvasCommand::Reorder(movement) => self.reorder(movement),
             CanvasCommand::Copy => {
                 self.copy_selection();
             }

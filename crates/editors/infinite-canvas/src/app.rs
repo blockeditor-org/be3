@@ -4,11 +4,13 @@ use std::rc::Rc;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::{
-    Direction, ItemSize, List, NodeRef, component, create_effect, view,
+    Direction, ItemSize, List, NodeRef, action_scope, component, create_effect, provide_context,
+    view,
 };
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
+pub(crate) mod actions;
 pub(crate) mod canvas;
 pub(crate) mod components;
 pub(crate) mod input;
@@ -21,10 +23,11 @@ pub(crate) mod sidebar;
 pub(crate) mod state;
 pub(crate) mod toolbar;
 
+use actions::canvas_actions;
 use canvas::CanvasStage;
 use sidebar::CanvasSidebar;
 use state::CanvasState;
-use toolbar::{ImportError, ToolDock, ZoomPill, menu_items};
+use toolbar::{ImportError, ToolDock, ZoomPill};
 
 use crate::geometry::{MIN_SIZE, embedded_region};
 
@@ -69,9 +72,11 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let zoom = Rc::clone(&state);
     let zoom_anchor = content.clone();
     let errors = Rc::clone(&state);
-    menu_items(&state);
+    let scope = NodeRef::new();
+    action_scope(&scope);
+    provide_context(canvas_actions(&state));
     view! {
-        <List spacing=0.0>
+        <List @node_ref=&scope spacing=0.0>
             <ImportError state={errors} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={stage} />
@@ -88,6 +93,7 @@ fn CanvasPreview(editor: Editor) -> NodeId {
     let state = CanvasState::new(&editor, true);
     state.watch();
     report_intrinsic_size(&editor, &state);
+    provide_context(canvas_actions(&state));
     view! {
         <CanvasStage state={state} />
     }

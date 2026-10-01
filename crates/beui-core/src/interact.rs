@@ -372,6 +372,10 @@ pub fn interact(
             doc.reveal_focus(painter);
             continue;
         }
+        if doc.overlay_stack.is_empty() && doc.key_unhandled(press) {
+            doc.reveal_focus(painter);
+            continue;
+        }
         if doc.key_ancestor(press) {
             continue;
         }

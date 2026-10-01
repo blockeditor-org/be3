@@ -2,25 +2,23 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_CONTENT_COPY, ICON_CONTENT_CUT, ICON_CONTENT_PASTE, ICON_CROP_FREE, ICON_DATA_OBJECT,
-    ICON_DELETE, ICON_DESELECT, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_FILTER_CENTER_FOCUS,
-    ICON_FIT_SCREEN, ICON_GROUP_WORK, ICON_LIBRARY_ADD, ICON_LOCK, ICON_LOCK_OPEN, ICON_RECTANGLE,
-    ICON_SELECT, ICON_SELECT_ALL, ICON_TEXT_FIELDS, ICON_UNDO, ICON_WORKSPACES, ICON_ZOOM_IN,
-    ICON_ZOOM_OUT,
+    ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS,
+    ICON_UNDO,
 };
 use block_editor_beui::beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, Show, Spacer, clone,
-    component, create_memo, view,
+    Align, Direction, ForEach, Frame, ItemSize, List, NodeRef, Prop, Show, Spacer, clone,
+    component, create_memo, use_context, view,
 };
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::{
     Body, Button, ButtonVariant, IconButton, ToggleButton, use_theme,
 };
 use block_editor_beui::beui::unstyled::{Edge, Floating};
-use block_editor_beui::{BottomDock, bar_item, sheet_open};
+use block_editor_beui::{BottomDock, sheet_open};
 
+use super::actions::CanvasActions;
 use super::selection_bar::SelectionTools;
-use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
+use super::state::{CanvasState, Tool};
 
 const TOOLS: [(Tool, &str, &str); 6] = [
     (Tool::Select, ICON_SELECT, "Select"),
@@ -41,8 +39,8 @@ const DIVIDER_HEIGHT: f32 = 24.0;
 pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
     let previewing = state.previewing();
     let open = create_memo(move || shown.get() && !previewing);
-    let tools = Rc::clone(&state);
-    let blocks = Rc::clone(&state);
+    let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
+    let tools = actions.clone();
     let chosen = create_memo(clone!(state -> move || !state.selection.get().is_empty()));
     let selection = clone!(state -> move || {
         let state = Rc::clone(&state);
@@ -73,17 +71,16 @@ pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool
         >
             <ForEach keys={DOCK_TOOLS.to_vec()}>
                 {move |index: usize| {
-                    let state = Rc::clone(&tools);
+                    let actions = tools.clone();
                     view! {
-                        <ToolChoice state index />
+                        <ToolChoice actions index />
                     }
                 }}
             </ForEach>
             <IconButton
-                glyph={ICON_DATA_OBJECT.to_owned()}
                 label="Block"
                 @test_id={"infinite-canvas.dock.block"}
-                on_click={move || blocks.open_block_picker(None)}
+                action={actions.add_block}
             />
             <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT color={theme.border.clone()} />
             <IconButton
@@ -99,17 +96,13 @@ pub(crate) fn ToolDock(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool
 
 #[component]
 pub(crate) fn ZoomPill(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
+    let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let sheet = sheet_open();
     let previewing = state.previewing();
     let open = create_memo(move || shown.get() && !sheet.get() && !previewing);
     let scale = state.editor().scale();
     let readout = create_memo(clone!(scale -> move || format!("{:.0}%", scale.get() * 100.0)));
-    let out = clone!(state -> move || state.editor().zoom(1.0 / ZOOM_STEP));
-    let reset = clone!(state scale -> move || {
-        state.editor().zoom(1.0 / scale.get_untracked().max(f32::EPSILON))
-    });
-    let inward = clone!(state -> move || state.editor().zoom(ZOOM_STEP));
-    let fit = clone!(state -> move || state.editor().fit());
+    let reset = actions.zoom_reset.clone();
     let theme = use_theme();
     view! {
         <Floating anchor={anchor} edge=Edge::TopEnd open={open}>
@@ -126,28 +119,24 @@ pub(crate) fn ZoomPill(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
                         <IconButton
-                            glyph={ICON_ZOOM_OUT.to_owned()}
-                            label="Zoom out"
                             @test_id={"infinite-canvas.pill.zoom-out"}
-                            on_click={out}
+                            action={actions.zoom_out}
                         />
                         <Button
                             label={readout}
                             variant=ButtonVariant::Ghost
                             @test_id={"infinite-canvas.pill.zoom"}
-                            on_click={reset}
+                            on_click={move || {
+                                reset.run();
+                            }}
                         />
                         <IconButton
-                            glyph={ICON_ZOOM_IN.to_owned()}
-                            label="Zoom in"
                             @test_id={"infinite-canvas.pill.zoom-in"}
-                            on_click={inward}
+                            action={actions.zoom_in}
                         />
                         <IconButton
-                            glyph={ICON_FIT_SCREEN.to_owned()}
-                            label="Fit all"
                             @test_id={"infinite-canvas.pill.fit"}
-                            on_click={fit}
+                            action={actions.fit_all}
                         />
                     </List>
                 </Frame>
@@ -156,96 +145,16 @@ pub(crate) fn ZoomPill(state: Rc<CanvasState>, anchor: NodeRef, shown: Prop<bool
     }
 }
 
-pub(crate) fn menu_items(state: &Rc<CanvasState>) {
-    let empty = create_memo(clone!(state -> move || state.selection.get().is_empty()));
-    let never = create_memo(|| false);
-    let grouped = create_memo(clone!(state -> move || !state.selection_can_group()));
-    let ungrouped = create_memo(clone!(state -> move || {
-        !state
-            .selected_entities()
-            .iter()
-            .any(|entity| entity.group_id.is_some())
-    }));
-    let lockable = create_memo(clone!(state -> move || {
-        !state.selected_entities().iter().any(|entity| !entity.locked)
-    }));
-    let unlockable = create_memo(clone!(state -> move || {
-        !state.selected_entities().iter().any(|entity| entity.locked)
-    }));
-    let command = |label: &str, glyph: &str, disabled: &Memo<bool>, command: CanvasCommand| {
-        let state = Rc::clone(state);
-        bar_item(label, glyph, disabled.clone(), move || state.run(command));
-    };
-    command("Cut", ICON_CONTENT_CUT, &empty, CanvasCommand::Cut);
-    command("Copy", ICON_CONTENT_COPY, &empty, CanvasCommand::Copy);
-    command("Paste", ICON_CONTENT_PASTE, &never, CanvasCommand::Paste);
-    command(
-        "Duplicate",
-        ICON_LIBRARY_ADD,
-        &empty,
-        CanvasCommand::Duplicate,
-    );
-    command("Delete", ICON_DELETE, &empty, CanvasCommand::Delete);
-    command("Group", ICON_GROUP_WORK, &grouped, CanvasCommand::Group);
-    command(
-        "Ungroup",
-        ICON_WORKSPACES,
-        &ungrouped,
-        CanvasCommand::Ungroup,
-    );
-    command("Lock", ICON_LOCK, &lockable, CanvasCommand::Lock);
-    command("Unlock", ICON_LOCK_OPEN, &unlockable, CanvasCommand::Unlock);
-    command(
-        "Select all",
-        ICON_SELECT_ALL,
-        &never,
-        CanvasCommand::SelectAll,
-    );
-    command(
-        "Invert selection",
-        ICON_DESELECT,
-        &never,
-        CanvasCommand::InvertSelection,
-    );
-    bar_item(
-        "Fit selection",
-        ICON_FILTER_CENTER_FOCUS,
-        empty,
-        clone!(state -> move || state.request_fit_selection()),
-    );
-    bar_item(
-        "Fit the first artboard",
-        ICON_FIT_SCREEN,
-        create_memo(clone!(state -> move || state.first_artboard().is_none())),
-        clone!(state -> move || state.request_fit_artboard()),
-    );
-    bar_item(
-        "Draw an artboard",
-        ICON_CROP_FREE,
-        never.clone(),
-        clone!(state -> move || state.set_tool(Tool::Artboard)),
-    );
-    bar_item(
-        "Draw a line",
-        ICON_DIAGONAL_LINE,
-        never,
-        clone!(state -> move || state.set_tool(Tool::Line)),
-    );
-}
-
 #[component]
-fn ToolChoice(state: Rc<CanvasState>, index: usize) -> NodeId {
+fn ToolChoice(actions: CanvasActions, index: usize) -> NodeId {
     let (tool, glyph, label) = TOOLS[index];
-    let pressed = create_memo(clone!(state -> move || state.tool.get() == tool));
-    let choose = clone!(state -> move |_: bool| state.set_tool(tool));
     view! {
         <ToggleButton
             label={label}
             glyph={glyph.to_owned()}
             icon_only=true
-            pressed={pressed}
+            action={actions.tool(tool)}
             @test_id={format!("infinite-canvas.dock.tool.{label}")}
-            on_change={choose}
         />
     }
 }

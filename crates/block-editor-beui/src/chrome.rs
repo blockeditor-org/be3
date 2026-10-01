@@ -1,10 +1,10 @@
-use crate::beui_frame::bar_item;
 use beui::NodeId;
 use beui::icons::ICON_TUNE;
 use beui::reactive::{
-    Align, Child, Children, Direction, ForEach, Frame, ItemSize, List, ListChild, Memo, Portal,
-    Prop, ReadSignal, Render, Show, WriteSignal, clone, component, component_size, create_effect,
-    create_memo, create_signal, on_cleanup, provide_context, untrack, use_context, view,
+    Action, Align, Child, Children, Direction, ForEach, Frame, ItemSize, List, ListChild, Memo,
+    Portal, Prop, ReadSignal, Render, Show, WriteSignal, clone, component, component_size,
+    create_effect, create_memo, create_signal, on_cleanup, provide_context, untrack, use_context,
+    view,
 };
 use beui::styled::theme::BORDER_WIDTH;
 pub use beui::styled::theme::NARROW_WIDTH;
@@ -147,12 +147,12 @@ pub(crate) fn ChromeRoot(
 
 #[component]
 fn PanelItem(set_open: WriteSignal<bool>) -> NodeId {
-    bar_item(
-        "Open the side panel",
-        ICON_TUNE,
-        create_memo(|| false),
-        move || set_open.set(true),
-    );
+    Action::new("chrome.open-panel", "Open the side panel", move || {
+        set_open.set(true)
+    })
+    .glyph(ICON_TUNE)
+    .in_menu()
+    .register();
     view! {
         <List spacing=0.0 />
     }

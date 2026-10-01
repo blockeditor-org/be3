@@ -43,7 +43,7 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
     editor.set_more(true);
     assert!(
         editor
-            .label("editor.more.item.1")
+            .label("editor.more.item.text.replace")
             .ends_with("Find and replace")
     );
 }

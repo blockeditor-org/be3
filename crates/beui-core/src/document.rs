@@ -27,6 +27,14 @@ use crate::screen_simulation::{self, Placement};
 
 pub type Shortcut = dyn Fn(KeyPress) -> bool;
 pub type FingerTap = dyn Fn(usize) -> bool;
+pub type UnhandledKey = dyn Fn(UnhandledKeyPress) -> bool;
+
+#[derive(Clone, Debug)]
+pub struct UnhandledKeyPress {
+    pub press: KeyPress,
+    pub focus_path: Vec<NodeId>,
+    pub typing: bool,
+}
 
 pub trait Tools: Any {
     fn show(&mut self, document: &mut Document, ctx: &Context, rect: Rect);
@@ -59,6 +67,7 @@ pub struct Document {
     reattached: Cell<bool>,
     shortcuts: RefCell<Vec<Weak<Shortcut>>>,
     finger_taps: RefCell<Vec<Weak<FingerTap>>>,
+    unhandled_keys: RefCell<Vec<Weak<UnhandledKey>>>,
     pub touch_scroll_vertical: Option<NodeId>,
     pub touch_shift: crate::geometry::Vec2,
     pub touch_scroll_horizontal: Option<NodeId>,
@@ -251,6 +260,7 @@ impl Document {
             reattached: Cell::new(false),
             shortcuts: RefCell::new(Vec::new()),
             finger_taps: RefCell::new(Vec::new()),
+            unhandled_keys: RefCell::new(Vec::new()),
             touch_scroll_vertical: None,
             touch_shift: crate::geometry::Vec2::ZERO,
             touch_scroll_horizontal: None,
@@ -412,6 +422,36 @@ impl Document {
         let live: Vec<Rc<FingerTap>> = taps.iter().filter_map(Weak::upgrade).collect();
         drop(taps);
         live.into_iter().any(|tap| tap(fingers))
+    }
+
+    pub fn register_unhandled_key(&self, handler: Weak<UnhandledKey>) {
+        self.unhandled_keys.borrow_mut().push(handler);
+    }
+
+    pub fn focus_ancestry(&self) -> Vec<NodeId> {
+        let mut path = Vec::new();
+        let mut next = self.focused_node();
+        while let Some(id) = next {
+            path.push(id);
+            next = self.arena.parent(id);
+        }
+        path
+    }
+
+    pub fn key_unhandled(&self, press: KeyPress) -> bool {
+        let mut handlers = self.unhandled_keys.borrow_mut();
+        handlers.retain(|handler| handler.strong_count() > 0);
+        let live: Vec<Rc<UnhandledKey>> = handlers.iter().filter_map(Weak::upgrade).collect();
+        drop(handlers);
+        if live.is_empty() {
+            return false;
+        }
+        let unhandled = UnhandledKeyPress {
+            press,
+            focus_path: self.focus_ancestry(),
+            typing: self.focus_types(),
+        };
+        live.into_iter().any(|handler| handler(unhandled.clone()))
     }
 
     pub fn key_shortcut(&self, press: KeyPress) -> bool {

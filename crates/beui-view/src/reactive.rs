@@ -1350,6 +1350,11 @@ pub trait UnitHandle<H> {}
 
 impl<F> UnitHandle<()> for F {}
 
+pub use crate::actions::{
+    Action, ActionBuilder, ActionScope, Chord, action_disabled, action_glyph, action_label,
+    action_pressed, action_scope, action_tooltip, active_actions, active_actions_from,
+    menu_actions,
+};
 pub use crate::components::back::BackHandler;
 pub use crate::components::canvas::{Canvas, CanvasItem};
 pub use crate::components::drawing::Drawing;

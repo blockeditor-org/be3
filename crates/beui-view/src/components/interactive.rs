@@ -24,6 +24,7 @@ pub fn Interactive(
     on_activate: ClickCallback,
     on_step: Callback<f32>,
     on_text: Callback<String>,
+    #[prop(default = true)] takes_text: bool,
     on_preedit: Callback<String>,
     on_key: Callback<KeyPress, bool>,
     on_ancestor_key: Callback<KeyPress, bool>,
@@ -78,7 +79,9 @@ pub fn Interactive(
             focus.on_activate_change = on_activate_change;
             focus.on_activate = on_activate;
             focus.on_step = on_step;
-            focus.on_text = on_text;
+            if takes_text {
+                focus.on_text = on_text;
+            }
             focus.on_preedit = on_preedit;
             focus.on_key = on_key;
             focus.on_ancestor_key = on_ancestor_key;

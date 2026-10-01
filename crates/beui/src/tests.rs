@@ -1646,4 +1646,8 @@ fn Rows(count: usize) -> DynamicSegment<NodeId> {
         </ForEach>
     }
 }
+mod a_disabled_action_ignores_its_shortcut_and_disables_its_button;
+mod a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone;
+mod an_action_shortcut_runs_in_the_scope_that_holds_the_focus;
 mod moving_the_pointer_ends_the_wheel_latch;
+mod the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones;

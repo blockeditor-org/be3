@@ -52,10 +52,9 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
     let backdrop_camera = camera.clone();
     let backdrop_stage = placed.clone();
     let placement = camera.clone();
-    let menu = Rc::clone(&state);
     let previewing = state.previewing();
     view! {
-        <CanvasMenu state={menu} disabled={previewing}>
+        <CanvasMenu disabled={previewing}>
             <CanvasSurface state={surface}>
                 <Canvas
                     view={create_memo(clone!(placement -> move || Some(placement.get())))}

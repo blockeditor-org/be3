@@ -1,7 +1,7 @@
 use beui::Vec2;
 use beui::icons::ICON_AUTO_FIX_HIGH;
-use beui::reactive::create_signal;
-use block_editor_beui::{BarAction, BlockCommand, bar_item};
+use beui::reactive::{Action, create_signal};
+use block_editor_beui::{BarAction, BlockCommand};
 
 use super::*;
 
@@ -19,12 +19,12 @@ impl BeuiApp for ActionApp {
 fn Tidy(editor: Editor) -> NodeId {
     let _ = editor;
     let (tidied, set_tidied) = create_signal(String::from("messy"));
-    bar_item(
-        "Tidy up",
-        ICON_AUTO_FIX_HIGH,
-        create_memo(|| false),
-        move || set_tidied.set("tidy".to_owned()),
-    );
+    Action::new("tidy.up", "Tidy up", move || {
+        set_tidied.set("tidy".to_owned())
+    })
+    .glyph(ICON_AUTO_FIX_HIGH)
+    .in_menu()
+    .register();
     view! {
         <Text string={tidied} @test_id={"tidy.state"} />
     }
@@ -58,7 +58,7 @@ fn the_parent_opens_the_phone_more_sheet_and_hears_when_it_closes() {
         test.shown("editor.more.rename"),
         "the parent opens the sheet"
     );
-    test.click("editor.more.item.0");
+    test.click("editor.more.item.tidy.up");
     test.run();
     assert_eq!(
         text(&test, "tidy.state"),

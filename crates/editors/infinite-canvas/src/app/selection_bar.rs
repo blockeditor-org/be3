@@ -1,24 +1,21 @@
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{CanvasColor, CanvasEntityKind, CanvasLayerMove};
+use super::actions::{CanvasActions, embedded_block};
+use super::paint::resolve_color;
+use super::sidebar::{PRESETS, set_foreground, styled_entities};
+use super::state::{CanvasState, CommonValue, common_value};
+use block_editor_beui::be_block::canvas::CanvasColor;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
-use block_editor_beui::beui::icons::{
-    ICON_DELETE, ICON_FLIP_TO_FRONT, ICON_OPEN_IN_NEW, ICON_TUNE,
-};
+use block_editor_beui::beui::icons::ICON_TUNE;
 use block_editor_beui::beui::reactive::{
     Align, Callback, Direction, ForEach, Frame, List, Memo, Show, clone, component, create_memo,
-    view,
+    use_context, view,
 };
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::{IconButton, use_theme};
 use block_editor_beui::beui::unstyled::{self, ButtonHandle};
 use block_editor_beui::{narrow_chrome, sheet_control};
-use uuid::Uuid;
-
-use super::paint::resolve_color;
-use super::sidebar::{PRESETS, set_foreground, styled_entities};
-use super::state::{CanvasCommand, CanvasState, CommonValue, common_value};
 
 const RADIUS: u8 = 12;
 const SWATCH: f32 = 22.0;
@@ -35,19 +32,9 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
                 .map(|entity| entity.style.foreground),
         )
     }));
-    let locked = create_memo(clone!(state -> move || {
-        !state.selected_entities().iter().any(|entity| !entity.locked)
-    }));
+    let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let embedded = create_memo(clone!(state -> move || embedded_block(&state).is_some()));
     let picking = Rc::clone(&state);
-    let front =
-        clone!(state -> move || state.run(CanvasCommand::Reorder(CanvasLayerMove::BringToFront)));
-    let delete = clone!(state -> move || state.run(CanvasCommand::Delete));
-    let open = clone!(state -> move || {
-        if let Some(block) = embedded_block(&state) {
-            state.open_referenced_block(block);
-        }
-    });
     let sheet = sheet_control();
     let tune = move || {
         if let Some(sheet) = &sheet {
@@ -87,26 +74,13 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
                         </ForEach>
                     </List>
                 </Show>
-                <IconButton
-                    glyph={ICON_FLIP_TO_FRONT.to_owned()}
-                    label="Bring to front"
-                    disabled={locked.clone()}
-                    @test_id={"infinite-canvas.front"}
-                    on_click={front}
-                />
-                <IconButton
-                    glyph={ICON_DELETE.to_owned()}
-                    label="Delete"
-                    disabled={locked}
-                    @test_id={"infinite-canvas.delete"}
-                    on_click={delete}
-                />
+                <IconButton @test_id={"infinite-canvas.front"} action={actions.front} />
+                <IconButton @test_id={"infinite-canvas.delete"} action={actions.delete} />
                 <Show condition={embedded}>
                     <IconButton
-                        glyph={ICON_OPEN_IN_NEW.to_owned()}
                         label="Open"
                         @test_id={"infinite-canvas.open"}
-                        on_click={open}
+                        action={actions.open}
                     />
                 </Show>
                 <Show condition={narrow}>
@@ -119,19 +93,6 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
                 </Show>
             </List>
         </Frame>
-    }
-}
-
-fn embedded_block(state: &CanvasState) -> Option<Uuid> {
-    let selected = state.selected_entities();
-    let [entity] = selected.as_slice() else {
-        return None;
-    };
-    match entity.kind {
-        CanvasEntityKind::Block { block_id } | CanvasEntityKind::DirectEditor { block_id, .. } => {
-            Some(block_id)
-        }
-        _ => None,
     }
 }
 
