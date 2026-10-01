@@ -1416,7 +1416,8 @@ fn expand_view(view: &View) -> proc_macro2::TokenStream {
 #[proc_macro_attribute]
 pub fn sample(attr: TokenStream, item: TokenStream) -> TokenStream {
     parse_macro_input!(attr as syn::parse::Nothing);
-    let source = written_source(item.clone()).unwrap_or_else(|| item.to_string());
+    let source = written_source(item.clone())
+        .unwrap_or_else(|| "the compiler gave no source text for this sample".to_owned());
     let tokens = proc_macro2::TokenStream::from(item.clone());
     let function = parse_macro_input!(item as ItemFn);
     let name = &function.sig.ident;

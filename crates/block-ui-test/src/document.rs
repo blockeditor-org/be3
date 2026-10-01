@@ -94,6 +94,23 @@ impl DocumentTest {
         self.frame(vec![beui::Event::PointerGone]);
     }
 
+    pub fn drag(&mut self, from: Pos2, to: Pos2) {
+        self.frame(vec![beui::Event::PointerMoved(from)]);
+        self.frame(vec![beui::Event::PointerButton {
+            pos: from,
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers: Modifiers::NONE,
+        }]);
+        self.frame(vec![beui::Event::PointerMoved(to)]);
+        self.frame(vec![beui::Event::PointerButton {
+            pos: to,
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Modifiers::NONE,
+        }]);
+    }
+
     pub fn scroll_at(&mut self, pos: Pos2, delta: Vec2) {
         self.frame(vec![
             beui::Event::PointerMoved(pos),

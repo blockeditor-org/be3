@@ -53,7 +53,7 @@ fn CodeBlock(source: String) -> NodeId {
             padding_horizontal=CODE_PADDING
             padding_vertical=CODE_PADDING
         >
-            <SelectableText child_size=ItemSize::Percent(100.0)>
+            <SelectableText @test_id="demo.code" child_size=ItemSize::Percent(100.0)>
                 <Text
                     string={source}
                     spans={spans}

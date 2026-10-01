@@ -1,11 +1,15 @@
+use base_pages::{
+    ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, TextNodesPage,
+};
 use beui::datetime::{Date, DateTime, HourCycle, Time};
 use beui::icons::{
-    ICON_ACCOUNT_TREE, ICON_BUG_REPORT, ICON_CALENDAR_MONTH, ICON_CODE, ICON_CONTENT_COPY,
-    ICON_CONTRAST, ICON_DASHBOARD, ICON_DELETE, ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT,
-    ICON_GRID_VIEW, ICON_INPUT, ICON_LAYERS, ICON_LIST, ICON_MENU, ICON_NOTES, ICON_OPEN_IN_NEW,
-    ICON_PALETTE, ICON_PLAY_ARROW, ICON_RADIO_BUTTON_CHECKED, ICON_SHARE, ICON_SMART_BUTTON,
-    ICON_STAR, ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE,
-    ICON_VIEW_QUILT, ICON_WIDGETS,
+    ICON_ACCOUNT_TREE, ICON_ALT_ROUTE, ICON_BUG_REPORT, ICON_CALENDAR_MONTH, ICON_CODE,
+    ICON_CONTENT_COPY, ICON_CONTRAST, ICON_CROP_SQUARE, ICON_DASHBOARD, ICON_DELETE,
+    ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT, ICON_FLIP_TO_FRONT, ICON_GRID_VIEW, ICON_INPUT,
+    ICON_LAYERS, ICON_LIST, ICON_MENU, ICON_MOUSE, ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE,
+    ICON_PLAY_ARROW, ICON_RADIO_BUTTON_CHECKED, ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR,
+    ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE,
+    ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_WIDGETS,
 };
 use beui::reactive::{
     Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, ClickCallback, ForEach,
@@ -36,8 +40,8 @@ use beui_macros::{component, sample};
 use sample::{Sample, ScrollPage};
 use std::sync::Arc;
 use styled_pages::{
-    ButtonsPage, CanvasPage, ChoicesPage, DockingPage, EditorPage, InputsPage, LayoutPage,
-    MenusPage, OverlaysPage, PickersPage, RowsPage, TextPage, ThemesPage, TreePage,
+    ButtonsPage, CanvasPage, ChoicesPage, DockingPage, EditorPage, InputsPage, LabelledSwitch,
+    LayoutPage, MenusPage, OverlaysPage, PickersPage, RowsPage, TextPage, ThemesPage, TreePage,
 };
 use text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
@@ -46,6 +50,7 @@ use unstyled_pages::{
     DraggingPage, PopupsPage, PressingPage, ScrollingPage, SelectingPage, ValuesPage,
 };
 
+mod base_pages;
 mod sample;
 mod styled_pages;
 mod unstyled_pages;
@@ -86,6 +91,12 @@ enum Page {
     Popups,
     Dragging,
     Scrolling,
+    Frames,
+    TextNodes,
+    Lists,
+    ControlFlow,
+    Interaction,
+    Layering,
 }
 
 const STYLED_PAGES: [Page; 14] = [
@@ -114,7 +125,16 @@ const UNSTYLED_PAGES: [Page; 6] = [
     Page::Scrolling,
 ];
 
-const PAGES: [Page; 20] = [
+const BASE_PAGES: [Page; 6] = [
+    Page::Frames,
+    Page::TextNodes,
+    Page::Lists,
+    Page::ControlFlow,
+    Page::Interaction,
+    Page::Layering,
+];
+
+const PAGES: [Page; 26] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
@@ -135,6 +155,12 @@ const PAGES: [Page; 20] = [
     Page::Popups,
     Page::Dragging,
     Page::Scrolling,
+    Page::Frames,
+    Page::TextNodes,
+    Page::Lists,
+    Page::ControlFlow,
+    Page::Interaction,
+    Page::Layering,
 ];
 
 impl Page {
@@ -168,6 +194,12 @@ impl Page {
             Page::Popups => "Popups",
             Page::Dragging => "Dragging",
             Page::Scrolling => "Scrolling",
+            Page::Frames => "Frames",
+            Page::TextNodes => "Text nodes",
+            Page::Lists => "Lists and grids",
+            Page::ControlFlow => "Control flow",
+            Page::Interaction => "Interaction",
+            Page::Layering => "Layering",
         }
     }
 
@@ -193,6 +225,12 @@ impl Page {
             Page::Popups => ICON_OPEN_IN_NEW,
             Page::Dragging => ICON_DRAG_INDICATOR,
             Page::Scrolling => ICON_SWAP_VERT,
+            Page::Frames => ICON_CROP_SQUARE,
+            Page::TextNodes => ICON_TITLE,
+            Page::Lists => ICON_VIEW_COLUMN,
+            Page::ControlFlow => ICON_ALT_ROUTE,
+            Page::Interaction => ICON_MOUSE,
+            Page::Layering => ICON_FLIP_TO_FRONT,
         }
     }
 
@@ -218,6 +256,12 @@ impl Page {
             Page::Popups => "Popovers, tooltips and menus",
             Page::Dragging => "Draggables and drop targets",
             Page::Scrolling => "Scroll areas and scrollbars",
+            Page::Frames => "Fills, outlines, padding, sizes",
+            Page::TextNodes => "Styles, wrapping and spans",
+            Page::Lists => "Direction, spacing, tracks",
+            Page::ControlFlow => "Show, ForEach and Dynamic",
+            Page::Interaction => "Hover, press, focus and keys",
+            Page::Layering => "Layers and overlays",
         }
     }
 }
@@ -434,6 +478,24 @@ fn DemoShell() -> NodeId {
                                         Page::Scrolling => view! {
                                             <ScrollingPage />
                                         },
+                                        Page::Frames => view! {
+                                            <FramesPage />
+                                        },
+                                        Page::TextNodes => view! {
+                                            <TextNodesPage />
+                                        },
+                                        Page::Lists => view! {
+                                            <ListsPage />
+                                        },
+                                        Page::ControlFlow => view! {
+                                            <ControlFlowPage />
+                                        },
+                                        Page::Interaction => view! {
+                                            <InteractionPage />
+                                        },
+                                        Page::Layering => view! {
+                                            <LayeringPage />
+                                        },
                                     }}
                                 </Container>
                             },
@@ -468,7 +530,7 @@ fn DemoToolbar(
                     on_change={move |on: bool| set_mobile.set(on)}
                 />
             </Show>
-            <styled_pages::LabelledSwitch
+            <LabelledSwitch
                 label="E-ink"
                 on={eink}
                 on_change={move |on: bool| {
@@ -498,6 +560,7 @@ fn DemoToolbar(
 #[component]
 fn CatalogPanel(set_state: WriteSignal<DockState>) -> NodeId {
     let unstyled_state = set_state.clone();
+    let base_state = set_state.clone();
     view! {
         <Scroll>
             <Frame padding_horizontal=CATALOG_PADDING padding_vertical=CATALOG_PADDING>
@@ -513,6 +576,12 @@ fn CatalogPanel(set_state: WriteSignal<DockState>) -> NodeId {
                         summary="Behaviour only: you paint them"
                         pages={UNSTYLED_PAGES.to_vec()}
                         set_state=unstyled_state
+                    />
+                    <CatalogGroup
+                        title="Base"
+                        summary="The nodes everything is built from"
+                        pages={BASE_PAGES.to_vec()}
+                        set_state=base_state
                     />
                 </List>
             </Frame>
