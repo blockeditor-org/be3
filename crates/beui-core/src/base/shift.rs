@@ -25,7 +25,7 @@ impl Element for ShiftNode {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
-        let viewport = doc.viewport_rect().translate(-painter.origin());
+        let viewport = doc.viewport_rect();
         if self.by != Vec2::ZERO
             && rects
                 .get(&self.child)

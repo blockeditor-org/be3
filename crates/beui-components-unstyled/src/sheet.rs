@@ -108,6 +108,7 @@ struct Motion {
     animation: Rc<RefCell<Option<Timer>>>,
     open: Prop<bool>,
     set_shift: WriteSignal<f32>,
+    set_gone: WriteSignal<bool>,
     on_presence: Callback<f32>,
     on_gone: ClickCallback,
     on_close: ClickCallback,
@@ -331,6 +332,7 @@ impl Motion {
     }
 
     fn enter(&self) {
+        self.set_gone.set(false);
         self.reset();
         {
             let mut held = self.held.borrow_mut();
@@ -349,6 +351,7 @@ impl Motion {
         let Some(height) = self.sheet_height().filter(|height| *height > 0.0) else {
             self.held.borrow_mut().slide = Slide::Gone;
             self.on_presence.call(0.0);
+            self.set_gone.set(true);
             self.on_gone.call();
             return;
         };
@@ -406,6 +409,7 @@ impl Motion {
             (Slide::Leaving { .. }, None) => {
                 self.held.borrow_mut().slide = Slide::Gone;
                 self.on_presence.call(0.0);
+                self.set_gone.set(true);
                 self.on_gone.call();
                 return false;
             }
@@ -456,6 +460,7 @@ impl Motion {
         self.on_presence.call(1.0 - shift / height);
         match next {
             Slide::Gone => {
+                self.set_gone.set(true);
                 self.on_gone.call();
                 false
             }
@@ -565,7 +570,9 @@ impl Motion {
     }
 
     fn handle_cancel(&self) {
-        self.held.borrow_mut().handle = None;
+        if self.held.borrow_mut().handle.take().is_some() {
+            self.release(0.0);
+        }
     }
 
     fn handle_active(&self, active: bool) {
@@ -694,7 +701,9 @@ pub fn Sheet(
     let (rest_at, set_rest) = create_signal(resting);
     let (dragging, set_dragging) = create_signal(false);
     let (shift, set_shift) = create_signal(HIDDEN_SHIFT);
+    let (gone, set_gone) = create_signal(true);
     let sizing = create_memo(clone!(extent rest_at -> move || match rest_at.get() {
+        _ if gone.get() => ItemSize::Fixed(0.0).into(),
         Rest::Share(share) => ItemSize::Intrinsic.max(share * extent.get()).shrink(1.0),
         Rest::Fitted => ItemSize::Intrinsic.shrink(1.0),
         Rest::Free(height) => ItemSize::Fixed(height).shrink(1.0),
@@ -724,6 +733,7 @@ pub fn Sheet(
         animation: Rc::default(),
         open: open.clone(),
         set_shift,
+        set_gone,
         on_presence,
         on_gone,
         on_close: on_close.clone(),
