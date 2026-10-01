@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use super::*;
 use crate::reactive::create_effect;
-use crate::reactive::{ClickCatcher, ForEach, List, NodeRef, Text, build, create_signal, view};
+use crate::reactive::{ForEach, Interactive, List, NodeRef, Text, build, create_signal, view};
 use crate::unstyled::Button;
 use crate::unstyled::{Edge, Floating, Scroll};
 
@@ -33,7 +33,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                                 let rows = Rc::clone(&rows);
                                 let set_over = set_over.clone();
                                 view! {
-                                    <ClickCatcher
+                                    <Interactive
                                         on_hover_change={move |over: bool| {
                                             set_over.update(|count| match over {
                                                 true => *count += 1,
@@ -44,7 +44,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                                         <Button on_click={move || rows.set(rows.get() + 1)}>
                                             <Text string={format!("row {row}")} />
                                         </Button>
-                                    </ClickCatcher>
+                                    </Interactive>
                                 }
                             }}
                         </ForEach>

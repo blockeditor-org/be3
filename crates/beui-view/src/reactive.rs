@@ -1313,12 +1313,11 @@ impl<F> UnitHandle<()> for F {}
 
 pub use crate::components::back::BackHandler;
 pub use crate::components::canvas::{Canvas, CanvasItem};
-pub use crate::components::click_catcher::ClickCatcher;
 pub use crate::components::drawing::Drawing;
 pub use crate::components::embed::Embed;
-pub use crate::components::focusable::Focusable;
 pub use crate::components::frame::Frame;
 pub use crate::components::grid::{Grid, GridCell};
+pub use crate::components::interactive::Interactive;
 pub use crate::components::layers::{Layer, Layers};
 pub use crate::components::offset::Offset;
 pub use crate::components::portal::Portal;

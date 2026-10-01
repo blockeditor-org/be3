@@ -30,8 +30,8 @@ use beui_core::node::NodeId;
 use beui_view::components::back::BackHandler;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Callback, Canvas, CanvasItem, ClickCallback, ClickCatcher, Dynamic, Focusable, ForEach, Frame,
-    Func, IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext, Show,
+    Callback, Canvas, CanvasItem, ClickCallback, Dynamic, ForEach, Frame, Func, Interactive,
+    IntoProp, List, Memo, NodeRef, Portal, Prop, ReadSignal, RenderFn, ScopeContext, Show,
     WriteSignal, clone, component_accessibility, component_rect, component_size, create_effect,
     create_memo, create_signal, create_timer, node_scope, on_cleanup, on_shortcut, owner_scope,
     provide_context, set_component_state, try_with_document, use_context, with_document,
@@ -1389,7 +1389,7 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
     let built = dock.clone();
     let pressed = dock.clone();
     view! {
-        <ClickCatcher
+        <Interactive
             claims_touch=false
             on_press={move |press: PointerPress| {
                 let hosted = pressed.state.with_untracked(|state| state.active_entry(leaf));
@@ -1449,7 +1449,7 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
                     }}
                 </Dynamic>
             </List>
-        </ClickCatcher>
+        </Interactive>
     }
 }
 
@@ -1778,7 +1778,8 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
     let dragged = dock.clone();
     let stepped = dock.clone();
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             on_focus_change={move |has_focus: bool| set_focused.set(has_focus)}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
@@ -1795,41 +1796,38 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
                 stepped.edit(|state| state.set_split_fraction(split, next));
                 true
             }}
-        >
-            <ClickCatcher
-                cursor={match direction {
-                    Direction::Horizontal => CursorIcon::ResizeHorizontal,
-                    Direction::Vertical => CursorIcon::ResizeVertical,
-                }}
-                touch_drag_axis={Some(direction)}
-                on_hover_change={move |over: bool| set_hovered.set(over)}
-                on_active_change={move |held: bool| set_active.set(held)}
-                on_press={move |press: PointerPress| {
-                    grabbed.set(Some((start(), press.pos)));
-                }}
-                on_drag={move |press: PointerPress| {
-                    let Some((start, from)) = held.get() else {
-                        return;
-                    };
-                    let moved = direction.main(press.pos - from);
-                    if moved == 0.0 {
-                        return;
-                    }
-                    let Some(splitter) = dragged.splitter_of(tree, split) else {
-                        return;
-                    };
-                    let fraction = fraction_moved(
-                        splitter.area,
-                        splitter.direction,
-                        dragged.thickness,
-                        start,
-                        moved,
-                    );
-                    dragged.edit(|state| state.set_split_fraction(split, fraction));
-                }}
-                children={face}
-            />
-        </Focusable>
+            cursor={match direction {
+                Direction::Horizontal => CursorIcon::ResizeHorizontal,
+                Direction::Vertical => CursorIcon::ResizeVertical,
+            }}
+            touch_drag_axis={Some(direction)}
+            on_hover_change={move |over: bool| set_hovered.set(over)}
+            on_active_change={move |held: bool| set_active.set(held)}
+            on_press={move |press: PointerPress| {
+                grabbed.set(Some((start(), press.pos)));
+            }}
+            on_drag={move |press: PointerPress| {
+                let Some((start, from)) = held.get() else {
+                    return;
+                };
+                let moved = direction.main(press.pos - from);
+                if moved == 0.0 {
+                    return;
+                }
+                let Some(splitter) = dragged.splitter_of(tree, split) else {
+                    return;
+                };
+                let fraction = fraction_moved(
+                    splitter.area,
+                    splitter.direction,
+                    dragged.thickness,
+                    start,
+                    moved,
+                );
+                dragged.edit(|state| state.set_split_fraction(split, fraction));
+            }}
+            children={face}
+        />
     }
 }
 
@@ -1872,7 +1870,8 @@ fn DockSidebarSplitter(dock: Handle, leaf: LeafId) -> NodeId {
     let dragged = dock.clone();
     let stepped = dock.clone();
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             on_focus_change={move |has_focus: bool| set_focused.set(has_focus)}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
@@ -1887,25 +1886,22 @@ fn DockSidebarSplitter(dock: Handle, leaf: LeafId) -> NodeId {
                 stepped.edit(|state| state.set_sidebar_width(leaf, next));
                 true
             }}
-        >
-            <ClickCatcher
-                cursor=CursorIcon::ResizeHorizontal
-                capture_presses=true
-                on_hover_change={move |over: bool| set_hovered.set(over)}
-                on_active_change={move |held: bool| set_active.set(held)}
-                on_press={move |press: PointerPress| {
-                    grabbed.set(Some((start.get_untracked(), press.pos)));
-                }}
-                on_drag={move |press: PointerPress| {
-                    let Some((start, from)) = held.get() else {
-                        return;
-                    };
-                    let next = start + (press.pos.x - from.x);
-                    dragged.edit(|state| state.set_sidebar_width(leaf, next));
-                }}
-                children={face}
-            />
-        </Focusable>
+            cursor=CursorIcon::ResizeHorizontal
+            capture_presses=true
+            on_hover_change={move |over: bool| set_hovered.set(over)}
+            on_active_change={move |held: bool| set_active.set(held)}
+            on_press={move |press: PointerPress| {
+                grabbed.set(Some((start.get_untracked(), press.pos)));
+            }}
+            on_drag={move |press: PointerPress| {
+                let Some((start, from)) = held.get() else {
+                    return;
+                };
+                let next = start + (press.pos.x - from.x);
+                dragged.edit(|state| state.set_sidebar_width(leaf, next));
+            }}
+            children={face}
+        />
     }
 }
 
@@ -2030,7 +2026,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
             <Frame @node_ref=&frame width={width.clone()} height={height.clone()}>
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                        <ClickCatcher
+                        <Interactive
                             capture_at={move |pos: Pos2| {
                                 captor.surface_rect(surface).is_some_and(|window| window.contains(pos))
                                     && captor.over_window_bar(surface, pos)
@@ -2103,7 +2099,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                             }),
                                         });
                                         let grip = view! {
-                                            <ClickCatcher
+                                            <Interactive
                                                 @node_ref=&grip_ref
                                                 cursor=CursorIcon::Grab
                                                 children={grip_face}
@@ -2142,7 +2138,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                     }}
                                 </Dynamic>
                             </List>
-                        </ClickCatcher>
+                        </Interactive>
                     </CanvasItem>
                     <DockDropMarker dock={marker} surface origin={origin} />
                     <ForEach keys={GRIPS.to_vec()}>
@@ -2160,7 +2156,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                             let rect = rect.clone();
                             view! {
                                 <CanvasItem x={x} y={y} width={width} height={height}>
-                                    <ClickCatcher
+                                    <Interactive
                                         cursor={grip.cursor()}
                                         capture_presses=true
                                         on_press={move |press: PointerPress| {
@@ -2171,7 +2167,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                             let resized = grip.resized(start, press.pos - from);
                                             dock.edit(|state| state.set_window_rect(surface, resized));
                                         }}
-                                    ></ClickCatcher>
+                                    ></Interactive>
                                 </CanvasItem>
                             }
                         }}

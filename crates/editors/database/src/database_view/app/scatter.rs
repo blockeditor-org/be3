@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::database::{DatabaseRow, DatabaseValue};
 use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, ClickCatcher, ForEach, Frame, ItemSize, List, Memo, Show, clone, component,
+    Canvas, CanvasItem, ForEach, Frame, Interactive, ItemSize, List, Memo, Show, clone, component,
     component_rect, component_size, create_memo, view,
 };
 use block_editor_beui::beui::styled::{Caption, use_theme};
@@ -110,7 +110,7 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
     let axis_color = theme.border.clone();
     let rule_color = theme.border.clone();
     view! {
-        <ClickCatcher
+        <Interactive
             @test_id={"database-view.scatter"}
             on_click_at={move |press: block_editor_beui::beui::PointerPress| pick(press.pos)}
         >
@@ -154,7 +154,7 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                     </CanvasItem>
                 </Show>
             </Canvas>
-        </ClickCatcher>
+        </Interactive>
     }
 }
 

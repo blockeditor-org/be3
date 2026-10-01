@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{ClickCatcher, ForEach, Frame, ItemSize, List, NodeRef, build, view};
+use crate::reactive::{ForEach, Frame, Interactive, ItemSize, List, NodeRef, build, view};
 use crate::unstyled::Scroll;
 
 #[test]
@@ -20,12 +20,12 @@ fn a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips() {
                 <List spacing=0.0>
                     <Frame height=100.0 />
                     <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <ClickCatcher
+                        <Interactive
                             on_hover_change={move |hovered: bool| hovers.borrow_mut().push(hovered)}
                             on_click={move || clicks.set(clicks.get() + 1)}
                         >
                             <Frame height=100.0 />
-                        </ClickCatcher>
+                        </Interactive>
                         <ForEach keys={indices(20)}>
                             {|_: usize| view! {
                                 <Frame height=100.0 />

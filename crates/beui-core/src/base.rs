@@ -1,12 +1,12 @@
 pub mod back;
 pub mod canvas;
 pub mod child_list;
-pub mod click_catcher;
 pub mod drawing;
 pub mod embed;
-pub mod focusable;
+pub mod focus;
 pub mod frame;
 pub mod grid;
+pub mod interactive;
 pub mod layers;
 pub mod list;
 pub mod offset;
@@ -17,7 +17,7 @@ pub mod text;
 pub mod virtual_list;
 
 pub use crate::font::TextAlign;
-pub use focusable::{ImeCursor, focus_within};
+pub use focus::{ImeCursor, focus_within};
 pub use grid::Track;
 pub use list::{Align, Direction, ItemSize, Justify, Sizing};
 pub use offset::ScrollPosition;

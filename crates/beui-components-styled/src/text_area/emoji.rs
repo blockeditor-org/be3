@@ -7,7 +7,7 @@ use beui_core::color::Color32;
 use beui_core::font::TextAlign;
 use beui_core::input::CursorIcon;
 use beui_core::node::NodeId;
-use beui_view::reactive::{ClickCatcher, ForEach, Frame, List, Text, clone, create_memo};
+use beui_view::reactive::{ForEach, Frame, Interactive, List, Text, clone, create_memo};
 
 const RESULTS: usize = 8;
 const MENU_WIDTH: f32 = 240.0;
@@ -129,7 +129,7 @@ fn EmojiRow(menu: CompletionMenu, index: usize) -> NodeId {
         false => Color32::TRANSPARENT,
     }));
     view! {
-        <ClickCatcher
+        <Interactive
             @test_id={format!("text.emoji.{index}")}
             cursor=CursorIcon::PointingHand
             on_click={move || pick.call(index)}
@@ -152,6 +152,6 @@ fn EmojiRow(menu: CompletionMenu, index: usize) -> NodeId {
                     <Text string={label} font_size=LABEL_SIZE color={theme.text_muted.clone()} />
                 </List>
             </Frame>
-        </ClickCatcher>
+        </Interactive>
     }
 }

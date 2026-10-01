@@ -6,8 +6,7 @@ use block_editor_beui::be_block::pixel_art::PixelColor;
 use block_editor_beui::be_block::pixel_art::{default_palette, size_of};
 use block_editor_beui::be_block::{ObjectId, PixelArtContent, PixelArtDocument};
 use block_editor_beui::beui::reactive::{
-    Direction, ItemSize, List, clone, component, create_effect, create_memo,
-    create_signal, view,
+    Direction, ItemSize, List, clone, component, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};

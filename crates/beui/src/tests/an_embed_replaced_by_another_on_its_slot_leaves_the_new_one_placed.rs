@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Frame, Dynamic, Embed, EmbedSlot, create_signal, view, with_reactive_scope};
+use crate::reactive::{Dynamic, Embed, EmbedSlot, Frame, create_signal, view, with_reactive_scope};
 
 #[test]
 fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {
@@ -17,7 +17,9 @@ fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {
                         };
                         let slot = held.clone();
                         view! {
-                            <Frame height=height><Embed slot={slot} /></Frame>
+                            <Frame height=height>
+                                <Embed slot={slot} />
+                            </Frame>
                         }
                     }}
                 </Dynamic>

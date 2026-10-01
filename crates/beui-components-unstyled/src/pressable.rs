@@ -5,8 +5,8 @@ use beui_core::input::CursorIcon;
 
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, ClickCallback, ClickCatcher, Focusable, Prop, clone, component_accessibility,
-    create_memo, create_signal, untrack,
+    Callback, Child, ClickCallback, Interactive, Prop, clone, component_accessibility, create_memo,
+    create_signal, untrack,
 };
 
 #[component]
@@ -30,20 +30,18 @@ pub fn Pressable(
     let key_click = click.clone();
 
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             tab_stop={enabled}
             on_focus_change={move |focused| on_focus_change.call(focused)}
             on_activate_change={move |pressed| set_key_active.set(pressed)}
             on_activate={key_click}
-        >
-            <ClickCatcher
-                cursor=CursorIcon::PointingHand
-                key_active
-                on_click={click}
-                on_hover_change={move |hovered| on_hover_change.call(hovered)}
-                on_active_change={move |active| on_active_change.call(active)}
-                children={children}
-            />
-        </Focusable>
+            cursor=CursorIcon::PointingHand
+            key_active
+            on_click={click}
+            on_hover_change={move |hovered| on_hover_change.call(hovered)}
+            on_active_change={move |active| on_active_change.call(active)}
+            children={children}
+        />
     }
 }

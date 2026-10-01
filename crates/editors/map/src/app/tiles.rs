@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
-    CanvasItem, Frame, Memo, clone, component, create_effect, create_memo, on_cleanup,
-    untrack, view,
+    CanvasItem, Frame, Memo, clone, component, create_effect, create_memo, on_cleanup, untrack,
+    view,
 };
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Color32, Image, ImageFit, Pos2, Rect, Vec2};

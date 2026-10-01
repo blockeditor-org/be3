@@ -1,15 +1,16 @@
 use beui::NodeId;
 use beui::icons::{ICON_COMMIT, ICON_OPEN_IN_NEW, ICON_REFRESH};
 use beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, Grid, ItemSize, Keyed, List, Memo, ReadSignal, Show, Spacer, Text, Track, clone, component, create_memo, view,
+    Align, Direction, Dynamic, ForEach, Frame, Grid, ItemSize, Keyed, List, Memo, ReadSignal, Show,
+    Spacer, Text, Track, clone, component, create_memo, view,
 };
-use beui::unstyled::Picture;
 use beui::styled::theme::{CARD_RADIUS, FONT_BODY, FONT_HEADING, FONT_SMALL, FONT_TITLE};
 use beui::styled::{
     Body, Button, ButtonVariant, Caption, Code, Icon, IconButton, Link, Scroll, SelectableText,
     Separator, Spinner, use_theme,
 };
 use beui::unstyled;
+use beui::unstyled::Picture;
 
 use crate::github::{Entry, InlineComment, Person, PullRequest, State, Tone};
 use crate::markdown::Block;

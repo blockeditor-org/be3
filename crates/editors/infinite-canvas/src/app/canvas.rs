@@ -4,9 +4,8 @@ use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
 use std::cell::RefCell;
 
 use block_editor_beui::beui::reactive::{
-    Canvas, CanvasItem, CanvasView, Child, ClickCatcher, Draw, Drawing, Focusable, ForEach, Memo,
-    ReadSignal, Show, clone, component, component_rect, create_effect, create_memo, create_signal,
-    view,
+    Canvas, CanvasItem, CanvasView, Child, Draw, Drawing, ForEach, Interactive, Memo, ReadSignal,
+    Show, clone, component, component_rect, create_effect, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::use_theme;
 use block_editor_beui::beui::{KeyPress, NodeId, Painter, PointerPress, Rect, Vec2, pos2};
@@ -109,37 +108,35 @@ fn CanvasSurface(state: Rc<CanvasState>, children: Option<Child>) -> NodeId {
     let cursor = create_memo(clone!(state -> move || state.cursor()));
     let interactive = !state.previewing();
     view! {
-        <Focusable
+        <Interactive
+            focusable=true
             tab_stop={interactive}
             on_key={move |press: KeyPress| keying.key(press)}
             on_text={move |text: String| {
                 texting.paste_text(&text);
             }}
-        >
-            <ClickCatcher
-                cursor={cursor}
-                touch_drags={interactive}
-                on_cancel={move || cancelling.cancel()}
-                on_press={move |press: PointerPress| pressing.press(press)}
-                on_secondary_press={move |press: PointerPress| secondary.secondary_press(press)}
-                on_drag={move |press: PointerPress| dragging.drag(press)}
-                on_hover_move={move |press: PointerPress| {
-                    let at = hovering.world_at(press.pos);
-                    hovering.hover(Some(at));
-                }}
-                on_hover_change={move |over: bool| {
-                    if !over {
-                        leaving.hover(None);
-                    }
-                }}
-                on_active_change={move |active: bool| {
-                    if !active {
-                        releasing.release();
-                    }
-                }}
-                children={children}
-            />
-        </Focusable>
+            cursor={cursor}
+            touch_drags={interactive}
+            on_cancel={move || cancelling.cancel()}
+            on_press={move |press: PointerPress| pressing.press(press)}
+            on_secondary_press={move |press: PointerPress| secondary.secondary_press(press)}
+            on_drag={move |press: PointerPress| dragging.drag(press)}
+            on_hover_move={move |press: PointerPress| {
+                let at = hovering.world_at(press.pos);
+                hovering.hover(Some(at));
+            }}
+            on_hover_change={move |over: bool| {
+                if !over {
+                    leaving.hover(None);
+                }
+            }}
+            on_active_change={move |active: bool| {
+                if !active {
+                    releasing.release();
+                }
+            }}
+            children={children}
+        />
     }
 }
 

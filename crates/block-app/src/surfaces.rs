@@ -5,8 +5,8 @@ use std::{
 };
 
 use beui::reactive::{
-    Canvas, CanvasItem, Embed, EmbedSlot, ForEach, Frame, KeyedStore, List, Memo, ReadSignal, Show,
-    Text, Drawing, Prop, draw_gpu, WriteSignal, component, create_memo, create_signal, view,
+    Canvas, CanvasItem, Drawing, Embed, EmbedSlot, ForEach, Frame, KeyedStore, List, Memo, Prop,
+    ReadSignal, Show, Text, WriteSignal, component, create_memo, create_signal, draw_gpu, view,
 };
 use beui::styled::{Button, ButtonVariant, Caption, Heading, Icon, Spinner, use_theme};
 use beui::{Align, Color32, NodeId, Rect, Region, TextAlign, Vec2};
@@ -294,10 +294,12 @@ pub(crate) fn HostSurface(id: SurfaceId) -> NodeId {
         <Embed slot={handle.slot.clone()} punch=false>
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                    <Drawing draw={Prop::Dynamic(Rc::new({
-                        let drawing = handle.drawing.clone();
-                        move || draw_gpu(drawing.get())
-                    }))} />
+                    <Drawing
+                        draw={Prop::Dynamic(Rc::new({
+                            let drawing = handle.drawing.clone();
+                            move || draw_gpu(drawing.get())
+                        }))}
+                    />
                 </CanvasItem>
                 <ForEach keys={items.keys()}>
                     {move |key: u64| {

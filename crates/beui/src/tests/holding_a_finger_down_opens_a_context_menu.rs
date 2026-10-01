@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use super::*;
-use crate::reactive::{ClickCatcher, Frame, view};
+use crate::reactive::{Frame, Interactive, view};
 use crate::styled::ContextMenu;
 use crate::unstyled::MenuItem;
 
@@ -24,12 +24,12 @@ fn holding_a_finger_down_opens_a_context_menu() {
                         <MenuItem label="Copy" />
                     }}
                 >
-                    <ClickCatcher
+                    <Interactive
                         on_click={move || clicked.set(clicked.get() + 1)}
                         on_cancel={move || cancelled.set(cancelled.get() + 1)}
                     >
                         <Frame width=300.0 height=300.0 />
-                    </ClickCatcher>
+                    </Interactive>
                 </ContextMenu>
             }
         }

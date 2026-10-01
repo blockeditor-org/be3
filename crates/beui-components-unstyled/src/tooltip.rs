@@ -7,8 +7,8 @@ use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Child, ClickCatcher, List, NodeRef, Prop, ReadSignal, Render, clone, create_memo,
-    create_signal, create_timer,
+    Child, Interactive, List, NodeRef, Prop, ReadSignal, Render, clone, create_memo, create_signal,
+    create_timer,
 };
 
 pub const TOOLTIP_DELAY: Duration = Duration::from_millis(450);
@@ -53,7 +53,7 @@ pub fn Tooltip(
     let bubble = content.call(TooltipHandle { label, shown });
 
     view! {
-        <ClickCatcher on_hover_change={hover} on_press={press}>
+        <Interactive on_hover_change={hover} on_press={press}>
             <List @node_ref=&anchor spacing=0.0>
                 {children}
                 <Overlay
@@ -66,6 +66,6 @@ pub fn Tooltip(
                     {bubble}
                 </Overlay>
             </List>
-        </ClickCatcher>
+        </Interactive>
     }
 }

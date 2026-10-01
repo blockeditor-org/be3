@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use super::*;
 use crate::input::SecondaryDrag;
-use crate::reactive::{ClickCatcher, Frame, build, view};
+use crate::reactive::{Frame, Interactive, build, view};
 
 #[test]
 fn right_dragging_over_a_click_catcher_reports_a_secondary_drag() {
@@ -12,9 +12,9 @@ fn right_dragging_over_a_click_catcher_reports_a_secondary_drag() {
         let drags = drags.clone();
         move || {
             view! {
-                <ClickCatcher on_secondary_drag={move |drag| drags.borrow_mut().push(drag)}>
+                <Interactive on_secondary_drag={move |drag| drags.borrow_mut().push(drag)}>
                     <Frame width=200.0 height=200.0 />
-                </ClickCatcher>
+                </Interactive>
             }
         }
     });

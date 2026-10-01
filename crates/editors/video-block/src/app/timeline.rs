@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::{
-    Align, Canvas, CanvasItem, CanvasView, ClickCatcher, Direction, ForEach, Frame, ItemSize, List,
+    Align, Canvas, CanvasItem, CanvasView, Direction, ForEach, Frame, Interactive, ItemSize, List,
     Memo, ReadSignal, clone, component, component_rect, create_effect, create_memo,
     create_selector, create_signal, untrack, view,
 };
@@ -198,7 +198,7 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
     view! {
         <DropTarget on_over={on_over} on_drop={on_drop}>
             {move |_: DropHandle| view! {
-                <ClickCatcher
+                <Interactive
                     cursor=CursorIcon::Default
                     on_press={on_press}
                     on_scroll={on_scroll}
@@ -234,7 +234,7 @@ pub(crate) fn Timeline(state: Rc<VideoState>) -> NodeId {
                             <Frame color={theme.accent.clone()} />
                         </CanvasItem>
                     </Canvas>
-                </ClickCatcher>
+                </Interactive>
             }}
         </DropTarget>
     }
@@ -364,7 +364,7 @@ fn Clip(
                 }}
             >
                 {move |_: DragHandle| view! {
-                    <ClickCatcher
+                    <Interactive
                         on_press={move |press: PointerPress| grabbing.set(Some(press.pos))}
                     >
                         <Frame
@@ -397,7 +397,7 @@ fn Clip(
                                 />
                             </List>
                         </Frame>
-                    </ClickCatcher>
+                    </Interactive>
                 }}
             </Draggable>
         </CanvasItem>
@@ -458,7 +458,7 @@ fn DropMarker(target: Memo<Option<TimelineDropTarget>>, scale: ReadSignal<f32>) 
 fn TrimHandle(state: Rc<VideoState>, row: Lane, scale: ReadSignal<f32>, left: Memo<f32>) -> NodeId {
     let clips = state.clips.clone();
     view! {
-        <ClickCatcher
+        <Interactive
             cursor=CursorIcon::ResizeHorizontal
             capture_presses=true
             @test_id={format!("video.trim.{}", row.id)}
@@ -480,7 +480,7 @@ fn TrimHandle(state: Rc<VideoState>, row: Lane, scale: ReadSignal<f32>, left: Me
             }}
         >
             <Frame width=TRIM_HANDLE_WIDTH height=LANE_HEIGHT />
-        </ClickCatcher>
+        </Interactive>
     }
 }
 

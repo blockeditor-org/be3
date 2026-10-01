@@ -1,11 +1,10 @@
 pub mod back;
 pub mod canvas;
-pub mod click_catcher;
 pub mod drawing;
 pub mod embed;
-pub mod focusable;
 pub mod frame;
 pub mod grid;
+pub mod interactive;
 pub mod layers;
 pub mod offset;
 pub mod overlay;

@@ -461,14 +461,14 @@ fn captor(doc: &mut Document, rects: &Rects, id: NodeId, pos: Pos2) -> Option<No
 fn catches_drag(element: &dyn crate::node::Element, direction: Direction) -> bool {
     element
         .as_any()
-        .downcast_ref::<crate::base::click_catcher::ClickCatcherNode>()
+        .downcast_ref::<crate::base::interactive::InteractiveNode>()
         .is_some_and(|catcher| catcher.catches_drag(direction))
 }
 
 fn wants_wheel(element: &dyn crate::node::Element, wheel: Vec2) -> bool {
     element
         .as_any()
-        .downcast_ref::<crate::base::click_catcher::ClickCatcherNode>()
+        .downcast_ref::<crate::base::interactive::InteractiveNode>()
         .is_some_and(|catcher| catcher.wants_wheel(wheel))
 }
 
@@ -497,8 +497,8 @@ fn latched_wheel_target(
 fn wants_gestures(element: &dyn crate::node::Element) -> bool {
     element
         .as_any()
-        .downcast_ref::<crate::base::click_catcher::ClickCatcherNode>()
-        .is_some_and(crate::base::click_catcher::ClickCatcherNode::wants_gestures)
+        .downcast_ref::<crate::base::interactive::InteractiveNode>()
+        .is_some_and(crate::base::interactive::InteractiveNode::wants_gestures)
 }
 
 fn target(
@@ -742,6 +742,6 @@ fn nearest_press(
 fn presses(element: &dyn crate::node::Element) -> bool {
     element
         .as_any()
-        .downcast_ref::<crate::base::click_catcher::ClickCatcherNode>()
+        .downcast_ref::<crate::base::interactive::InteractiveNode>()
         .is_some_and(|catcher| catcher.claims_touches())
 }

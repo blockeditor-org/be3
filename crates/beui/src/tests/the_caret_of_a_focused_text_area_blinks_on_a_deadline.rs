@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Focusable, Frame, view};
+use crate::reactive::{Frame, Interactive, view};
 use crate::unstyled::{TextArea, TextAreaState};
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
@@ -12,9 +12,9 @@ fn the_caret_of_a_focused_text_area_blinks_on_a_deadline() {
         view! {
             <List spacing=0.0>
                 <TextArea state={state} single_line=true />
-                <Focusable>
+                <Interactive focusable=true>
                     <Frame width=20.0 height=20.0 />
-                </Focusable>
+                </Interactive>
             </List>
         }
     });
