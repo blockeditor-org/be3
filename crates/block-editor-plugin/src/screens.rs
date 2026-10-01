@@ -30,6 +30,8 @@ pub(crate) struct Screens {
     dirty: Arc<Mutex<HashSet<EditorInstanceId>>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     everything: bool,
+    reporting: HashSet<EditorInstanceId>,
+    reporting_everything: bool,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -61,12 +63,23 @@ impl Screens {
             panes: false,
             dirty: Arc::default(),
             everything: true,
+            reporting: HashSet::new(),
+            reporting_everything: true,
         }
     }
 
     pub(crate) fn adopt(&mut self, instance: EditorInstanceId, session: EditorSession) {
         self.sessions.insert(instance, session);
+        self.touch_everything();
+    }
+
+    fn touch_everything(&mut self) {
         self.everything = true;
+        self.reporting_everything = true;
+    }
+
+    pub(crate) fn ran(&mut self, instance: EditorInstanceId) {
+        self.reporting.insert(instance);
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -78,12 +91,13 @@ impl Screens {
         }
     }
 
-    fn mark(&self, instance: EditorInstanceId) {
+    fn mark(&mut self, instance: EditorInstanceId) {
         if self.sessions.contains_key(&instance) {
             self.dirty
                 .lock()
                 .unwrap_or_else(|held| held.into_inner())
                 .insert(instance);
+            self.reporting.insert(instance);
         }
     }
 
@@ -564,7 +578,7 @@ impl Screens {
                 }
             }
             Message::Editor(EditorMessage::Close { .. }) | Message::Screens(_) => {
-                self.everything = true;
+                self.touch_everything();
             }
             Message::Editor(editor) => {
                 if !self.sessions.contains_key(&editor.instance()) {
@@ -572,15 +586,24 @@ impl Screens {
                 }
                 self.mark(editor.instance());
             }
-            _ => self.everything = true,
+            _ => self.touch_everything(),
         }
         true
     }
 
     pub(crate) fn outbound(&mut self) -> Vec<Message> {
         let mut messages = Vec::from_iter(crate::fonts::take_missing());
-        for session in self.sessions.values_mut() {
-            messages.extend(session.outbound());
+        let woken = self
+            .dirty
+            .lock()
+            .unwrap_or_else(|held| held.into_inner())
+            .clone();
+        let everything = std::mem::take(&mut self.reporting_everything);
+        let reporting = std::mem::take(&mut self.reporting);
+        for (instance, session) in &mut self.sessions {
+            if everything || reporting.contains(instance) || woken.contains(instance) {
+                messages.extend(session.outbound());
+            }
         }
         messages
     }

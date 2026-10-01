@@ -53,6 +53,7 @@ impl Panes {
                 continue;
             }
             let frame = session.run(placement.region, layout.generation);
+            screens.ran(placement.instance);
             changed |= frame.changed;
             if let Some(after) = frame.repaint_after {
                 repaint = repaint.min(after);
