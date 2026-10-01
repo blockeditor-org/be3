@@ -81,7 +81,7 @@ positional.
     every older schema.
   - Web `SavedAccount` fields get `#[serde(default)]`.
 
-## Phase 3: A real encryption key, with backup (mostly done)
+## Phase 3: A real encryption key, with backup (done)
 
 Landed: random workspace keys kept on each device, a recovery phrase per account
 whose public half seals every workspace key on the server, unlocking a new
@@ -93,13 +93,8 @@ It differs from the first design in one way: there are no device key pairs.
 Each device keeps the workspace key itself and the server holds only copies
 sealed to recovery keys, because a device key pair added nothing a device's
 own copy does not already give it, and pairing hands the key over directly.
+What it leaves for a public release is in `plans/public_release.md`.
 
-Still to do:
-- Keep workspace keys and the session token in the OS keystore (Keychain,
-  Android Keystore, libsecret/DPAPI, non-extractable WebCrypto) rather than
-  plaintext app state.
-- Key epochs (with the phase 2 object prefix), so a key can rotate after a
-  member leaves.
 
 ## Phase 4: A server you can leave running
 
@@ -121,14 +116,6 @@ signups open.
   - Verify a dummy hash when the email is unknown, to remove the timing
     oracle.
   - Rate-limit logins per IP. Behind Caddy that means the forwarded address.
-- **Isolation, for the day a second person gets an invite.**
-  - Scope `GetObject`, `PutObject` and `MissingObjects` to the open
-    workspace.
-  - Check access on `Watch`, `ClaimOwnership`, `Relay` and the other session
-    messages.
-  - Key the session registry and watchers by (workspace, block).
-  - Today these are keyed by block UUID alone, and the client picks the
-    UUID (`lib.rs:605-708`, `sessions.rs:11`).
 - **Resource limits.**
   - Add a connection cap, a handshake timeout, an idle timeout with server
     pings, and a bounded outbound queue per client. A slow reader currently
@@ -232,15 +219,6 @@ Today:
   - two devices edit the same note offline, then both reconnect;
   - the connection dies mid-seal.
 - No sleeping: drive time with the frame clock and the transport.
-
-### Web: deferred until before a public release
-
-- Dogfooding uses native and Android.
-- Web offline later needs an IndexedDB object store and refs database.
-  `ObjectStore` is synchronous, so that needs an in-memory front with async
-  write-behind.
-- Device keys on web will need non-extractable WebCrypto keys kept in
-  IndexedDB (phase 3).
 
 ## Phase 6: Text editor at 120 fps on a large file
 
