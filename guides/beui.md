@@ -457,8 +457,13 @@ controls inside it keep their reach. A quick
 tap with two or more fingers that did not move is a finger tap, which
 `on_finger_tap` hears the way `on_shortcut` hears keys; the editor frame's top
 bar undoes on two and redoes on three. `Sheet` is the panel that rises from the
-bottom of a narrow screen: its handle drags it between stops, and dragging it
-low or going back closes it.
+bottom of a narrow screen. It scrolls what it holds itself, so what goes in it
+is not wrapped in a vertical `Scroll` (one inside would measure nothing tall): a
+swipe anywhere on it raises it to its top stop before it scrolls the content,
+and lowers it once the content is back at its start. Let go, it springs to the
+stop nearest where the flick was heading, or closed below the lowest one, and
+its content flings and bounces at its ends as a `Scroll` does; the handle does
+the same for a mouse, and going back closes it.
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, a multiline text

@@ -1124,7 +1124,7 @@ fn ActionsSheet() -> NodeId {
                 />
             </List>
             <Caption
-                content="A sheet slides up from the bottom; drag its handle, or tap above it to close it."
+                content="A sheet slides up from the bottom; swipe it down, or tap above it, to close it."
                 wrap=true
             />
             <Caption content={outcome} />

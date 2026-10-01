@@ -29,7 +29,9 @@ fn a_narrow_canvas_opens_its_inspector_under_the_stage() {
 
     let handle = editor.rect_of("sheet.handle").center();
     editor.drag(handle, handle + Vec2::new(0.0, 700.0));
-    editor.run();
+    editor.settle_until("the inspector to close", |editor| {
+        editor.shown("infinite-canvas.dock")
+    });
     assert!(!editor.shown("infinite-canvas.selection"));
     assert!(
         editor.shown("infinite-canvas.dock"),

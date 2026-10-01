@@ -53,7 +53,9 @@ mod a_finger_dragged_across_a_color_area_picks_rather_than_scrolls;
 mod a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped;
 mod a_finger_drags_a_draggable_down_where_nothing_scrolls;
 mod a_finger_moves_a_window_up_and_down_by_its_bar;
+mod a_finger_swiping_a_sheet_raises_it_before_scrolling_what_it_holds;
 mod a_finger_swiping_along_a_tab_bar_moves_no_tab;
+mod a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
 mod a_floating_overlay_follows_an_anchor_that_only_moves;
 mod a_focused_text_input_asks_for_the_keyboard;
@@ -108,6 +110,7 @@ mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
 mod a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint;
 mod a_rect_watched_inside_a_scroll_follows_it_as_it_scrolls;
 mod a_redrawn_drawing_damages_only_the_part_it_names;
+mod a_released_sheet_springs_to_its_stop_or_closed;
 mod a_removed_nodes_slot_is_reused_under_a_new_id;
 mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_row_replaced_by_narrower_rows_leaves_nothing_of_it_behind_the_copy;
@@ -313,6 +316,7 @@ mod one_child_can_align_itself_apart_from_its_row;
 mod opening_a_menu_button_damages_only_the_button_and_its_menu;
 mod opening_a_menu_damages_only_where_it_appears;
 mod opening_a_select_focuses_its_search_box_and_highlights_the_selected_option;
+mod overscrolling_a_sheet_bounces_its_content_back;
 mod overscrolling_squishes_the_scrollbar_thumb_against_the_end;
 mod painting_never_has_to_move_a_rect_onto_the_pixel_grid;
 mod painting_skips_the_elements_outside_the_damaged_region;
@@ -603,6 +607,23 @@ impl Harness {
             self.touch(TouchPhase::Move, *point);
         }
         self.touch(TouchPhase::End, *last);
+    }
+
+    pub(crate) fn finger_drag_and_hold(&mut self, from: Pos2, to: Pos2) {
+        const STEP: f32 = 10.0;
+        const HOLD_FRAMES: usize = 12;
+        self.touch(TouchPhase::Start, from);
+        let steps = ((to - from).length() / STEP).ceil().max(1.0) as usize;
+        for step in 1..=steps {
+            self.touch(
+                TouchPhase::Move,
+                from + (to - from) * (step as f32 / steps as f32),
+            );
+        }
+        for _ in 0..HOLD_FRAMES {
+            self.touch(TouchPhase::Move, to);
+        }
+        self.touch(TouchPhase::End, to);
     }
 
     pub(crate) fn scroll(&mut self, pos: Pos2, delta: Vec2, modifiers: Modifiers) {
@@ -1324,6 +1345,34 @@ pub(crate) fn flashed(output: &crate::FrameOutput, bounds: Rect, color: Color32)
                 && *stroke_width > 0.0
                 && painted.to_array()[..3] == color.to_array()[..3]
         )
+    })
+}
+
+pub(crate) const SHEET_ROWS: usize = 20;
+pub(crate) const SHEET_ROW_HEIGHT: f32 = 60.0;
+
+pub(crate) fn sheet_of_rows(rest: f32, sheet: &NodeRef, closed: &Rc<Cell<usize>>) -> Document {
+    let (sheet, closed) = (sheet.clone(), closed.clone());
+    build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @sizing=ItemSize::Percent(100.0) />
+                <styled::Sheet
+                    @node_ref=&sheet
+                    extent=600.0
+                    rest
+                    on_close={move || closed.set(closed.get() + 1)}
+                >
+                    <List spacing=0.0>
+                        <ForEach keys={indices(SHEET_ROWS)}>
+                            {|_: usize| view! {
+                                <Frame height=SHEET_ROW_HEIGHT />
+                            }}
+                        </ForEach>
+                    </List>
+                </styled::Sheet>
+            </List>
+        }
     })
 }
 
