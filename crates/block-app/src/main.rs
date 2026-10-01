@@ -879,6 +879,7 @@ impl BlockApp {
 
     fn poll_keys(&mut self) {
         match self.keys.poll() {
+            Some(keys::KeyEvent::RecoverySaved) if self.workspace.is_some() => {}
             Some(keys::KeyEvent::RecoverySaved) => {
                 self.workspaces_loaded = false;
                 self.workspaces_load_failed = false;
@@ -1682,6 +1683,11 @@ impl BlockApp {
             account: self.account.id,
             workspace,
             content_key,
+            other_keys: self
+                .held_keys()
+                .into_iter()
+                .filter(|(held, _)| *held != workspace)
+                .collect(),
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: self.data_dir.join("be-objects"),
         });
@@ -1892,6 +1898,8 @@ impl BlockApp {
                 }
             }
             UiCommand::CancelPairing => self.keys.cancel_pairing(),
+            UiCommand::NewRecoveryPhrase => self.keys.replace_recovery(),
+            UiCommand::CancelRecovery => self.keys.cancel_replacing(),
             UiCommand::ApprovePairing(from, code) => be::approve_pairing(from, code),
             UiCommand::DismissPairing(from) => be::dismiss_pairing(from),
         }
@@ -1901,6 +1909,7 @@ impl BlockApp {
         let screen = match (&self.error, self.signed_in, &self.workspace) {
             (Some(_), _, _) => ui::Screen::Error,
             (None, false, _) => ui::Screen::Accounts,
+            (None, true, _) if self.keys.replacing() => ui::Screen::Recovery,
             (None, true, None) if self.keys.needs_recovery() => ui::Screen::Recovery,
             (None, true, None) => ui::Screen::Workspaces,
             (None, true, Some(_)) if self.workspace_key.is_none() => ui::Screen::Unlock,
@@ -1956,6 +1965,12 @@ impl BlockApp {
                     .map(|request| ui::PairingRow {
                         from: request.from,
                         device: request.device,
+                        workspace: self
+                            .workspaces
+                            .iter()
+                            .find(|workspace| workspace.id == request.workspace)
+                            .map(|workspace| workspace.name.clone())
+                            .unwrap_or_else(|| "another workspace".to_owned()),
                     })
                     .collect(),
                 _ => Vec::new(),

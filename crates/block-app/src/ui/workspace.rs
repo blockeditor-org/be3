@@ -1,7 +1,7 @@
 use beui::icons::{
     ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_BUG_REPORT, ICON_CHECK, ICON_DEVICES, ICON_EXTENSION,
-    ICON_HISTORY, ICON_INFO, ICON_LAYERS, ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD, ICON_SETTINGS,
-    ICON_SPEED, ICON_SWAP_HORIZ,
+    ICON_HISTORY, ICON_INFO, ICON_KEY, ICON_LAYERS, ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD,
+    ICON_SETTINGS, ICON_SPEED, ICON_SWAP_HORIZ,
 };
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Spacer, clone, component,
@@ -193,6 +193,7 @@ fn StatusBar(status: Memo<StatusView>) -> NodeId {
                         <MenuItem label={workspace}>
                             <MenuItem label="Invite member" />
                             <MenuItem label="Switch workspace" />
+                            <MenuItem label="New recovery phrase" />
                         </MenuItem>
                         <MenuItem label={profile}>
                             <ForEach keys={profile_keys}>
@@ -307,6 +308,11 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
                         label="Switch workspace"
                         glyph={ICON_SWAP_HORIZ.to_owned()}
                         on_click={pick(vec![MORE_WORKSPACE, 1])}
+                    />
+                    <ActionRow
+                        label="New recovery phrase"
+                        glyph={ICON_KEY.to_owned()}
+                        on_click={pick(vec![MORE_WORKSPACE, 2])}
                     />
                     <ForEach keys={profile_keys}>
                         {move |id: uuid::Uuid| {
@@ -427,6 +433,7 @@ fn more(path: &[usize], accounts: &[super::AccountRow], profiles: &[super::Profi
         [MORE_INSPECTOR] => send(UiCommand::OpenInspector),
         [MORE_WORKSPACE, 0] => send(UiCommand::InviteMember),
         [MORE_WORKSPACE, 1] => send(UiCommand::SwitchWorkspace),
+        [MORE_WORKSPACE, 2] => send(UiCommand::NewRecoveryPhrase),
         [MORE_PROFILE, index] => match profiles.get(*index) {
             Some(profile) => send(UiCommand::SwitchProfile(profile.id)),
             None => send(UiCommand::NewProfile),

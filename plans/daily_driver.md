@@ -98,11 +98,6 @@ Still to do:
 - Keep workspace keys and the session token in the OS keystore (Keychain,
   Android Keystore, libsecret/DPAPI, non-extractable WebCrypto) rather than
   plaintext app state.
-- **Settings › Security**: make a new recovery phrase. `SetRecoveryKey` already
-  reseals and refuses a phrase that would drop a workspace key; the app needs
-  the screen, and it can only reseal the keys this device holds.
-- Pairing reaches only a device whose open workspace is the one asked for. A
-  device could answer for any workspace whose key it holds.
 - Key epochs (with the phase 2 object prefix), so a key can rotate after a
   member leaves.
 

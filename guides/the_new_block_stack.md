@@ -747,14 +747,17 @@ in the clear. `crates/be-keys` holds the cryptography.
   and the server stores only the public half (`SetRecoveryKey`). Each member's
   copy of a workspace key is sealed to that public key (`PutWorkspaceKey`,
   `GetKeys`), so a new device opens a workspace with the phrase alone. A new
-  phrase has to reseal every key the old one sealed, which the server checks.
+  phrase (the workspace menu's New recovery phrase) has to reseal every key the
+  old one sealed, which the server checks, so it can only be made on a device
+  that holds all of them.
 - **Sealing for members.** When the worker connects, it seals the workspace key
   for every member that has a recovery key and no sealed copy
   (`ListMemberKeys`), which covers the creator and anyone invited since. The
   server only ever inserts a sealed key, never replaces one, so a member cannot
   overwrite another's.
 - **Adding a device.** The new device shows an eight-character code. The user
-  types it on a device where the workspace is open, and the two run SPAKE2
+  types it on a device that holds the key and has any workspace of the account
+  open (the worker gets every key the device holds), and the two run SPAKE2
   keyed by the code over the server's relay (`Pair`, delivered as `Paired` to
   the account's other connections). The open device seals the key under the
   agreed secret, so the server would have to guess the code to read or replace
