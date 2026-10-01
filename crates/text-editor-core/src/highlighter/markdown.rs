@@ -1,7 +1,8 @@
 use std::ops::Range;
 use tree_sitter_md::{MarkdownCursor, MarkdownTree};
 
-use super::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
+use super::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize, byte_point};
+use crate::TextChange;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MarkdownTableAlignment {
@@ -348,6 +349,7 @@ pub(super) struct MarkdownWindow {
     pub(super) styles: Vec<SynHlStyle>,
     pub(super) tables: Vec<MarkdownTable>,
     pub(super) code_blocks: Vec<Range<usize>>,
+    tree: Option<MarkdownTree>,
 }
 
 pub(super) fn fences(bytes: &[u8]) -> Vec<Range<usize>> {
@@ -401,10 +403,83 @@ fn is_blank_line_start(bytes: &[u8], index: usize) -> bool {
 }
 
 fn line_start_before(bytes: &[u8], index: usize) -> usize {
-    bytes[..index]
+    memchr::memrchr(b'\n', &bytes[..index]).map_or(0, |newline| newline + 1)
+}
+
+fn line_end_after(bytes: &[u8], index: usize) -> usize {
+    memchr::memchr(b'\n', &bytes[index.min(bytes.len())..])
+        .map_or(bytes.len(), |newline| index + newline + 1)
+}
+
+pub(super) fn touched_lines(bytes: &[u8], start: usize, end: usize) -> Range<usize> {
+    line_start_before(bytes, start)..line_end_after(bytes, end)
+}
+
+fn is_fence_line(line: &[u8]) -> bool {
+    let indent = line.iter().take_while(|byte| **byte == b' ').count();
+    let Some(marker @ (b'`' | b'~')) = line.get(indent).copied() else {
+        return false;
+    };
+    indent <= 3
+        && line[indent..]
+            .iter()
+            .take_while(|byte| **byte == marker)
+            .count()
+            >= 3
+}
+
+fn has_fence_line(bytes: &[u8]) -> bool {
+    bytes.split(|byte| *byte == b'\n').any(is_fence_line)
+}
+
+pub(super) fn shifted_fences(
+    old_bytes: &[u8],
+    old_fences: &[Range<usize>],
+    bytes: &[u8],
+    change: TextChange,
+) -> Vec<Range<usize>> {
+    let old_lines = touched_lines(old_bytes, change.start, change.old_end);
+    let new_lines = touched_lines(bytes, change.start, change.new_end);
+    if has_fence_line(&old_bytes[old_lines]) || has_fence_line(&bytes[new_lines]) {
+        return fences(bytes);
+    }
+    let shifted: Option<Vec<Range<usize>>> = old_fences
         .iter()
-        .rposition(|byte| *byte == b'\n')
-        .map_or(0, |newline| newline + 1)
+        .map(|fence| Some(change.moved(fence.start)?..change.moved(fence.end)?))
+        .collect();
+    shifted.unwrap_or_else(|| fences(bytes))
+}
+
+pub(super) fn shifted_table_starts(
+    old_bytes: &[u8],
+    old_starts: &[usize],
+    bytes: &[u8],
+    change: TextChange,
+) -> Vec<usize> {
+    let old_lines = touched_lines(old_bytes, change.start, change.old_end);
+    let from = line_start_before(old_bytes, old_lines.start.saturating_sub(1));
+    let new_lines = touched_lines(bytes, change.start, change.new_end);
+    let scanned_end = line_end_after(bytes, new_lines.end);
+    let delta = |at: usize| at - old_lines.end + new_lines.end;
+    let mut starts: Vec<usize> = old_starts
+        .iter()
+        .copied()
+        .take_while(|start| *start < from)
+        .collect();
+    starts.extend(
+        table_starts(&bytes[from..scanned_end])
+            .into_iter()
+            .map(|start| start + from)
+            .filter(|start| *start < new_lines.end),
+    );
+    starts.extend(
+        old_starts
+            .iter()
+            .copied()
+            .filter(|start| *start >= old_lines.end)
+            .map(delta),
+    );
+    starts
 }
 
 fn boundary_before(bytes: &[u8], fences: &[Range<usize>], from: usize) -> usize {
@@ -468,12 +543,38 @@ fn parse(bytes: &[u8]) -> Option<MarkdownTree> {
 }
 
 pub(super) fn parse_window(source: &[u8]) -> MarkdownWindow {
-    let Some(tree) = parse(source) else {
+    window_of(source, parse(source))
+}
+
+pub(super) fn reparse_window(
+    window: &MarkdownWindow,
+    old_source: &[u8],
+    source: &[u8],
+    change: TextChange,
+) -> MarkdownWindow {
+    let Some(mut tree) = window.tree.clone() else {
+        return parse_window(source);
+    };
+    tree.edit(&tree_sitter::InputEdit {
+        start_byte: change.start,
+        old_end_byte: change.old_end,
+        new_end_byte: change.new_end,
+        start_position: byte_point(old_source, change.start),
+        old_end_position: byte_point(old_source, change.old_end),
+        new_end_position: byte_point(source, change.new_end),
+    });
+    let parsed = tree_sitter_md::MarkdownParser::default().parse(source, Some(&tree));
+    window_of(source, parsed)
+}
+
+fn window_of(source: &[u8], tree: Option<MarkdownTree>) -> MarkdownWindow {
+    let Some(tree) = tree else {
         return MarkdownWindow {
             styles: vec![SynHlStyle::plain(SynHlColorScope::MarkdownPlainText); source.len()],
             len: source.len(),
             tables: Vec::new(),
             code_blocks: Vec::new(),
+            tree: None,
         };
     };
     MarkdownWindow {
@@ -481,7 +582,14 @@ pub(super) fn parse_window(source: &[u8]) -> MarkdownWindow {
         styles: styles_in(&tree, 0..source.len()),
         tables: tables(&tree),
         code_blocks: code_blocks(&tree),
+        tree: Some(tree),
     }
+}
+
+pub(super) fn holds_change(bytes: &[u8], window: Range<usize>, change: TextChange) -> bool {
+    let first_line_end = line_end_after(bytes, window.start);
+    let last_line_start = line_start_before(bytes, window.end.saturating_sub(1).max(window.start));
+    change.start >= first_line_end && change.old_end < last_line_start
 }
 
 pub(super) fn shift_table(table: &MarkdownTable, by: usize) -> MarkdownTable {

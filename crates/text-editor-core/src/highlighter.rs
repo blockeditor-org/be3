@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use tree_sitter::{InputEdit, Parser, Point, Tree};
 
+use crate::TextChange;
 use crate::document::{Document, DocumentView, TextLanguage};
 
 mod markdown;
@@ -140,12 +141,23 @@ enum Styles {
 struct MarkdownSource {
     bytes: Arc<[u8]>,
     fences: Vec<Range<usize>>,
+    table_starts: Vec<usize>,
     windows: Mutex<Vec<(usize, Arc<markdown::MarkdownWindow>)>>,
 }
 
 const MARKDOWN_WINDOWS_KEPT: usize = 16;
+const MARKDOWN_WINDOW_LIMIT: usize = 4 * markdown::WINDOW_TARGET;
 
 impl MarkdownSource {
+    fn new(bytes: Arc<[u8]>) -> Self {
+        Self {
+            fences: markdown::fences(&bytes),
+            table_starts: markdown::table_starts(&bytes),
+            bytes,
+            windows: Mutex::default(),
+        }
+    }
+
     fn window(&self, index: usize) -> (usize, Arc<markdown::MarkdownWindow>) {
         let mut windows = self
             .windows
@@ -166,21 +178,15 @@ impl MarkdownSource {
         (range.start, window)
     }
 
-    fn successor(&self, bytes: Arc<[u8]>) -> Self {
-        let fences = markdown::fences(&bytes);
-        let prefix = common_prefix(&self.bytes, &bytes);
-        let most = self.bytes.len().min(bytes.len()) - prefix;
-        let suffix = common_suffix(&self.bytes[prefix..], &bytes[prefix..]).min(most);
-        let old_changed_end = self.bytes.len() - suffix;
-        let moved = |at: usize| match at {
-            at if at <= prefix => Some(at),
-            at if at >= old_changed_end => Some(at - old_changed_end + (bytes.len() - suffix)),
-            _ => None,
-        };
+    fn successor(&self, bytes: Arc<[u8]>, change: TextChange) -> Self {
+        let fences = markdown::shifted_fences(&self.bytes, &self.fences, &bytes, change);
+        let table_starts =
+            markdown::shifted_table_starts(&self.bytes, &self.table_starts, &bytes, change);
         let fences_kept = fences.len() == self.fences.len()
             && self.fences.iter().zip(&fences).all(|(old, new)| {
-                moved(old.start) == Some(new.start) && moved(old.end) == Some(new.end)
+                change.moved(old.start) == Some(new.start) && change.moved(old.end) == Some(new.end)
             });
+        let touched = markdown::touched_lines(&self.bytes, change.start, change.old_end);
         let windows = match fences_kept {
             false => Vec::new(),
             true => self
@@ -190,51 +196,41 @@ impl MarkdownSource {
                 .iter()
                 .filter_map(|(start, window)| {
                     let end = start + window.len;
-                    if end <= prefix {
-                        Some((*start, Arc::clone(window)))
-                    } else if *start >= old_changed_end {
-                        Some((moved(*start)?, Arc::clone(window)))
-                    } else {
-                        None
+                    if end < touched.start {
+                        return Some((*start, Arc::clone(window)));
                     }
+                    if *start >= touched.end {
+                        return Some((change.moved(*start)?, Arc::clone(window)));
+                    }
+                    if !markdown::holds_change(&self.bytes, *start..end, change) {
+                        return None;
+                    }
+                    let new_end = end - change.old_end + change.new_end;
+                    if new_end - start > MARKDOWN_WINDOW_LIMIT {
+                        return None;
+                    }
+                    let inner = TextChange {
+                        start: change.start - start,
+                        old_end: change.old_end - start,
+                        new_end: change.new_end - start,
+                    };
+                    let reparsed = markdown::reparse_window(
+                        window,
+                        &self.bytes[*start..end],
+                        &bytes[*start..new_end],
+                        inner,
+                    );
+                    Some((*start, Arc::new(reparsed)))
                 })
                 .collect(),
         };
         Self {
             bytes,
             fences,
+            table_starts,
             windows: Mutex::new(windows),
         }
     }
-}
-
-fn common_prefix(a: &[u8], b: &[u8]) -> usize {
-    const CHUNK: usize = 4096;
-    let mut at = 0;
-    while at + CHUNK <= a.len().min(b.len()) && a[at..at + CHUNK] == b[at..at + CHUNK] {
-        at += CHUNK;
-    }
-    at + a[at..]
-        .iter()
-        .zip(&b[at..])
-        .take_while(|(a, b)| a == b)
-        .count()
-}
-
-fn common_suffix(a: &[u8], b: &[u8]) -> usize {
-    const CHUNK: usize = 4096;
-    let mut at = 0;
-    while at + CHUNK <= a.len().min(b.len())
-        && a[a.len() - at - CHUNK..a.len() - at] == b[b.len() - at - CHUNK..b.len() - at]
-    {
-        at += CHUNK;
-    }
-    at + a[..a.len() - at]
-        .iter()
-        .rev()
-        .zip(b[..b.len() - at].iter().rev())
-        .take_while(|(a, b)| a == b)
-        .count()
 }
 
 impl SyntaxHighlight {
@@ -311,7 +307,7 @@ impl SyntaxHighlight {
             return Vec::new();
         };
         let mut tables: Vec<MarkdownTable> = Vec::new();
-        for start in markdown::table_starts(&source.bytes) {
+        for &start in &source.table_starts {
             let (window_start, window) = source.window(start);
             for table in &window.tables {
                 let first = table.rows.first().map(|row| row.range.start + window_start);
@@ -358,7 +354,7 @@ impl ParserBackend {
 }
 
 pub struct Highlighter {
-    markdown: Option<Arc<MarkdownSource>>,
+    markdown: Option<(u64, Arc<MarkdownSource>)>,
     document: Arc<dyn Document>,
     backend: ParserBackend,
     parsed_revision: Option<u64>,
@@ -395,7 +391,19 @@ impl Highlighter {
         let read = self.document.read()?;
         let document = DocumentView::new(&*read);
         let bytes = document.bytes();
-        let edit = if self.parsed_revision.is_some() {
+        let logged = self
+            .parsed_revision
+            .and_then(|parsed| self.document.changes_since(parsed));
+        let edit = if let Some(change) = logged {
+            Some(InputEdit {
+                start_byte: change.start,
+                old_end_byte: change.old_end,
+                new_end_byte: change.new_end,
+                start_position: byte_point(&self.parsed_bytes, change.start),
+                old_end_position: byte_point(&self.parsed_bytes, change.old_end),
+                new_end_position: byte_point(bytes, change.new_end),
+            })
+        } else if self.parsed_revision.is_some() {
             let prefix = self
                 .parsed_bytes
                 .iter()
@@ -441,26 +449,26 @@ impl Highlighter {
 
     pub fn highlight(&mut self) -> SyntaxHighlight {
         if self.language == Language::Markdown {
+            let revision = self.document.revision();
+            if let Some((held, source)) = &self.markdown
+                && *held == revision
+            {
+                return SyntaxHighlight::markdown(Arc::clone(source));
+            }
             let Some(read) = self.document.read() else {
                 return SyntaxHighlight::plaintext(0);
             };
             let bytes: Arc<[u8]> = read.slice(0..read.len()).into();
             drop(read);
-            let source = Arc::new(match self.markdown.take() {
-                Some(previous) if *previous.bytes == *bytes => {
-                    return SyntaxHighlight::markdown({
-                        self.markdown = Some(Arc::clone(&previous));
-                        previous
-                    });
-                }
-                Some(previous) => previous.successor(bytes),
-                None => MarkdownSource {
-                    fences: markdown::fences(&bytes),
-                    bytes,
-                    windows: Mutex::default(),
-                },
+            let change = self
+                .markdown
+                .as_ref()
+                .and_then(|(held, _)| self.document.changes_since(*held));
+            let source = Arc::new(match (self.markdown.take(), change) {
+                (Some((_, previous)), Some(change)) => previous.successor(bytes, change),
+                _ => MarkdownSource::new(bytes),
             });
-            self.markdown = Some(Arc::clone(&source));
+            self.markdown = Some((revision, Arc::clone(&source)));
             return SyntaxHighlight::markdown(source);
         }
         if self.ensure_parsed().is_none() {

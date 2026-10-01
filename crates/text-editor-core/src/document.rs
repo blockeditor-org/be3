@@ -7,7 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{AnchorTable, CursorPosition};
+use crate::{AnchorTable, ChangeLog, CursorPosition, TextChange};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TextLanguage {
@@ -133,6 +133,8 @@ pub trait Document {
 
     fn revision(&self) -> u64;
 
+    fn changes_since(&self, revision: u64) -> Option<TextChange>;
+
     fn set_language(&self, language: TextLanguage);
 
     fn set_indentation(&self, indentation: TextIndentation);
@@ -198,6 +200,8 @@ struct BufferState {
     language: TextLanguage,
     indentation: TextIndentation,
     revision: u64,
+    changes: ChangeLog,
+    pending: TextChange,
     undo: Vec<BufferHistoryEntry>,
     redo: Vec<BufferHistoryEntry>,
     group_open: bool,
@@ -219,6 +223,8 @@ impl TextBuffer {
                 language: TextLanguage::default(),
                 indentation: TextIndentation::default(),
                 revision: 0,
+                changes: ChangeLog::default(),
+                pending: TextChange::NONE,
                 undo: Vec::new(),
                 redo: Vec::new(),
                 group_open: false,
@@ -262,8 +268,13 @@ impl BufferState {
         let inverse = self.snapshot(entry.cursors);
         self.bytes = entry.bytes;
         self.anchors = Mutex::new(entry.anchors);
-        self.revision += 1;
+        self.bump(None);
         inverse
+    }
+
+    fn bump(&mut self, change: Option<TextChange>) {
+        self.revision += 1;
+        self.changes.record(self.revision, change);
     }
 }
 
@@ -278,16 +289,21 @@ impl Document for TextBuffer {
         self.read_state().revision
     }
 
+    fn changes_since(&self, revision: u64) -> Option<TextChange> {
+        let state = self.read_state();
+        state.changes.since(revision, state.revision)
+    }
+
     fn set_language(&self, language: TextLanguage) {
         let mut state = self.write_state();
         state.language = language;
-        state.revision += 1;
+        state.bump(None);
     }
 
     fn set_indentation(&self, indentation: TextIndentation) {
         let mut state = self.write_state();
         state.indentation = indentation;
-        state.revision += 1;
+        state.bump(None);
     }
 
     fn edit(&self, cursors: Vec<CursorPosition>, edit: &mut dyn FnMut(&mut dyn DocumentEdit)) {
@@ -301,7 +317,8 @@ impl Document for TextBuffer {
         if !transaction.edited {
             return;
         }
-        state.revision += 1;
+        let change = std::mem::replace(&mut state.pending, TextChange::NONE);
+        state.bump(Some(change));
         state.redo.clear();
         if !state.group_open || state.undo.is_empty() {
             state.undo.push(before);
@@ -414,6 +431,10 @@ impl DocumentEdit for BufferEdit<'_> {
             .get_mut()
             .expect("the text buffer's anchors were poisoned")
             .splice(index, delete, insert.len());
+        self.state.pending = self
+            .state
+            .pending
+            .then(TextChange::replace(index, delete, insert.len()));
         self.edited = true;
     }
 }
