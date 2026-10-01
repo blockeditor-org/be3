@@ -51,6 +51,11 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
     instances
 }
 
+fn next_screens(instances: &mut Instances) -> NextScreens {
+    instances.touch(&crate::be::take_touched());
+    instances.next_screens(PASS)
+}
+
 mod a_block_is_named_after_its_content_until_someone_names_it;
 mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;

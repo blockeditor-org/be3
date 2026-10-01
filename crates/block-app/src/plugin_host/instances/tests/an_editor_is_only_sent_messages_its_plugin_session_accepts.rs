@@ -28,7 +28,7 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
         panes: false,
     }));
 
-    let opened = instances.next_screens(PASS).opened;
+    let opened = next_screens(&mut instances).opened;
     assert!(
         opened
             .iter()
@@ -42,7 +42,7 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
     })
     .expect("the new stack never held the block's content");
 
-    let carried = instances.next_screens(PASS).opened;
+    let carried = next_screens(&mut instances).opened;
 
     assert!(
         carried

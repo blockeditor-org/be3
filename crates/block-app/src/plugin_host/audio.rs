@@ -1,29 +1,20 @@
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    time::Duration,
-};
+#[cfg(not(target_arch = "wasm32"))]
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::{sync::Arc, time::Duration};
 
 use be_block::AudioContent as Audio;
 use block_plugin_api::AudioStatus;
 
-#[derive(Clone, Default)]
-struct Changed(Arc<AtomicBool>);
+#[derive(Clone)]
+struct Changed(Arc<dyn Fn() + Send + Sync>);
 
 impl Changed {
+    fn new(notify: impl Fn() + Send + Sync + 'static) -> Self {
+        Self(Arc::new(notify))
+    }
+
     fn mark(&self) {
-        self.0.store(true, Ordering::Release);
-    }
-
-    fn mark_and_wake(&self) {
-        self.mark();
-        crate::host::wake();
-    }
-
-    fn take(&self) -> bool {
-        self.0.swap(false, Ordering::AcqRel)
+        (self.0)();
     }
 }
 
@@ -35,10 +26,6 @@ impl AudioPlayer {
             duration_micros: self.duration().map(|duration| duration.as_micros() as u64),
             error: self.error().map(str::to_owned),
         }
-    }
-
-    pub(super) fn take_changed(&self) -> bool {
-        self.changed.take()
     }
 }
 
@@ -54,14 +41,14 @@ pub(super) struct AudioPlayer {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl AudioPlayer {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(notify: impl Fn() + Send + Sync + 'static) -> Self {
         Self {
             stream: None,
             sink: None,
             duration: None,
             error: None,
             finished: Arc::default(),
-            changed: Changed::default(),
+            changed: Changed::new(notify),
         }
     }
 
@@ -152,7 +139,7 @@ impl AudioPlayer {
         sink.append(rodio::source::EmptyCallback::<f32>::new(Box::new(
             move || {
                 finished.store(true, Ordering::Release);
-                changed.mark_and_wake();
+                changed.mark();
             },
         )));
         self.sink = Some(sink);
@@ -188,11 +175,11 @@ pub(super) struct AudioPlayer {
 
 #[cfg(target_arch = "wasm32")]
 impl AudioPlayer {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(notify: impl Fn() + Send + Sync + 'static) -> Self {
         Self {
             element: None,
             error: None,
-            changed: Changed::default(),
+            changed: Changed::new(notify),
         }
     }
 
@@ -276,7 +263,7 @@ fn create_element(audio: &Audio, changed: &Changed) -> Result<Element, String> {
     let mut listeners = Vec::new();
     for event in ["play", "pause", "ended", "seeked", "durationchange", "error"] {
         let changed = changed.clone();
-        let listener = Closure::<dyn FnMut()>::new(move || changed.mark_and_wake());
+        let listener = Closure::<dyn FnMut()>::new(move || changed.mark());
         let _ =
             element.add_event_listener_with_callback(event, listener.as_ref().unchecked_ref());
         listeners.push((event, listener));

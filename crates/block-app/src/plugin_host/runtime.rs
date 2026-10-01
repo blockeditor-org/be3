@@ -1014,10 +1014,12 @@ pub(crate) fn poll() {
             }
         }
     }
+    let touched = crate::be::take_touched();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         let overlay = std::mem::take(&mut host.overlay);
         for runtime in host.runtimes.values_mut() {
+            runtime.instances.touch(&touched);
             runtime.detect_error();
             runtime.pump();
             runtime.begin_frame(pass, &overlay);

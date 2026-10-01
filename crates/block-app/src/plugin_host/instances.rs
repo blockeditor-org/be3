@@ -46,6 +46,21 @@ pub(super) struct Instances {
     resized: bool,
     replies: Replies,
     epoch: u64,
+    graph_seen: Option<u64>,
+    pasted: HashSet<EditorInstanceId>,
+    audio_changes: AudioChanges,
+}
+
+struct AudioChanges {
+    sender: host::WakingSender<EditorInstanceId>,
+    receiver: std::sync::mpsc::Receiver<EditorInstanceId>,
+}
+
+impl Default for AudioChanges {
+    fn default() -> Self {
+        let (sender, receiver) = host::waking_channel();
+        Self { sender, receiver }
+    }
 }
 
 struct Reply {
@@ -118,6 +133,7 @@ struct Instance {
     panes: Option<PaneLayout>,
     shown_panes: Vec<PaneId>,
     version_sent: Option<u64>,
+    stale: bool,
 }
 
 struct ContentLink {
@@ -287,6 +303,7 @@ impl Instance {
             panes: None,
             shown_panes: Vec::new(),
             version_sent: None,
+            stale: true,
             content: match role {
                 InstanceRole::Editor(block) => own_content_type(block).map(ContentLink::new),
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
@@ -333,7 +350,7 @@ impl Instance {
     }
 
     fn content_messages(&mut self, instance: EditorInstanceId) -> Vec<Message> {
-        let mut messages = self.blocks_messages(instance);
+        let mut messages = Vec::new();
         if let (Some(block), Some(link)) = (self.role.block(), self.content.as_mut()) {
             link.messages(instance, block.id, &mut messages);
         }
@@ -365,6 +382,12 @@ impl Instance {
     fn holds(&self, block: Uuid) -> bool {
         (self.content.is_some() && self.role.block().is_some_and(|own| own.id == block))
             || self.watched.contains_key(&block)
+    }
+
+    fn follows(&self, block: Uuid) -> bool {
+        self.role.block().is_some_and(|own| own.id == block)
+            || self.watched.contains_key(&block)
+            || self.history_watch.contains(&block)
     }
 }
 
@@ -624,6 +647,7 @@ impl Instances {
                 .entry(block)
                 .or_insert_with(|| ContentLink::new(content_type));
         }
+        entry.stale = true;
         for block in dropped {
             if !self.holds_content(block) {
                 crate::be::close(block);
@@ -894,6 +918,7 @@ impl Instances {
             entry.reported_editable = None;
             entry.reported_view = None;
             entry.reported_presenting = false;
+            entry.stale = true;
         }
         self.epoch += 1;
     }
@@ -907,6 +932,8 @@ impl Instances {
         let mut instances: Vec<_> = self.entries.keys().copied().collect();
         instances.sort_by_key(|instance| instance.0);
         let focus = self.focus.clone();
+        let graph = crate::be::graph_revision();
+        let graph_moved = self.graph_seen.replace(graph) != Some(graph);
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         if !self.sent_block_types
@@ -981,7 +1008,10 @@ impl Instances {
                 });
             }
             opened.append(&mut entry.deferred);
-            if let InstanceRole::Editor(block) = entry.role {
+            let stale = std::mem::take(&mut entry.stale);
+            if let InstanceRole::Editor(block) = entry.role
+                && (stale || graph_moved)
+            {
                 let editable = crate::be::access(block.id).can_edit();
                 if entry.reported_editable != Some(editable) {
                     entry.reported_editable = Some(editable);
@@ -991,10 +1021,15 @@ impl Instances {
                     }));
                 }
             }
-            opened.extend(entry.content_messages(instance));
-            entry.name_content();
-            if let Some(message) = entry.history_message(instance) {
-                opened.push(message);
+            opened.extend(entry.blocks_messages(instance));
+            if stale {
+                opened.extend(entry.content_messages(instance));
+                if let Some(message) = entry.history_message(instance) {
+                    opened.push(message);
+                }
+            }
+            if stale || graph_moved {
+                entry.name_content();
             }
             if entry.reported_focus.as_ref() != Some(&focus) {
                 entry.reported_focus = Some(focus.clone());
@@ -1800,10 +1835,19 @@ impl Instances {
             .unwrap_or_default()
     }
 
+    pub(super) fn touch(&mut self, blocks: &HashSet<Uuid>) {
+        if blocks.is_empty() {
+            return;
+        }
+        for entry in self.entries.values_mut() {
+            if !entry.stale && blocks.iter().any(|block| entry.follows(*block)) {
+                entry.stale = true;
+            }
+        }
+    }
+
     pub(super) fn pending(&mut self) -> Vec<Message> {
         let mut messages = Vec::new();
-        let mut instances: Vec<_> = self.entries.keys().copied().collect();
-        instances.sort_by_key(|instance| instance.0);
         while let Ok(reply) = self.replies.receiver.try_recv() {
             if reply.epoch == self.epoch && self.entries.contains_key(&reply.instance) {
                 messages.push(Message::Editor(EditorMessage::Replied {
@@ -1813,8 +1857,12 @@ impl Instances {
                 }));
             }
         }
-        for instance in instances {
-            let entry = self.entries.get_mut(&instance).unwrap();
+        let mut pasted: Vec<_> = std::mem::take(&mut self.pasted).into_iter().collect();
+        pasted.sort_by_key(|instance| instance.0);
+        for instance in pasted {
+            let Some(entry) = self.entries.get_mut(&instance) else {
+                continue;
+            };
             let texts = std::mem::take(&mut entry.text_pastes);
             if !texts.is_empty()
                 && let Some(screen) = entry
@@ -1832,10 +1880,12 @@ impl Instances {
                         .collect(),
                 }));
             }
-            let entry = self.entries.get_mut(&instance).unwrap();
-            if let Some(player) = &entry.audio
-                && player.take_changed()
-            {
+        }
+        let mut played: Vec<_> = self.audio_changes.receiver.try_iter().collect();
+        played.sort_by_key(|instance| instance.0);
+        played.dedup();
+        for instance in played {
+            if let Some(player) = self.entries.get(&instance).and_then(|entry| entry.audio.as_ref()) {
                 messages.push(Message::Editor(EditorMessage::AudioStatus {
                     instance,
                     status: player.status(),
@@ -1989,6 +2039,7 @@ impl Instances {
                     return false;
                 };
                 entry.history_watch = blocks.into_iter().map(Uuid::from_bytes).collect();
+                entry.stale = true;
                 true
             }
             EditorMessage::WatchArtifacts { instance, blocks } => {
@@ -2060,6 +2111,9 @@ impl Instances {
                     return false;
                 };
                 link.sent = None;
+                if let Some(entry) = self.entries.get_mut(&instance) {
+                    entry.stale = true;
+                }
                 true
             }
             EditorMessage::VersionControl {
@@ -2218,7 +2272,12 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                let player = entry.audio.get_or_insert_with(AudioPlayer::new);
+                let changes = self.audio_changes.sender.clone();
+                let player = entry.audio.get_or_insert_with(|| {
+                    AudioPlayer::new(move || {
+                        let _ = changes.send(instance);
+                    })
+                });
                 match command {
                     AudioCommand::Reset => player.reset(),
                     AudioCommand::Toggle => {
@@ -2304,6 +2363,7 @@ impl Instances {
                 entry
                     .text_pastes
                     .extend(super::clipboard::read_clipboard_text());
+                self.pasted.insert(instance);
                 true
             }
             EditorMessage::ChildReplaced {

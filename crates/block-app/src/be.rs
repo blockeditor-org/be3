@@ -602,6 +602,10 @@ pub(crate) fn graph_revision() -> u64 {
     with_shared(|shared| shared.graph.revision).unwrap_or_default()
 }
 
+pub(crate) fn take_touched() -> std::collections::HashSet<Uuid> {
+    with_shared_mut(|shared| std::mem::take(&mut shared.touched)).unwrap_or_default()
+}
+
 pub(crate) fn graph_loaded() -> bool {
     with_shared(|shared| shared.graph.loaded).unwrap_or_default()
 }
