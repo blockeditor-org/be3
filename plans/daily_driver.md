@@ -258,6 +258,19 @@ retained. Editing is O(document) many times per keystroke. Fix in this order;
 each item has a work-count test in the style of
 `a_long_text_area_only_builds_the_lines_in_view.rs`.
 
+**Profile before guessing.** The list below comes from reading the code. Before
+working through items 3-8, profile the real app with a document of 10,000
+lines of 200 words each (about 12 MB):
+- Generate it as a text block, open it in the native app, and also measure on
+  Android.
+- Record a CPU profile (`perf` with frame pointers on Linux, or the
+  `performance` module's frame timings) for each of: typing a character,
+  holding an arrow key, clicking, scrolling a page, scrolling to the end, and
+  sitting idle with the caret blinking.
+- Note the p50 and p99 frame times and the top functions for each, in the
+  plan or the PR, and re-order the items below by what the profile shows.
+- Profile again after each item lands.
+
 1. **Anchors (done).** Anchors exist only for positions in use
    (`text_editor_core::AnchorTable`), so finding one no longer scans the text.
    The bytes are still a flat `Vec<u8>`, spliced in O(n) at several layers. A
