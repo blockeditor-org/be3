@@ -28,7 +28,7 @@ fn a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls() {
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
     with_reactive_scope(harness.document_mut(), move || set_open.set(true));
-    harness.frame(Vec::new());
+    harness.settle();
     let top = harness.rect(rows.get()).top();
     assert!(
         (top - 85.0).abs() < 1.0,

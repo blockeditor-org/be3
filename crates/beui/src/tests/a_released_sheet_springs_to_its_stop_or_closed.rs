@@ -7,7 +7,7 @@ fn a_released_sheet_springs_to_its_stop_or_closed() {
     let closed = Rc::new(Cell::new(0));
     let document = sheet_of_rows(0.5, &sheet, &closed);
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
-    harness.frame(Vec::new());
+    harness.settle();
     let sheet = sheet.get();
     let height = |harness: &Harness| harness.rect(sheet).height();
 
@@ -32,18 +32,13 @@ fn a_released_sheet_springs_to_its_stop_or_closed() {
     ]);
     assert_eq!(
         closed.get(),
-        0,
-        "a quick flick down does not close the sheet the moment it is let go"
-    );
-    harness.frame(Vec::new());
-    assert!(
-        height(&harness) < 420.0,
-        "it carries on down with the flick"
+        1,
+        "a quick flick down closes the sheet, though it was let go high up"
     );
     harness.settle();
     assert_eq!(
-        closed.get(),
-        1,
-        "and closes once it reaches the bottom, though it was let go high up"
+        height(&harness),
+        300.0,
+        "a sheet its owner keeps open springs back to where it rests"
     );
 }

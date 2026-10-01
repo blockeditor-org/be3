@@ -7,7 +7,7 @@ fn a_finger_swiping_a_sheet_raises_it_before_scrolling_what_it_holds() {
     let closed = Rc::new(Cell::new(0));
     let document = sheet_of_rows(0.5, &sheet, &closed);
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
-    harness.frame(Vec::new());
+    harness.settle();
     let sheet = sheet.get();
     let height = |harness: &Harness| harness.rect(sheet).height();
     let scrolled = |harness: &Harness| harness.document().scroll_offset(sheet);

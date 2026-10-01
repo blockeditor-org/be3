@@ -28,7 +28,7 @@ fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
         }
     });
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
-    harness.frame(Vec::new());
+    harness.settle();
     let height = |harness: &Harness| {
         harness
             .document()

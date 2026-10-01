@@ -22,7 +22,7 @@ fn a_sheet_pulled_past_its_top_stretches_and_springs_back() {
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
     with_reactive_scope(harness.document_mut(), move || set_open.set(true));
-    harness.frame(Vec::new());
+    harness.settle();
     let handle = harness.find("sheet.handle");
     let fitted = harness.rect(handle).top();
 

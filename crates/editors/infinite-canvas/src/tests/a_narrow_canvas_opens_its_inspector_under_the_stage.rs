@@ -13,7 +13,7 @@ fn a_narrow_canvas_opens_its_inspector_under_the_stage() {
     editor.run();
     editor.record();
     editor.click("infinite-canvas.inspect");
-    editor.run();
+    editor.settle();
     editor.record();
 
     assert!(editor.shown("infinite-canvas.selection"));

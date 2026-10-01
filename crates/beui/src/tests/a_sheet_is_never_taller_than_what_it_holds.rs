@@ -25,7 +25,7 @@ fn a_sheet_is_never_taller_than_what_it_holds() {
         }
     });
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
-    harness.frame(Vec::new());
+    harness.settle();
     let sheet = sheet.get();
     let rows = harness.rect(rows.get());
     assert_eq!(rows.height(), 3.0 * SHEET_ROW_HEIGHT);
