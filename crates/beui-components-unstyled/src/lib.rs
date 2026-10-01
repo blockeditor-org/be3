@@ -110,7 +110,7 @@ pub use text_area::{
 };
 pub use text_input::text_input_handles;
 pub use text_input::{
-    TextInput, TextInputHandle, text_input_caret, text_input_focused,
+    TextInput, TextInputHandle, TextInputStyle, text_input_caret, text_input_focused,
     text_input_index_at, text_input_menu_row, text_input_selection, text_input_shown,
     text_input_text, text_input_value,
 };

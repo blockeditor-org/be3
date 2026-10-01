@@ -16,13 +16,13 @@ use crate::SyntaxColors;
 use crate::TextArea;
 use crate::TextAreaColors;
 use crate::TextAreaState;
+use crate::context_menu::MenuStyle;
 use crate::context_menu_menu;
 use crate::context_menu_overlay;
 use crate::menu_list_len;
 use crate::menu_list_row_button;
 use crate::text_area_index_at;
 use crate::text_area_shown;
-use crate::context_menu::MenuStyle;
 use crate::text_menu::TextContextMenu;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
@@ -34,12 +34,40 @@ use beui_view::reactive::{
 
 const FONT_SIZE: f32 = 14.0;
 const PLACEHOLDER_COLOR: Color32 = Color32::from_gray(140);
+const SELECTION_COLOR: Color32 = Color32::from_rgba_unmultiplied(120, 160, 255, 90);
 
 pub struct TextInputHandle {
     pub field: Child,
     pub hovered: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
     pub disabled: Memo<bool>,
+}
+
+#[derive(Clone)]
+pub struct TextInputStyle {
+    pub font_size: Prop<f32>,
+    pub color: Prop<Color32>,
+    pub placeholder_color: Prop<Color32>,
+    pub selection_color: Prop<Color32>,
+    pub caret_color: Prop<Color32>,
+    pub padding_horizontal: Prop<f32>,
+    pub padding_vertical: Prop<f32>,
+    pub menu: MenuStyle,
+}
+
+impl Default for TextInputStyle {
+    fn default() -> Self {
+        Self {
+            font_size: Prop::Static(FONT_SIZE),
+            color: Prop::Static(Color32::WHITE),
+            placeholder_color: Prop::Static(PLACEHOLDER_COLOR),
+            selection_color: Prop::Static(SELECTION_COLOR),
+            caret_color: Prop::Static(Color32::WHITE),
+            padding_horizontal: Prop::Static(0.0),
+            padding_vertical: Prop::Static(0.0),
+            menu: MenuStyle::default(),
+        }
+    }
 }
 
 struct Input {
@@ -58,14 +86,7 @@ pub fn TextInput(
     #[prop(default = false)] select_on_focus: Prop<bool>,
     #[prop(children)] content: Option<Render<TextInputHandle>>,
     placeholder: Prop<String>,
-    #[prop(default = FONT_SIZE)] font_size: Prop<f32>,
-    #[prop(default = Color32::WHITE)] color: Prop<Color32>,
-    #[prop(default = PLACEHOLDER_COLOR)] placeholder_color: Prop<Color32>,
-    selection_color: Prop<Color32>,
-    caret_color: Prop<Color32>,
-    padding_horizontal: Prop<f32>,
-    #[prop(default = 0.0)] padding_vertical: Prop<f32>,
-    #[prop(default = MenuStyle::default())] menu: MenuStyle,
+    #[prop(default = TextInputStyle::default())] style: TextInputStyle,
     on_change: Callback<String>,
     on_submit: Callback<String>,
     on_hover_change: Callback<bool>,
@@ -73,6 +94,16 @@ pub fn TextInput(
     on_key_override: Callback<KeyPress, bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
+    let TextInputStyle {
+        font_size,
+        color,
+        placeholder_color,
+        selection_color,
+        caret_color,
+        padding_horizontal,
+        padding_vertical,
+        menu,
+    } = style;
     let initial = value.peek();
     let state = plain_text(&initial);
     let (hovered, set_hovered) = create_signal(false);

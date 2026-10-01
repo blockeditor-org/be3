@@ -1,7 +1,7 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use crate::context_menu::menu_style;
+use crate::text_input::text_input_style;
 use crate::scroll::scrollbar_style;
 use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, field_border, use_theme};
 use beui_components_unstyled as unstyled;
@@ -42,7 +42,6 @@ pub fn Select(
         }
         node
     });
-    let theme = use_theme();
     view! {
         <unstyled::Select
             options
@@ -51,16 +50,10 @@ pub fn Select(
             accessibility
             on_change={move |selected| on_change.call(selected)}
             search_placeholder="Search"
-            search_font_size=FONT_BODY
-            search_color={theme.text.clone()}
-            search_placeholder_color={theme.text_muted.clone()}
-            search_selection_color={theme.accent_soft.clone()}
-            search_caret_color={theme.accent.clone()}
-            search_padding_horizontal=PADDING_HORIZONTAL
             search_content={|handle| view! {
                 <SearchField handle />
             }}
-            search_menu={menu_style()}
+            search_style={text_input_style()}
             scrollbar={scrollbar_style()}
             trigger={move |handle| view! {
                 <SelectTrigger options={trigger_options} handle />
