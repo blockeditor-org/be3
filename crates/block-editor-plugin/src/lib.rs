@@ -34,10 +34,10 @@ pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
-    ContentUpdate, EditorHost, FileDrop, FileFilter, FilePicker, FileSaver, FocusedBlock,
-    HostContent, ImagePaster, OpenRequest, PaneEvent, PastedImage, PeerPresence,
-    PerformanceMeasurementGuard, PerformanceReporter, PickedBlock, PickedFile, Pushed, SavedFile,
-    SeededContent, ShowRequest, ShownPresence, Waker,
+    ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HostContent,
+    ImagePaster, OpenRequest, PaneEvent, PastedImage, PeerPresence, PerformanceMeasurementGuard,
+    PerformanceReporter, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest,
+    ShownPresence, Waker,
 };
 #[cfg(target_arch = "wasm32")]
 pub use plugin::PaintTarget;

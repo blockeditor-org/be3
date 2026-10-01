@@ -33,7 +33,6 @@ impl block_editor_beui::BeuiApp for ImageApp {
 pub(crate) fn filter() -> FileFilter {
     FileFilter::new(
         "Images",
-        "Image",
         ImageContent::FILE_EXTENSIONS,
         ImageContent::MIME_TYPES,
     )

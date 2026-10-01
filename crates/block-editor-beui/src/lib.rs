@@ -1,4 +1,5 @@
 pub use beui;
+pub use beui::{FileFilter, PickedFile};
 pub use block_editor_plugin;
 pub use block_editor_plugin::*;
 

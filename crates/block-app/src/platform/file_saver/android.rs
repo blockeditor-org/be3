@@ -1,7 +1,7 @@
 use std::sync::{Mutex, OnceLock, mpsc::Receiver};
 
 use jni::{
-    EnvUnowned, Outcome,
+    Env, EnvUnowned, Outcome,
     errors::Error as JniError,
     jni_sig, jni_str,
     objects::{JClass, JObject, JString, JValue},
@@ -37,7 +37,7 @@ fn start(file: &SavedFile) -> Result<(), String> {
     let started = vm
         .attach_current_thread_for_scope(|env| {
             let activity = unsafe { JObject::from_raw(env, context.context().cast()) };
-            let class = super::super::file_picker::main_activity(env, &activity)?;
+            let class = main_activity(env, &activity)?;
             let name = env.new_string(&file.name)?;
             let mime_type = env.new_string(&file.mime_type)?;
             let data = env.byte_array_from_slice(&file.data)?;
@@ -86,4 +86,28 @@ pub extern "system" fn Java_com_be3_block_MainActivity_nativeFileSaved(
     if let Some(sender) = pending.take() {
         let _ = sender.send(result);
     }
+}
+
+fn main_activity<'local>(
+    env: &mut Env<'local>,
+    activity: &JObject<'local>,
+) -> Result<JClass<'local>, JniError> {
+    let class_loader = env
+        .call_method(
+            activity,
+            jni_str!("getClassLoader"),
+            jni_sig!("()Ljava/lang/ClassLoader;"),
+            &[],
+        )?
+        .l()?;
+    let class_name = env.new_string("com.be3.block.MainActivity")?;
+    let class = env
+        .call_method(
+            &class_loader,
+            jni_str!("loadClass"),
+            jni_sig!("(Ljava/lang/String;)Ljava/lang/Class;"),
+            &[JValue::Object(&class_name)],
+        )?
+        .l()?;
+    env.cast_local::<JClass<'local>>(class)
 }

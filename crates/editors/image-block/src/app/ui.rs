@@ -22,7 +22,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
 
     let chooser = FileChooser::new(filter(), imported);
     let replacing = editor.clone();
-    chooser.on_reply(editor.replies(), editor.host().clone(), move |chooser| {
+    chooser.on_chosen(move |chooser| {
         if let Some(image) = chooser.take() {
             replacing.replace_content(replacing.block_id(), &image);
         }
@@ -34,8 +34,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let failure = chooser.error();
     let refused = create_memo(clone!(failure -> move || failure.get().is_some()));
     let refusal = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
-    let opening = editor.host().clone();
-    let choose = clone!(chooser -> move || chooser.open(&opening));
+    let choose = clone!(chooser -> move || chooser.open());
 
     let sized = editor.clone();
     create_effect(clone!(image -> move || {

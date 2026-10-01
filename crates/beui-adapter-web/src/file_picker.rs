@@ -1,21 +1,27 @@
-use std::{cell::RefCell, rc::Rc, sync::mpsc::Receiver};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::HtmlInputElement;
 
-use super::{FileFilter, PickResult, PickedFile};
-use crate::host::WakingSender;
+use beui_core::context::Context;
+use beui_core::file_picker::{FileFilter, FilePick, FilePickRequest, PickedFile};
 
-pub(super) fn open(filter: &FileFilter) -> Receiver<PickResult> {
-    let (sender, receiver) = crate::host::waking_channel();
-    if let Err(error) = show(filter, sender.clone()) {
-        let _ = sender.send(Err(error));
+pub(crate) fn open(context: &Context, request: FilePickRequest) {
+    let id = request.id;
+    let picked = context.clone();
+    let done = move |pick: FilePick| {
+        picked.file_picked(id, pick);
+        crate::schedule();
+    };
+    let done: Rc<dyn Fn(FilePick)> = Rc::new(done);
+    if let Err(error) = show(&request.filter, done.clone()) {
+        done(Err(error));
     }
-    receiver
 }
 
-fn show(filter: &FileFilter, sender: WakingSender<PickResult>) -> Result<(), String> {
+fn show(filter: &FileFilter, done: Rc<dyn Fn(FilePick)>) -> Result<(), String> {
     let document = web_sys::window()
         .ok_or("no browser window is available")?
         .document()
@@ -32,26 +38,26 @@ fn show(filter: &FileFilter, sender: WakingSender<PickResult>) -> Result<(), Str
     body.append_child(&input)
         .map_err(|error| format!("could not open a file picker: {}", describe(&error)))?;
 
-    let slot = Rc::new(RefCell::new(Some((sender, input.clone()))));
+    let slot = Rc::new(RefCell::new(Some((done, input.clone()))));
     let chosen = slot.clone();
     let on_change = Closure::<dyn FnMut()>::new(move || {
-        let Some((sender, input)) = chosen.borrow_mut().take() else {
+        let Some((done, input)) = chosen.borrow_mut().take() else {
             return;
         };
         input.remove();
         let Some(file) = input.files().and_then(|files| files.get(0)) else {
-            let _ = sender.send(Ok(None));
+            done(Ok(None));
             return;
         };
         wasm_bindgen_futures::spawn_local(async move {
-            let _ = sender.send(read(file).await);
+            done(read(file).await);
         });
     });
     let cancelled = slot.clone();
     let on_cancel = Closure::<dyn FnMut()>::new(move || {
-        if let Some((sender, input)) = cancelled.borrow_mut().take() {
+        if let Some((done, input)) = cancelled.borrow_mut().take() {
             input.remove();
-            let _ = sender.send(Ok(None));
+            done(Ok(None));
         }
     });
     for (event, listener) in [("change", &on_change), ("cancel", &on_cancel)] {
@@ -73,7 +79,7 @@ fn accept(filter: &FileFilter) -> String {
     mime_types.chain(extensions).collect::<Vec<_>>().join(",")
 }
 
-async fn read(file: web_sys::File) -> PickResult {
+async fn read(file: web_sys::File) -> FilePick {
     let name = file.name();
     let buffer = JsFuture::from(file.array_buffer())
         .await

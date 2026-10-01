@@ -43,7 +43,6 @@ fn format_duration(duration: Duration) -> String {
 pub(crate) fn filter() -> FileFilter {
     FileFilter::new(
         "Audio",
-        "Audio",
         &["mp3", "wav", "ogg", "oga", "flac", "m4a"],
         &["audio/*"],
     )

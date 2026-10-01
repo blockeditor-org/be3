@@ -1367,6 +1367,9 @@ pub use crate::components::offset::Offset;
 pub use crate::components::portal::Portal;
 pub use crate::components::text::{Text, TextItem};
 pub use crate::components::virtual_list::VirtualList;
+pub use crate::file_picker::{
+    FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,
+};
 pub use beui_core::base::canvas::CanvasView;
 pub use beui_core::base::drawing::{Draw, draw_gpu};
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};

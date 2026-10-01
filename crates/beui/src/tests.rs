@@ -46,6 +46,7 @@ mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
 mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
 mod a_dynamic_child_can_fill_its_available_height;
+mod a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it;
 mod a_finger_beside_the_bar_between_two_panes_drags_it;
 mod a_finger_dragged_across_a_color_area_picks_rather_than_scrolls;
 mod a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped;
@@ -728,6 +729,10 @@ impl Harness {
 
     pub(crate) fn document(&self) -> &Document {
         &self.document
+    }
+
+    pub(crate) fn context(&self) -> &Context {
+        &self.context
     }
 
     pub(crate) fn document_mut(&mut self) -> &mut Document {
