@@ -2,12 +2,12 @@ use be_block::BlockContent as _;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, BlockTypeDescriptor,
-    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
-    CreationOutcome, CursorIcon, DataListing, EditorInstanceId, EditorMessage, EditorRegion,
-    FetchResult, FilePick, FileSave, FrameReport, FrameSpec, HostReply, HostRequest, Message,
-    Occluder, PaneId, PaneLayout, PaneTree, PerformanceMeasurement, RegenerationOutcome,
-    RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
+    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, BlockTypeDescriptor, ChildId,
+    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon,
+    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
+    FrameReport, FrameSpec, HostReply, HostRequest, Message, Occluder, PaneId, PaneLayout,
+    PaneTree, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout,
+    ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -1885,7 +1885,11 @@ impl Instances {
         played.sort_by_key(|instance| instance.0);
         played.dedup();
         for instance in played {
-            if let Some(player) = self.entries.get(&instance).and_then(|entry| entry.audio.as_ref()) {
+            if let Some(player) = self
+                .entries
+                .get(&instance)
+                .and_then(|entry| entry.audio.as_ref())
+            {
                 messages.push(Message::Editor(EditorMessage::AudioStatus {
                     instance,
                     status: player.status(),

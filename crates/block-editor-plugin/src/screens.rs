@@ -84,7 +84,8 @@ impl Screens {
 
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn take_dirty(&mut self) -> Dirty {
-        let dirty = std::mem::take(&mut *self.dirty.lock().unwrap_or_else(|held| held.into_inner()));
+        let dirty =
+            std::mem::take(&mut *self.dirty.lock().unwrap_or_else(|held| held.into_inner()));
         match std::mem::take(&mut self.everything) {
             true => Dirty::Everything,
             false => Dirty::Instances(dirty),

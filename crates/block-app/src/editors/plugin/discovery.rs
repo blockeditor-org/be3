@@ -3,7 +3,6 @@ use std::{cell::RefCell, sync::Arc};
 use block_plugin_api::PluginManifest;
 use uuid::Uuid;
 
-
 #[cfg(target_arch = "wasm32")]
 mod web;
 #[cfg(target_arch = "wasm32")]

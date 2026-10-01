@@ -150,8 +150,11 @@ impl AudioPlayer {
 struct Element {
     element: web_sys::HtmlAudioElement,
     url: String,
-    listeners: Vec<(&'static str, wasm_bindgen::closure::Closure<dyn FnMut()>)>,
+    listeners: Vec<Listener>,
 }
+
+#[cfg(target_arch = "wasm32")]
+type Listener = (&'static str, wasm_bindgen::closure::Closure<dyn FnMut()>);
 
 #[cfg(target_arch = "wasm32")]
 impl Drop for Element {
@@ -261,11 +264,17 @@ fn create_element(audio: &Audio, changed: &Changed) -> Result<Element, String> {
         "Could not create an audio element".to_owned()
     })?;
     let mut listeners = Vec::new();
-    for event in ["play", "pause", "ended", "seeked", "durationchange", "error"] {
+    for event in [
+        "play",
+        "pause",
+        "ended",
+        "seeked",
+        "durationchange",
+        "error",
+    ] {
         let changed = changed.clone();
         let listener = Closure::<dyn FnMut()>::new(move || changed.mark());
-        let _ =
-            element.add_event_listener_with_callback(event, listener.as_ref().unchecked_ref());
+        let _ = element.add_event_listener_with_callback(event, listener.as_ref().unchecked_ref());
         listeners.push((event, listener));
     }
     Ok(Element {

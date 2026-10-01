@@ -1,5 +1,5 @@
-use block_plugin_api::{ScreenLayout, ScreenPlacement, SurfaceRect};
 use block_plugin_api::EditorInstanceId;
+use block_plugin_api::{ScreenLayout, ScreenPlacement, SurfaceRect};
 use std::collections::{HashSet, VecDeque};
 use std::time::Duration;
 
