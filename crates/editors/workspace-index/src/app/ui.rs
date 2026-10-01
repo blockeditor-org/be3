@@ -4,8 +4,8 @@ use uuid::Uuid;
 use block_editor_beui::be_block::FolderContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Show,
-    Spacer, WriteSignal, clone, component, create_effect, create_memo, create_selector,
+    Align, Direction, Dynamic, ForEach, Frame, ItemSize, Justify, List, Memo, NodeRef, ReadSignal,
+    Show, WriteSignal, clone, component, create_effect, create_memo, create_selector,
     create_signal, view,
 };
 use block_editor_beui::beui::styled::{
@@ -300,8 +300,7 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: f32) -> NodeId {
                             on_activate={open}
                         >
                             <Frame height={tile.y}>
-                                <List align=Align::Center spacing=4.0>
-                                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                                <List align=Align::Center justify=Justify::Center spacing=4.0>
                                     <EntryGlyph entry={entry.clone()} size={icon_size} />
                                     <Body
                                         content={name_of(entry.clone())}
@@ -309,7 +308,6 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: f32) -> NodeId {
                                         align=TextAlign::Center
                                     />
                                     <Caption content={type_of(entry)} align=TextAlign::Center />
-                                    <Spacer @sizing=ItemSize::Percent(100.0) />
                                 </List>
                             </Frame>
                         </ListRow>

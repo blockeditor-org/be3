@@ -618,16 +618,10 @@ fn PhoneRow(
                             height=TILE_SIDE
                             radius=RADIUS
                             color={theme.surface_raised.clone()}
+                            align_horizontal=Align::Center
+                            align_vertical=Align::Center
                         >
-                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                                <Spacer @sizing=ItemSize::Percent(50.0) />
-                                <IconSized
-                                    glyph
-                                    font_size=TILE_GLYPH
-                                    color={theme.accent.clone()}
-                                />
-                                <Spacer @sizing=ItemSize::Percent(50.0) />
-                            </List>
+                            <IconSized glyph font_size=TILE_GLYPH color={theme.accent.clone()} />
                         </Frame>
                         <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
                             <Text string={name} font_size=FONT_BODY color={color} ellipsis=true />

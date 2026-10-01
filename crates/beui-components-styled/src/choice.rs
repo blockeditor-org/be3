@@ -9,8 +9,7 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ChoiceOptionHandle;
 use beui_view::reactive::Memo;
 use beui_view::reactive::{
-    Align, Direction, Frame, ItemSize, List, Prop, Show, Spacer, Text, clone, create_memo,
-    focus_ring,
+    Align, Direction, Frame, ItemSize, List, Prop, Show, Text, clone, create_memo, focus_ring,
 };
 
 pub(super) use beui_components_unstyled::ChoiceKind as Kind;
@@ -91,18 +90,16 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
             outline_width=2.0
             radius=MARK_RADIUS
             outline_visible=true
+            align_horizontal=Align::Center
+            align_vertical=Align::Center
         >
-            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-                <Frame
-                    visible={checked}
-                    width=MARK_DOT
-                    height=MARK_DOT
-                    color={theme.accent.clone()}
-                    radius=MARK_RADIUS
-                />
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-            </List>
+            <Frame
+                visible={checked}
+                width=MARK_DOT
+                height=MARK_DOT
+                color={theme.accent.clone()}
+                radius=MARK_RADIUS
+            />
         </Frame>
     }
 }

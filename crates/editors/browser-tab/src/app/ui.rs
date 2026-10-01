@@ -1,7 +1,7 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_REFRESH};
 use block_editor_beui::beui::reactive::{
-    Align, Frame, ItemSize, List, NodeRef, Show, Spacer, clone, component, create_memo, view,
+    Align, Frame, ItemSize, Justify, List, NodeRef, Show, clone, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
     Button, ButtonVariant, Caption, IconButton, TextInput, use_theme,
@@ -89,8 +89,7 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
                     />
                 </Toolbar>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <List align=Align::Center spacing=0.0>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <List align=Align::Center justify=Justify::Center spacing=0.0>
                         <Show condition={failed}>
                             <Caption
                                 content={reason}
@@ -98,7 +97,6 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
                                 @test_id={"browser.error"}
                             />
                         </Show>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
                     </List>
                 </Frame>
             </List>

@@ -1,7 +1,7 @@
 use be_graph::BlockParent;
 use beui::reactive::{
-    Align, Child, Direction, ForEach, Frame, ItemSize, List, Memo, Portal, Show, Spacer, Text,
-    clone, component, create_memo, view,
+    Align, Child, Direction, ForEach, Frame, ItemSize, Justify, List, Memo, Portal, Show, Spacer,
+    Text, clone, component, create_memo, view,
 };
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::{
@@ -98,8 +98,7 @@ fn ChooseDialog(id: Memo<Uuid>, choose: Memo<Option<ChooseView>>, phone: Memo<bo
                 <List spacing=10.0>
                     <ChooseBody id={dialog_id} choose={dialog_choose} phone=false />
                     <Separator />
-                    <List direction=Direction::Horizontal spacing=8.0>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <List direction=Direction::Horizontal justify=Justify::End spacing=8.0>
                         <Button
                             label="Close"
                             variant=ButtonVariant::Secondary

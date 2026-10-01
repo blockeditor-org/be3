@@ -258,8 +258,7 @@ fn NumberOptions(
         (options.clone(), options.clone(), options);
     view! {
         <List spacing=ROW_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Spacer @sizing=ItemSize::Fixed(INDENT) />
+            <Frame padding_left={INDENT + ROW_SPACING}>
                 <List spacing=ROW_SPACING>
                     <OptionalNumber
                         schema={minimum_schema}
@@ -300,7 +299,7 @@ fn NumberOptions(
                         />
                     </List>
                 </List>
-            </List>
+            </Frame>
         </List>
     }
 }
@@ -433,8 +432,7 @@ fn EnumOptions(
         schema.operate(DatabaseSchema::add_enum_option(id, "Option").1);
     });
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-            <Spacer @sizing=ItemSize::Fixed(INDENT) />
+        <Frame padding_left={INDENT + ROW_SPACING}>
             <List spacing=ROW_SPACING>
                 <ForEach keys={keys}>
                     {move |option_id: Uuid| {
@@ -469,7 +467,7 @@ fn EnumOptions(
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
             </List>
-        </List>
+        </Frame>
     }
 }
 
@@ -564,34 +562,35 @@ fn BlockOptions(
         ));
     });
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-            <Spacer @sizing=ItemSize::Fixed(INDENT) />
-            <Body content="Block type" />
-            <Select
-                options={view! {
-                    <ForEach keys={keys}>
-                        {move |id: Option<Uuid>| {
-                            let label = create_memo(clone!(labels id -> move || {
-                                labels.with(|entries| {
-                                    entries
-                                        .iter()
-                                        .find(|(value, _)| *value == id)
-                                        .map_or_else(String::new, |(_, name)| name.clone())
-                                })
-                            }));
-                            view! {
-                                <ChoiceOption label={label} />
-                            }
-                        }}
-                    </ForEach>
-                }}
-                selected={selected}
-                label="Block type"
-                disabled={read_only}
-                @test_id={format!("database-schema.block.{id}.type")}
-                on_change={picked}
-            />
-            <Spacer @sizing=ItemSize::Percent(100.0) />
-        </List>
+        <Frame padding_left={INDENT + ROW_SPACING}>
+            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                <Body content="Block type" />
+                <Select
+                    options={view! {
+                        <ForEach keys={keys}>
+                            {move |id: Option<Uuid>| {
+                                let label = create_memo(clone!(labels id -> move || {
+                                    labels.with(|entries| {
+                                        entries
+                                            .iter()
+                                            .find(|(value, _)| *value == id)
+                                            .map_or_else(String::new, |(_, name)| name.clone())
+                                    })
+                                }));
+                                view! {
+                                    <ChoiceOption label={label} />
+                                }
+                            }}
+                        </ForEach>
+                    }}
+                    selected={selected}
+                    label="Block type"
+                    disabled={read_only}
+                    @test_id={format!("database-schema.block.{id}.type")}
+                    on_change={picked}
+                />
+                <Spacer @sizing=ItemSize::Percent(100.0) />
+            </List>
+        </Frame>
     }
 }

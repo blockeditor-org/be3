@@ -3,9 +3,7 @@ use beui_macros::{component, view};
 
 use crate::theme::use_theme;
 use beui_core::node::NodeId;
-use beui_view::reactive::{
-    Direction, Frame, ItemSize, List, Prop, Spacer, clone, component_accessibility, create_memo,
-};
+use beui_view::reactive::{Align, Frame, Prop, clone, component_accessibility, create_memo};
 
 const HEIGHT: f32 = 6.0;
 const RADIUS: u8 = 3;
@@ -15,8 +13,7 @@ pub fn Progress(value: Prop<f32>, #[prop(default = String::new())] label: Prop<S
     let value = value.map(|value| value.clamp(0.0, 1.0));
     let value_read = create_memo(move || value.get());
 
-    let filled = create_memo(clone!(value_read -> move || filled_size(value_read.get())));
-    let rest = create_memo(clone!(value_read -> move || rest_size(value_read.get())));
+    let filled = create_memo(clone!(value_read -> move || Some(value_read.get())));
     component_accessibility(create_memo(clone!(value_read -> move || {
         let value = value_read.get();
         let mut node = Node::new(Role::ProgressIndicator);
@@ -32,19 +29,14 @@ pub fn Progress(value: Prop<f32>, #[prop(default = String::new())] label: Prop<S
     let theme = use_theme();
 
     view! {
-        <Frame height=HEIGHT color={theme.track.clone()} radius=RADIUS>
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Frame @sizing={filled} color={theme.accent.clone()} radius=RADIUS />
-                <Spacer @sizing={rest} />
-            </List>
+        <Frame
+            height=HEIGHT
+            width_fraction=1.0
+            color={theme.track.clone()}
+            radius=RADIUS
+            align_horizontal=Align::Start
+        >
+            <Frame width_fraction={filled} color={theme.accent.clone()} radius=RADIUS />
         </Frame>
     }
-}
-
-fn filled_size(value: f32) -> ItemSize {
-    ItemSize::Percent(value * 100.0)
-}
-
-fn rest_size(value: f32) -> ItemSize {
-    ItemSize::Percent((1.0 - value) * 100.0)
 }

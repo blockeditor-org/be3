@@ -1,8 +1,8 @@
 use beui::NodeId;
 use beui::icons::{ICON_COMMIT, ICON_OPEN_IN_NEW, ICON_REFRESH};
 use beui::reactive::{
-    Align, Direction, Dynamic, ForEach, Frame, ItemSize, Keyed, List, Memo, Picture, ReadSignal,
-    Show, Spacer, Text, clone, component, create_memo, view,
+    Align, Direction, Dynamic, ForEach, Frame, Grid, ItemSize, Keyed, List, Memo, Picture,
+    ReadSignal, Show, Spacer, Text, Track, clone, component, create_memo, view,
 };
 use beui::styled::theme::{CARD_RADIUS, FONT_BODY, FONT_HEADING, FONT_SMALL, FONT_TITLE};
 use beui::styled::{
@@ -211,9 +211,8 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                     </List>
                 </Frame>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Frame padding_horizontal=PADDING>
+                    <Frame padding_horizontal=PADDING padding_top=8.0 padding_bottom=PADDING>
                         <List spacing=0.0>
-                            <Spacer @sizing=ItemSize::Fixed(8.0) />
                             <ForEach keys>
                                 {move |index: usize| {
                                     let entry = create_memo(clone!(entries -> move || entries.get().get(index).cloned()));
@@ -222,7 +221,6 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                                     }
                                 }}
                             </ForEach>
-                            <Spacer @sizing=ItemSize::Fixed(PADDING) />
                         </List>
                     </Frame>
                 </Scroll>
@@ -325,7 +323,8 @@ fn CommentCard(
                 <List spacing=0.0>
                     <Frame
                         color={theme.surface_raised.clone()}
-                        radius=CARD_RADIUS
+                        radius_top_left=CARD_RADIUS
+                        radius_top_right=CARD_RADIUS
                         padding_horizontal=CARD_PADDING
                         padding_vertical=8.0
                     >
@@ -484,7 +483,10 @@ fn BlockView(model: Model, block: Block) -> NodeId {
 #[component]
 fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
     let theme = use_theme();
-    let keys: Vec<usize> = (0..rows.len()).collect();
+    let columns = rows.iter().map(Vec::len).max().unwrap_or(0).max(1);
+    let keys: Vec<(usize, usize)> = (0..rows.len())
+        .flat_map(|row| (0..columns).map(move |column| (row, column)))
+        .collect();
     view! {
         <Frame
             outline={theme.border.clone()}
@@ -494,35 +496,17 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
             padding_horizontal=8.0
             padding_vertical=8.0
         >
-            <List spacing=8.0>
+            <Grid columns={vec![Track::Fraction(1.0); columns]} column_spacing=8.0 row_spacing=8.0>
                 <ForEach keys>
-                    {move |index: usize| {
-                        let cells = rows[index].clone();
+                    {move |(row, column): (usize, usize)| {
+                        let blocks = rows[row].get(column).cloned().unwrap_or_default();
                         view! {
-                            <TableRow model={model.clone()} cells />
+                            <Blocks model={model.clone()} blocks />
                         }
                     }}
                 </ForEach>
-            </List>
+            </Grid>
         </Frame>
-    }
-}
-
-#[component]
-fn TableRow(model: Model, cells: Vec<Vec<Block>>) -> NodeId {
-    let share = 100.0 / cells.len().max(1) as f32;
-    let keys: Vec<usize> = (0..cells.len()).collect();
-    view! {
-        <List direction=Direction::Horizontal spacing=8.0>
-            <ForEach keys>
-                {move |index: usize| {
-                    let blocks = cells[index].clone();
-                    view! {
-                        <Blocks @sizing=ItemSize::Percent(share) model={model.clone()} blocks />
-                    }
-                }}
-            </ForEach>
-        </List>
     }
 }
 

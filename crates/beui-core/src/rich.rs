@@ -3,6 +3,7 @@ use std::ops::Range;
 use crate::color::Color32;
 use crate::font::{FontId, Galley};
 use crate::geometry::{Rect, Vec2, pos2, vec2};
+use crate::painter::Corners;
 
 const WRAP_FALLBACK_REMAINING_WIDTH: f32 = 0.15;
 
@@ -112,19 +113,26 @@ pub fn handle_center(caret: Rect, handle: CaretHandle) -> Vec2 {
     }
 }
 
-pub fn handle_shapes(caret: Rect, handle: CaretHandle) -> [(Rect, f32); 2] {
-    let anchor = vec2(caret.min.x, caret.max.y + HANDLE_GAP);
+pub fn handle_shape(caret: Rect, handle: CaretHandle) -> (Rect, Corners) {
     let center = handle_center(caret, handle);
-    let round = Rect::from_center_size(pos2(center.x, center.y), Vec2::splat(HANDLE_RADIUS * 2.0));
-    let corner = match handle {
-        CaretHandle::Start => pos2(anchor.x - HANDLE_RADIUS, anchor.y),
-        CaretHandle::End => pos2(anchor.x, anchor.y),
-        CaretHandle::Middle => pos2(anchor.x - HANDLE_RADIUS / 2.0, anchor.y),
+    let rect = Rect::from_center_size(pos2(center.x, center.y), Vec2::splat(HANDLE_RADIUS * 2.0));
+    let round = Corners::all(HANDLE_RADIUS);
+    let corners = match handle {
+        CaretHandle::Start => Corners {
+            top_right: 0.0,
+            ..round
+        },
+        CaretHandle::End => Corners {
+            top_left: 0.0,
+            ..round
+        },
+        CaretHandle::Middle => Corners {
+            top_left: HANDLE_RADIUS / 2.0,
+            top_right: HANDLE_RADIUS / 2.0,
+            ..round
+        },
     };
-    [
-        (round, HANDLE_RADIUS),
-        (Rect::from_min_size(corner, Vec2::splat(HANDLE_RADIUS)), 0.0),
-    ]
+    (rect, corners)
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

@@ -5,9 +5,9 @@ use block_editor_beui::BlockParent;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_AUTO_AWESOME, ICON_CLOSE};
 use block_editor_beui::beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Show, Spacer,
-    WriteSignal, clone, component, create_effect, create_memo, create_signal, focus_ring, view,
-    with_document,
+    Align, Direction, Frame, ItemSize, Justify, List, Memo, NodeRef, Prop, ReadSignal, Show,
+    Spacer, WriteSignal, clone, component, create_effect, create_memo, create_signal, focus_ring,
+    view, with_document,
 };
 use block_editor_beui::beui::styled::theme::FONT_SMALL;
 use block_editor_beui::beui::styled::{
@@ -255,8 +255,12 @@ fn Inspector(
                 <Field label="Your access" value={access} named="access" />
                 <Field label="Generated" value={generated} named="generated" />
                 <Field label="Shown here as" value={shown_as} named="shown-as" />
-                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    justify=Justify::End
+                    spacing=ROW_SPACING
+                >
                     <Button
                         glyph={ICON_CLOSE.to_owned()}
                         label="Close"
