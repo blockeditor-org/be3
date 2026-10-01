@@ -11,6 +11,7 @@ pub mod document;
 pub mod drag_board;
 pub mod draw;
 pub mod drawing;
+pub mod file_picker;
 pub mod filter;
 pub mod flash;
 pub mod font;

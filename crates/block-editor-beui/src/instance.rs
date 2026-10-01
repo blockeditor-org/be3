@@ -15,7 +15,7 @@ use block_editor_plugin::{
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect, wgpu};
-use block_plugin_api::{CursorIcon, ImeInput, InputEvent, PointerButton, WheelUnit};
+use block_plugin_api::{CursorIcon, FilePick, ImeInput, InputEvent, PointerButton, WheelUnit};
 use block_plugin_api::{EMPTY_PANE, PaneId, PaneInfo, PaneLayout};
 use uuid::Uuid;
 
@@ -56,6 +56,7 @@ struct BeuiRegion {
     frame: beui::Rect,
     look: Option<(Option<beui::Filter>, f32)>,
     pending: Option<Damage>,
+    file_picks: Vec<(u64, beui::FilePickId)>,
     #[cfg(target_arch = "wasm32")]
     history: VecDeque<Option<Damage>>,
 }
@@ -131,6 +132,7 @@ impl BeuiRegion {
             frame: beui::Rect::NOTHING,
             look: None,
             pending: None,
+            file_picks: Vec::new(),
             #[cfg(target_arch = "wasm32")]
             history: VecDeque::new(),
         }
@@ -552,6 +554,14 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         });
         let events = std::mem::take(&mut state.events);
         let context = state.context.clone();
+        let host = &self.host;
+        state.file_picks.retain(|(request, id)| {
+            let Some(pick) = host.take_pick(*request) else {
+                return true;
+            };
+            context.file_picked(*id, picked(pick));
+            false
+        });
         let frame = region.rect.scaled(ratio);
         let spec = &region.spec;
         let drawn = region.chrome_drawn();
@@ -572,7 +582,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         let mut content = None;
         let mut painted = Vec::new();
         let mut floating = Vec::new();
-        let output = context.run(beui::RawInput { events }, |context| match region.region {
+        let mut output = context.run(beui::RawInput { events }, |context| match region.region {
             EditorRegion::Frame if views.creating => content = views.creation(context, frame),
             EditorRegion::Frame => {
                 let chrome = state
@@ -651,6 +661,14 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         }
         if output.paste_requested {
             self.host.request_paste();
+        }
+        for request in std::mem::take(&mut output.file_picks) {
+            let asked = self.host.pick_file(block_plugin_api::FileFilter {
+                name: request.filter.name,
+                extensions: request.filter.extensions,
+                mime_types: request.filter.mime_types,
+            });
+            state.file_picks.push((asked, request.id));
         }
         let unscale = ratio.recip();
         let mut result = Frame {
@@ -949,3 +967,11 @@ fn beui_cursor(cursor: beui::CursorIcon) -> CursorIcon {
 
 #[cfg(test)]
 mod tests;
+
+fn picked(pick: FilePick) -> beui::FilePick {
+    match pick {
+        FilePick::Chosen { name, data } => Ok(Some(beui::PickedFile { name, data })),
+        FilePick::Cancelled => Ok(None),
+        FilePick::Failed(error) => Err(error),
+    }
+}

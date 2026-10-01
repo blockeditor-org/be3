@@ -17,9 +17,9 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionHandler, ActionRequest, ActivationHandler, TreeUpdate};
 use accesskit_android::InjectingAdapter;
 use jni::errors::{Error as JniError, LogErrorAndDefault};
-use jni::objects::{JClass, JObject, JString, JValue};
+use jni::objects::{JByteArray, JClass, JObject, JString, JValue};
 use jni::refs::Global;
-use jni::sys::{jboolean, jfloat, jint};
+use jni::sys::{jboolean, jfloat, jint, jlong};
 use jni::vm::JavaVM;
 use jni::{EnvUnowned, jni_sig, jni_str};
 use ndk::asset::AssetManager;
@@ -28,6 +28,7 @@ use ndk::native_window::NativeWindow;
 use beui_core::app::accessibility_dump::AccessibilityDump;
 use beui_core::app::{App, SafeArea, Setup, Waker, next_batch, press, safe_rect, typed};
 use beui_core::context::Context;
+use beui_core::file_picker::{FilePick, FilePickId, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
     BackEdge, BackGesture, Event, ImeArea, ImeEvent, Key, Modifiers, RawInput, TouchId, TouchPhase,
@@ -114,6 +115,7 @@ enum Message {
     Back(BackGesture),
     InitialTreeRequested,
     Action(ActionRequest),
+    FilePicked(FilePickId, FilePick),
     Wake,
     Destroy {
         finishing: bool,
@@ -353,6 +355,38 @@ impl Runner {
             });
     }
 
+    fn pick_file(&self, request: FilePickRequest) {
+        let Some(view) = &self.view else {
+            send(Message::FilePicked(
+                request.id,
+                Err("Choosing a file is unavailable right now".into()),
+            ));
+            return;
+        };
+        let id = request.id;
+        let started = self
+            .vm
+            .attach_current_thread(|env| -> Result<(), JniError> {
+                let mime_types = env.new_string(request.filter.mime_types.join(","))?;
+                env.call_method(
+                    view.as_obj(),
+                    jni_str!("pickFile"),
+                    jni_sig!("(JLjava/lang/String;)V"),
+                    &[
+                        JValue::Long(id.0.cast_signed()),
+                        JValue::Object(&mime_types),
+                    ],
+                )?;
+                Ok(())
+            });
+        if let Err(error) = started {
+            send(Message::FilePicked(
+                id,
+                Err(format!("Could not open a file picker: {error}")),
+            ));
+        }
+    }
+
     fn press(&mut self, key: Key, times: u32) {
         for _ in 0..times {
             press(key, &mut self.events);
@@ -501,6 +535,10 @@ impl Runner {
                 self.context.accessibility_action(request);
                 self.redraw = true;
             }
+            Message::FilePicked(id, pick) => {
+                self.context.file_picked(id, pick);
+                self.redraw = true;
+            }
             Message::Wake => self.redraw = true,
             Message::Destroy { finishing } => {
                 if finishing {
@@ -619,7 +657,7 @@ impl Runner {
         };
         let app = &mut self.app;
         let safe_area = self.safe_area;
-        let output = self.context.run(raw, |context| {
+        let mut output = self.context.run(raw, |context| {
             app.update(context, safe_rect(screen, safe_area, scale));
         });
         if self.accessibility_active
@@ -641,6 +679,7 @@ impl Runner {
             self.events.push(Event::Text(text));
             self.redraw = true;
         }
+        let file_picks = std::mem::take(&mut output.file_picks);
         let pending = target.prepare(gpu, &output, scale, self.app.clear_color());
         self.next_update = Instant::now().checked_add(output.repaint_after);
 
@@ -660,6 +699,9 @@ impl Runner {
         if output.handles_back != self.handles_back {
             self.handles_back = output.handles_back;
             self.set_back_handled(output.handles_back);
+        }
+        for request in file_picks {
+            self.pick_file(request);
         }
         if output.close_requested {
             self.finish_activity();
@@ -1113,4 +1155,38 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeMove<'local>(
     by: jint,
 ) {
     send(Message::Move(by));
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_be3_beui_BeuiView_nativeFilePicked<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    id: jlong,
+    name: JString<'local>,
+    data: JByteArray<'local>,
+    error: JString<'local>,
+) {
+    let pick = env
+        .with_env(|env| -> Result<FilePick, JniError> {
+            if !error.is_null() {
+                return Ok(Err(error.try_to_string(env)?));
+            }
+            if data.is_null() {
+                return Ok(Ok(None));
+            }
+            let name = match name.is_null() {
+                true => String::new(),
+                false => name.try_to_string(env)?,
+            };
+            let data = env.convert_byte_array(&data)?;
+            Ok(Ok(Some(PickedFile { name, data })))
+        })
+        .into_outcome();
+    let pick = match pick {
+        jni::Outcome::Ok(pick) => pick,
+        jni::Outcome::Err(_) | jni::Outcome::Panic(_) => {
+            Err("The chosen file could not be read".to_owned())
+        }
+    };
+    send(Message::FilePicked(FilePickId(id.cast_unsigned()), pick));
 }

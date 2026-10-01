@@ -104,7 +104,7 @@ fn AudioPanel(editor: Editor) -> NodeId {
     let chooser = FileChooser::new(filter(), decode);
     let host = editor.host().clone();
     let block = editor.block_id();
-    chooser.on_reply(editor.replies(), editor.host().clone(), move |chooser| {
+    chooser.on_chosen(move |chooser| {
         if let Some(replacement) = chooser.take() {
             replacing.replace_content(block, &replacement);
             host.reset_audio(block);
@@ -117,8 +117,7 @@ fn AudioPanel(editor: Editor) -> NodeId {
     let error = chooser.error();
     let failed = create_memo(clone!(error -> move || error.get().is_some()));
     let reason = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
-    let opened = editor.host().clone();
-    let replace = move || chooser.open(&opened);
+    let replace = move || chooser.open();
     let theme = use_theme();
     view! {
         <List spacing=SPACING>

@@ -2,6 +2,7 @@ use beui::styled::DocumentTheme;
 use std::{
     cell::RefCell,
     collections::HashSet,
+    rc::Rc,
     sync::{
         OnceLock,
         mpsc::{self, Receiver, SendError},
@@ -10,7 +11,8 @@ use std::{
 };
 
 use beui::{
-    CursorIcon, Document, Event, ImeArea, Key, Modifiers, PointerButton, Pos2, Rect, Vec2, Waker,
+    CursorIcon, Document, Event, FileFilter, FilePick, FilePickId, ImeArea, Key, Modifiers,
+    PointerButton, Pos2, Rect, Vec2, Waker,
 };
 use block_plugin_api::{EditorInstanceId, EditorRegion};
 use uuid::Uuid;
@@ -115,6 +117,7 @@ struct Output {
     ime: Option<ImeArea>,
     fullscreen: Option<bool>,
     copied: Option<String>,
+    file_picks: Vec<(FileFilter, PickSlot)>,
     grab: Option<bool>,
     repaint: bool,
     repaint_after: Option<Duration>,
@@ -142,6 +145,7 @@ struct Host {
     drag: Option<DragPayload>,
     grabbed: bool,
     commands: Vec<HostCommand>,
+    waiting_picks: Vec<(FilePickId, PickSlot)>,
     output: Output,
 }
 
@@ -168,6 +172,7 @@ impl Default for Host {
             drag: None,
             grabbed: false,
             commands: Vec::new(),
+            waiting_picks: Vec::new(),
             output: Output::default(),
         }
     }
@@ -264,6 +269,16 @@ impl Default for Frame {
 }
 
 pub(crate) fn begin(context: &beui::Context, document: &Document) {
+    with(|host| {
+        host.waiting_picks
+            .retain(|(id, slot)| match context.take_file_pick(*id) {
+                Some(pick) => {
+                    *slot.borrow_mut() = Some(pick);
+                    false
+                }
+                None => true,
+            });
+    });
     let mut frame = context.screen_input(|input| {
         let touch = &input.touch;
         Frame {
@@ -469,6 +484,10 @@ pub(crate) fn end(context: &beui::Context) {
     if let Some(text) = output.copied {
         context.copy_text(text);
     }
+    for (filter, slot) in output.file_picks {
+        let id = context.pick_file(filter);
+        with(|host| host.waiting_picks.push((id, slot)));
+    }
     if let Some(grab) = output.grab
         && with(|host| std::mem::replace(&mut host.grabbed, grab)) != grab
     {
@@ -625,6 +644,14 @@ pub(crate) fn set_grab(grab: bool) {
 
 pub(crate) fn copy_text(text: String) {
     with(|host| host.output.copied = Some(text));
+}
+
+pub(crate) type PickSlot = Rc<RefCell<Option<FilePick>>>;
+
+pub(crate) fn pick_file(filter: FileFilter) -> PickSlot {
+    let slot = PickSlot::default();
+    with(|host| host.output.file_picks.push((filter, Rc::clone(&slot))));
+    slot
 }
 
 pub(crate) fn request_repaint() {

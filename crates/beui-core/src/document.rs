@@ -10,6 +10,7 @@ use crate::accessibility::{self, AccessibilityTree};
 use crate::base::child_list::{ChildHost, SlotId};
 use crate::context::{Context, Moved};
 use crate::damage::{Damage, Region};
+use crate::file_picker::{FileFilter, FilePick, FilePickId};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
@@ -26,6 +27,7 @@ use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
 
 pub type Shortcut = dyn Fn(KeyPress) -> bool;
+type PickedCallback = Box<dyn FnOnce(FilePick)>;
 pub type FingerTap = dyn Fn(usize) -> bool;
 pub type UnhandledKey = dyn Fn(UnhandledKeyPress) -> bool;
 
@@ -76,6 +78,8 @@ pub struct Document {
     pub pointer_capture: Option<NodeId>,
     pub drags: Rc<crate::drag_board::Board>,
     paste_requested: bool,
+    unsent_file_picks: Vec<(FileFilter, PickedCallback)>,
+    waiting_file_picks: Vec<(FilePickId, PickedCallback)>,
     test_ids: HashMap<String, Vec<NodeId>>,
     node_test_ids: HashMap<NodeId, Vec<String>>,
     layout_revision: u64,
@@ -269,6 +273,8 @@ impl Document {
             pointer_capture: None,
             drags: Rc::default(),
             paste_requested: false,
+            unsent_file_picks: Vec::new(),
+            waiting_file_picks: Vec::new(),
             test_ids: HashMap::new(),
             node_test_ids: HashMap::new(),
             layout_revision: 0,
@@ -665,6 +671,40 @@ impl Document {
         self.paste_requested = true;
     }
 
+    pub fn pick_file(&mut self, filter: FileFilter, picked: impl FnOnce(FilePick) + 'static) {
+        self.unsent_file_picks.push((filter, Box::new(picked)));
+    }
+
+    fn send_file_picks(&mut self, ctx: &Context) {
+        for (filter, picked) in std::mem::take(&mut self.unsent_file_picks) {
+            let id = ctx.pick_file(filter);
+            self.waiting_file_picks.push((id, picked));
+        }
+    }
+
+    fn deliver_file_picks(&mut self, ctx: &Context) {
+        if self.waiting_file_picks.is_empty() {
+            return;
+        }
+        let mut delivered = Vec::new();
+        for (id, picked) in std::mem::take(&mut self.waiting_file_picks) {
+            match ctx.take_file_pick(id) {
+                Some(pick) => delivered.push((picked, pick)),
+                None => self.waiting_file_picks.push((id, picked)),
+            }
+        }
+        if delivered.is_empty() {
+            return;
+        }
+        let context = self.reactive_scope().context();
+        let _guard = crate::current::install(self);
+        context.run(|| {
+            for (picked, pick) in delivered {
+                picked(pick);
+            }
+        });
+    }
+
     pub fn remove_node(&mut self, id: NodeId) {
         if !self.delivering {
             self.forget_placement(id);
@@ -871,6 +911,7 @@ impl Document {
             let _guard = crate::current::install(self);
             context.run(|| crate::current::with_document(|document| document.run_timers()));
         }
+        self.deliver_file_picks(ctx);
 
         if pointer || !keys.ignored() {
             FrameMeasurement::measure(&mut measurement.timings.interaction, || {
@@ -980,6 +1021,7 @@ impl Document {
             ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
         }
         ctx.show_painting(&self.painting);
+        self.send_file_picks(ctx);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             if !ctx.accessibility_active() {
                 let mut tree = self.accessibility_tree.borrow_mut();

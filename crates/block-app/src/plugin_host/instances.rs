@@ -25,7 +25,7 @@ use crate::{
     editors::plugin::discovery,
     host::{self, Target},
     performance,
-    platform::{FileFilter, FilePicker, FileSaver, SavedFile, http::Fetch},
+    platform::{FileSaver, SavedFile, http::Fetch},
     plugin_host::web_view::WebViewHost,
 };
 
@@ -394,7 +394,7 @@ struct Pending {
 }
 
 enum Work {
-    Pick(FilePicker),
+    Pick(host::PickSlot),
     Save(FileSaver),
     Fetch(Fetch),
     Paste(ClipboardImage),
@@ -405,14 +405,13 @@ enum Work {
 impl Work {
     fn poll(&mut self) -> Option<HostReply> {
         match self {
-            Self::Pick(picker) => Some(HostReply::FilePicked(match picker.poll() {
-                Some(Ok(file)) => FilePick::Chosen {
+            Self::Pick(slot) => Some(HostReply::FilePicked(match slot.borrow_mut().take()? {
+                Ok(Some(file)) => FilePick::Chosen {
                     name: file.name,
                     data: file.data,
                 },
-                Some(Err(error)) => FilePick::Failed(error),
-                None if picker.is_open() => return None,
-                None => FilePick::Cancelled,
+                Ok(None) => FilePick::Cancelled,
+                Err(error) => FilePick::Failed(error),
             })),
             Self::Save(saver) => Some(HostReply::FileSaved(match saver.poll()? {
                 Ok(true) => FileSave::Saved,
@@ -1911,11 +1910,11 @@ impl Instances {
             return false;
         };
         let work = match request {
-            HostRequest::PickFile(filter) => {
-                let mut picker = FilePicker::default();
-                picker.open(&host_filter(filter));
-                Work::Pick(picker)
-            }
+            HostRequest::PickFile(filter) => Work::Pick(host::pick_file(beui::FileFilter {
+                name: filter.name,
+                extensions: filter.extensions,
+                mime_types: filter.mime_types,
+            })),
             HostRequest::SaveFile(file) => {
                 let mut saver = FileSaver::default();
                 saver.save(SavedFile {
@@ -2605,15 +2604,6 @@ fn ratio(current: f32, published: f32) -> f32 {
     match published > 0.0 && current > 0.0 {
         true => current / published,
         false => 1.0,
-    }
-}
-
-fn host_filter(filter: block_plugin_api::FileFilter) -> FileFilter {
-    FileFilter {
-        name: filter.name,
-        default_file_name: filter.default_file_name,
-        extensions: filter.extensions,
-        mime_types: filter.mime_types,
     }
 }
 

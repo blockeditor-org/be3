@@ -1532,31 +1532,6 @@ impl EditorHost {
 }
 
 #[derive(Default)]
-pub struct FilePicker {
-    request: Option<u64>,
-}
-
-impl FilePicker {
-    pub fn open(&mut self, host: &EditorHost, filter: FileFilter) {
-        self.request = Some(host.pick_file(filter));
-    }
-
-    pub fn is_open(&self) -> bool {
-        self.request.is_some()
-    }
-
-    pub fn poll(&mut self, host: &EditorHost) -> Option<Result<PickedFile, String>> {
-        let pick = host.take_pick(self.request?)?;
-        self.request = None;
-        match pick {
-            FilePick::Chosen { name, data } => Some(Ok(PickedFile { name, data })),
-            FilePick::Cancelled => None,
-            FilePick::Failed(error) => Some(Err(error)),
-        }
-    }
-}
-
-#[derive(Default)]
 pub struct FileSaver {
     request: Option<u64>,
 }

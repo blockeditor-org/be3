@@ -218,7 +218,7 @@ direction:
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
-| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's runner: its window or view, input, IME, clipboard and accessibility adapter |
+| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's runner: its window or view, input, IME, clipboard, file picker and accessibility adapter |
 
 Core cannot see the crates above it, so the few places it used to reach up are
 hooks the higher crates fill in:
@@ -1049,6 +1049,23 @@ camera a plugin editor is handed (guides/pan_and_zoom.md) reaches a beui editor
 the same way. Anything between the gesture and the camera - momentum, snapping,
 clamping the camera to the content - belongs to the caller, apart from the
 scale limits `min_scale` and `max_scale`.
+
+### Picking a file
+
+`beui::reactive::create_file_picker(picked)` gives a component a `FilePicker`:
+`open(FileFilter::new(name, extensions, mime_types))` asks the platform for one
+file, `picking()` is a signal that is true until the answer arrives (a button
+takes it as `disabled`), and `picked` is called with the `PickedFile` (its name
+and bytes) or with why it could not be read; a cancelled pick only clears
+`picking`. `pick_file(filter, picked)` is the one-shot form underneath, handed
+the raw `FilePick`. Nothing blocks while the dialog is open: the document queues
+the request, `Context` hands it to the runner in `FrameOutput::file_picks`, and
+the runner answers with `Context::file_picked` whenever the person is done -
+winit from a thread that runs the native dialog, the web runner from an
+`<input type=file>`, Android from `BeuiActivity`, and a plugin through the host
+it runs in. The document delivers the answer at the start of a later frame,
+inside its reactive scope, so `picked` can write signals like an event handler.
+A host that runs beui itself does the same with the requests in `file_picks`.
 
 ### Hold the pointer
 

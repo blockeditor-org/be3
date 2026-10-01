@@ -9,6 +9,7 @@ use accesskit::{ActionRequest, TreeUpdate};
 use crate::accessibility::{self, Fragment};
 use crate::damage::{self, Region};
 use crate::display::{Display, Layer};
+use crate::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest};
 use crate::filter::Filter;
 use crate::font::{FontBackend, FontId, Fonts, Galley, TextLayout};
 use crate::geometry::{Rect, pos2};
@@ -37,6 +38,9 @@ struct Inner {
     ambiguous_test_ids: RefCell<HashSet<String>>,
     copied_text: RefCell<Option<String>>,
     paste_requested: Cell<bool>,
+    file_pick_requests: RefCell<Vec<FilePickRequest>>,
+    file_picks: RefCell<Vec<(FilePickId, FilePick)>>,
+    next_file_pick: Cell<u64>,
     cursor_icon: Cell<CursorIcon>,
     ime: Cell<Option<ImeArea>>,
     fullscreen: Cell<Option<bool>>,
@@ -117,6 +121,7 @@ pub struct FrameOutput {
     pub pointer_locked: bool,
     pub copied_text: Option<String>,
     pub paste_requested: bool,
+    pub file_picks: Vec<FilePickRequest>,
     pub repaint: bool,
     pub repaint_after: Duration,
     pub changed: bool,
@@ -210,6 +215,9 @@ impl Context {
                 ambiguous_test_ids: RefCell::new(HashSet::new()),
                 copied_text: RefCell::new(None),
                 paste_requested: Cell::new(false),
+                file_pick_requests: RefCell::new(Vec::new()),
+                file_picks: RefCell::new(Vec::new()),
+                next_file_pick: Cell::new(0),
                 cursor_icon: Cell::new(CursorIcon::Default),
                 ime: Cell::new(None),
                 fullscreen: Cell::new(None),
@@ -383,6 +391,7 @@ impl Context {
             ambiguous_test_ids: std::mem::take(&mut *self.inner.ambiguous_test_ids.borrow_mut()),
             copied_text: self.inner.copied_text.borrow_mut().take(),
             paste_requested: self.inner.paste_requested.replace(false),
+            file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             changed,
             repaint_after: self.inner.repaint_after.get(),
             cursor_icon: self.inner.cursor_icon.get(),
@@ -437,6 +446,26 @@ impl Context {
 
     pub fn request_paste(&self) {
         self.inner.paste_requested.set(true);
+    }
+
+    pub fn pick_file(&self, filter: FileFilter) -> FilePickId {
+        let id = FilePickId(self.inner.next_file_pick.get() + 1);
+        self.inner.next_file_pick.set(id.0);
+        self.inner
+            .file_pick_requests
+            .borrow_mut()
+            .push(FilePickRequest { id, filter });
+        id
+    }
+
+    pub fn file_picked(&self, id: FilePickId, pick: FilePick) {
+        self.inner.file_picks.borrow_mut().push((id, pick));
+    }
+
+    pub fn take_file_pick(&self, id: FilePickId) -> Option<FilePick> {
+        let mut picks = self.inner.file_picks.borrow_mut();
+        let index = picks.iter().position(|(picked, _)| *picked == id)?;
+        Some(picks.remove(index).1)
     }
 
     pub fn set_pointer_locked(&self, locked: bool) {

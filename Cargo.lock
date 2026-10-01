@@ -877,9 +877,11 @@ dependencies = [
  "accesskit",
  "accesskit_winit",
  "arboard",
+ "ashpd",
  "beui-core",
  "beui-renderer-wgpu",
  "pollster",
+ "rfd",
  "wgpu",
  "winit",
 ]

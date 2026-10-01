@@ -8,7 +8,6 @@ fn file_pick_messages_round_trip() {
             3,
             HostRequest::PickFile(FileFilter {
                 name: "Images".into(),
-                default_file_name: "Image".into(),
                 extensions: vec!["png".into(), "jpg".into()],
                 mime_types: vec!["image/*".into()],
             }),

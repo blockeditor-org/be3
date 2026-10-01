@@ -1076,26 +1076,8 @@ pub enum PerformanceMeasurement {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileFilter {
     pub name: String,
-    pub default_file_name: String,
     pub extensions: Vec<String>,
     pub mime_types: Vec<String>,
-}
-
-impl FileFilter {
-    pub fn new(
-        name: &str,
-        default_file_name: &str,
-        extensions: &[&str],
-        mime_types: &[&str],
-    ) -> Self {
-        let owned = |values: &[&str]| values.iter().map(|value| (*value).to_owned()).collect();
-        Self {
-            name: name.to_owned(),
-            default_file_name: default_file_name.to_owned(),
-            extensions: owned(extensions),
-            mime_types: owned(mime_types),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -2450,7 +2432,6 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
     match request {
         HostRequest::PickFile(filter) => {
             string(&filter.name)?;
-            string(&filter.default_file_name)?;
             collection(filter.extensions.len())?;
             collection(filter.mime_types.len())?;
             strings(filter.extensions.iter().chain(&filter.mime_types))
