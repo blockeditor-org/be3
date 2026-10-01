@@ -1,4 +1,4 @@
-use std::sync::{Mutex, OnceLock, mpsc::Receiver};
+use std::sync::{Mutex, OnceLock};
 
 use jni::{
     EnvUnowned, Outcome,
@@ -8,27 +8,25 @@ use jni::{
     vm::JavaVM,
 };
 
-use super::{SaveResult, SavedFile};
-use crate::host::WakingSender;
+use super::{Deliver, SaveResult, SavedFile};
 
-static PENDING: OnceLock<Mutex<Option<WakingSender<SaveResult>>>> = OnceLock::new();
+static PENDING: OnceLock<Mutex<Option<Deliver<SaveResult>>>> = OnceLock::new();
 
-fn pending() -> &'static Mutex<Option<WakingSender<SaveResult>>> {
+fn pending() -> &'static Mutex<Option<Deliver<SaveResult>>> {
     PENDING.get_or_init(Default::default)
 }
 
-pub(super) fn save(file: SavedFile) -> Receiver<SaveResult> {
-    let (sender, receiver) = crate::host::waking_channel();
+pub(super) fn save(file: SavedFile, deliver: Deliver<SaveResult>) {
     let Ok(mut pending) = pending().lock() else {
-        let _ = sender.send(Err("Saving files is unavailable".into()));
-        return receiver;
+        deliver.send(Err("Saving files is unavailable".into()));
+        return;
     };
-    *pending = Some(sender.clone());
-    if let Err(error) = start(&file) {
-        *pending = None;
-        let _ = sender.send(Err(error));
+    *pending = Some(deliver);
+    if let Err(error) = start(&file)
+        && let Some(deliver) = pending.take()
+    {
+        deliver.send(Err(error));
     }
-    receiver
 }
 
 fn start(file: &SavedFile) -> Result<(), String> {
@@ -80,10 +78,11 @@ pub extern "system" fn Java_com_be3_block_MainActivity_nativeFileSaved(
         Outcome::Ok(result) => result,
         Outcome::Err(_) | Outcome::Panic(_) => Err("The file could not be saved".to_owned()),
     };
-    let Ok(mut pending) = pending().lock() else {
-        return;
+    let deliver = match pending().lock() {
+        Ok(mut pending) => pending.take(),
+        Err(_) => return,
     };
-    if let Some(sender) = pending.take() {
-        let _ = sender.send(result);
+    if let Some(deliver) = deliver {
+        deliver.send(result);
     }
 }

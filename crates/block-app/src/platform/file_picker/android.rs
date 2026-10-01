@@ -1,4 +1,4 @@
-use std::sync::{Mutex, OnceLock, mpsc::Receiver};
+use std::sync::{Mutex, OnceLock};
 
 use jni::{
     Env, EnvUnowned, Outcome,
@@ -9,27 +9,25 @@ use jni::{
     vm::JavaVM,
 };
 
-use super::{FileFilter, PickResult, PickedFile};
-use crate::host::WakingSender;
+use super::{Deliver, FileFilter, PickResult, PickedFile};
 
-static PENDING: OnceLock<Mutex<Option<WakingSender<PickResult>>>> = OnceLock::new();
+static PENDING: OnceLock<Mutex<Option<Deliver<PickResult>>>> = OnceLock::new();
 
-fn pending() -> &'static Mutex<Option<WakingSender<PickResult>>> {
+fn pending() -> &'static Mutex<Option<Deliver<PickResult>>> {
     PENDING.get_or_init(Default::default)
 }
 
-pub(super) fn open(filter: &FileFilter) -> Receiver<PickResult> {
-    let (sender, receiver) = crate::host::waking_channel();
+pub(super) fn open(filter: &FileFilter, deliver: Deliver<PickResult>) {
     let Ok(mut pending) = pending().lock() else {
-        let _ = sender.send(Err("The file picker is unavailable".into()));
-        return receiver;
+        deliver.send(Err("The file picker is unavailable".into()));
+        return;
     };
-    *pending = Some(sender.clone());
-    if let Err(error) = start(filter) {
-        *pending = None;
-        let _ = sender.send(Err(error));
+    *pending = Some(deliver);
+    if let Err(error) = start(filter)
+        && let Some(deliver) = pending.take()
+    {
+        deliver.send(Err(error));
     }
-    receiver
 }
 
 fn start(filter: &FileFilter) -> Result<(), String> {
@@ -96,11 +94,12 @@ pub extern "system" fn Java_com_be3_block_MainActivity_nativeFilePicked(
         Outcome::Ok(result) => result,
         Outcome::Err(_) | Outcome::Panic(_) => Err("The chosen file could not be read".to_owned()),
     };
-    let Ok(mut pending) = pending().lock() else {
-        return;
+    let deliver = match pending().lock() {
+        Ok(mut pending) => pending.take(),
+        Err(_) => return,
     };
-    if let Some(sender) = pending.take() {
-        let _ = sender.send(result);
+    if let Some(deliver) = deliver {
+        deliver.send(result);
     }
 }
 

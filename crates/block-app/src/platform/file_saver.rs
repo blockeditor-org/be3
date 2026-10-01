@@ -5,7 +5,7 @@ mod desktop;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
-use std::sync::mpsc::{Receiver, TryRecvError};
+use super::Deliver;
 
 #[cfg(target_os = "android")]
 use android::save;
@@ -24,25 +24,8 @@ pub(crate) struct SavedFile {
     pub(crate) data: Vec<u8>,
 }
 
-type SaveResult = Result<bool, String>;
+pub(crate) type SaveResult = Result<bool, String>;
 
-#[derive(Default)]
-pub(crate) struct FileSaver {
-    pending: Option<Receiver<SaveResult>>,
-}
-
-impl FileSaver {
-    pub(crate) fn save(&mut self, file: SavedFile) {
-        self.pending = Some(save(file));
-    }
-
-    pub(crate) fn poll(&mut self) -> Option<SaveResult> {
-        let result = match self.pending.as_ref()?.try_recv() {
-            Ok(result) => result,
-            Err(TryRecvError::Empty) => return None,
-            Err(TryRecvError::Disconnected) => Ok(false),
-        };
-        self.pending = None;
-        Some(result)
-    }
+pub(crate) fn save_file(file: SavedFile, deliver: impl FnOnce(SaveResult) + Send + 'static) {
+    save(file, Deliver::new(Ok(false), deliver));
 }

@@ -7,7 +7,7 @@ mod desktop;
 #[cfg(target_arch = "wasm32")]
 mod web;
 
-use std::sync::mpsc::{Receiver, TryRecvError};
+use super::Deliver;
 
 #[cfg(target_os = "android")]
 use android::open;
@@ -35,38 +35,21 @@ pub(crate) struct PickedFile {
     pub(crate) data: Vec<u8>,
 }
 
-type PickResult = Result<Option<PickedFile>, String>;
+pub(crate) type PickResult = Result<Option<PickedFile>, String>;
 
-#[derive(Default)]
-pub(crate) struct FilePicker {
-    pending: Option<Receiver<PickResult>>,
-    default_file_name: String,
-}
-
-impl FilePicker {
-    pub(crate) fn open(&mut self, filter: &FileFilter) {
-        self.pending = Some(open(filter));
-        self.default_file_name.clone_from(&filter.default_file_name);
-    }
-
-    pub(crate) fn is_open(&self) -> bool {
-        self.pending.is_some()
-    }
-
-    pub(crate) fn poll(&mut self) -> Option<Result<PickedFile, String>> {
-        let result = match self.pending.as_ref()?.try_recv() {
-            Ok(result) => result,
-            Err(TryRecvError::Empty) => return None,
-            Err(TryRecvError::Disconnected) => Ok(None),
-        };
-        self.pending = None;
-        let mut file = result.transpose()?;
-
-        if let Ok(file) = &mut file
-            && file.name.is_empty()
-        {
-            file.name.clone_from(&self.default_file_name);
-        }
-        Some(file)
-    }
+pub(crate) fn pick_file(filter: &FileFilter, deliver: impl FnOnce(PickResult) + Send + 'static) {
+    let default_file_name = filter.default_file_name.clone();
+    open(
+        filter,
+        Deliver::new(Ok(None), move |result: PickResult| {
+            deliver(result.map(|file| {
+                file.map(|mut file| {
+                    if file.name.is_empty() {
+                        file.name = default_file_name;
+                    }
+                    file
+                })
+            }));
+        }),
+    );
 }

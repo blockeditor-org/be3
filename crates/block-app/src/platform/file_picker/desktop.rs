@@ -1,11 +1,10 @@
-use std::{fs, path::PathBuf, sync::mpsc::Receiver};
+use std::{fs, path::PathBuf};
 
-use super::{FileFilter, PickResult, PickedFile};
+use super::{Deliver, FileFilter, PickResult, PickedFile};
 
-pub(super) fn open(filter: &FileFilter) -> Receiver<PickResult> {
-    let (sender, receiver) = crate::host::waking_channel();
-    let _ = sender.send(pick(filter));
-    receiver
+pub(super) fn open(filter: &FileFilter, deliver: Deliver<PickResult>) {
+    let filter = filter.clone();
+    std::thread::spawn(move || deliver.send(pick(&filter)));
 }
 
 fn pick(filter: &FileFilter) -> PickResult {
@@ -26,9 +25,10 @@ fn pick(filter: &FileFilter) -> PickResult {
 #[cfg(not(target_os = "linux"))]
 fn choose(filter: &FileFilter) -> Result<Option<PathBuf>, String> {
     let extensions: Vec<&str> = filter.extensions.iter().map(String::as_str).collect();
-    Ok(rfd::FileDialog::new()
+    let dialog = rfd::AsyncFileDialog::new()
         .add_filter(&filter.name, &extensions)
-        .pick_file())
+        .pick_file();
+    Ok(pollster::block_on(dialog).map(|file| file.path().to_path_buf()))
 }
 
 #[cfg(target_os = "linux")]

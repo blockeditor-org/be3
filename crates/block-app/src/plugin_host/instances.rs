@@ -3,7 +3,7 @@ use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, BlockTypeDescriptor,
-    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
+    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus,
     CreationOutcome, CursorIcon, DataListing, EditorInstanceId, EditorMessage, EditorRegion,
     FetchResult, FilePick, FileSave, FrameReport, FrameSpec, HostReply, HostRequest, Message,
     Occluder, PaneId, PaneLayout, PaneTree, PerformanceMeasurement, RegenerationOutcome,
@@ -25,7 +25,7 @@ use crate::{
     editors::plugin::discovery,
     host::{self, Target},
     performance,
-    platform::{FileFilter, FilePicker, FileSaver, SavedFile, http::Fetch},
+    platform::{FileFilter, SavedFile, http, pick_file, save_file},
     plugin_host::web_view::WebViewHost,
 };
 
@@ -44,6 +44,27 @@ pub(super) struct Instances {
     network: Vec<String>,
     plugin_id: String,
     resized: bool,
+    replies: Replies,
+    epoch: u64,
+}
+
+struct Reply {
+    epoch: u64,
+    instance: EditorInstanceId,
+    request_id: u64,
+    reply: HostReply,
+}
+
+struct Replies {
+    sender: host::WakingSender<Reply>,
+    receiver: std::sync::mpsc::Receiver<Reply>,
+}
+
+impl Default for Replies {
+    fn default() -> Self {
+        let (sender, receiver) = host::waking_channel();
+        Self { sender, receiver }
+    }
 }
 
 struct Connection {
@@ -71,7 +92,6 @@ struct Instance {
     drag_accepted: bool,
     intrinsic: Option<Vec2>,
     aspect_ratio: Option<f32>,
-    pending: Vec<Pending>,
     text_pastes: Vec<String>,
     audio: Option<AudioPlayer>,
     reported_size: Option<Vec2>,
@@ -242,7 +262,6 @@ impl Instance {
             drag_accepted: false,
             intrinsic: None,
             aspect_ratio: None,
-            pending: Vec::new(),
             text_pastes: Vec::new(),
             audio: None,
             reported_size: None,
@@ -382,61 +401,6 @@ impl Instance {
         }
         for (block, link) in &mut self.watched {
             link.describe(*block);
-        }
-    }
-}
-
-struct Pending {
-    request_id: u64,
-    work: Work,
-}
-
-enum Work {
-    Pick(FilePicker),
-    Save(FileSaver),
-    Fetch(Fetch),
-    Paste(ClipboardImage),
-    ListData(Fetch),
-    ReadData(Fetch),
-}
-
-impl Work {
-    fn poll(&mut self) -> Option<HostReply> {
-        match self {
-            Self::Pick(picker) => Some(HostReply::FilePicked(match picker.poll() {
-                Some(Ok(file)) => FilePick::Chosen {
-                    name: file.name,
-                    data: file.data,
-                },
-                Some(Err(error)) => FilePick::Failed(error),
-                None if picker.is_open() => return None,
-                None => FilePick::Cancelled,
-            })),
-            Self::Save(saver) => Some(HostReply::FileSaved(match saver.poll()? {
-                Ok(true) => FileSave::Saved,
-                Ok(false) => FileSave::Cancelled,
-                Err(error) => FileSave::Failed(error),
-            })),
-            Self::Fetch(fetch) => match fetch.poll() {
-                Some(Ok(body)) => Some(HostReply::Fetched(FetchResult::Body(body))),
-                Some(Err(error)) => Some(HostReply::Fetched(FetchResult::Failed(error))),
-                None => None,
-            },
-            Self::Paste(image) => Some(HostReply::ImagePasted(std::mem::replace(
-                image,
-                ClipboardImage::Empty,
-            ))),
-            Self::ListData(fetch) => Some(HostReply::DataListed(match fetch.poll()? {
-                Ok(index) => match serde_json::from_slice(&index) {
-                    Ok(files) => DataListing::Files(files),
-                    Err(error) => DataListing::Failed(format!("the data index is {error}")),
-                },
-                Err(error) => DataListing::Failed(error),
-            })),
-            Self::ReadData(fetch) => Some(HostReply::DataRead(match fetch.poll()? {
-                Ok(body) => FetchResult::Body(body),
-                Err(error) => FetchResult::Failed(error),
-            })),
         }
     }
 }
@@ -930,8 +894,8 @@ impl Instances {
             entry.reported_editable = None;
             entry.reported_view = None;
             entry.reported_presenting = false;
-            entry.pending.clear();
         }
+        self.epoch += 1;
     }
 
     pub(super) fn next_screens(&mut self, pass: u64) -> NextScreens {
@@ -1840,22 +1804,17 @@ impl Instances {
         let mut messages = Vec::new();
         let mut instances: Vec<_> = self.entries.keys().copied().collect();
         instances.sort_by_key(|instance| instance.0);
+        while let Ok(reply) = self.replies.receiver.try_recv() {
+            if reply.epoch == self.epoch && self.entries.contains_key(&reply.instance) {
+                messages.push(Message::Editor(EditorMessage::Replied {
+                    instance: reply.instance,
+                    request_id: reply.request_id,
+                    reply: reply.reply,
+                }));
+            }
+        }
         for instance in instances {
             let entry = self.entries.get_mut(&instance).unwrap();
-            let mut waiting = std::mem::take(&mut entry.pending);
-            waiting.retain_mut(|pending| {
-                let Some(reply) = pending.work.poll() else {
-                    return true;
-                };
-                messages.push(Message::Editor(EditorMessage::Replied {
-                    instance,
-                    request_id: pending.request_id,
-                    reply,
-                }));
-                false
-            });
-            let entry = self.entries.get_mut(&instance).unwrap();
-            entry.pending = waiting;
             let texts = std::mem::take(&mut entry.text_pastes);
             if !texts.is_empty()
                 && let Some(screen) = entry
@@ -1892,39 +1851,68 @@ impl Instances {
         request_id: u64,
         request: HostRequest,
     ) -> bool {
-        let fetch = match &request {
-            HostRequest::Fetch(url) => Some(match allowed(url, &self.network) {
-                true => Fetch::get(url.clone(), Vec::new()),
-                false => Fetch::answered(Err(format!("{REFUSED} {url}"))),
-            }),
-            _ => None,
-        };
-        let plugin_id = &self.plugin_id;
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
         };
-        let work = match request {
-            HostRequest::PickFile(filter) => {
-                let mut picker = FilePicker::default();
-                picker.open(&host_filter(filter));
-                Work::Pick(picker)
-            }
+        let sender = self.replies.sender.clone();
+        let epoch = self.epoch;
+        let reply = move |reply: HostReply| {
+            let _ = sender.send(Reply {
+                epoch,
+                instance,
+                request_id,
+                reply,
+            });
+        };
+        match request {
+            HostRequest::PickFile(filter) => pick_file(&host_filter(filter), move |picked| {
+                reply(HostReply::FilePicked(match picked {
+                    Ok(Some(file)) => FilePick::Chosen {
+                        name: file.name,
+                        data: file.data,
+                    },
+                    Ok(None) => FilePick::Cancelled,
+                    Err(error) => FilePick::Failed(error),
+                }));
+            }),
             HostRequest::SaveFile(file) => {
-                let mut saver = FileSaver::default();
-                saver.save(SavedFile {
+                let file = SavedFile {
                     name: file.name,
                     mime_type: file.mime_type,
                     data: file.data,
+                };
+                save_file(file, move |saved| {
+                    reply(HostReply::FileSaved(match saved {
+                        Ok(true) => FileSave::Saved,
+                        Ok(false) => FileSave::Cancelled,
+                        Err(error) => FileSave::Failed(error),
+                    }));
                 });
-                Work::Save(saver)
             }
-            HostRequest::PasteImage => Work::Paste(super::clipboard::read_clipboard_image()),
-            HostRequest::Fetch(_) => match fetch {
-                Some(fetch) => Work::Fetch(fetch),
-                None => return false,
-            },
-            HostRequest::ListData => Work::ListData(discovery::data_listing(plugin_id)),
-            HostRequest::ReadData(path) => Work::ReadData(discovery::data(plugin_id, &path)),
+            HostRequest::PasteImage => reply(HostReply::ImagePasted(
+                super::clipboard::read_clipboard_image(),
+            )),
+            HostRequest::Fetch(url) => {
+                let fetched = move |body: Result<Vec<u8>, String>| {
+                    reply(HostReply::Fetched(fetch_result(body)));
+                };
+                match allowed(&url, &self.network) {
+                    true => http::fetch(url, Vec::new(), fetched),
+                    false => fetched(Err(format!("{REFUSED} {url}"))),
+                }
+            }
+            HostRequest::ListData => discovery::data_listing(&self.plugin_id, move |index| {
+                reply(HostReply::DataListed(match index {
+                    Ok(index) => match serde_json::from_slice(&index) {
+                        Ok(files) => DataListing::Files(files),
+                        Err(error) => DataListing::Failed(format!("the data index is {error}")),
+                    },
+                    Err(error) => DataListing::Failed(error),
+                }));
+            }),
+            HostRequest::ReadData(path) => discovery::data(&self.plugin_id, &path, move |body| {
+                reply(HostReply::DataRead(fetch_result(body)));
+            }),
             HostRequest::PickBlock(filter) => {
                 entry.block_picks.push(BlockPickRequest {
                     request_id,
@@ -1943,10 +1931,8 @@ impl Instances {
                         block_plugin_api::BlockLocation::Detached => None,
                     }),
                 });
-                return true;
             }
-        };
-        entry.pending.push(Pending { request_id, work });
+        }
         true
     }
 
@@ -2598,6 +2584,13 @@ fn ratio(current: f32, published: f32) -> f32 {
     match published > 0.0 && current > 0.0 {
         true => current / published,
         false => 1.0,
+    }
+}
+
+fn fetch_result(body: Result<Vec<u8>, String>) -> FetchResult {
+    match body {
+        Ok(body) => FetchResult::Body(body),
+        Err(error) => FetchResult::Failed(error),
     }
 }
 

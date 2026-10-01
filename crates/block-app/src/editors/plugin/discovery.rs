@@ -3,7 +3,6 @@ use std::{cell::RefCell, sync::Arc};
 use block_plugin_api::PluginManifest;
 use uuid::Uuid;
 
-use crate::platform::http::Fetch;
 
 #[cfg(target_arch = "wasm32")]
 mod web;
@@ -175,18 +174,29 @@ const DATA: &str = "data";
 const DATA_INDEX: &str = "index.json";
 const DATA_FILES: &str = "files";
 
-pub(crate) fn data_listing(plugin_id: &str) -> Fetch {
-    staged(plugin_id, DATA_INDEX)
+pub(crate) fn data_listing(
+    plugin_id: &str,
+    deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
+) {
+    staged(plugin_id, DATA_INDEX, deliver);
 }
 
-pub(crate) fn data(plugin_id: &str, path: &str) -> Fetch {
+pub(crate) fn data(
+    plugin_id: &str,
+    path: &str,
+    deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
+) {
     if !plain(path) {
-        return Fetch::answered(Err(format!("{path:?} is not a plain relative path")));
+        return deliver(Err(format!("{path:?} is not a plain relative path")));
     }
-    staged(plugin_id, &format!("{DATA_FILES}/{path}"))
+    staged(plugin_id, &format!("{DATA_FILES}/{path}"), deliver);
 }
 
-fn staged(plugin_id: &str, path: &str) -> Fetch {
+fn staged(
+    plugin_id: &str,
+    path: &str,
+    deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
+) {
     let plugins = plugins();
     if !plain(plugin_id)
         || !plugins
@@ -194,18 +204,18 @@ fn staged(plugin_id: &str, path: &str) -> Fetch {
             .iter()
             .any(|manifest| manifest.identity.id == plugin_id)
     {
-        return Fetch::answered(Err(format!("{plugin_id} is not a plugin this app found")));
+        return deliver(Err(format!("{plugin_id} is not a plugin this app found")));
     }
     let relative = format!("{DATA}/{plugin_id}/{path}");
     #[cfg(target_arch = "wasm32")]
-    return Fetch::get(format!("{}{relative}", plugins.root), Vec::new());
+    crate::platform::http::fetch(format!("{}{relative}", plugins.root), Vec::new(), deliver);
     #[cfg(target_os = "android")]
-    return Fetch::answered(match &plugins.app {
+    deliver(match &plugins.app {
         Some(app) => android::read(app, &relative).map_err(|error| format!("{relative}: {error}")),
         None => Err("the plugins were not loaded from the app's assets".to_owned()),
     });
     #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-    return Fetch::answered(
+    deliver(
         std::fs::read(plugins.root.join(&relative)).map_err(|error| format!("{relative}: {error}")),
     );
 }

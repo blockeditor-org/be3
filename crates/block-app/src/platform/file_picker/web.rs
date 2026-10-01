@@ -1,21 +1,23 @@
-use std::{cell::RefCell, rc::Rc, sync::mpsc::Receiver};
+use std::{cell::RefCell, rc::Rc};
 
 use wasm_bindgen::{JsCast, JsValue, closure::Closure};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::HtmlInputElement;
 
-use super::{FileFilter, PickResult, PickedFile};
-use crate::host::WakingSender;
+use super::{Deliver, FileFilter, PickResult, PickedFile};
 
-pub(super) fn open(filter: &FileFilter) -> Receiver<PickResult> {
-    let (sender, receiver) = crate::host::waking_channel();
-    if let Err(error) = show(filter, sender.clone()) {
-        let _ = sender.send(Err(error));
+type Slot = Rc<RefCell<Option<Deliver<PickResult>>>>;
+
+pub(super) fn open(filter: &FileFilter, deliver: Deliver<PickResult>) {
+    let slot: Slot = Rc::new(RefCell::new(Some(deliver)));
+    if let Err(error) = show(filter, &slot)
+        && let Some(deliver) = slot.borrow_mut().take()
+    {
+        deliver.send(Err(error));
     }
-    receiver
 }
 
-fn show(filter: &FileFilter, sender: WakingSender<PickResult>) -> Result<(), String> {
+fn show(filter: &FileFilter, slot: &Slot) -> Result<(), String> {
     let document = web_sys::window()
         .ok_or("no browser window is available")?
         .document()
@@ -32,26 +34,27 @@ fn show(filter: &FileFilter, sender: WakingSender<PickResult>) -> Result<(), Str
     body.append_child(&input)
         .map_err(|error| format!("could not open a file picker: {}", describe(&error)))?;
 
-    let slot = Rc::new(RefCell::new(Some((sender, input.clone()))));
     let chosen = slot.clone();
+    let chosen_input = input.clone();
     let on_change = Closure::<dyn FnMut()>::new(move || {
-        let Some((sender, input)) = chosen.borrow_mut().take() else {
+        let Some(deliver) = chosen.borrow_mut().take() else {
             return;
         };
-        input.remove();
-        let Some(file) = input.files().and_then(|files| files.get(0)) else {
-            let _ = sender.send(Ok(None));
+        chosen_input.remove();
+        let Some(file) = chosen_input.files().and_then(|files| files.get(0)) else {
+            deliver.send(Ok(None));
             return;
         };
         wasm_bindgen_futures::spawn_local(async move {
-            let _ = sender.send(read(file).await);
+            deliver.send(read(file).await);
         });
     });
     let cancelled = slot.clone();
+    let cancelled_input = input.clone();
     let on_cancel = Closure::<dyn FnMut()>::new(move || {
-        if let Some((sender, input)) = cancelled.borrow_mut().take() {
-            input.remove();
-            let _ = sender.send(Ok(None));
+        if let Some(deliver) = cancelled.borrow_mut().take() {
+            cancelled_input.remove();
+            deliver.send(Ok(None));
         }
     });
     for (event, listener) in [("change", &on_change), ("cancel", &on_cancel)] {
