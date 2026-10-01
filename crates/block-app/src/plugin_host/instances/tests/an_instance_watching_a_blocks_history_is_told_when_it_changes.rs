@@ -6,8 +6,7 @@ use be_block::{BlockContent, Calendar, CalendarContent, CalendarEvent, LiveEdit}
 use block_plugin_api::HistoryState;
 
 fn history_states(instances: &mut Instances) -> Vec<Vec<HistoryState>> {
-    instances
-        .next_screens(PASS)
+    next_screens(instances)
         .opened
         .into_iter()
         .filter_map(|message| match message {
@@ -23,7 +22,7 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     harness.connect();
     let block = Uuid::new_v4();
     let mut instances = placed();
-    instances.next_screens(PASS);
+    next_screens(&mut instances);
     assert!(instances.editor_message(EditorMessage::WatchHistory {
         instance: INSTANCE,
         blocks: vec![block.into_bytes()],

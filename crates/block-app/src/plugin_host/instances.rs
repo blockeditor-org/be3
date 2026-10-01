@@ -2,12 +2,12 @@ use be_block::BlockContent as _;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, AudioStatus, BlockCommand, BlockPick, BlockTypeDescriptor,
-    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, ClipboardImage,
-    CreationOutcome, CursorIcon, DataListing, EditorInstanceId, EditorMessage, EditorRegion,
-    FetchResult, FilePick, FileSave, FrameReport, FrameSpec, HostReply, HostRequest, Message,
-    Occluder, PaneId, PaneLayout, PaneTree, PerformanceMeasurement, RegenerationOutcome,
-    RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
+    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, BlockTypeDescriptor, ChildId,
+    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon,
+    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
+    FrameReport, FrameSpec, HostReply, HostRequest, Message, Occluder, PaneId, PaneLayout,
+    PaneTree, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout,
+    ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -25,7 +25,7 @@ use crate::{
     editors::plugin::discovery,
     host::{self, Target},
     performance,
-    platform::{FileSaver, SavedFile, http::Fetch},
+    platform::{SavedFile, http, save_file},
     plugin_host::web_view::WebViewHost,
 };
 
@@ -44,6 +44,42 @@ pub(super) struct Instances {
     network: Vec<String>,
     plugin_id: String,
     resized: bool,
+    replies: Replies,
+    epoch: u64,
+    graph_seen: Option<u64>,
+    pasted: HashSet<EditorInstanceId>,
+    audio_changes: AudioChanges,
+}
+
+struct AudioChanges {
+    sender: host::WakingSender<EditorInstanceId>,
+    receiver: std::sync::mpsc::Receiver<EditorInstanceId>,
+}
+
+impl Default for AudioChanges {
+    fn default() -> Self {
+        let (sender, receiver) = host::waking_channel();
+        Self { sender, receiver }
+    }
+}
+
+struct Reply {
+    epoch: u64,
+    instance: EditorInstanceId,
+    request_id: u64,
+    reply: HostReply,
+}
+
+struct Replies {
+    sender: host::WakingSender<Reply>,
+    receiver: std::sync::mpsc::Receiver<Reply>,
+}
+
+impl Default for Replies {
+    fn default() -> Self {
+        let (sender, receiver) = host::waking_channel();
+        Self { sender, receiver }
+    }
 }
 
 struct Connection {
@@ -71,10 +107,8 @@ struct Instance {
     drag_accepted: bool,
     intrinsic: Option<Vec2>,
     aspect_ratio: Option<f32>,
-    pending: Vec<Pending>,
     text_pastes: Vec<block_plugin_api::InputEvent>,
     audio: Option<AudioPlayer>,
-    reported_audio: AudioStatus,
     reported_size: Option<Vec2>,
     block_picks: Vec<BlockPickRequest>,
     view: Option<EditorView>,
@@ -101,6 +135,7 @@ struct Instance {
     panes: Option<PaneLayout>,
     shown_panes: Vec<PaneId>,
     version_sent: Option<u64>,
+    stale: bool,
 }
 
 struct ContentLink {
@@ -245,10 +280,8 @@ impl Instance {
             drag_accepted: false,
             intrinsic: None,
             aspect_ratio: None,
-            pending: Vec::new(),
             text_pastes: Vec::new(),
             audio: None,
-            reported_audio: AudioStatus::default(),
             reported_size: None,
             block_picks: Vec::new(),
             view: None,
@@ -274,6 +307,7 @@ impl Instance {
             panes: None,
             shown_panes: Vec::new(),
             version_sent: None,
+            stale: true,
             content: match role {
                 InstanceRole::Editor(block) => own_content_type(block).map(ContentLink::new),
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
@@ -320,7 +354,7 @@ impl Instance {
     }
 
     fn content_messages(&mut self, instance: EditorInstanceId) -> Vec<Message> {
-        let mut messages = self.blocks_messages(instance);
+        let mut messages = Vec::new();
         if let (Some(block), Some(link)) = (self.role.block(), self.content.as_mut()) {
             link.messages(instance, block.id, &mut messages);
         }
@@ -352,6 +386,12 @@ impl Instance {
     fn holds(&self, block: Uuid) -> bool {
         (self.content.is_some() && self.role.block().is_some_and(|own| own.id == block))
             || self.watched.contains_key(&block)
+    }
+
+    fn follows(&self, block: Uuid) -> bool {
+        self.role.block().is_some_and(|own| own.id == block)
+            || self.watched.contains_key(&block)
+            || self.history_watch.contains(&block)
     }
 }
 
@@ -388,60 +428,6 @@ impl Instance {
         }
         for (block, link) in &mut self.watched {
             link.describe(*block);
-        }
-    }
-}
-
-struct Pending {
-    request_id: u64,
-    work: Work,
-}
-
-enum Work {
-    Pick(host::PickSlot),
-    Save(FileSaver),
-    Fetch(Fetch),
-    Paste(ClipboardImage),
-    ListData(Fetch),
-    ReadData(Fetch),
-}
-
-impl Work {
-    fn poll(&mut self) -> Option<HostReply> {
-        match self {
-            Self::Pick(slot) => Some(HostReply::FilePicked(match slot.borrow_mut().take()? {
-                Ok(Some(file)) => FilePick::Chosen {
-                    name: file.name,
-                    data: file.data,
-                },
-                Ok(None) => FilePick::Cancelled,
-                Err(error) => FilePick::Failed(error),
-            })),
-            Self::Save(saver) => Some(HostReply::FileSaved(match saver.poll()? {
-                Ok(true) => FileSave::Saved,
-                Ok(false) => FileSave::Cancelled,
-                Err(error) => FileSave::Failed(error),
-            })),
-            Self::Fetch(fetch) => match fetch.poll() {
-                Some(Ok(body)) => Some(HostReply::Fetched(FetchResult::Body(body))),
-                Some(Err(error)) => Some(HostReply::Fetched(FetchResult::Failed(error))),
-                None => None,
-            },
-            Self::Paste(image) => Some(HostReply::ImagePasted(std::mem::replace(
-                image,
-                ClipboardImage::Empty,
-            ))),
-            Self::ListData(fetch) => Some(HostReply::DataListed(match fetch.poll()? {
-                Ok(index) => match serde_json::from_slice(&index) {
-                    Ok(files) => DataListing::Files(files),
-                    Err(error) => DataListing::Failed(format!("the data index is {error}")),
-                },
-                Err(error) => DataListing::Failed(error),
-            })),
-            Self::ReadData(fetch) => Some(HostReply::DataRead(match fetch.poll()? {
-                Ok(body) => FetchResult::Body(body),
-                Err(error) => FetchResult::Failed(error),
-            })),
         }
     }
 }
@@ -665,6 +651,7 @@ impl Instances {
                 .entry(block)
                 .or_insert_with(|| ContentLink::new(content_type));
         }
+        entry.stale = true;
         for block in dropped {
             if !self.holds_content(block) {
                 crate::be::close(block);
@@ -964,8 +951,9 @@ impl Instances {
             entry.reported_editable = None;
             entry.reported_view = None;
             entry.reported_presenting = false;
-            entry.pending.clear();
+            entry.stale = true;
         }
+        self.epoch += 1;
     }
 
     pub(super) fn next_screens(&mut self, pass: u64) -> NextScreens {
@@ -977,6 +965,8 @@ impl Instances {
         let mut instances: Vec<_> = self.entries.keys().copied().collect();
         instances.sort_by_key(|instance| instance.0);
         let focus = self.focus.clone();
+        let graph = crate::be::graph_revision();
+        let graph_moved = self.graph_seen.replace(graph) != Some(graph);
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         if !self.sent_block_types
@@ -1051,7 +1041,10 @@ impl Instances {
                 });
             }
             opened.append(&mut entry.deferred);
-            if let InstanceRole::Editor(block) = entry.role {
+            let stale = std::mem::take(&mut entry.stale);
+            if let InstanceRole::Editor(block) = entry.role
+                && (stale || graph_moved)
+            {
                 let editable = crate::be::access(block.id).can_edit();
                 if entry.reported_editable != Some(editable) {
                     entry.reported_editable = Some(editable);
@@ -1061,10 +1054,15 @@ impl Instances {
                     }));
                 }
             }
-            opened.extend(entry.content_messages(instance));
-            entry.name_content();
-            if let Some(message) = entry.history_message(instance) {
-                opened.push(message);
+            opened.extend(entry.blocks_messages(instance));
+            if stale {
+                opened.extend(entry.content_messages(instance));
+                if let Some(message) = entry.history_message(instance) {
+                    opened.push(message);
+                }
+            }
+            if stale || graph_moved {
+                entry.name_content();
             }
             if entry.reported_focus.as_ref() != Some(&focus) {
                 entry.reported_focus = Some(focus.clone());
@@ -1403,7 +1401,7 @@ impl Instances {
             return Vec::new();
         };
         let mut changed = Vec::new();
-        let live: Vec<ChildId> = statuses.iter().map(|status| status.child).collect();
+        let live: HashSet<ChildId> = statuses.iter().map(|status| status.child).collect();
         for status in statuses {
             let status = ChildStatus {
                 instance,
@@ -1869,26 +1867,34 @@ impl Instances {
             .unwrap_or_default()
     }
 
+    pub(super) fn touch(&mut self, blocks: &HashSet<Uuid>) {
+        if blocks.is_empty() {
+            return;
+        }
+        for entry in self.entries.values_mut() {
+            if !entry.stale && blocks.iter().any(|block| entry.follows(*block)) {
+                entry.stale = true;
+            }
+        }
+    }
+
     pub(super) fn pending(&mut self) -> Vec<Message> {
         let mut messages = Vec::new();
-        let mut instances: Vec<_> = self.entries.keys().copied().collect();
-        instances.sort_by_key(|instance| instance.0);
-        for instance in instances {
-            let entry = self.entries.get_mut(&instance).unwrap();
-            let mut waiting = std::mem::take(&mut entry.pending);
-            waiting.retain_mut(|pending| {
-                let Some(reply) = pending.work.poll() else {
-                    return true;
-                };
+        while let Ok(reply) = self.replies.receiver.try_recv() {
+            if reply.epoch == self.epoch && self.entries.contains_key(&reply.instance) {
                 messages.push(Message::Editor(EditorMessage::Replied {
-                    instance,
-                    request_id: pending.request_id,
-                    reply,
+                    instance: reply.instance,
+                    request_id: reply.request_id,
+                    reply: reply.reply,
                 }));
-                false
-            });
-            let entry = self.entries.get_mut(&instance).unwrap();
-            entry.pending = waiting;
+            }
+        }
+        let mut pasted: Vec<_> = std::mem::take(&mut self.pasted).into_iter().collect();
+        pasted.sort_by_key(|instance| instance.0);
+        for instance in pasted {
+            let Some(entry) = self.entries.get_mut(&instance) else {
+                continue;
+            };
             let texts = std::mem::take(&mut entry.text_pastes);
             if !texts.is_empty()
                 && let Some(screen) = entry
@@ -1903,19 +1909,20 @@ impl Instances {
                     events: texts,
                 }));
             }
-            let entry = self.entries.get_mut(&instance).unwrap();
-            if let Some(player) = &entry.audio {
-                let status = player.status();
-                if status.playing {
-                    host::request_repaint();
-                }
-                if status != entry.reported_audio {
-                    entry.reported_audio.clone_from(&status);
-                    messages.push(Message::Editor(EditorMessage::AudioStatus {
-                        instance,
-                        status,
-                    }));
-                }
+        }
+        let mut played: Vec<_> = self.audio_changes.receiver.try_iter().collect();
+        played.sort_by_key(|instance| instance.0);
+        played.dedup();
+        for instance in played {
+            if let Some(player) = self
+                .entries
+                .get(&instance)
+                .and_then(|entry| entry.audio.as_ref())
+            {
+                messages.push(Message::Editor(EditorMessage::AudioStatus {
+                    instance,
+                    status: player.status(),
+                }));
             }
         }
         messages
@@ -1927,39 +1934,75 @@ impl Instances {
         request_id: u64,
         request: HostRequest,
     ) -> bool {
-        let fetch = match &request {
-            HostRequest::Fetch(url) => Some(match allowed(url, &self.network) {
-                true => Fetch::get(url.clone(), Vec::new()),
-                false => Fetch::answered(Err(format!("{REFUSED} {url}"))),
-            }),
-            _ => None,
-        };
-        let plugin_id = &self.plugin_id;
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
         };
-        let work = match request {
-            HostRequest::PickFile(filter) => Work::Pick(host::pick_file(beui::FileFilter {
-                name: filter.name,
-                extensions: filter.extensions,
-                mime_types: filter.mime_types,
-            })),
+        let sender = self.replies.sender.clone();
+        let epoch = self.epoch;
+        let reply = move |reply: HostReply| {
+            let _ = sender.send(Reply {
+                epoch,
+                instance,
+                request_id,
+                reply,
+            });
+        };
+        match request {
+            HostRequest::PickFile(filter) => {
+                let filter = beui::FileFilter {
+                    name: filter.name,
+                    extensions: filter.extensions,
+                    mime_types: filter.mime_types,
+                };
+                host::pick_file(filter, move |picked| {
+                    reply(HostReply::FilePicked(match picked {
+                        Ok(Some(file)) => FilePick::Chosen {
+                            name: file.name,
+                            data: file.data,
+                        },
+                        Ok(None) => FilePick::Cancelled,
+                        Err(error) => FilePick::Failed(error),
+                    }));
+                });
+            }
             HostRequest::SaveFile(file) => {
-                let mut saver = FileSaver::default();
-                saver.save(SavedFile {
+                let file = SavedFile {
                     name: file.name,
                     mime_type: file.mime_type,
                     data: file.data,
+                };
+                save_file(file, move |saved| {
+                    reply(HostReply::FileSaved(match saved {
+                        Ok(true) => FileSave::Saved,
+                        Ok(false) => FileSave::Cancelled,
+                        Err(error) => FileSave::Failed(error),
+                    }));
                 });
-                Work::Save(saver)
             }
-            HostRequest::PasteImage => Work::Paste(super::clipboard::read_clipboard_image()),
-            HostRequest::Fetch(_) => match fetch {
-                Some(fetch) => Work::Fetch(fetch),
-                None => return false,
-            },
-            HostRequest::ListData => Work::ListData(discovery::data_listing(plugin_id)),
-            HostRequest::ReadData(path) => Work::ReadData(discovery::data(plugin_id, &path)),
+            HostRequest::PasteImage => reply(HostReply::ImagePasted(
+                super::clipboard::read_clipboard_image(),
+            )),
+            HostRequest::Fetch(url) => {
+                let fetched = move |body: Result<Vec<u8>, String>| {
+                    reply(HostReply::Fetched(fetch_result(body)));
+                };
+                match allowed(&url, &self.network) {
+                    true => http::fetch(url, Vec::new(), fetched),
+                    false => fetched(Err(format!("{REFUSED} {url}"))),
+                }
+            }
+            HostRequest::ListData => discovery::data_listing(&self.plugin_id, move |index| {
+                reply(HostReply::DataListed(match index {
+                    Ok(index) => match serde_json::from_slice(&index) {
+                        Ok(files) => DataListing::Files(files),
+                        Err(error) => DataListing::Failed(format!("the data index is {error}")),
+                    },
+                    Err(error) => DataListing::Failed(error),
+                }));
+            }),
+            HostRequest::ReadData(path) => discovery::data(&self.plugin_id, &path, move |body| {
+                reply(HostReply::DataRead(fetch_result(body)));
+            }),
             HostRequest::PickBlock(filter) => {
                 entry.block_picks.push(BlockPickRequest {
                     request_id,
@@ -1978,10 +2021,8 @@ impl Instances {
                         block_plugin_api::BlockLocation::Detached => None,
                     }),
                 });
-                return true;
             }
-        };
-        entry.pending.push(Pending { request_id, work });
+        }
         true
     }
 
@@ -2038,6 +2079,7 @@ impl Instances {
                     return false;
                 };
                 entry.history_watch = blocks.into_iter().map(Uuid::from_bytes).collect();
+                entry.stale = true;
                 true
             }
             EditorMessage::WatchArtifacts { instance, blocks } => {
@@ -2109,6 +2151,9 @@ impl Instances {
                     return false;
                 };
                 link.sent = None;
+                if let Some(entry) = self.entries.get_mut(&instance) {
+                    entry.stale = true;
+                }
                 true
             }
             EditorMessage::VersionControl {
@@ -2267,7 +2312,12 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                let player = entry.audio.get_or_insert_with(AudioPlayer::new);
+                let changes = self.audio_changes.sender.clone();
+                let player = entry.audio.get_or_insert_with(|| {
+                    AudioPlayer::new(move || {
+                        let _ = changes.send(instance);
+                    })
+                });
                 match command {
                     AudioCommand::Reset => player.reset(),
                     AudioCommand::Toggle => {
@@ -2355,6 +2405,7 @@ impl Instances {
                         .text_pastes
                         .extend(block_plugin_api::paste_events(&text));
                 }
+                self.pasted.insert(instance);
                 true
             }
             EditorMessage::ChildReplaced {
@@ -2662,6 +2713,13 @@ fn ratio(current: f32, published: f32) -> f32 {
     match published > 0.0 && current > 0.0 {
         true => current / published,
         false => 1.0,
+    }
+}
+
+fn fetch_result(body: Result<Vec<u8>, String>) -> FetchResult {
+    match body {
+        Ok(body) => FetchResult::Body(body),
+        Err(error) => FetchResult::Failed(error),
     }
 }
 

@@ -54,6 +54,7 @@ impl HeadlessPlugin {
                 continue;
             };
             frames.push((*placement, session.run(placement.region, layout.generation)));
+            self.screens.ran(placement.instance);
         }
         frames
     }

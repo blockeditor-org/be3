@@ -2,7 +2,6 @@ use beui::styled::DocumentTheme;
 use std::{
     cell::RefCell,
     collections::HashSet,
-    rc::Rc,
     sync::{
         OnceLock,
         mpsc::{self, Receiver, SendError},
@@ -269,16 +268,20 @@ impl Default for Frame {
 }
 
 pub(crate) fn begin(context: &beui::Context, document: &Document) {
+    let mut picked = Vec::new();
     with(|host| {
         host.waiting_picks
-            .retain(|(id, slot)| match context.take_file_pick(*id) {
+            .retain_mut(|(id, slot)| match context.take_file_pick(*id) {
                 Some(pick) => {
-                    *slot.borrow_mut() = Some(pick);
+                    picked.extend(slot.take().map(|deliver| (deliver, pick)));
                     false
                 }
                 None => true,
             });
     });
+    for (deliver, pick) in picked {
+        deliver(pick);
+    }
     let mut frame = context.screen_input(|input| {
         let touch = &input.touch;
         Frame {
@@ -646,12 +649,14 @@ pub(crate) fn copy_text(text: String) {
     with(|host| host.output.copied = Some(text));
 }
 
-pub(crate) type PickSlot = Rc<RefCell<Option<FilePick>>>;
+type PickSlot = Option<Box<dyn FnOnce(FilePick)>>;
 
-pub(crate) fn pick_file(filter: FileFilter) -> PickSlot {
-    let slot = PickSlot::default();
-    with(|host| host.output.file_picks.push((filter, Rc::clone(&slot))));
-    slot
+pub(crate) fn pick_file(filter: FileFilter, deliver: impl FnOnce(FilePick) + 'static) {
+    with(|host| {
+        host.output
+            .file_picks
+            .push((filter, Some(Box::new(deliver))))
+    });
 }
 
 pub(crate) fn request_repaint() {

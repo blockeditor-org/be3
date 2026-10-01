@@ -271,6 +271,9 @@ impl Runtime {
             self.requested_at = Some(self.now());
             messages.push(Message::DrawFrame);
         }
+        if self.requested_at.is_some() {
+            host::request_repaint_after(Duration::from_secs_f64(FRAME_TIMEOUT_SECONDS));
+        }
         self.send(messages);
     }
 
@@ -318,6 +321,9 @@ impl Runtime {
         }
         self.deliver();
         self.session.tick(now);
+        if let Some(deadline) = self.session.next_deadline() {
+            host::request_repaint_after(Duration::from_millis(deadline.saturating_sub(now)));
+        }
         match self.session.state() {
             SessionState::Idle | SessionState::Starting | SessionState::Running => {}
             state => {
@@ -1008,10 +1014,12 @@ pub(crate) fn poll() {
             }
         }
     }
+    let touched = crate::be::take_touched();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         let overlay = std::mem::take(&mut host.overlay);
         for runtime in host.runtimes.values_mut() {
+            runtime.instances.touch(&touched);
             runtime.detect_error();
             runtime.pump();
             runtime.begin_frame(pass, &overlay);

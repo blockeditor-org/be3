@@ -1,18 +1,14 @@
-use std::sync::mpsc::Sender;
-
 use block_plugin_api::WebViewEvent;
+
+use crate::host::WakingSender;
 
 use super::Bounds;
 
 pub(super) enum WebView {}
 
 impl WebView {
-    pub(super) fn new(_url: &str, _events: &Sender<WebViewEvent>) -> Result<Self, String> {
+    pub(super) fn new(_url: &str, _events: &WakingSender<WebViewEvent>) -> Result<Self, String> {
         Err("The embedded browser is not supported on this platform.".to_owned())
-    }
-
-    pub(super) fn url(&self) -> Option<String> {
-        match *self {}
     }
 
     pub(super) fn load_url(&self, _url: &str) -> Result<(), String> {
