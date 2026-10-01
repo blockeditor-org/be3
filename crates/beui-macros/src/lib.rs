@@ -1015,6 +1015,11 @@ impl Parse for ViewAttr {
         } else {
             parse_unbraced_value(input)?
         };
+        if input.peek(Token![.]) || input.peek(Token![?]) || input.peek(syn::token::Bracket) {
+            return Err(input.error(format!(
+                "wrap a value that goes on past a literal, a path or a call in braces: `{key}={{...}}`"
+            )));
+        }
         Ok(ViewAttr { key, value })
     }
 }

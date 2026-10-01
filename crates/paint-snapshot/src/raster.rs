@@ -33,7 +33,23 @@ pub fn render(snapshot: &Snapshot, frame: usize) -> Result<RgbaImage, String> {
                 outline(&mut canvas, rect);
             }
             Content::RoundedRect(shape) => {
-                rounded(&mut canvas, exact(primitive.clip, scale), shape, scale);
+                let corners = [shape.corner_radius; 4];
+                rounded(
+                    &mut canvas,
+                    exact(primitive.clip, scale),
+                    shape,
+                    corners,
+                    scale,
+                );
+            }
+            Content::CorneredRect(shape, corners) => {
+                rounded(
+                    &mut canvas,
+                    exact(primitive.clip, scale),
+                    shape,
+                    *corners,
+                    scale,
+                );
             }
             Content::Glyph(glyph) => {
                 let sampler = textures
@@ -56,9 +72,15 @@ fn exact(rect: [f32; 4], scale: f32) -> [f32; 4] {
     rect.map(|value| value * scale)
 }
 
-fn rounded(canvas: &mut RgbaImage, clip: [f32; 4], shape: &RoundedRect, scale: f32) {
+fn rounded(
+    canvas: &mut RgbaImage,
+    clip: [f32; 4],
+    shape: &RoundedRect,
+    corners: [f32; 4],
+    scale: f32,
+) {
     let rect = exact(shape.rect, scale);
-    let radius = shape.corner_radius * scale;
+    let corners = corners.map(|radius| radius * scale);
     let width = shape.stroke_width * scale;
     let turn = shape.turn.scaled(scale);
     let center = [(rect[0] + rect[2]) * 0.5, (rect[1] + rect[3]) * 0.5];
@@ -66,8 +88,14 @@ fn rounded(canvas: &mut RgbaImage, clip: [f32; 4], shape: &RoundedRect, scale: f
     let bled = turn.swept([rect[0] - 1.0, rect[1] - 1.0, rect[2] + 1.0, rect[3] + 1.0]);
     cover(canvas, clip, bled, shape.color, |point| {
         let point = turn.undo(point);
-        let mut distance =
-            rounded_distance([point[0] - center[0], point[1] - center[1]], extent, radius);
+        let offset = [point[0] - center[0], point[1] - center[1]];
+        let radius = match (offset[0] < 0.0, offset[1] < 0.0) {
+            (true, true) => corners[0],
+            (false, true) => corners[1],
+            (false, false) => corners[2],
+            (true, false) => corners[3],
+        };
+        let mut distance = rounded_distance(offset, extent, radius);
         if width > 0.0 {
             distance = (distance + width * 0.5).abs() - width * 0.5;
         }

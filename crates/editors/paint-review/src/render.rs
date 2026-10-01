@@ -303,7 +303,9 @@ pub fn describe(snapshot: &Snapshot, frame: usize) -> Result<String, String> {
         .flat_map(|primitive| match &primitive.content {
             Content::Mesh(triangles) => triangles.iter().map(|triangle| triangle.texture).collect(),
             Content::Glyph(glyph) => vec![glyph.texture],
-            Content::Callback(_) | Content::RoundedRect(_) => Vec::new(),
+            Content::Callback(_) | Content::RoundedRect(_) | Content::CorneredRect(..) => {
+                Vec::new()
+            }
         })
         .collect();
     Ok(format!(

@@ -20,7 +20,7 @@ fn a_selected_light_is_ringed_where_it_sits() {
                 corner_radius,
                 stroke_width,
                 ..
-            } if *stroke_width > 0.0 => Some((rect.center(), *corner_radius)),
+            } if *stroke_width > 0.0 => Some((rect.center(), corner_radius.largest())),
             _ => None,
         })
         .collect();

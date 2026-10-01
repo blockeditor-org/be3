@@ -73,6 +73,10 @@ pub trait Element: Any {
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects);
 
+    fn baseline(&self, _doc: &mut Document, _painter: &Painter, _available: Vec2) -> Option<f32> {
+        None
+    }
+
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect);
 
     fn unplaced(&mut self, _doc: &mut Document) {}

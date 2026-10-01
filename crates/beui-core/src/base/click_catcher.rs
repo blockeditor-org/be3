@@ -262,6 +262,10 @@ impl Element for ClickCatcherNode {
         }
     }
 
+    fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
+        crate::layout::baseline(doc, painter, self.child?, available)
+    }
+
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);

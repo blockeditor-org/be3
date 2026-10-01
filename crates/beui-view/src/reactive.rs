@@ -4,7 +4,7 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-pub use beui_core::base::{Align, Direction, ItemSize};
+pub use beui_core::base::{Align, Direction, ItemSize, Justify, Sizing, Track};
 
 use beui_core::base::child_list::{ChildHost, ChildList, SlotId};
 use beui_core::base::list::{ListItem, ListNode};
@@ -466,6 +466,30 @@ impl<T: Clone + PartialEq + 'static> IntoProp<Option<T>> for Memo<T> {
     }
 }
 
+impl IntoProp<Sizing> for ItemSize {
+    fn into_prop(self) -> Prop<Sizing> {
+        Prop::Static(self.into())
+    }
+}
+
+impl IntoProp<Sizing> for Prop<ItemSize> {
+    fn into_prop(self) -> Prop<Sizing> {
+        self.map(Sizing::from)
+    }
+}
+
+impl IntoProp<Sizing> for ReadSignal<ItemSize> {
+    fn into_prop(self) -> Prop<Sizing> {
+        Prop::Dynamic(Rc::new(move || self.get().into()))
+    }
+}
+
+impl IntoProp<Sizing> for Memo<ItemSize> {
+    fn into_prop(self) -> Prop<Sizing> {
+        Prop::Dynamic(Rc::new(move || self.get().into()))
+    }
+}
+
 pub type Child = NodeId;
 
 #[diagnostic::on_unimplemented(
@@ -533,18 +557,18 @@ impl ChildScope {
 
 pub struct ListChild {
     pub node: NodeId,
-    pub size: Prop<ItemSize>,
+    pub size: Prop<Sizing>,
 }
 
 impl ListChild {
-    pub fn new(node: NodeId, size: impl IntoProp<ItemSize>) -> Self {
+    pub fn new(node: NodeId, size: impl IntoProp<Sizing>) -> Self {
         Self {
             node,
             size: size.into_prop(),
         }
     }
 
-    fn watch(self, parent: Option<NodeId>) -> (NodeId, ItemSize) {
+    fn watch(self, parent: Option<NodeId>) -> (NodeId, Sizing) {
         let initial = self.size.peek();
         let ListChild { node, size } = self;
         if let (Some(parent), Prop::Dynamic(read)) = (parent, size) {
@@ -595,7 +619,7 @@ impl IntoChild<NodeId> for NodeId {
 
 impl IntoChild<ListChild> for NodeId {
     fn into_child(self) -> ListChild {
-        ListChild::new(self, ItemSize::Intrinsic)
+        ListChild::new(self, Sizing::default())
     }
 }
 
@@ -1294,6 +1318,8 @@ pub use crate::components::drawing::Drawing;
 pub use crate::components::embed::Embed;
 pub use crate::components::focusable::Focusable;
 pub use crate::components::frame::Frame;
+pub use crate::components::grid::{Grid, GridCell};
+pub use crate::components::layers::{Layer, Layers};
 pub use crate::components::offset::Offset;
 pub use crate::components::picture::Picture;
 pub use crate::components::portal::Portal;
@@ -1312,6 +1338,7 @@ pub use beui_core::rich::{
 pub fn List(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = Align::Stretch)] align: Prop<Align>,
+    #[prop(default = Justify::Start)] justify: Prop<Justify>,
     #[prop(default = false)] wrap: Prop<bool>,
     spacing: Prop<f32>,
     children: Children<ListChild>,
@@ -1321,6 +1348,7 @@ pub fn List(
         with_document(|document| document.set_list_direction(list, direction.get()))
     });
     create_effect(move || with_document(|document| document.set_list_align(list, align.get())));
+    create_effect(move || with_document(|document| document.set_list_justify(list, justify.get())));
     create_effect(move || with_document(|document| document.set_list_wrap(list, wrap.get())));
     create_effect(move || with_document(|document| document.set_list_spacing(list, spacing.get())));
     children.mount(list);

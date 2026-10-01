@@ -1,4 +1,5 @@
 use super::*;
+use crate::base::frame::Sides;
 use crate::reactive::{ForEach, Frame, NodeRef, build, view};
 use crate::unstyled::Scroll;
 
@@ -38,7 +39,9 @@ fn resizing_rows_preserves_the_scroll_anchor() {
     assert_eq!(top, -9.0);
 
     for &row in &rows[..10] {
-        harness.document.set_frame_padding(row, 0.0, 5.0);
+        harness
+            .document
+            .set_frame_padding(row, Sides::symmetric(0.0, 5.0));
     }
     harness.frame(Vec::new());
 

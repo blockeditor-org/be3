@@ -41,6 +41,10 @@ impl Element for BackNode {
         }
     }
 
+    fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
+        crate::layout::baseline(doc, painter, self.child?, available)
+    }
+
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         if let Some(child) = self.child {
             let rect = rect.translate(self.progress.shift(rect.width()));

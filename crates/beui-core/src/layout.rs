@@ -29,6 +29,25 @@ pub fn measure(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec
     size
 }
 
+pub fn baseline(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec2) -> Option<f32> {
+    measure(doc, painter, id, available);
+    if !doc.arena.contains(id) {
+        return None;
+    }
+    if let Some(baseline) = doc.measured_baseline(id, available) {
+        return baseline;
+    }
+    let watermark = doc.arena.layout_revision;
+    let element = doc.arena.take(id);
+    let outer = doc.enter_measure(id);
+    let baseline = element.baseline(doc, painter, available);
+    doc.leave_measure(outer);
+    doc.arena.put_back(id, element);
+    let baseline = baseline.map(|baseline| doc.pixel_grid().snap(baseline));
+    doc.remember_baseline(id, available, baseline, watermark);
+    baseline
+}
+
 pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out: &Rects) {
     if !doc.arena.contains(id) {
         return;

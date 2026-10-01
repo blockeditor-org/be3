@@ -434,6 +434,20 @@ impl Element for TextNode {
         }
     }
 
+    fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
+        match &self.rich {
+            Some(rich) => {
+                let layout = self.rich_layout(doc, painter, rich, available.x);
+                layout.lines.first().map(|line| line.top + line.baseline)
+            }
+            None => {
+                let galley = self.galley(painter, &self.content, available.x);
+                let top = galley.lines().first().map_or(0.0, |line| line.top);
+                Some(top + galley.baseline())
+            }
+        }
+    }
+
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         match self.rich.take() {
             Some(rich) => {
@@ -676,6 +690,10 @@ impl Element for TextItemNode {
             Some(child) => crate::layout::measure(doc, painter, child, available),
             None => Vec2::ZERO,
         }
+    }
+
+    fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
+        crate::layout::baseline(doc, painter, self.child?, available)
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {

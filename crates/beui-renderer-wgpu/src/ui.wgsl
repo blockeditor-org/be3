@@ -67,6 +67,13 @@ fn rounded_distance(point: vec2<f32>, extent: vec2<f32>, radius: f32) -> f32 {
     return min(max(offset.x, offset.y), 0.0) + length(max(offset, vec2<f32>(0.0))) - limit;
 }
 
+fn corner_radius(offset: vec2<f32>, radii: vec4<f32>) -> f32 {
+    if offset.y < 0.0 {
+        return select(radii.y, radii.x, offset.x < 0.0);
+    }
+    return select(radii.z, radii.w, offset.x < 0.0);
+}
+
 @vertex
 fn vertex(@builtin(vertex_index) index: u32, instance: Instance) -> Fragment {
     let shift = vec4<f32>(space.translation, space.translation);
@@ -127,7 +134,9 @@ fn fragment(input: Fragment) -> @location(0) vec4<f32> {
     } else {
         let center = (input.rect.xy + input.rect.zw) * 0.5;
         let extent = (input.rect.zw - input.rect.xy) * 0.5;
-        var distance = rounded_distance(local - center, extent, input.params.x);
+        let offset = local - center;
+        let radius = corner_radius(offset, input.segment);
+        var distance = rounded_distance(offset, extent, radius);
         let width = input.params.y;
         if width > 0.0 {
             distance = abs(distance + width * 0.5) - width * 0.5;
