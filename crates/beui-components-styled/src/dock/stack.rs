@@ -93,13 +93,15 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <Show condition={away}>
-                        <IconButton
-                            @test_id={"dock.back"}
-                            glyph=ICON_ARROW_BACK
-                            label="Back"
-                            variant=ButtonVariant::Ghost
-                            on_click={move || back.call()}
-                        />
+                        {move || clone!(back -> view! {
+                            <IconButton
+                                @test_id={"dock.back"}
+                                glyph=ICON_ARROW_BACK
+                                label="Back"
+                                variant=ButtonVariant::Ghost
+                                on_click={move || back.call()}
+                            />
+                        })}
                     </Show>
                     <Frame @sizing=ItemSize::Percent(100.0) padding_horizontal=TITLE_PADDING>
                         <List
@@ -108,7 +110,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             spacing=TITLE_SPACING
                         >
                             <Show condition={pictured}>
-                                <Icon glyph={icon} color={theme.accent.clone()} />
+                                <Icon glyph={icon.clone()} color={theme.accent.clone()} />
                             </Show>
                             <Text
                                 @sizing=ItemSize::Percent(100.0)
@@ -123,7 +125,12 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     <Portal node={actions} />
                     <DockMenu menu size=IconButtonSize::Regular />
                     <Show condition={counted}>
-                        <DockTabCount count on_click={move || opening.set(true)} />
+                        {move || clone!(opening -> view! {
+                            <DockTabCount
+                                count={count.clone()}
+                                on_click={move || opening.set(true)}
+                            />
+                        })}
                     </Show>
                 </List>
             </Frame>
@@ -235,19 +242,21 @@ fn DockSwitcher(switching: Switching, home: Memo<Option<TabId>>) -> NodeId {
                 </List>
             </Frame>
             <Show condition={homed}>
-                <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
-                    <ActionRow
-                        @test_id={"dock.switcher.home"}
-                        label={home_title}
-                        glyph={home_icon}
-                        on_click={move || {
-                            going.set_open.set(false);
-                            if let Some(home) = home.get_untracked() {
-                                going.show.call(home);
-                            }
-                        }}
-                    />
-                </Frame>
+                {move || clone!(going home home_icon home_title -> view! {
+                    <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
+                        <ActionRow
+                            @test_id={"dock.switcher.home"}
+                            label={home_title}
+                            glyph={home_icon}
+                            on_click={move || {
+                                going.set_open.set(false);
+                                if let Some(home) = home.get_untracked() {
+                                    going.show.call(home);
+                                }
+                            }}
+                        />
+                    </Frame>
+                })}
             </Show>
         </List>
     }
@@ -345,13 +354,15 @@ fn DockSwitcherCard(switching: Switching, tab: TabId) -> NodeId {
                     </Frame>
                 </ListRow>
                 <Show condition={closable}>
-                    <IconButton
-                        @test_id={format!("dock.switcher.close.{id}")}
-                        glyph=ICON_CLOSE
-                        label="Close tab"
-                        variant=ButtonVariant::Ghost
-                        on_click={move || close.call(tab)}
-                    />
+                    {move || clone!(close -> view! {
+                        <IconButton
+                            @test_id={format!("dock.switcher.close.{id}")}
+                            glyph=ICON_CLOSE
+                            label="Close tab"
+                            variant=ButtonVariant::Ghost
+                            on_click={move || close.call(tab)}
+                        />
+                    })}
                 </Show>
             </List>
         </Frame>

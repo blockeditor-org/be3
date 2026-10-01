@@ -430,11 +430,11 @@ fn RowText(
                 }}
             </ForEach>
             <Show condition={anchored}>
-                {move || view! {
-                    <TextItem at={anchor_position.clone()}>
-                        <Portal node={anchor_node.clone()} />
+                {move || clone!(anchor_position anchor_node -> view! {
+                    <TextItem at={anchor_position}>
+                        <Portal node={anchor_node} />
                     </TextItem>
-                }}
+                })}
             </Show>
         </Text>
     }
@@ -569,16 +569,19 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
         >
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Show condition={has_icon}>
-                    {move || view! {
-                        <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
-                            <Text
-                                string={icon.clone()}
-                                icon=true
-                                font_size=16.0
-                                color={Color32::WHITE}
-                                align=TextAlign::Center
-                            />
-                        </Frame>
+                    {move || {
+                        let icon = icon.clone();
+                        view! {
+                            <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
+                                <Text
+                                    string={icon}
+                                    icon=true
+                                    font_size=16.0
+                                    color={Color32::WHITE}
+                                    align=TextAlign::Center
+                                />
+                            </Frame>
+                        }
                     }}
                 </Show>
                 <Text

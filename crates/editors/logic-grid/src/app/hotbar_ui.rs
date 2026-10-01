@@ -528,26 +528,30 @@ pub(super) fn ToolSettings(session: Rc<Session>) -> NodeId {
     view! {
         <List spacing=SPACING>
             <Show condition={single}>
-                <List spacing=4.0>
-                    <Caption content="Scale" />
-                    <ScalePicker session={Rc::clone(&session)} output=false />
-                </List>
+                {move || clone!(session -> view! {
+                    <List spacing=4.0>
+                        <Caption content="Scale" />
+                        <ScalePicker session={Rc::clone(&session)} output=false />
+                    </List>
+                })}
             </Show>
             <Show condition={merger}>
-                <List spacing=4.0>
-                    <Caption content="Input scale" />
-                    <ScalePicker session={input_session} output=false />
-                    <Caption content="Output scale" />
-                    <ScalePicker session={output_session} output=true />
-                </List>
+                {move || clone!(input_session output_session -> view! {
+                    <List spacing=4.0>
+                        <Caption content="Input scale" />
+                        <ScalePicker session={input_session} output=false />
+                        <Caption content="Output scale" />
+                        <ScalePicker session={output_session} output=true />
+                    </List>
+                })}
             </Show>
             <Show condition={labelled}>
                 <TextInput
-                    value={label}
+                    value={label.clone()}
                     label="Label"
                     placeholder="Label"
                     @test_id={"logic-grid.io-label"}
-                    on_change={typed}
+                    on_change={typed.clone()}
                 />
             </Show>
             <Caption content="Middle drag or wheel: pan" />

@@ -64,7 +64,7 @@ pub(crate) fn MapToolbar(state: Rc<MapState>, shown: Prop<bool>) -> NodeId {
                 on_click={move || reload.reload_tiles()}
             />
             <Show condition={failed}>
-                <Caption content={reason} color={theme.danger.clone()} />
+                <Caption content={reason.clone()} color={theme.danger.clone()} />
             </Show>
         </Toolbar>
     }

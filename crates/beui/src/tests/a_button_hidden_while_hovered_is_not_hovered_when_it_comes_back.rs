@@ -1,6 +1,7 @@
 use super::*;
 use crate::reactive::{
-    List, ReadSignal, Show, Text, WriteSignal, build, create_signal, view, with_reactive_scope,
+    List, ReadSignal, ShowKeepAlive, Text, WriteSignal, build, create_signal, view,
+    with_reactive_scope,
 };
 use crate::unstyled::ButtonHandle;
 
@@ -22,7 +23,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
         let hovering = sink.clone();
         view! {
             <List spacing=0.0>
-                <Show condition={shown}>
+                <ShowKeepAlive condition={shown}>
                     <unstyled::Button
                         @test_id={"hidden.button"}
                         on_click={|| {}}
@@ -35,7 +36,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
                             }
                         }}
                     />
-                </Show>
+                </ShowKeepAlive>
             </List>
         }
     });

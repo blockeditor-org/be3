@@ -129,21 +129,25 @@ fn TextInputFrame(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     <Show condition={marked}>
-                        <Frame padding_left=PADDING_HORIZONTAL>
-                            <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
-                        </Frame>
+                        {move || clone!(glyph theme -> view! {
+                            <Frame padding_left=PADDING_HORIZONTAL>
+                                <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
+                            </Frame>
+                        })}
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
-                        <Frame padding_horizontal=CLEAR_PADDING>
-                            <IconButton
-                                glyph={ICON_CLOSE.to_owned()}
-                                label="Clear"
-                                size=IconButtonSize::Compact
-                                press_focus=false
-                                on_click={move || on_clear.call()}
-                            />
-                        </Frame>
+                        {move || clone!(on_clear -> view! {
+                            <Frame padding_horizontal=CLEAR_PADDING>
+                                <IconButton
+                                    glyph={ICON_CLOSE.to_owned()}
+                                    label="Clear"
+                                    size=IconButtonSize::Compact
+                                    press_focus=false
+                                    on_click={move || on_clear.call()}
+                                />
+                            </Frame>
+                        })}
                     </Show>
                 </List>
             </Frame>

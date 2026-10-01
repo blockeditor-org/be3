@@ -178,20 +178,28 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
     view! {
         <List spacing=8.0>
             <Show condition={fitted}>
-                <Interactive @sizing=ItemSize::Percent(100.0) cursor={cursor} on_click={zoom_in}>
-                    <Picture image={whole} fit=ImageFit::ScaleDown smooth={shrunk.clone()} />
-                </Interactive>
+                {move || clone!(shrunk whole -> view! {
+                    <Interactive
+                        @sizing=ItemSize::Percent(100.0)
+                        cursor={cursor.clone()}
+                        on_click={zoom_in.clone()}
+                    >
+                        <Picture image={whole} fit=ImageFit::ScaleDown smooth={shrunk.clone()} />
+                    </Interactive>
+                })}
             </Show>
             <Show condition={zoomed}>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Scroll direction=Direction::Horizontal>
-                        <Interactive cursor=CursorIcon::PointingHand on_click={zoom_out}>
-                            <Frame width={width} height={height}>
-                                <Picture image={picture} fit=ImageFit::Fill smooth=false />
-                            </Frame>
-                        </Interactive>
+                {move || clone!(height picture width zoom_out -> view! {
+                    <Scroll @sizing=ItemSize::Percent(100.0)>
+                        <Scroll direction=Direction::Horizontal>
+                            <Interactive cursor=CursorIcon::PointingHand on_click={zoom_out}>
+                                <Frame width={width} height={height}>
+                                    <Picture image={picture} fit=ImageFit::Fill smooth=false />
+                                </Frame>
+                            </Interactive>
+                        </Scroll>
                     </Scroll>
-                </Scroll>
+                })}
             </Show>
             <Caption @sizing=ItemSize::Fixed(HINT_HEIGHT) content={hint} align=TextAlign::Center />
         </List>

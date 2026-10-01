@@ -41,24 +41,26 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
                 </Frame>
             </Show>
             <Show condition={loaded}>
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                    <GridToolbar session={Rc::clone(&session)} shown={chrome} />
-                    <List
-                        @sizing=ItemSize::Percent(100.0)
-                        direction=Direction::Horizontal
-                        spacing=0.0
-                    >
-                        <Sidebar side=Side::Left shown={left_chrome} width=HOTBAR_WIDTH>
-                            <Hotbar session={hotbar_session} />
-                            <Separator />
-                            <ToolSettings session={settings_session} />
-                        </Sidebar>
-                        <GridCanvas @sizing=ItemSize::Percent(100.0) session={canvas_session} />
-                        <Sidebar shown={right_chrome}>
-                            <Panels session={panels_session} />
-                        </Sidebar>
+                {move || clone!(canvas_session chrome hotbar_session left_chrome panels_session right_chrome session settings_session -> view! {
+                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                        <GridToolbar session={Rc::clone(&session)} shown={chrome} />
+                        <List
+                            @sizing=ItemSize::Percent(100.0)
+                            direction=Direction::Horizontal
+                            spacing=0.0
+                        >
+                            <Sidebar side=Side::Left shown={left_chrome} width=HOTBAR_WIDTH>
+                                <Hotbar session={hotbar_session} />
+                                <Separator />
+                                <ToolSettings session={settings_session} />
+                            </Sidebar>
+                            <GridCanvas @sizing=ItemSize::Percent(100.0) session={canvas_session} />
+                            <Sidebar shown={right_chrome}>
+                                <Panels session={panels_session} />
+                            </Sidebar>
+                        </List>
                     </List>
-                </List>
+                })}
             </Show>
         </List>
     }
@@ -132,15 +134,15 @@ fn GridToolbar(session: Rc<Session>, shown: ReadSignal<bool>) -> NodeId {
                 on_click={compile}
             />
             <Show condition={challenged}>
-                <Body content={challenge} />
+                <Body content={challenge.clone()} />
             </Show>
             <Show condition={misplaced}>
-                <Caption content={problem_text} color={problem_color} />
+                <Caption content={problem_text.clone()} color={problem_color.clone()} />
             </Show>
             <Show condition={failed}>
                 <Caption
-                    content={compile_error}
-                    color={error_color}
+                    content={compile_error.clone()}
+                    color={error_color.clone()}
                     @test_id={"logic-grid.compile-error"}
                 />
             </Show>

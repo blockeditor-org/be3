@@ -55,13 +55,13 @@ fn WorkspaceBody(view: AppViewStore) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={normal.clone()}>
-                <WorkspaceDock @sizing=ItemSize::Percent(100.0) view={docked} />
+                <WorkspaceDock @sizing=ItemSize::Percent(100.0) view={docked.clone()} />
             </Show>
             <Show condition={barred.clone()}>
                 <Separator />
             </Show>
             <Show condition={barred}>
-                <StatusBar status />
+                <StatusBar status={status.clone()} />
             </Show>
             <ModalSheet
                 open={menu}

@@ -30,7 +30,7 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
                         <Text string="toggle" />
                     </Button>
                     <Show condition=visible>
-                        <CountedPanel builds />
+                        <CountedPanel builds={builds.clone()} />
                     </Show>
                 </List>
             }
@@ -59,10 +59,9 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
     harness.frame(Vec::new());
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());
-    assert_eq!(harness.document().children(column), shown);
     assert_eq!(
         builds.get(),
-        1,
-        "hiding and showing it again must reuse the child it already built"
+        2,
+        "hiding and showing it again must build the children block afresh"
     );
 }

@@ -9,7 +9,7 @@ use beui_core::geometry::Pos2;
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Interactive, IntoProp, List, Memo, Prop, ReadSignal, Render, Show, clone,
+    Callback, Interactive, IntoProp, List, Memo, Prop, ReadSignal, Render, ShowKeepAlive, clone,
     component_accessibility, create_effect, create_memo, create_signal, set_component_state,
 };
 
@@ -218,7 +218,7 @@ pub fn NumberInput(
     });
     view! {
         <List spacing=0.0>
-            <Show condition={idle}>
+            <ShowKeepAlive condition={idle}>
                 <Interactive
                     focusable=true
                     tab_stop
@@ -234,8 +234,8 @@ pub fn NumberInput(
                     on_active_change={move |is_active: bool| set_active.set(is_active)}
                     children={Some(face)}
                 />
-            </Show>
-            <Show condition={editing}>{field}</Show>
+            </ShowKeepAlive>
+            <ShowKeepAlive condition={editing}>{field}</ShowKeepAlive>
         </List>
     }
 }

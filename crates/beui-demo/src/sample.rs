@@ -30,7 +30,7 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
             </List>
             {children}
             <Show condition={open}>
-                <CodeBlock source={source} />
+                <CodeBlock source={source.clone()} />
             </Show>
         </List>
     }

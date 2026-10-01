@@ -136,7 +136,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                         on_click={choose}
                     />
                     <Show condition={refused}>
-                        <Caption content={refusal} color={danger} />
+                        <Caption content={refusal.clone()} color={danger.clone()} />
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </Sidebar>
@@ -195,7 +195,11 @@ fn PageCanvas(
                 </ForEach>
             </Canvas>
             <Show condition={failed}>
-                <Caption content={reason} color={theme.danger.clone()} @test_id={"pdf.error"} />
+                <Caption
+                    content={reason.clone()}
+                    color={theme.danger.clone()}
+                    @test_id={"pdf.error"}
+                />
             </Show>
         </List>
     }

@@ -360,89 +360,91 @@ pub(super) fn WorkspaceDock(view: AppViewStore) -> NodeId {
                     <MainSurface @sizing=ItemSize::Percent(100.0) />
                 </Show>
                 <Show condition={tiled}>
-                    <DockArea
-                        @sizing=ItemSize::Percent(100.0)
-                        state={state}
-                        mode={mode}
-                        home={home}
-                        title={title}
-                        icon={icon}
-                        group_title={group_title}
-                        closable={closable}
-                        on_change={move |next: DockState| set_state.set(next)}
-                        on_close={|tab: TabId| {
-                            if let Some(tool) = Tool::of(tab) {
-                                tool.close();
-                            }
-                            if let Some(pane) = tab_pane(tab) {
-                                send(UiCommand::ClosePane(pane));
-                            }
-                        }}
-                        empty={move || {
-                            let offered = emptied.with(|layout| {
-                                layout.as_ref().is_some_and(|layout| layout.empty)
-                            });
-                            if !offered || claimed.replace(true) {
-                                return view! {
-                                    <Frame />
-                                };
-                            }
-                            let released = Rc::clone(&claimed);
-                            on_cleanup(move || released.set(false));
-                            view! {
-                                <PluginPane pane={EMPTY_PANE.0} />
-                            }
-                        }}
-                    >
-                        {move |tab: TabId| {
-                            let view = view.clone();
-                            let debug = view.debug.clone();
-                            if let Some(pane) = tab_pane(tab) {
-                                let wanting = wanting.clone();
-                                let menu = create_memo(move || {
-                                    wanting(pane).map(|info| info.menu).unwrap_or_default()
+                    {move || clone!(claimed emptied set_state view wanting -> view! {
+                        <DockArea
+                            @sizing=ItemSize::Percent(100.0)
+                            state={state.clone()}
+                            mode={mode.clone()}
+                            home={home.clone()}
+                            title={title.clone()}
+                            icon={icon.clone()}
+                            group_title={group_title.clone()}
+                            closable={closable.clone()}
+                            on_change={move |next: DockState| set_state.set(next)}
+                            on_close={|tab: TabId| {
+                                if let Some(tool) = Tool::of(tab) {
+                                    tool.close();
+                                }
+                                if let Some(pane) = tab_pane(tab) {
+                                    send(UiCommand::ClosePane(pane));
+                                }
+                            }}
+                            empty={move || {
+                                let offered = emptied.with(|layout| {
+                                    layout.as_ref().is_some_and(|layout| layout.empty)
                                 });
-                                return view! {
-                                    <PaneSurface pane={pane} menu={menu} />
-                                };
-                            }
-                            match Tool::of(tab) {
-                                None => view! {
-                                    <MainSurface />
-                                },
-                                Some(Tool::Debug(DebugWindow::Client)) => {
-                                    let client = create_memo(move || debug.get().client);
-                                    view! {
-                                        <ClientPanel client />
-                                    }
+                                if !offered || claimed.replace(true) {
+                                    return view! {
+                                        <Frame />
+                                    };
                                 }
-                                Some(Tool::Debug(DebugWindow::Performance)) => {
-                                    let performance = create_memo(move || debug.get().performance);
-                                    view! {
-                                        <PerformancePanel performance />
-                                    }
+                                let released = Rc::clone(&claimed);
+                                on_cleanup(move || released.set(false));
+                                view! {
+                                    <PluginPane pane={EMPTY_PANE.0} />
                                 }
-                                Some(Tool::Debug(DebugWindow::Plugins)) => {
-                                    let plugins = create_memo(move || debug.get().plugins);
-                                    view! {
-                                        <PluginsPanel plugins />
-                                    }
+                            }}
+                        >
+                            {move |tab: TabId| {
+                                let view = view.clone();
+                                let debug = view.debug.clone();
+                                if let Some(pane) = tab_pane(tab) {
+                                    let wanting = wanting.clone();
+                                    let menu = create_memo(move || {
+                                        wanting(pane).map(|info| info.menu).unwrap_or_default()
+                                    });
+                                    return view! {
+                                        <PaneSurface pane={pane} menu={menu} />
+                                    };
                                 }
-                                Some(Tool::Debug(DebugWindow::Version)) => {
-                                    let version = create_memo(move || debug.get().version);
-                                    view! {
-                                        <VersionPanel version />
+                                match Tool::of(tab) {
+                                    None => view! {
+                                        <MainSurface />
+                                    },
+                                    Some(Tool::Debug(DebugWindow::Client)) => {
+                                        let client = create_memo(move || debug.get().client);
+                                        view! {
+                                            <ClientPanel client />
+                                        }
                                     }
+                                    Some(Tool::Debug(DebugWindow::Performance)) => {
+                                        let performance = create_memo(move || debug.get().performance);
+                                        view! {
+                                            <PerformancePanel performance />
+                                        }
+                                    }
+                                    Some(Tool::Debug(DebugWindow::Plugins)) => {
+                                        let plugins = create_memo(move || debug.get().plugins);
+                                        view! {
+                                            <PluginsPanel plugins />
+                                        }
+                                    }
+                                    Some(Tool::Debug(DebugWindow::Version)) => {
+                                        let version = create_memo(move || debug.get().version);
+                                        view! {
+                                            <VersionPanel version />
+                                        }
+                                    }
+                                    Some(Tool::Invite) => view! {
+                                        <InvitePanel view />
+                                    },
+                                    Some(Tool::About) => view! {
+                                        <AboutPanel />
+                                    },
                                 }
-                                Some(Tool::Invite) => view! {
-                                    <InvitePanel view />
-                                },
-                                Some(Tool::About) => view! {
-                                    <AboutPanel />
-                                },
-                            }
-                        }}
-                    </DockArea>
+                            }}
+                        </DockArea>
+                    })}
                 </Show>
             </List>
         </Layers>

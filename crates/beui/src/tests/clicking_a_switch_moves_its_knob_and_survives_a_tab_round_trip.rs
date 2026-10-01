@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{List, NodeRef, Show, create_memo, create_signal, view};
+use crate::reactive::{List, NodeRef, ShowKeepAlive, create_memo, create_signal, view};
 use crate::styled::{Switch, switch_on};
 
 #[test]
@@ -13,9 +13,9 @@ fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {
             let condition = create_memo(move || tab.get() == 0);
             [view! {
                 <List spacing=0.0>
-                    <Show condition>
+                    <ShowKeepAlive condition>
                         <Switch @node_ref=&switch_ref on=false />
-                    </Show>
+                    </ShowKeepAlive>
                 </List>
             }]
         }

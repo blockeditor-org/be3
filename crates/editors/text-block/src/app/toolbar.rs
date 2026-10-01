@@ -199,6 +199,7 @@ pub(crate) fn FormatBar(state: Shared, formats: Vec<Action>) -> NodeId {
     let bar = move || {
         let controls = controls.clone();
         let keyboard = keyboard.clone();
+        let markdown = markdown.clone();
         view! {
             <Frame color={theme.surface.clone()}>
                 <List spacing=0.0>
@@ -357,7 +358,7 @@ fn TextSettings(state: Shared) -> NodeId {
                 </Frame>
             </List>
             <Show condition={spaces}>
-                {move || view! {
+                {move || clone!(width width_state -> view! {
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center
@@ -380,7 +381,7 @@ fn TextSettings(state: Shared) -> NodeId {
                             />
                         </Frame>
                     </List>
-                }}
+                })}
             </Show>
         </List>
     }

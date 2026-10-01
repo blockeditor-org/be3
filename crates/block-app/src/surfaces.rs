@@ -272,25 +272,27 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
                     <Heading content="Unsupported block type" align=TextAlign::Center />
                 </Show>
                 <Show condition={has_glyph}>
-                    <Icon glyph={glyph} text_size=28.0 color=color />
+                    <Icon glyph={glyph.clone()} text_size=28.0 color=color />
                 </Show>
                 <Text string={text} font_size=14.0 align=TextAlign::Center color=color italic />
                 <Show condition={unsupported}>
-                    <Caption content={detail} align=TextAlign::Center />
+                    <Caption content={detail.clone()} align=TextAlign::Center />
                 </Show>
                 <Show condition={spinning}>
                     <Spinner />
                 </Show>
                 <Show condition={restartable}>
-                    <Button
-                        label="Restart plugin"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || {
-                            if let Some(plugin) = restart.get_untracked() {
-                                host::push_command(HostCommand::RestartPlugin(plugin));
-                            }
-                        }}
-                    />
+                    {move || clone!(restart -> view! {
+                        <Button
+                            label="Restart plugin"
+                            variant=ButtonVariant::Secondary
+                            on_click={move || {
+                                if let Some(plugin) = restart.get_untracked() {
+                                    host::push_command(HostCommand::RestartPlugin(plugin));
+                                }
+                            }}
+                        />
+                    })}
                 </Show>
             </List>
         </Frame>

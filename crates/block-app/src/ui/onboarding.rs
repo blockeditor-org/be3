@@ -27,7 +27,7 @@ pub(super) fn ErrorText(text: Memo<Option<String>>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Paragraph content={content} color={theme.danger.clone()} />
+                <Paragraph content={content.clone()} color={theme.danger.clone()} />
             </Show>
         </List>
     }
@@ -339,22 +339,26 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                 />
                 <Caption content="Server" />
                 <Show condition={platform::HAS_EMBEDDED_SERVER}>
-                    <Tabs
-                        selected={remote_index}
-                        on_change={move |index: usize| set_remote.set(index == 1)}
-                        options={view! {
-                            <ChoiceOption label="Local" />
-                            <ChoiceOption label="Remote" />
-                        }}
-                    />
+                    {move || clone!(set_remote -> view! {
+                        <Tabs
+                            selected={remote_index.clone()}
+                            on_change={move |index: usize| set_remote.set(index == 1)}
+                            options={view! {
+                                <ChoiceOption label="Local" />
+                                <ChoiceOption label="Remote" />
+                            }}
+                        />
+                    })}
                 </Show>
                 <Show condition={remote}>
-                    <TextInput
-                        value={remote_url}
-                        placeholder="https://example.com"
-                        label="Server address"
-                        on_change={move |value: String| set_remote_url.set(value)}
-                    />
+                    {move || clone!(set_remote_url -> view! {
+                        <TextInput
+                            value={remote_url.clone()}
+                            placeholder="https://example.com"
+                            label="Server address"
+                            on_change={move |value: String| set_remote_url.set(value)}
+                        />
+                    })}
                 </Show>
                 <Caption content="Email address" />
                 <TextInput
@@ -364,14 +368,16 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                     on_change={move |value: String| set_email.set(value)}
                 />
                 <Show condition={register}>
-                    <List spacing=10.0>
-                        <Caption content="Display name" />
-                        <TextInput
-                            value={display_name}
-                            label="Display name"
-                            on_change={move |value: String| set_display_name.set(value)}
-                        />
-                    </List>
+                    {move || clone!(display_name set_display_name -> view! {
+                        <List spacing=10.0>
+                            <Caption content="Display name" />
+                            <TextInput
+                                value={display_name}
+                                label="Display name"
+                                on_change={move |value: String| set_display_name.set(value)}
+                            />
+                        </List>
+                    })}
                 </Show>
                 <Caption content="Password" />
                 <TextInput
@@ -496,9 +502,11 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                 }}
             </ForEach>
             <Show condition={empty}>
-                <Card>
-                    <WorkspacesPlaceholder state />
-                </Card>
+                {move || clone!(state -> view! {
+                    <Card>
+                        <WorkspacesPlaceholder state />
+                    </Card>
+                })}
             </Show>
             <Show condition={has_invitations}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>

@@ -154,10 +154,10 @@ where
                 </List>
                 <Show condition={failed}>
                     <Caption
-                        content={reason}
+                        content={reason.clone()}
                         color={theme.danger.clone()}
                         wrap=true
-                        @test_id={error_id}
+                        @test_id={error_id.clone()}
                     />
                 </Show>
             </List>

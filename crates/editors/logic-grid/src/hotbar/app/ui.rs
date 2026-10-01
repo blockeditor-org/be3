@@ -135,13 +135,13 @@ fn SlotRow(
                 <Icon glyph={ICON_FOLDER.to_owned()} color={theme.text_muted.clone()} />
             </Show>
             <Show condition={is_folder}>
-                <Body content={folder} />
+                <Body content={folder.clone()} />
             </Show>
             <Show condition={is_component.clone()}>
                 <BlockLink
-                    editor={editor}
-                    block={component}
-                    fallback={name}
+                    editor={editor.clone()}
+                    block={component.clone()}
+                    fallback={name.clone()}
                     @test_id={format!("hotbar.slot.{index}")}
                 />
             </Show>
@@ -151,9 +151,9 @@ fn SlotRow(
                 <IconButton
                     glyph={ICON_DELETE.to_owned()}
                     label="Unpin"
-                    disabled={read_only}
+                    disabled={read_only.clone()}
                     @test_id={format!("hotbar.slot.{index}.unpin")}
-                    on_click={unpin}
+                    on_click={unpin.clone()}
                 />
             </Show>
         </List>

@@ -36,7 +36,7 @@ pub fn ResponsiveTabs(
         <List spacing=0.0>
             <Show
                 condition={wide}
-                then={move || view! {
+                then={move || clone!(tab_options tab_selected tab_set tab_change -> view! {
                     <Tabs
                         options={tab_options}
                         selected={tab_selected}
@@ -45,11 +45,11 @@ pub fn ResponsiveTabs(
                             tab_change.call(index);
                         }}
                     />
-                }}
+                })}
             />
             <Show
                 condition={narrow}
-                then={move || view! {
+                then={move || clone!(options highlighted set_selected on_change -> view! {
                     <Select
                         options
                         selected={highlighted}
@@ -60,7 +60,7 @@ pub fn ResponsiveTabs(
                             }
                         }}
                     />
-                }}
+                })}
             />
         </List>
     }

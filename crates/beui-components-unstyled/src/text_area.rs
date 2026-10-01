@@ -1247,11 +1247,18 @@ pub fn TextArea(
             <List spacing=0.0>
                 <Show condition={single_line}>
                     {move || view! {
-                        <Editing @sizing=ItemSize::Percent(100.0) field />
+                        <Editing @sizing=ItemSize::Percent(100.0) field={field.clone()} />
                     }}
                 </Show>
                 <Show condition={multi_line}>
-                    {move || view! {
+                    {move || {
+                    let (width, height, strip_width, strip_height) =
+                        (width.clone(), height.clone(), strip_width.clone(), strip_height.clone());
+                    let (gutter_color, border_x, border_height, border_color) =
+                        (gutter_color.clone(), border_x.clone(), border_height.clone(), border_color.clone());
+                    let (area_width, area_height, offset, set_scroll, scrolled) =
+                        (area_width.clone(), area_height.clone(), offset.clone(), set_scroll.clone(), scrolled.clone());
+                    view! {
                         <Canvas @sizing=ItemSize::Percent(100.0) width={width} height={height}>
                             <CanvasItem x=0.0 y=0.0 width={strip_width} height={strip_height}>
                                 <Frame color={gutter_color} />
@@ -1269,6 +1276,7 @@ pub fn TextArea(
                                 </Scroll>
                             </CanvasItem>
                         </Canvas>
+                    }
                     }}
                 </Show>
                 <Show condition={menu}>

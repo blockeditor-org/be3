@@ -45,27 +45,29 @@ pub fn ViewSidebar(data: Data) -> NodeId {
     view! {
         <List spacing=SPACING>
             <Show condition={failed}>
-                <List spacing=SPACING>
-                    <Body content={message} color={theme.danger.clone()} />
-                    <List direction=Direction::Horizontal spacing=0.0>
-                        <Button
-                            label="Dismiss"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"database-view.dismiss-error"}
-                            on_click={dismiss}
-                        />
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                {move || clone!(dismiss message theme -> view! {
+                    <List spacing=SPACING>
+                        <Body content={message} color={theme.danger.clone()} />
+                        <List direction=Direction::Horizontal spacing=0.0>
+                            <Button
+                                label="Dismiss"
+                                variant=ButtonVariant::Secondary
+                                @test_id={"database-view.dismiss-error"}
+                                on_click={dismiss}
+                            />
+                            <Spacer @sizing=ItemSize::Percent(100.0) />
+                        </List>
+                        <Separator />
                     </List>
-                    <Separator />
-                </List>
+                })}
             </Show>
             <Heading content="View" />
             <ViewSwitch data={switch} />
             <Show condition={kanban}>
-                <StatusPicker data={status} />
+                <StatusPicker data={status.clone()} />
             </Show>
             <Show condition={scatter}>
-                <AxisPickers data={axes} />
+                <AxisPickers data={axes.clone()} />
             </Show>
             <Separator />
             <List direction=Direction::Horizontal spacing=0.0>
@@ -274,7 +276,7 @@ fn SelectedItem(data: Data) -> NodeId {
                         label="Deselect"
                         variant=ButtonVariant::Secondary
                         @test_id={"database-view.deselect"}
-                        on_click={deselect}
+                        on_click={deselect.clone()}
                     />
                 </Show>
             </List>
@@ -283,13 +285,13 @@ fn SelectedItem(data: Data) -> NodeId {
             </Show>
             <Show condition={editing}>
                 <DatabaseValueEditor
-                    fields={fields}
-                    values={values}
-                    labels={labels}
-                    disabled={read_only}
+                    fields={fields.clone()}
+                    values={values.clone()}
+                    labels={labels.clone()}
+                    disabled={read_only.clone()}
                     prefix="database-view.selected-item"
-                    on_change={changed}
-                    on_pick={picked}
+                    on_change={changed.clone()}
+                    on_pick={picked.clone()}
                 />
             </Show>
         </List>

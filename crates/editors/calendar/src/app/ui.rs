@@ -334,7 +334,7 @@ fn EventDialog(
                             label="Delete"
                             variant=ButtonVariant::Secondary
                             @test_id={"calendar.form.delete"}
-                            on_click={delete}
+                            on_click={delete.clone()}
                         />
                     </Show>
                     <Button

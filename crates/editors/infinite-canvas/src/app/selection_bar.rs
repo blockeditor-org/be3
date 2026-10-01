@@ -33,6 +33,7 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
         )
     }));
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
+    let open = actions.open.clone();
     let embedded = create_memo(clone!(state -> move || embedded_block(&state).is_some()));
     let picking = Rc::clone(&state);
     let sheet = sheet_control();
@@ -55,40 +56,40 @@ pub(crate) fn SelectionTools(state: Rc<CanvasState>) -> NodeId {
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <Show condition={colored}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
-                        <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
-                            {move |index: usize| {
-                                let (name, color) = PRESETS[index];
-                                let state = Rc::clone(&picking);
-                                let value = value.clone();
-                                view! {
-                                    <Swatch
-                                        kind="color"
-                                        name
-                                        color
-                                        value
-                                        on_pick={move |color| set_foreground(&state, color)}
-                                    />
-                                }
-                            }}
-                        </ForEach>
-                    </List>
+                    {move || clone!(picking value -> view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
+                            <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
+                                {move |index: usize| {
+                                    let (name, color) = PRESETS[index];
+                                    let state = Rc::clone(&picking);
+                                    let value = value.clone();
+                                    view! {
+                                        <Swatch
+                                            kind="color"
+                                            name
+                                            color
+                                            value
+                                            on_pick={move |color| set_foreground(&state, color)}
+                                        />
+                                    }
+                                }}
+                            </ForEach>
+                        </List>
+                    })}
                 </Show>
                 <IconButton @test_id={"infinite-canvas.front"} action={actions.front} />
                 <IconButton @test_id={"infinite-canvas.delete"} action={actions.delete} />
                 <Show condition={embedded}>
-                    <IconButton
-                        label="Open"
-                        @test_id={"infinite-canvas.open"}
-                        action={actions.open}
-                    />
+                    {move || clone!(open -> view! {
+                        <IconButton label="Open" @test_id={"infinite-canvas.open"} action={open} />
+                    })}
                 </Show>
                 <Show condition={narrow}>
                     <IconButton
                         glyph={ICON_TUNE.to_owned()}
                         label="Inspector"
                         @test_id={"infinite-canvas.inspect"}
-                        on_click={tune}
+                        on_click={tune.clone()}
                     />
                 </Show>
             </List>

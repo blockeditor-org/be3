@@ -97,9 +97,12 @@ reports a component with a second `view!` outside a closure, or with anything
 after its last one.
 
 When part of the tree depends on something, express it in the view rather than
-in Rust control flow around it. `Show` takes a condition and builds its child
-lazily the first time it becomes true, `Dynamic` rebuilds a subtree when a value
-changes shape, `Keyed` rebuilds only when its key changes, and `ForEach` keeps a
+in Rust control flow around it. `Show` takes a condition, builds its child each
+time it becomes true and disposes of it when it turns false, as SolidJS's does;
+`ShowKeepAlive` is the opt-in for a child worth keeping while it is hidden, such
+as a tab's panel whose scroll position and state should survive switching away:
+it builds the child the first time it is shown and only hides it after that.
+`Dynamic` rebuilds a subtree when a value changes shape, `Keyed` rebuilds only when its key changes, and `ForEach` keeps a
 keyed child per item. A component that is genuinely two different trees is two
 components with a `Dynamic` or a `Show` choosing between them.
 
@@ -200,9 +203,9 @@ with `#[derive(Store)]` so writing one field does not wake readers of the
 others; `use_theme()` returns such a store, which is why a component binds
 `theme.accent.clone()` rather than the whole theme. Use `create_selector` for
 "am I the selected row?" so moving a selection wakes two rows instead of all of
-them. Prefer `Show` over rebuilding, `Keyed` over `Dynamic` when only part of a
-value decides the shape, and `VirtualList` for a collection large enough that
-building every row is the cost.
+them. Prefer `Keyed` over `Dynamic` when only part of a value decides the
+shape, and `VirtualList` for a collection large enough that building every row
+is the cost.
 
 ## Crates
 

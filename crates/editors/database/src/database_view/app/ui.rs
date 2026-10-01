@@ -47,9 +47,11 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
                 <Show condition={spreadsheet}>
-                    <Toolbar shown={toolbar_chrome}>
-                        <CellEditor @sizing=ItemSize::Percent(100.0) data={bar} />
-                    </Toolbar>
+                    {move || clone!(bar -> view! {
+                        <Toolbar shown={toolbar_chrome.clone()}>
+                            <CellEditor @sizing=ItemSize::Percent(100.0) data={bar} />
+                        </Toolbar>
+                    })}
                 </Show>
                 <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                     <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
@@ -149,15 +151,15 @@ fn CellEditor(data: Data) -> NodeId {
                 <Show condition={chosen}>
                     <DatabaseValueEditor
                         @sizing=ItemSize::Percent(100.0)
-                        fields={fields}
-                        values={values}
-                        labels={labels}
-                        disabled={read_only}
+                        fields={fields.clone()}
+                        values={values.clone()}
+                        labels={labels.clone()}
+                        disabled={read_only.clone()}
                         prefix="database-view.cell-editor"
                         headings=false
-                        on_change={changed}
-                        on_pick={picked}
-                        on_submit={submitted}
+                        on_change={changed.clone()}
+                        on_pick={picked.clone()}
+                        on_submit={submitted.clone()}
                     />
                 </Show>
             </List>

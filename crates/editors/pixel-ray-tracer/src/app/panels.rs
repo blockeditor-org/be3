@@ -70,10 +70,10 @@ pub(crate) fn PropertiesPanel(state: Rc<RayState>) -> NodeId {
             <Heading content="Palette" />
             <Palette state={palette} />
             <Show condition={chosen}>
-                <SelectedEntity state={Rc::clone(&state)} selected={selected} />
+                <SelectedEntity state={Rc::clone(&state)} selected={selected.clone()} />
             </Show>
             <Show condition={unchosen}>
-                <NewEntity state={tools} />
+                <NewEntity state={tools.clone()} />
             </Show>
             <RaySettingsPanels state={rays} />
         </List>
@@ -227,24 +227,26 @@ fn SelectedEntity(
             <Heading content="Selected entity" />
             <Body content={kind} />
             <Show condition={surface.clone()}>
-                <List spacing=6.0>
-                    <Slider value={roughness} label="Roughness" on_change={set_roughness} />
-                    <Slider value={metalness} label="Metalness" on_change={set_metalness} />
-                    <Slider
-                        value={transmission}
-                        label="Transmission"
-                        on_change={set_transmission}
-                    />
-                    <Slider value={ior} min=1.0 max=3.0 label="IOR" on_change={set_ior} />
-                </List>
+                {move || clone!(ior metalness roughness set_ior set_metalness set_roughness set_transmission transmission -> view! {
+                    <List spacing=6.0>
+                        <Slider value={roughness} label="Roughness" on_change={set_roughness} />
+                        <Slider value={metalness} label="Metalness" on_change={set_metalness} />
+                        <Slider
+                            value={transmission}
+                            label="Transmission"
+                            on_change={set_transmission}
+                        />
+                        <Slider value={ior} min=1.0 max=3.0 label="IOR" on_change={set_ior} />
+                    </List>
+                })}
             </Show>
             <Show condition={light}>
                 <Slider
-                    value={intensity}
+                    value={intensity.clone()}
                     min=0.1
                     max=8.0
                     label="Intensity"
-                    on_change={set_intensity}
+                    on_change={set_intensity.clone()}
                 />
             </Show>
             <Button
@@ -289,29 +291,33 @@ fn NewEntity(state: Rc<RayState>) -> NodeId {
     view! {
         <List spacing=8.0>
             <Show condition={light}>
-                <List spacing=6.0>
-                    <Heading content="New light" />
-                    <Slider
-                        value={intensity}
-                        min=0.1
-                        max=8.0
-                        label="Intensity"
-                        on_change={move |value: f32| lit.set_light_intensity(value)}
-                    />
-                </List>
+                {move || clone!(intensity lit -> view! {
+                    <List spacing=6.0>
+                        <Heading content="New light" />
+                        <Slider
+                            value={intensity}
+                            min=0.1
+                            max=8.0
+                            label="Intensity"
+                            on_change={move |value: f32| lit.set_light_intensity(value)}
+                        />
+                    </List>
+                })}
             </Show>
             <Show condition={surface}>
-                <List spacing=6.0>
-                    <Heading content="New surface" />
-                    <Slider value={roughness} label="Roughness" on_change={set_roughness} />
-                    <Slider value={metalness} label="Metalness" on_change={set_metalness} />
-                    <Slider
-                        value={transmission}
-                        label="Transmission"
-                        on_change={set_transmission}
-                    />
-                    <Slider value={ior} min=1.0 max=3.0 label="IOR" on_change={set_ior} />
-                </List>
+                {move || clone!(ior metalness roughness set_ior set_metalness set_roughness set_transmission transmission -> view! {
+                    <List spacing=6.0>
+                        <Heading content="New surface" />
+                        <Slider value={roughness} label="Roughness" on_change={set_roughness} />
+                        <Slider value={metalness} label="Metalness" on_change={set_metalness} />
+                        <Slider
+                            value={transmission}
+                            label="Transmission"
+                            on_change={set_transmission}
+                        />
+                        <Slider value={ior} min=1.0 max=3.0 label="IOR" on_change={set_ior} />
+                    </List>
+                })}
             </Show>
         </List>
     }
@@ -326,10 +332,12 @@ fn RaySettingsPanels(state: Rc<RayState>) -> NodeId {
     view! {
         <List spacing=10.0>
             <Show condition={tracing}>
-                <List spacing=6.0>
-                    <Heading content="View rays" />
-                    <RayControls state={view_rays} view=true />
-                </List>
+                {move || clone!(view_rays -> view! {
+                    <List spacing=6.0>
+                        <Heading content="View rays" />
+                        <RayControls state={view_rays} view=true />
+                    </List>
+                })}
             </Show>
             <List spacing=6.0>
                 <Heading content="Lighting rays" />

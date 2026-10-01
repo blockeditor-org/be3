@@ -1092,7 +1092,7 @@ fn DockStack(dock: Handle) -> NodeId {
                     {empty.call(())} @sizing=ItemSize::Percent(100.0)
                 </Show>
                 <Show condition={occupied}>
-                    <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
+                    <Portal node={panel.clone()} @sizing=ItemSize::Percent(100.0) />
                 </Show>
             </List>
         </BackHandler>
@@ -1217,7 +1217,7 @@ fn StackedPanel(handle: DockPanelHandle) -> NodeId {
     view! {
         <List direction={outer} spacing=0.0>
             <Show condition={bar.is_some()}>
-                <List direction={inner} spacing=0.0 @sizing={bar_size}>
+                <List direction={inner} spacing=0.0 @sizing={bar_size.clone()}>
                     {grip.expect("a panel with its own tab bar has its own grip")}
                     {bar.expect("the panel keeps its own tab bar")}
                 </List>
@@ -1344,9 +1344,9 @@ fn DockPane(
             </ForEach>
             <Show condition={marked_surface.is_some()}>
                 <DockDropMarker
-                    dock={marked}
+                    dock={marked.clone()}
                     surface={marked_surface.unwrap_or_else(|| unreachable!())}
-                    origin={pane_origin}
+                    origin={pane_origin.clone()}
                 />
             </Show>
         </Canvas>
@@ -1566,7 +1566,7 @@ fn DockTabBody(dock: Handle, leaf: LeafId) -> NodeId {
                 {empty.call(())} @sizing=ItemSize::Percent(100.0)
             </Show>
             <Show condition={occupied}>
-                <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
+                <Portal node={panel.clone()} @sizing=ItemSize::Percent(100.0) />
             </Show>
         </List>
     }
@@ -1835,7 +1835,7 @@ fn TabMenu(
                 <MenuItem label={split_label} disabled={alone.clone()} />
                 <MenuItem label={close_label} disabled={unclosable} />
                 <Show condition={!grouped}>
-                    <MenuItem label={pin_label} disabled={homeless} />
+                    <MenuItem label={pin_label.clone()} disabled={homeless.clone()} />
                 </Show>
                 <Show condition={grouped}>
                     <MenuItem label="Ungroup" disabled={pinned} />

@@ -97,42 +97,50 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                         <List spacing=6.0>
                             <Heading content="Repository" />
                             <Show condition={has_note}>
-                                <Caption content={note} wrap=true @test_id={"repository.note"} />
+                                <Caption
+                                    content={note.clone()}
+                                    wrap=true
+                                    @test_id={"repository.note"}
+                                />
                             </Show>
                         </List>
                         <Show condition={unversioned}>
-                            <Card>
-                                <List spacing=10.0>
-                                    <Body content="Nothing is versioned here yet." />
-                                    <Caption
-                                        content="Choose a block and everything below it becomes this repository's first commit, with a checkout around it to edit it in."
-                                        wrap=true
-                                    />
-                                    <Button
-                                        label="Choose what to version"
-                                        variant=ButtonVariant::Primary
-                                        disabled={adopt_blocked}
-                                        @test_id={"repository.adopt"}
-                                        on_click={choose}
-                                    />
-                                </List>
-                            </Card>
+                            {move || clone!(adopt_blocked choose -> view! {
+                                <Card>
+                                    <List spacing=10.0>
+                                        <Body content="Nothing is versioned here yet." />
+                                        <Caption
+                                            content="Choose a block and everything below it becomes this repository's first commit, with a checkout around it to edit it in."
+                                            wrap=true
+                                        />
+                                        <Button
+                                            label="Choose what to version"
+                                            variant=ButtonVariant::Primary
+                                            disabled={adopt_blocked}
+                                            @test_id={"repository.adopt"}
+                                            on_click={choose}
+                                        />
+                                    </List>
+                                </Card>
+                            })}
                         </Show>
                         <Show condition={versioned}>
-                            <Card>
-                                <List spacing=10.0>
-                                    <Heading content="Branches" />
-                                    <ForEach keys={branches} view={rows} />
-                                </List>
-                            </Card>
+                            {move || clone!(branches rows -> view! {
+                                <Card>
+                                    <List spacing=10.0>
+                                        <Heading content="Branches" />
+                                        <ForEach keys={branches} view={rows} />
+                                    </List>
+                                </Card>
+                            })}
                         </Show>
                         <Card>
                             <List spacing=10.0>
                                 <Heading content="Upstream" />
                                 <Show condition={has_upstream}>
                                     <BlockLink
-                                        editor={upstream_editor}
-                                        block={upstream_target}
+                                        editor={upstream_editor.clone()}
+                                        block={upstream_target.clone()}
                                         @test_id={"repository.upstream"}
                                     />
                                 </Show>

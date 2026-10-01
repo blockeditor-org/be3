@@ -66,7 +66,7 @@ fn DialogSurface(width: Prop<f32>, title: Prop<String>, children: Child) -> Node
             >
                 <List spacing=SPACING>
                     <Show condition={titled}>
-                        <Title content={label} />
+                        <Title content={label.clone()} />
                     </Show>
                     {children}
                 </List>

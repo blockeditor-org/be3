@@ -3,7 +3,7 @@ use crate::reactive::{List, NodeRef, Show, Text, build, create_signal, view};
 use crate::unstyled::Button;
 
 #[test]
-fn show_lazily_builds_and_toggles_its_child_when_the_condition_changes() {
+fn show_builds_its_child_each_time_it_is_shown_and_disposes_it_when_hidden() {
     let (column, toggle) = (NodeRef::new(), NodeRef::new());
     let builds = Rc::new(Cell::new(0));
     let sink = builds.clone();
@@ -62,18 +62,20 @@ fn show_lazily_builds_and_toggles_its_child_when_the_condition_changes() {
         1,
         "hiding it again takes its child back out of the list"
     );
-    assert_eq!(builds.get(), 1, "hiding it again must not rebuild it");
+    assert!(
+        !harness.document().contains(shown[1]),
+        "hiding it disposes of the child it built"
+    );
 
     harness.click(harness.center(toggle));
     harness.frame(Vec::new());
     assert_eq!(
         builds.get(),
-        1,
-        "showing it a second time must reuse the already-built child"
+        2,
+        "showing it a second time must build it afresh"
     );
-    assert_eq!(
-        harness.document().children(column),
-        shown,
-        "the child it shows again is the node it built the first time"
-    );
+    let again = harness.document().children(column);
+    assert_eq!(again.len(), 2);
+    assert_ne!(again[1], shown[1], "the child it shows again is a new node");
+    assert_eq!(text_of(harness.document(), again[1]), "panel");
 }

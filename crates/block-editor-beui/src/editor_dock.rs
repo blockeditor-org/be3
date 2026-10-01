@@ -85,19 +85,21 @@ pub fn EditorDock(
     view! {
         <List spacing=0.0>
             <Show condition={local}>
-                <DockArea
-                    @sizing=ItemSize::Percent(100.0)
-                    state
-                    mode
-                    home
-                    title
-                    icon
-                    closable
-                    content
-                    empty={move || empty.call(())}
-                    on_change={move |next: DockState| on_change.call(next)}
-                    on_close={move |tab: TabId| on_close.call(tab)}
-                />
+                {move || clone!(empty on_change on_close -> view! {
+                    <DockArea
+                        @sizing=ItemSize::Percent(100.0)
+                        state={state.clone()}
+                        mode={mode.clone()}
+                        home={home.clone()}
+                        title={title.clone()}
+                        icon={icon.clone()}
+                        closable={closable.clone()}
+                        content={content.clone()}
+                        empty={move || empty.call(())}
+                        on_change={move |next: DockState| on_change.call(next)}
+                        on_close={move |tab: TabId| on_close.call(tab)}
+                    />
+                })}
             </Show>
         </List>
     }

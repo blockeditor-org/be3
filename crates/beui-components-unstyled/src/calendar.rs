@@ -237,59 +237,77 @@ pub fn Calendar(
         <List spacing>
             {header_node}
             <Show condition={days_shown}>
-                <CalendarGrid label=days_label spacing>
-                    <List direction=Direction::Horizontal spacing>
-                        <ForEach keys={(0..DAYS_PER_WEEK).collect::<Vec<_>>()}>
-                            {move |column: usize| view! {
-                                <CalendarWeekday
-                                    @sizing=ItemSize::Percent(100.0)
-                                    weekday={first_weekday.offset(column as u32)}
-                                    face={weekday.clone()}
-                                />
-                            }}
-                        </ForEach>
-                    </List>
-                    <ForEach keys={(0..WEEKS).collect::<Vec<_>>()}>
-                        {move |week: usize| view! {
-                            <CalendarWeek
-                                state={week_state.clone()}
-                                week
-                                grid_start={grid_start.clone()}
-                                spacing
-                                day={day.clone()}
-                            />
-                        }}
-                    </ForEach>
-                </CalendarGrid>
+                {move || {
+                    let (days_label, spacing, weekday) = (days_label.clone(), spacing, weekday.clone());
+                    let (week_state, grid_start, day) = (week_state.clone(), grid_start.clone(), day.clone());
+                    view! {
+                        <CalendarGrid label=days_label spacing>
+                            <List direction=Direction::Horizontal spacing>
+                                <ForEach keys={(0..DAYS_PER_WEEK).collect::<Vec<_>>()}>
+                                    {move |column: usize| view! {
+                                        <CalendarWeekday
+                                            @sizing=ItemSize::Percent(100.0)
+                                            weekday={first_weekday.offset(column as u32)}
+                                            face={weekday.clone()}
+                                        />
+                                    }}
+                                </ForEach>
+                            </List>
+                            <ForEach keys={(0..WEEKS).collect::<Vec<_>>()}>
+                                {move |week: usize| view! {
+                                    <CalendarWeek
+                                        state={week_state.clone()}
+                                        week
+                                        grid_start={grid_start.clone()}
+                                        spacing
+                                        day={day.clone()}
+                                    />
+                                }}
+                            </ForEach>
+                        </CalendarGrid>
+                    }
+                }}
             </Show>
             <Show condition={months_shown}>
-                <CalendarGrid label=months_label spacing>
-                    <ForEach keys={(0..MONTH_ROWS).collect::<Vec<_>>()}>
-                        {move |row: usize| view! {
-                            <CalendarMonthRow
-                                state={month_state.clone()}
-                                row
-                                spacing
-                                month={month.clone()}
-                            />
-                        }}
-                    </ForEach>
-                </CalendarGrid>
+                {move || {
+                    let (months_label, spacing) = (months_label.clone(), spacing);
+                    let (month_state, month) = (month_state.clone(), month.clone());
+                    view! {
+                        <CalendarGrid label=months_label spacing>
+                            <ForEach keys={(0..MONTH_ROWS).collect::<Vec<_>>()}>
+                                {move |row: usize| view! {
+                                    <CalendarMonthRow
+                                        state={month_state.clone()}
+                                        row
+                                        spacing
+                                        month={month.clone()}
+                                    />
+                                }}
+                            </ForEach>
+                        </CalendarGrid>
+                    }
+                }}
             </Show>
             <Show condition={years_shown}>
-                <CalendarGrid label spacing>
-                    <ForEach keys={(0..YEAR_ROWS).collect::<Vec<_>>()}>
-                        {move |row: usize| view! {
-                            <CalendarYearRow
-                                state={year_state.clone()}
-                                row
-                                first_year={first_year.clone()}
-                                spacing
-                                year={year.clone()}
-                            />
-                        }}
-                    </ForEach>
-                </CalendarGrid>
+                {move || {
+                    let (label, spacing, year_state) = (label.clone(), spacing, year_state.clone());
+                    let (first_year, year) = (first_year.clone(), year.clone());
+                    view! {
+                        <CalendarGrid label spacing>
+                            <ForEach keys={(0..YEAR_ROWS).collect::<Vec<_>>()}>
+                                {move |row: usize| view! {
+                                    <CalendarYearRow
+                                        state={year_state.clone()}
+                                        row
+                                        first_year={first_year.clone()}
+                                        spacing
+                                        year={year.clone()}
+                                    />
+                                }}
+                            </ForEach>
+                        </CalendarGrid>
+                    }
+                }}
             </Show>
         </List>
     }

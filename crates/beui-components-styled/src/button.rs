@@ -133,7 +133,7 @@ pub fn ButtonFace(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                     <Show condition={has_glyph}>
-                        <Icon glyph={glyph_text} color={icon_color} />
+                        <Icon glyph={glyph_text.clone()} color={icon_color.clone()} />
                     </Show>
                     <Text
                         string={label}
@@ -142,7 +142,7 @@ pub fn ButtonFace(
                         align=TextAlign::Center
                     />
                     <Show condition={has_trailing}>
-                        <Icon glyph={trailing} color={trailing_color} />
+                        <Icon glyph={trailing.clone()} color={trailing_color.clone()} />
                     </Show>
                 </List>
             </Frame>

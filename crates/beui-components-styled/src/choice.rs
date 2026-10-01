@@ -71,7 +71,7 @@ fn ChoiceLabel(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=MARK_SPACING>
             <Show condition={kind == Kind::Radio}>
-                <RadioMark checked />
+                <RadioMark checked={checked.clone()} />
             </Show>
             <Text @sizing=ItemSize::Percent(100.0) string={label} font_size=FONT_BODY color align />
         </List>

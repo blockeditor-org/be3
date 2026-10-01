@@ -156,25 +156,27 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             <Title content={title} />
             <Paragraph content="This device does not have the key to this workspace yet." />
             <Show condition={sealed}>
-                <List spacing=8.0>
-                    <Heading content="With your recovery phrase" />
-                    <TextInput
-                        value={phrase}
-                        label="Recovery phrase"
-                        placeholder="twelve words"
-                        on_change={move |value: String| set_phrase.set(value)}
-                        on_submit={move |_value: String| submit()}
-                    />
-                    <List direction=Direction::Horizontal spacing=8.0>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                        <Button
-                            label="Unlock"
-                            variant=ButtonVariant::Primary
-                            disabled={cannot}
-                            on_click={open}
+                {move || clone!(cannot open phrase set_phrase submit -> view! {
+                    <List spacing=8.0>
+                        <Heading content="With your recovery phrase" />
+                        <TextInput
+                            value={phrase}
+                            label="Recovery phrase"
+                            placeholder="twelve words"
+                            on_change={move |value: String| set_phrase.set(value)}
+                            on_submit={move |_value: String| submit()}
                         />
+                        <List direction=Direction::Horizontal spacing=8.0>
+                            <Spacer @sizing=ItemSize::Percent(100.0) />
+                            <Button
+                                label="Unlock"
+                                variant=ButtonVariant::Primary
+                                disabled={cannot}
+                                on_click={open}
+                            />
+                        </List>
                     </List>
-                </List>
+                })}
             </Show>
             <Show condition={unsealed}>
                 <Paragraph
@@ -196,20 +198,22 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                 </List>
             </Show>
             <Show condition={waiting}>
-                <List spacing=8.0>
-                    <Paragraph content="Type this code on the other device:" />
-                    <Title content={code} />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Spinner />
-                        <Caption content="Waiting for the other device…" />
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                        <Button
-                            label="Cancel"
-                            variant=ButtonVariant::Secondary
-                            on_click={|| send(UiCommand::CancelPairing)}
-                        />
+                {move || clone!(code -> view! {
+                    <List spacing=8.0>
+                        <Paragraph content="Type this code on the other device:" />
+                        <Title content={code} />
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <Spinner />
+                            <Caption content="Waiting for the other device…" />
+                            <Spacer @sizing=ItemSize::Percent(100.0) />
+                            <Button
+                                label="Cancel"
+                                variant=ButtonVariant::Secondary
+                                on_click={|| send(UiCommand::CancelPairing)}
+                            />
+                        </List>
                     </List>
-                </List>
+                })}
             </Show>
             <ErrorText text={error} />
             <List direction=Direction::Horizontal spacing=8.0>

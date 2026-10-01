@@ -128,49 +128,53 @@ pub fn ColorPicker(
                             }}
                         </unstyled::Slider>
                         <Show condition=alpha>
-                            <unstyled::Slider
-                                value={opacity.clone()}
-                                thumb=SLIDER_HEIGHT
-                                disabled={disabled.clone()}
-                                accessibility={alpha_accessibility}
-                                on_change={move |alpha: f32| alpha_picker.set_alpha(alpha)}
-                                on_drag_change={move |dragging: bool| alpha_drag.drag(dragging)}
-                            >
-                                {move |handle: SliderHandle| view! {
-                                    <StripFace handle strip={Strip::Alpha(alpha_color)} />
-                                }}
-                            </unstyled::Slider>
+                            {move || clone!(alpha_color alpha_drag alpha_picker -> view! {
+                                <unstyled::Slider
+                                    value={opacity.clone()}
+                                    thumb=SLIDER_HEIGHT
+                                    disabled={disabled.clone()}
+                                    accessibility={alpha_accessibility.clone()}
+                                    on_change={move |alpha: f32| alpha_picker.set_alpha(alpha)}
+                                    on_drag_change={move |dragging: bool| alpha_drag.drag(dragging)}
+                                >
+                                    {move |handle: SliderHandle| view! {
+                                        <StripFace handle strip={Strip::Alpha(alpha_color)} />
+                                    }}
+                                </unstyled::Slider>
+                            })}
                         </Show>
                     </List>
                     <ColorSwatch color={shown.clone()} width=PREVIEW_SIZE height=PREVIEW_SIZE />
                 </List>
                 <ColorFields picker={picker.clone()} alpha />
                 <Show condition=has_swatches>
-                    <unstyled::Choice
-                        options={view! {
-                            <ForEach keys={indices}>
-                                {move |index: usize| view! {
-                                    <ChoiceOption label={labels[index].clone()} />
-                                }}
-                            </ForEach>
-                        }}
-                        selected={chosen}
-                        kind=ChoiceKind::Radio
-                        direction=Direction::Horizontal
-                        wrap=true
-                        on_change={move |index: Option<usize>| {
-                            if let Some(swatch) = index.and_then(|index| swatches.get(index)) {
-                                swatch_picker.pick(*swatch);
-                            }
-                        }}
-                    >
-                        {move |handle: ChoiceOptionHandle| {
-                            let color = face_swatches[handle.index];
-                            view! {
-                                <SwatchFace handle color />
-                            }
-                        }}
-                    </unstyled::Choice>
+                    {move || clone!(face_swatches labels swatch_picker swatches -> view! {
+                        <unstyled::Choice
+                            options={view! {
+                                <ForEach keys={indices.clone()}>
+                                    {move |index: usize| view! {
+                                        <ChoiceOption label={labels[index].clone()} />
+                                    }}
+                                </ForEach>
+                            }}
+                            selected={chosen.clone()}
+                            kind=ChoiceKind::Radio
+                            direction=Direction::Horizontal
+                            wrap=true
+                            on_change={move |index: Option<usize>| {
+                                if let Some(swatch) = index.and_then(|index| swatches.get(index)) {
+                                    swatch_picker.pick(*swatch);
+                                }
+                            }}
+                        >
+                            {move |handle: ChoiceOptionHandle| {
+                                let color = face_swatches[handle.index];
+                                view! {
+                                    <SwatchFace handle color />
+                                }
+                            }}
+                        </unstyled::Choice>
+                    })}
                 </Show>
             </List>
         </Frame>
@@ -228,14 +232,16 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                     on_submit={move |typed: String| submit.submit(typed)}
                 />
                 <Show condition=alpha>
-                    <NumberInput
-                        @sizing=ItemSize::Fixed(ALPHA_WIDTH)
-                        value={opacity}
-                        min=0.0
-                        max=100.0
-                        label="Opacity percent"
-                        on_change={move |percent: f64| set_opacity(percent * 255.0 / 100.0)}
-                    />
+                    {move || clone!(set_opacity -> view! {
+                        <NumberInput
+                            @sizing=ItemSize::Fixed(ALPHA_WIDTH)
+                            value={opacity.clone()}
+                            min=0.0
+                            max=100.0
+                            label="Opacity percent"
+                            on_change={move |percent: f64| set_opacity(percent * 255.0 / 100.0)}
+                        />
+                    })}
                 </Show>
             </List>
             <Grid

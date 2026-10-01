@@ -77,7 +77,11 @@ fn LinkFace(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
                 <Show condition={has_glyph}>
-                    <Icon glyph={glyph_text} text_size={icon_size} color={icon_color} />
+                    <Icon
+                        glyph={glyph_text.clone()}
+                        text_size={icon_size.clone()}
+                        color={icon_color.clone()}
+                    />
                 </Show>
                 <Text
                     string={label}

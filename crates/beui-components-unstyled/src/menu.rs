@@ -295,6 +295,11 @@ fn MenuRow(
             />
             <Show condition={has_children}>
                 {move || {
+                let (leave_open, leave_state, select_state) =
+                    (leave_open.clone(), leave_state.clone(), select_state.clone());
+                let (dismiss, submenu_open, children) =
+                    (dismiss.clone(), submenu_open.clone(), children.clone());
+                let (row, panel, content_ref) = (row.clone(), panel.clone(), content_ref.clone());
                 let leave = MenuParent(Some(Rc::new(move || {
                     leave_open.set(false);
                     leave_state.set_focus.set(Focus::Row(index));

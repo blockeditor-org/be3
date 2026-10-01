@@ -212,10 +212,14 @@ fn DockTabChrome(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
-                    <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={glyph} />
+                    <IconSized glyph=ICON_TAB_GROUP font_size=GROUP_GLYPH color={glyph.clone()} />
                 </Show>
                 <Show condition={pictured}>
-                    <IconSized glyph={icon} font_size=GROUP_GLYPH color={icon_color} />
+                    <IconSized
+                        glyph={icon.clone()}
+                        font_size=GROUP_GLYPH
+                        color={icon_color.clone()}
+                    />
                 </Show>
                 <Text
                     string={title}
@@ -225,15 +229,17 @@ fn DockTabChrome(
                     @sizing={title_size}
                 />
                 <Show condition={closable}>
-                    <IconButton
-                        @test_id={close_test_id}
-                        glyph=ICON_CLOSE
-                        label="Close tab"
-                        size=IconButtonSize::Compact
-                        variant=ButtonVariant::Ghost
-                        capture_presses=true
-                        on_click={move || close.call()}
-                    />
+                    {move || clone!(close -> view! {
+                        <IconButton
+                            @test_id={close_test_id.clone()}
+                            glyph=ICON_CLOSE
+                            label="Close tab"
+                            size=IconButtonSize::Compact
+                            variant=ButtonVariant::Ghost
+                            capture_presses=true
+                            on_click={move || close.call()}
+                        />
+                    })}
                 </Show>
             </List>
         </Frame>
@@ -259,20 +265,22 @@ fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={bar.is_some()}>
-                <DockChrome
-                    vertical
-                    focused
-                    grip={grip.unwrap_or_else(|| unreachable!())}
-                    tabs={bar}
-                    sidebar_width
-                    sidebar_splitter
-                    title=String::new()
-                    menu
-                    closable
-                    close={move || close.call()}
-                    body
-                    @sizing=ItemSize::Percent(100.0)
-                />
+                {move || clone!(close -> view! {
+                    <DockChrome
+                        vertical
+                        focused={focused.clone()}
+                        grip={grip.unwrap_or_else(|| unreachable!())}
+                        tabs={bar}
+                        sidebar_width={sidebar_width.clone()}
+                        sidebar_splitter
+                        title=String::new()
+                        menu={menu.clone()}
+                        closable={closable.clone()}
+                        close={move || close.call()}
+                        body
+                        @sizing=ItemSize::Percent(100.0)
+                    />
+                })}
             </Show>
             <Show condition={bar.is_none()}>
                 <Frame color={theme.background.clone()} @sizing=ItemSize::Percent(100.0)>
@@ -358,21 +366,32 @@ fn DockChrome(
         >
             <List direction spacing=0.0>
                 <Show condition={vertical}>
-                    <DockSideBar
-                        grip
-                        tabs
-                        title={side_title}
-                        menu={side_menu}
-                        closable={side_closable}
-                        close={move || side_close.call()}
-                        @sizing={sidebar}
-                    />
+                    {move || clone!(side_close -> view! {
+                        <DockSideBar
+                            grip
+                            tabs
+                            title={side_title.clone()}
+                            menu={side_menu.clone()}
+                            closable={side_closable.clone()}
+                            close={move || side_close.call()}
+                            @sizing={sidebar.clone()}
+                        />
+                    })}
                 </Show>
                 <Show condition={sidebar_splitter.is_some()}>
                     {sidebar_splitter.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Fixed(SPLITTER_THICKNESS)
                 </Show>
                 <Show condition={!vertical}>
-                    <DockTitleBar grip tabs title menu closable close={move || close.call()} />
+                    {move || clone!(close -> view! {
+                        <DockTitleBar
+                            grip
+                            tabs
+                            title={title.clone()}
+                            menu={menu.clone()}
+                            closable={closable.clone()}
+                            close={move || close.call()}
+                        />
+                    })}
                 </Show>
                 {body} @sizing=ItemSize::Percent(100.0)
             </List>
@@ -404,7 +423,7 @@ fn DockTitleBar(
                     {tabs.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Percent(100.0)
                 </Show>
                 <Show condition={titled}>
-                    <Body content={title} @sizing=ItemSize::Percent(100.0) />
+                    <Body content={title.clone()} @sizing=ItemSize::Percent(100.0) />
                 </Show>
                 <DockMenu menu />
                 <DockClose closable close={move || close.call()} />
@@ -448,7 +467,7 @@ fn DockSideBar(
                     {tabs.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Percent(100.0)
                 </Show>
                 <Show condition={titled}>
-                    <Body content={title} />
+                    <Body content={title.clone()} />
                 </Show>
             </List>
         </Frame>
@@ -466,29 +485,31 @@ pub(crate) fn DockMenu(
     }));
     view! {
         <Show condition={offered}>
-            <IconMenuButton
-                @test_id={"dock.menu"}
-                label="More"
-                glyph=ICON_MORE_VERT
-                size
-                items={view! {
-                    <ForEach keys={keys}>
-                        {move |key: u64| {
-                            let item = menu.with_untracked(|items| {
-                                items.iter().find(|action| action.key() == key).cloned()
-                            });
-                            match item {
-                                Some(action) => view! {
-                                    <MenuItem action />
-                                },
-                                None => view! {
-                                    <MenuItem label="" disabled=true />
-                                },
-                            }
-                        }}
-                    </ForEach>
-                }}
-            />
+            {move || clone!(menu -> view! {
+                <IconMenuButton
+                    @test_id={"dock.menu"}
+                    label="More"
+                    glyph=ICON_MORE_VERT
+                    size
+                    items={view! {
+                        <ForEach keys={keys.clone()}>
+                            {move |key: u64| {
+                                let item = menu.with_untracked(|items| {
+                                    items.iter().find(|action| action.key() == key).cloned()
+                                });
+                                match item {
+                                    Some(action) => view! {
+                                        <MenuItem action />
+                                    },
+                                    None => view! {
+                                        <MenuItem label="" disabled=true />
+                                    },
+                                }
+                            }}
+                        </ForEach>
+                    }}
+                />
+            })}
         </Show>
     }
 }
@@ -593,7 +614,11 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> No
                     />
                 </Show>
                 <Show condition={pictured}>
-                    <IconSized glyph={icon} font_size=GROUP_GLYPH color={pictured_color} />
+                    <IconSized
+                        glyph={icon.clone()}
+                        font_size=GROUP_GLYPH
+                        color={pictured_color.clone()}
+                    />
                 </Show>
                 <Body content={title} />
             </List>

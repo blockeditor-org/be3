@@ -152,12 +152,12 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
             <List spacing=SETTINGS_SPACING>
                 <Show condition={readable}>
                     <NumberInput
-                        value={scale}
+                        value={scale.clone()}
                         min=1.0
                         max={f64::from(MAX_EXPORT_SCALE)}
                         label="Scale"
                         @test_id={"pixel-art.export-scale"}
-                        on_change={set_scale}
+                        on_change={set_scale.clone()}
                     />
                 </Show>
                 <Caption content={caption} @test_id={"pixel-art.export-summary"} />

@@ -240,21 +240,23 @@ fn Chevron(
         <Frame width=CHEVRON_WIDTH>
             <List spacing=0.0>
                 <Show condition={expandable}>
-                    <unstyled::Button
-                        @test_id={named}
-                        tab_stop=false
-                        press_focus=false
-                        accessibility={chevron_accessibility(item)}
-                        on_click={move || toggle()}
-                        content={move |button: ButtonHandle| view! {
-                            <ChevronFace
-                                handle={button}
-                                glyph={glyph}
-                                marked={marked}
-                                label={label}
-                            />
-                        }}
-                    />
+                    {move || clone!(item toggle glyph marked label -> view! {
+                        <unstyled::Button
+                            @test_id={named.clone()}
+                            tab_stop=false
+                            press_focus=false
+                            accessibility={chevron_accessibility(item)}
+                            on_click={move || toggle()}
+                            content={move |button: ButtonHandle| view! {
+                                <ChevronFace
+                                    handle={button}
+                                    glyph={glyph}
+                                    marked={marked}
+                                    label={label}
+                                />
+                            }}
+                        />
+                    })}
                 </Show>
             </List>
         </Frame>

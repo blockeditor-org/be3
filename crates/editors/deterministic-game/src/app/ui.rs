@@ -231,10 +231,15 @@ fn GameShape(
                 </Frame>
             </Show>
             <Show condition=failed>
-                <GameError snapshot={failure} />
+                <GameError snapshot={failure.clone()} />
             </Show>
             <Show condition=playing>
-                <GamePlay editor game snapshot @sizing=ItemSize::Percent(100.0) />
+                <GamePlay
+                    editor={editor.clone()}
+                    game={game.clone()}
+                    snapshot={snapshot.clone()}
+                    @sizing=ItemSize::Percent(100.0)
+                />
             </Show>
         </List>
     }
@@ -433,7 +438,7 @@ fn Sidebar(panel: Panel) -> NodeId {
                             />
                         </List>
                         <Show condition={choosing}>
-                            <Choices play={choosing_play} />
+                            <Choices play={choosing_play.clone()} />
                         </Show>
                         <Separator />
                         <MoveTable table shown steps />
@@ -480,31 +485,35 @@ fn ControlButton(game: Rc<dyn GameModel>, action: Action, editable: Memo<bool>) 
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <Show condition={asking}>
-                <IconButton
-                    glyph={glyph.to_owned()}
-                    label={label}
-                    disabled={asking_disabled}
-                    @test_id={format!("game.control.{index}")}
-                    on_click={move || ask.set(true)}
-                />
+                {move || clone!(ask -> view! {
+                    <IconButton
+                        glyph={glyph.to_owned()}
+                        label={label.clone()}
+                        disabled={asking_disabled.clone()}
+                        @test_id={format!("game.control.{index}")}
+                        on_click={move || ask.set(true)}
+                    />
+                })}
             </Show>
             <Show condition={confirming}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                    <Caption content={question} />
-                    <IconButton
-                        glyph={ICON_CHECK.to_owned()}
-                        label={confirm}
-                        disabled={disabled}
-                        @test_id={format!("game.control.{index}.confirm")}
-                        on_click={move || game.choose(effect.clone())}
-                    />
-                    <IconButton
-                        glyph={ICON_CLOSE.to_owned()}
-                        label="Cancel"
-                        @test_id={format!("game.control.{index}.cancel")}
-                        on_click={move || cancel.set(false)}
-                    />
-                </List>
+                {move || clone!(cancel confirm disabled effect game question -> view! {
+                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                        <Caption content={question} />
+                        <IconButton
+                            glyph={ICON_CHECK.to_owned()}
+                            label={confirm}
+                            disabled={disabled}
+                            @test_id={format!("game.control.{index}.confirm")}
+                            on_click={move || game.choose(effect.clone())}
+                        />
+                        <IconButton
+                            glyph={ICON_CLOSE.to_owned()}
+                            label="Cancel"
+                            @test_id={format!("game.control.{index}.cancel")}
+                            on_click={move || cancel.set(false)}
+                        />
+                    </List>
+                })}
             </Show>
         </List>
     }
@@ -717,7 +726,11 @@ pub(crate) fn GameCreation(
                     on_click={move || creation.choose_module()}
                 />
                 <Show condition={has_status}>
-                    <Caption content={status} color={status_color} @test_id={"game.selection"} />
+                    <Caption
+                        content={status.clone()}
+                        color={status_color.clone()}
+                        @test_id={"game.selection"}
+                    />
                 </Show>
             </List>
         </Frame>
