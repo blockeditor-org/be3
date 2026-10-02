@@ -543,6 +543,7 @@ impl Draw for WindowDraw {
                 pass.draw(*first..*first + 6, 0..1);
             }
         }
+        crate::trace!("painted a window");
         self.painted.set(true);
         if let Some(waker) = &self.waker {
             waker.wake();

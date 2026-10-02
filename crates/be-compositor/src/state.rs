@@ -254,6 +254,7 @@ impl State {
                 .clone()
         });
         if let Some(acquire) = acquire {
+            crate::trace!("pre_commit {:?}: explicit acquire point", surface.id());
             if let Ok(fd) = acquire.eventfd() {
                 self.block_on(surface, fd.as_fd());
             }
@@ -267,6 +268,7 @@ impl State {
             }
         });
         if let Some(dmabuf) = dmabuf {
+            crate::trace!("pre_commit {:?}: implicit dmabuf", surface.id());
             for fd in dmabuf.handles() {
                 self.block_on(surface, fd);
             }
@@ -275,8 +277,14 @@ impl State {
 
     fn block_on(&mut self, surface: &WlSurface, fd: BorrowedFd<'_>) {
         if readable(fd) {
+            crate::trace!("block_on {:?}: already ready", surface.id());
             return;
         }
+        crate::trace!(
+            "block_on {:?}: blocked ({} blocked before)",
+            surface.id(),
+            self.blocked.len()
+        );
         let (Some(client), Ok(watched), Ok(kept)) = (
             surface.client(),
             fd.try_clone_to_owned(),
@@ -305,6 +313,13 @@ impl State {
                 blocked.ready.load(Ordering::SeqCst) || readable(blocked.fd.as_fd())
             });
         self.blocked = waiting;
+        if !released.is_empty() || !self.blocked.is_empty() {
+            crate::trace!(
+                "release_blockers: {} released, {} waiting",
+                released.len(),
+                self.blocked.len()
+            );
+        }
         let handle = self.handle.clone();
         for blocked in released {
             blocked.ready.store(true, Ordering::SeqCst);
@@ -449,6 +464,7 @@ impl State {
     }
 
     pub fn send_frames(&self, id: WindowId) {
+        crate::trace!("send_frames {:?}", id);
         let Some(window) = self.find(id) else {
             return;
         };
@@ -486,6 +502,14 @@ impl State {
         let pointer = self.pointer();
         let serial = SERIAL_COUNTER.next_serial();
         let time = self.time();
+        crate::trace!(
+            "pointer_motion {:?}",
+            focus.as_ref().map(|(id, location, under)| (
+                *id,
+                *location,
+                under.as_ref().map(|(surface, _)| surface.id())
+            ))
+        );
         match focus {
             Some((id, location, under)) => {
                 self.pointer_window = Some(id);
@@ -518,6 +542,11 @@ impl State {
 
     pub fn pointer_button(&mut self, button: u32, pressed: bool) {
         let pointer = self.pointer();
+        crate::trace!(
+            "pointer_button {button:#x} pressed={pressed} focus={:?} grabbed={}",
+            pointer.current_focus().map(|surface| surface.id()),
+            pointer.is_grabbed()
+        );
         if pressed {
             self.dismiss_popups_outside(&pointer);
         }
@@ -747,6 +776,7 @@ impl CompositorHandler for State {
     }
 
     fn commit(&mut self, surface: &WlSurface) {
+        crate::trace!("commit {:?}", surface.id());
         on_commit_buffer_handler::<Self>(surface);
         self.popups.commit(surface);
         if let Some(PopupKind::Xdg(popup)) = self.popups.find_popup(surface)

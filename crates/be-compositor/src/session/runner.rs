@@ -301,6 +301,7 @@ impl Session {
                     arrow: &self.arrow,
                 },
             );
+            crate::trace!("rendered output {:?}: {:?}", output.crtc, drawn);
             if let Err(error) = drawn {
                 eprintln!("be-compositor: an output could not be drawn: {error}");
             }
@@ -308,6 +309,7 @@ impl Session {
     }
 
     fn flipped(&mut self, crtc: smithay::reexports::drm::control::crtc::Handle) {
+        crate::trace!("flipped {crtc:?}");
         if let Some(output) = self.outputs.iter_mut().find(|output| output.crtc == crtc) {
             output.flipped();
         }
@@ -441,6 +443,12 @@ impl Session {
                 self.moved_pointer();
             }
             InputEvent::PointerButton { event } => {
+                crate::trace!(
+                    "libinput button {:#x} {:?} at {:?}",
+                    event.button_code(),
+                    event.state(),
+                    self.pointer
+                );
                 let Some(button) = pointer_button(event.button_code()) else {
                     return;
                 };

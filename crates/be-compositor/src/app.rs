@@ -104,6 +104,9 @@ impl Compositor {
     fn receive(&mut self) {
         self.server.dispatch();
         let events = self.server.state.take_events();
+        if !events.is_empty() {
+            crate::trace!("receive {:?}", events);
+        }
         for surface in self.server.state.take_committed() {
             self.textures.borrow_mut().upload(&surface);
         }
@@ -283,6 +286,12 @@ impl Compositor {
                 } => {
                     self.move_pointer(pos);
                     let code = button_code(button);
+                    crate::trace!(
+                        "app button {code:#x} pressed={pressed} grab={:?} hovered={:?} held={:?}",
+                        self.grab,
+                        self.clients.hovered(),
+                        self.held
+                    );
                     if pressed {
                         let Some(id) = self.grab.or(self.clients.hovered()) else {
                             continue;
