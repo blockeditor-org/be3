@@ -465,9 +465,20 @@ pub fn adapter_for(node: u64) -> Option<wgpu::Adapter> {
         backends: wgpu::Backends::VULKAN,
         ..wgpu::InstanceDescriptor::new_without_display_handle()
     });
-    pollster::block_on(instance.enumerate_adapters(wgpu::Backends::VULKAN))
-        .into_iter()
-        .find(|adapter| nodes(adapter).contains(&node))
+    let adapters = pollster::block_on(instance.enumerate_adapters(wgpu::Backends::VULKAN));
+    let rank = |adapter: &wgpu::Adapter| {
+        let nodes = nodes(adapter);
+        if nodes.contains(&node) {
+            0
+        } else if adapter.get_info().device_type == wgpu::DeviceType::Cpu {
+            3
+        } else if nodes.is_empty() {
+            2
+        } else {
+            1
+        }
+    };
+    adapters.into_iter().min_by_key(rank)
 }
 
 fn nodes(adapter: &wgpu::Adapter) -> Vec<u64> {
