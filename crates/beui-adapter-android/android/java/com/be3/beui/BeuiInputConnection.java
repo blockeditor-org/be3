@@ -3,6 +3,7 @@ package com.be3.beui;
 import android.text.Editable;
 import android.text.Selection;
 import android.view.inputmethod.BaseInputConnection;
+import android.view.inputmethod.TextAttribute;
 
 final class BeuiInputConnection extends BaseInputConnection {
     private static final int TRIM_AFTER = 1024;
@@ -46,11 +47,48 @@ final class BeuiInputConnection extends BaseInputConnection {
     @Override
     public boolean commitText(CharSequence text, int position) {
         if (closed) return false;
-        boolean composing = composingStart() >= 0;
+        int start = composingStart();
+        boolean composing = start >= 0;
+        if (!composing) start = selectionStart(getEditable());
         super.commitText(text, position);
         BeuiView.nativeCommit(text.toString(), composing);
+        follow(start + text.length());
         changed();
         return true;
+    }
+
+    @Override
+    public boolean replaceText(int start, int end, CharSequence text, int position,
+            TextAttribute attribute) {
+        if (closed) return false;
+        beginBatchEdit();
+        settle();
+        Editable content = getEditable();
+        int from = clamp(Math.min(start, end), content);
+        int to = clamp(Math.max(start, end), content);
+        int cursor = Selection.getSelectionEnd(content);
+        if (cursor >= 0) BeuiView.nativeMove(codePoints(content, cursor, to));
+        int removed = Character.codePointCount(content, from, to);
+        if (removed > 0) BeuiView.nativeDelete(removed, 0);
+        super.replaceText(start, end, text, position, attribute);
+        if (text.length() > 0) BeuiView.nativeCommit(text.toString(), false);
+        follow(from + text.length());
+        endBatchEdit();
+        return true;
+    }
+
+    private void follow(int at) {
+        Editable text = getEditable();
+        int cursor = Selection.getSelectionEnd(text);
+        if (cursor < 0 || cursor != Selection.getSelectionStart(text)) return;
+        int move = codePoints(text, clamp(at, text), cursor);
+        if (move != 0) BeuiView.nativeMove(move);
+    }
+
+    private static int codePoints(Editable text, int from, int to) {
+        return from <= to
+                ? Character.codePointCount(text, from, to)
+                : -Character.codePointCount(text, to, from);
     }
 
     @Override
