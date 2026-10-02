@@ -935,6 +935,7 @@ impl EditorSession {
                 rect: reported(ime.rect),
                 cursor: reported(ime.cursor),
                 text: ime.text.clone(),
+                keyboard: ime.keyboard,
             });
             let reports = matches!(region, EditorRegion::Frame | EditorRegion::Pane(_));
             state.report = reports.then(|| FrameReport {

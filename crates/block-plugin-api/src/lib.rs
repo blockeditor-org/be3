@@ -1870,6 +1870,7 @@ pub struct ImeArea {
     pub rect: ChildRect,
     pub cursor: ChildRect,
     pub text: Option<ImeText>,
+    pub keyboard: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

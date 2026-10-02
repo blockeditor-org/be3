@@ -21,6 +21,8 @@ pub struct Focus {
     pub tab_stop: bool,
     pub press_focus: bool,
     pub ime: bool,
+    pub keyboard_on_focus: bool,
+    pub ime_keyboard: bool,
     pub ime_cursor: Option<ImeCursor>,
     pub ime_text: Option<ImeText>,
     pub on_focus_change: Callback<bool>,
@@ -46,6 +48,8 @@ impl Focus {
             tab_stop: true,
             press_focus: true,
             ime: false,
+            keyboard_on_focus: true,
+            ime_keyboard: true,
             ime_cursor: None,
             ime_text: None,
             on_focus_change: Callback::empty(),
@@ -157,6 +161,16 @@ impl Document {
         }
     }
 
+    pub fn set_focusable_ime_keyboard(
+        &mut self,
+        focusable: NodeOf<InteractiveNode>,
+        keyboard: bool,
+    ) {
+        if self.contains(focusable) {
+            self.focus_mut(focusable).ime_keyboard = keyboard;
+        }
+    }
+
     pub fn set_focusable_ime_cursor(
         &mut self,
         focusable: NodeOf<InteractiveNode>,
@@ -199,6 +213,7 @@ impl Document {
             rect,
             cursor,
             text: node.ime_text.clone(),
+            keyboard: node.ime_keyboard && !self.keyboard_held,
         })
     }
 
@@ -343,6 +358,10 @@ impl Document {
         self.composed.clear();
         self.cancel_focus_activation();
         self.focused = new_focus;
+        self.keyboard_held = new_focus.is_some_and(|focused| {
+            self.contains(focused)
+                && focus_of(self.arena.get(focused)).is_some_and(|node| !node.keyboard_on_focus)
+        });
         for id in [old, new_focus].into_iter().flatten() {
             self.arena.invalidate_node(id);
         }
@@ -351,6 +370,17 @@ impl Document {
         }
         if let Some(new) = self.focused {
             self.set_focusable_focused(new, true);
+        }
+    }
+
+    pub fn press_focus(&mut self, target: Option<NodeId>) {
+        self.update_focus(target);
+        if let Some(target) = target
+            && self.focused == Some(target)
+            && self.contains(target)
+            && focus_of(self.arena.get(target)).is_some_and(|node| node.press_focus)
+        {
+            self.keyboard_held = false;
         }
     }
 

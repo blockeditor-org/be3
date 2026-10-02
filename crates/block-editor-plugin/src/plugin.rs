@@ -88,6 +88,7 @@ pub struct Ime {
     pub rect: Rect,
     pub cursor: Rect,
     pub text: Option<block_plugin_api::ImeText>,
+    pub keyboard: bool,
 }
 
 #[cfg(target_arch = "wasm32")]

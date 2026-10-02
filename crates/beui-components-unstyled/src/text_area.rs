@@ -938,6 +938,7 @@ struct Field {
     set_cursor: WriteSignal<CursorIcon>,
     autoscroll: ReadSignal<bool>,
     tab_stop: Memo<bool>,
+    keyboard_on_focus: bool,
     ime_cursor: Memo<Option<ImeCursor>>,
     ime_text: Memo<Option<ImeText>>,
     on_key_override: Callback<KeyPress, bool>,
@@ -956,6 +957,7 @@ pub fn TextArea(
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] password: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = true)] keyboard_on_focus: bool,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = BODY_SIZE)] font_size: Prop<f32>,
     #[prop(default = PADDING)] padding: Prop<Vec2>,
@@ -1280,6 +1282,7 @@ pub fn TextArea(
         set_cursor,
         autoscroll,
         tab_stop,
+        keyboard_on_focus,
         ime_cursor,
         ime_text,
         on_key_override,
@@ -1375,6 +1378,7 @@ fn Editing(field: Field) -> NodeId {
         set_cursor,
         autoscroll,
         tab_stop,
+        keyboard_on_focus,
         ime_cursor,
         ime_text,
         on_key_override,
@@ -1398,6 +1402,7 @@ fn Editing(field: Field) -> NodeId {
             focused
             tab_stop
             ime={create_memo(move || !disabled.get())}
+            keyboard_on_focus
             ime_cursor
             ime_text
             on_focus_change={move |is_focused: bool| {

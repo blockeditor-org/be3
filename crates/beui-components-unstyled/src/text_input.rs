@@ -81,6 +81,7 @@ struct Input {
 pub fn TextInput(
     value: Prop<String>,
     #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = true)] keyboard_on_focus: bool,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] password: Prop<bool>,
     #[prop(default = false)] select_on_focus: Prop<bool>,
@@ -170,6 +171,7 @@ pub fn TextInput(
             placeholder
             password={masked}
             focused
+            keyboard_on_focus
             disabled={disabled}
             font_size
             padding=Vec2::ZERO
