@@ -925,6 +925,10 @@ impl Context {
         self.inner.fonts.borrow_mut().generation()
     }
 
+    pub fn font_generation(&self) -> u64 {
+        self.inner.fonts.borrow_mut().generation()
+    }
+
     pub fn layout(&self, text: &str, font: FontId, layout: TextLayout) -> Galley {
         self.inner
             .fonts

@@ -6,7 +6,7 @@ use text_editor_core::{
 };
 
 use beui_core::color::Color32;
-use beui_core::font::{FontId, Galley, TextLayout};
+use beui_core::font::{FontId, Galley, TextLayout, Wraps};
 use beui_core::geometry::Vec2;
 use beui_core::rich::{RichLayout, RichOptions, SpanKind, SpanStyle, TextSpan};
 use beui_view::reactive::layout_text;
@@ -634,7 +634,16 @@ pub fn rich_layout(
 }
 
 fn empty_galley(font: FontId) -> Galley {
-    Galley::new("", font, Vec2::ZERO, 0.0, 0.0, Vec::new(), Vec::new())
+    Galley::new(
+        "",
+        font,
+        Vec2::ZERO,
+        0.0,
+        0.0,
+        Vec::new(),
+        Vec::new(),
+        Wraps::ANY,
+    )
 }
 
 pub type TableSpacers = HashMap<usize, Vec<(usize, f32)>>;

@@ -357,8 +357,8 @@ impl Painter {
             .layout(&text.into(), font, TextLayout::wrapped(wrap_width))
     }
 
-    pub fn layout_text(&self, text: impl Into<String>, font: FontId, layout: TextLayout) -> Galley {
-        self.context.layout(&text.into(), font, layout)
+    pub fn layout_text(&self, text: &str, font: FontId, layout: TextLayout) -> Galley {
+        self.context.layout(text, font, layout)
     }
 
     pub fn rect_filled(&self, rect: Rect, corner_radius: impl Into<Corners>, color: Color32) {
