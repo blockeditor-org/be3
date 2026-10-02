@@ -189,7 +189,6 @@ impl super::backend::Backend for Wasm {
     }
 
     fn settled(&mut self) -> bool {
-        self.poll_worker();
         self.worker.as_ref().is_none_or(|worker| {
             !worker.ready || (worker.pending.is_empty() && !(worker.stepping && worker.carrying))
         })

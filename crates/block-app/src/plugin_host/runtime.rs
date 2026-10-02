@@ -129,6 +129,7 @@ pub(super) struct Runtime {
     needed: bool,
     paint_at: Option<f64>,
     requested_at: Option<f64>,
+    animated: u64,
     theme: Theme,
     fonts_sent: bool,
     fallbacks: super::fonts::Fallbacks,
@@ -193,6 +194,7 @@ impl Runtime {
             needed: false,
             paint_at: None,
             requested_at: None,
+            animated: 0,
             theme: theme(),
             fonts_sent: false,
             fallbacks: super::fonts::Fallbacks::new(),
@@ -309,6 +311,7 @@ impl Runtime {
         }
         if self.session.granted_surface().is_some() && self.frame_due() {
             self.requested_at = Some(self.now());
+            self.animated = host::pass();
             self.send(vec![Message::DrawFrame]);
         }
         if self.requested_at.is_some() {
@@ -318,7 +321,8 @@ impl Runtime {
 
     fn frame_due(&self) -> bool {
         let now = self.now();
-        (self.needed || self.paint_at.is_some_and(|at| at <= now))
+        (self.needed
+            || (self.animated != host::pass() && self.paint_at.is_some_and(|at| at <= now)))
             && self
                 .requested_at
                 .is_none_or(|at| now - at >= FRAME_TIMEOUT_SECONDS)

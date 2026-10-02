@@ -277,7 +277,12 @@ impl Blit {
         }
         let damage = shared.damage.as_ref()?;
         let placement = shared.layout.placement(self.screen)?;
-        if placement.width == 0 || placement.height == 0 {
+        if placement.width == 0
+            || placement.height == 0
+            || self
+                .requested
+                .is_some_and(|requested| requested != (placement.width, placement.height))
+        {
             return None;
         }
         Some(
