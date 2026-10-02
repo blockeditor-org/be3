@@ -202,12 +202,15 @@ pub(crate) fn PluginRegion(
     let ime = create_memo(clone!(state -> move || state.with(|view| view.ime.is_some())));
     let ime_cursor = create_memo(clone!(state anchor -> move || {
         state.with(|view| {
-            let area = view.ime?;
+            let area = view.ime.as_ref()?;
             Some(ImeCursor {
                 node: anchor.try_get()?,
                 rect: Some(area.cursor.translate(-view.rect.min.to_vec2())),
             })
         })
+    }));
+    let ime_text = create_memo(clone!(state -> move || {
+        state.with(|view| view.ime.as_ref().and_then(|area| area.text.clone()))
     }));
     let loading = create_memo(clone!(state -> move || {
         region == EditorRegion::Frame && state.with(|view| view.loading)
@@ -252,6 +255,7 @@ pub(crate) fn PluginRegion(
                     cursor={cursor}
                     ime={ime}
                     ime_cursor={ime_cursor}
+                    ime_text={ime_text}
                     on_forward={forward}
                     forward_at={takes}
                 >

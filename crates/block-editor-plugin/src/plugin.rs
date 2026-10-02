@@ -83,10 +83,11 @@ pub struct Frame {
     pub handles_back: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Ime {
     pub rect: Rect,
     pub cursor: Rect,
+    pub text: Option<block_plugin_api::ImeText>,
 }
 
 #[cfg(target_arch = "wasm32")]

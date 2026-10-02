@@ -2,8 +2,8 @@ use crate::reactive::{Callback, Child, ClickCallback, Prop, create_effect, with_
 use beui_core::base::list::Direction;
 use beui_core::geometry::{Pos2, Vec2};
 use beui_core::input::{
-    AutoscrollGesture, CursorIcon, DragGesture, KeyPress, PointerPress, ScrollGesture,
-    SecondaryDrag, ZoomGesture,
+    AutoscrollGesture, CursorIcon, DragGesture, ImeEvent, ImeText, KeyPress, PointerPress,
+    ScrollGesture, SecondaryDrag, ZoomGesture,
 };
 use beui_core::node::NodeId;
 
@@ -20,13 +20,14 @@ pub fn Interactive(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] ime: Prop<bool>,
     #[prop(default = None)] ime_cursor: Prop<Option<ImeCursor>>,
+    #[prop(default = None)] ime_text: Prop<Option<ImeText>>,
     on_focus_change: Callback<bool>,
     on_activate_change: Callback<bool>,
     on_activate: ClickCallback,
     on_step: Callback<f32>,
     on_text: Callback<String>,
     #[prop(default = true)] takes_text: bool,
-    on_preedit: Callback<String>,
+    on_ime: Callback<ImeEvent>,
     on_key: Callback<KeyPress, bool>,
     on_ancestor_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
@@ -68,7 +69,7 @@ pub fn Interactive(
                 && on_activate.is_empty()
                 && on_step.is_empty()
                 && on_text.is_empty()
-                && on_preedit.is_empty()
+                && on_ime.is_empty()
                 && on_key.is_empty()
                 && on_ancestor_key.is_empty()
                 && on_motion.is_empty()),
@@ -85,7 +86,7 @@ pub fn Interactive(
             if takes_text {
                 focus.on_text = on_text;
             }
-            focus.on_preedit = on_preedit;
+            focus.on_ime = on_ime;
             focus.on_key = on_key;
             focus.on_ancestor_key = on_ancestor_key;
             focus.on_motion = on_motion;
@@ -131,6 +132,10 @@ pub fn Interactive(
         create_effect(move || {
             let cursor = ime_cursor.get();
             with_document(|document| document.set_focusable_ime_cursor(interactive, cursor))
+        });
+        create_effect(move || {
+            let text = ime_text.get();
+            with_document(|document| document.set_focusable_ime_text(interactive, text))
         });
         create_effect(move || {
             let wanted = focused.get();

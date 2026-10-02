@@ -4,9 +4,10 @@ use std::sync::Arc;
 use crate::color::Color32;
 use crate::context::Context;
 use crate::geometry::{Rect, Vec2, pos2};
-use crate::input::{Event, Key, Modifiers, TouchPhase};
+use crate::input::{Event, TouchPhase};
 
 pub mod accessibility_dump;
+pub mod ime_mirror;
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct SafeArea {
@@ -109,41 +110,6 @@ pub fn next_batch(pending: &mut Vec<Event>) -> Vec<Event> {
             std::mem::replace(pending, rest)
         }
         None => std::mem::take(pending),
-    }
-}
-
-pub fn typed(old: &str, new: &str, events: &mut Vec<Event>) {
-    let common = old
-        .char_indices()
-        .zip(new.chars())
-        .find(|((_, before), after)| before != after)
-        .map_or(old.len().min(new.len()), |((index, _), _)| index);
-    for _ in old[common..].chars() {
-        press(Key::Backspace, events);
-    }
-    let mut rest = &new[common..];
-    while !rest.is_empty() {
-        let end = rest.find(['\n', '\t']).unwrap_or(rest.len());
-        if end > 0 {
-            events.push(Event::Text(rest[..end].to_owned()));
-        }
-        match rest[end..].chars().next() {
-            Some('\n') => press(Key::Enter, events),
-            Some('\t') => press(Key::Tab, events),
-            _ => {}
-        }
-        rest = rest.get(end + 1..).unwrap_or("");
-    }
-}
-
-pub fn press(key: Key, events: &mut Vec<Event>) {
-    for pressed in [true, false] {
-        events.push(Event::Key {
-            key,
-            pressed,
-            repeat: false,
-            modifiers: Modifiers::NONE,
-        });
     }
 }
 

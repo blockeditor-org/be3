@@ -334,21 +334,12 @@ pub fn interact(
                 doc.reveal_focus(painter);
                 continue;
             }
-            Event::Ime(ImeEvent::Preedit(text)) => {
-                doc.preedit_focused(&text);
-                doc.reveal_focus(painter);
-                continue;
-            }
-            Event::Ime(ImeEvent::Commit(text)) => {
-                doc.preedit_focused("");
-                if !text.is_empty() {
-                    doc.text_focused(&text);
+            Event::Ime(ime) => {
+                let reveals = !matches!(ime, ImeEvent::Enabled | ImeEvent::Disabled);
+                doc.ime_focused(ime);
+                if reveals {
+                    doc.reveal_focus(painter);
                 }
-                doc.reveal_focus(painter);
-                continue;
-            }
-            Event::Ime(ImeEvent::Disabled) => {
-                doc.preedit_focused("");
                 continue;
             }
             Event::Key {

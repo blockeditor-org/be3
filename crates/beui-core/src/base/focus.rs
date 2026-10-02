@@ -2,7 +2,7 @@ use crate::base::frame::FrameNode;
 use crate::base::interactive::InteractiveNode;
 use crate::base::overlay::OverlayNode;
 use crate::geometry::{Rect, Vec2};
-use crate::input::{ImeArea, Key, KeyPress};
+use crate::input::{ImeArea, ImeEvent, ImeText, Key, KeyPress};
 
 use crate::callback::{Callback, ClickCallback};
 use crate::current::with_document;
@@ -22,12 +22,13 @@ pub struct Focus {
     pub press_focus: bool,
     pub ime: bool,
     pub ime_cursor: Option<ImeCursor>,
+    pub ime_text: Option<ImeText>,
     pub on_focus_change: Callback<bool>,
     pub on_activate_change: Callback<bool>,
     pub on_activate: ClickCallback,
     pub on_step: Callback<f32>,
     pub on_text: Callback<String>,
-    pub on_preedit: Callback<String>,
+    pub on_ime: Callback<ImeEvent>,
     pub on_key: KeyCallback,
     pub on_ancestor_key: KeyCallback,
     pub on_motion: Callback<Vec2>,
@@ -46,12 +47,13 @@ impl Focus {
             press_focus: true,
             ime: false,
             ime_cursor: None,
+            ime_text: None,
             on_focus_change: Callback::empty(),
             on_activate_change: Callback::empty(),
             on_activate: ClickCallback::empty(),
             on_step: Callback::empty(),
             on_text: Callback::empty(),
-            on_preedit: Callback::empty(),
+            on_ime: Callback::empty(),
             on_key: Callback::empty(),
             on_ancestor_key: Callback::empty(),
             on_motion: Callback::empty(),
@@ -109,9 +111,28 @@ impl Document {
         }
     }
 
-    pub fn preedit_focused(&mut self, text: &str) {
-        if let Some(focused) = self.focused {
-            self.call_focusable_handler(focused, text.to_owned(), |node| &node.on_preedit);
+    pub fn ime_focused(&mut self, event: ImeEvent) {
+        let Some(focused) = self.focused else {
+            return;
+        };
+        if focus_of(self.arena.get(focused)).is_some_and(|node| !node.on_ime.is_empty()) {
+            self.call_focusable_handler(focused, event, |node| &node.on_ime);
+            return;
+        }
+        let typed = match event {
+            ImeEvent::SetComposingText(text) => {
+                self.composed = text;
+                return;
+            }
+            ImeEvent::CommitText(text) => {
+                self.composed.clear();
+                text
+            }
+            ImeEvent::FinishComposing | ImeEvent::Disabled => std::mem::take(&mut self.composed),
+            _ => return,
+        };
+        if !typed.is_empty() {
+            self.text_focused(&typed);
         }
     }
 
@@ -146,6 +167,16 @@ impl Document {
         }
     }
 
+    pub fn set_focusable_ime_text(
+        &mut self,
+        focusable: NodeOf<InteractiveNode>,
+        text: Option<ImeText>,
+    ) {
+        if self.contains(focusable) {
+            self.focus_mut(focusable).ime_text = text;
+        }
+    }
+
     pub fn focused_ime_area(&self) -> Option<ImeArea> {
         let focused = self.focused?;
         let node = focus_of(self.arena.get(focused))?;
@@ -164,7 +195,11 @@ impl Document {
                 })
             })
             .unwrap_or(rect);
-        Some(ImeArea { rect, cursor })
+        Some(ImeArea {
+            rect,
+            cursor,
+            text: node.ime_text.clone(),
+        })
     }
 
     pub fn focus_types(&self) -> bool {
@@ -305,6 +340,7 @@ impl Document {
             return;
         }
         let old = self.focused;
+        self.composed.clear();
         self.cancel_focus_activation();
         self.focused = new_focus;
         for id in [old, new_focus].into_iter().flatten() {

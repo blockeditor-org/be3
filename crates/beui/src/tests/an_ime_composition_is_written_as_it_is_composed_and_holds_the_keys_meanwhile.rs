@@ -6,7 +6,7 @@ use std::sync::Arc;
 use text_editor_core::TextBuffer;
 
 #[test]
-fn an_ime_composition_commits_as_typed_text_and_holds_the_keys_meanwhile() {
+fn an_ime_composition_is_written_as_it_is_composed_and_holds_the_keys_meanwhile() {
     let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
     let sink = held.clone();
     let document = build(move || {
@@ -25,19 +25,16 @@ fn an_ime_composition_commits_as_typed_text_and_holds_the_keys_meanwhile() {
 
     harness.frame(vec![
         Event::Ime(ImeEvent::Enabled),
-        Event::Ime(ImeEvent::Preedit("ni".to_owned())),
+        Event::Ime(ImeEvent::SetComposingText("ni".to_owned())),
     ]);
     harness.key(Key::Backspace, Modifiers::NONE);
     assert_eq!(
         String::from_utf8_lossy(&state.bytes()),
-        "ab",
-        "a composition is not text yet, and the keys that edit it are the input method's"
+        "abni",
+        "a composition is written as it is composed, and the keys that edit it are the input method's"
     );
 
-    harness.frame(vec![
-        Event::Ime(ImeEvent::Preedit(String::new())),
-        Event::Ime(ImeEvent::Commit("你".to_owned())),
-    ]);
+    harness.frame(vec![Event::Ime(ImeEvent::CommitText("你".to_owned()))]);
     assert_eq!(String::from_utf8_lossy(&state.bytes()), "ab你");
 
     harness.key(Key::Backspace, Modifiers::NONE);

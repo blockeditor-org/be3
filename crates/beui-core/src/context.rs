@@ -406,7 +406,7 @@ impl Context {
             changed,
             repaint_after: self.inner.repaint_after.get(),
             cursor_icon: self.inner.cursor_icon.get(),
-            ime: self.inner.ime.get(),
+            ime: self.inner.ime.take(),
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
             handles_back: self.inner.handles_back.get(),
@@ -884,6 +884,7 @@ impl Context {
             self.inner.ime.set(Some(ImeArea {
                 rect: area.rect.scaled(scale),
                 cursor: area.cursor.scaled(scale),
+                text: area.text,
             }));
         }
         self.inner.input.replace(input);

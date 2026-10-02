@@ -17,7 +17,7 @@ use accesskit::{Node, Role};
 
 use text_editor_core::{
     CursorHorizontalPositionMetric, CursorLeftRightStop, DragSelectionMode, EditorCommand,
-    LRDirection, MarkdownCommand, MoveMode, UDDirection, VerticalMoveMode,
+    ImeCommand, LRDirection, MarkdownCommand, MoveMode, UDDirection, VerticalMoveMode,
 };
 
 use beui_macros::{component, view};
@@ -29,7 +29,7 @@ use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2};
-use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
+use beui_core::input::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
 use beui_core::node::{NodeId, Rects};
 use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center};
 use beui_view::reactive::{
@@ -132,8 +132,6 @@ struct Surface {
     view_height: Memo<f32>,
     focused: ReadSignal<bool>,
     set_focused: WriteSignal<bool>,
-    preedit: ReadSignal<String>,
-    set_preedit: WriteSignal<String>,
     set_autoscroll: WriteSignal<bool>,
     viewport: NodeRef,
     list: NodeRef,
@@ -811,7 +809,8 @@ fn extend(cx: &Context, press: PointerPress) {
 }
 
 fn blur(cx: &Context) {
-    cx.set_preedit.set(String::new());
+    cx.state
+        .execute(EditorCommand::Ime(ImeCommand::FinishComposing));
     cx.state.end_grab();
     cx.state.set_selecting(false);
     cx.set_autoscroll.set(false);
@@ -843,17 +842,76 @@ fn insert_text(cx: &Context, text: &str) {
     cx.state.reveal_cursor();
 }
 
-fn compose(cx: &Context, text: String) {
-    let text = match cx.disabled.get_untracked() {
-        true => String::new(),
-        false => text.chars().filter(|letter| !letter.is_control()).collect(),
-    };
-    if text == cx.preedit.get_untracked() {
+fn ime(cx: &Context, event: ImeEvent, key: impl Fn(KeyPress) -> bool) {
+    if cx.disabled.get_untracked() {
         return;
     }
-    cx.set_preedit.set(text);
-    cx.state.set_caret_handle(false);
+    let typed = |text: &str| -> String {
+        text.chars()
+            .filter(|letter| !letter.is_control() || (!cx.single_line && *letter == '\t'))
+            .collect()
+    };
+    let command = match &event {
+        ImeEvent::Enabled => return,
+        ImeEvent::Disabled | ImeEvent::FinishComposing => ImeCommand::FinishComposing,
+        ImeEvent::SetComposingText(text) => {
+            let text = typed(text);
+            cx.state
+                .execute(EditorCommand::Ime(ImeCommand::SetComposingText(&text)));
+            cx.state.set_caret_handle(false);
+            cx.state.reveal_cursor();
+            return;
+        }
+        ImeEvent::CommitText(text) => {
+            let mut lines = text.split('\n').peekable();
+            while let Some(line) = lines.next() {
+                let line = typed(line);
+                cx.state
+                    .execute(EditorCommand::Ime(ImeCommand::CommitText(&line)));
+                if lines.peek().is_some() {
+                    for pressed in [true, false] {
+                        key(KeyPress {
+                            key: Key::Enter,
+                            pressed,
+                            repeat: false,
+                            modifiers: Default::default(),
+                        });
+                    }
+                }
+            }
+            cx.state.set_caret_handle(false);
+            cx.state.reveal_cursor();
+            return;
+        }
+        ImeEvent::SetComposingRegion(range) => ImeCommand::SetComposingRegion(range.clone()),
+        ImeEvent::ReplaceText { range, text } => {
+            let text = typed(text);
+            cx.state
+                .execute(EditorCommand::Ime(ImeCommand::ReplaceText {
+                    range: range.clone(),
+                    text: &text,
+                }));
+            cx.state.set_caret_handle(false);
+            cx.state.reveal_cursor();
+            return;
+        }
+        ImeEvent::DeleteSurrounding { before, after } => ImeCommand::DeleteSurrounding {
+            before: *before,
+            after: *after,
+        },
+        ImeEvent::SetSelection { anchor, focus } => ImeCommand::SetSelection {
+            anchor: *anchor,
+            focus: *focus,
+        },
+    };
+    cx.state.execute(EditorCommand::Ime(command));
     cx.state.reveal_cursor();
+}
+
+fn field_key(cx: &Context, on_key_override: &Callback<KeyPress, bool>, press: KeyPress) -> bool {
+    !cx.disabled.get_untracked()
+        && !keys::leaves_on_tab(cx, press)
+        && (cx.completion_key(press) || on_key_override.call(press) || keys::key(cx, press))
 }
 
 fn gutter_width(line_count: usize) -> f32 {
@@ -881,6 +939,7 @@ struct Field {
     autoscroll: ReadSignal<bool>,
     tab_stop: Memo<bool>,
     ime_cursor: Memo<Option<ImeCursor>>,
+    ime_text: Memo<Option<ImeText>>,
     on_key_override: Callback<KeyPress, bool>,
     on_focus_change: Callback<bool>,
     on_hover_change: Callback<bool>,
@@ -928,7 +987,6 @@ pub fn TextArea(
     let (offset, set_offset) = create_signal(0.0_f32);
     let (shift, set_shift) = create_signal(0.0_f32);
     let (focused, set_focused) = create_signal(false);
-    let (preedit, set_preedit) = create_signal(String::new());
     let (autoscroll, set_autoscroll) = create_signal(false);
     let viewport = NodeRef::new();
     let (outer, inner) = match single_line {
@@ -1037,22 +1095,18 @@ pub fn TextArea(
             }))
         }),
     );
-    let composition = create_memo(clone!(state preedit -> move || {
-        let text = preedit.get();
-        if text.is_empty() {
-            return None;
-        }
+    let composition = create_memo(clone!(state -> move || {
         state.cursors().get();
+        state.content().get();
         Some(Composition {
-            at: *state.caret_indices().first()?,
-            text,
+            range: state.core().composition()?,
         })
     }));
-    let completion = create_memo(clone!(state focused preedit -> move || {
+    let completion = create_memo(clone!(state focused -> move || {
         let trigger = trigger?;
         state.cursors().get();
         state.content().get();
-        if !focused.get() || !preedit.get().is_empty() {
+        if !focused.get() || state.core().composition().is_some() {
             return None;
         }
         query(&state, trigger)
@@ -1111,8 +1165,6 @@ pub fn TextArea(
         view_height: create_memo(clone!(placed -> move || placed.get().height())),
         focused: focused.clone(),
         set_focused: set_focused.clone(),
-        preedit: preedit.clone(),
-        set_preedit,
         set_autoscroll,
         viewport: viewport.clone(),
         list: NodeRef::new(),
@@ -1157,6 +1209,20 @@ pub fn TextArea(
         Some(ImeCursor {
             node: anchor,
             rect: None,
+        })
+    }));
+    let ime_text = create_memo(clone!(state focused -> move || {
+        state.cursors().get();
+        state.content().get();
+        if !focused.get() {
+            return None;
+        }
+        let surrounding = state.core().ime_state()?;
+        Some(ImeText {
+            start: surrounding.start,
+            text: surrounding.text,
+            selection: surrounding.selection,
+            composing: surrounding.composing,
         })
     }));
 
@@ -1215,6 +1281,7 @@ pub fn TextArea(
         autoscroll,
         tab_stop,
         ime_cursor,
+        ime_text,
         on_key_override,
         on_focus_change,
         on_hover_change,
@@ -1309,11 +1376,13 @@ fn Editing(field: Field) -> NodeId {
         autoscroll,
         tab_stop,
         ime_cursor,
+        ime_text,
         on_key_override,
         on_focus_change,
         on_hover_change,
     } = field;
-    let preedit_cx = cx.clone();
+    let ime_cx = cx.clone();
+    let ime_override = on_key_override.clone();
     let focused = cx.focused.clone();
     let set_focused = cx.set_focused.clone();
     let (blur_cx, text_cx, key_cx, capture_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
@@ -1330,6 +1399,7 @@ fn Editing(field: Field) -> NodeId {
             tab_stop
             ime={create_memo(move || !disabled.get())}
             ime_cursor
+            ime_text
             on_focus_change={move |is_focused: bool| {
                 set_focused.set(is_focused);
                 if !is_focused {
@@ -1338,14 +1408,12 @@ fn Editing(field: Field) -> NodeId {
                 on_focus_change.call(is_focused);
             }}
             on_text={move |typed: String| insert_text(&text_cx, &typed)}
-            on_preedit={move |text: String| compose(&preedit_cx, text)}
+            on_ime={move |event: ImeEvent| {
+                ime(&ime_cx, event, |press| field_key(&ime_cx, &ime_override, press))
+            }}
             on_key={move |press: KeyPress| {
-                !key_cx.preedit.get_untracked().is_empty()
-                    || (!key_cx.disabled.get_untracked()
-                        && !keys::leaves_on_tab(&key_cx, press)
-                        && (key_cx.completion_key(press)
-                            || on_key_override.call(press)
-                            || keys::key(&key_cx, press)))
+                key_cx.state.core().composition().is_some()
+                    || field_key(&key_cx, &on_key_override, press)
             }}
             cursor
             repeat_drag={autoscroll}
