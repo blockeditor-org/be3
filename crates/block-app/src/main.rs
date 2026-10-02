@@ -98,9 +98,14 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
         app.open_dev_workspace(Some(location.origin()?));
     }
     options.accessibility_tree = page.search_params().has("accessibility-tree");
-    beui::run_web(&canvas_id, options, Shell::new(app))
-        .await
-        .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+    beui::run_web(
+        &canvas_id,
+        vec![beui::WebRenderer::Wgpu],
+        options,
+        Shell::new(app),
+    )
+    .await
+    .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
 }
 
 #[cfg(target_arch = "wasm32")]

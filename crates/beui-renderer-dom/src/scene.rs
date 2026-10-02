@@ -5,10 +5,12 @@ use std::rc::Rc;
 use wasm_bindgen::JsCast;
 
 use beui_core::color::Color32;
-use beui_core::context::{Context, FrameOutput, RendererInfo};
+use beui_core::context::{FrameOutput, RendererInfo};
 use beui_core::display::{Display, Layer, Part};
+use beui_core::geometry::Vec2;
 use beui_core::image::{Image, ImageId};
 use beui_core::painter::{Entry, Shape};
+use beui_core::renderer::Renderer;
 
 use crate::style::{self, Look};
 
@@ -70,7 +72,7 @@ pub struct DomRenderer {
 }
 
 impl DomRenderer {
-    pub fn new(root: web_sys::HtmlElement, context: &Context) -> Result<Self, Box<dyn Error>> {
+    pub fn new(root: web_sys::HtmlElement) -> Result<Self, Box<dyn Error>> {
         let document = root
             .owner_document()
             .ok_or("the element is not in a document")?;
@@ -90,9 +92,6 @@ impl DomRenderer {
         stage.set_class_name("beui-stage");
         root.append_child(&stage)
             .map_err(|_| "could not add the stage to the root element")?;
-        context.set_renderer_info(RendererInfo {
-            rows: vec![("Renderer", "DOM".to_owned())],
-        });
         Ok(Self {
             document,
             root,
@@ -107,7 +106,7 @@ impl DomRenderer {
         })
     }
 
-    pub fn draw(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+    fn show(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
         let ratio = web_sys::window().map_or(1.0, |window| window.device_pixel_ratio() as f32);
         let zoom = scale / ratio;
         let prepared = Some((scale, zoom, background));
@@ -427,6 +426,43 @@ impl DomRenderer {
         let url: Rc<str> = data_url(&self.document, image)?.into();
         self.images.insert(image.id(), Rc::clone(&url));
         Some(url)
+    }
+}
+
+impl Renderer for DomRenderer {
+    fn name(&self) -> &'static str {
+        "DOM"
+    }
+
+    fn info(&self) -> RendererInfo {
+        RendererInfo {
+            rows: vec![("Renderer", "DOM".to_owned())],
+        }
+    }
+
+    fn set_active(&mut self, active: bool) {
+        let display = match active {
+            true => "",
+            false => "none",
+        };
+        let _ = self.stage.style().set_property("display", display);
+        if !active {
+            self.prepared = None;
+            self.clear();
+        }
+    }
+
+    fn resize(&mut self, _width: u32, _height: u32) {}
+
+    fn draw(
+        &mut self,
+        output: &FrameOutput,
+        _physical: Vec2,
+        scale: f32,
+        background: Color32,
+    ) -> bool {
+        self.show(output, scale, background);
+        false
     }
 }
 

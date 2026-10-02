@@ -18,31 +18,27 @@ use wasm_bindgen::prelude::Closure;
 use beui_core::app::accessibility_dump::AccessibilityDump;
 use beui_core::app::ime_mirror::{ImeInput, ImeMirror};
 use beui_core::app::{App, Setup, Waker, next_batch};
-use beui_core::color::Color32;
-use beui_core::context::Context;
-use beui_core::context::FrameOutput;
+use beui_core::context::{Context, Renderers};
+use beui_core::font::FontBackend;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::input::{
     CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, RawInput,
     TouchId, TouchPhase,
 };
+use beui_core::renderer::Renderer;
 
 const LINE_HEIGHT: f32 = 40.0;
 const PAGE_HEIGHT: f32 = 800.0;
 const PINCH_SPEED: f32 = 0.01;
 
-pub trait WebRenderer: 'static {
-    fn provide(&self, _setup: &mut Setup) {}
+pub struct Loaded {
+    pub renderer: Box<dyn Renderer>,
+    pub fonts: Box<dyn FontBackend>,
+}
 
-    fn resize(&mut self, width: u32, height: u32);
-
-    fn draw(
-        &mut self,
-        output: &FrameOutput,
-        physical: Vec2,
-        scale: f32,
-        background: Color32,
-    ) -> bool;
+struct Slot {
+    renderer: Box<dyn Renderer>,
+    fonts: Option<Box<dyn FontBackend>>,
 }
 
 pub struct RunOptions {
@@ -143,7 +139,8 @@ struct Runner {
     context: Context,
     surface: web_sys::HtmlElement,
     agent: web_sys::HtmlTextAreaElement,
-    renderer: Box<dyn WebRenderer>,
+    renderers: Vec<Slot>,
+    active: usize,
     size: (u32, u32),
     cursor_icon: CursorIcon,
     pointer_locked: bool,
@@ -161,13 +158,16 @@ impl Runner {
         if let Some(previous) = TIMEOUT.take() {
             window.clear_timeout_with_handle(previous);
         }
+        if let Some(index) = self.context.take_renderer_choice() {
+            self.activate(index);
+        }
         let ratio = window.device_pixel_ratio() as f32;
         let bounds = self.surface.get_bounding_client_rect();
         let width = ((bounds.width() as f32) * ratio).round().max(1.0) as u32;
         let height = ((bounds.height() as f32) * ratio).round().max(1.0) as u32;
         if self.size != (width, height) {
             self.size = (width, height);
-            self.renderer.resize(width, height);
+            self.renderers[self.active].renderer.resize(width, height);
         }
         self.context.set_pixels_per_point(ratio);
         let scale = self
@@ -261,13 +261,40 @@ impl Runner {
         }
 
         let background = self.app.clear_color();
-        let again = self.renderer.draw(&output, physical, scale, background);
+        let again = self.renderers[self.active]
+            .renderer
+            .draw(&output, physical, scale, background);
 
         if again || deferred || output.repaint || output.repaint_after.is_zero() {
             schedule();
         } else if output.repaint_after != Duration::MAX {
             schedule_after(output.repaint_after);
         }
+    }
+
+    fn activate(&mut self, index: usize) {
+        if index == self.active || index >= self.renderers.len() {
+            return;
+        }
+        let Some(fonts) = self.renderers[index].fonts.take() else {
+            return;
+        };
+        self.renderers[self.active].renderer.set_active(false);
+        self.renderers[self.active].fonts = Some(self.context.replace_fonts(fonts));
+        self.active = index;
+        let renderer = &mut self.renderers[index].renderer;
+        renderer.set_active(true);
+        self.context.set_renderer_info(renderer.info());
+        self.context
+            .set_renderers(renderers(&self.renderers, index));
+        self.size = (0, 0);
+    }
+}
+
+fn renderers(slots: &[Slot], active: usize) -> Renderers {
+    Renderers {
+        names: slots.iter().map(|slot| slot.renderer.name()).collect(),
+        active,
     }
 }
 
@@ -327,12 +354,11 @@ pub fn request_frame() {
     schedule();
 }
 
-pub async fn run_web<R: WebRenderer>(
+pub async fn run_web(
     element_id: &str,
     options: RunOptions,
-    context: Context,
     app: impl App + 'static,
-    renderer: impl AsyncFnOnce(web_sys::HtmlElement, &Context) -> Result<R, Box<dyn Error>>,
+    load: impl AsyncFnOnce(web_sys::HtmlElement) -> Result<Vec<Loaded>, Box<dyn Error>>,
 ) -> Result<(), Box<dyn Error>> {
     let window = web_sys::window().ok_or("no browser window is available")?;
     let document = window
@@ -346,18 +372,41 @@ pub async fn run_web<R: WebRenderer>(
     document.set_title(&options.title);
     let _ = surface.style().set_property("touch-action", "none");
     let agent = text_agent(&document)?;
-    let renderer = renderer(surface.clone(), &context).await?;
+    let mut loaded = load(surface.clone()).await?.into_iter();
+    let first = loaded.next().ok_or("no renderer was loaded")?;
+    let context = Context::with_fonts(first.fonts);
+    let mut slots = vec![Slot {
+        renderer: first.renderer,
+        fonts: None,
+    }];
+    for Loaded {
+        mut renderer,
+        fonts,
+    } in loaded
+    {
+        renderer.set_active(false);
+        slots.push(Slot {
+            renderer,
+            fonts: Some(fonts),
+        });
+    }
+    slots[0].renderer.set_active(true);
+    context.set_renderer_info(slots[0].renderer.info());
+    context.set_renderers(renderers(&slots, 0));
 
     let mut app: Box<dyn App> = Box::new(app);
     let mut setup = Setup::new(waker());
-    renderer.provide(&mut setup);
+    for slot in &slots {
+        slot.renderer.provide(&mut setup);
+    }
     app.setup(&setup);
     let runner = Runner {
         app,
         context,
         surface: surface.clone(),
         agent: agent.clone(),
-        renderer: Box::new(renderer),
+        renderers: slots,
+        active: 0,
         size: (0, 0),
         cursor_icon: CursorIcon::Default,
         pointer_locked: false,

@@ -12,7 +12,9 @@ pub use beui_core::base::{
     Align, Direction, ImeCursor, ItemSize, Justify, ScrollPosition, Sizing, Track, focus_within,
 };
 pub use beui_core::color::{Color32, Hsva, format_hex, parse_hex};
-pub use beui_core::context::{Context, FrameOutput, InputSimulation, Moved, RendererInfo};
+pub use beui_core::context::{
+    Context, FrameOutput, InputSimulation, Moved, RendererInfo, Renderers,
+};
 pub use beui_core::damage::Region;
 pub use beui_core::document::{
     Document, OverRepaint, Tools, detect_over_repaint, take_over_repaints, verify_paint,
@@ -58,14 +60,10 @@ pub use beui_adapter_android::{AndroidApp, RunOptions};
 pub use beui_adapter_web::{RunOptions, accessibility_tree};
 #[cfg(all(feature = "window", not(target_os = "android")))]
 pub use beui_adapter_winit::{RunOptions, winit};
-#[cfg(all(feature = "dom", target_arch = "wasm32"))]
-pub use dom::run_dom;
-#[cfg(all(feature = "web", target_arch = "wasm32"))]
-pub use web::run_web;
+#[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
+pub use web::{WebRenderer, run_web};
 
-#[cfg(all(feature = "dom", target_arch = "wasm32"))]
-mod dom;
-#[cfg(all(feature = "web", target_arch = "wasm32"))]
+#[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 mod web;
 
 pub mod reactive {

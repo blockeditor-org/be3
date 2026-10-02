@@ -246,8 +246,13 @@ hooks the higher crates fill in:
   (`Document::extension`); `beui::styled::DocumentTheme` reads and writes it.
 - A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
   the wgpu renderer.
-- The web runner draws through a `WebRenderer`, which the facade fills in with
-  the wgpu renderer's `CanvasSurface`.
+- The web runner draws through `beui_core::renderer::Renderer` trait objects,
+  which the wgpu renderer's `CanvasSurface` and the DOM renderer's
+  `DomRenderer` implement. It can hold several at once, each with the
+  `FontBackend` its text is measured with, and shows one: `Context::choose_renderer`
+  (the inspector's Perf tab, when more than one is loaded) hides the shown one,
+  swaps the context's fonts with `Context::replace_fonts`, which lays all text
+  out again, and draws the next frame with the other.
 
 Inside the family, crates name each other directly (`beui_core::document::Document`),
 and the component crates declare `extern crate beui_view as beui;` so the
@@ -1295,10 +1300,13 @@ Android its inset joins the safe area, and on the web the pages' viewport meta
 asks for `interactive-widget=resizes-content`. When the rectangle a document is
 shown in changes size while the focus takes text, the document scrolls the
 focused field into what is left, through every scroll it sits in.
-- `web` adds the browser runner, `beui::run_web(canvas_id, options, app)`,
-  and enables `render`.
-- `dom` is the other browser runner,
-  `beui::run_dom(element_id, icons_font, options, app)`, which draws with DOM
+- `web` and `dom` add the browser runner,
+  `beui::run_web(element_id, renderers, options, app)`, which loads each
+  `beui::WebRenderer` it is given into the element, shows the first that
+  loads, and skips (with a console warning) any that fail. `web` enables
+  `render` and adds `WebRenderer::Wgpu`, which draws into the element if it is
+  a canvas and into a canvas it adds otherwise.
+- `dom` adds `WebRenderer::Dom { icons_font }`, which draws with DOM
   elements instead of wgpu. Layout, input and focus are beui's as everywhere
   else. Each `Display` in the frame's display tree keeps one element across
   frames (by `Display::key`), holding its shapes and its children's elements
@@ -1307,7 +1315,7 @@ focused field into what is left, through every scroll it sits in.
   inside them. Text is measured and drawn with the browser's fonts
   (`beui-font-browser`), and the browser fetches the icon font from the URL
   `icons_font` names. A `Drawing`, a `Punch` and a `Filter` draw nothing there.
-  `crates/beui-web-demo` is the demo this way:
+  `crates/beui-web-demo` is the demo with both renderers, DOM first:
   `./scripts/buck run //crates/beui-web-demo:web-serve` serves it on
   http://127.0.0.1:8070.
 

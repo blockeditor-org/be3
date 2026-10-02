@@ -56,7 +56,7 @@
         <script type="module">
             import { bindMemory } from "./wasi.js";
             import { bindThreads } from "./threads.js";
-            import init, { run_dom } from "./beui_web_demo.js";
+            import init, { run_demo } from "./beui_web_demo.js";
 
             const status = document.getElementById("status");
             try {
@@ -72,7 +72,7 @@
                 bindMemory(wasm.memory);
                 bindThreads(module, wasm.memory);
                 status.hidden = true;
-                await run_dom("demo", "./icons.ttf");
+                await run_demo("demo", "./icons.ttf");
             } catch (error) {
                 console.error(error);
                 status.hidden = false;

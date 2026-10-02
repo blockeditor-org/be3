@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
 
-use beui_core::context::Context;
+use beui_core::context::{Context, Renderers};
 use beui_core::filter::{ColorVision, Filter};
 use beui_core::flash;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
@@ -86,6 +86,7 @@ pub struct State {
     commands: RefCell<Vec<Command>>,
     pub theme: Cell<Theme>,
     requested_theme: Cell<Option<Theme>>,
+    requested_renderer: Cell<Option<usize>>,
     revision: Cell<u64>,
     reset_performance: Cell<bool>,
     closed: Cell<bool>,
@@ -117,6 +118,7 @@ impl State {
             commands: RefCell::new(Vec::new()),
             theme: Cell::new(theme),
             requested_theme: Cell::new(None),
+            requested_renderer: Cell::new(None),
             revision: Cell::new(0),
             reset_performance: Cell::new(false),
             closed: Cell::new(false),
@@ -236,6 +238,11 @@ impl State {
         self.touch();
     }
 
+    fn choose_renderer(&self, index: usize) {
+        self.requested_renderer.set(Some(index));
+        self.touch();
+    }
+
     fn hover(&self, id: NodeId, hovered: bool) {
         match hovered {
             true => self.hovered.set(Some(id)),
@@ -352,6 +359,7 @@ pub struct Inspector {
     set_summary: WriteSignal<Summary>,
     set_performance: WriteSignal<panel::PerformanceSummary>,
     set_renderer: WriteSignal<panel::RendererRows>,
+    set_renderers: WriteSignal<Renderers>,
     set_selection: WriteSignal<Vec<Key>>,
     panel_compact: WriteSignal<bool>,
     shown_compact: bool,
@@ -393,6 +401,7 @@ impl Inspector {
             set_summary: panel.set_summary,
             set_performance: panel.set_performance,
             set_renderer: panel.set_renderer,
+            set_renderers: panel.set_renderers,
             set_selection: panel.set_selection,
             panel_compact: panel.set_compact,
             shown_compact: false,
@@ -620,6 +629,9 @@ impl Inspector {
             target.set_theme(theme);
             ctx.request_repaint();
         }
+        if let Some(index) = self.state.requested_renderer.take() {
+            ctx.choose_renderer(index);
+        }
         if app_visible {
             self.resize(target, ctx, content);
             self.pick(target, ctx, content);
@@ -827,6 +839,7 @@ impl Inspector {
             set_summary,
             set_performance,
             set_renderer,
+            set_renderers,
             set_selection,
             ..
         } = self;
@@ -841,6 +854,7 @@ impl Inspector {
             set_summary.set(summary);
             set_performance.set(performance);
             set_renderer.set(renderer);
+            set_renderers.set(ctx.renderers());
             set_selection.set(selection);
         });
         self.entries = entries;

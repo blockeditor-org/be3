@@ -15,7 +15,12 @@ web = [
     "dep:wasm-bindgen",
     "dep:web-sys",
 ]
-dom = ["dep:beui-adapter-web", "dep:beui-font-browser", "dep:beui-renderer-dom"]
+dom = [
+    "dep:beui-adapter-web",
+    "dep:beui-font-browser",
+    "dep:beui-renderer-dom",
+    "dep:web-sys",
+]
 
 [dependencies]
 accesskit = "0.24.1"
@@ -40,7 +45,15 @@ beui-adapter-web = { path = "../beui-adapter-web", optional = true }
 beui-font-browser = { path = "../beui-font-browser", optional = true }
 beui-renderer-dom = { path = "../beui-renderer-dom", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["HtmlCanvasElement", "HtmlElement"] }
+web-sys = { version = "0.3", optional = true, features = [
+    "CssStyleDeclaration",
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "HtmlElement",
+    "Node",
+    "console",
+] }
 
 [dev-dependencies]
 text-editor-core = { path = "../text-editor-core" }

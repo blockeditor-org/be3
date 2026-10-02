@@ -15,6 +15,7 @@ use beui_components_styled::{
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ChoiceOption, SliderScale, TreeItem};
 use beui_core::base::TextAlign;
+use beui_core::context::Renderers;
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, MAX_BLUR};
 use beui_core::icons::ICON_CLOSE;
@@ -173,6 +174,7 @@ pub struct Panel {
     pub set_summary: WriteSignal<Summary>,
     pub set_performance: WriteSignal<PerformanceSummary>,
     pub set_renderer: WriteSignal<RendererRows>,
+    pub set_renderers: WriteSignal<Renderers>,
     pub set_selection: WriteSignal<Vec<Key>>,
     pub set_compact: WriteSignal<bool>,
     pub tree: NodeRef,
@@ -184,6 +186,7 @@ pub fn build(state: &Rc<State>) -> Panel {
     let (summary, set_summary) = create_signal(Summary::default());
     let (performance, set_performance) = create_signal(PerformanceSummary::default());
     let (renderer, set_renderer) = create_signal(RendererRows::new());
+    let (renderers, set_renderers) = create_signal(Renderers::default());
     let (tab, set_tab) = create_signal(InspectorTab::default());
     let (selection, set_selection) = create_signal(Vec::<Key>::new());
     let (compact, set_compact) = create_signal(false);
@@ -343,6 +346,7 @@ pub fn build(state: &Rc<State>) -> Panel {
                                         @test_id={"inspector.performance"}
                                         performance={performance.clone()}
                                         renderer={renderer.clone()}
+                                        renderers={renderers.clone()}
                                         state={performance_state.clone()}
                                     />
                                 </ShowKeepAlive>
@@ -392,6 +396,7 @@ pub fn build(state: &Rc<State>) -> Panel {
         set_summary,
         set_performance,
         set_renderer,
+        set_renderers,
         set_selection,
         set_compact,
         tree,
@@ -695,9 +700,11 @@ pub fn total_label(total: usize, noun: &str) -> String {
 fn PerformancePanel(
     performance: ReadSignal<PerformanceSummary>,
     renderer: ReadSignal<RendererRows>,
+    renderers: ReadSignal<Renderers>,
     state: Rc<State>,
 ) -> NodeId {
-    let (change_state, damage_state) = (state.clone(), state.clone());
+    let (change_state, damage_state, renderer_state) =
+        (state.clone(), state.clone(), state.clone());
     let latest_work = performance_text(&performance, |summary| &summary.latest_work);
     let scene = performance_text(&performance, |summary| &summary.scene);
     let cache = performance_text(&performance, |summary| &summary.cache);
@@ -753,7 +760,12 @@ fn PerformancePanel(
                         />
                     </List>
                     <Separator />
-                    <RendererSection @test_id={"inspector.performance.renderer"} rows={renderer} />
+                    <RendererSection
+                        @test_id={"inspector.performance.renderer"}
+                        rows={renderer}
+                        renderers
+                        state={renderer_state}
+                    />
                 </List>
             </Frame>
         </Scroll>
@@ -761,11 +773,38 @@ fn PerformancePanel(
 }
 
 #[component]
-fn RendererSection(rows: ReadSignal<RendererRows>) -> NodeId {
+fn RendererSection(
+    rows: ReadSignal<RendererRows>,
+    renderers: ReadSignal<Renderers>,
+    state: Rc<State>,
+) -> NodeId {
     let missing = create_memo(clone!(rows -> move || rows.with(Vec::is_empty)));
+    let names = create_memo(
+        clone!(renderers -> move || renderers.with(|renderers| renderers.names.clone())),
+    );
+    let choosable = create_memo(clone!(names -> move || names.with(|names| names.len() > 1)));
+    let active = create_memo(move || Some(renderers.with(|renderers| renderers.active)));
     view! {
         <List spacing=TIMING_SPACING>
             <Heading content="Renderer" />
+            <Show condition={choosable}>
+                <RadioGroup
+                    @test_id={"inspector.performance.renderer.choice"}
+                    options={view! {
+                        <ForEach keys={names.clone()}>
+                            {|label: &'static str| view! {
+                                <ChoiceOption label />
+                            }}
+                        </ForEach>
+                    }}
+                    selected={active.clone()}
+                    on_change={clone!(state -> move |index: Option<usize>| {
+                        if let Some(index) = index {
+                            state.choose_renderer(index);
+                        }
+                    })}
+                />
+            </Show>
             <Show condition={missing}>
                 <Caption content="Not reported by this host" />
             </Show>
