@@ -31,7 +31,7 @@ use beui_core::input::{
     CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, RawInput,
     TouchId, TouchPhase,
 };
-use beui_renderer_wgpu::present::{Gpu, GpuSetup, OpenDevice, Presented, Target, create_gpu};
+use beui_core::renderer::{Loaded, Renderers, WindowHandle};
 use clipboard::Clipboard;
 use file_picker::FilePicker;
 
@@ -59,7 +59,6 @@ pub struct RunOptions {
     pub app_id: Option<String>,
     pub size: Vec2,
     pub accessibility_dump: Option<std::path::PathBuf>,
-    pub open_device: Option<OpenDevice>,
 }
 
 impl RunOptions {
@@ -69,15 +68,17 @@ impl RunOptions {
             app_id: None,
             size: Vec2::new(1280.0, 800.0),
             accessibility_dump: None,
-            open_device: None,
         }
     }
 }
+
+type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>>>;
 
 pub fn run_with(
     options: RunOptions,
     context: Context,
     app: impl App + 'static,
+    load: impl FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>> + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
     event_loop.set_control_flow(ControlFlow::Wait);
@@ -89,7 +90,8 @@ pub fn run_with(
         options,
         app: Box::new(app),
         context,
-        gpu: None,
+        load: Some(Box::new(load)),
+        renderers: None,
         surface: None,
         events: Vec::new(),
         modifiers: Modifiers::NONE,
@@ -115,7 +117,6 @@ pub fn run_with(
 
 struct Surface {
     window: Arc<Window>,
-    target: Target,
     cursor_icon: CursorIcon,
     pointer_locked: bool,
     touch_emulation: bool,
@@ -129,7 +130,8 @@ struct Runner {
     options: RunOptions,
     app: Box<dyn App>,
     context: Context,
-    gpu: Option<Gpu>,
+    load: Option<Load>,
+    renderers: Option<Renderers>,
     surface: Option<Surface>,
     events: Vec<Event>,
     modifiers: Modifiers,
@@ -187,10 +189,15 @@ impl Runner {
     }
 
     fn update(&mut self, event_loop: &ActiveEventLoop) -> bool {
-        let (Some(surface), Some(gpu)) = (&mut self.surface, &mut self.gpu) else {
+        let (Some(surface), Some(renderers)) = (&mut self.surface, &mut self.renderers) else {
             return false;
         };
-        let Some(physical) = surface.target.physical() else {
+        match renderers.follow_choice(&self.context) {
+            Ok(true) => surface.window.request_redraw(),
+            Ok(false) => {}
+            Err(error) => eprintln!("beui: could not switch renderers: {error}"),
+        }
+        let Some(physical) = renderers.physical() else {
             self.events.clear();
             self.next_update = None;
             return false;
@@ -276,9 +283,7 @@ impl Runner {
                 .set_fullscreen(fullscreen.then_some(Fullscreen::Borderless(None)));
         }
 
-        let pending = surface
-            .target
-            .prepare(gpu, &output, scale, self.app.clear_color());
+        let pending = renderers.prepare(&output, scale, self.app.clear_color());
         self.next_update = Instant::now().checked_add(output.repaint_after);
         if output.close_requested {
             self.exit(event_loop);
@@ -288,26 +293,23 @@ impl Runner {
 
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
         self.update(event_loop);
-        let (Some(surface), Some(gpu)) = (&mut self.surface, &mut self.gpu) else {
+        let (Some(surface), Some(renderers)) = (&mut self.surface, &mut self.renderers) else {
             return;
         };
-        if let Presented::Again = surface.target.present(gpu, self.app.clear_color()) {
+        if renderers.present(self.app.clear_color()) {
             surface.window.request_redraw();
         }
     }
 
     fn attach(&mut self) -> Result<(), Box<dyn Error>> {
-        let (Some(surface), Some(gpu)) = (&mut self.surface, &self.gpu) else {
+        let (Some(surface), Some(renderers)) = (&self.surface, &mut self.renderers) else {
             return Ok(());
         };
-        if surface.target.attached() {
+        if renderers.attached() {
             return Ok(());
         }
         let size = surface.window.inner_size();
-        let target = gpu.instance.create_surface(surface.window.clone())?;
-        surface
-            .target
-            .attach(gpu, target, size.width, size.height)?;
+        renderers.attach(surface.window.clone(), size.width, size.height)?;
         surface.window.request_redraw();
         Ok(())
     }
@@ -359,23 +361,22 @@ impl ApplicationHandler<UserEvent> for Runner {
         );
         let touch_cursor = event_loop.create_custom_cursor(touch_cursor_source());
         window.set_visible(true);
-        let gpu = match open_gpu(&window, &self.context, self.options.open_device.clone()) {
-            Ok(gpu) => gpu,
-            Err(error) => return self.fail(event_loop, error),
+        let Some(load) = self.load.take() else {
+            return;
         };
+        let renderers =
+            match load(window.clone()).and_then(|loaded| Renderers::new(&self.context, loaded)) {
+                Ok(renderers) => renderers,
+                Err(error) => return self.fail(event_loop, error),
+            };
         let proxy = self.event_loop_proxy.clone();
         let mut setup = Setup::new(Waker::new(move || {
             let _ = proxy.send_event(UserEvent::Wake);
         }));
-        setup.provide(GpuSetup {
-            device: gpu.device.clone(),
-            queue: gpu.queue.clone(),
-            format: gpu.format,
-        });
+        renderers.provide(&mut setup);
         setup.provide(window.clone());
         self.surface = Some(Surface {
             window,
-            target: Target::new(gpu.format),
             cursor_icon: CursorIcon::Default,
             pointer_locked: false,
             touch_emulation: false,
@@ -384,7 +385,7 @@ impl ApplicationHandler<UserEvent> for Runner {
             fullscreen: false,
             accessibility,
         });
-        self.gpu = Some(gpu);
+        self.renderers = Some(renderers);
         if let Err(error) = self.attach() {
             return self.fail(event_loop, error);
         }
@@ -392,8 +393,8 @@ impl ApplicationHandler<UserEvent> for Runner {
     }
 
     fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(surface) = &mut self.surface {
-            surface.target.detach();
+        if let Some(renderers) = &mut self.renderers {
+            renderers.detach();
         }
     }
 
@@ -450,8 +451,8 @@ impl ApplicationHandler<UserEvent> for Runner {
             }
             WindowEvent::Destroyed => self.exit(event_loop),
             WindowEvent::Resized(size) => {
-                if let (Some(surface), Some(gpu)) = (&mut self.surface, &self.gpu) {
-                    surface.target.resize(gpu, size.width, size.height);
+                if let (Some(surface), Some(renderers)) = (&self.surface, &mut self.renderers) {
+                    renderers.resize(size.width, size.height);
                     surface.window.request_redraw();
                 }
             }
@@ -700,16 +701,6 @@ fn touch_force(force: winit::event::Force) -> f32 {
             ..
         } => (force / max_possible_force) as f32,
     }
-}
-
-fn open_gpu(
-    window: &Arc<Window>,
-    context: &Context,
-    open_device: Option<OpenDevice>,
-) -> Result<Gpu, Box<dyn Error>> {
-    let instance = wgpu::Instance::default();
-    let probe = instance.create_surface(window.clone())?;
-    pollster::block_on(create_gpu(instance, &probe, context, open_device))
 }
 
 fn touch_cursor_source() -> CustomCursorSource {

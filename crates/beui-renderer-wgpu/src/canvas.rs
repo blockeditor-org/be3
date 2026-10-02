@@ -108,7 +108,7 @@ impl CanvasSurface {
         }
     }
 
-    fn present(&mut self, background: Color32) -> bool {
+    fn present_frame(&mut self, background: Color32) -> bool {
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame)
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
@@ -181,13 +181,15 @@ impl renderer::Renderer for CanvasSurface {
         self.surface.configure(&self.device, &self.config);
     }
 
-    fn draw(
-        &mut self,
-        output: &FrameOutput,
-        physical: Vec2,
-        scale: f32,
-        background: Color32,
-    ) -> bool {
+    fn physical(&self) -> Option<Vec2> {
+        (self.config.width > 0 && self.config.height > 0)
+            .then(|| Vec2::new(self.config.width as f32, self.config.height as f32))
+    }
+
+    fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
+        let Some(physical) = self.physical() else {
+            return false;
+        };
         let stale = self.prepared != Some((physical, scale, background));
         if !(output.changed || stale) {
             return false;
@@ -201,6 +203,10 @@ impl renderer::Renderer for CanvasSurface {
             Repaint::Everything,
         );
         self.prepared = Some((physical, scale, background));
-        self.present(background)
+        true
+    }
+
+    fn present(&mut self, background: Color32) -> bool {
+        self.present_frame(background)
     }
 }

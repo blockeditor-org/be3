@@ -1,7 +1,8 @@
 use std::error::Error;
 
-use beui_adapter_web::{Loaded, RunOptions};
+use beui_adapter_web::RunOptions;
 use beui_core::app::App;
+use beui_core::renderer::{Loaded, any_loaded};
 
 pub enum WebRenderer {
     #[cfg(feature = "web")]
@@ -16,23 +17,21 @@ pub async fn run_web(
     options: RunOptions,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
-    beui_adapter_web::run_web(element_id, options, app, async |element| {
-        let mut loaded = Vec::new();
-        let mut failure = None;
-        for renderer in renderers {
-            match load(renderer, &element).await {
-                Ok(renderer) => loaded.push(renderer),
-                Err(error) => {
-                    web_sys::console::warn_1(&error.to_string().into());
-                    failure.get_or_insert(error);
-                }
+    beui_adapter_web::run_web(
+        element_id,
+        options,
+        crate::context(),
+        app,
+        async |element| {
+            let mut results = Vec::new();
+            for renderer in renderers {
+                results.push(load(renderer, &element).await);
             }
-        }
-        match (loaded.is_empty(), failure) {
-            (true, Some(error)) => Err(error),
-            _ => Ok(loaded),
-        }
-    })
+            any_loaded(results, |error| {
+                web_sys::console::warn_1(&format!("beui: a renderer did not load: {error}").into());
+            })
+        },
+    )
     .await
 }
 
@@ -48,7 +47,7 @@ async fn load(
             beui_font_browser::watch(icons_font.as_deref(), beui_adapter_web::request_frame)?;
             Ok(Loaded {
                 renderer: Box::new(beui_renderer_dom::DomRenderer::new(element.clone())?),
-                fonts: Box::new(beui_font_browser::BrowserFonts::default()),
+                fonts: Some(Box::new(beui_font_browser::BrowserFonts::default())),
             })
         }
     }
@@ -80,7 +79,7 @@ async fn load_wgpu(element: &web_sys::HtmlElement) -> Result<Loaded, Box<dyn Err
     match beui_renderer_wgpu::canvas::CanvasSurface::new(canvas.clone()).await {
         Ok(surface) => Ok(Loaded {
             renderer: Box::new(surface),
-            fonts: Box::new(crate::FreetypeFonts::default()),
+            fonts: None,
         }),
         Err(error) => {
             if created {

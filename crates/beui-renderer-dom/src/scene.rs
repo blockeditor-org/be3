@@ -69,6 +69,7 @@ pub struct DomRenderer {
     nodes: HashMap<u64, Node>,
     images: HashMap<ImageId, Rc<str>>,
     prepared: Option<(f32, f32, Color32)>,
+    size: Option<(u32, u32)>,
 }
 
 impl DomRenderer {
@@ -103,6 +104,7 @@ impl DomRenderer {
             nodes: HashMap::new(),
             images: HashMap::new(),
             prepared: None,
+            size: None,
         })
     }
 
@@ -452,16 +454,21 @@ impl Renderer for DomRenderer {
         }
     }
 
-    fn resize(&mut self, _width: u32, _height: u32) {}
+    fn resize(&mut self, width: u32, height: u32) {
+        self.size = Some((width, height));
+    }
 
-    fn draw(
-        &mut self,
-        output: &FrameOutput,
-        _physical: Vec2,
-        scale: f32,
-        background: Color32,
-    ) -> bool {
+    fn physical(&self) -> Option<Vec2> {
+        self.size
+            .map(|(width, height)| Vec2::new(width as f32, height as f32))
+    }
+
+    fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
         self.show(output, scale, background);
+        false
+    }
+
+    fn present(&mut self, _background: Color32) -> bool {
         false
     }
 }

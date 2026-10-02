@@ -246,13 +246,18 @@ hooks the higher crates fill in:
   (`Document::extension`); `beui::styled::DocumentTheme` reads and writes it.
 - A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
   the wgpu renderer.
-- The web runner draws through `beui_core::renderer::Renderer` trait objects,
-  which the wgpu renderer's `CanvasSurface` and the DOM renderer's
-  `DomRenderer` implement. It can hold several at once, each with the
-  `FontBackend` its text is measured with, and shows one: `Context::choose_renderer`
-  (the inspector's Perf tab, when more than one is loaded) hides the shown one,
-  swaps the context's fonts with `Context::replace_fonts`, which lays all text
-  out again, and draws the next frame with the other.
+- Every runner draws through `beui_core::renderer::Renderer` trait objects and
+  names no renderer crate: wgpu's `WindowSurface` (native windows),
+  `CanvasSurface` (a browser canvas) and `DomRenderer` implement it, and the
+  facade hands the runner the ones to load. A renderer is told where to draw
+  with `attach` (a raw-window-handle `WindowHandle`) or is made with its element,
+  and draws a frame in two steps, `prepare` and then `present`.
+  `beui_core::renderer::Renderers` holds what a runner loaded, each with the
+  `FontBackend` its text is measured with if it needs its own, and shows one.
+  `Context::choose_renderer` (the inspector's Perf tab offers it when more
+  than one is loaded) hides and detaches the shown one, attaches or resizes
+  the chosen one, and swaps the context's fonts with `Context::replace_fonts`,
+  which lays all text out again.
 
 Inside the family, crates name each other directly (`beui_core::document::Document`),
 and the component crates declare `extern crate beui_view as beui;` so the
@@ -1320,7 +1325,9 @@ focused field into what is left, through every scroll it sits in.
   http://127.0.0.1:8070.
 
 `beui::run_with` takes `RunOptions` (title, app id, starting size) where
-`beui::run` takes only a title. The rest of
+`beui::run` takes only a title; both load wgpu, and
+`beui::run_with_renderers` takes the `beui::WindowRenderer`s to load instead
+(be-compositor's opens its device itself). The rest of
 `App` is optional:
 
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.

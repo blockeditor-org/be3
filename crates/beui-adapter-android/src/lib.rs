@@ -24,6 +24,7 @@ use jni::vm::JavaVM;
 use jni::{EnvUnowned, jni_sig, jni_str};
 use ndk::asset::AssetManager;
 use ndk::native_window::NativeWindow;
+use raw_window_handle as rwh;
 
 use beui_core::app::accessibility_dump::AccessibilityDump;
 use beui_core::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
@@ -34,7 +35,7 @@ use beui_core::input::{
     BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Modifiers, RawInput, TouchId,
     TouchPhase,
 };
-use beui_renderer_wgpu::present::{Gpu, GpuSetup, OpenDevice, Presented, Target, create_gpu};
+use beui_core::renderer::{Loaded, Renderers, WindowHandle};
 use clipboard::Clipboard;
 
 const LINE_HEIGHT: f32 = 40.0;
@@ -140,7 +141,6 @@ pub struct RunOptions {
     pub app_id: Option<String>,
     pub size: Vec2,
     pub accessibility_dump: Option<std::path::PathBuf>,
-    pub open_device: Option<OpenDevice>,
 }
 
 impl RunOptions {
@@ -150,15 +150,17 @@ impl RunOptions {
             app_id: None,
             size: Vec2::new(1280.0, 800.0),
             accessibility_dump: None,
-            open_device: None,
         }
     }
 }
+
+type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>>>;
 
 pub fn run_with(
     options: RunOptions,
     context: Context,
     app: impl App + 'static,
+    load: impl FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>> + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let receiver = shared()
         .receiver
@@ -175,8 +177,8 @@ pub fn run_with(
         options,
         app: Box::new(app),
         context,
-        gpu: None,
-        target: None,
+        load: Some(Box::new(load)),
+        renderers: None,
         window: None,
         density: 1.0,
         view: None,
@@ -209,8 +211,8 @@ struct Runner {
     options: RunOptions,
     app: Box<dyn App>,
     context: Context,
-    gpu: Option<Gpu>,
-    target: Option<Target>,
+    load: Option<Load>,
+    renderers: Option<Renderers>,
     window: Option<NativeWindow>,
     density: f32,
     view: Option<Arc<Global<JObject<'static>>>>,
@@ -438,8 +440,8 @@ impl Runner {
                 density,
             } => self.surface(window, width, height, density),
             Message::SurfaceGone(done) => {
-                if let Some(target) = &mut self.target {
-                    target.detach();
+                if let Some(renderers) = &mut self.renderers {
+                    renderers.detach();
                 }
                 self.window = None;
                 let _ = done.send(());
@@ -566,51 +568,40 @@ impl Runner {
     fn surface(&mut self, window: NativeWindow, width: u32, height: u32, density: f32) {
         self.density = density;
         self.redraw = true;
-        if self.gpu.is_none()
+        if self.renderers.is_none()
             && let Err(error) = self.start(&window)
         {
             return self.fail(error);
         }
-        let (Some(gpu), Some(target)) = (&self.gpu, &mut self.target) else {
+        let Some(renderers) = &mut self.renderers else {
             return;
         };
-        if target.attached() && self.window.as_ref() == Some(&window) {
-            target.resize(gpu, width, height);
+        if renderers.attached() && self.window.as_ref() == Some(&window) {
+            renderers.resize(width, height);
             return;
         }
-        target.detach();
+        renderers.detach();
         self.window = None;
-        let surface = match create_surface(&gpu.instance, &window) {
-            Ok(surface) => surface,
-            Err(error) => return self.fail(error),
-        };
-        self.window = Some(window);
-        if let Err(error) = target.attach(gpu, surface, width, height) {
-            self.fail(error);
+        let handle = Arc::new(SurfaceWindow(window.clone()));
+        if let Err(error) = renderers.attach(handle, width, height) {
+            return self.fail(error);
         }
+        self.window = Some(window);
     }
 
     fn start(&mut self, window: &NativeWindow) -> Result<(), Box<dyn Error>> {
-        let instance = wgpu::Instance::default();
-        let probe = create_surface(&instance, window)?;
-        let gpu = pollster::block_on(create_gpu(
-            instance,
-            &probe,
-            &self.context,
-            self.options.open_device.clone(),
-        ))?;
-        drop(probe);
+        let load = self
+            .load
+            .take()
+            .ok_or("the renderers were already loaded")?;
+        let loaded = load(Arc::new(SurfaceWindow(window.clone())))?;
+        let renderers = Renderers::new(&self.context, loaded)?;
         let sender = shared().sender.clone();
         let mut setup = Setup::new(Waker::new(move || {
             let _ = sender.send(Message::Wake);
         }));
-        setup.provide(GpuSetup {
-            device: gpu.device.clone(),
-            queue: gpu.queue.clone(),
-            format: gpu.format,
-        });
-        self.target = Some(Target::new(gpu.format));
-        self.gpu = Some(gpu);
+        renderers.provide(&mut setup);
+        self.renderers = Some(renderers);
         self.app.setup(&setup);
         Ok(())
     }
@@ -621,19 +612,24 @@ impl Runner {
         if !(pending || redraw) {
             return;
         }
-        let (Some(target), Some(gpu)) = (&mut self.target, &mut self.gpu) else {
+        let Some(renderers) = &mut self.renderers else {
             return;
         };
-        if let Presented::Again = target.present(gpu, self.app.clear_color()) {
+        if renderers.present(self.app.clear_color()) {
             self.redraw = true;
         }
     }
 
     fn update(&mut self) -> bool {
-        let (Some(target), Some(gpu)) = (&mut self.target, &mut self.gpu) else {
+        let Some(renderers) = &mut self.renderers else {
             return false;
         };
-        let Some(physical) = target.physical() else {
+        match renderers.follow_choice(&self.context) {
+            Ok(true) => self.redraw = true,
+            Ok(false) => {}
+            Err(error) => eprintln!("beui: could not switch renderers: {error}"),
+        }
+        let Some(physical) = renderers.physical() else {
             self.events.clear();
             self.next_update = None;
             return false;
@@ -672,7 +668,7 @@ impl Runner {
             self.redraw = true;
         }
         let file_picks = std::mem::take(&mut output.file_picks);
-        let pending = target.prepare(gpu, &output, scale, self.app.clear_color());
+        let pending = renderers.prepare(&output, scale, self.app.clear_color());
         self.next_update = Instant::now().checked_add(output.repaint_after);
 
         let asked = self.ime.is_some();
@@ -710,18 +706,18 @@ impl Runner {
     }
 }
 
-fn create_surface(
-    instance: &wgpu::Instance,
-    window: &NativeWindow,
-) -> Result<wgpu::Surface<'static>, wgpu::CreateSurfaceError> {
-    let handle = wgpu::rwh::AndroidNdkWindowHandle::new(window.ptr().cast());
-    unsafe {
-        instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
-            raw_display_handle: Some(wgpu::rwh::RawDisplayHandle::Android(
-                wgpu::rwh::AndroidDisplayHandle::new(),
-            )),
-            raw_window_handle: wgpu::rwh::RawWindowHandle::AndroidNdk(handle),
-        })
+struct SurfaceWindow(NativeWindow);
+
+impl rwh::HasWindowHandle for SurfaceWindow {
+    fn window_handle(&self) -> Result<rwh::WindowHandle<'_>, rwh::HandleError> {
+        let handle = rwh::AndroidNdkWindowHandle::new(self.0.ptr().cast());
+        Ok(unsafe { rwh::WindowHandle::borrow_raw(rwh::RawWindowHandle::AndroidNdk(handle)) })
+    }
+}
+
+impl rwh::HasDisplayHandle for SurfaceWindow {
+    fn display_handle(&self) -> Result<rwh::DisplayHandle<'_>, rwh::HandleError> {
+        Ok(rwh::DisplayHandle::android())
     }
 }
 

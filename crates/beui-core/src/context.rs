@@ -68,7 +68,7 @@ struct Inner {
     accessibility_published: RefCell<HashSet<u32>>,
     test_ids_published: Cell<bool>,
     renderer_info: RefCell<Option<RendererInfo>>,
-    renderers: RefCell<Renderers>,
+    renderers: RefCell<RendererChoices>,
     renderer_choice: Cell<Option<usize>>,
     clock: Cell<Option<Instant>>,
     now: Cell<Instant>,
@@ -100,7 +100,7 @@ pub struct RendererInfo {
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
-pub struct Renderers {
+pub struct RendererChoices {
     pub names: Vec<&'static str>,
     pub active: usize,
 }
@@ -258,7 +258,7 @@ impl Context {
                 accessibility_published: RefCell::new(HashSet::new()),
                 test_ids_published: Cell::new(true),
                 renderer_info: RefCell::new(None),
-                renderers: RefCell::new(Renderers::default()),
+                renderers: RefCell::new(RendererChoices::default()),
                 renderer_choice: Cell::new(None),
                 clock: Cell::new(None),
                 now: Cell::new(Instant::now()),
@@ -274,11 +274,11 @@ impl Context {
         self.inner.renderer_info.borrow().clone()
     }
 
-    pub fn set_renderers(&self, renderers: Renderers) {
+    pub fn set_renderers(&self, renderers: RendererChoices) {
         *self.inner.renderers.borrow_mut() = renderers;
     }
 
-    pub fn renderers(&self) -> Renderers {
+    pub fn renderers(&self) -> RendererChoices {
         self.inner.renderers.borrow().clone()
     }
 

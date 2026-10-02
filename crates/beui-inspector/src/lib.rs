@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
 
-use beui_core::context::{Context, Renderers};
+use beui_core::context::{Context, RendererChoices};
 use beui_core::filter::{ColorVision, Filter};
 use beui_core::flash;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
@@ -359,7 +359,7 @@ pub struct Inspector {
     set_summary: WriteSignal<Summary>,
     set_performance: WriteSignal<panel::PerformanceSummary>,
     set_renderer: WriteSignal<panel::RendererRows>,
-    set_renderers: WriteSignal<Renderers>,
+    set_renderers: WriteSignal<RendererChoices>,
     set_selection: WriteSignal<Vec<Key>>,
     panel_compact: WriteSignal<bool>,
     shown_compact: bool,

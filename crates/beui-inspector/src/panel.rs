@@ -15,7 +15,7 @@ use beui_components_styled::{
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ChoiceOption, SliderScale, TreeItem};
 use beui_core::base::TextAlign;
-use beui_core::context::Renderers;
+use beui_core::context::RendererChoices;
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, MAX_BLUR};
 use beui_core::icons::ICON_CLOSE;
@@ -174,7 +174,7 @@ pub struct Panel {
     pub set_summary: WriteSignal<Summary>,
     pub set_performance: WriteSignal<PerformanceSummary>,
     pub set_renderer: WriteSignal<RendererRows>,
-    pub set_renderers: WriteSignal<Renderers>,
+    pub set_renderers: WriteSignal<RendererChoices>,
     pub set_selection: WriteSignal<Vec<Key>>,
     pub set_compact: WriteSignal<bool>,
     pub tree: NodeRef,
@@ -186,7 +186,7 @@ pub fn build(state: &Rc<State>) -> Panel {
     let (summary, set_summary) = create_signal(Summary::default());
     let (performance, set_performance) = create_signal(PerformanceSummary::default());
     let (renderer, set_renderer) = create_signal(RendererRows::new());
-    let (renderers, set_renderers) = create_signal(Renderers::default());
+    let (renderers, set_renderers) = create_signal(RendererChoices::default());
     let (tab, set_tab) = create_signal(InspectorTab::default());
     let (selection, set_selection) = create_signal(Vec::<Key>::new());
     let (compact, set_compact) = create_signal(false);
@@ -700,7 +700,7 @@ pub fn total_label(total: usize, noun: &str) -> String {
 fn PerformancePanel(
     performance: ReadSignal<PerformanceSummary>,
     renderer: ReadSignal<RendererRows>,
-    renderers: ReadSignal<Renderers>,
+    renderers: ReadSignal<RendererChoices>,
     state: Rc<State>,
 ) -> NodeId {
     let (change_state, damage_state, renderer_state) =
@@ -775,7 +775,7 @@ fn PerformancePanel(
 #[component]
 fn RendererSection(
     rows: ReadSignal<RendererRows>,
-    renderers: ReadSignal<Renderers>,
+    renderers: ReadSignal<RendererChoices>,
     state: Rc<State>,
 ) -> NodeId {
     let missing = create_memo(clone!(rows -> move || rows.with(Vec::is_empty)));
