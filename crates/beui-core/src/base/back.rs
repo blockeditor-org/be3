@@ -3,34 +3,14 @@ use std::any::Any;
 use crate::base::overlay::OverlayNode;
 use crate::callback::{Callback, ClickCallback};
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2, vec2};
-use crate::input::{BackEdge, BackGesture};
+use crate::geometry::{Rect, Vec2};
+use crate::input::BackGesture;
 use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
-
-const SHIFT_FRACTION: f32 = 0.1;
-const MAX_SHIFT: f32 = 64.0;
-
-#[derive(Clone, Copy, Default, PartialEq, Debug)]
-pub struct BackProgress {
-    pub progress: f32,
-    pub edge: BackEdge,
-}
-
-impl BackProgress {
-    pub fn shift(self, width: f32) -> Vec2 {
-        let distance = self.progress * (width * SHIFT_FRACTION).min(MAX_SHIFT);
-        match self.edge {
-            BackEdge::Right => vec2(-distance, 0.0),
-            BackEdge::Left | BackEdge::None => vec2(distance, 0.0),
-        }
-    }
-}
 
 pub struct BackNode {
     child: Option<NodeId>,
     enabled: bool,
-    progress: BackProgress,
     on_back: ClickCallback,
     on_gesture: Callback<BackGesture>,
 }
@@ -49,7 +29,6 @@ impl Element for BackNode {
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         if let Some(child) = self.child {
-            let rect = rect.translate(self.progress.shift(rect.width()));
             crate::layout::layout(doc, painter, child, rect, out);
         }
     }
@@ -108,7 +87,6 @@ impl Document {
         let id = self.arena.insert(BackNode {
             child: Some(child),
             enabled: true,
-            progress: BackProgress::default(),
             on_back,
             on_gesture,
         });
@@ -121,8 +99,8 @@ impl Document {
             return;
         }
         self.arena.get_mut_as::<BackNode>(handler).enabled = enabled;
-        if !enabled {
-            self.set_back_progress(handler.id(), BackProgress::default());
+        if !enabled && self.back_gesture == Some(handler.id()) {
+            self.back_gesture = None;
         }
     }
 
@@ -131,94 +109,73 @@ impl Document {
     }
 
     fn back_target(&self) -> Option<NodeId> {
-        if let Some(overlay) = self.overlay_stack.last() {
-            return Some(overlay.id());
-        }
-        self.back_handlers
+        let modal = self.overlay_stack.last().copied();
+        let handler = self
+            .back_handlers
             .iter()
             .rev()
             .copied()
-            .find(|handler| self.contains(handler.id()) && self.arena.get_as(*handler).enabled)
-            .map(NodeOf::id)
+            .find(|handler| {
+                self.contains(handler.id())
+                    && self.arena.get_as(*handler).enabled
+                    && self.owning_modal(handler.id()) == Some(modal)
+            })
+            .map(NodeOf::id);
+        handler.or(modal.map(NodeOf::id))
+    }
+
+    fn owning_modal(&self, node: NodeId) -> Option<Option<NodeOf<OverlayNode>>> {
+        let mut current = node;
+        loop {
+            if let Some(overlay) = self.arena.kind_of::<OverlayNode>(current) {
+                if !self.is_overlay_open(current) {
+                    return None;
+                }
+                if self.overlay_stack.contains(&overlay) {
+                    return Some(Some(overlay));
+                }
+            }
+            match self.arena.parent(current) {
+                Some(parent) => current = parent,
+                None => return (self.root == Some(current)).then_some(None),
+            }
+        }
     }
 
     pub fn back(&mut self, gesture: BackGesture) {
         let target = match (gesture, self.back_gesture) {
             (BackGesture::Started { .. }, _) | (_, None) => self.back_target(),
-            (_, Some((target, _))) => Some(target),
+            (_, Some(target)) => Some(target),
         };
-        if let Some(on_gesture) = target.and_then(|target| self.gesture_taker(target)) {
-            self.back_gesture = match gesture {
-                BackGesture::Started { edge } => target.map(|target| (target, edge)),
-                BackGesture::Progressed(_) => self.back_gesture,
-                BackGesture::Cancelled | BackGesture::Invoked => None,
-            };
-            on_gesture.call(gesture);
+        self.back_gesture = match gesture {
+            BackGesture::Started { .. } => target,
+            BackGesture::Progressed(_) => self.back_gesture,
+            BackGesture::Cancelled | BackGesture::Invoked => None,
+        };
+        let Some(target) = target.filter(|target| self.contains(*target)) else {
+            return;
+        };
+        if let Some(on_gesture) = self.gesture_taker(target) {
+            on_gesture.call(match gesture {
+                BackGesture::Progressed(progress) => {
+                    BackGesture::Progressed(progress.clamp(0.0, 1.0))
+                }
+                gesture => gesture,
+            });
             return;
         }
-        match gesture {
-            BackGesture::Started { edge } => {
-                self.end_back_gesture();
-                if let Some(target) = self.back_target() {
-                    self.back_gesture = Some((target, edge));
-                }
-            }
-            BackGesture::Progressed(progress) => {
-                if let Some((target, edge)) = self.back_gesture {
-                    let progress = progress.clamp(0.0, 1.0);
-                    self.set_back_progress(target, BackProgress { progress, edge });
-                }
-            }
-            BackGesture::Cancelled => self.end_back_gesture(),
-            BackGesture::Invoked => {
-                let target = match self.back_gesture {
-                    Some((target, _)) => Some(target),
-                    None => self.back_target(),
-                };
-                self.end_back_gesture();
-                if let Some(target) = target {
-                    self.invoke_back(target);
-                }
-            }
+        if gesture == BackGesture::Invoked {
+            self.invoke_back(target);
         }
     }
 
     fn gesture_taker(&self, target: NodeId) -> Option<Callback<BackGesture>> {
-        if !self.contains(target) {
-            return None;
-        }
         let handler = self.arena.kind_of::<BackNode>(target)?;
         let on_gesture = &self.arena.get_as(handler).on_gesture;
         (!on_gesture.is_empty()).then(|| on_gesture.clone())
     }
 
-    fn end_back_gesture(&mut self) {
-        if let Some((target, _)) = self.back_gesture.take() {
-            self.set_back_progress(target, BackProgress::default());
-        }
-    }
-
-    fn set_back_progress(&mut self, target: NodeId, progress: BackProgress) {
-        if !self.contains(target) {
-            return;
-        }
-        if let Some(overlay) = self.arena.kind_of::<OverlayNode>(target) {
-            self.set_overlay_back_progress(overlay, progress);
-            return;
-        }
-        let Some(handler) = self.arena.kind_of::<BackNode>(target) else {
-            return;
-        };
-        if self.arena.get_as(handler).progress != progress {
-            self.arena.get_mut_as(handler).progress = progress;
-            self.arena.invalidate_node(target);
-        }
-    }
-
     fn invoke_back(&mut self, target: NodeId) {
-        if !self.contains(target) {
-            return;
-        }
         if let Some(overlay) = self.arena.kind_of::<OverlayNode>(target) {
             self.close_overlay(overlay);
             return;

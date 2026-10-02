@@ -5,7 +5,7 @@ use crate::reactive::{
 };
 
 #[test]
-fn a_back_handler_slides_its_content_and_goes_back_while_enabled() {
+fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {
     let (enabled, set_enabled) = create_signal(false);
     let backs = Rc::new(Cell::new(0));
     let reports = backs.clone();
@@ -37,12 +37,11 @@ fn a_back_handler_slides_its_content_and_goes_back_while_enabled() {
         }),
         Event::Back(BackGesture::Progressed(1.0)),
     ]);
-    assert!(harness.rect(page.get()).left() > resting.left() + 20.0);
+    assert_eq!(harness.rect(page.get()), resting);
+    assert_eq!(backs.get(), 0);
 
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     assert_eq!(backs.get(), 1);
-    harness.frame(Vec::new());
-    assert_eq!(harness.rect(page.get()), resting);
 
     harness.key(Key::BrowserBack, Modifiers::NONE);
     assert_eq!(backs.get(), 2);

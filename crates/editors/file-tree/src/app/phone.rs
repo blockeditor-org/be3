@@ -11,16 +11,16 @@ use block_editor_beui::beui::icons::{
     ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::{
-    Align, BackHandler, ClickCallback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo,
-    NodeRef, ReadSignal, Show, Spacer, Text, WriteSignal, clone, component, create_memo,
-    create_signal, view,
+    Align, ClickCallback, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, NodeRef,
+    ReadSignal, Show, Spacer, Text, WriteSignal, clone, component, create_memo, create_signal,
+    view,
 };
 use block_editor_beui::beui::styled::theme::{CARD_RADIUS, FONT_BODY, RADIUS};
 use block_editor_beui::beui::styled::{
     ActionRow, Button, ButtonVariant, Caption, Heading, Icon, IconButton, IconSized, ListRow,
     ModalSheet, Scroll, TextInput, Title, use_theme,
 };
-use block_editor_beui::beui::unstyled::{Edge, Floating};
+use block_editor_beui::beui::unstyled::{BackSlide, Edge, Floating};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{BlockParent, BlockQuery, ChildTarget, Editor, watch_block_label};
 use uuid::Uuid;
@@ -149,7 +149,7 @@ pub(crate) fn PhoneFiles(
     let header_level = level.clone();
     let header_set = set_level.clone();
     view! {
-        <BackHandler enabled={nested} on_back={rising}>
+        <BackSlide enabled={nested} on_back={rising}>
             <List spacing=0.0>
                 <Header
                     level={header_level}
@@ -210,7 +210,7 @@ pub(crate) fn PhoneFiles(
                 </Floating>
                 <RowActions editor tree picker exporter inspect acting set_acting set_level />
             </List>
-        </BackHandler>
+        </BackSlide>
     }
 }
 
