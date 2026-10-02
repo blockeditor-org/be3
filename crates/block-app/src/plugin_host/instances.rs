@@ -232,6 +232,7 @@ pub(crate) struct Focus {
 #[derive(Clone, Copy)]
 pub(super) struct Held {
     pub(super) rect: Rect,
+    pub(super) shown: Rect,
     pub(super) drawn: (u32, u32),
 }
 
@@ -443,6 +444,7 @@ struct Screen {
     last_seen: u64,
     mounted: u32,
     presented: Option<(Rect, Rect)>,
+    settled_scale: Option<f32>,
     holding: bool,
     used: Option<Vec2>,
     report: Option<FrameReport>,
@@ -678,6 +680,7 @@ impl Instances {
                 last_seen: pass,
                 mounted: 0,
                 presented: None,
+                settled_scale: None,
                 holding: false,
                 used: None,
                 report: None,
@@ -907,11 +910,30 @@ impl Instances {
         if screen.holding
             && let (Some(drawn), Some((rect, _))) = (stale, screen.presented)
         {
-            return Some(Held { rect, drawn });
+            return Some(Held {
+                rect,
+                shown: rect,
+                drawn,
+            });
         }
         screen.holding = false;
+        let scale = screen.request.metrics.scale_factor;
+        if region != EditorRegion::Preview
+            && let (Some(drawn), Some(visible)) = (stale, rect)
+            && screen.settled_scale == Some(scale)
+        {
+            let size = vec2(drawn.0 as f32, drawn.1 as f32) / scale.max(f32::EPSILON);
+            return Some(Held {
+                rect: Rect::from_min_size(visible.min, size),
+                shown: visible,
+                drawn,
+            });
+        }
         if let Some(rect) = rect {
             screen.presented = Some((rect, clip));
+        }
+        if drawn.is_some() && stale.is_none() {
+            screen.settled_scale = Some(scale);
         }
         None
     }

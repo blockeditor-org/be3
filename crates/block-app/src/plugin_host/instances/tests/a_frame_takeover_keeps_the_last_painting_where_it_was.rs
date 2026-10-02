@@ -49,9 +49,9 @@ fn a_frame_takeover_keeps_the_last_painting_where_it_was() {
             .held(INSTANCE, REGION, Some(FRAME), FRAME, Some(frame))
             .is_none()
     );
-    assert!(
-        instances
-            .held(INSTANCE, REGION, Some(FRAME), FRAME, Some(card))
-            .is_none()
-    );
+    let held = instances
+        .held(INSTANCE, REGION, Some(FRAME), FRAME, Some(card))
+        .expect("a painting made for another size is still not stretched");
+    assert_eq!(held.rect, Rect::from_min_size(FRAME.min, CARD.size()));
+    assert_eq!(held.shown, FRAME);
 }

@@ -1331,13 +1331,7 @@ pub(crate) fn region_view(
             false => super::pieces::subtract(visible, &floating_rects),
         };
         let (base, floating) = match held {
-            Some(_) => (
-                vec![Piece {
-                    local: UNIT,
-                    source: UNIT,
-                }],
-                Vec::new(),
-            ),
+            Some(held) => (pieces_of(held.rect, held.rect, &[held.shown]), Vec::new()),
             None => (
                 pieces_of(rect, visible, &base),
                 pieces_of(rect, visible, &floating_rects),
