@@ -19,6 +19,8 @@ pub fn Interactive(
     #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] ime: Prop<bool>,
+    #[prop(default = true)] keyboard_on_focus: bool,
+    #[prop(default = true)] ime_keyboard: Prop<bool>,
     #[prop(default = None)] ime_cursor: Prop<Option<ImeCursor>>,
     #[prop(default = None)] ime_text: Prop<Option<ImeText>>,
     on_focus_change: Callback<bool>,
@@ -79,6 +81,7 @@ pub fn Interactive(
         let interactive = document.create_interactive(focusable);
         let node = document.arena.touch_mut_as::<InteractiveNode>(interactive);
         if let Some(focus) = node.focus.as_mut() {
+            focus.keyboard_on_focus = keyboard_on_focus;
             focus.on_focus_change = on_focus_change;
             focus.on_activate_change = on_activate_change;
             focus.on_activate = on_activate;
@@ -128,6 +131,10 @@ pub fn Interactive(
         });
         create_effect(move || {
             with_document(|document| document.set_focusable_ime(interactive, ime.get()))
+        });
+        create_effect(move || {
+            let keyboard = ime_keyboard.get();
+            with_document(|document| document.set_focusable_ime_keyboard(interactive, keyboard))
         });
         create_effect(move || {
             let cursor = ime_cursor.get();

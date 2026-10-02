@@ -884,7 +884,7 @@ impl Context {
             self.inner.ime.set(Some(ImeArea {
                 rect: area.rect.scaled(scale),
                 cursor: area.cursor.scaled(scale),
-                text: area.text,
+                ..area
             }));
         }
         self.inner.input.replace(input);

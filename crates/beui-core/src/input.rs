@@ -338,6 +338,7 @@ pub struct ImeArea {
     pub rect: crate::geometry::Rect,
     pub cursor: crate::geometry::Rect,
     pub text: Option<ImeText>,
+    pub keyboard: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]

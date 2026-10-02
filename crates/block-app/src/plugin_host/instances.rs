@@ -1930,6 +1930,7 @@ impl Instances {
             rect: host_rect(area.rect, origin, stretch),
             cursor: host_rect(area.cursor, origin, stretch),
             text: area.text.as_ref().map(beui_plugin_input::beui_ime_text),
+            keyboard: area.keyboard,
         })
     }
 
