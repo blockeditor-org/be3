@@ -57,7 +57,11 @@ fn paint_every_page(size: Vec2, suffix: &str) {
 }
 
 fn showing(document: &Document, id: NodeId, text: &str) -> usize {
-    let laid_out = document.node_rect(id).is_some();
+    showing_within(document, id, text, false)
+}
+
+fn showing_within(document: &Document, id: NodeId, text: &str, culled: bool) -> usize {
+    let laid_out = culled || document.node_rect(id).is_some();
     let here = usize::from(
         laid_out
             && document
@@ -65,10 +69,11 @@ fn showing(document: &Document, id: NodeId, text: &str) -> usize {
                 .kind_of(id)
                 .is_some_and(|node| document.text(node) == text),
     );
+    let culled = culled || document.is_culled(id);
     here + document
         .children(id)
         .into_iter()
-        .map(|child| showing(document, child, text))
+        .map(|child| showing_within(document, child, text, culled))
         .sum::<usize>()
 }
 

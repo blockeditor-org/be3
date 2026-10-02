@@ -513,6 +513,16 @@ and `on_change` still reports the position for anything else that wants it.
 
 ### Long lists
 
+A plain `List` already skips the work for children far from the view. It
+measures every child, since its own size needs them all, but a child that ends
+more than `CULLING_MARGIN` outside the visible part of the list is *culled*:
+it keeps its rect, so `node_rect`, `reveal_node` and placement signals still
+find it, but nothing inside it is laid out or painted (`Document::is_culled`
+says which). The list remembers the range of scroll positions that keep the same
+children culled, so scrolling lays it out again only when a child crosses that
+margin. A long scroll of ordinary content needs nothing more than this; reach
+for a `VirtualList` when building every row is itself the cost.
+
 A `VirtualList` is a box like any other. It takes `keys` the way `ForEach` does,
 reports one `item_size` per key as its own length, and builds only the rows that
 its slice of the enclosing viewport

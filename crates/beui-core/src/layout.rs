@@ -83,3 +83,13 @@ pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out
     doc.settle_effects();
     doc.assert_confined(id, settled);
 }
+
+pub fn cull(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out: &Rects) {
+    if !doc.arena.contains(id) {
+        return;
+    }
+    doc.note_parent(id);
+    let rect = doc.pixel_grid().snap_rect(rect);
+    doc.note_placed(id);
+    doc.cull_placement(id, rect, painter.state(), out);
+}
