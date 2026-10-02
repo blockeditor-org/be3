@@ -3,13 +3,15 @@ use beui_macros::{component, view};
 
 use crate::text::Title;
 use crate::theme::{BORDER_WIDTH, CARD_RADIUS, use_theme};
-use beui_core::base::overlay::{OverlayAnchor, Placement};
+use beui_components_unstyled::BackSlide;
+use beui_core::base::overlay::{OverlayAnchor, OverlayNode, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Child, ClickCallback, Frame, List, Prop, Show, clone, component_accessibility, create_memo,
+    Child, ClickCallback, Frame, List, NodeRef, Prop, Show, clone, component_accessibility,
+    create_memo, create_signal, with_document,
 };
 
 const PADDING_HORIZONTAL: f32 = 20.0;
@@ -26,17 +28,39 @@ pub fn Dialog(
     on_dismiss: ClickCallback,
     children: Child,
 ) -> NodeId {
+    let overlay = NodeRef::new();
+    let closing = overlay.clone();
+    let (presence, set_presence) = create_signal(1.0_f32);
+    let scrim = create_memo(move || SCRIM.scale_alpha(presence.get()));
     view! {
         <Overlay
+            @node_ref=&overlay
             anchor=OverlayAnchor::Point(Pos2::ZERO)
             open={open}
             placement=Placement::Center
-            scrim=SCRIM
+            scrim={scrim}
             on_dismiss={move || on_dismiss.call()}
         >
-            <DialogSurface width={width} title={title}>{children}</DialogSurface>
+            <BackSlide
+                enters=false
+                on_back={move || close_overlay(&closing)}
+                on_presence={move |presence: f32| set_presence.set(presence)}
+            >
+                <DialogSurface width={width} title={title}>{children}</DialogSurface>
+            </BackSlide>
         </Overlay>
     }
+}
+
+pub(crate) fn close_overlay(overlay: &NodeRef) {
+    let Some(id) = overlay.try_get() else {
+        return;
+    };
+    with_document(|document| {
+        if let Some(overlay) = document.arena.kind_of::<OverlayNode>(id) {
+            document.close_overlay(overlay);
+        }
+    });
 }
 
 #[component]

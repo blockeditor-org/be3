@@ -765,12 +765,19 @@ and a press there closes it and still lands): it goes on the overlay stack, so i
 nothing else, it can trap focus, Escape closes the topmost one, and a press
 outside it dismisses it.
 
-Back - Android's back gesture, or the Back key or mouse button - closes the
-topmost modal overlay too, and while the gesture is held the overlay slides
-with it and its scrim fades. With no modal open, back goes to the most
-recently made enabled `BackHandler`, which slides its child the same way and
-calls `on_back` when the gesture completes: wrap a page in one to make back
-leave it. The document reports whether anything would take back through
+Back - Android's back gesture, or the Back key or mouse button - goes to the
+most recently made enabled `BackHandler` inside the topmost modal overlay, or,
+with no modal open, outside every overlay; with no such handler it closes the
+topmost modal. A base `BackHandler` only routes: it calls `on_back` when back
+completes, or hands every phase of the gesture to `on_gesture` if it has one,
+and moves nothing. The motion lives above it. `unstyled::BackSlide` wraps a
+page: held, the page follows the finger across a good share of the screen;
+let go, it carries on off the edge before `on_back` runs and the next page
+slides in behind it, and a cancelled gesture eases it back. A back with no
+gesture before it (a key) goes back at once. `styled::Dialog` and
+`Fullscreen` slide away the same way and fade their scrim, and a `Sheet`
+sinks with the gesture and slides on down from where it was. The document
+reports whether anything would take back through
 `FrameOutput::handles_back`; on Android the runner passes that to the
 activity's `setBackHandled`, and when nothing takes it the system's own back
 (to the home screen) plays instead.

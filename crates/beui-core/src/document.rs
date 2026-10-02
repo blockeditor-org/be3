@@ -14,7 +14,7 @@ use crate::file_picker::{FileFilter, FilePick, FilePickId};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use crate::input::{BackEdge, Key, KeyPress};
+use crate::input::{Key, KeyPress};
 
 use crate::display::Display;
 use crate::interact::{self, Keys};
@@ -61,7 +61,7 @@ pub struct Document {
     pub overlay_stack: Vec<NodeOf<crate::base::overlay::OverlayNode>>,
     pub passive_overlays: Vec<NodeOf<crate::base::overlay::OverlayNode>>,
     pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
-    pub back_gesture: Option<(NodeId, BackEdge)>,
+    pub back_gesture: Option<NodeId>,
     timers: RefCell<crate::timer::Timers>,
     scale: (::reactive::ReadSignal<f32>, ::reactive::WriteSignal<f32>),
     attached: (::reactive::ReadSignal<u64>, ::reactive::WriteSignal<u64>),
@@ -1027,7 +1027,7 @@ impl Document {
         if let Some(deadline) = self.next_timer() {
             ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
         }
-        ctx.show_painting(&self.painting);
+        ctx.show_painting(&self.painting, rect);
         self.send_file_picks(ctx);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             if !ctx.accessibility_active() {

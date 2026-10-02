@@ -583,6 +583,9 @@ pub(crate) fn PopupsPage() -> NodeId {
             >
                 <PullUpSheet />
             </Sample>
+            <Sample title="Back slide" code={vec![FolderPages::SOURCE, PillFace::SOURCE]}>
+                <FolderPages />
+            </Sample>
             <Sample
                 title="Date picker"
                 code={vec![
@@ -1451,6 +1454,38 @@ fn PullUpSheet() -> NodeId {
                 </Frame>
             </unstyled::ModalSheet>
         </List>
+    }
+}
+
+#[sample]
+#[component]
+fn FolderPages() -> NodeId {
+    let theme = use_theme();
+    let (depth, set_depth) = create_signal(0_u32);
+    let nested = create_memo(clone!(depth -> move || depth.get() > 0));
+    let label = create_memo(clone!(depth -> move || match depth.get() {
+        0 => "The top folder. Open one, then go back.".to_owned(),
+        depth => format!("{depth} folders down. Swipe back from the edge, or press Back."),
+    }));
+    let rising = set_depth.clone();
+    let ink = theme.text.clone();
+    view! {
+        <unstyled::BackSlide
+            enabled={nested}
+            on_back={clone!(depth -> move || rising.set(depth.get_untracked().saturating_sub(1)))}
+        >
+            <List spacing=SECTION_SPACING>
+                <Text string={label} color={ink} wrap=true />
+                <List direction=Direction::Horizontal spacing=0.0>
+                    <unstyled::Button
+                        on_click={move || set_depth.set(depth.get_untracked() + 1)}
+                        content={move |handle: ButtonHandle| view! {
+                            <PillFace handle label="Open a folder" />
+                        }}
+                    />
+                </List>
+            </List>
+        </unstyled::BackSlide>
     }
 }
 

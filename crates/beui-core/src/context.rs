@@ -51,6 +51,7 @@ struct Inner {
     input_simulation: RefCell<Option<Box<dyn InputSimulation>>>,
     simulation_area: Cell<(Rect, f32)>,
     mouse_viewport: Cell<Option<Rect>>,
+    shown: Cell<Option<Rect>>,
     pixels_per_point: Cell<f32>,
     native_pixels_per_point: Cell<f32>,
     simulated_pixels_per_point: Cell<Option<f32>>,
@@ -228,6 +229,7 @@ impl Context {
                 input_simulation: RefCell::new(None),
                 simulation_area: Cell::new((Rect::NOTHING, 1.0)),
                 mouse_viewport: Cell::new(None),
+                shown: Cell::new(None),
                 pixels_per_point: Cell::new(1.0),
                 native_pixels_per_point: Cell::new(1.0),
                 simulated_pixels_per_point: Cell::new(None),
@@ -312,6 +314,7 @@ impl Context {
         self.inner.repaint.set(false);
         self.inner.repaint_after.set(Duration::MAX);
         self.inner.mouse_viewport.set(None);
+        self.inner.shown.set(None);
         let (raw, wake) = match self.inner.input_simulation.borrow_mut().as_mut() {
             Some(simulation) => simulation.translate(raw, now),
             None => (raw, None),
@@ -369,8 +372,16 @@ impl Context {
                         .zip(layers.iter())
                         .all(|(old, new)| old.same(new));
                 if reported.is_empty() && !same {
+                    let shown = self.inner.shown.get();
+                    let visible = |layers: &[Layer]| {
+                        let mut shapes = crate::display::flatten(layers);
+                        if let Some(shown) = shown {
+                            shapes.retain(|shape| damage::bounds(shape).intersects(shown));
+                        }
+                        shapes
+                    };
                     debug_assert!(
-                        crate::display::flatten(&old.layers) == crate::display::flatten(&layers),
+                        visible(&old.layers) == visible(&layers),
                         "a frame that reported no damage changed the shapes it painted"
                     );
                 }
@@ -704,7 +715,11 @@ impl Context {
         }
     }
 
-    pub fn show_painting(&self, painting: &[(Rc<Display>, Entry)]) {
+    pub fn show_painting(&self, painting: &[(Rc<Display>, Entry)], within: Rect) {
+        let shown = self.inner.shown.get();
+        self.inner
+            .shown
+            .set(Some(shown.map_or(within, |shown| shown.union(within))));
         self.inner
             .layers
             .borrow_mut()

@@ -1,5 +1,6 @@
 extern crate beui_view as beui;
 
+pub mod back_slide;
 pub mod button;
 pub mod calendar;
 pub mod choice;
@@ -42,6 +43,7 @@ pub mod tooltip;
 pub mod tree;
 pub mod typeahead;
 
+pub use back_slide::BackSlide;
 pub use beui_core::drag_board::DragPoint;
 pub use button::{Button, ButtonHandle, button_active, button_focused};
 pub use calendar::{
