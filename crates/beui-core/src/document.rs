@@ -1749,6 +1749,18 @@ impl Document {
         self.descends(focused, id) || self.descends(id, focused)
     }
 
+    pub fn culled_ancestor(&self, id: NodeId) -> Option<NodeId> {
+        let mut current = Some(id);
+        for _ in 0..ANCESTOR_LIMIT {
+            let node = current?;
+            if self.is_culled(node) {
+                return Some(node);
+            }
+            current = self.arena.parent(node);
+        }
+        None
+    }
+
     fn descends(&self, node: NodeId, from: NodeId) -> bool {
         let mut current = Some(node);
         for _ in 0..ANCESTOR_LIMIT {
