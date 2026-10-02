@@ -961,15 +961,20 @@ impl Document {
                 passes
             });
         if let Some(laid_out) = self.laid_out.clone() {
-            let context = self.reactive_scope().context();
-            {
-                let _guard = crate::current::install(self);
-                context.run(|| laid_out());
-            }
-            measurement.layout_passes +=
-                FrameMeasurement::measure(&mut measurement.timings.layout, || {
-                    usize::from(self.update_layout(ctx, rect))
+            for _ in 0..LAID_OUT_ROUNDS {
+                let context = self.reactive_scope().context();
+                {
+                    let _guard = crate::current::install(self);
+                    context.run(|| laid_out());
+                }
+                let moved = FrameMeasurement::measure(&mut measurement.timings.layout, || {
+                    self.update_layout(ctx, rect)
                 });
+                measurement.layout_passes += usize::from(moved);
+                if !moved {
+                    break;
+                }
+            }
         }
         if !keys.ignored()
             && let Some(area) = self.focused_ime_area()
@@ -1885,6 +1890,7 @@ impl Document {
 }
 
 const LAYOUT_PASSES: usize = 3;
+const LAID_OUT_ROUNDS: usize = 4;
 
 fn covered(rect: Rect, region: &Region) -> bool {
     let mut left = vec![rect];

@@ -1565,7 +1565,8 @@ The one exception is `Document::on_laid_out`, a callback that runs inside the
 document's reactive scope between layout and paint, for an app that has to
 answer something layout decided: block-app waits there for its plugins to draw
 at the sizes they were just given. Whatever it changes is laid out again before
-the frame is painted.
+the frame is painted, and a layout that moved something runs the callback again,
+a few rounds at most.
 
 That holds even though `component_size` and `component_rect` feed measurements
 back into the tree, because both are delivered during the layout walk rather

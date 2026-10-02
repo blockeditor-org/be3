@@ -252,6 +252,7 @@ pub(crate) struct Blit {
     pub(super) quad: Quad,
     pub(super) source: Rect,
     pub(super) drawn: Option<(u32, u32)>,
+    pub(super) requested: Option<(u32, u32)>,
     pub(super) placed: Option<[u32; 4]>,
 }
 
@@ -263,6 +264,7 @@ impl PartialEq for Blit {
             && self.quad == other.quad
             && self.source == other.source
             && self.drawn == other.drawn
+            && self.requested == other.requested
             && self.placed == other.placed
     }
 }
@@ -285,6 +287,43 @@ impl Blit {
                 .collect(),
         )
     }
+}
+
+fn unstretched(
+    quad: Quad,
+    source: Rect,
+    requested: (u32, u32),
+    drawn: (u32, u32),
+) -> Option<(Quad, Rect)> {
+    let axis = |min: f32, max: f32, requested: u32, drawn: u32| {
+        let (from, to) = (min * requested as f32, max * requested as f32);
+        let end = to.min(drawn as f32);
+        (end > from && drawn > 0).then(|| {
+            (
+                from / drawn as f32,
+                end / drawn as f32,
+                (end - from) / (to - from),
+            )
+        })
+    };
+    let (left, right, across) = axis(source.min.x, source.max.x, requested.0, drawn.0)?;
+    let (top, bottom, down) = axis(source.min.y, source.max.y, requested.1, drawn.1)?;
+    let [origin, along, _, below] = quad.corners;
+    let at = |x: f32, y: f32| origin + (along - origin) * x + (below - origin) * y;
+    let corners = [
+        at(0.0, 0.0),
+        at(across, 0.0),
+        at(across, down),
+        at(0.0, down),
+    ];
+    Some((
+        Quad {
+            rect: Rect::from_points(&corners),
+            corners,
+            opacity: quad.opacity,
+        },
+        Rect::from_min_max(pos2(left, top), pos2(right, bottom)),
+    ))
 }
 
 pub(super) fn damaged_pieces(
@@ -562,13 +601,15 @@ impl beui::Draw for PluginDrawing {
                     let mut shared = blit.shared.borrow_mut();
                     let frames = shared.take_frames();
                     let region = shared.layout.placement(blit.screen).and_then(|placement| {
-                        Region::of(&shared.layout, blit.screen, blit.quad, blit.source).filter(
-                            |_| {
-                                blit.drawn.is_none_or(|drawn| {
-                                    drawn == (placement.width, placement.height)
-                                })
-                            },
-                        )
+                        let size = (placement.width, placement.height);
+                        let (quad, source) = match (blit.drawn, blit.requested) {
+                            (None, Some(requested)) if requested != size => {
+                                unstretched(blit.quad, blit.source, requested, size)?
+                            }
+                            _ => (blit.quad, blit.source),
+                        };
+                        Region::of(&shared.layout, blit.screen, quad, source)
+                            .filter(|_| blit.drawn.is_none_or(|drawn| drawn == size))
                     });
                     (frames, region)
                 };

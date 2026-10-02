@@ -46,6 +46,7 @@ thread_local! {
 
 struct Host {
     availability: Availability,
+    deadline: Option<(u64, Deadline)>,
     runtimes: HashMap<String, Runtime>,
     focus: Focus,
     grabbed: bool,
@@ -55,6 +56,7 @@ impl Host {
     fn new() -> Self {
         Self {
             availability: Availability::missing(),
+            deadline: None,
             runtimes: HashMap::new(),
             focus: Focus::default(),
             grabbed: false,
@@ -117,6 +119,7 @@ pub(super) struct Runtime {
     pub(super) layout: ScreenLayout,
     pub(super) pass: u64,
     since: u64,
+    placed: u64,
     surface: u32,
     status: PresenterStatus,
     shared: Rc<RefCell<Shared>>,
@@ -180,6 +183,7 @@ impl Runtime {
             layout: ScreenLayout::default(),
             pass: 0,
             since: 0,
+            placed: 0,
             surface,
             status: PresenterStatus::waiting(),
             shared: Rc::new(RefCell::new(Shared::default())),
@@ -276,21 +280,26 @@ impl Runtime {
         self.send(messages);
     }
 
-    fn settle(&mut self, pass: u64, deadline: Deadline) {
+    fn ask(&mut self, pass: u64) -> bool {
+        if self.placed == pass {
+            self.begin_pass(pass);
+        }
         self.detect_error();
         if self.error.is_some() || self.pass + 1 < pass {
-            return;
+            return false;
         }
         match self.pass == pass {
             true => self.update(Vec::new()),
             false => self.pump(),
         }
-        loop {
-            self.request_frame();
-            if self.error.is_some() || self.backend.settled() || !self.backend.wait(deadline) {
-                break;
-            }
+        self.request_frame();
+        true
+    }
+
+    fn settle(&mut self, deadline: Deadline) {
+        while self.error.is_none() && !self.backend.settled() && self.backend.wait(deadline) {
             self.pump();
+            self.request_frame();
         }
     }
 
@@ -341,6 +350,7 @@ impl Runtime {
             return;
         }
         let now = self.milliseconds();
+        let before = self.session.state().clone();
         let received = self.backend.receive();
         if *self.session.state() == SessionState::Idle && self.backend.ready() {
             self.session.start(now);
@@ -354,6 +364,10 @@ impl Runtime {
         }
         self.deliver();
         self.session.tick(now);
+        if *self.session.state() != before {
+            mark(&self.plugin.identity.id);
+            host::request_repaint();
+        }
         if let Some(deadline) = self.session.next_deadline() {
             host::request_repaint_after(Duration::from_millis(deadline.saturating_sub(now)));
         }
@@ -495,6 +509,11 @@ impl Runtime {
             quad: Quad::upright(Rect::ZERO),
             source: UNIT,
             drawn,
+            requested: self
+                .sent
+                .iter()
+                .find(|request| request.screen == screen)
+                .map(|request| (request.metrics.pixel_width, request.metrics.pixel_height)),
             placed: self
                 .layout
                 .placement(screen)
@@ -723,10 +742,22 @@ pub(crate) fn poll() {
 
 pub(crate) fn settle() {
     let pass = host::pass();
-    let deadline = Deadline::after(FRAME_BUDGET);
     HOST.with(|host| {
-        for runtime in host.borrow_mut().runtimes.values_mut() {
-            runtime.settle(pass, deadline);
+        let mut host = host.borrow_mut();
+        let deadline = match host.deadline {
+            Some((at, deadline)) if at == pass => deadline,
+            _ => Deadline::after(FRAME_BUDGET),
+        };
+        host.deadline = Some((pass, deadline));
+        let asked: Vec<String> = host
+            .runtimes
+            .iter_mut()
+            .filter_map(|(id, runtime)| runtime.ask(pass).then(|| id.clone()))
+            .collect();
+        for id in asked {
+            if let Some(runtime) = host.runtimes.get_mut(&id) {
+                runtime.settle(deadline);
+            }
         }
     });
 }
@@ -1179,6 +1210,7 @@ pub(crate) fn place_region(
         if !runtime.instances.mounted(instance, region) {
             return;
         }
+        runtime.placed = host::pass();
         let RegionPlacement { rect, clip } = placement;
         let scale_factor = host::pixels_per_point();
         let size = match region {
