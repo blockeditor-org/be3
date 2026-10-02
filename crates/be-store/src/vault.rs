@@ -15,6 +15,8 @@ use crate::{
 
 pub const NONCE_LEN: usize = 12;
 
+pub const SEALED_FORMAT: u8 = 1;
+
 #[derive(Clone, Copy, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ContentKey([u8; 32]);
 
@@ -42,14 +44,19 @@ impl ContentKey {
         let ciphertext = cipher
             .encrypt(Nonce::from_slice(nonce_bytes), plain)
             .expect("chacha20poly1305 never fails on a valid key and nonce");
-        let mut sealed = Vec::with_capacity(NONCE_LEN + ciphertext.len());
+        let mut sealed = Vec::with_capacity(1 + NONCE_LEN + ciphertext.len());
+        sealed.push(SEALED_FORMAT);
         sealed.extend_from_slice(nonce_bytes);
         sealed.extend_from_slice(&ciphertext);
         sealed
     }
 
     pub fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, StoreError> {
-        let (nonce_bytes, ciphertext) = sealed
+        let (&format, rest) = sealed.split_first().ok_or(StoreError::Corrupt)?;
+        if format != SEALED_FORMAT {
+            return Err(StoreError::UnknownFormat(format));
+        }
+        let (nonce_bytes, ciphertext) = rest
             .split_at_checked(NONCE_LEN)
             .ok_or(StoreError::Corrupt)?;
         let cipher = ChaCha20Poly1305::new(Key::from_slice(self.as_bytes()));

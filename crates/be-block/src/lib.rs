@@ -73,7 +73,7 @@ pub use presentation::{Presentation, PresentationContent};
 pub use profile::{FILES_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR};
 pub use settings::{Settings, SettingsContent};
 pub use streamed::{
-    HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
+    HEADER_PREFIX_BYTES, STREAMED_FORMAT, Streamed, decode_streamed, encode_streamed, payload_start,
 };
 pub use text::{TextContent, TextHeader, TextIndentation, TextLanguage, TextOp};
 pub use ui_settings::{UiSettings, UiSettingsContent, Zoom};
@@ -87,6 +87,7 @@ pub use video::{VideoContent, VideoProject};
 pub enum ContentError {
     Malformed(&'static str),
     Truncated,
+    UnknownFormat(u8),
 }
 
 impl fmt::Display for ContentError {
@@ -94,6 +95,10 @@ impl fmt::Display for ContentError {
         match self {
             Self::Malformed(what) => write!(formatter, "stored content is malformed: {what}"),
             Self::Truncated => formatter.write_str("stored content ended early"),
+            Self::UnknownFormat(format) => write!(
+                formatter,
+                "stored content is in format {format}, which this version cannot read; update the app"
+            ),
         }
     }
 }

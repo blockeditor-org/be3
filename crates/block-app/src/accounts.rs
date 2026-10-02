@@ -79,6 +79,7 @@ pub(crate) async fn register(
     let response = connection
         .request(|request| ClientMessage::Register {
             request,
+            version: be_protocol::PROTOCOL_VERSION,
             email,
             display_name,
             password,
@@ -96,6 +97,7 @@ pub(crate) async fn login(
     let response = connection
         .request(|request| ClientMessage::Login {
             request,
+            version: be_protocol::PROTOCOL_VERSION,
             email,
             password,
         })
@@ -109,7 +111,11 @@ async fn authenticated(
 ) -> Result<std::sync::Arc<Connection>, AccountError> {
     let connection = Connection::connect(&socket_url(server_url)).await?;
     connection
-        .request(|request| ClientMessage::Authenticate { request, token })
+        .request(|request| ClientMessage::Authenticate {
+            request,
+            version: be_protocol::PROTOCOL_VERSION,
+            token,
+        })
         .await?;
     Ok(connection)
 }

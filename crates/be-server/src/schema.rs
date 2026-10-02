@@ -1,12 +1,37 @@
 use rusqlite::Connection;
 
+use be_protocol::ErrorCode;
+
 use crate::ServerError;
 
 pub fn initialize(connection: &Connection) -> Result<(), ServerError> {
     connection.pragma_update(None, "foreign_keys", true)?;
     connection.pragma_update(None, "journal_mode", "WAL")?;
-    connection.execute_batch(
-        "
+    migrate(connection, MIGRATIONS)
+}
+
+pub(crate) fn migrate(connection: &Connection, migrations: &[&str]) -> Result<(), ServerError> {
+    let current: usize = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    if current > migrations.len() {
+        return Err(ServerError::Refused(
+            ErrorCode::UpdateRequired,
+            format!(
+                "the database is at schema version {current}, newer than this server's {}; \
+                 update the server",
+                migrations.len()
+            ),
+        ));
+    }
+    for (index, migration) in migrations.iter().enumerate().skip(current) {
+        let transaction = connection.unchecked_transaction()?;
+        transaction.execute_batch(migration)?;
+        transaction.pragma_update(None, "user_version", index + 1)?;
+        transaction.commit()?;
+    }
+    Ok(())
+}
+
+pub(crate) const MIGRATIONS: &[&str] = &["
         CREATE TABLE IF NOT EXISTS accounts (
             id              TEXT PRIMARY KEY,
             email           TEXT NOT NULL UNIQUE,
@@ -112,7 +137,4 @@ pub fn initialize(connection: &Connection) -> Result<(), ServerError> {
 
         CREATE INDEX IF NOT EXISTS block_edges_reference
             ON block_edges (workspace_id, reference_id);
-        ",
-    )?;
-    Ok(())
-}
+        "];

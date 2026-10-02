@@ -10,6 +10,7 @@ async fn pairing_messages_reach_only_the_same_accounts_other_connections() {
     let response = phone
         .send(|request| ClientMessage::Authenticate {
             request,
+            version: be_protocol::PROTOCOL_VERSION,
             token: laptop.token.clone(),
         })
         .await;

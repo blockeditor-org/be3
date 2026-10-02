@@ -5,6 +5,50 @@ use uuid::Uuid;
 
 use super::{AppStateError, SavedAccount, ServerLocation};
 
+pub(crate) const MIGRATIONS: &[&str] = &["
+    CREATE TABLE IF NOT EXISTS saved_accounts (
+        server_key        TEXT NOT NULL,
+        server_url        TEXT,
+        account_id        TEXT NOT NULL,
+        email             TEXT NOT NULL,
+        display_name      TEXT NOT NULL,
+        token             TEXT NOT NULL,
+        last_workspace_id TEXT,
+        PRIMARY KEY (server_key, account_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS workspace_keys (
+        server_key   TEXT NOT NULL,
+        account_id   TEXT NOT NULL,
+        workspace_id TEXT NOT NULL,
+        key          BLOB NOT NULL,
+        PRIMARY KEY (server_key, account_id, workspace_id)
+    );
+    "];
+
+pub(crate) fn migrate(connection: &Connection, migrations: &[&str]) -> Result<(), AppStateError> {
+    let current: usize = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    if current > migrations.len() {
+        return Err(AppStateError::from(format!(
+            "the app's database is at schema version {current}, newer than this app's {}; \
+             update the app",
+            migrations.len()
+        )));
+    }
+    for (index, migration) in migrations.iter().enumerate().skip(current) {
+        let transaction = connection.unchecked_transaction()?;
+        transaction.execute_batch(migration)?;
+        transaction.pragma_update(None, "user_version", index + 1)?;
+        transaction.commit()?;
+    }
+    Ok(())
+}
+
 pub struct AppStateStore {
     connection: Connection,
 }
@@ -21,29 +65,7 @@ impl AppStateStore {
 
     fn with_connection(connection: Connection) -> Result<Self, AppStateError> {
         connection.pragma_update(None, "foreign_keys", true)?;
-        connection.execute_batch(
-            "CREATE TABLE IF NOT EXISTS saved_accounts (
-                server_key        TEXT NOT NULL,
-                server_url        TEXT,
-                account_id        TEXT NOT NULL,
-                email             TEXT NOT NULL,
-                display_name      TEXT NOT NULL,
-                token             TEXT NOT NULL,
-                last_workspace_id TEXT,
-                PRIMARY KEY (server_key, account_id)
-            );
-            CREATE TABLE IF NOT EXISTS app_settings (
-                key   TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS workspace_keys (
-                server_key   TEXT NOT NULL,
-                account_id   TEXT NOT NULL,
-                workspace_id TEXT NOT NULL,
-                key          BLOB NOT NULL,
-                PRIMARY KEY (server_key, account_id, workspace_id)
-            );",
-        )?;
+        migrate(&connection, MIGRATIONS)?;
         Ok(Self { connection })
     }
 

@@ -31,5 +31,12 @@ fn streamed_content_separates_its_header_from_its_payload() {
         ImageContent::decode(&encoded[..start - 1]),
         Err(ContentError::Truncated)
     );
-    assert!(ImageContent::decode(&[0xff, 0xff, 0, 0, 7]).is_err());
+    assert!(ImageContent::decode(&[STREAMED_FORMAT, 0xff, 0xff, 0, 0, 7]).is_err());
+
+    let mut later = encoded.clone();
+    later[0] = STREAMED_FORMAT + 1;
+    assert_eq!(
+        ImageContent::decode(&later),
+        Err(ContentError::UnknownFormat(STREAMED_FORMAT + 1))
+    );
 }

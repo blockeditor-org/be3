@@ -148,38 +148,45 @@ fn merge_object(
 
 fn merge_fields(base: &Object, ours: &Object, theirs: &Object, conflicts: &mut usize) -> Object {
     let parent = pick(&base.parent, &ours.parent, &theirs.parent, conflicts);
-    let fields = ours
-        .fields
-        .iter()
-        .enumerate()
-        .map(|(index, mine)| {
-            let (Some(before), Some(other)) = (base.fields.get(index), theirs.fields.get(index))
-            else {
-                return mine.clone();
-            };
-            match (before, mine, other) {
-                (Value::Count(before), Value::Count(mine), Value::Count(other)) => Value::Count(
-                    before
-                        .saturating_add(mine.saturating_sub(*before))
-                        .saturating_add(other.saturating_sub(*before)),
-                ),
-                (Value::Register(_), Value::Register(_), Value::Register(_)) => {
-                    pick(before, mine, other, conflicts)
-                }
-                (Value::Map(before), Value::Map(mine), Value::Map(other)) => {
-                    Value::Map(merge_entries(before, mine, other, conflicts))
-                }
-                (Value::Grid(before), Value::Grid(mine), Value::Grid(other)) => {
-                    Value::Grid(crate::Cells::merge(before, mine, other, conflicts))
-                }
-                (Value::Latest(_), Value::Latest(mine), Value::Latest(other)) => {
-                    Value::Latest(crate::latest::merge(mine, other))
-                }
-                _ => mine.clone(),
-            }
+    let fields = (0..ours.fields.len().max(theirs.fields.len()))
+        .map(|index| match ours.fields.get(index) {
+            Some(mine) => merge_field(index, mine, base, theirs, conflicts),
+            None => theirs.fields[index].clone(),
         })
         .collect();
     Object { parent, fields }
+}
+
+fn merge_field(
+    index: usize,
+    mine: &Value,
+    base: &Object,
+    theirs: &Object,
+    conflicts: &mut usize,
+) -> Value {
+    let (Some(before), Some(other)) = (base.fields.get(index), theirs.fields.get(index)) else {
+        return mine.clone();
+    };
+    match (before, mine, other) {
+        (Value::Count(before), Value::Count(mine), Value::Count(other)) => Value::Count(
+            before
+                .saturating_add(mine.saturating_sub(*before))
+                .saturating_add(other.saturating_sub(*before)),
+        ),
+        (Value::Register(_), Value::Register(_), Value::Register(_)) => {
+            pick(before, mine, other, conflicts)
+        }
+        (Value::Map(before), Value::Map(mine), Value::Map(other)) => {
+            Value::Map(merge_entries(before, mine, other, conflicts))
+        }
+        (Value::Grid(before), Value::Grid(mine), Value::Grid(other)) => {
+            Value::Grid(crate::Cells::merge(before, mine, other, conflicts))
+        }
+        (Value::Latest(_), Value::Latest(mine), Value::Latest(other)) => {
+            Value::Latest(crate::latest::merge(mine, other))
+        }
+        _ => mine.clone(),
+    }
 }
 
 fn blank_like(object: &Object) -> Object {

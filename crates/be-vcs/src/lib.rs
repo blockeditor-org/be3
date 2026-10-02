@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+};
 
 pub use be_block::ConflictKind;
 
@@ -25,15 +28,23 @@ pub struct Entry {
     pub references: Vec<Uuid>,
 }
 
+#[derive(Deserialize, Serialize)]
+enum StoredTree<'a> {
+    V1(Cow<'a, Tree>),
+}
+
 impl Tree {
     pub fn write<S: ObjectStore>(&self, vault: &Vault<S>) -> Result<Manifest, StoreError> {
-        let encoded = postcard::to_stdvec(self).map_err(|_| StoreError::Encoding)?;
+        let encoded = postcard::to_stdvec(&StoredTree::V1(Cow::Borrowed(self)))
+            .map_err(|_| StoreError::Encoding)?;
         vault.write(TREE_CONTENT_TYPE, &encoded)
     }
 
     pub fn read<S: ObjectStore>(vault: &Vault<S>, manifest: &Manifest) -> Result<Self, StoreError> {
         let bytes = vault.read(manifest)?;
-        postcard::from_bytes(&bytes).map_err(|_| StoreError::Encoding)
+        match postcard::from_bytes(&bytes).map_err(|_| StoreError::Encoding)? {
+            StoredTree::V1(tree) => Ok(tree.into_owned()),
+        }
     }
 
     pub fn objects(&self) -> BTreeSet<Hash> {

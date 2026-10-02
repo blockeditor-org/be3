@@ -115,6 +115,13 @@ async fn carry(
             Either::Right((frame, _)) => match frame {
                 Some(Frame::Binary(bytes)) => {
                     let Ok(message) = decode::<ServerMessage>(&bytes) else {
+                        if let Some(failed) = be_protocol::undecodable_reply(&bytes)
+                            && let Some(reply) = failed
+                                .request()
+                                .and_then(|request| pending.remove(&request))
+                        {
+                            let _ = reply.send(failed);
+                        }
                         continue;
                     };
                     match message

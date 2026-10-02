@@ -269,20 +269,23 @@ where
             match frame? {
                 Message::Binary(bytes) => {
                     let response = match decode::<ClientMessage>(&bytes) {
-                        Err(_) => ServerMessage::Failed {
-                            request: 0,
-                            code: ErrorCode::InvalidRequest,
-                            message: "the frame is not a valid protocol message".into(),
-                        },
+                        Err(_) => be_protocol::undecodable_request(&bytes),
                         Ok(request) => {
                             let id = request.request();
-                            match connection.dispatch(request).await {
-                                Ok(response) => response,
-                                Err(error) => ServerMessage::Failed {
-                                    request: id,
-                                    code: error.code(),
-                                    message: error.to_string(),
-                                },
+                            if let Some(refusal) = request
+                                .version()
+                                .and_then(|version| be_protocol::version_refusal(id, version))
+                            {
+                                refusal
+                            } else {
+                                match connection.dispatch(request).await {
+                                    Ok(response) => response,
+                                    Err(error) => ServerMessage::Failed {
+                                        request: id,
+                                        code: error.code(),
+                                        message: error.to_string(),
+                                    },
+                                }
                             }
                         }
                     };
@@ -362,6 +365,7 @@ impl Connection {
                 email,
                 display_name,
                 password,
+                ..
             } => {
                 if !self.config.allow_registration {
                     return Err(ServerError::Refused(
@@ -379,6 +383,7 @@ impl Connection {
                 request,
                 email,
                 password,
+                ..
             } => {
                 if !self.config.allow_login {
                     tracing::warn!(email, "refused a sign-in: sign-ins are off");
@@ -396,7 +401,7 @@ impl Connection {
                     .inspect_err(|error| tracing::warn!(email, %error, "a sign-in failed"))?;
                 Ok(self.authenticated(request, profile, token).await)
             }
-            ClientMessage::Authenticate { request, token } => {
+            ClientMessage::Authenticate { request, token, .. } => {
                 let profile = self.store.resolve_token(&token).await?;
                 self.token = Some(token.clone());
                 Ok(self.authenticated(request, profile, token).await)

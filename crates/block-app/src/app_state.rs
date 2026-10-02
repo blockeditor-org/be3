@@ -56,10 +56,13 @@ impl ServerLocation {
 pub struct SavedAccount {
     pub server: ServerLocation,
     pub id: Uuid,
+    #[serde(default)]
     pub email: String,
+    #[serde(default)]
     pub name: String,
 
     pub token: String,
+    #[serde(default)]
     pub last_workspace_id: Option<Uuid>,
 }
 

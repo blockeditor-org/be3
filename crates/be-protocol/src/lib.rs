@@ -6,7 +6,7 @@ use be_store::Hash;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 
@@ -99,6 +99,7 @@ pub enum ErrorCode {
     RegistrationDisabled,
     InvitationNotFound,
     LoginDisabled,
+    UpdateRequired,
 }
 
 impl fmt::Display for ErrorCode {
@@ -111,17 +112,20 @@ impl fmt::Display for ErrorCode {
 pub enum ClientMessage {
     Register {
         request: u64,
+        version: u32,
         email: String,
         display_name: String,
         password: String,
     },
     Login {
         request: u64,
+        version: u32,
         email: String,
         password: String,
     },
     Authenticate {
         request: u64,
+        version: u32,
         token: String,
     },
     Logout {
@@ -372,6 +376,65 @@ impl ClientMessage {
             | Self::Pair { request, .. } => *request,
         }
     }
+
+    pub fn version(&self) -> Option<u32> {
+        match self {
+            Self::Register { version, .. }
+            | Self::Login { version, .. }
+            | Self::Authenticate { version, .. } => Some(*version),
+            _ => None,
+        }
+    }
+}
+
+const GREETINGS: std::ops::RangeInclusive<u32> = 0..=2;
+
+pub fn version_refusal(request: u64, version: u32) -> Option<ServerMessage> {
+    let side = match version.cmp(&PROTOCOL_VERSION) {
+        std::cmp::Ordering::Equal => return None,
+        std::cmp::Ordering::Less => "app",
+        std::cmp::Ordering::Greater => "server",
+    };
+    Some(ServerMessage::Failed {
+        request,
+        code: ErrorCode::UpdateRequired,
+        message: format!(
+            "the app speaks protocol version {version} and the server speaks \
+             {PROTOCOL_VERSION}; update the {side}"
+        ),
+    })
+}
+
+pub fn undecodable_request(bytes: &[u8]) -> ServerMessage {
+    let Ok((variant, request)) = postcard::from_bytes::<(u32, u64)>(bytes) else {
+        return ServerMessage::Failed {
+            request: 0,
+            code: ErrorCode::InvalidRequest,
+            message: "the frame is not a valid protocol message".into(),
+        };
+    };
+    if GREETINGS.contains(&variant)
+        && let Ok((_, _, version)) = postcard::from_bytes::<(u32, u64, u32)>(bytes)
+        && let Some(refusal) = version_refusal(request, version)
+    {
+        return refusal;
+    }
+    ServerMessage::Failed {
+        request,
+        code: ErrorCode::InvalidRequest,
+        message: "the server could not read this request; the app and the server may need \
+                  updating"
+            .into(),
+    }
+}
+
+pub fn undecodable_reply(bytes: &[u8]) -> Option<ServerMessage> {
+    let (_, request) = postcard::from_bytes::<(u32, u64)>(bytes).ok()?;
+    Some(ServerMessage::Failed {
+        request,
+        code: ErrorCode::UpdateRequired,
+        message: "the app could not read the server's reply; update the app".into(),
+    })
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

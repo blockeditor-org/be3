@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -30,13 +32,22 @@ pub struct ArtifactSource {
     pub data: Vec<u8>,
 }
 
+#[derive(Deserialize, Serialize)]
+enum StoredMetadata<'a> {
+    V1(Cow<'a, BlockMetadata>),
+}
+
 impl BlockMetadata {
     pub fn encode(&self) -> Vec<u8> {
-        postcard::to_stdvec(self).unwrap_or_default()
+        postcard::to_stdvec(&StoredMetadata::V1(Cow::Borrowed(self))).unwrap_or_default()
     }
 
     pub fn decode(bytes: &[u8]) -> Result<Self, crate::ContentError> {
-        postcard::from_bytes(bytes).map_err(|_| crate::ContentError::Malformed("block metadata"))
+        match postcard::from_bytes(bytes)
+            .map_err(|_| crate::ContentError::Malformed("block metadata"))?
+        {
+            StoredMetadata::V1(metadata) => Ok(metadata.into_owned()),
+        }
     }
 
     pub fn named(name: impl Into<String>) -> Self {

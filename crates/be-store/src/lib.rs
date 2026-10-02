@@ -16,6 +16,7 @@ pub enum StoreError {
     Corrupt,
     ChunkTooLarge,
     Encoding,
+    UnknownFormat(u8),
     InvalidPath,
     Io(io::Error),
 }
@@ -27,6 +28,10 @@ impl fmt::Display for StoreError {
             Self::Corrupt => formatter.write_str("stored bytes did not decrypt to valid content"),
             Self::ChunkTooLarge => formatter.write_str("a chunk exceeded the addressable length"),
             Self::Encoding => formatter.write_str("an object failed to encode or decode"),
+            Self::UnknownFormat(format) => write!(
+                formatter,
+                "an object is in format {format}, which this version cannot read; update the app"
+            ),
             Self::InvalidPath => formatter.write_str("the store path has no parent directory"),
             Self::Io(error) => write!(formatter, "store io failed: {error}"),
         }

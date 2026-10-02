@@ -9,6 +9,7 @@ async fn repeated_failed_sign_ins_lock_the_account_out() {
         guesser
             .send(|request| ClientMessage::Login {
                 request,
+                version: be_protocol::PROTOCOL_VERSION,
                 email: "owner@example.com".into(),
                 password: password.into(),
             })
@@ -32,6 +33,7 @@ async fn repeated_failed_sign_ins_lock_the_account_out() {
     let response = other
         .send(|request| ClientMessage::Login {
             request,
+            version: be_protocol::PROTOCOL_VERSION,
             email: "nobody@example.com".into(),
             password: "correct horse battery".into(),
         })

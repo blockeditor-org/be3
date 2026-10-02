@@ -40,16 +40,22 @@ impl Credentials {
                 password,
             } => ClientMessage::Register {
                 request,
+                version: be_protocol::PROTOCOL_VERSION,
                 email,
                 display_name,
                 password,
             },
             Self::Login { email, password } => ClientMessage::Login {
                 request,
+                version: be_protocol::PROTOCOL_VERSION,
                 email,
                 password,
             },
-            Self::Token(token) => ClientMessage::Authenticate { request, token },
+            Self::Token(token) => ClientMessage::Authenticate {
+                request,
+                version: be_protocol::PROTOCOL_VERSION,
+                token,
+            },
         }
     }
 }
