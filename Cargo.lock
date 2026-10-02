@@ -631,6 +631,7 @@ dependencies = [
  "be-model",
  "be-store",
  "logicgame",
+ "memchr",
  "postcard",
  "serde",
  "uuid",
@@ -895,7 +896,6 @@ dependencies = [
  "beui-core",
  "beui-view",
  "beui_macros",
- "emojis",
  "reactive",
  "text-editor-core",
 ]
@@ -908,6 +908,9 @@ dependencies = [
  "beui-core",
  "beui-view",
  "beui_macros",
+ "emojis",
+ "foldhash 0.2.0",
+ "memchr",
  "reactive",
  "serde",
  "text-editor-core",
@@ -918,6 +921,7 @@ name = "beui-core"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "foldhash 0.2.0",
  "geometry",
  "reactive",
  "thumbhash",
@@ -6601,6 +6605,7 @@ dependencies = [
 name = "text-editor-core"
 version = "0.1.0"
 dependencies = [
+ "memchr",
  "serde",
  "similar",
  "tree-sitter",

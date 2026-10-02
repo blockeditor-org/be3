@@ -164,34 +164,36 @@ pub(crate) fn PhoneFiles(
                             <SearchSoon @sizing=ItemSize::Percent(100.0) />
                         </Show>
                         <Show condition={browsing}>
-                            <Scroll @sizing=ItemSize::Percent(100.0)>
-                                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                                    <List spacing=ROW_SPACING>
-                                        <Show condition={at_root}>
-                                            <Recents editor={recents_editor} />
-                                        </Show>
-                                        <Dynamic value={level}>
-                                            {move |level: Level| {
-                                                let editor = rows_editor.clone();
-                                                let tree = Rc::clone(&rows_tree);
-                                                let set_level = rows_level.clone();
-                                                let set_acting = rows_acting.clone();
-                                                view! {
-                                                    <LevelRows
-                                                        @sizing=ItemSize::Intrinsic
-                                                        editor
-                                                        tree
-                                                        level
-                                                        set_level
-                                                        set_acting
-                                                    />
-                                                }
-                                            }}
-                                        </Dynamic>
-                                        <Frame height=DOCK_ROOM />
-                                    </List>
-                                </Frame>
-                            </Scroll>
+                            {move || clone!(at_root level recents_editor rows_acting rows_editor rows_level rows_tree -> view! {
+                                <Scroll @sizing=ItemSize::Percent(100.0)>
+                                    <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                                        <List spacing=ROW_SPACING>
+                                            <Show condition={at_root}>
+                                                <Recents editor={recents_editor.clone()} />
+                                            </Show>
+                                            <Dynamic value={level}>
+                                                {move |level: Level| {
+                                                    let editor = rows_editor.clone();
+                                                    let tree = Rc::clone(&rows_tree);
+                                                    let set_level = rows_level.clone();
+                                                    let set_acting = rows_acting.clone();
+                                                    view! {
+                                                        <LevelRows
+                                                            @sizing=ItemSize::Intrinsic
+                                                            editor
+                                                            tree
+                                                            level
+                                                            set_level
+                                                            set_acting
+                                                        />
+                                                    }
+                                                }}
+                                            </Dynamic>
+                                            <Frame height=DOCK_ROOM />
+                                        </List>
+                                    </Frame>
+                                </Scroll>
+                            })}
                         </Show>
                     </List>
                 </Frame>
@@ -248,7 +250,7 @@ fn Header(
                             @test_id={"file-tree.back"}
                             glyph={ICON_ARROW_BACK.to_owned()}
                             label="Up one folder"
-                            on_click={up}
+                            on_click={up.clone()}
                         />
                     </Show>
                     <Show condition={titled}>
@@ -261,18 +263,22 @@ fn Header(
                         </Frame>
                     </Show>
                     <Show condition={named}>
-                        <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                            <Caption content={path} ellipsis=true />
-                            <Heading content={name} />
-                        </List>
+                        {move || clone!(name path -> view! {
+                            <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                                <Caption content={path} ellipsis=true />
+                                <Heading content={name} />
+                            </List>
+                        })}
                     </Show>
                     <Show condition={top}>
-                        <IconButton
-                            @test_id={"file-tree.app-menu"}
-                            glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
-                            label="Account and settings"
-                            on_click={move || on_menu.call()}
-                        />
+                        {move || clone!(on_menu -> view! {
+                            <IconButton
+                                @test_id={"file-tree.app-menu"}
+                                glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
+                                label="Account and settings"
+                                on_click={move || on_menu.call()}
+                            />
+                        })}
                     </Show>
                 </List>
                 <TextInput
@@ -342,30 +348,32 @@ fn Recents(editor: Editor) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={any}>
-                <List spacing=6.0>
-                    <Frame padding_horizontal=PADDING padding_vertical=4.0>
-                        <Caption content="Recent" />
-                    </Frame>
-                    <Scroll direction=Direction::Horizontal>
-                        <ForEach keys={keys}>
-                            {move |id: Uuid| {
-                                let block_type = recents.with_untracked(|recents| {
-                                    recents
-                                        .iter()
-                                        .find(|(other, _)| *other == id)
-                                        .map_or_else(Uuid::nil, |(_, block_type)| *block_type)
-                                });
-                                let editor = editor.clone();
-                                view! {
-                                    <RecentCard editor id block_type />
-                                }
-                            }}
-                        </ForEach>
-                    </Scroll>
-                    <Frame padding_horizontal=PADDING padding_vertical=4.0>
-                        <Caption content="All files" />
-                    </Frame>
-                </List>
+                {move || clone!(editor keys recents -> view! {
+                    <List spacing=6.0>
+                        <Frame padding_horizontal=PADDING padding_vertical=4.0>
+                            <Caption content="Recent" />
+                        </Frame>
+                        <Scroll direction=Direction::Horizontal>
+                            <ForEach keys={keys}>
+                                {move |id: Uuid| {
+                                    let block_type = recents.with_untracked(|recents| {
+                                        recents
+                                            .iter()
+                                            .find(|(other, _)| *other == id)
+                                            .map_or_else(Uuid::nil, |(_, block_type)| *block_type)
+                                    });
+                                    let editor = editor.clone();
+                                    view! {
+                                        <RecentCard editor id block_type />
+                                    }
+                                }}
+                            </ForEach>
+                        </Scroll>
+                        <Frame padding_horizontal=PADDING padding_vertical=4.0>
+                            <Caption content="All files" />
+                        </Frame>
+                    </List>
+                })}
             </Show>
         </List>
     }
@@ -517,12 +525,14 @@ fn LevelRows(
                 }}
             </ForEach>
             <Show condition={at_root}>
-                <ActionRow
-                    @test_id={"file-tree.deleted"}
-                    label="Recently deleted"
-                    glyph={ICON_HISTORY.to_owned()}
-                    on_click={move || deleting.set(Level::Deleted)}
-                />
+                {move || clone!(deleting -> view! {
+                    <ActionRow
+                        @test_id={"file-tree.deleted"}
+                        label="Recently deleted"
+                        glyph={ICON_HISTORY.to_owned()}
+                        on_click={move || deleting.set(Level::Deleted)}
+                    />
+                })}
             </Show>
         </List>
     }
@@ -628,17 +638,20 @@ fn PhoneRow(
                             <Caption content={detail} ellipsis=true />
                         </List>
                         <Show condition={folder}>
-                            <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} color={muted_icon} />
+                            <Icon
+                                glyph={ICON_CHEVRON_RIGHT.to_owned()}
+                                color={muted_icon.clone()}
+                            />
                         </Show>
                     </List>
                 </Frame>
             </ListRow>
             <Show condition={holds}>
                 <IconButton
-                    @test_id={inside_id}
+                    @test_id={inside_id.clone()}
                     glyph={ICON_CHEVRON_RIGHT.to_owned()}
                     label="Show what it holds"
-                    on_click={entering}
+                    on_click={entering.clone()}
                 />
             </Show>
             <IconButton

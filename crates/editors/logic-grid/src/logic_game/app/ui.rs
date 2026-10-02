@@ -77,7 +77,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                                 glyph={ICON_WIDGETS.to_owned()}
                                 label="Hotbar"
                                 @test_id={"logic-game.hotbar"}
-                                on_click={open_hotbar}
+                                on_click={open_hotbar.clone()}
                             />
                         </Show>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -154,22 +154,24 @@ fn LevelRow(
                 </List>
             </ListRow>
             <Show condition={expanded}>
-                <Frame padding_left=INDENT>
-                    <List spacing=ROW_SPACING>
-                        <Caption content={goal} wrap=true />
-                        <Show condition={shows_quiz}>
-                            <BinaryAddition editor={editor} block={block} />
-                        </Show>
-                        <Show condition={shows_solutions}>
-                            <Solutions
-                                editor={solving}
-                                game={game}
-                                challenge={challenge}
-                                level={level}
-                            />
-                        </Show>
-                    </List>
-                </Frame>
+                {move || clone!(block editor game goal level shows_quiz shows_solutions solving -> view! {
+                    <Frame padding_left=INDENT>
+                        <List spacing=ROW_SPACING>
+                            <Caption content={goal} wrap=true />
+                            <Show condition={shows_quiz}>
+                                <BinaryAddition editor={editor.clone()} block={block.clone()} />
+                            </Show>
+                            <Show condition={shows_solutions}>
+                                <Solutions
+                                    editor={solving.clone()}
+                                    game={game.clone()}
+                                    challenge={challenge}
+                                    level={level.clone()}
+                                />
+                            </Show>
+                        </List>
+                    </Frame>
+                })}
             </Show>
         </List>
     }

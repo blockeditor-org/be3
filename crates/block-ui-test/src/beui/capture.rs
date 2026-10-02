@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 
-use beui::{Color32, FrameOutput, GlyphImage, Image, Quad, Vec2};
+use beui::{Color32, FrameOutput, GlyphImage, Image, Quad, Rect};
 use paint_snapshot::{
     Content, Frame, Glyph, Primitive, RoundedRect, Snapshot, Texture, TextureKey, Triangle, Turn,
     Vertex,
@@ -9,11 +9,27 @@ use paint_snapshot::{
 
 pub(crate) fn capture(
     output: &FrameOutput,
-    size: Vec2,
+    region: Rect,
     pixels_per_point: f32,
     background: Color32,
 ) -> Result<Snapshot, String> {
-    let points = |values: [f32; 4]| values.map(|value| value / pixels_per_point);
+    let origin = [region.min.x, region.min.y];
+    let points = |values: [f32; 4]| {
+        [
+            values[0] / pixels_per_point - origin[0],
+            values[1] / pixels_per_point - origin[1],
+            values[2] / pixels_per_point - origin[0],
+            values[3] / pixels_per_point - origin[1],
+        ]
+    };
+    let turn_of = |turn: beui::Turn| {
+        let turn = turned(turn, pixels_per_point);
+        Turn {
+            pivot: [turn.pivot[0] - origin[0], turn.pivot[1] - origin[1]],
+            angle: turn.angle,
+        }
+    };
+    let size = region.size();
     let mut textures = BTreeMap::new();
     let mut primitives = Vec::new();
     for quad in beui::quads(output, pixels_per_point).list {
@@ -32,7 +48,7 @@ pub(crate) fn capture(
                     corner_radius: corners[0],
                     stroke_width: stroke_width / pixels_per_point,
                     color: color.to_array(),
-                    turn: turned(turn, pixels_per_point),
+                    turn: turn_of(turn),
                 };
                 match corners.iter().all(|radius| *radius == corners[0]) {
                     true => (clip, Content::RoundedRect(shape)),
@@ -51,7 +67,7 @@ pub(crate) fn capture(
                     rect: points(rect),
                     texture: texture(&mut textures, &glyph.image)?,
                     color: color.to_array(),
-                    turn: turned(turn, pixels_per_point),
+                    turn: turn_of(turn),
                 }),
             ),
             Quad::Image {
@@ -69,7 +85,7 @@ pub(crate) fn capture(
                     source,
                     picture(&mut textures, &image)?,
                     tint.to_array(),
-                    turned(turn, pixels_per_point),
+                    turn_of(turn),
                 )),
             ),
             Quad::Line {
@@ -91,10 +107,13 @@ pub(crate) fn capture(
                 (clip, Content::Callback(points(rect)))
             }
         };
-        primitives.push(Primitive {
-            clip: points(clip),
-            content,
-        });
+        let clip = points(clip);
+        let outside =
+            clip[2].min(size.x) <= clip[0].max(0.0) || clip[3].min(size.y) <= clip[1].max(0.0);
+        if outside {
+            continue;
+        }
+        primitives.push(Primitive { clip, content });
     }
     Ok(Snapshot::of(
         Frame {

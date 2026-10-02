@@ -57,7 +57,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                         thumbhash={placeholder}
                     />
                     <Show condition={failed}>
-                        <Caption content={reason} color={danger} />
+                        <Caption content={reason.clone()} color={danger.clone()} />
                     </Show>
                 </List>
             </Frame>
@@ -71,7 +71,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                     on_click={choose}
                 />
                 <Show condition={refused}>
-                    <Caption content={refusal} color={theme.danger.clone()} />
+                    <Caption content={refusal.clone()} color={theme.danger.clone()} />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </Sidebar>

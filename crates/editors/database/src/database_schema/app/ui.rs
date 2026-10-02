@@ -200,22 +200,27 @@ fn FieldRow(
             </List>
             <Show condition={number_kind}>
                 <NumberOptions
-                    schema={number_schema}
+                    schema={number_schema.clone()}
                     id={id}
-                    field={number_field}
-                    read_only={number_off}
+                    field={number_field.clone()}
+                    read_only={number_off.clone()}
                 />
             </Show>
             <Show condition={enum_kind}>
-                <EnumOptions schema={enum_schema} id={id} field={enum_field} read_only={enum_off} />
+                <EnumOptions
+                    schema={enum_schema.clone()}
+                    id={id}
+                    field={enum_field.clone()}
+                    read_only={enum_off.clone()}
+                />
             </Show>
             <Show condition={block_kind}>
                 <BlockOptions
-                    editor={editor}
-                    schema={block_schema}
+                    editor={editor.clone()}
+                    schema={block_schema.clone()}
                     id={id}
-                    field={block_field}
-                    read_only={block_off}
+                    field={block_field.clone()}
+                    read_only={block_off.clone()}
                 />
             </Show>
             <Separator />

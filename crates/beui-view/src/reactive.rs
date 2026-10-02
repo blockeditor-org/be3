@@ -1364,7 +1364,9 @@ pub use crate::components::grid::{Grid, GridCell};
 pub use crate::components::interactive::Interactive;
 pub use crate::components::layers::{Layer, Layers};
 pub use crate::components::offset::Offset;
+pub use crate::components::overlay::Overlay;
 pub use crate::components::portal::Portal;
+pub use crate::components::shift::Shift;
 pub use crate::components::text::{Text, TextItem};
 pub use crate::components::virtual_list::VirtualList;
 pub use crate::file_picker::{
@@ -1373,6 +1375,7 @@ pub use crate::file_picker::{
 pub use beui_core::base::canvas::CanvasView;
 pub use beui_core::base::drawing::{Draw, draw_gpu};
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
+pub use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 pub use beui_core::rich::{
     CaretHandle, RichLayout, SpanKind, SpanStyle, TextCaret, TextMark, TextSpan,
 };
@@ -1408,7 +1411,32 @@ type KeyedChild<K, C> = Rc<RefCell<Option<(K, <C as SlotChild>::Stored, Scope)>>
 type HeldRows<R> = Rc<RefCell<Option<(Vec<<R as SlotChild>::Stored>, Scope)>>>;
 
 #[component]
-pub fn Show<C>(condition: Prop<bool>, #[prop(children)] then: Render<(), C>) -> DynamicSegment<C>
+pub fn Show<C>(condition: Prop<bool>, #[prop(children)] then: RenderFn<(), C>) -> DynamicSegment<C>
+where
+    C: SlotChild,
+{
+    DynamicSegment::new(move |slot: ChildSlot<C>| {
+        let held: HeldChild<C> = Rc::new(RefCell::new(None));
+        let owned = held.clone();
+        on_cleanup(move || drop(owned));
+        create_effect(move || {
+            let visible = condition.get();
+            let mut held = held.borrow_mut();
+            if !visible {
+                slot.fill(Vec::new());
+                discard_previous::<C>(held.take());
+            } else if held.is_none() {
+                *held = Some(build_in_slot(&slot, || then.call(())));
+            }
+        });
+    })
+}
+
+#[component]
+pub fn ShowKeepAlive<C>(
+    condition: Prop<bool>,
+    #[prop(children)] then: Render<(), C>,
+) -> DynamicSegment<C>
 where
     C: SlotChild,
 {

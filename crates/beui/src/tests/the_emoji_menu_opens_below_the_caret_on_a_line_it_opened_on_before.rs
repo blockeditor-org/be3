@@ -35,7 +35,7 @@ fn the_emoji_menu_opens_below_the_caret_on_a_line_it_opened_on_before() {
 
         let row = harness
             .document()
-            .find_test_id("text.emoji.0")
+            .find_test_id("text.completion.0")
             .expect("a colon opens the emoji menu");
         let menu = harness
             .document()

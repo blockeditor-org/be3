@@ -190,37 +190,45 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                 @test_id={"checkout.repository"}
                             />
                             <Show condition={has_note}>
-                                <Caption content={note} wrap=true @test_id={"checkout.note"} />
+                                <Caption
+                                    content={note.clone()}
+                                    wrap=true
+                                    @test_id={"checkout.note"}
+                                />
                             </Show>
                         </List>
                         <Show condition={behind}>
-                            <Card>
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=10.0
-                                >
-                                    <Body
-                                        @sizing=ItemSize::Percent(100.0)
-                                        content="The branch has moved on since this checkout's base."
-                                    />
-                                    <Button
-                                        label="Bring changes in"
-                                        variant=ButtonVariant::Primary
-                                        disabled={blocked.clone()}
-                                        @test_id={"checkout.update"}
-                                        on_click={move || updating.version(VersionCommand::Update)}
-                                    />
-                                </List>
-                            </Card>
+                            {move || clone!(blocked updating -> view! {
+                                <Card>
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=10.0
+                                    >
+                                        <Body
+                                            @sizing=ItemSize::Percent(100.0)
+                                            content="The branch has moved on since this checkout's base."
+                                        />
+                                        <Button
+                                            label="Bring changes in"
+                                            variant=ButtonVariant::Primary
+                                            disabled={blocked.clone()}
+                                            @test_id={"checkout.update"}
+                                            on_click={move || updating.version(VersionCommand::Update)}
+                                        />
+                                    </List>
+                                </Card>
+                            })}
                         </Show>
                         <Show condition={conflicted}>
-                            <Card>
-                                <List spacing=12.0>
-                                    <Heading content="Conflicts" />
-                                    <ForEach keys={conflicts} view={conflict_rows} />
-                                </List>
-                            </Card>
+                            {move || clone!(conflict_rows conflicts -> view! {
+                                <Card>
+                                    <List spacing=12.0>
+                                        <Heading content="Conflicts" />
+                                        <ForEach keys={conflicts} view={conflict_rows} />
+                                    </List>
+                                </Card>
+                            })}
                         </Show>
                         <Card>
                             <List spacing=10.0>
@@ -315,10 +323,10 @@ fn ChangeLine(editor: Editor, row: ChangeRow) -> NodeId {
         >
             <Caption content={label} />
             <Show condition={removed}>
-                <Body content={name} />
+                <Body content={name.clone()} />
             </Show>
             <Show condition={!removed}>
-                <BlockLink editor block={target} />
+                <BlockLink editor={editor.clone()} block={target} />
             </Show>
         </List>
     }
@@ -359,39 +367,43 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
             </List>
             <List spacing=8.0>
                 <Show condition={compared}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                        <Caption content="Base" />
-                        <BlockLink editor={base_editor} block={base} fallback="none" />
-                        <Caption content="Yours" />
-                        <BlockLink editor={ours_editor} block={ours} fallback="none" />
-                        <Caption content="Theirs" />
-                        <BlockLink editor={theirs_editor} block={theirs} fallback="none" />
-                    </List>
+                    {move || clone!(base_editor ours_editor theirs_editor -> view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                            <Caption content="Base" />
+                            <BlockLink editor={base_editor} block={base} fallback="none" />
+                            <Caption content="Yours" />
+                            <BlockLink editor={ours_editor} block={ours} fallback="none" />
+                            <Caption content="Theirs" />
+                            <BlockLink editor={theirs_editor} block={theirs} fallback="none" />
+                        </List>
+                    })}
                 </Show>
                 <Show condition={compared}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Button
-                            label="Take base"
-                            variant=ButtonVariant::Secondary
-                            disabled={base_blocked}
-                            @test_id={format!("checkout.base.{block}")}
-                            on_click={take_base}
-                        />
-                        <Button
-                            label="Take yours"
-                            variant=ButtonVariant::Secondary
-                            disabled={ours_blocked}
-                            @test_id={format!("checkout.ours.{block}")}
-                            on_click={take_ours}
-                        />
-                        <Button
-                            label="Take theirs"
-                            variant=ButtonVariant::Secondary
-                            disabled={theirs_blocked}
-                            @test_id={format!("checkout.theirs.{block}")}
-                            on_click={take_theirs}
-                        />
-                    </List>
+                    {move || clone!(base_blocked ours_blocked take_base take_ours take_theirs theirs_blocked -> view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <Button
+                                label="Take base"
+                                variant=ButtonVariant::Secondary
+                                disabled={base_blocked}
+                                @test_id={format!("checkout.base.{block}")}
+                                on_click={take_base}
+                            />
+                            <Button
+                                label="Take yours"
+                                variant=ButtonVariant::Secondary
+                                disabled={ours_blocked}
+                                @test_id={format!("checkout.ours.{block}")}
+                                on_click={take_ours}
+                            />
+                            <Button
+                                label="Take theirs"
+                                variant=ButtonVariant::Secondary
+                                disabled={theirs_blocked}
+                                @test_id={format!("checkout.theirs.{block}")}
+                                on_click={take_theirs}
+                            />
+                        </List>
+                    })}
                 </Show>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

@@ -5,8 +5,8 @@ use block_editor_beui::be_block::block_url::{BLOCK_URL_MAX_BYTES, parse_block_ur
 use block_editor_beui::be_block::{self, TextContent, TextOp};
 use similar::{Algorithm, DiffOp, capture_diff_slices};
 use text_editor_core::{
-    Anchor, AnchorTable, CursorPosition, Document, DocumentEdit, DocumentRead, TextIndentation,
-    TextLanguage,
+    Anchor, AnchorTable, ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead,
+    TextChange, TextIndentation, TextLanguage,
 };
 use uuid::Uuid;
 
@@ -35,6 +35,7 @@ struct State {
     language: TextLanguage,
     indentation: TextIndentation,
     revision: u64,
+    changes: ChangeLog,
     outgoing: Vec<TextOp>,
     undo: Vec<Group>,
     redo: Vec<Group>,
@@ -51,6 +52,11 @@ impl State {
 
     fn anchor(&self, index: usize) -> Option<Anchor> {
         (index < self.bytes.len()).then(|| self.anchors().anchor(index))
+    }
+
+    fn bump(&mut self, change: Option<TextChange>) {
+        self.revision += 1;
+        self.changes.record(self.revision, change);
     }
 
     fn splice(&mut self, index: usize, delete: usize, bytes: &[u8]) -> Replace {
@@ -73,7 +79,7 @@ impl State {
                 bytes: bytes.to_vec(),
             });
         }
-        self.revision += 1;
+        self.bump(Some(TextChange::replace(index, delete, bytes.len())));
         Replace {
             left,
             right,
@@ -122,30 +128,44 @@ impl State {
 
     fn adopt(&mut self, content: &TextContent) -> bool {
         let mut changed = false;
+        let mut settings = false;
         let language = editor_language(content.language());
         if self.language != language {
             self.language = language;
-            changed = true;
+            settings = true;
         }
         let indentation = editor_indentation(content.indentation());
         if self.indentation != indentation {
             self.indentation = indentation;
-            changed = true;
+            settings = true;
         }
+        changed |= settings;
         let incoming = content.bytes();
+        let mut change = Some(TextChange::NONE);
         if self.bytes != incoming {
-            let kept: Vec<(usize, usize, usize)> =
-                capture_diff_slices(Algorithm::Myers, &self.bytes, incoming)
-                    .into_iter()
-                    .filter_map(|operation| match operation {
-                        DiffOp::Equal {
-                            old_index,
-                            new_index,
-                            len,
-                        } => Some((old_index, new_index, len)),
-                        _ => None,
-                    })
-                    .collect();
+            let operations = capture_diff_slices(Algorithm::Myers, &self.bytes, incoming);
+            let unequal = |operation: &&DiffOp| !matches!(operation, DiffOp::Equal { .. });
+            if let (Some(first), Some(last)) = (
+                operations.iter().find(unequal),
+                operations.iter().rev().find(unequal),
+            ) {
+                change = Some(TextChange {
+                    start: first.old_range().start,
+                    old_end: last.old_range().end,
+                    new_end: last.new_range().end,
+                });
+            }
+            let kept: Vec<(usize, usize, usize)> = operations
+                .into_iter()
+                .filter_map(|operation| match operation {
+                    DiffOp::Equal {
+                        old_index,
+                        new_index,
+                        len,
+                    } => Some((old_index, new_index, len)),
+                    _ => None,
+                })
+                .collect();
             self.anchors().remap(|index| {
                 let run = kept.partition_point(|(old, _, len)| old + len <= index);
                 kept.get(run)
@@ -157,7 +177,7 @@ impl State {
             changed = true;
         }
         if changed {
-            self.revision += 1;
+            self.bump(change.filter(|_| !settings));
         }
         changed
     }
@@ -233,10 +253,15 @@ impl Document for BlockDocument {
         self.read_state().revision
     }
 
+    fn changes_since(&self, revision: u64) -> Option<TextChange> {
+        let state = self.read_state();
+        state.changes.since(revision, state.revision)
+    }
+
     fn set_language(&self, language: TextLanguage) {
         let mut state = self.write_state();
         state.language = language;
-        state.revision += 1;
+        state.bump(None);
         state
             .outgoing
             .push(TextOp::SetLanguage(block_language(language)));
@@ -246,7 +271,7 @@ impl Document for BlockDocument {
     fn set_indentation(&self, indentation: TextIndentation) {
         let mut state = self.write_state();
         state.indentation = indentation;
-        state.revision += 1;
+        state.bump(None);
         state
             .outgoing
             .push(TextOp::SetIndentation(block_indentation(indentation)));

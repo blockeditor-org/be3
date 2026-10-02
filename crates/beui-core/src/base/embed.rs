@@ -1,5 +1,5 @@
 use std::any::Any;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use crate::document::Document;
@@ -13,10 +13,24 @@ pub struct EmbedPlacement {
     pub clip: Rect,
 }
 
+type PlaceListener = Box<dyn Fn(Option<EmbedPlacement>)>;
+
 #[derive(Default)]
 pub struct EmbedState {
     pub node: Cell<Option<NodeId>>,
     placement: Cell<Option<EmbedPlacement>>,
+    listener: RefCell<Option<PlaceListener>>,
+}
+
+impl EmbedState {
+    fn place(&self, placement: Option<EmbedPlacement>) {
+        if self.placement.replace(placement) == placement {
+            return;
+        }
+        if let Some(listener) = self.listener.borrow().as_ref() {
+            listener(placement);
+        }
+    }
 }
 
 #[derive(Clone, Default)]
@@ -34,6 +48,10 @@ impl EmbedSlot {
     pub fn placement(&self) -> Option<EmbedPlacement> {
         self.0.placement.get()
     }
+
+    pub fn on_place(&self, listener: impl Fn(Option<EmbedPlacement>) + 'static) {
+        *self.0.listener.borrow_mut() = Some(Box::new(listener));
+    }
 }
 
 pub struct EmbedNode {
@@ -47,7 +65,7 @@ pub struct EmbedNode {
 impl EmbedNode {
     fn forget(&self) {
         if self.own.is_some() && self.state.node.get() == self.own {
-            self.state.placement.set(None);
+            self.state.place(None);
         }
     }
 }
@@ -64,7 +82,7 @@ impl Element for EmbedNode {
         let grid = doc.pixel_grid();
         let origin = painter.origin();
         let placed = grid.snap_rect(rect.translate(origin));
-        self.state.placement.set(Some(EmbedPlacement {
+        self.state.place(Some(EmbedPlacement {
             rect: placed,
             clip: grid
                 .snap_rect(painter.clip_rect().translate(origin))

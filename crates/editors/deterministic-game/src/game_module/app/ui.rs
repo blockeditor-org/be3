@@ -67,14 +67,14 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                     <List spacing=SPACING>
                         <Show condition={named}>
                             <Heading
-                                content={name}
+                                content={name.clone()}
                                 align=TextAlign::Center
                                 @test_id={"game-module.name"}
                             />
                         </Show>
                         <Show condition={failed}>
                             <Paragraph
-                                content={reason}
+                                content={reason.clone()}
                                 align=TextAlign::Center
                                 color={theme.danger.clone()}
                                 @test_id={"game-module.error"}
@@ -124,7 +124,7 @@ fn ModulePanel(editor: Editor) -> NodeId {
                 on_click={replace}
             />
             <Show condition={failed}>
-                <Caption content={reason} color={theme.danger.clone()} />
+                <Caption content={reason.clone()} color={theme.danger.clone()} />
             </Show>
         </List>
     }

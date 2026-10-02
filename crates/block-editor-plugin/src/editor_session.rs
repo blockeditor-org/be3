@@ -8,7 +8,10 @@ use block_plugin_api::{
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    rc::Rc,
+};
 use uuid::Uuid;
 
 #[cfg(target_arch = "wasm32")]
@@ -812,7 +815,7 @@ impl EditorSession {
     }
 
     fn retain_child_statuses(&self) {
-        let live: Vec<ChildId> = self
+        let live: HashSet<ChildId> = self
             .regions
             .values()
             .flat_map(|state| state.children.iter().map(|child| child.child))

@@ -23,8 +23,9 @@ use beui_core::node::{NodeId, NodeOf};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Callback, Children, Frame, Interactive, List, ListChild, Memo, Offset, Prop, ReadSignal,
-    Render, RenderFn, Show, Timer, clone, component_accessibility, create_memo, create_signal,
-    create_timer, focus_ring, on_cleanup, set_component_state, untrack, with_document,
+    Render, RenderFn, ShowKeepAlive, Timer, clone, component_accessibility, create_memo,
+    create_signal, create_timer, focus_ring, on_cleanup, set_component_state, untrack,
+    with_document,
 };
 
 const FOCUS_RING_WIDTH: f32 = 2.0;
@@ -40,15 +41,29 @@ pub struct ScrollHandle {
 }
 
 #[derive(Clone, Default)]
-pub struct ScrollbarStyle(Option<(f32, RenderFn<ScrollHandle, ListChild>)>);
+pub struct ScrollbarStyle {
+    bar: Option<(f32, RenderFn<ScrollHandle, ListChild>)>,
+    fade: f32,
+}
 
 impl ScrollbarStyle {
     pub fn new(spacing: f32, bar: impl Fn(ScrollHandle) -> ListChild + 'static) -> Self {
-        Self(Some((spacing, RenderFn::new(bar))))
+        Self {
+            bar: Some((spacing, RenderFn::new(bar))),
+            fade: 0.0,
+        }
+    }
+
+    pub fn fading(self, fade: f32) -> Self {
+        Self { fade, ..self }
+    }
+
+    pub fn fade(&self) -> f32 {
+        self.fade
     }
 
     fn spacing(&self) -> f32 {
-        self.0.as_ref().map_or(0.0, |(spacing, _)| *spacing)
+        self.bar.as_ref().map_or(0.0, |(spacing, _)| *spacing)
     }
 
     fn beside(
@@ -57,7 +72,7 @@ impl ScrollbarStyle {
         direction: Prop<Direction>,
         scroll_to: Callback<f32>,
     ) -> Children<ListChild> {
-        match &self.0 {
+        match &self.bar {
             None => Children::default(),
             Some((_, bar)) => Children::from(bar.call(ScrollHandle {
                 position,
@@ -457,7 +472,7 @@ fn Scrolling(
                 >
                     <List direction={content_axis} spacing=0.0>
                         {node} @sizing=ItemSize::Percent(100.0)
-                        <Show condition={marked.clone()}>
+                        <ShowKeepAlive condition={marked.clone()}>
                             <Overlay
                                 anchor
                                 placement=Placement::Around
@@ -467,7 +482,7 @@ fn Scrolling(
                             >
                                 {marker.call(marker_axis)}
                             </Overlay>
-                        </Show>
+                        </ShowKeepAlive>
                     </List>
                 </Frame>
             </Interactive>
@@ -488,6 +503,7 @@ pub fn Scroll(
     children: Children<NodeId>,
 ) -> NodeId {
     let content_direction = direction.clone();
+    let fade = scrollbar.fade();
     let marker = marker.unwrap_or_else(|| {
         Render::new(|_| {
             view! {
@@ -509,6 +525,7 @@ pub fn Scroll(
                         offset
                         reveal
                         direction={content_direction}
+                        fade
                         on_change={move |position: ScrollPosition| report.call(position)}
                     >
                         {children}

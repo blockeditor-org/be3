@@ -51,18 +51,20 @@ pub(crate) fn Player(state: Rc<VideoState>) -> NodeId {
                     <Caption content="No clip at the playhead" color={theme.text_muted.clone()} />
                 </Show>
                 <Show condition={any}>
-                    <Frame aspect_ratio={ratio} color=Color32::BLACK>
-                        <List spacing=0.0>
-                            <ForEach keys={visible}>
-                                {move |id: Uuid| {
-                                    let state = Rc::clone(&state);
-                                    view! {
-                                        <Layer state id />
-                                    }
-                                }}
-                            </ForEach>
-                        </List>
-                    </Frame>
+                    {move || clone!(state visible -> view! {
+                        <Frame aspect_ratio={ratio.clone()} color=Color32::BLACK>
+                            <List spacing=0.0>
+                                <ForEach keys={visible}>
+                                    {move |id: Uuid| {
+                                        let state = Rc::clone(&state);
+                                        view! {
+                                            <Layer state id />
+                                        }
+                                    }}
+                                </ForEach>
+                            </List>
+                        </Frame>
+                    })}
                 </Show>
             </List>
         </Frame>

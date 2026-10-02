@@ -21,14 +21,14 @@ fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
                         extent=600.0
                         on_close={move || closed.set(closed.get() + 1)}
                     >
-                        <Frame />
+                        <Frame height=1000.0 />
                     </Sheet>
                 </List>
             }
         }
     });
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
-    harness.frame(Vec::new());
+    harness.settle();
     let height = |harness: &Harness| {
         harness
             .document()
@@ -50,7 +50,7 @@ fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
 
     let from = handle(&harness);
     harness.drag(from, from - Vec2::new(0.0, 200.0));
-    harness.frame(Vec::new());
+    harness.settle();
     assert_eq!(
         height(&harness),
         Some(540.0),
@@ -59,7 +59,7 @@ fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
 
     let from = handle(&harness);
     harness.drag(from, from + Vec2::new(0.0, 40.0));
-    harness.frame(Vec::new());
+    harness.settle();
     assert_eq!(
         height(&harness),
         Some(540.0),
@@ -69,7 +69,7 @@ fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
 
     let from = handle(&harness);
     harness.drag(from, from + Vec2::new(0.0, 500.0));
-    harness.frame(Vec::new());
+    harness.settle();
     assert_eq!(
         closed.get(),
         1,

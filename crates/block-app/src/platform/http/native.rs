@@ -8,18 +8,20 @@ pub(crate) struct Fetch {
     receiver: mpsc::Receiver<Result<Vec<u8>, String>>,
 }
 
+pub(crate) fn fetch(
+    url: String,
+    headers: Vec<(&'static str, String)>,
+    deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
+) {
+    thread::spawn(move || deliver(run(&url, &headers)));
+}
+
 impl Fetch {
     pub(crate) fn get(url: String, headers: Vec<(&'static str, String)>) -> Self {
         let (sender, receiver) = waking_channel();
-        thread::spawn(move || {
-            let _ = sender.send(run(&url, &headers));
+        fetch(url, headers, move |result| {
+            let _ = sender.send(result);
         });
-        Self { receiver }
-    }
-
-    pub(crate) fn answered(result: Result<Vec<u8>, String>) -> Self {
-        let (sender, receiver) = waking_channel();
-        let _ = sender.send(result);
         Self { receiver }
     }
 

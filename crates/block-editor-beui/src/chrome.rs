@@ -103,7 +103,7 @@ pub(crate) fn ChromeRoot(
     view! {
         <List spacing=0.0>
             <Show condition={bare}>
-                <Frame color={bar_color}>
+                <Frame color={bar_color.clone()}>
                     <List spacing=0.0>
                         <Frame
                             padding_horizontal=BAND_PADDING_HORIZONTAL
@@ -124,22 +124,27 @@ pub(crate) fn ChromeRoot(
             </Show>
             {content} @sizing=ItemSize::Percent(100.0)
             <Show condition={sheet.clone()}>
-                <Sheet
-                    extent={extent}
-                    open={sheet}
-                    rest={SHEET_STOPS[0]}
-                    on_close={move || close.set(false)}
-                >
-                    <List spacing=0.0>
-                        <ForEach keys={panels}>
-                            {move |panel: NodeId| {
-                                view! {
-                                    <Portal @sizing=ItemSize::Percent(100.0) node={Some(panel)} />
-                                }
-                            }}
-                        </ForEach>
-                    </List>
-                </Sheet>
+                {move || clone!(panels close -> view! {
+                    <Sheet
+                        extent={extent.clone()}
+                        open={sheet.clone()}
+                        rest={SHEET_STOPS[0]}
+                        on_close={move || close.set(false)}
+                    >
+                        <List spacing=0.0>
+                            <ForEach keys={panels}>
+                                {move |panel: NodeId| {
+                                    view! {
+                                        <Portal
+                                            @sizing=ItemSize::Percent(100.0)
+                                            node={Some(panel)}
+                                        />
+                                    }
+                                }}
+                            </ForEach>
+                        </List>
+                    </Sheet>
+                })}
             </Show>
         </List>
     }
@@ -185,11 +190,9 @@ pub fn Sidebar(
 ) -> NodeId {
     view! {
         <SidebarFrame side shown width>
-            <Scroll>
-                <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                    <List spacing=SPACING children={children} />
-                </Frame>
-            </Scroll>
+            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
+                <List spacing=SPACING children={children} />
+            </Frame>
         </SidebarFrame>
     }
 }
@@ -213,9 +216,9 @@ fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame visible={leading} width=BORDER_WIDTH color={theme.border.clone()} />
             <Frame visible={docked} width={width} color={theme.surface.clone()}>
-                <List spacing=0.0>
-                    <Portal @sizing=ItemSize::Percent(100.0) node={held} />
-                </List>
+                <Scroll>
+                    <Portal node={held} />
+                </Scroll>
             </Frame>
             <Frame visible={trailing} width=BORDER_WIDTH color={theme.border.clone()} />
         </List>
@@ -285,38 +288,42 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
         <Frame visible={shown} color={theme.surface.clone()}>
             <List spacing=0.0>
                 <Show condition={roomy}>
-                    <Frame
-                        padding_horizontal=BAND_PADDING_HORIZONTAL
-                        padding_vertical=BAND_PADDING_VERTICAL
-                    >
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Portal @sizing=ItemSize::Percent(100.0) node={spread} />
-                            <Show condition={fitted_toggle}>
-                                <Frame padding_horizontal=BAND_PADDING_HORIZONTAL>
-                                    <SheetToggle />
-                                </Frame>
-                            </Show>
-                        </List>
-                    </Frame>
+                    {move || clone!(fitted_toggle spread -> view! {
+                        <Frame
+                            padding_horizontal=BAND_PADDING_HORIZONTAL
+                            padding_vertical=BAND_PADDING_VERTICAL
+                        >
+                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                                <Portal @sizing=ItemSize::Percent(100.0) node={spread} />
+                                <Show condition={fitted_toggle}>
+                                    <Frame padding_horizontal=BAND_PADDING_HORIZONTAL>
+                                        <SheetToggle />
+                                    </Frame>
+                                </Show>
+                            </List>
+                        </Frame>
+                    })}
                 </Show>
                 <Show condition={narrow}>
-                    <Frame padding_vertical=BAND_PADDING_VERTICAL>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Scroll
-                                @sizing=ItemSize::Percent(100.0)
-                                direction=Direction::Horizontal
-                            >
-                                <Frame padding_horizontal=BAND_PADDING_HORIZONTAL>
-                                    <Portal node={scrolled} />
-                                </Frame>
-                            </Scroll>
-                            <Show condition={offers}>
-                                <Frame padding_horizontal=BAND_PADDING_HORIZONTAL>
-                                    <SheetToggle />
-                                </Frame>
-                            </Show>
-                        </List>
-                    </Frame>
+                    {move || clone!(offers scrolled -> view! {
+                        <Frame padding_vertical=BAND_PADDING_VERTICAL>
+                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                                <Scroll
+                                    @sizing=ItemSize::Percent(100.0)
+                                    direction=Direction::Horizontal
+                                >
+                                    <Frame padding_horizontal=BAND_PADDING_HORIZONTAL>
+                                        <Portal node={scrolled} />
+                                    </Frame>
+                                </Scroll>
+                                <Show condition={offers}>
+                                    <Frame padding_horizontal=BAND_PADDING_HORIZONTAL>
+                                        <SheetToggle />
+                                    </Frame>
+                                </Show>
+                            </List>
+                        </Frame>
+                    })}
                 </Show>
                 <Separator />
             </List>

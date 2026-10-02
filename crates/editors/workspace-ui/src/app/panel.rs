@@ -204,7 +204,7 @@ pub(crate) fn BlockPanel(workspace: Rc<Workspace>, tab: TabId) -> NodeId {
                     }}
                 </Dynamic>
                 <Show condition={desktop}>
-                    <StatusBar workspace={workspace} info={info} />
+                    <StatusBar workspace={workspace.clone()} info={info.clone()} />
                 </Show>
                 <DetailsSheet workspace={details} tab={tab} />
             </List>

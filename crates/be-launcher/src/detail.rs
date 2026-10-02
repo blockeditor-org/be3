@@ -74,11 +74,13 @@ fn Selected(model: Model, pull_request: ReadSignal<Option<PullRequest>>) -> Node
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <PullRequestView
-                    @sizing=ItemSize::Percent(100.0)
-                    model
-                    pull_request={create_memo(move || pull_request.get().unwrap_or_else(placeholder))}
-                />
+                {move || clone!(pull_request -> view! {
+                    <PullRequestView
+                        @sizing=ItemSize::Percent(100.0)
+                        model={model.clone()}
+                        pull_request={create_memo(move || pull_request.get().unwrap_or_else(placeholder))}
+                    />
+                })}
             </Show>
         </List>
     }
@@ -168,7 +170,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                             <Caption @sizing=ItemSize::Percent(100.0) content={summary} wrap=true />
                         </List>
                         <Show condition={tagged}>
-                            <Labels labels checked_out />
+                            <Labels labels={labels.clone()} checked_out={checked_out.clone()} />
                         </Show>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Actions
@@ -203,7 +205,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         </Show>
                         <Show condition={failed}>
                             <Text
-                                string={error}
+                                string={error.clone()}
                                 font_size=FONT_BODY
                                 color={theme.danger.clone()}
                                 wrap=true
@@ -596,13 +598,15 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
     view! {
         <List spacing=4.0>
             <Show condition={waiting}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Spinner width=18.0 label="Loading an image" />
-                    <Caption content={described} />
-                </List>
+                {move || clone!(described -> view! {
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <Spinner width=18.0 label="Loading an image" />
+                        <Caption content={described} />
+                    </List>
+                })}
             </Show>
             <Show condition={failed}>
-                <Link label={missing} on_click={open} />
+                <Link label={missing.clone()} on_click={open.clone()} />
             </Show>
             <unstyled::Button on_click={enlarge} accessibility>
                 <Picture image={picture} radius=6.0 />

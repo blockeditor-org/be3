@@ -169,16 +169,18 @@ pub(crate) fn ImportError(state: Rc<CanvasState>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={failed}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Body content={message} color={theme.danger.clone()} />
-                    <Button
-                        label="Dismiss"
-                        variant=ButtonVariant::Secondary
-                        @test_id={"infinite-canvas.dismiss-error"}
-                        on_click={dismiss}
-                    />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </List>
+                {move || clone!(dismiss message theme -> view! {
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <Body content={message} color={theme.danger.clone()} />
+                        <Button
+                            label="Dismiss"
+                            variant=ButtonVariant::Secondary
+                            @test_id={"infinite-canvas.dismiss-error"}
+                            on_click={dismiss}
+                        />
+                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                    </List>
+                })}
             </Show>
         </List>
     }

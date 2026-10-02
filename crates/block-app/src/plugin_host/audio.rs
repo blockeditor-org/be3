@@ -1,7 +1,22 @@
-use std::time::Duration;
+#[cfg(not(target_arch = "wasm32"))]
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::{sync::Arc, time::Duration};
 
 use be_block::AudioContent as Audio;
 use block_plugin_api::AudioStatus;
+
+#[derive(Clone)]
+struct Changed(Arc<dyn Fn() + Send + Sync>);
+
+impl Changed {
+    fn new(notify: impl Fn() + Send + Sync + 'static) -> Self {
+        Self(Arc::new(notify))
+    }
+
+    fn mark(&self) {
+        (self.0)();
+    }
+}
 
 impl AudioPlayer {
     pub(super) fn status(&self) -> AudioStatus {
@@ -20,29 +35,40 @@ pub(super) struct AudioPlayer {
     sink: Option<rodio::Sink>,
     duration: Option<Duration>,
     error: Option<String>,
+    finished: Arc<AtomicBool>,
+    changed: Changed,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 impl AudioPlayer {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(notify: impl Fn() + Send + Sync + 'static) -> Self {
         Self {
             stream: None,
             sink: None,
             duration: None,
             error: None,
+            finished: Arc::default(),
+            changed: Changed::new(notify),
         }
     }
 
     pub(super) fn is_playing(&self) -> bool {
-        self.sink
-            .as_ref()
-            .is_some_and(|sink| !sink.is_paused() && !sink.empty())
+        !self.finished.load(Ordering::Acquire)
+            && self
+                .sink
+                .as_ref()
+                .is_some_and(|sink| !sink.is_paused() && !sink.empty())
     }
 
     pub(super) fn position(&self) -> Duration {
-        self.sink
+        let position = self
+            .sink
             .as_ref()
-            .map_or(Duration::ZERO, rodio::Sink::get_pos)
+            .map_or(Duration::ZERO, rodio::Sink::get_pos);
+        match (self.finished.load(Ordering::Acquire), self.duration) {
+            (true, Some(duration)) => duration,
+            _ => position,
+        }
     }
 
     pub(super) fn duration(&self) -> Option<Duration> {
@@ -56,6 +82,7 @@ impl AudioPlayer {
     pub(super) fn reset(&mut self) {
         self.sink = None;
         self.duration = None;
+        self.changed.mark();
     }
 
     fn ensure_stream(&mut self) -> bool {
@@ -72,7 +99,10 @@ impl AudioPlayer {
     }
 
     pub(super) fn toggle(&mut self, audio: &Audio) {
-        if let Some(sink) = &self.sink {
+        self.changed.mark();
+        if let Some(sink) = &self.sink
+            && !self.finished.load(Ordering::Acquire)
+        {
             if sink.is_paused() {
                 sink.play();
             } else {
@@ -80,6 +110,7 @@ impl AudioPlayer {
             }
             return;
         }
+        self.sink = None;
         self.error = None;
         if !self.ensure_stream() {
             return;
@@ -101,43 +132,74 @@ impl AudioPlayer {
             }
         };
         self.duration = rodio::Source::total_duration(&source);
+        let finished = Arc::new(AtomicBool::new(false));
+        self.finished = Arc::clone(&finished);
+        let changed = self.changed.clone();
         sink.append(source);
+        sink.append(rodio::source::EmptyCallback::<f32>::new(Box::new(
+            move || {
+                finished.store(true, Ordering::Release);
+                changed.mark();
+            },
+        )));
         self.sink = Some(sink);
     }
 }
 
 #[cfg(target_arch = "wasm32")]
+struct Element {
+    element: web_sys::HtmlAudioElement,
+    url: String,
+    listeners: Vec<Listener>,
+}
+
+#[cfg(target_arch = "wasm32")]
+type Listener = (&'static str, wasm_bindgen::closure::Closure<dyn FnMut()>);
+
+#[cfg(target_arch = "wasm32")]
+impl Drop for Element {
+    fn drop(&mut self) {
+        use wasm_bindgen::JsCast;
+
+        for (event, listener) in &self.listeners {
+            let _ = self
+                .element
+                .remove_event_listener_with_callback(event, listener.as_ref().unchecked_ref());
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
 pub(super) struct AudioPlayer {
-    element: Option<(web_sys::HtmlAudioElement, String)>,
+    element: Option<Element>,
     error: Option<String>,
+    changed: Changed,
 }
 
 #[cfg(target_arch = "wasm32")]
 impl AudioPlayer {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(notify: impl Fn() + Send + Sync + 'static) -> Self {
         Self {
             element: None,
             error: None,
+            changed: Changed::new(notify),
         }
     }
 
     pub(super) fn is_playing(&self) -> bool {
         self.element
             .as_ref()
-            .is_some_and(|(element, _)| !element.paused())
+            .is_some_and(|held| !held.element.paused())
     }
 
     pub(super) fn position(&self) -> Duration {
-        self.element
-            .as_ref()
-            .map_or(Duration::ZERO, |(element, _)| {
-                duration_from_seconds(element.current_time())
-            })
+        self.element.as_ref().map_or(Duration::ZERO, |held| {
+            duration_from_seconds(held.element.current_time())
+        })
     }
 
     pub(super) fn duration(&self) -> Option<Duration> {
-        let (element, _) = self.element.as_ref()?;
-        let seconds = element.duration();
+        let seconds = self.element.as_ref()?.element.duration();
         seconds.is_finite().then(|| duration_from_seconds(seconds))
     }
 
@@ -146,18 +208,20 @@ impl AudioPlayer {
     }
 
     pub(super) fn reset(&mut self) {
-        if let Some((element, url)) = self.element.take() {
-            let _ = element.pause();
-            let _ = web_sys::Url::revoke_object_url(&url);
+        if let Some(held) = self.element.take() {
+            let _ = held.element.pause();
+            let _ = web_sys::Url::revoke_object_url(&held.url);
         }
+        self.changed.mark();
     }
 
     pub(super) fn toggle(&mut self, audio: &Audio) {
-        if let Some((element, _)) = &self.element {
-            let result = if element.paused() {
-                element.play().map(|_| ())
+        self.changed.mark();
+        if let Some(held) = &self.element {
+            let result = if held.element.paused() {
+                held.element.play().map(|_| ())
             } else {
-                element.pause()
+                held.element.pause()
             };
             if result.is_err() {
                 self.error = Some("Could not control playback".into());
@@ -165,10 +229,10 @@ impl AudioPlayer {
             return;
         }
         self.error = None;
-        match create_element(audio) {
-            Ok((element, url)) => {
-                let _ = element.play();
-                self.element = Some((element, url));
+        match create_element(audio, &self.changed) {
+            Ok(held) => {
+                let _ = held.element.play();
+                self.element = Some(held);
             }
             Err(error) => self.error = Some(error),
         }
@@ -181,7 +245,9 @@ fn duration_from_seconds(seconds: f64) -> Duration {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn create_element(audio: &Audio) -> Result<(web_sys::HtmlAudioElement, String), String> {
+fn create_element(audio: &Audio, changed: &Changed) -> Result<Element, String> {
+    use wasm_bindgen::{JsCast, closure::Closure};
+
     let bytes = js_sys::Uint8Array::from(audio.data());
     let parts = js_sys::Array::new();
     parts.push(&bytes.buffer());
@@ -197,5 +263,23 @@ fn create_element(audio: &Audio) -> Result<(web_sys::HtmlAudioElement, String), 
         let _ = web_sys::Url::revoke_object_url(&url);
         "Could not create an audio element".to_owned()
     })?;
-    Ok((element, url))
+    let mut listeners = Vec::new();
+    for event in [
+        "play",
+        "pause",
+        "ended",
+        "seeked",
+        "durationchange",
+        "error",
+    ] {
+        let changed = changed.clone();
+        let listener = Closure::<dyn FnMut()>::new(move || changed.mark());
+        let _ = element.add_event_listener_with_callback(event, listener.as_ref().unchecked_ref());
+        listeners.push((event, listener));
+    }
+    Ok(Element {
+        element,
+        url,
+        listeners,
+    })
 }

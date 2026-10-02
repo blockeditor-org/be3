@@ -65,7 +65,7 @@ impl RootSettings {
 
     fn decoded(&self, block: Uuid) -> Option<Settings> {
         be::hold(block, SettingsContent::CONTENT_TYPE);
-        let revision = be::content(block)?.revision;
+        let revision = be::content_revision(block)?;
         let mut decoded = self.decoded.borrow_mut();
         match &*decoded {
             Some((held, settings)) if *held == revision => Some(settings.clone()),

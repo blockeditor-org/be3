@@ -96,85 +96,89 @@ pub(super) fn ShareWindow(view: AppViewStore) -> NodeId {
                     on_submit={|_value: String| share(ShareCommand::Submit)}
                 />
                 <Show condition={searching}>
-                    <Card>
-                        <List spacing=4.0>
-                            <Show condition={unmatched}>
-                                <Caption content="No matching workspace members." />
-                            </Show>
-                            <ForEach keys={suggestion_keys}>
-                                {move |id: Uuid| {
-                                    let suggestions = suggestions.clone();
-                                    let suggestion = create_memo(move || {
-                                        suggestions
-                                            .get()
-                                            .unwrap_or_default()
-                                            .into_iter()
-                                            .find(|suggestion| suggestion.id == id)
-                                    });
-                                    view! {
-                                        <SuggestionButton suggestion />
-                                    }
-                                }}
-                            </ForEach>
-                        </List>
-                    </Card>
+                    {move || clone!(suggestion_keys suggestions unmatched -> view! {
+                        <Card>
+                            <List spacing=4.0>
+                                <Show condition={unmatched}>
+                                    <Caption content="No matching workspace members." />
+                                </Show>
+                                <ForEach keys={suggestion_keys}>
+                                    {move |id: Uuid| {
+                                        let suggestions = suggestions.clone();
+                                        let suggestion = create_memo(move || {
+                                            suggestions
+                                                .get()
+                                                .unwrap_or_default()
+                                                .into_iter()
+                                                .find(|suggestion| suggestion.id == id)
+                                        });
+                                        view! {
+                                            <SuggestionButton suggestion />
+                                        }
+                                    }}
+                                </ForEach>
+                            </List>
+                        </Card>
+                    })}
                 </Show>
                 <Show condition={has_pending}>
-                    <List spacing=8.0>
-                        <List direction=Direction::Horizontal spacing=6.0 wrap=true>
-                            <ForEach keys={pending_keys}>
-                                {move |id: Uuid| {
-                                    let pending = pending.clone();
-                                    let name = create_memo(move || {
-                                        pending
-                                            .get()
-                                            .into_iter()
-                                            .find(|account| account.id == id)
-                                            .map(|account| account.name)
-                                            .unwrap_or_default()
-                                    });
-                                    view! {
-                                        <List
-                                            direction=Direction::Horizontal
-                                            align=Align::Center
-                                            spacing=2.0
-                                        >
-                                            <Chip label={name} />
-                                            <IconButton
-                                                glyph={ICON_CLOSE.to_owned()}
-                                                label="Do not add"
-                                                size=IconButtonSize::Compact
-                                                on_click={move || share(ShareCommand::Unpick(id))}
-                                            />
-                                        </List>
-                                    }
-                                }}
-                            </ForEach>
+                    {move || clone!(pending pending_access pending_keys -> view! {
+                        <List spacing=8.0>
+                            <List direction=Direction::Horizontal spacing=6.0 wrap=true>
+                                <ForEach keys={pending_keys}>
+                                    {move |id: Uuid| {
+                                        let pending = pending.clone();
+                                        let name = create_memo(move || {
+                                            pending
+                                                .get()
+                                                .into_iter()
+                                                .find(|account| account.id == id)
+                                                .map(|account| account.name)
+                                                .unwrap_or_default()
+                                        });
+                                        view! {
+                                            <List
+                                                direction=Direction::Horizontal
+                                                align=Align::Center
+                                                spacing=2.0
+                                            >
+                                                <Chip label={name} />
+                                                <IconButton
+                                                    glyph={ICON_CLOSE.to_owned()}
+                                                    label="Do not add"
+                                                    size=IconButtonSize::Compact
+                                                    on_click={move || share(ShareCommand::Unpick(id))}
+                                                />
+                                            </List>
+                                        }
+                                    }}
+                                </ForEach>
+                            </List>
+                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                                <Select
+                                    selected={pending_access}
+                                    label="Access to grant"
+                                    on_change={|index: Option<usize>| {
+                                        if let Some(access) = index.and_then(|index| GRANTABLE.get(index)) {
+                                            share(ShareCommand::SetPendingAccess(*access));
+                                        }
+                                    }}
+                                    options={view! {
+                                        <ChoiceOption label={BlockAccess::Edit.label()} />
+                                        <ChoiceOption label={BlockAccess::View.label()} />
+                                        <ChoiceOption label={BlockAccess::KnowExists.label()} />
+                                    }}
+                                />
+                                <Spacer @sizing=ItemSize::Percent(100.0) />
+                                <Button
+                                    label="Add"
+                                    glyph={ICON_PERSON_ADD.to_owned()}
+                                    variant=ButtonVariant::Primary
+                                    on_click={|| share(ShareCommand::AddPending)}
+                                />
+                            </List>
                         </List>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Select
-                                selected={pending_access}
-                                label="Access to grant"
-                                on_change={|index: Option<usize>| {
-                                    if let Some(access) = index.and_then(|index| GRANTABLE.get(index)) {
-                                        share(ShareCommand::SetPendingAccess(*access));
-                                    }
-                                }}
-                                options={view! {
-                                    <ChoiceOption label={BlockAccess::Edit.label()} />
-                                    <ChoiceOption label={BlockAccess::View.label()} />
-                                    <ChoiceOption label={BlockAccess::KnowExists.label()} />
-                                }}
-                            />
-                            <Spacer @sizing=ItemSize::Percent(100.0) />
-                            <Button
-                                label="Add"
-                                glyph={ICON_PERSON_ADD.to_owned()}
-                                variant=ButtonVariant::Primary
-                                on_click={|| share(ShareCommand::AddPending)}
-                            />
-                        </List>
-                    </List>
+                    })}
                 </Show>
                 <Heading content="People with access" />
                 <Frame height=MEMBERS_HEIGHT>
@@ -280,57 +284,67 @@ fn MemberRow(member: Memo<Option<Member>>) -> NodeId {
                         </List>
                         <Caption content={email} />
                         <Show condition={locked}>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                                <Icon glyph={ICON_LOCK.to_owned()} text_size=12.0 />
-                                <Caption content={fixed_text} />
-                            </List>
+                            {move || clone!(fixed_text -> view! {
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=4.0
+                                >
+                                    <Icon glyph={ICON_LOCK.to_owned()} text_size=12.0 />
+                                    <Caption content={fixed_text} />
+                                </List>
+                            })}
                         </Show>
                         <Show condition={has_note}>
-                            <Caption content={note_text} />
+                            <Caption content={note_text.clone()} />
                         </Show>
                     </List>
                     <Show condition={is_fixed}>
                         <Button
-                            label={access_label}
+                            label={access_label.clone()}
                             variant=ButtonVariant::Secondary
                             disabled=true
                             on_click={|| {}}
                         />
                     </Show>
                     <Show condition={editable}>
-                        <Select
-                            selected={selected}
-                            label="Access"
-                            on_change={move |index: Option<usize>| {
-                                let Some(member) = chosen.get_untracked() else {
-                                    return;
-                                };
-                                let access = match index {
-                                    Some(index) => GRANTABLE.get(index).copied().unwrap_or(BlockAccess::None),
-                                    None => return,
-                                };
-                                if access != member.access {
-                                    share(ShareCommand::SetAccess(member.id, access));
-                                }
-                            }}
-                            options={view! {
-                                <ChoiceOption label={BlockAccess::Edit.label()} />
-                                <ChoiceOption label={BlockAccess::View.label()} />
-                                <ChoiceOption label={BlockAccess::KnowExists.label()} />
-                            }}
-                        />
+                        {move || clone!(chosen -> view! {
+                            <Select
+                                selected={selected.clone()}
+                                label="Access"
+                                on_change={move |index: Option<usize>| {
+                                    let Some(member) = chosen.get_untracked() else {
+                                        return;
+                                    };
+                                    let access = match index {
+                                        Some(index) => GRANTABLE.get(index).copied().unwrap_or(BlockAccess::None),
+                                        None => return,
+                                    };
+                                    if access != member.access {
+                                        share(ShareCommand::SetAccess(member.id, access));
+                                    }
+                                }}
+                                options={view! {
+                                    <ChoiceOption label={BlockAccess::Edit.label()} />
+                                    <ChoiceOption label={BlockAccess::View.label()} />
+                                    <ChoiceOption label={BlockAccess::KnowExists.label()} />
+                                }}
+                            />
+                        })}
                     </Show>
                     <Show condition={removable}>
-                        <IconButton
-                            glyph={ICON_CLOSE.to_owned()}
-                            label="Remove access"
-                            size=IconButtonSize::Compact
-                            on_click={move || {
-                                if let Some(member) = member.get_untracked() {
-                                    share(ShareCommand::SetAccess(member.id, BlockAccess::None));
-                                }
-                            }}
-                        />
+                        {move || clone!(member -> view! {
+                            <IconButton
+                                glyph={ICON_CLOSE.to_owned()}
+                                label="Remove access"
+                                size=IconButtonSize::Compact
+                                on_click={move || {
+                                    if let Some(member) = member.get_untracked() {
+                                        share(ShareCommand::SetAccess(member.id, BlockAccess::None));
+                                    }
+                                }}
+                            />
+                        })}
                     </Show>
                 </List>
             </Card>

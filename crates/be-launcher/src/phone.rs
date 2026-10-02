@@ -600,13 +600,20 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
     view! {
         <List spacing=8.0>
             <Show condition={working}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Spinner width=18.0 label="Working on the build" />
-                    <Caption content={progress} />
-                </List>
+                {move || clone!(progress -> view! {
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <Spinner width=18.0 label="Working on the build" />
+                        <Caption content={progress} />
+                    </List>
+                })}
             </Show>
             <Show condition={failed}>
-                <Text string={problem} font_size=FONT_BODY color={theme.danger.clone()} wrap=true />
+                <Text
+                    string={problem.clone()}
+                    font_size=FONT_BODY
+                    color={theme.danger.clone()}
+                    wrap=true
+                />
             </Show>
         </List>
     }

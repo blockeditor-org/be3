@@ -7,12 +7,11 @@ use crate::button::ButtonVariant;
 use crate::dock::DockMenu;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::list_row::ListRow;
-use crate::scroll::Scroll;
-use crate::sheet::{ModalSheet, SHEET_STOPS};
+use crate::sheet::ModalSheet;
 use crate::text::{Caption, Heading, Icon};
 use crate::theme::{CARD_RADIUS, FONT_BODY, FONT_SMALL, use_theme};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{DockStackHandle, TabId};
+use beui_components_unstyled::{DockStackHandle, SHEET_STOPS, TabId};
 use beui_core::base::{Align, Direction, ItemSize, TextAlign};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_HOME};
@@ -51,7 +50,7 @@ struct Switching {
 }
 
 #[component]
-pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>) -> NodeId {
+pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
     let DockStackHandle {
         shown,
         title,
@@ -66,6 +65,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>)
         back,
         show,
         close,
+        closable,
     } = handle;
     let theme = use_theme();
     let (open, set_open) = create_signal(false);
@@ -93,13 +93,15 @@ pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>)
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <Show condition={away}>
-                        <IconButton
-                            @test_id={"dock.back"}
-                            glyph=ICON_ARROW_BACK
-                            label="Back"
-                            variant=ButtonVariant::Ghost
-                            on_click={move || back.call()}
-                        />
+                        {move || clone!(back -> view! {
+                            <IconButton
+                                @test_id={"dock.back"}
+                                glyph=ICON_ARROW_BACK
+                                label="Back"
+                                variant=ButtonVariant::Ghost
+                                on_click={move || back.call()}
+                            />
+                        })}
                     </Show>
                     <Frame @sizing=ItemSize::Percent(100.0) padding_horizontal=TITLE_PADDING>
                         <List
@@ -108,7 +110,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>)
                             spacing=TITLE_SPACING
                         >
                             <Show condition={pictured}>
-                                <Icon glyph={icon} color={theme.accent.clone()} />
+                                <Icon glyph={icon.clone()} color={theme.accent.clone()} />
                             </Show>
                             <Text
                                 @sizing=ItemSize::Percent(100.0)
@@ -123,7 +125,12 @@ pub(crate) fn DockStackBar(handle: DockStackHandle, closable: Func<TabId, bool>)
                     <Portal node={actions} />
                     <DockMenu menu size=IconButtonSize::Regular />
                     <Show condition={counted}>
-                        <DockTabCount count on_click={move || opening.set(true)} />
+                        {move || clone!(opening -> view! {
+                            <DockTabCount
+                                count={count.clone()}
+                                on_click={move || opening.set(true)}
+                            />
+                        })}
                     </Show>
                 </List>
             </Frame>
@@ -219,37 +226,37 @@ fn DockSwitcher(switching: Switching, home: Memo<Option<TabId>>) -> NodeId {
             <Frame padding_horizontal=SHEET_PADDING>
                 <Heading content="Open tabs" />
             </Frame>
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
-                    <List spacing=CARD_SPACING>
-                        <Show condition={none}>
-                            <Caption content="Nothing else is open." />
-                        </Show>
-                        <ForEach keys={rows}>
-                            {move |row: usize| {
-                                let switching = switching.clone();
-                                view! {
-                                    <DockSwitcherRow switching row />
-                                }
-                            }}
-                        </ForEach>
-                    </List>
-                </Frame>
-            </Scroll>
-            <Show condition={homed}>
-                <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
-                    <ActionRow
-                        @test_id={"dock.switcher.home"}
-                        label={home_title}
-                        glyph={home_icon}
-                        on_click={move || {
-                            going.set_open.set(false);
-                            if let Some(home) = home.get_untracked() {
-                                going.show.call(home);
+            <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
+                <List spacing=CARD_SPACING>
+                    <Show condition={none}>
+                        <Caption content="Nothing else is open." />
+                    </Show>
+                    <ForEach keys={rows}>
+                        {move |row: usize| {
+                            let switching = switching.clone();
+                            view! {
+                                <DockSwitcherRow switching row />
                             }
                         }}
-                    />
-                </Frame>
+                    </ForEach>
+                </List>
+            </Frame>
+            <Show condition={homed}>
+                {move || clone!(going home home_icon home_title -> view! {
+                    <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>
+                        <ActionRow
+                            @test_id={"dock.switcher.home"}
+                            label={home_title}
+                            glyph={home_icon}
+                            on_click={move || {
+                                going.set_open.set(false);
+                                if let Some(home) = home.get_untracked() {
+                                    going.show.call(home);
+                                }
+                            }}
+                        />
+                    </Frame>
+                })}
             </Show>
         </List>
     }
@@ -347,13 +354,15 @@ fn DockSwitcherCard(switching: Switching, tab: TabId) -> NodeId {
                     </Frame>
                 </ListRow>
                 <Show condition={closable}>
-                    <IconButton
-                        @test_id={format!("dock.switcher.close.{id}")}
-                        glyph=ICON_CLOSE
-                        label="Close tab"
-                        variant=ButtonVariant::Ghost
-                        on_click={move || close.call(tab)}
-                    />
+                    {move || clone!(close -> view! {
+                        <IconButton
+                            @test_id={format!("dock.switcher.close.{id}")}
+                            glyph=ICON_CLOSE
+                            label="Close tab"
+                            variant=ButtonVariant::Ghost
+                            on_click={move || close.call(tab)}
+                        />
+                    })}
                 </Show>
             </List>
         </Frame>

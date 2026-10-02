@@ -80,7 +80,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                             label="Stop"
                             glyph=ICON_STOP
                             variant=ButtonVariant::Secondary
-                            on_click={stop}
+                            on_click={stop.clone()}
                         />
                     </Show>
                     <Show condition={idle}>
@@ -88,25 +88,27 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                             label="Run"
                             glyph=ICON_PLAY_ARROW
                             variant=ButtonVariant::Primary
-                            on_click={run}
+                            on_click={run.clone()}
                         />
                     </Show>
                 </List>
             </Frame>
             <Show condition={on_pull_request}>
-                <Detail @sizing=ItemSize::Percent(100.0) model={detail} />
+                <Detail @sizing=ItemSize::Percent(100.0) model={detail.clone()} />
             </Show>
             <Show condition={on_targets}>
-                <TargetList @sizing=ItemSize::Percent(100.0) model={targets} />
+                <TargetList @sizing=ItemSize::Percent(100.0) model={targets.clone()} />
             </Show>
             <Show condition={on_log}>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    padding_horizontal=PADDING
-                    padding_vertical=PADDING
-                >
-                    <TerminalPane pane />
-                </Frame>
+                {move || clone!(pane -> view! {
+                    <Frame
+                        @sizing=ItemSize::Percent(100.0)
+                        padding_horizontal=PADDING
+                        padding_vertical=PADDING
+                    >
+                        <TerminalPane pane />
+                    </Frame>
+                })}
             </Show>
         </List>
     }
@@ -179,7 +181,7 @@ fn TargetList(model: Model) -> NodeId {
                     </Show>
                     <Show condition={failed}>
                         <Text
-                            string={error}
+                            string={error.clone()}
                             font_size=FONT_BODY
                             color={theme.danger.clone()}
                             wrap=true
@@ -254,8 +256,8 @@ fn TargetRow(model: Model, target: Memo<Option<Target>>) -> NodeId {
                         label="Build"
                         glyph=ICON_BUILD
                         variant=ButtonVariant::Ghost
-                        disabled={busy_build}
-                        on_click={build}
+                        disabled={busy_build.clone()}
+                        on_click={build.clone()}
                     />
                 </Show>
                 <Button
@@ -345,20 +347,22 @@ pub(crate) fn Notes(
     let shown = create_memo(clone!(fork deleted -> move || fork.get() || deleted.get()));
     view! {
         <Show condition={shown}>
-            <List spacing=8.0>
-                <Show condition={fork.clone()}>
-                    <Caption
-                        content="This pull request comes from a fork, so scripts/switch cannot check it out."
-                        wrap=true
-                    />
-                </Show>
-                <Show condition={deleted.clone()}>
-                    <Caption
-                        content="Its branch was deleted, so there is nothing to check out."
-                        wrap=true
-                    />
-                </Show>
-            </List>
+            {move || clone!(deleted fork -> view! {
+                <List spacing=8.0>
+                    <Show condition={fork.clone()}>
+                        <Caption
+                            content="This pull request comes from a fork, so scripts/switch cannot check it out."
+                            wrap=true
+                        />
+                    </Show>
+                    <Show condition={deleted.clone()}>
+                        <Caption
+                            content="Its branch was deleted, so there is nothing to check out."
+                            wrap=true
+                        />
+                    </Show>
+                </List>
+            })}
         </Show>
     }
 }

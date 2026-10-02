@@ -57,6 +57,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     show(&mut fixture, second, None);
     tap(&mut fixture, "dock.switch");
     assert!(fixture.test.shown("dock.switcher.home"));
+    fixture.test.settle();
     fixture
         .test
         .snapshot("a_phone_lists_its_open_files_to_switch_between");
@@ -133,6 +134,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
 
     bar(&mut fixture, second, BarAction::Details);
     assert!(fixture.test.shown("workspace.details.rename"));
+    fixture.test.settle();
     fixture
         .test
         .snapshot("a_phone_shows_a_files_details_in_a_sheet");

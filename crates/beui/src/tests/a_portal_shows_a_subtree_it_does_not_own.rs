@@ -1,5 +1,7 @@
 use super::*;
-use crate::reactive::{NodeRef, Portal, Show, create_signal, in_new_scope, with_reactive_scope};
+use crate::reactive::{
+    NodeRef, Portal, Show, clone, create_signal, in_new_scope, with_reactive_scope,
+};
 
 #[test]
 fn a_portal_shows_a_subtree_it_does_not_own() {
@@ -22,9 +24,11 @@ fn a_portal_shows_a_subtree_it_does_not_own() {
                         <Portal node={first} />
                     </Frame>
                     <Show condition={kept}>
-                        <Frame @test_id="second" height=40.0>
-                            <Portal node={second} />
-                        </Frame>
+                        {move || clone!(second -> view! {
+                            <Frame @test_id="second" height=40.0>
+                                <Portal node={second} />
+                            </Frame>
+                        })}
                     </Show>
                 </List>
             }

@@ -84,9 +84,11 @@ pub(crate) fn BlockData(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                     <Caption content="This block has not finished loading yet." />
                 </Show>
                 <Show condition={unparsed}>
-                    <Scroll @sizing=ItemSize::Percent(100.0)>
-                        <Code content={raw} />
-                    </Scroll>
+                    {move || clone!(raw -> view! {
+                        <Scroll @sizing=ItemSize::Percent(100.0)>
+                            <Code content={raw} />
+                        </Scroll>
+                    })}
                 </Show>
                 <Tree
                     @sizing=ItemSize::Percent(100.0)

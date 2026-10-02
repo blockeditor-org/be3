@@ -113,7 +113,7 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
                 </Frame>
                 <Show condition={unavailable} then={unavailable_row} />
                 <Show condition={available}>
-                    {move || view! {
+                    {move || clone!(set_child -> view! {
                         <ChildBlock
                             @sizing=ItemSize::Percent(100.0)
                             editor={report.editor.clone()}
@@ -134,7 +134,7 @@ pub(crate) fn LargeEmbed(state: Shared, embed: ResolvedEmbed) -> NodeId {
                                 confirm_focus(&report, key, next.active);
                             })}
                         />
-                    }}
+                    })}
                 </Show>
             </List>
         </Frame>

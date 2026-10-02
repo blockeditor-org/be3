@@ -3,17 +3,17 @@ use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
-use crate::context_menu::text_input_menu;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::context_menu::menu_style;
+use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, field_border, use_theme};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::TextInputHandle;
+use beui_components_unstyled::{TextInputHandle, TextInputStyle};
 use beui_core::document::Document;
 use beui_core::icons::ICON_CLOSE;
 use beui_core::input::KeyPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, ClickCallback, Direction, Frame, ItemSize, List, Memo, Prop, Show, clone,
-    create_memo,
+    Align, Callback, ClickCallback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show,
+    clone, create_memo,
 };
 
 use crate::icon_button::{IconButton, IconButtonSize};
@@ -54,7 +54,6 @@ pub fn TextInput(
     let current = value.clone();
     let clearable = create_memo(move || clearable.get() && !current.get().is_empty());
     let clear = on_change.clone();
-    let theme = use_theme();
     view! {
         <unstyled::TextInput
             value
@@ -64,13 +63,7 @@ pub fn TextInput(
             password
             select_on_focus
             accessibility
-            font_size=FONT_BODY
-            color={theme.text.clone()}
-            placeholder_color={theme.text_muted.clone()}
-            selection_color={theme.accent_soft.clone()}
-            caret_color={theme.accent.clone()}
-            padding_horizontal=PADDING_HORIZONTAL
-            menu={text_input_menu()}
+            style={text_input_style()}
             on_change={move |value| on_change.call(value)}
             on_submit={move |value| on_submit.call(value)}
             on_focus_change={move |focused| on_focus_change.call(focused)}
@@ -109,7 +102,7 @@ fn TextInputFrame(
         !plain.get() || focused.get() || hovered.get()
     }));
     let border = create_memo(clone!(focused theme disabled -> move || {
-        border_color(&theme, disabled.get(), focused.get(), hovered.get())
+        field_border(&theme, disabled.get(), focused.get(), hovered.get())
     }));
     let fill = create_memo(clone!(theme disabled raised -> move || {
         match (raised.get(), disabled.get()) {
@@ -136,21 +129,25 @@ fn TextInputFrame(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     <Show condition={marked}>
-                        <Frame padding_left=PADDING_HORIZONTAL>
-                            <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
-                        </Frame>
+                        {move || clone!(glyph theme -> view! {
+                            <Frame padding_left=PADDING_HORIZONTAL>
+                                <Icon glyph={glyph.clone()} color={theme.text_muted.clone()} />
+                            </Frame>
+                        })}
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
-                        <Frame padding_horizontal=CLEAR_PADDING>
-                            <IconButton
-                                glyph={ICON_CLOSE.to_owned()}
-                                label="Clear"
-                                size=IconButtonSize::Compact
-                                press_focus=false
-                                on_click={move || on_clear.call()}
-                            />
-                        </Frame>
+                        {move || clone!(on_clear -> view! {
+                            <Frame padding_horizontal=CLEAR_PADDING>
+                                <IconButton
+                                    glyph={ICON_CLOSE.to_owned()}
+                                    label="Clear"
+                                    size=IconButtonSize::Compact
+                                    press_focus=false
+                                    on_click={move || on_clear.call()}
+                                />
+                            </Frame>
+                        })}
                     </Show>
                 </List>
             </Frame>
@@ -158,17 +155,20 @@ fn TextInputFrame(
     }
 }
 
-pub fn text_input_value(document: &Document, input: NodeId) -> String {
-    unstyled::text_input_value(document, input)
+pub fn text_input_style() -> TextInputStyle {
+    let theme = use_theme();
+    TextInputStyle {
+        font_size: Prop::Static(FONT_BODY),
+        color: theme.text.clone().into_prop(),
+        placeholder_color: theme.text_muted.clone().into_prop(),
+        selection_color: theme.accent_soft.clone().into_prop(),
+        caret_color: theme.accent.clone().into_prop(),
+        padding_horizontal: Prop::Static(PADDING_HORIZONTAL),
+        padding_vertical: Prop::Static(0.0),
+        menu: menu_style(),
+    }
 }
 
-fn border_color(theme: &ThemeStore, disabled: bool, focused: bool, hovered: bool) -> Color32 {
-    if disabled {
-        return theme.border.get();
-    }
-    match (focused, hovered) {
-        (true, _) => theme.accent.get(),
-        (false, true) => theme.text_muted.get(),
-        (false, false) => theme.border.get(),
-    }
+pub fn text_input_value(document: &Document, input: NodeId) -> String {
+    unstyled::text_input_value(document, input)
 }

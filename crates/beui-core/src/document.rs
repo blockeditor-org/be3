@@ -76,6 +76,7 @@ pub struct Document {
     pub wheel_latch: Option<(NodeId, Instant, Option<crate::geometry::Pos2>)>,
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub pointer_capture: Option<NodeId>,
+    pub forward: crate::interact::forward::Routing,
     pub drags: Rc<crate::drag_board::Board>,
     paste_requested: bool,
     unsent_file_picks: Vec<(FileFilter, PickedCallback)>,
@@ -271,6 +272,7 @@ impl Document {
             wheel_latch: None,
             autoscroll: None,
             pointer_capture: None,
+            forward: Default::default(),
             drags: Rc::default(),
             paste_requested: false,
             unsent_file_picks: Vec::new(),
@@ -706,12 +708,17 @@ impl Document {
     }
 
     pub fn remove_node(&mut self, id: NodeId) {
+        let mut dropped = Vec::new();
         if !self.delivering {
-            self.forget_placement(id);
+            let rects = Rc::clone(&self.rects);
+            self.drop_placement(id, &rects, &mut dropped);
         }
         let mut scopes = Vec::new();
         self.detach_subtree(id, &mut scopes);
         drop(scopes);
+        for node in dropped {
+            self.release_placement(node);
+        }
     }
 
     fn detach_subtree(&mut self, id: NodeId, scopes: &mut Vec<::reactive::Scope>) {

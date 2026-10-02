@@ -9,7 +9,7 @@ use beui::reactive::{
 };
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::{
-    ActionRow, Caption, Icon, MenuButton, ModalSheet, Scroll, Separator, Spinner, use_theme,
+    ActionRow, Caption, Icon, MenuButton, ModalSheet, Separator, Spinner, use_theme,
 };
 use beui::unstyled::{Container, MenuItem, narrower_than};
 use beui::{Color32, NodeId};
@@ -21,7 +21,7 @@ use super::picker::PickerDialogs;
 use super::share::ShareWindow;
 use super::tools::WorkspaceDock;
 use super::{AppViewStore, StatusView, UiCommand, send};
-use crate::surfaces::{HostSurface, SurfaceId};
+use crate::compositor::PresentingSurface;
 
 const STATUS_PADDING_HORIZONTAL: f32 = 12.0;
 const STATUS_PADDING_VERTICAL: f32 = 4.0;
@@ -55,13 +55,13 @@ fn WorkspaceBody(view: AppViewStore) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={normal.clone()}>
-                <WorkspaceDock @sizing=ItemSize::Percent(100.0) view={docked} />
+                <WorkspaceDock @sizing=ItemSize::Percent(100.0) view={docked.clone()} />
             </Show>
             <Show condition={barred.clone()}>
                 <Separator />
             </Show>
             <Show condition={barred}>
-                <StatusBar status />
+                <StatusBar status={status.clone()} />
             </Show>
             <ModalSheet
                 open={menu}
@@ -73,7 +73,7 @@ fn WorkspaceBody(view: AppViewStore) -> NodeId {
             </ModalSheet>
             <Show condition={presenting}>
                 <Frame @sizing=ItemSize::Percent(100.0) color=Color32::BLACK>
-                    <HostSurface id=SurfaceId::Presenting />
+                    <PresentingSurface />
                 </Frame>
             </Show>
             <Dialogs view={view.clone()} />
@@ -269,156 +269,151 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
     let chosen = accounts.clone();
     let manage = accounts.clone();
     view! {
-        <Scroll>
-            <Frame padding_horizontal=MENU_PADDING padding_vertical=MENU_PADDING>
-                <List spacing=0.0>
-                    <Frame
-                        padding_horizontal=MENU_PADDING
-                        padding_vertical=MENU_PADDING
-                        @test_id={"app.menu.status"}
-                    >
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Show condition={saved}>
-                                <Icon
-                                    glyph={ICON_CHECK.to_owned()}
-                                    color={theme.text_muted.clone()}
-                                />
-                            </Show>
-                            <Show condition={saving}>
-                                <Spinner width=24.0 label="Submitting changes" />
-                            </Show>
-                            <Caption content={saved_label} />
-                        </List>
-                    </Frame>
-                    <ActionRow
-                        @test_id={"app.menu.settings"}
-                        label="Settings"
-                        glyph={ICON_SETTINGS.to_owned()}
-                        on_click={pick(vec![MORE_SETTINGS])}
-                    />
-                    <ActionRow
-                        @test_id={"app.menu.invite"}
-                        label="Invite member"
-                        glyph={ICON_PERSON_ADD.to_owned()}
-                        detail={workspace}
-                        on_click={pick(vec![MORE_WORKSPACE, 0])}
-                    />
-                    <ActionRow
-                        @test_id={"app.menu.switch-workspace"}
-                        label="Switch workspace"
-                        glyph={ICON_SWAP_HORIZ.to_owned()}
-                        on_click={pick(vec![MORE_WORKSPACE, 1])}
-                    />
-                    <ActionRow
-                        label="New recovery phrase"
-                        glyph={ICON_KEY.to_owned()}
-                        on_click={pick(vec![MORE_WORKSPACE, 2])}
-                    />
-                    <ForEach keys={profile_keys}>
-                        {move |id: uuid::Uuid| {
-                            let label = profile_name(&profile_names, id);
-                            view! {
-                                <ActionRow
-                                    @test_id={format!("app.menu.profile.{id}")}
-                                    label
-                                    glyph={ICON_DEVICES.to_owned()}
-                                    on_click={move || {
-                                        send(UiCommand::AppMenu(false));
-                                        send(UiCommand::SwitchProfile(id));
-                                    }}
-                                />
-                            }
-                        }}
-                    </ForEach>
-                    <ActionRow
-                        @test_id={"app.menu.new-profile"}
-                        label="New profile"
-                        glyph={ICON_ADD.to_owned()}
-                        on_click={move || {
-                            send(UiCommand::AppMenu(false));
-                            send(UiCommand::NewProfile);
-                        }}
-                    />
-                    <ForEach keys={account_keys}>
-                        {move |key: String| {
-                            let listed = listed.clone();
-                            let chosen = chosen.clone();
-                            let test_id = format!("app.menu.account.{key}");
-                            let label = create_memo(clone!(key -> move || {
-                                listed
-                                    .get()
-                                    .into_iter()
-                                    .find(|account| account.key == key)
-                                    .map(|account| match account.current {
-                                        true => format!("{} (current)", account.name),
-                                        false => account.name,
-                                    })
-                                    .unwrap_or_default()
-                            }));
-                            view! {
-                                <ActionRow
-                                    @test_id={test_id}
-                                    label
-                                    glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
-                                    on_click={move || {
-                                        send(UiCommand::AppMenu(false));
-                                        let accounts = chosen.get_untracked();
-                                        let index = accounts.iter().position(|account| account.key == key);
-                                        if let Some(index) = index {
-                                            more(&[MORE_ACCOUNTS, index], &accounts, &[]);
-                                        }
-                                    }}
-                                />
-                            }
-                        }}
-                    </ForEach>
-                    <ActionRow
-                        @test_id={"app.menu.accounts"}
-                        label="Manage accounts"
-                        glyph={ICON_MANAGE_ACCOUNTS.to_owned()}
-                        detail={signed_in_as}
-                        disabled={unsaved}
-                        on_click={move || {
-                            send(UiCommand::AppMenu(false));
-                            let accounts = manage.get_untracked();
-                            more(&[MORE_ACCOUNTS, accounts.len()], &accounts, &[]);
-                        }}
-                    />
-                    <ActionRow
-                        @test_id={"app.menu.about"}
-                        label="About"
-                        glyph={ICON_INFO.to_owned()}
-                        on_click={pick(vec![MORE_ABOUT])}
-                    />
-                    <Separator />
-                    <ActionRow
-                        label="Block stack"
-                        glyph={ICON_LAYERS.to_owned()}
-                        on_click={pick(vec![MORE_CLIENT])}
-                    />
-                    <ActionRow
-                        label="Performance"
-                        glyph={ICON_SPEED.to_owned()}
-                        on_click={pick(vec![MORE_PERFORMANCE])}
-                    />
-                    <ActionRow
-                        label="Plugins"
-                        glyph={ICON_EXTENSION.to_owned()}
-                        on_click={pick(vec![MORE_PLUGINS])}
-                    />
-                    <ActionRow
-                        label="Version"
-                        glyph={ICON_HISTORY.to_owned()}
-                        on_click={pick(vec![MORE_VERSION])}
-                    />
-                    <ActionRow
-                        label="Inspector"
-                        glyph={ICON_BUG_REPORT.to_owned()}
-                        on_click={pick(vec![MORE_INSPECTOR])}
-                    />
-                </List>
-            </Frame>
-        </Scroll>
+        <Frame padding_horizontal=MENU_PADDING padding_vertical=MENU_PADDING>
+            <List spacing=0.0>
+                <Frame
+                    padding_horizontal=MENU_PADDING
+                    padding_vertical=MENU_PADDING
+                    @test_id={"app.menu.status"}
+                >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <Show condition={saved}>
+                            <Icon glyph={ICON_CHECK.to_owned()} color={theme.text_muted.clone()} />
+                        </Show>
+                        <Show condition={saving}>
+                            <Spinner width=24.0 label="Submitting changes" />
+                        </Show>
+                        <Caption content={saved_label} />
+                    </List>
+                </Frame>
+                <ActionRow
+                    @test_id={"app.menu.settings"}
+                    label="Settings"
+                    glyph={ICON_SETTINGS.to_owned()}
+                    on_click={pick(vec![MORE_SETTINGS])}
+                />
+                <ActionRow
+                    @test_id={"app.menu.invite"}
+                    label="Invite member"
+                    glyph={ICON_PERSON_ADD.to_owned()}
+                    detail={workspace}
+                    on_click={pick(vec![MORE_WORKSPACE, 0])}
+                />
+                <ActionRow
+                    @test_id={"app.menu.switch-workspace"}
+                    label="Switch workspace"
+                    glyph={ICON_SWAP_HORIZ.to_owned()}
+                    on_click={pick(vec![MORE_WORKSPACE, 1])}
+                />
+                <ActionRow
+                    label="New recovery phrase"
+                    glyph={ICON_KEY.to_owned()}
+                    on_click={pick(vec![MORE_WORKSPACE, 2])}
+                />
+                <ForEach keys={profile_keys}>
+                    {move |id: uuid::Uuid| {
+                        let label = profile_name(&profile_names, id);
+                        view! {
+                            <ActionRow
+                                @test_id={format!("app.menu.profile.{id}")}
+                                label
+                                glyph={ICON_DEVICES.to_owned()}
+                                on_click={move || {
+                                    send(UiCommand::AppMenu(false));
+                                    send(UiCommand::SwitchProfile(id));
+                                }}
+                            />
+                        }
+                    }}
+                </ForEach>
+                <ActionRow
+                    @test_id={"app.menu.new-profile"}
+                    label="New profile"
+                    glyph={ICON_ADD.to_owned()}
+                    on_click={move || {
+                        send(UiCommand::AppMenu(false));
+                        send(UiCommand::NewProfile);
+                    }}
+                />
+                <ForEach keys={account_keys}>
+                    {move |key: String| {
+                        let listed = listed.clone();
+                        let chosen = chosen.clone();
+                        let test_id = format!("app.menu.account.{key}");
+                        let label = create_memo(clone!(key -> move || {
+                            listed
+                                .get()
+                                .into_iter()
+                                .find(|account| account.key == key)
+                                .map(|account| match account.current {
+                                    true => format!("{} (current)", account.name),
+                                    false => account.name,
+                                })
+                                .unwrap_or_default()
+                        }));
+                        view! {
+                            <ActionRow
+                                @test_id={test_id}
+                                label
+                                glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
+                                on_click={move || {
+                                    send(UiCommand::AppMenu(false));
+                                    let accounts = chosen.get_untracked();
+                                    let index = accounts.iter().position(|account| account.key == key);
+                                    if let Some(index) = index {
+                                        more(&[MORE_ACCOUNTS, index], &accounts, &[]);
+                                    }
+                                }}
+                            />
+                        }
+                    }}
+                </ForEach>
+                <ActionRow
+                    @test_id={"app.menu.accounts"}
+                    label="Manage accounts"
+                    glyph={ICON_MANAGE_ACCOUNTS.to_owned()}
+                    detail={signed_in_as}
+                    disabled={unsaved}
+                    on_click={move || {
+                        send(UiCommand::AppMenu(false));
+                        let accounts = manage.get_untracked();
+                        more(&[MORE_ACCOUNTS, accounts.len()], &accounts, &[]);
+                    }}
+                />
+                <ActionRow
+                    @test_id={"app.menu.about"}
+                    label="About"
+                    glyph={ICON_INFO.to_owned()}
+                    on_click={pick(vec![MORE_ABOUT])}
+                />
+                <Separator />
+                <ActionRow
+                    label="Block stack"
+                    glyph={ICON_LAYERS.to_owned()}
+                    on_click={pick(vec![MORE_CLIENT])}
+                />
+                <ActionRow
+                    label="Performance"
+                    glyph={ICON_SPEED.to_owned()}
+                    on_click={pick(vec![MORE_PERFORMANCE])}
+                />
+                <ActionRow
+                    label="Plugins"
+                    glyph={ICON_EXTENSION.to_owned()}
+                    on_click={pick(vec![MORE_PLUGINS])}
+                />
+                <ActionRow
+                    label="Version"
+                    glyph={ICON_HISTORY.to_owned()}
+                    on_click={pick(vec![MORE_VERSION])}
+                />
+                <ActionRow
+                    label="Inspector"
+                    glyph={ICON_BUG_REPORT.to_owned()}
+                    on_click={pick(vec![MORE_INSPECTOR])}
+                />
+            </List>
+        </Frame>
     }
 }
 

@@ -268,35 +268,30 @@ impl PartialEq for Blit {
 }
 
 impl Blit {
-    pub(crate) fn pending(&self) -> bool {
-        !self.shared.borrow().frames.is_empty()
-    }
-
-    pub(crate) fn damage(&self) -> Option<Vec<Rect>> {
+    pub(super) fn damage(&self, pieces: &[Piece]) -> Option<Vec<Rect>> {
         let shared = self.shared.borrow();
         if shared.frames.is_empty() {
             return Some(Vec::new());
         }
         let damage = shared.damage.as_ref()?;
         let placement = shared.layout.placement(self.screen)?;
+        if placement.width == 0 || placement.height == 0 {
+            return None;
+        }
         Some(
             damage
                 .iter()
-                .filter_map(|rect| shown_damage(*rect, *placement, self.quad, self.source))
+                .flat_map(|rect| damaged_pieces(*rect, *placement, pieces))
                 .collect(),
         )
     }
 }
 
-pub(super) fn shown_damage(
+pub(super) fn damaged_pieces(
     rect: SurfaceRect,
     placement: ScreenPlacement,
-    quad: Quad,
-    source: Rect,
-) -> Option<Rect> {
-    if placement.width == 0 || placement.height == 0 || !source.is_positive() {
-        return None;
-    }
+    pieces: &[Piece],
+) -> Vec<Rect> {
     let (x, y) = (placement.x as f32, placement.y as f32);
     let (width, height) = (placement.width as f32, placement.height as f32);
     let changed = Rect::from_min_max(
@@ -305,28 +300,27 @@ pub(super) fn shown_damage(
             (rect.x as f32 + rect.width as f32 - x) / width,
             (rect.y as f32 + rect.height as f32 - y) / height,
         ),
-    )
-    .intersect(source);
-    if !changed.is_positive() {
-        return None;
-    }
-    let corners = quad.corners;
-    let horizontal = corners[1] - corners[0];
-    let vertical = corners[3] - corners[0];
-    let point = |u: f32, v: f32| {
-        corners[0]
-            + horizontal * ((u - source.min.x) / source.width())
-            + vertical * ((v - source.min.y) / source.height())
-    };
-    Some(
-        Rect::from_points(&[
-            point(changed.min.x, changed.min.y),
-            point(changed.max.x, changed.min.y),
-            point(changed.max.x, changed.max.y),
-            point(changed.min.x, changed.max.y),
-        ])
-        .expand(1.0),
-    )
+    );
+    pieces
+        .iter()
+        .filter_map(|piece| {
+            let hit = changed.intersect(piece.source);
+            if !hit.is_positive() || !piece.source.is_positive() {
+                return None;
+            }
+            let local = |point: Pos2| {
+                pos2(
+                    piece.local.min.x
+                        + (point.x - piece.source.min.x) / piece.source.width()
+                            * piece.local.width(),
+                    piece.local.min.y
+                        + (point.y - piece.source.min.y) / piece.source.height()
+                            * piece.local.height(),
+                )
+            };
+            Some(Rect::from_min_max(local(hit.min), local(hit.max)))
+        })
+        .collect()
 }
 
 struct Regions {
@@ -336,7 +330,7 @@ struct Regions {
 }
 
 pub(crate) struct PluginDrawing {
-    blits: Vec<Blit>,
+    blits: RefCell<Vec<Blit>>,
     regions: RefCell<Option<Regions>>,
     placed: RefCell<Vec<Option<u32>>>,
 }
@@ -344,10 +338,169 @@ pub(crate) struct PluginDrawing {
 impl PluginDrawing {
     pub(crate) fn new(blits: Vec<Blit>) -> Self {
         Self {
-            blits,
+            blits: RefCell::new(blits),
             regions: RefCell::new(None),
             placed: RefCell::new(Vec::new()),
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Piece {
+    pub(crate) local: Rect,
+    pub(crate) source: Rect,
+}
+
+pub(crate) struct RegionDrawing {
+    #[cfg(target_arch = "wasm32")]
+    id: u64,
+    template: Blit,
+    pieces: Vec<Piece>,
+    held: Option<Rect>,
+    rotation: f32,
+    drawing: PluginDrawing,
+}
+
+impl RegionDrawing {
+    pub(super) fn new(
+        template: Blit,
+        pieces: Vec<Piece>,
+        held: Option<Rect>,
+        rotation: f32,
+    ) -> Self {
+        Self {
+            #[cfg(target_arch = "wasm32")]
+            id: next_drawing(),
+            template,
+            pieces,
+            held,
+            rotation,
+            drawing: PluginDrawing::new(Vec::new()),
+        }
+    }
+
+    fn blits(&self, at: &DrawAt) -> Vec<Blit> {
+        let scale = at.pixels_per_point.max(f32::EPSILON);
+        let laid = Rect::from_min_max(
+            pos2(at.rect[0] / scale, at.rect[1] / scale),
+            pos2(at.rect[2] / scale, at.rect[3] / scale),
+        );
+        let rect = self.held.unwrap_or(laid);
+        let center = rect.center();
+        let (sin, cos) = self.rotation.sin_cos();
+        let turn = |point: Pos2| {
+            let offset = point - center;
+            center
+                + vec2(
+                    offset.x * cos - offset.y * sin,
+                    offset.x * sin + offset.y * cos,
+                )
+        };
+        let at_fraction = |x: f32, y: f32| {
+            turn(pos2(
+                rect.min.x + rect.width() * x,
+                rect.min.y + rect.height() * y,
+            ))
+        };
+        self.pieces
+            .iter()
+            .map(|piece| {
+                let local = piece.local;
+                let corners = [
+                    at_fraction(local.min.x, local.min.y),
+                    at_fraction(local.max.x, local.min.y),
+                    at_fraction(local.max.x, local.max.y),
+                    at_fraction(local.min.x, local.max.y),
+                ];
+                Blit {
+                    quad: Quad {
+                        rect: Rect::from_points(&corners),
+                        corners,
+                        opacity: self.template.quad.opacity,
+                    },
+                    source: piece.source,
+                    ..self.template.clone()
+                }
+            })
+            .collect()
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static SHOWN: RefCell<std::collections::HashMap<u64, (u64, Vec<Blit>)>> =
+        RefCell::new(std::collections::HashMap::new());
+    static PREPARED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(target_arch = "wasm32")]
+fn next_drawing() -> u64 {
+    thread_local! {
+        static NEXT: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    }
+    NEXT.with(|next| {
+        next.set(next.get() + 1);
+        next.get()
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn shown() -> Vec<Blit> {
+    SHOWN.with(|shown| {
+        let shown = shown.borrow();
+        let mut ordered: Vec<&(u64, Vec<Blit>)> = shown.values().collect();
+        ordered.sort_by_key(|(order, _)| *order);
+        ordered
+            .into_iter()
+            .flat_map(|(_, blits)| blits.iter().cloned())
+            .collect()
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+fn record_shown(id: u64, blits: &[Blit]) {
+    let order = PREPARED.with(|prepared| {
+        prepared.set(prepared.get() + 1);
+        prepared.get()
+    });
+    let moved = SHOWN.with(|shown| {
+        let mut shown = shown.borrow_mut();
+        let moved = shown
+            .get(&id)
+            .is_none_or(|(_, held)| held.as_slice() != blits);
+        shown.insert(id, (order, blits.to_vec()));
+        moved
+    });
+    if moved {
+        crate::host::wake();
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl Drop for RegionDrawing {
+    fn drop(&mut self) {
+        SHOWN.with(|shown| shown.borrow_mut().remove(&self.id));
+        crate::host::wake();
+    }
+}
+
+impl beui::Draw for RegionDrawing {
+    fn prepare(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        at: DrawAt,
+    ) {
+        let blits = self.blits(&at);
+        #[cfg(target_arch = "wasm32")]
+        record_shown(self.id, &blits);
+        *self.drawing.blits.borrow_mut() = blits;
+        self.drawing.prepare(device, queue, encoder, at);
+    }
+
+    fn paint(&self, pass: &mut wgpu::RenderPass<'_>, at: DrawAt) {
+        self.drawing.paint(pass, at);
     }
 }
 
@@ -359,10 +512,11 @@ impl beui::Draw for PluginDrawing {
         _encoder: &mut wgpu::CommandEncoder,
         at: DrawAt,
     ) {
+        let blits = self.blits.borrow();
         PRESENTER.with(|presenter| {
             let mut presenter = presenter.borrow_mut();
             let Some(presenter) = presenter.as_mut() else {
-                for blit in &self.blits {
+                for blit in blits.iter() {
                     blit.status.set(PresenterState::Unsupported(
                         "The active renderer has no plugin surface presenter.".to_owned(),
                     ));
@@ -370,7 +524,7 @@ impl beui::Draw for PluginDrawing {
                 return;
             };
             let mut regions = self.regions.borrow_mut();
-            let needed = self.blits.len().max(1);
+            let needed = blits.len().max(1);
             if regions
                 .as_ref()
                 .is_none_or(|regions| regions.capacity < needed)
@@ -403,7 +557,7 @@ impl beui::Draw for PluginDrawing {
             let regions = regions.as_ref().expect("the regions were just created");
             let mut placed = self.placed.borrow_mut();
             placed.clear();
-            for (index, blit) in self.blits.iter().enumerate() {
+            for (index, blit) in blits.iter().enumerate() {
                 let (frames, region) = {
                     let mut shared = blit.shared.borrow_mut();
                     let frames = shared.take_frames();
@@ -463,7 +617,8 @@ impl beui::Draw for PluginDrawing {
                 return;
             };
             let placed = self.placed.borrow();
-            for (blit, offset) in self.blits.iter().zip(placed.iter()) {
+            let blits = self.blits.borrow();
+            for (blit, offset) in blits.iter().zip(placed.iter()) {
                 if let Some(offset) = offset {
                     platform.paint(pass, blit.surface, &regions.group, *offset);
                 }

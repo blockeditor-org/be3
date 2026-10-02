@@ -54,24 +54,26 @@ pub(crate) fn StatusBar(workspace: Rc<Workspace>, info: ReadSignal<Option<Info>>
                 <Caption content="Relationships loading…" />
             </Show>
             <Show condition={loaded}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <ReferenceMenu
-                        workspace={Rc::clone(&workspace)}
-                        name="Backrefs"
-                        empty="No backrefs"
-                        refs={backrefs}
-                        containing={nothing_contains}
-                        named="workspace.backrefs"
-                    />
-                    <ReferenceMenu
-                        workspace={listed}
-                        name="References"
-                        empty="No references"
-                        refs={references}
-                        containing={containing}
-                        named="workspace.references"
-                    />
-                </List>
+                {move || clone!(backrefs containing listed nothing_contains references workspace -> view! {
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <ReferenceMenu
+                            workspace={Rc::clone(&workspace)}
+                            name="Backrefs"
+                            empty="No backrefs"
+                            refs={backrefs}
+                            containing={nothing_contains}
+                            named="workspace.backrefs"
+                        />
+                        <ReferenceMenu
+                            workspace={listed}
+                            name="References"
+                            empty="No references"
+                            refs={references}
+                            containing={containing}
+                            named="workspace.references"
+                        />
+                    </List>
+                })}
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <AccessMode workspace={access} info={info} />
@@ -112,7 +114,7 @@ pub(crate) fn ReferenceMenu(
             label={label}
             items={view! {
                 <Show condition={nothing}>
-                    <MenuItem label={nothing_label} disabled=true />
+                    <MenuItem label={nothing_label.clone()} disabled=true />
                 </Show>
                 <ForEach keys={indices}>
                     {move |index: usize| {

@@ -62,9 +62,9 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
                 >
                     <Show condition={!previewing}>
                         <CanvasBackdrop
-                            state={backdrop}
-                            camera={backdrop_camera}
-                            stage={backdrop_stage}
+                            state={backdrop.clone()}
+                            camera={backdrop_camera.clone()}
+                            stage={backdrop_stage.clone()}
                         />
                     </Show>
                     <ForEach keys={ids}>
@@ -85,7 +85,11 @@ pub(crate) fn CanvasStage(state: Rc<CanvasState>) -> NodeId {
                         }}
                     </ForEach>
                     <Show condition={!previewing}>
-                        <CanvasOverlay state={over} camera={overlay_camera} stage={overlay_stage} />
+                        <CanvasOverlay
+                            state={over.clone()}
+                            camera={overlay_camera.clone()}
+                            stage={overlay_stage.clone()}
+                        />
                     </Show>
                 </Canvas>
             </CanvasSurface>

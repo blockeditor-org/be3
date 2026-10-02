@@ -1,6 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     rc::Rc,
     sync::{Arc, Mutex, OnceLock},
     time::{Duration, Instant},
@@ -1490,7 +1490,7 @@ impl EditorHost {
         self.changed();
     }
 
-    pub fn retain_child_statuses(&self, live: &[ChildId]) {
+    pub fn retain_child_statuses(&self, live: &HashSet<ChildId>) {
         self.child_statuses
             .borrow_mut()
             .retain(|child, _| live.contains(child));

@@ -13,7 +13,12 @@ this guide follows from that.
 
 The quickest introduction is the component catalog in
 `crates/beui-demo`: a dock whose Components pane opens a page for
-each group of styled components. The
+each group of styled components, for the unstyled components painted by
+hand, and for the base nodes (frames, text, lists, grids, control flow,
+interaction, layers and overlays). Every sample on a page shows the code it was written with: a
+function marked `#[beui_macros::sample]` (above its `#[component]`) also
+gets a `Name::SOURCE` holding its text exactly as written, so a new sample
+cannot drift from its listing. The
 [reactive guide](reactive.md) is the reference for signals, attribute syntax,
 children and render props, controlled state, keyed lists, scopes, and context;
 this guide is about using beui itself.
@@ -92,9 +97,12 @@ reports a component with a second `view!` outside a closure, or with anything
 after its last one.
 
 When part of the tree depends on something, express it in the view rather than
-in Rust control flow around it. `Show` takes a condition and builds its child
-lazily the first time it becomes true, `Dynamic` rebuilds a subtree when a value
-changes shape, `Keyed` rebuilds only when its key changes, and `ForEach` keeps a
+in Rust control flow around it. `Show` takes a condition, builds its child each
+time it becomes true and disposes of it when it turns false, as SolidJS's does;
+`ShowKeepAlive` is the opt-in for a child worth keeping while it is hidden, such
+as a tab's panel whose scroll position and state should survive switching away:
+it builds the child the first time it is shown and only hides it after that.
+`Dynamic` rebuilds a subtree when a value changes shape, `Keyed` rebuilds only when its key changes, and `ForEach` keeps a
 keyed child per item. A component that is genuinely two different trees is two
 components with a `Dynamic` or a `Show` choosing between them.
 
@@ -195,9 +203,9 @@ with `#[derive(Store)]` so writing one field does not wake readers of the
 others; `use_theme()` returns such a store, which is why a component binds
 `theme.accent.clone()` rather than the whole theme. Use `create_selector` for
 "am I the selected row?" so moving a selection wakes two rows instead of all of
-them. Prefer `Show` over rebuilding, `Keyed` over `Dynamic` when only part of a
-value decides the shape, and `VirtualList` for a collection large enough that
-building every row is the cost.
+them. Prefer `Keyed` over `Dynamic` when only part of a value decides the
+shape, and `VirtualList` for a collection large enough that building every row
+is the cost.
 
 ## Crates
 
@@ -270,7 +278,7 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `Grid`, `Text`,
   `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`, `Embed`,
-  `Portal`, `BackHandler` — and it stays small because most things are
+  `Portal`, `BackHandler`, `Shift` — and it stays small because most things are
   compositions of those. `unstyled::Picture` is one: a `Drawing` with a size.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
@@ -390,7 +398,10 @@ is behind shows through. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
 `Offset` keeps a run of items along a `direction` and lays them out from an
 offset; it answers no input at all, so nothing scrolls by putting one in a view
-(see [Scrolling](#scrolling)). `VirtualList` is an ordinary box that stands for
+(see [Scrolling](#scrolling)). With `fit` it measures as long as its items,
+so a box sized by what it holds can still scroll once it is squeezed. `Shift`
+lays its child out moved `by` a vector without moving the space it takes, and
+paints nothing while the child is off the screen, which is how a sheet slides in. `VirtualList` is an ordinary box that stands for
 one item per key, each of an estimated `item_size`, and builds only the ones its slice of
 the viewport reaches (see [Long lists](#long-lists)).
 `Scroll` takes a `direction`, so the same tag is a
@@ -452,8 +463,17 @@ controls inside it keep their reach. A quick
 tap with two or more fingers that did not move is a finger tap, which
 `on_finger_tap` hears the way `on_shortcut` hears keys; the editor frame's top
 bar undoes on two and redoes on three. `Sheet` is the panel that rises from the
-bottom of a narrow screen: its handle drags it between stops, and dragging it
-low or going back closes it.
+bottom of a narrow screen. It scrolls what it holds itself, so what goes in it
+is not wrapped in a vertical `Scroll` (one inside would measure nothing tall): a
+swipe anywhere on it raises it to its top stop before it scrolls the content,
+and lowers it once the content is back at its start. It is never taller than
+what it holds, whatever stop it rests at, and pulled past its top it stretches
+like an overscroll. It slides up as it opens, easing out, and slides down as it
+closes, easing in from however fast it was flicked; a `ModalSheet` stays up
+while it leaves however it was closed, and fades its scrim with it. Let go, it springs to the
+stop nearest where the flick was heading, or closed below the lowest one, and
+its content flings and bounces at its ends as a `Scroll` does; the handle does
+the same for a mouse, and going back closes it.
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, a multiline text
@@ -584,6 +604,17 @@ names a colour. The gutter is always reserved, and the bar paints nothing while
 its content fits, so a scroll that grows past its viewport does not shift the
 content beside it.
 
+`ScrollbarStyle::fading(length)` also fades the content out toward each edge
+that has more content beyond it, over at most `length` points and only as far
+as the content has scrolled, so a scroll whose rows happen to end exactly at
+its edge still reads as scrollable. The styled layer's scrollbar style fades by
+`theme::SCROLL_FADE`, so `styled::Scroll` and every styled control that scrolls
+fade. The offset puts the fade on the entries of its items (`Painter::faded`,
+`Entry::fade`), the same way it puts its clip there: the wgpu renderer
+multiplies the alpha of everything in that space by it in the shader, and the
+DOM renderer masks the item's frame with a gradient. Shapes a node paints
+itself and custom `Drawing`s are not faded.
+
 Under both sits the base `Offset`, which is named for what
 it does rather than for what it is used for: it holds a run of items along a
 direction and lays them out from an offset, with no bar, no theme, and no input
@@ -652,7 +683,10 @@ value when the focus leaves it. A `Date` field keeps the time of the value it
 was given, and a `Time` field the date. `styled::Calendar` is the month grid on
 its own, with `min` and `max` limits; its title is a month button and a year
 button, which open a grid of months and a grid of twenty years, and `show`
-moves it to a month without selecting anything.
+moves it to a month without selecting anything. All of the field's behaviour,
+the popover and its focus and what each pick does, is
+`unstyled::DateTimePicker`; the styled field gives it faces and the popover's
+layout, and says when to page with `paged`.
 
 `styled::ColorPicker` is a saturation and brightness area, hue and opacity
 sliders, hex, RGB and HSL fields and a row of swatches; `styled::ColorInput` is a
@@ -660,6 +694,8 @@ hex field whose swatch opens one. Both keep the hue while the color passes
 through grey or black, and a drag is reported through `on_preview` while it
 moves and through `on_change` once, when it ends, the way `NumberInput`
 reports a scrub - so an edit lands in the undo history once per gesture.
+That state is `unstyled::ColorPickerState`, and `unstyled::HexText` keeps a hex
+field in step with a color for both.
 
 `unstyled::Popover` is what both open: a trigger and a modal overlay, built the
 first time it opens, that traps Tab, closes on Escape, a press outside or its

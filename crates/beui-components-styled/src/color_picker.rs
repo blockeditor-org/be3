@@ -1,7 +1,6 @@
 use std::rc::Rc;
 use std::sync::OnceLock;
 
-use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::number_input::NumberInput;
@@ -10,17 +9,18 @@ use crate::text_input::TextInput;
 use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    ChoiceKind, ChoiceOption, ChoiceOptionHandle, ColorAreaHandle, SliderHandle,
+    ChoiceKind, ChoiceOption, ChoiceOptionHandle, ColorAreaHandle, ColorPickerState, HexText,
+    SliderHandle,
 };
 use beui_core::base::{Align, Direction};
-use beui_core::color::{Color32, Hsva, format_hex, parse_hex};
+use beui_core::color::{Color32, Hsva, format_hex};
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
 use beui_view::reactive::{
-    Callback, Draw, Drawing, ForEach, Frame, Grid, ItemSize, List, Memo, Prop, ReadSignal, Show,
-    Track, WriteSignal, clone, create_effect, create_memo, create_signal, focus_ring,
+    Callback, Draw, Drawing, ForEach, Frame, Grid, ItemSize, List, Prop, ReadSignal, Show, Track,
+    clone, create_memo, focus_ring,
 };
 
 pub const PICKER_WIDTH: f32 = 244.0;
@@ -56,49 +56,6 @@ pub const DEFAULT_SWATCHES: [Color32; 10] = [
     Color32::from_rgb(0x6F, 0x6F, 0x6F),
 ];
 
-#[derive(Clone)]
-struct Picker {
-    color: ReadSignal<Hsva>,
-    set_color: WriteSignal<Hsva>,
-    reported: ReadSignal<Color32>,
-    set_reported: WriteSignal<Color32>,
-    dragging: ReadSignal<bool>,
-    set_dragging: WriteSignal<bool>,
-    disabled: Memo<bool>,
-    on_change: Callback<Color32>,
-    on_preview: Callback<Option<Color32>>,
-}
-
-impl Picker {
-    fn apply(&self, next: Hsva) {
-        if self.disabled.get_untracked() {
-            return;
-        }
-        self.set_color.set(next);
-        let color = next.to_color();
-        if self.dragging.get_untracked() {
-            self.on_preview.call(Some(color));
-        } else {
-            self.report(color);
-        }
-    }
-
-    fn report(&self, color: Color32) {
-        if color != self.reported.get_untracked() {
-            self.set_reported.set(color);
-            self.on_change.call(color);
-        }
-    }
-
-    fn drag(&self, dragging: bool) {
-        self.set_dragging.set(dragging);
-        if !dragging {
-            self.report(self.color.get_untracked().to_color());
-            self.on_preview.call(None);
-        }
-    }
-}
-
 #[component]
 pub fn ColorPicker(
     value: Prop<Color32>,
@@ -109,51 +66,23 @@ pub fn ColorPicker(
     on_change: Callback<Color32>,
     on_preview: Callback<Option<Color32>>,
 ) -> NodeId {
-    let initial = value.peek();
-    let (color, set_color) = create_signal(Hsva::from_color(initial));
-    let (reported, set_reported) = create_signal(initial);
-    let (dragging, set_dragging) = create_signal(false);
-    let disabled = create_memo(move || disabled.get());
-    let picker = Picker {
-        color: color.clone(),
-        set_color: set_color.clone(),
-        reported,
-        set_reported: set_reported.clone(),
-        dragging,
-        set_dragging,
-        disabled: disabled.clone(),
-        on_change,
-        on_preview,
-    };
-    create_effect(clone!(color -> move || {
-        let next = value.get();
-        set_reported.set(next);
-        let held = color.get_untracked();
-        set_color.set(Hsva::from_color_keeping(next, held));
-    }));
-
-    let shown = create_memo(clone!(color -> move || color.get().to_color()));
+    let picker = ColorPickerState::new(value, disabled, on_change, on_preview);
+    let color = picker.color();
+    let disabled = picker.disabled();
+    let shown = picker.shown();
     let hue = create_memo(clone!(color -> move || color.get().hue));
     let opacity = create_memo(clone!(color -> move || color.get().alpha));
-    let area = picker.clone();
-    let area_drag = picker.clone();
-    let hue_picker = picker.clone();
-    let hue_drag = picker.clone();
-    let alpha_picker = picker.clone();
-    let alpha_drag = picker.clone();
-    let swatch_picker = picker.clone();
-    let hue_accessibility = create_memo(clone!(hue -> move || {
-        let mut node = Node::new(Role::Slider);
-        node.set_label("Hue");
-        node.set_value(format!("{} degrees", hue.get().round()));
-        node
-    }));
-    let alpha_accessibility = create_memo(clone!(opacity -> move || {
-        let mut node = Node::new(Role::Slider);
-        node.set_label("Opacity");
-        node.set_value(format!("{}%", (opacity.get() * 100.0).round()));
-        node
-    }));
+    let (area, area_drag, hue_picker, hue_drag, alpha_picker, alpha_drag, swatch_picker) = (
+        picker.clone(),
+        picker.clone(),
+        picker.clone(),
+        picker.clone(),
+        picker.clone(),
+        picker.clone(),
+        picker.clone(),
+    );
+    let hue_accessibility = picker.hue_accessibility();
+    let alpha_accessibility = picker.alpha_accessibility();
     let swatch_colors = swatches.clone();
     let chosen = create_memo(clone!(shown -> move || {
         swatch_colors.iter().position(|swatch| *swatch == shown.get())
@@ -191,10 +120,7 @@ pub fn ColorPicker(
                             thumb=SLIDER_HEIGHT
                             disabled={disabled.clone()}
                             accessibility={hue_accessibility}
-                            on_change={move |hue: f32| {
-                                let color = hue_picker.color.get_untracked();
-                                hue_picker.apply(Hsva::new(hue.min(359.9), color.saturation, color.value, color.alpha));
-                            }}
+                            on_change={move |hue: f32| hue_picker.set_hue(hue)}
                             on_drag_change={move |dragging: bool| hue_drag.drag(dragging)}
                         >
                             {move |handle: SliderHandle| view! {
@@ -202,53 +128,53 @@ pub fn ColorPicker(
                             }}
                         </unstyled::Slider>
                         <Show condition=alpha>
-                            <unstyled::Slider
-                                value={opacity.clone()}
-                                thumb=SLIDER_HEIGHT
-                                disabled={disabled.clone()}
-                                accessibility={alpha_accessibility}
-                                on_change={move |alpha: f32| {
-                                    let color = alpha_picker.color.get_untracked();
-                                    alpha_picker.apply(Hsva { alpha, ..color });
-                                }}
-                                on_drag_change={move |dragging: bool| alpha_drag.drag(dragging)}
-                            >
-                                {move |handle: SliderHandle| view! {
-                                    <StripFace handle strip={Strip::Alpha(alpha_color)} />
-                                }}
-                            </unstyled::Slider>
+                            {move || clone!(alpha_color alpha_drag alpha_picker -> view! {
+                                <unstyled::Slider
+                                    value={opacity.clone()}
+                                    thumb=SLIDER_HEIGHT
+                                    disabled={disabled.clone()}
+                                    accessibility={alpha_accessibility.clone()}
+                                    on_change={move |alpha: f32| alpha_picker.set_alpha(alpha)}
+                                    on_drag_change={move |dragging: bool| alpha_drag.drag(dragging)}
+                                >
+                                    {move |handle: SliderHandle| view! {
+                                        <StripFace handle strip={Strip::Alpha(alpha_color)} />
+                                    }}
+                                </unstyled::Slider>
+                            })}
                         </Show>
                     </List>
                     <ColorSwatch color={shown.clone()} width=PREVIEW_SIZE height=PREVIEW_SIZE />
                 </List>
                 <ColorFields picker={picker.clone()} alpha />
                 <Show condition=has_swatches>
-                    <unstyled::Choice
-                        options={view! {
-                            <ForEach keys={indices}>
-                                {move |index: usize| view! {
-                                    <ChoiceOption label={labels[index].clone()} />
-                                }}
-                            </ForEach>
-                        }}
-                        selected={chosen}
-                        kind=ChoiceKind::Radio
-                        direction=Direction::Horizontal
-                        wrap=true
-                        on_change={move |index: Option<usize>| {
-                            if let Some(swatch) = index.and_then(|index| swatches.get(index)) {
-                                let held = swatch_picker.color.get_untracked();
-                                swatch_picker.apply(Hsva::from_color_keeping(*swatch, held));
-                            }
-                        }}
-                    >
-                        {move |handle: ChoiceOptionHandle| {
-                            let color = face_swatches[handle.index];
-                            view! {
-                                <SwatchFace handle color />
-                            }
-                        }}
-                    </unstyled::Choice>
+                    {move || clone!(face_swatches labels swatch_picker swatches -> view! {
+                        <unstyled::Choice
+                            options={view! {
+                                <ForEach keys={indices.clone()}>
+                                    {move |index: usize| view! {
+                                        <ChoiceOption label={labels[index].clone()} />
+                                    }}
+                                </ForEach>
+                            }}
+                            selected={chosen.clone()}
+                            kind=ChoiceKind::Radio
+                            direction=Direction::Horizontal
+                            wrap=true
+                            on_change={move |index: Option<usize>| {
+                                if let Some(swatch) = index.and_then(|index| swatches.get(index)) {
+                                    swatch_picker.pick(*swatch);
+                                }
+                            }}
+                        >
+                            {move |handle: ChoiceOptionHandle| {
+                                let color = face_swatches[handle.index];
+                                view! {
+                                    <SwatchFace handle color />
+                                }
+                            }}
+                        </unstyled::Choice>
+                    })}
                 </Show>
             </List>
         </Frame>
@@ -256,32 +182,15 @@ pub fn ColorPicker(
 }
 
 #[component]
-fn ColorFields(picker: Picker, alpha: bool) -> NodeId {
-    let shown = create_memo(clone!(picker -> move || picker.color.get().to_color()));
-    let (text, set_text) = create_signal(hex_text(shown.get_untracked(), alpha));
-    create_effect(clone!(shown text set_text -> move || {
-        let next = shown.get();
-        if parse_typed(&text.get_untracked(), next) != Some(next) {
-            set_text.set(hex_text(next, alpha));
-        }
-    }));
-    let typed = clone!(picker set_text -> move |typed: String| {
-        set_text.set(typed.clone());
-        let held = picker.color.get_untracked();
-        if let Some(parsed) = parse_typed(&typed, held.to_color()) {
-            picker.apply(Hsva::from_color_keeping(parsed, held));
-        }
-    });
-    let submitted = clone!(picker shown set_text -> move |typed: String| {
-        let held = picker.color.get_untracked();
-        match parse_hex(&typed) {
-            Some(parsed) => {
-                let parsed = keep_alpha(&typed, parsed, held.to_color());
-                picker.apply(Hsva::from_color_keeping(parsed, held));
-            }
-            None => set_text.set(hex_text(shown.get_untracked(), alpha)),
-        }
-    });
+fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
+    let shown = picker.shown();
+    let typed = picker.clone();
+    let hex = HexText::new(
+        shown.clone(),
+        alpha,
+        Callback::new(move |color: Color32| typed.pick(color)),
+    );
+    let (edit, submit) = (hex.clone(), hex.clone());
     let channel = |index: usize| {
         let shown = shown.clone();
         create_memo(move || f64::from(shown.get().to_array()[index]))
@@ -291,67 +200,47 @@ fn ColorFields(picker: Picker, alpha: bool) -> NodeId {
         (f64::from(shown.get().alpha()) * 100.0 / 255.0).round()
     }));
     let hsv = |part: fn(Hsva) -> f32, scale: f32| {
-        let color = picker.color.clone();
+        let color = picker.color();
         create_memo(move || f64::from((part(color.get()) * scale).round()))
     };
     let hue = hsv(|color| color.hue, 1.0);
     let saturation = hsv(|color| color.saturation, 100.0);
     let value = hsv(|color| color.value, 100.0);
-    let set_hsv = |write: fn(&mut Hsva, f32), scale: f32| {
+    let set_hue = clone!(picker -> move |typed: f64| picker.set_hue(typed as f32));
+    let set_saturation =
+        clone!(picker -> move |typed: f64| picker.set_saturation(typed as f32 / 100.0));
+    let set_value = clone!(picker -> move |typed: f64| picker.set_value(typed as f32 / 100.0));
+    let set_channel = |index: usize| {
         let picker = picker.clone();
-        move |typed: f64| {
-            let mut next = picker.color.get_untracked();
-            write(&mut next, typed as f32 / scale);
-            picker.apply(Hsva::new(
-                next.hue.clamp(0.0, 359.999),
-                next.saturation,
-                next.value,
-                next.alpha,
-            ));
-        }
+        move |typed: f64| picker.set_channel(index, typed)
     };
-    let set_hue = set_hsv(|color, hue| color.hue = hue, 1.0);
-    let set_saturation = set_hsv(|color, saturation| color.saturation = saturation, 100.0);
-    let set_value = set_hsv(|color, value| color.value = value, 100.0);
-    let set_channel = move |index: usize| {
-        let picker = picker.clone();
-        move |typed: f64| {
-            let held = picker.color.get_untracked();
-            let mut channels = held.to_color().to_array();
-            channels[index] = typed.round().clamp(0.0, 255.0) as u8;
-            let [r, g, b, a] = channels;
-            picker.apply(Hsva::from_color_keeping(
-                Color32::from_rgba_unmultiplied(r, g, b, a),
-                held,
-            ));
-        }
-    };
-    let set_opacity = set_channel(3);
     let set_red = set_channel(0);
     let set_green = set_channel(1);
     let set_blue = set_channel(2);
-    let placeholder = if alpha { "#RRGGBBAA" } else { "#RRGGBB" };
+    let set_opacity = set_channel(3);
     view! {
         <List spacing=8.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
-                    value={text}
+                    value={hex.text()}
                     label="Hex"
-                    placeholder
+                    placeholder={hex.placeholder()}
                     select_on_focus=true
-                    on_change={typed}
-                    on_submit={submitted}
+                    on_change={move |typed: String| edit.edit(typed)}
+                    on_submit={move |typed: String| submit.submit(typed)}
                 />
                 <Show condition=alpha>
-                    <NumberInput
-                        @sizing=ItemSize::Fixed(ALPHA_WIDTH)
-                        value={opacity}
-                        min=0.0
-                        max=100.0
-                        label="Opacity percent"
-                        on_change={move |percent: f64| set_opacity(percent * 255.0 / 100.0)}
-                    />
+                    {move || clone!(set_opacity -> view! {
+                        <NumberInput
+                            @sizing=ItemSize::Fixed(ALPHA_WIDTH)
+                            value={opacity.clone()}
+                            min=0.0
+                            max=100.0
+                            label="Opacity percent"
+                            on_change={move |percent: f64| set_opacity(percent * 255.0 / 100.0)}
+                        />
+                    })}
                 </Show>
             </List>
             <Grid
@@ -635,27 +524,4 @@ fn alpha_image(color: Color32) -> Image {
         })
         .collect();
     Image::from_rgba(STRIP_TEXELS, 1, pixels)
-}
-
-fn hex_text(color: Color32, alpha: bool) -> String {
-    format_hex(color, alpha && color.alpha() < u8::MAX)
-}
-
-fn parse_typed(text: &str, held: Color32) -> Option<Color32> {
-    let digits = text.trim().trim_start_matches('#');
-    if digits.len() != 6 && digits.len() != 8 {
-        return None;
-    }
-    parse_hex(text).map(|parsed| keep_alpha(text, parsed, held))
-}
-
-fn keep_alpha(text: &str, parsed: Color32, held: Color32) -> Color32 {
-    let digits = text.trim().trim_start_matches('#').len();
-    match digits {
-        3 | 6 => {
-            let [red, green, blue, _] = parsed.to_array();
-            Color32::from_rgba_unmultiplied(red, green, blue, held.alpha())
-        }
-        _ => parsed,
-    }
 }

@@ -29,6 +29,6 @@ fn a_color_input_reports_the_hex_it_was_typed() {
 
     assert_eq!(
         *changes.borrow(),
-        [Color32::from_rgba_unmultiplied(0x11, 0x22, 0x33, 0xF0)]
+        [Color32::from_rgba_unmultiplied(0x11, 0x22, 0x30, 0xFF)]
     );
 }

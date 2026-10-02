@@ -534,10 +534,13 @@ A slot that hands something over — `toggle`'s `content` above, `for_each`'s
 `view`, `container`'s `content` — takes one closure as its only child, and that
 closure receives the handle. A slot whose handle is `()`, like `show`'s `then`,
 takes tags instead: `view!` wraps them in the closure itself, so they stay
-unbuilt until the component asks for them.
+unbuilt until the component asks for them. A `RenderFn` slot, like `Show`'s,
+may run that closure more than once, so the block clones what it hands on
+rather than moving it; when a block moves several values, clone them all at
+once with `{move || clone!(a b -> view! { ... })}`.
 
 ```rust
-<Show condition={tab.memo(0)}><ListControls rows=list_rows /></Show>
+<Show condition={tab.memo(0)}><ListControls rows={list_rows.clone()} /></Show>
 ```
 
 Either way the block is exactly one child, because a `Render` returns one of
