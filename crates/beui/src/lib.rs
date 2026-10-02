@@ -125,8 +125,8 @@ pub fn run_with(
 
 #[cfg(test)]
 use beui_core::{
-    accessibility, base, color, context, damage, draw, drawing, filter, flash, font, geometry,
-    image, input, interact, node, painter, screen_simulation,
+    accessibility, base, color, context, culling, damage, draw, drawing, filter, flash, font,
+    geometry, image, input, interact, node, painter, screen_simulation,
 };
 #[cfg(test)]
 use beui_inspector::{self as inspector, mouse_simulation};
