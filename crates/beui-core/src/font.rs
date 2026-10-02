@@ -144,6 +144,32 @@ struct GalleyData {
     pixel_bounds: [f32; 4],
     glyphs: Vec<Glyph>,
     lines: Vec<GalleyLine>,
+    wraps: Wraps,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Wraps {
+    fits: f32,
+    overflows: f32,
+}
+
+impl Wraps {
+    pub const ANY: Self = Self {
+        fits: f32::NEG_INFINITY,
+        overflows: f32::INFINITY,
+    };
+
+    pub fn contains(self, wrap: f32) -> bool {
+        self.fits <= wrap && (wrap < self.overflows || self.overflows == f32::INFINITY)
+    }
+
+    fn fit(&mut self, width: f32) {
+        self.fits = self.fits.max(width);
+    }
+
+    fn overflow(&mut self, width: f32) {
+        self.overflows = self.overflows.min(width);
+    }
 }
 
 pub struct GalleyLine {
@@ -158,6 +184,9 @@ impl GalleyLine {
         for pair in self.cursors.windows(2) {
             let ((start, left), (end, right)) = (pair[0], pair[1]);
             cursors.push((start, left));
+            if end <= start || text.get(start..end).is_none_or(single_character) {
+                continue;
+            }
             let inside: Vec<usize> = text
                 .get(start..end)
                 .into_iter()
@@ -197,6 +226,7 @@ impl Galley {
         baseline: f32,
         glyphs: Vec<Glyph>,
         lines: Vec<GalleyLine>,
+        wraps: Wraps,
     ) -> Self {
         let lines = lines
             .into_iter()
@@ -212,6 +242,7 @@ impl Galley {
                 pixel_bounds: pixel_bounds(&glyphs),
                 glyphs,
                 lines,
+                wraps,
             }),
         }
     }
@@ -313,6 +344,10 @@ impl Galley {
             .collect()
     }
 
+    pub fn wraps(&self) -> Wraps {
+        self.inner.wraps
+    }
+
     pub fn glyphs(&self) -> &[Glyph] {
         &self.inner.glyphs
     }
@@ -370,6 +405,10 @@ impl Shaping {
         }
     }
 
+    fn unwrapped(self) -> Self {
+        Self { wrap: 0, ..self }
+    }
+
     pub fn wrap(self) -> f32 {
         f32::from_bits(self.wrap)
     }
@@ -411,6 +450,8 @@ fn galley_hash(text: &str, size: u32, family: FontFamily, shape: Shaping, scale:
 }
 
 pub const GALLEY_CACHE_LIMIT: usize = 4096;
+const GALLEY_WIDTHS_PER_TEXT: usize = 4;
+const WORD_LOOKAHEAD: usize = 64;
 
 fn pixel_bounds(glyphs: &[Glyph]) -> [f32; 4] {
     let mut bounds = [
@@ -432,6 +473,7 @@ pub fn break_lines<T>(
     steps: &[T],
     text: &str,
     wrap: f32,
+    wraps: &mut Wraps,
     step: impl Fn(&T) -> (usize, f32),
 ) -> Vec<Range<usize>> {
     let mut lines = Vec::new();
@@ -439,33 +481,71 @@ pub fn break_lines<T>(
         lines.push(0..0);
         return lines;
     }
-    if !wrap.is_finite() {
-        lines.push(0..steps.len());
-        return lines;
-    }
-
-    let advance = |item: &T| step(item).1;
     let mut start = 0;
-    let mut width = 0.0;
-    let mut candidate = None;
-
-    for (index, item) in steps.iter().enumerate() {
-        let (cluster, x_advance) = step(item);
-        if index > start && width + x_advance > wrap {
-            let end = candidate.filter(|end| *end > start).unwrap_or(index);
-            lines.push(start..end);
-            start = end;
-            width = steps[start..index].iter().map(advance).sum();
-            candidate = None;
-        }
-        if index > start && follows_whitespace(text, cluster) {
-            candidate = Some(index);
-        }
-        width += x_advance;
+    while start < steps.len() {
+        let end = break_line(steps, text, start, wrap, wraps, &step);
+        lines.push(start..end);
+        start = end;
     }
-
-    lines.push(start..steps.len());
     lines
+}
+
+fn break_line<T>(
+    steps: &[T],
+    text: &str,
+    start: usize,
+    wrap: f32,
+    wraps: &mut Wraps,
+    step: &impl Fn(&T) -> (usize, f32),
+) -> usize {
+    let mut width = step(&steps[start]).1;
+    let mut fits = f32::NEG_INFINITY;
+    let mut candidate = None;
+    for (index, item) in steps.iter().enumerate().skip(start + 1) {
+        let (cluster, advance) = step(item);
+        if follows_whitespace(text, cluster) {
+            candidate = Some((index, fits));
+        }
+        if width + advance > wrap {
+            let Some((end, fitted)) = candidate else {
+                wraps.fit(fits);
+                wraps.overflow(width + advance);
+                return index;
+            };
+            wraps.fit(fitted);
+            wraps.overflow(next_word_end(steps, text, index, width, step));
+            return end;
+        }
+        width += advance;
+        fits = fits.max(width);
+    }
+    wraps.fit(fits);
+    steps.len()
+}
+
+fn next_word_end<T>(
+    steps: &[T],
+    text: &str,
+    overflow: usize,
+    mut width: f32,
+    step: &impl Fn(&T) -> (usize, f32),
+) -> f32 {
+    let mut widest = f32::NEG_INFINITY;
+    for (index, item) in steps.iter().enumerate().skip(overflow).take(WORD_LOOKAHEAD) {
+        let (cluster, advance) = step(item);
+        if index > overflow && follows_whitespace(text, cluster) {
+            break;
+        }
+        width += advance;
+        widest = widest.max(width);
+    }
+    widest
+}
+
+fn single_character(text: &str) -> bool {
+    let mut characters = text.chars();
+    characters.next();
+    characters.next().is_none()
 }
 
 fn follows_whitespace(text: &str, cluster: usize) -> bool {
@@ -528,57 +608,58 @@ impl Fonts {
     ) -> Galley {
         let pixel_size = ((font.size * pixels_per_point).round() as u32).max(1);
         let shape = Shaping::of(font, layout, pixels_per_point);
+        let unwrapped = shape.unwrapped();
         let scale = pixels_per_point.to_bits();
         self.generation();
-        let hash = galley_hash(text, pixel_size, font.family, shape, scale);
-        if let Some(galley) = self.remembered(hash, text, pixel_size, font.family, shape, scale) {
+        let hash = galley_hash(text, pixel_size, font.family, unwrapped, scale);
+        let key = |key: &GalleyKey| key.matches(text, pixel_size, font.family, unwrapped, scale);
+        let wrap = shape.wrap();
+        let fits = |(candidate, galley): &(GalleyKey, Galley)| {
+            key(candidate) && galley.wraps().contains(wrap)
+        };
+        if let Some(bucket) = self.galleys.get_mut(&hash)
+            && let Some(found) = bucket.iter().position(fits)
+        {
+            let entry = bucket.remove(found);
+            let galley = entry.1.clone();
+            bucket.push(entry);
+            return galley;
+        }
+        if let Some(bucket) = self.cooling.get_mut(&hash)
+            && let Some(found) = bucket.iter().position(fits)
+        {
+            let (key, galley) = bucket.swap_remove(found);
+            self.remember(hash, key, galley.clone());
             return galley;
         }
         let galley = self
             .backend
             .build(text, font.family, pixel_size, shape, pixels_per_point);
-        if self.cached_galleys >= GALLEY_CACHE_LIMIT {
-            self.cooling = std::mem::take(&mut self.galleys);
-            self.cached_galleys = 0;
-        }
         let key = GalleyKey {
             text: text.to_owned(),
             size: pixel_size,
             family: font.family,
-            shape,
+            shape: unwrapped,
             scale,
         };
         self.remember(hash, key, galley.clone());
         galley
     }
 
-    fn remembered(
-        &mut self,
-        hash: u64,
-        text: &str,
-        size: u32,
-        family: FontFamily,
-        shape: Shaping,
-        scale: u32,
-    ) -> Option<Galley> {
-        if let Some(bucket) = self.galleys.get(&hash)
-            && let Some((_, galley)) = bucket
-                .iter()
-                .find(|(key, _)| key.matches(text, size, family, shape, scale))
-        {
-            return Some(galley.clone());
-        }
-        let bucket = self.cooling.get_mut(&hash)?;
-        let found = bucket
-            .iter()
-            .position(|(key, _)| key.matches(text, size, family, shape, scale))?;
-        let (key, galley) = bucket.swap_remove(found);
-        self.remember(hash, key, galley.clone());
-        Some(galley)
-    }
-
     fn remember(&mut self, hash: u64, key: GalleyKey, galley: Galley) {
-        self.galleys.entry(hash).or_default().push((key, galley));
-        self.cached_galleys += 1;
+        if self.cached_galleys >= GALLEY_CACHE_LIMIT {
+            self.cooling = std::mem::take(&mut self.galleys);
+            self.cached_galleys = 0;
+        }
+        let bucket = self.galleys.entry(hash).or_default();
+        let widths = bucket.iter().filter(|(other, _)| *other == key).count();
+        if widths >= GALLEY_WIDTHS_PER_TEXT
+            && let Some(oldest) = bucket.iter().position(|(other, _)| *other == key)
+        {
+            bucket.remove(oldest);
+        } else {
+            self.cached_galleys += 1;
+        }
+        bucket.push((key, galley));
     }
 }

@@ -23,6 +23,7 @@ use crate::view::{Labels, MERGED, PADDING, readable_on, state_glyph};
 use crate::workspace::{Actions, Notes};
 
 const SPACING: f32 = 12.0;
+const TIMELINE_TOP: f32 = 8.0;
 const CARD_PADDING: f32 = 12.0;
 const AVATAR: f32 = 24.0;
 const AVATAR_PIXELS: u32 = 64;
@@ -214,17 +215,22 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                     </List>
                 </Frame>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Frame padding_horizontal=PADDING padding_top=8.0 padding_bottom=PADDING>
-                        <List spacing=0.0>
-                            <ForEach keys>
-                                {move |index: usize| {
-                                    let entry = create_memo(clone!(entries -> move || entries.get().get(index).cloned()));
-                                    view! {
-                                        <TimelineEntry model={model.clone()} entry />
-                                    }
-                                }}
-                            </ForEach>
-                        </List>
+                    <Frame height=TIMELINE_TOP>
+                        <Spacer />
+                    </Frame>
+                    <ForEach keys>
+                        {move |index: usize| {
+                            let entry = create_memo(clone!(entries -> move || entries.get().get(index).cloned()));
+                            let model = model.clone();
+                            view! {
+                                <Frame padding_horizontal=PADDING>
+                                    <TimelineEntry model entry />
+                                </Frame>
+                            }
+                        }}
+                    </ForEach>
+                    <Frame height=PADDING>
+                        <Spacer />
                     </Frame>
                 </Scroll>
             </List>

@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 beui-core = { path = "../beui-core" }
+foldhash = "0.2"
 freetype = "0.7"
 harfbuzz_rs = "2"
 unicode-script = "0.5"

@@ -953,6 +953,7 @@ name = "beui-font-freetype"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "foldhash 0.2.0",
  "freetype",
  "harfbuzz_rs",
  "libloading",
