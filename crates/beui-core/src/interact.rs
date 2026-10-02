@@ -654,7 +654,7 @@ fn interact_node(
     }
 
     for &child in &children {
-        if rects.contains_key(&child) {
+        if rects.contains_key(&child) && !doc.is_culled(child) {
             doc.interact_parents.insert(child, id);
             interact_node(doc, painter, input, child, reach, focus_target, pool);
         }

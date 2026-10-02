@@ -1,6 +1,6 @@
 use super::*;
 use crate::base::offset::OffsetNode;
-use crate::culling::CULLING_MARGIN;
+use crate::sight::CULLING_MARGIN;
 
 const ROWS: usize = 500;
 
