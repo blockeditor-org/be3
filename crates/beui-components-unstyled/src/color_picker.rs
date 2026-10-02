@@ -108,17 +108,14 @@ impl ColorPickerState {
         self.pick(Color32::from_rgba_unmultiplied(red, green, blue, alpha));
     }
 
-    pub fn set_hsl(&self, index: usize, value: f32) {
+    pub fn set_saturation(&self, saturation: f32) {
         let held = self.color.get_untracked();
-        let mut parts = held.hsl();
-        parts[index] = value;
-        let [hue, saturation, lightness] = parts;
-        self.apply(Hsva::from_hsl(
-            hue.clamp(0.0, 359.999),
-            saturation,
-            lightness,
-            held.alpha,
-        ));
+        self.apply(Hsva::new(held.hue, saturation, held.value, held.alpha));
+    }
+
+    pub fn set_value(&self, value: f32) {
+        let held = self.color.get_untracked();
+        self.apply(Hsva::new(held.hue, held.saturation, value, held.alpha));
     }
 
     pub fn hue_accessibility(&self) -> Memo<Node> {

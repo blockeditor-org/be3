@@ -118,26 +118,6 @@ impl Hsva {
         )
     }
 
-    pub fn from_hsl(hue: f32, saturation: f32, lightness: f32, alpha: f32) -> Self {
-        let lightness = lightness.clamp(0.0, 1.0);
-        let value = lightness + saturation.clamp(0.0, 1.0) * lightness.min(1.0 - lightness);
-        let saturation = match value > 0.0 {
-            true => 2.0 * (1.0 - lightness / value),
-            false => 0.0,
-        };
-        Self::new(hue, saturation, value, alpha)
-    }
-
-    pub fn hsl(self) -> [f32; 3] {
-        let lightness = self.value * (1.0 - self.saturation / 2.0);
-        let room = lightness.min(1.0 - lightness);
-        let saturation = match room > 0.0 {
-            true => (self.value - lightness) / room,
-            false => 0.0,
-        };
-        [self.hue, saturation, lightness]
-    }
-
     pub fn opaque(self) -> Self {
         Self { alpha: 1.0, ..self }
     }

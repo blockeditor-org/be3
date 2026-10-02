@@ -199,18 +199,17 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
     let opacity = create_memo(clone!(shown -> move || {
         (f64::from(shown.get().alpha()) * 100.0 / 255.0).round()
     }));
-    let hsl = |index: usize, scale: f32| {
+    let hsv = |part: fn(Hsva) -> f32, scale: f32| {
         let color = picker.color();
-        create_memo(move || f64::from((color.get().hsl()[index] * scale).round()))
+        create_memo(move || f64::from((part(color.get()) * scale).round()))
     };
-    let (hue, saturation, lightness) = (hsl(0, 1.0), hsl(1, 100.0), hsl(2, 100.0));
-    let set_hsl = |index: usize, scale: f32| {
-        let picker = picker.clone();
-        move |typed: f64| picker.set_hsl(index, typed as f32 / scale)
-    };
-    let set_hue = set_hsl(0, 1.0);
-    let set_saturation = set_hsl(1, 100.0);
-    let set_lightness = set_hsl(2, 100.0);
+    let hue = hsv(|color| color.hue, 1.0);
+    let saturation = hsv(|color| color.saturation, 100.0);
+    let value = hsv(|color| color.value, 100.0);
+    let set_hue = clone!(picker -> move |typed: f64| picker.set_hue(typed as f32));
+    let set_saturation =
+        clone!(picker -> move |typed: f64| picker.set_saturation(typed as f32 / 100.0));
+    let set_value = clone!(picker -> move |typed: f64| picker.set_value(typed as f32 / 100.0));
     let set_channel = |index: usize| {
         let picker = picker.clone();
         move |typed: f64| picker.set_channel(index, typed)
@@ -271,14 +270,8 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                     label="Saturation percent"
                     on_change={set_saturation}
                 />
-                <ChannelLabel content="L" />
-                <NumberInput
-                    value={lightness}
-                    min=0.0
-                    max=100.0
-                    label="Lightness percent"
-                    on_change={set_lightness}
-                />
+                <ChannelLabel content="V" />
+                <NumberInput value min=0.0 max=100.0 label="Value percent" on_change={set_value} />
             </Grid>
         </List>
     }
