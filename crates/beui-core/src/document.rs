@@ -87,6 +87,7 @@ pub struct Document {
     paint_revision: u64,
     delivering: bool,
     pub deferred_reveals: Vec<NodeId>,
+    laid_out: Option<Rc<dyn Fn()>>,
     constrained: HashSet<NodeId>,
     measurements: NodeMap<Vec<(Vec2, Vec2)>>,
     baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
@@ -283,6 +284,7 @@ impl Document {
             paint_revision: 0,
             delivering: false,
             deferred_reveals: Vec::new(),
+            laid_out: None,
             constrained: HashSet::new(),
             measurements: NodeMap::default(),
             baselines: NodeMap::default(),
@@ -801,6 +803,10 @@ impl Document {
         ctx.show_mouse_simulation(rect);
     }
 
+    pub fn on_laid_out(&mut self, laid_out: impl Fn() + 'static) {
+        self.laid_out = Some(Rc::new(laid_out));
+    }
+
     pub fn set_tools(&mut self, tools: Box<dyn Tools>) {
         self.tools = Some(tools);
     }
@@ -954,6 +960,17 @@ impl Document {
                 }
                 passes
             });
+        if let Some(laid_out) = self.laid_out.clone() {
+            let context = self.reactive_scope().context();
+            {
+                let _guard = crate::current::install(self);
+                context.run(|| laid_out());
+            }
+            measurement.layout_passes +=
+                FrameMeasurement::measure(&mut measurement.timings.layout, || {
+                    usize::from(self.update_layout(ctx, rect))
+                });
+        }
         if !keys.ignored()
             && let Some(area) = self.focused_ime_area()
         {

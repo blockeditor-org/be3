@@ -140,7 +140,7 @@ struct Shell {
 impl Shell {
     fn new(app: BlockApp) -> Self {
         let mut view = None;
-        let document = beui::reactive::build(|| {
+        let mut document = beui::reactive::build(|| {
             compositor::install();
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
@@ -149,6 +149,10 @@ impl Shell {
             beui::reactive::view! {
                 <ui::Root view />
             }
+        });
+        document.on_laid_out(|| {
+            plugin_host::settle();
+            compositor::notify_plugins();
         });
         Self {
             document,

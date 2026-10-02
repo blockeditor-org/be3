@@ -1561,6 +1561,12 @@ A frame is input, then layout, then paint. Input is dispatched against the rects
 the previous frame painted, which is what the reader was looking at when they
 clicked, and the tree is laid out exactly once afterwards.
 
+The one exception is `Document::on_laid_out`, a callback that runs inside the
+document's reactive scope between layout and paint, for an app that has to
+answer something layout decided: block-app waits there for its plugins to draw
+at the sizes they were just given. Whatever it changes is laid out again before
+the frame is painted.
+
 That holds even though `component_size` and `component_rect` feed measurements
 back into the tree, because both are delivered during the layout walk rather
 than after it. `component_size` reports the space a component's parent offered

@@ -20,7 +20,7 @@ use crate::host;
 use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
-    backend::{Availability, Backend, Platform, ShownFrame},
+    backend::{Availability, Backend, Deadline, Platform, ShownFrame},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{
         self, Blit, MAX_SURFACES, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing,
@@ -33,6 +33,7 @@ const CROWDED: &str = "Too many plugin runtimes are already presenting.";
 const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 const FRAME_TIMEOUT_SECONDS: f64 = 1.0;
+const FRAME_BUDGET: Duration = Duration::from_millis(8);
 const REMEMBERED_PRESENTS: usize = 16;
 const SURFACE: SurfaceSpec = SurfaceSpec {
     format: SurfaceFormat::Rgba8Unorm,
@@ -115,6 +116,7 @@ pub(super) struct Runtime {
     pub(super) instances: Instances,
     pub(super) layout: ScreenLayout,
     pub(super) pass: u64,
+    since: u64,
     surface: u32,
     status: PresenterStatus,
     shared: Rc<RefCell<Shared>>,
@@ -177,6 +179,7 @@ impl Runtime {
             instances,
             layout: ScreenLayout::default(),
             pass: 0,
+            since: 0,
             surface,
             status: PresenterStatus::waiting(),
             shared: Rc::new(RefCell::new(Shared::default())),
@@ -226,10 +229,8 @@ impl Runtime {
         if self.pass == pass || self.error.is_some() {
             return;
         }
-        let previous = self.pass;
+        self.since = self.pass;
         self.pass = pass;
-        let drawing = self.session.granted_surface().is_some();
-        let next = self.instances.next_screens(previous);
         let mut messages = Vec::new();
         if !self.fonts_sent && *self.session.state() == SessionState::Running {
             self.fonts_sent = true;
@@ -240,6 +241,12 @@ impl Runtime {
             self.theme = theme;
             messages.push(Message::Theme(theme));
         }
+        self.update(messages);
+    }
+
+    fn update(&mut self, mut messages: Vec<Message>) {
+        let drawing = self.session.granted_surface().is_some();
+        let next = self.instances.next_screens(self.since);
         messages.extend(next.opened);
         if drawing && self.sent != next.screens {
             self.sent.clone_from(&next.screens);
@@ -264,16 +271,40 @@ impl Runtime {
         if self.error.is_some() || self.pass + 1 < pass {
             return;
         }
-        let mut messages = self.instances.drive_web_views(self.pass);
+        let messages = self.instances.drive_web_views(self.pass);
         self.needed |= !messages.is_empty();
+        self.send(messages);
+    }
+
+    fn settle(&mut self, pass: u64, deadline: Deadline) {
+        self.detect_error();
+        if self.error.is_some() || self.pass + 1 < pass {
+            return;
+        }
+        match self.pass == pass {
+            true => self.update(Vec::new()),
+            false => self.pump(),
+        }
+        loop {
+            self.request_frame();
+            if self.error.is_some() || self.backend.settled() || !self.backend.wait(deadline) {
+                break;
+            }
+            self.pump();
+        }
+    }
+
+    fn request_frame(&mut self) {
+        if self.error.is_some() {
+            return;
+        }
         if self.session.granted_surface().is_some() && self.frame_due() {
             self.requested_at = Some(self.now());
-            messages.push(Message::DrawFrame);
+            self.send(vec![Message::DrawFrame]);
         }
         if self.requested_at.is_some() {
             host::request_repaint_after(Duration::from_secs_f64(FRAME_TIMEOUT_SECONDS));
         }
-        self.send(messages);
     }
 
     fn frame_due(&self) -> bool {
@@ -686,6 +717,16 @@ pub(crate) fn poll() {
         if host.grabbed != grabbed {
             host.grabbed = grabbed;
             crate::host::set_grab(grabbed);
+        }
+    });
+}
+
+pub(crate) fn settle() {
+    let pass = host::pass();
+    let deadline = Deadline::after(FRAME_BUDGET);
+    HOST.with(|host| {
+        for runtime in host.borrow_mut().runtimes.values_mut() {
+            runtime.settle(pass, deadline);
         }
     });
 }

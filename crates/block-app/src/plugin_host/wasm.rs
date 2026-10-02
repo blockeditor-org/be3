@@ -4,7 +4,7 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc::{self, Receiver, Sender, TryRecvError},
+        mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError},
     },
     thread,
     time::Instant,
@@ -15,7 +15,10 @@ use crate::editors::plugin::discovery::{self, Module};
 use block_plugin_api::{Message, PluginManifest, ScreenLayout, decode_frame, encode_frame};
 use block_wasm_host::{Host, Plugin};
 
-use super::surface::{SurfaceFrame, gpu};
+use super::{
+    backend::Deadline,
+    surface::{SurfaceFrame, gpu},
+};
 
 const SCREENS_SURFACE: u32 = 0;
 const NO_ENTRY_POINT: &str = "This plugin has no wasm entry point.";
@@ -68,6 +71,7 @@ struct Worker {
     received: Vec<Vec<u8>>,
     ready: bool,
     stepping: bool,
+    carrying: bool,
     target: Option<Target>,
     presented: bool,
     presents: u64,
@@ -128,6 +132,7 @@ impl super::backend::Backend for Wasm {
                     received: Vec::new(),
                     ready: false,
                     stepping: false,
+                    carrying: false,
                     target: None,
                     presented: false,
                     presents: 0,
@@ -183,6 +188,32 @@ impl super::backend::Backend for Wasm {
         })
     }
 
+    fn settled(&mut self) -> bool {
+        self.poll_worker();
+        self.worker.as_ref().is_none_or(|worker| {
+            !worker.ready || (worker.pending.is_empty() && !(worker.stepping && worker.carrying))
+        })
+    }
+
+    fn wait(&mut self, deadline: Deadline) -> bool {
+        let Some(worker) = &mut self.worker else {
+            return false;
+        };
+        let Some(timeout) = deadline.remaining() else {
+            return false;
+        };
+        let failure = match worker.events.recv_timeout(timeout) {
+            Ok(event) => worker.handle(event).or_else(|| worker.poll()),
+            Err(RecvTimeoutError::Timeout) => return false,
+            Err(RecvTimeoutError::Disconnected) => Some(STOPPED.to_owned()),
+        };
+        if let Some(failure) = failure {
+            self.error.get_or_insert(failure);
+            self.worker = None;
+        }
+        true
+    }
+
     fn take_error(&mut self) -> Option<String> {
         self.error.take()
     }
@@ -220,15 +251,11 @@ impl Worker {
     fn poll(&mut self) -> Option<String> {
         loop {
             match self.events.try_recv() {
-                Ok(Event::Ready(produced)) => {
-                    self.ready = true;
-                    self.absorb(produced);
+                Ok(event) => {
+                    if let Some(failure) = self.handle(event) {
+                        return Some(failure);
+                    }
                 }
-                Ok(Event::Stepped(produced)) => {
-                    self.stepping = false;
-                    self.absorb(produced);
-                }
-                Ok(Event::Failed(error)) => return Some(error),
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => return Some(STOPPED.to_owned()),
             }
@@ -237,14 +264,31 @@ impl Worker {
             return None;
         }
         self.waiting.store(false, Ordering::SeqCst);
+        let carrying = !self.pending.is_empty();
         let step = Command::Step(std::mem::take(&mut self.pending));
         match self.commands.send(step) {
             Ok(()) => {
                 self.stepping = true;
+                self.carrying = carrying;
                 None
             }
             Err(_) => Some(STOPPED.to_owned()),
         }
+    }
+
+    fn handle(&mut self, event: Event) -> Option<String> {
+        match event {
+            Event::Ready(produced) => {
+                self.ready = true;
+                self.absorb(produced);
+            }
+            Event::Stepped(produced) => {
+                self.stepping = false;
+                self.absorb(produced);
+            }
+            Event::Failed(error) => return Some(error),
+        }
+        None
     }
 
     fn absorb(&mut self, produced: Produced) {
