@@ -365,6 +365,9 @@ impl Document {
         for id in [old, new_focus].into_iter().flatten() {
             self.arena.invalidate_node(id);
         }
+        if let Some(culled) = new_focus.and_then(|id| self.culled_ancestor(id)) {
+            self.arena.invalidate_node(culled);
+        }
         if let Some(old) = old {
             self.set_focusable_focused(old, false);
         }

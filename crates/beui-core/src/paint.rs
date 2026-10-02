@@ -860,6 +860,9 @@ fn children(display: &Display) -> impl Iterator<Item = (NodeId, Entry)> + '_ {
 }
 
 pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
+    if doc.is_culled(id) {
+        return;
+    }
     let rect = rects.placed(&id).expect("node was not placed").rect;
     let ctx = painter.ctx();
     let own = painter.entered(id, rect);

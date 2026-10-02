@@ -513,15 +513,19 @@ and `on_change` still reports the position for anything else that wants it.
 
 ### Long lists
 
-A plain `List` already skips the work for children far from the view. It
-measures every child, since its own size needs them all, but a child that ends
-more than `CULLING_MARGIN` outside the visible part of the list is *culled*:
-it keeps its rect, so `node_rect`, `reveal_node` and placement signals still
-find it, but nothing inside it is laid out or painted (`Document::is_culled`
-says which). The list remembers the range of scroll positions that keep the same
-children culled, so scrolling lays it out again only when a child crosses that
-margin. A long scroll of ordinary content needs nothing more than this; reach
-for a `VirtualList` when building every row is itself the cost.
+Layout already skips the work for nodes far from the view. Every node is
+still measured, since sizes need them all, but `layout::layout` *culls* a node
+whose rect ends more than `CULLING_MARGIN` outside the visible part of its
+parent's painter: it keeps its rect, so `node_rect`, `reveal_node` and
+placement signals still find it, but nothing inside it is laid out, painted or
+interacted with (`Document::is_culled` says which). This holds for the children
+of any container, and the node holding the focus and its ancestors and
+descendants are never culled. Each placement records its `Sight`, the range of
+visible regions it stays right for (a node that reads its space through the
+painter is right only exactly where it was), and a parent's sight takes in its
+children's, so a scroll lays a subtree out again only once a node in it crosses
+the margin. A long scroll of ordinary content needs nothing more than this;
+reach for a `VirtualList` when building every row is itself the cost.
 
 A `VirtualList` is a box like any other. It takes `keys` the way `ForEach` does,
 reports one `item_size` per key as its own length, and builds only the rows that

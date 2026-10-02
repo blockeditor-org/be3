@@ -16,16 +16,16 @@ use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::input::{Key, KeyPress};
 
-use crate::culling::Culling;
 use crate::display::Display;
 use crate::interact::{self, Keys};
 use crate::layout;
-use crate::node::{Arena, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId};
+use crate::node::{ANCESTOR_LIMIT, Arena, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId};
 use crate::paint::{self, PaintCache};
 use crate::painter::{Entry, Painter, PainterState, Shape};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
+use crate::sight::Sight;
 
 pub type Shortcut = dyn Fn(KeyPress) -> bool;
 type PickedCallback = Box<dyn FnOnce(FilePick)>;
@@ -105,7 +105,6 @@ pub struct Document {
     pub interact_bounds_version: Option<u64>,
     pub placed_pass: NodeMap<u64>,
     pub reached_pass: NodeMap<u64>,
-    culled: NodeMap<()>,
     layout_pass: u64,
     scroll_hosts: Vec<NodeId>,
     scroll_shifts: NodeMap<f32>,
@@ -144,10 +143,8 @@ pub struct Document {
 struct Placing {
     given: PainterState,
     own: PainterState,
-    reads: bool,
-    below: bool,
-    culls: Option<Culling>,
-    culling: Option<Culling>,
+    sight: Sight,
+    culled: bool,
 }
 
 struct SizeWatcher {
@@ -305,7 +302,6 @@ impl Document {
             interact_bounds: NodeMap::default(),
             interact_bounds_version: None,
             placed_pass: NodeMap::default(),
-            culled: NodeMap::default(),
             reached_pass: NodeMap::default(),
             layout_pass: 0,
             scroll_hosts: Vec::new(),
@@ -770,7 +766,6 @@ impl Document {
         self.placed_children.remove(&id);
         self.placed_pass.remove(&id);
         self.reached_pass.remove(&id);
-        self.culled.remove(&id);
         self.scroll_shifts.remove(&id);
         self.accessibility.remove(&id);
         self.accessibility_tree.get_mut().forget(id, &self.arena);
@@ -1546,7 +1541,6 @@ impl Document {
             return;
         }
         self.painters.remove(&id);
-        self.culled.remove(&id);
         let bounds = self.paint_cache.borrow().absolute_bounds(id);
         if out.remove(&id).is_some() {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
@@ -1665,13 +1659,10 @@ impl Document {
             && out.placed(&id).is_some_and(|placed| {
                 placed.space == given.space && placed.rect.size() == rect.size()
             })
-            && self.painters.get(&id).is_some_and(|held| {
-                held.own.settles(own)
-                    && (!(held.reads || held.below) || held.own.sees(own))
-                    && held
-                        .culling
-                        .is_none_or(|culling| culling.holds(Culling::region(own)))
-            })
+            && self
+                .painters
+                .get(&id)
+                .is_some_and(|held| held.own.settles(own) && held.sight.holds(held.own, own))
             && self.placed_children.contains_key(&id);
         if !reusable {
             return false;
@@ -1700,6 +1691,7 @@ impl Document {
         given: PainterState,
         own: PainterState,
         out: &Rects,
+        culled: bool,
     ) {
         let placed = Placed {
             rect,
@@ -1713,58 +1705,74 @@ impl Document {
         self.arena.clear_unplaced(id);
         self.arena.note_relaid(id);
         self.placed_pass.insert(id, self.layout_pass);
-        self.culled.remove(&id);
         let held = Placing {
             given,
             own,
-            reads: false,
-            below: false,
-            culls: None,
-            culling: None,
+            sight: match culled {
+                true => Sight::hidden(rect.size(), own),
+                false => Sight::shown(rect.size()),
+            },
+            culled,
         };
-        let previous_clip = self.painters.insert(id, held).map(|held| held.given.clip);
-        if previous != Some(placed) || previous_clip != Some(given.clip) {
+        let previous_held = self
+            .painters
+            .insert(id, held)
+            .map(|held| (held.given.clip, held.culled));
+        if previous != Some(placed) || previous_held != Some((given.clip, culled)) {
             self.accessibility_tree.get_mut().mark(id, &self.arena);
+        }
+        if culled {
+            let mut dropped = Vec::new();
+            for child in self
+                .placed_children
+                .insert(id, Vec::new())
+                .unwrap_or_default()
+            {
+                self.drop_placement(child, out, &mut dropped);
+            }
+            for node in dropped {
+                self.release_placement(node);
+            }
         }
     }
 
     pub fn is_culled(&self, id: NodeId) -> bool {
-        self.culled.contains_key(&id)
+        self.painters.get(&id).is_some_and(|held| held.culled)
     }
 
-    pub fn cull_placement(&mut self, id: NodeId, rect: Rect, given: PainterState, out: &Rects) {
-        let placed = Placed {
-            rect,
-            space: given.space,
+    pub fn culls(&self, id: NodeId, size: Vec2, own: PainterState) -> bool {
+        self.delivering && !Sight::shows(size, own) && !self.holds_focus(id)
+    }
+
+    fn holds_focus(&self, id: NodeId) -> bool {
+        let Some(focused) = self.focused else {
+            return false;
         };
-        let previous = out.insert(id, placed);
-        if !self.delivering {
-            return;
-        }
-        self.arena.clear_unplaced(id);
-        self.placed_pass.insert(id, self.layout_pass);
-        self.painters.remove(&id);
-        let newly = self.culled.insert(id, ()).is_none();
-        if newly || previous != Some(placed) {
-            self.accessibility_tree.get_mut().mark(id, &self.arena);
-        }
-        let mut dropped = Vec::new();
-        for child in self.placed_children.remove(&id).unwrap_or_default() {
-            self.drop_placement(child, out, &mut dropped);
-        }
-        for node in dropped {
-            self.release_placement(node);
-        }
-        self.deliver_placement(id, rect.translate(given.origin));
+        self.descends(focused, id) || self.descends(id, focused)
     }
 
-    pub fn note_culling(&mut self, id: NodeId, culling: Culling) {
-        if !self.delivering {
-            return;
+    pub fn culled_ancestor(&self, id: NodeId) -> Option<NodeId> {
+        let mut current = Some(id);
+        for _ in 0..ANCESTOR_LIMIT {
+            let node = current?;
+            if self.is_culled(node) {
+                return Some(node);
+            }
+            current = self.arena.parent(node);
         }
-        if let Some(held) = self.painters.get_mut(&id) {
-            held.culls = Some(culling);
+        None
+    }
+
+    fn descends(&self, node: NodeId, from: NodeId) -> bool {
+        let mut current = Some(node);
+        for _ in 0..ANCESTOR_LIMIT {
+            match current {
+                Some(node) if node == from => return true,
+                Some(node) => current = self.arena.parent(node),
+                None => return false,
+            }
         }
+        false
     }
 
     pub fn note_space_reads(&mut self, id: NodeId, reads: bool, base: usize) {
@@ -1774,30 +1782,14 @@ impl Document {
         let Some(own) = self.painters.get(&id).map(|held| held.own) else {
             return;
         };
-        let region = Culling::region(own);
-        let mut below = false;
-        let mut culling = self.painters.get(&id).and_then(|held| held.culls);
+        let mut sight = self.painters[&id].sight.exact(reads);
         for child in self.placing.get(base..).unwrap_or_default() {
-            let Some(held) = self.painters.get(child) else {
-                continue;
-            };
-            below |= held.reads || held.below;
-            let Some(beneath) = held.culling else {
-                continue;
-            };
-            if held.own.rotation.turns() {
-                below = true;
-                continue;
+            if let Some(held) = self.painters.get(child) {
+                sight = sight.and(held.sight.beneath(held.own, own));
             }
-            let offset = held.own.origin - own.origin;
-            let seen = Culling::region(held.own).translate(offset);
-            let beneath = beneath.translate(offset).seen_through(seen, region);
-            culling = Some(culling.map_or(beneath, |culling| culling.and(beneath)));
         }
         if let Some(held) = self.painters.get_mut(&id) {
-            held.reads = reads;
-            held.below = below;
-            held.culling = culling;
+            held.sight = sight;
         }
     }
 
