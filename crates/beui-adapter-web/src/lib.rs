@@ -16,6 +16,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 
 use beui_core::app::accessibility_dump::AccessibilityDump;
+use beui_core::app::ime_mirror::{ImeInput, ImeMirror};
 use beui_core::app::{App, Setup, Waker, next_batch};
 use beui_core::color::Color32;
 use beui_core::context::Context;
@@ -84,6 +85,7 @@ thread_local! {
     static FRAME: RefCell<Option<Closure<dyn FnMut()>>> = const { RefCell::new(None) };
     static TIMER: RefCell<Option<Closure<dyn FnMut()>>> = const { RefCell::new(None) };
     static TIMEOUT: Cell<Option<i32>> = const { Cell::new(None) };
+    static MIRROR: RefCell<ImeMirror> = RefCell::new(ImeMirror::default());
 }
 
 fn push(event: Event) {
@@ -222,9 +224,20 @@ impl Runner {
                 .style()
                 .set_property("cursor", cursor(output.cursor_icon));
         }
+        let mirrored = MIRROR.with(|mirror| {
+            let mut mirror = mirror.borrow_mut();
+            let text = output.ime.as_ref().and_then(|area| area.text.as_ref());
+            mirror
+                .sync(text)
+                .then(|| (mirror.value().to_owned(), mirror.selection()))
+        });
+        if let Some((value, (start, end))) = mirrored {
+            self.agent.set_value(&value);
+            let _ = self.agent.set_selection_range(start, end);
+        }
         if output.ime != self.ime {
-            self.ime = output.ime;
-            if let Some(area) = output.ime {
+            self.ime = output.ime.clone();
+            if let Some(area) = &output.ime {
                 let css = 1.0 / INPUT.with(|input| input.scale.get());
                 let style = self.agent.style();
                 let _ = style.set_property("left", &format!("{}px", area.cursor.min.x * css));
@@ -378,8 +391,8 @@ fn text_agent(
         .map_err(|_| "could not create the text input")?;
     agent.set_attribute("autocapitalize", "off").ok();
     agent.set_attribute("autocomplete", "off").ok();
-    agent.set_attribute("autocorrect", "off").ok();
-    agent.set_attribute("spellcheck", "false").ok();
+    agent.set_attribute("autocorrect", "on").ok();
+    agent.set_attribute("spellcheck", "true").ok();
     agent.set_attribute("aria-hidden", "true").ok();
     let style = agent.style();
     for (property, value) in [
@@ -660,41 +673,47 @@ fn listen(
     on(agent_target, "input", {
         let agent = agent.clone();
         move |event: web_sys::InputEvent| {
-            if event.is_composing() {
-                return;
-            }
-            let text = agent.value();
-            agent.set_value("");
-            if !text.is_empty() {
-                push(Event::Text(text));
-            }
+            let value = agent.value();
+            let input = ImeInput {
+                value: &value,
+                selection: agent_selection(&agent),
+                composing: event.is_composing(),
+                replacement: event.input_type() == "insertReplacementText",
+            };
+            mirror_events(|mirror, events| mirror.input(input, events));
         }
     })?;
     on(
         agent_target,
         "compositionstart",
         |_event: web_sys::CompositionEvent| {
+            MIRROR.with(|mirror| mirror.borrow_mut().start_composition());
             push(Event::Ime(ImeEvent::Enabled));
         },
     )?;
     on(
         agent_target,
-        "compositionupdate",
-        |event: web_sys::CompositionEvent| {
-            push(Event::Ime(ImeEvent::Preedit(
-                event.data().unwrap_or_default(),
-            )));
+        "compositionend",
+        |_event: web_sys::CompositionEvent| {
+            mirror_events(|mirror, events| {
+                mirror.end_composition(events);
+                events.push(Event::Ime(ImeEvent::Disabled));
+            });
         },
     )?;
-    on(agent_target, "compositionend", {
+    let selection_target: &web_sys::EventTarget = document.as_ref();
+    on(selection_target, "selectionchange", {
         let agent = agent.clone();
-        move |event: web_sys::CompositionEvent| {
-            agent.set_value("");
-            let text = event.data().unwrap_or_default();
-            if !text.is_empty() {
-                push(Event::Text(text));
+        let document = document.clone();
+        move |_event: web_sys::Event| {
+            let element: &web_sys::Element = agent.as_ref();
+            let focused = document
+                .active_element()
+                .is_some_and(|active| active == *element);
+            if focused {
+                let selection = agent_selection(&agent);
+                mirror_events(|mirror, events| mirror.select(selection, events));
             }
-            push(Event::Ime(ImeEvent::Disabled));
         }
     })?;
     on(agent_target, "paste", |event: web_sys::ClipboardEvent| {
@@ -738,6 +757,20 @@ fn listen(
     observer.observe(surface);
     std::mem::forget(observer);
     Ok(())
+}
+
+fn agent_selection(agent: &web_sys::HtmlTextAreaElement) -> (u32, u32) {
+    let start = agent.selection_start().ok().flatten().unwrap_or(0);
+    let end = agent.selection_end().ok().flatten().unwrap_or(start);
+    (start, end)
+}
+
+fn mirror_events(change: impl FnOnce(&mut ImeMirror, &mut Vec<Event>)) {
+    let mut events = Vec::new();
+    MIRROR.with(|mirror| change(&mut mirror.borrow_mut(), &mut events));
+    for event in events {
+        push(event);
+    }
 }
 
 fn touch(event: &web_sys::PointerEvent, phase: TouchPhase, pos: Pos2) -> Event {

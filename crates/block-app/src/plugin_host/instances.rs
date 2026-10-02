@@ -1920,7 +1920,7 @@ impl Instances {
         rect: Rect,
     ) -> Option<ImeArea> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
-        let area = screen.ime?;
+        let area = screen.ime.as_ref()?;
         let origin = rect.min.to_vec2();
         let stretch = vec2(
             ratio(rect.width(), screen.request.metrics.logical_width),
@@ -1929,6 +1929,7 @@ impl Instances {
         Some(ImeArea {
             rect: host_rect(area.rect, origin, stretch),
             cursor: host_rect(area.cursor, origin, stretch),
+            text: area.text.as_ref().map(beui_plugin_input::beui_ime_text),
         })
     }
 

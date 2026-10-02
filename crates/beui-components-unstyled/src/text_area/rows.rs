@@ -48,8 +48,7 @@ impl TextWidget {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Composition {
-    pub at: usize,
-    pub text: String,
+    pub range: Range<usize>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -394,7 +393,9 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     let invisibles = !options.single_line;
     let composition = inputs
         .composition
-        .filter(|composition| composition.at >= start && composition.at <= end);
+        .filter(|composition| composition.range.start < end && composition.range.end > start);
+    let composed =
+        |index: usize| composition.is_some_and(|composition| composition.range.contains(&index));
     let selected = |byte: usize| {
         inputs
             .selection
@@ -453,10 +454,11 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     while index < end {
         let base = builder.span_style(style_at(index));
         builder.spacers(index, base);
-        if let Some(composition) = composition.filter(|composition| composition.at == index) {
-            compose(&mut builder, composition, index, bytes, style_at(index));
-        }
         let base = builder.span_style(style_at(index));
+        let base = SpanStyle {
+            underline: base.underline || composed(index),
+            ..base
+        };
         if let Some(checkbox) = snapshot
             .checkboxes
             .iter()
@@ -514,8 +516,9 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         let style = style_at(index);
         let mut stop = index + len;
         while stop < end {
-            if composition.is_some_and(|composition| composition.at == stop)
-                || inputs.spacers.iter().any(|(at, _)| *at == stop)
+            if composition.is_some_and(|composition| {
+                composition.range.start == stop || composition.range.end == stop
+            }) || inputs.spacers.iter().any(|(at, _)| *at == stop)
                 || snapshot
                     .checkboxes
                     .iter()
@@ -539,9 +542,6 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         index = stop;
     }
     builder.spacers(end, body);
-    if let Some(composition) = composition.filter(|composition| composition.at == end) {
-        compose(&mut builder, composition, end, bytes, style_at(end));
-    }
     if newline && invisibles {
         let color = match selected(end) {
             true => invisible,
@@ -565,27 +565,6 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         builder.push(ELLIPSIS, end..end, false, style, SpanKind::Text);
     }
     finish(builder, body)
-}
-
-fn compose(
-    builder: &mut Builder,
-    composition: &Composition,
-    at: usize,
-    bytes: &[u8],
-    style: SynHlStyle,
-) {
-    let style = match at
-        .checked_sub(1)
-        .filter(|before| bytes.get(*before) != Some(&b'\n'))
-    {
-        Some(before) => builder.inputs.snapshot.highlight().style_at(before),
-        None => style,
-    };
-    let style = SpanStyle {
-        underline: true,
-        ..builder.span_style(style)
-    };
-    builder.push(&composition.text, at..at, false, style, SpanKind::Text);
 }
 
 fn finish(mut builder: Builder, body: SpanStyle) -> Row {

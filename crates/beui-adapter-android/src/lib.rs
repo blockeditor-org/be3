@@ -26,12 +26,13 @@ use ndk::asset::AssetManager;
 use ndk::native_window::NativeWindow;
 
 use beui_core::app::accessibility_dump::AccessibilityDump;
-use beui_core::app::{App, SafeArea, Setup, Waker, next_batch, press, safe_rect, typed};
+use beui_core::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
 use beui_core::context::Context;
 use beui_core::file_picker::{FilePick, FilePickId, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
-    BackEdge, BackGesture, Event, ImeArea, ImeEvent, Key, Modifiers, RawInput, TouchId, TouchPhase,
+    BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Modifiers, RawInput, TouchId,
+    TouchPhase,
 };
 use beui_renderer_wgpu::present::{Gpu, GpuSetup, OpenDevice, Presented, Target, create_gpu};
 use clipboard::Clipboard;
@@ -97,21 +98,10 @@ enum Message {
         modifiers: Modifiers,
         text: Option<String>,
     },
-    Compose(String),
-    Commit {
-        text: String,
-        composing: bool,
+    Ime {
+        event: ImeEvent,
+        serial: u64,
     },
-    Recompose {
-        by: i32,
-        delete: u32,
-        text: String,
-    },
-    Delete {
-        before: u32,
-        after: u32,
-    },
-    Move(i32),
     Back(BackGesture),
     InitialTreeRequested,
     Action(ActionRequest),
@@ -198,8 +188,8 @@ pub fn run_with(
         safe_area: SafeArea::default(),
         ime: None,
         handles_back: false,
-        preedit: String::new(),
-        restart_input: false,
+        ime_serial: 0,
+        sent_ime: None,
         tapped_at: None,
         next_update: None,
         redraw: false,
@@ -232,8 +222,8 @@ struct Runner {
     safe_area: SafeArea,
     ime: Option<ImeArea>,
     handles_back: bool,
-    preedit: String,
-    restart_input: bool,
+    ime_serial: u64,
+    sent_ime: Option<(Option<ImeText>, u64)>,
     tapped_at: Option<Pos2>,
     next_update: Option<Instant>,
     redraw: bool,
@@ -321,6 +311,43 @@ impl Runner {
             });
     }
 
+    fn set_ime_text(&self, text: Option<&ImeText>, serial: u64) {
+        let Some(view) = &self.view else {
+            return;
+        };
+        let offset = |index: usize| jlong::try_from(index).unwrap_or(jlong::MAX);
+        let _ = self
+            .vm
+            .attach_current_thread(|env| -> Result<(), JniError> {
+                let (start, value, selection, composing) = match text {
+                    Some(text) => (
+                        offset(text.start),
+                        env.new_string(&text.text)?,
+                        (offset(text.selection.start), offset(text.selection.end)),
+                        text.composing
+                            .as_ref()
+                            .map_or((-1, -1), |range| (offset(range.start), offset(range.end))),
+                    ),
+                    None => (0, env.new_string("")?, (0, 0), (-1, -1)),
+                };
+                env.call_method(
+                    view.as_obj(),
+                    jni_str!("setImeText"),
+                    jni_sig!("(JLjava/lang/String;JJJJJ)V"),
+                    &[
+                        JValue::Long(start),
+                        JValue::Object(&value),
+                        JValue::Long(selection.0),
+                        JValue::Long(selection.1),
+                        JValue::Long(composing.0),
+                        JValue::Long(composing.1),
+                        JValue::Long(jlong::try_from(serial).unwrap_or(jlong::MAX)),
+                    ],
+                )?;
+                Ok(())
+            });
+    }
+
     fn set_back_handled(&self, handled: bool) {
         let Some(view) = &self.view else {
             return;
@@ -387,27 +414,16 @@ impl Runner {
         }
     }
 
-    fn press(&mut self, key: Key, times: u32) {
-        for _ in 0..times {
-            press(key, &mut self.events);
-        }
-    }
-
-    fn move_by(&mut self, by: i32) {
-        let key = if by < 0 {
-            Key::ArrowLeft
-        } else {
-            Key::ArrowRight
-        };
-        self.press(key, by.unsigned_abs());
-    }
-
     fn handle(&mut self, message: Message) {
         match message {
             Message::View(view) => {
                 self.accessibility = None;
                 self.view = Some(view);
                 self.attach_accessibility();
+                self.ime_serial = 0;
+                let text = self.ime.as_ref().and_then(|area| area.text.clone());
+                self.set_ime_text(text.as_ref(), 0);
+                self.sent_ime = Some((text, 0));
                 if self.ime.is_some() {
                     self.set_keyboard(true);
                 }
@@ -448,11 +464,6 @@ impl Runner {
                 force,
             } => {
                 let pos = self.logical(x, y);
-                if phase == TouchPhase::Start && !self.preedit.is_empty() {
-                    let preedit = std::mem::take(&mut self.preedit);
-                    self.events.push(Event::Ime(ImeEvent::Commit(preedit)));
-                    self.restart_input = true;
-                }
                 if phase == TouchPhase::End {
                     self.tapped_at = Some(pos);
                 }
@@ -502,29 +513,10 @@ impl Runner {
                     self.events.push(Event::Text(text));
                 }
             }
-            Message::Compose(text) => {
-                self.preedit.clone_from(&text);
-                self.events.push(Event::Ime(ImeEvent::Preedit(text)));
+            Message::Ime { event, serial } => {
+                self.ime_serial = self.ime_serial.max(serial);
+                self.events.push(Event::Ime(event));
             }
-            Message::Commit { text, composing } => {
-                if composing || !self.preedit.is_empty() {
-                    self.preedit.clear();
-                    self.events
-                        .push(Event::Ime(ImeEvent::Commit(String::new())));
-                }
-                typed("", &text, &mut self.events);
-            }
-            Message::Recompose { by, delete, text } => {
-                self.move_by(by);
-                self.press(Key::Backspace, delete);
-                self.preedit.clone_from(&text);
-                self.events.push(Event::Ime(ImeEvent::Preedit(text)));
-            }
-            Message::Delete { before, after } => {
-                self.press(Key::Backspace, before);
-                self.press(Key::Delete, after);
-            }
-            Message::Move(by) => self.move_by(by),
             Message::Back(gesture) => self.events.push(Event::Back(gesture)),
             Message::InitialTreeRequested => {
                 self.accessibility_active = true;
@@ -684,15 +676,22 @@ impl Runner {
         self.next_update = Instant::now().checked_add(output.repaint_after);
 
         let asked = self.ime.is_some();
-        let restart = std::mem::take(&mut self.restart_input);
-        let tapped_field = self
-            .tapped_at
-            .take()
-            .is_some_and(|tap| asked && output.ime.is_some_and(|area| area.rect.contains(tap)));
+        let tapped_field = self.tapped_at.take().is_some_and(|tap| {
+            asked
+                && output
+                    .ime
+                    .as_ref()
+                    .is_some_and(|area| area.rect.contains(tap))
+        });
+        let text = output.ime.as_ref().and_then(|area| area.text.clone());
+        let sent = (text, self.ime_serial);
+        if self.sent_ime.as_ref() != Some(&sent) {
+            self.set_ime_text(sent.0.as_ref(), sent.1);
+            self.sent_ime = Some(sent);
+        }
         if output.ime.is_some() != asked {
-            self.preedit.clear();
             self.set_keyboard(output.ime.is_some());
-        } else if output.ime.is_some() && (restart || tapped_field) {
+        } else if output.ime.is_some() && tapped_field {
             self.set_keyboard(true);
         }
         self.ime = output.ime;
@@ -1099,62 +1098,43 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeKey<'local>(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_be3_beui_BeuiView_nativeCompose<'local>(
+pub extern "system" fn Java_com_be3_beui_BeuiView_nativeIme<'local>(
     env: EnvUnowned<'local>,
     _: JClass<'local>,
+    kind: jint,
+    first: jlong,
+    second: jlong,
     text: JString<'local>,
+    serial: jlong,
 ) {
-    send(Message::Compose(read(env, &text)));
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_be3_beui_BeuiView_nativeCommit<'local>(
-    env: EnvUnowned<'local>,
-    _: JClass<'local>,
-    text: JString<'local>,
-    composing: jboolean,
-) {
-    send(Message::Commit {
-        text: read(env, &text),
-        composing,
+    let index = |value: jlong| usize::try_from(value).unwrap_or(0);
+    let string = || match text.is_null() {
+        true => String::new(),
+        false => read(env, &text),
+    };
+    let event = match kind {
+        0 => ImeEvent::SetComposingText(string()),
+        1 => ImeEvent::CommitText(string()),
+        2 => ImeEvent::FinishComposing,
+        3 => ImeEvent::SetComposingRegion(index(first)..index(second)),
+        4 => ImeEvent::ReplaceText {
+            range: index(first)..index(second),
+            text: string(),
+        },
+        5 => ImeEvent::DeleteSurrounding {
+            before: index(first),
+            after: index(second),
+        },
+        6 => ImeEvent::SetSelection {
+            anchor: index(first),
+            focus: index(second),
+        },
+        _ => return,
+    };
+    send(Message::Ime {
+        event,
+        serial: u64::try_from(serial).unwrap_or(0),
     });
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_be3_beui_BeuiView_nativeRecompose<'local>(
-    env: EnvUnowned<'local>,
-    _: JClass<'local>,
-    by: jint,
-    delete: jint,
-    text: JString<'local>,
-) {
-    send(Message::Recompose {
-        by,
-        delete: count(delete),
-        text: read(env, &text),
-    });
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_be3_beui_BeuiView_nativeDelete<'local>(
-    _env: EnvUnowned<'local>,
-    _: JClass<'local>,
-    before: jint,
-    after: jint,
-) {
-    send(Message::Delete {
-        before: count(before),
-        after: count(after),
-    });
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_be3_beui_BeuiView_nativeMove<'local>(
-    _env: EnvUnowned<'local>,
-    _: JClass<'local>,
-    by: jint,
-) {
-    send(Message::Move(by));
 }
 
 #[unsafe(no_mangle)]

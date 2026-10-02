@@ -259,13 +259,13 @@ impl Runner {
             if output.ime.is_some() != surface.ime.is_some() {
                 surface.window.set_ime_allowed(output.ime.is_some());
             }
-            if let Some(area) = output.ime {
+            if let Some(area) = &output.ime {
                 surface.window.set_ime_cursor_area(
                     LogicalPosition::new(area.cursor.min.x, area.cursor.min.y),
                     LogicalSize::new(area.cursor.width().max(1.0), area.cursor.height().max(1.0)),
                 );
             }
-            surface.ime = output.ime;
+            surface.ime = output.ime.clone();
         }
         if let Some(fullscreen) = output.fullscreen
             && fullscreen != surface.fullscreen
@@ -599,17 +599,17 @@ impl ApplicationHandler<UserEvent> for Runner {
                     self.push(Event::Text(text.to_string()));
                 }
             }
-            WindowEvent::Ime(Ime::Commit(text)) => {
-                if !text.is_empty() {
-                    self.push(Event::Text(text));
-                }
+            WindowEvent::Ime(Ime::Enabled) => self.push(Event::Ime(ImeEvent::Enabled)),
+            WindowEvent::Ime(Ime::Preedit(text, _)) => {
+                self.push(Event::Ime(ImeEvent::SetComposingText(text)));
             }
-            WindowEvent::Ime(ime) => self.push(Event::Ime(match ime {
-                Ime::Enabled => ImeEvent::Enabled,
-                Ime::Preedit(text, _) => ImeEvent::Preedit(text),
-                Ime::Commit(text) => ImeEvent::Commit(text),
-                Ime::Disabled => ImeEvent::Disabled,
-            })),
+            WindowEvent::Ime(Ime::Commit(text)) => {
+                self.push(Event::Ime(ImeEvent::CommitText(text)))
+            }
+            WindowEvent::Ime(Ime::Disabled) => {
+                self.push(Event::Ime(ImeEvent::SetComposingText(String::new())));
+                self.push(Event::Ime(ImeEvent::Disabled));
+            }
             WindowEvent::HoveredFile(_) => self.push(Event::FileHovered),
             WindowEvent::HoveredFileCancelled => self.push(Event::FileHoverCancelled),
             WindowEvent::DroppedFile(path) => {

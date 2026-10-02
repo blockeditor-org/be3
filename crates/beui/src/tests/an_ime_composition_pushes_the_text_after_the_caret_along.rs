@@ -36,12 +36,14 @@ fn an_ime_composition_pushes_the_text_after_the_caret_along() {
     let before = [1, 5, 11].map(x_of);
     let first = x_of(0);
 
-    harness.frame(vec![Event::Ime(ImeEvent::Preedit("xyz".to_owned()))]);
-    let composing = [1, 5, 11].map(x_of);
+    harness.frame(vec![Event::Ime(ImeEvent::SetComposingText(
+        "xyz".to_owned(),
+    ))]);
+    let composing = [4, 8, 14].map(x_of);
     assert_eq!(
         String::from_utf8_lossy(&state.bytes()),
-        "hello world",
-        "the composition is shown, not written"
+        "hxyzello world",
+        "the composition is written where the caret was"
     );
     for (was, is) in before.iter().zip(composing) {
         assert!(
@@ -55,7 +57,7 @@ fn an_ime_composition_pushes_the_text_after_the_caret_along() {
         "the text before the caret stays where it was"
     );
 
-    harness.frame(vec![Event::Ime(ImeEvent::Disabled)]);
+    harness.frame(vec![Event::Ime(ImeEvent::SetComposingText(String::new()))]);
     assert_eq!(
         [1, 5, 11].map(x_of),
         before,

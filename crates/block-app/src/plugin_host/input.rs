@@ -1,6 +1,6 @@
 use beui::{Event, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    DroppedFile, ImeInput, InputBatch, InputEvent, Message, Modifiers, PointerButton, ScreenId,
+    DroppedFile, InputBatch, InputEvent, Message, Modifiers, PointerButton, ScreenId,
     ViewportMetrics, WheelUnit,
 };
 use std::collections::HashSet;
@@ -226,12 +226,7 @@ impl InputAdapter {
             }
             Event::Modifiers(modifiers) => push_modifiers(&mut self.modifiers, *modifiers, output),
             Event::Text(text) => output.push(InputEvent::Text(text.clone())),
-            Event::Ime(ime) => output.push(InputEvent::Ime(match ime {
-                beui::ImeEvent::Enabled => ImeInput::Enabled,
-                beui::ImeEvent::Preedit(text) => ImeInput::Preedit(text.clone()),
-                beui::ImeEvent::Commit(text) => ImeInput::Commit(text.clone()),
-                beui::ImeEvent::Disabled => ImeInput::Disabled,
-            })),
+            Event::Ime(ime) => output.push(InputEvent::Ime(beui_plugin_input::protocol_ime(ime))),
             Event::Focus(false) if self.focused => {
                 self.focused = false;
                 self.captured = false;

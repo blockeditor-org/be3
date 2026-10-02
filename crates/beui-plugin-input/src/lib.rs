@@ -1,6 +1,8 @@
 pub mod panes;
 
-use block_plugin_api::{BackEdge, BackPhase, Key, Modifiers, PointerButton, TouchPhase};
+use block_plugin_api::{
+    BackEdge, BackPhase, ImeInput, ImeText, Key, Modifiers, PointerButton, TouchPhase,
+};
 
 pub fn protocol_modifiers(modifiers: beui::Modifiers) -> Modifiers {
     Modifiers {
@@ -244,4 +246,81 @@ pub fn beui_key(key: Key) -> Option<beui::Key> {
         _ => return None,
     };
     Some(key)
+}
+
+pub fn protocol_ime(event: &beui::ImeEvent) -> ImeInput {
+    match event {
+        beui::ImeEvent::Enabled => ImeInput::Enabled,
+        beui::ImeEvent::Disabled => ImeInput::Disabled,
+        beui::ImeEvent::SetComposingText(text) => ImeInput::SetComposingText(text.clone()),
+        beui::ImeEvent::CommitText(text) => ImeInput::CommitText(text.clone()),
+        beui::ImeEvent::FinishComposing => ImeInput::FinishComposing,
+        beui::ImeEvent::SetComposingRegion(range) => ImeInput::SetComposingRegion {
+            start: range.start as u64,
+            end: range.end as u64,
+        },
+        beui::ImeEvent::ReplaceText { range, text } => ImeInput::ReplaceText {
+            start: range.start as u64,
+            end: range.end as u64,
+            text: text.clone(),
+        },
+        beui::ImeEvent::DeleteSurrounding { before, after } => ImeInput::DeleteSurrounding {
+            before: *before as u64,
+            after: *after as u64,
+        },
+        beui::ImeEvent::SetSelection { anchor, focus } => ImeInput::SetSelection {
+            anchor: *anchor as u64,
+            focus: *focus as u64,
+        },
+    }
+}
+
+pub fn beui_ime(input: &ImeInput) -> beui::ImeEvent {
+    match input {
+        ImeInput::Enabled => beui::ImeEvent::Enabled,
+        ImeInput::Disabled => beui::ImeEvent::Disabled,
+        ImeInput::SetComposingText(text) => beui::ImeEvent::SetComposingText(text.clone()),
+        ImeInput::CommitText(text) => beui::ImeEvent::CommitText(text.clone()),
+        ImeInput::FinishComposing => beui::ImeEvent::FinishComposing,
+        ImeInput::SetComposingRegion { start, end } => {
+            beui::ImeEvent::SetComposingRegion(index(*start)..index(*end))
+        }
+        ImeInput::ReplaceText { start, end, text } => beui::ImeEvent::ReplaceText {
+            range: index(*start)..index(*end),
+            text: text.clone(),
+        },
+        ImeInput::DeleteSurrounding { before, after } => beui::ImeEvent::DeleteSurrounding {
+            before: index(*before),
+            after: index(*after),
+        },
+        ImeInput::SetSelection { anchor, focus } => beui::ImeEvent::SetSelection {
+            anchor: index(*anchor),
+            focus: index(*focus),
+        },
+    }
+}
+
+pub fn protocol_ime_text(text: &beui::ImeText) -> ImeText {
+    ImeText {
+        start: text.start as u64,
+        text: text.text.clone(),
+        selection: (text.selection.start as u64, text.selection.end as u64),
+        composing: text
+            .composing
+            .as_ref()
+            .map(|range| (range.start as u64, range.end as u64)),
+    }
+}
+
+pub fn beui_ime_text(text: &ImeText) -> beui::ImeText {
+    beui::ImeText {
+        start: index(text.start),
+        text: text.text.clone(),
+        selection: index(text.selection.0)..index(text.selection.1),
+        composing: text.composing.map(|(start, end)| index(start)..index(end)),
+    }
+}
+
+fn index(value: u64) -> usize {
+    usize::try_from(value).unwrap_or(usize::MAX)
 }

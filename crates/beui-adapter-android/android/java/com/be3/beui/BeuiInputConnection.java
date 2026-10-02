@@ -6,20 +6,59 @@ import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.TextAttribute;
 
 final class BeuiInputConnection extends BaseInputConnection {
-    private static final int TRIM_AFTER = 1024;
-    private static final int KEEP = 256;
+    private static final int SET_COMPOSING_TEXT = 0;
+    private static final int COMMIT_TEXT = 1;
+    private static final int FINISH_COMPOSING = 2;
+    private static final int SET_COMPOSING_REGION = 3;
+    private static final int REPLACE_TEXT = 4;
+    private static final int DELETE_SURROUNDING = 5;
+    private static final int SET_SELECTION = 6;
 
     private final BeuiView view;
+    private long start;
     private int batch;
     private boolean closed;
 
-    BeuiInputConnection(BeuiView view) {
+    BeuiInputConnection(BeuiView view, BeuiView.ImeText state) {
         super(view, true);
         this.view = view;
+        load(state);
     }
 
     void close() {
         closed = true;
+    }
+
+    void sync(BeuiView.ImeText state) {
+        if (closed || batch > 0) return;
+        Editable text = getEditable();
+        int selectionStart = state.index(state.selectionStart);
+        int selectionEnd = state.index(state.selectionEnd);
+        int composingStart = state.composingStart < 0 ? -1 : state.index(state.composingStart);
+        int composingEnd = state.composingEnd < 0 ? -1 : state.index(state.composingEnd);
+        boolean same = start == state.start
+                && text.toString().equals(state.text)
+                && Selection.getSelectionStart(text) == selectionStart
+                && Selection.getSelectionEnd(text) == selectionEnd
+                && composingStart() == composingStart
+                && composingEnd() == composingEnd;
+        if (same) return;
+        load(state);
+        report();
+    }
+
+    private void load(BeuiView.ImeText state) {
+        Editable text = getEditable();
+        start = state.start;
+        if (!text.toString().equals(state.text)) text.replace(0, text.length(), state.text);
+        Selection.setSelection(text, state.index(state.selectionStart),
+                state.index(state.selectionEnd));
+        if (state.composingStart >= 0 && state.composingEnd > state.composingStart) {
+            super.setComposingRegion(state.index(state.composingStart),
+                    state.index(state.composingEnd));
+        } else {
+            removeComposingSpans(text);
+        }
     }
 
     @Override
@@ -31,15 +70,20 @@ final class BeuiInputConnection extends BaseInputConnection {
     @Override
     public boolean endBatchEdit() {
         if (batch > 0) batch--;
-        if (batch == 0) report();
+        if (batch == 0) {
+            report();
+            view.syncIme();
+        }
         return batch > 0;
     }
 
     @Override
     public boolean setComposingText(CharSequence text, int position) {
         if (closed) return false;
+        int from = composingStart() >= 0 ? composingStart() : low(getEditable());
+        send(SET_COMPOSING_TEXT, 0, 0, text.toString());
         super.setComposingText(text, position);
-        BeuiView.nativeCompose(text.toString());
+        follow(from + text.length());
         changed();
         return true;
     }
@@ -47,12 +91,31 @@ final class BeuiInputConnection extends BaseInputConnection {
     @Override
     public boolean commitText(CharSequence text, int position) {
         if (closed) return false;
-        int start = composingStart();
-        boolean composing = start >= 0;
-        if (!composing) start = selectionStart(getEditable());
+        int from = composingStart() >= 0 ? composingStart() : low(getEditable());
+        send(COMMIT_TEXT, 0, 0, text.toString());
         super.commitText(text, position);
-        BeuiView.nativeCommit(text.toString(), composing);
-        follow(start + text.length());
+        follow(from + text.length());
+        changed();
+        return true;
+    }
+
+    @Override
+    public boolean finishComposingText() {
+        if (closed) return false;
+        if (composingStart() >= 0) send(FINISH_COMPOSING, 0, 0, null);
+        super.finishComposingText();
+        changed();
+        return true;
+    }
+
+    @Override
+    public boolean setComposingRegion(int start, int end) {
+        if (closed) return false;
+        Editable text = getEditable();
+        int from = clamp(Math.min(start, end), text);
+        int to = clamp(Math.max(start, end), text);
+        send(SET_COMPOSING_REGION, offset(from), offset(to), null);
+        super.setComposingRegion(from, to);
         changed();
         return true;
     }
@@ -61,83 +124,31 @@ final class BeuiInputConnection extends BaseInputConnection {
     public boolean replaceText(int start, int end, CharSequence text, int position,
             TextAttribute attribute) {
         if (closed) return false;
-        beginBatchEdit();
-        settle();
         Editable content = getEditable();
         int from = clamp(Math.min(start, end), content);
         int to = clamp(Math.max(start, end), content);
-        int cursor = Selection.getSelectionEnd(content);
-        if (cursor >= 0) BeuiView.nativeMove(codePoints(content, cursor, to));
-        int removed = Character.codePointCount(content, from, to);
-        if (removed > 0) BeuiView.nativeDelete(removed, 0);
-        super.replaceText(start, end, text, position, attribute);
-        if (text.length() > 0) BeuiView.nativeCommit(text.toString(), false);
+        beginBatchEdit();
+        send(REPLACE_TEXT, offset(from), offset(to), text.toString());
+        super.replaceText(from, to, text, position, attribute);
         follow(from + text.length());
         endBatchEdit();
-        return true;
-    }
-
-    private void follow(int at) {
-        Editable text = getEditable();
-        int cursor = Selection.getSelectionEnd(text);
-        if (cursor < 0 || cursor != Selection.getSelectionStart(text)) return;
-        int move = codePoints(text, clamp(at, text), cursor);
-        if (move != 0) BeuiView.nativeMove(move);
-    }
-
-    private static int codePoints(Editable text, int from, int to) {
-        return from <= to
-                ? Character.codePointCount(text, from, to)
-                : -Character.codePointCount(text, to, from);
-    }
-
-    @Override
-    public boolean finishComposingText() {
-        if (closed) return false;
-        settle();
-        changed();
-        return true;
-    }
-
-    private void settle() {
-        String composed = composed();
-        super.finishComposingText();
-        if (composed != null) BeuiView.nativeCommit(composed, true);
-    }
-
-    @Override
-    public boolean setComposingRegion(int start, int end) {
-        if (closed) return false;
-        settle();
-        Editable text = getEditable();
-        int from = clamp(Math.min(start, end), text);
-        int to = clamp(Math.max(start, end), text);
-        int cursor = Selection.getSelectionEnd(text);
-        super.setComposingRegion(start, end);
-        if (from < to && cursor >= 0) {
-            int move = cursor <= to
-                    ? Character.codePointCount(text, cursor, to)
-                    : -Character.codePointCount(text, to, cursor);
-            BeuiView.nativeRecompose(move, Character.codePointCount(text, from, to),
-                    text.subSequence(from, to).toString());
-        }
-        changed();
         return true;
     }
 
     @Override
     public boolean deleteSurroundingText(int before, int after) {
         if (closed) return false;
-        settle();
         Editable text = getEditable();
-        int start = selectionStart(text);
-        int end = selectionEnd(text);
-        int from = Math.max(0, start - Math.max(0, before));
-        int to = Math.min(text.length(), end + Math.max(0, after));
-        int backward = Character.codePointCount(text, from, start);
-        int forward = Character.codePointCount(text, end, to);
-        super.deleteSurroundingText(before, after);
-        if (backward > 0 || forward > 0) BeuiView.nativeDelete(backward, forward);
+        int low = low(text);
+        int high = high(text);
+        int from = Math.max(0, low - Math.max(0, before));
+        int to = Math.min(text.length(), high + Math.max(0, after));
+        if (from > 0 && Character.isLowSurrogate(text.charAt(from))) from--;
+        if (to < text.length() && Character.isLowSurrogate(text.charAt(to))) to++;
+        if (from < low || high < to) {
+            send(DELETE_SURROUNDING, utf8(text, from, low), utf8(text, high, to), null);
+        }
+        super.deleteSurroundingText(low - from, to - high);
         changed();
         return true;
     }
@@ -145,35 +156,43 @@ final class BeuiInputConnection extends BaseInputConnection {
     @Override
     public boolean deleteSurroundingTextInCodePoints(int before, int after) {
         if (closed) return false;
-        settle();
         Editable text = getEditable();
-        int start = selectionStart(text);
-        int end = selectionEnd(text);
-        int backward = Math.min(Math.max(0, before), Character.codePointCount(text, 0, start));
+        int low = low(text);
+        int high = high(text);
+        int backward = Math.min(Math.max(0, before), Character.codePointCount(text, 0, low));
         int forward = Math.min(Math.max(0, after),
-                Character.codePointCount(text, end, text.length()));
-        int from = Character.offsetByCodePoints(text, start, -backward);
-        int to = Character.offsetByCodePoints(text, end, forward);
-        return deleteSurroundingText(start - from, to - end);
+                Character.codePointCount(text, high, text.length()));
+        int from = Character.offsetByCodePoints(text, low, -backward);
+        int to = Character.offsetByCodePoints(text, high, forward);
+        return deleteSurroundingText(low - from, to - high);
     }
 
     @Override
     public boolean setSelection(int start, int end) {
         if (closed) return false;
-        settle();
         Editable text = getEditable();
-        int cursor = Selection.getSelectionEnd(text);
-        boolean collapsed = start == end && start >= 0 && start <= text.length();
-        int move = 0;
-        if (collapsed && cursor >= 0) {
-            move = start >= cursor
-                    ? Character.codePointCount(text, cursor, start)
-                    : -Character.codePointCount(text, start, cursor);
-        }
+        if (start < 0 || end < 0 || start > text.length() || end > text.length()) return true;
+        send(SET_SELECTION, offset(start), offset(end), null);
         super.setSelection(start, end);
-        if (move != 0) BeuiView.nativeMove(move);
         changed();
         return true;
+    }
+
+    private void follow(int expected) {
+        Editable text = getEditable();
+        int anchor = Selection.getSelectionStart(text);
+        int focus = Selection.getSelectionEnd(text);
+        expected = clamp(expected, text);
+        if (anchor < 0 || focus < 0 || (anchor == expected && focus == expected)) return;
+        send(SET_SELECTION, offset(anchor), offset(focus), null);
+    }
+
+    private void send(int kind, long first, long second, String text) {
+        BeuiView.nativeIme(kind, first, second, text, view.nextImeSerial());
+    }
+
+    private long offset(int index) {
+        return start + utf8(getEditable(), 0, index);
     }
 
     private void changed() {
@@ -182,22 +201,8 @@ final class BeuiInputConnection extends BaseInputConnection {
 
     private void report() {
         Editable text = getEditable();
-        if (composingStart() < 0 && text.length() > TRIM_AFTER) {
-            int cut = Math.min(text.length() - KEEP, selectionStart(text));
-            if (cut > 0 && cut < text.length() && Character.isLowSurrogate(text.charAt(cut))) {
-                cut++;
-            }
-            if (cut > 0) text.delete(0, cut);
-        }
         view.updateSelection(Selection.getSelectionStart(text), Selection.getSelectionEnd(text),
                 composingStart(), composingEnd());
-    }
-
-    private String composed() {
-        int start = composingStart();
-        int end = composingEnd();
-        if (start < 0) return null;
-        return getEditable().subSequence(start, end).toString();
     }
 
     private int composingStart() {
@@ -214,17 +219,36 @@ final class BeuiInputConnection extends BaseInputConnection {
         return start < 0 || end < 0 ? -1 : Math.max(start, end);
     }
 
-    private static int selectionStart(Editable text) {
+    private static int low(Editable text) {
         return clamp(Math.min(Selection.getSelectionStart(text), Selection.getSelectionEnd(text)),
                 text);
     }
 
-    private static int selectionEnd(Editable text) {
+    private static int high(Editable text) {
         return clamp(Math.max(Selection.getSelectionStart(text), Selection.getSelectionEnd(text)),
                 text);
     }
 
     private static int clamp(int index, Editable text) {
         return Math.max(0, Math.min(index, text.length()));
+    }
+
+    static long utf8(CharSequence text, int from, int to) {
+        long bytes = 0;
+        for (int index = from; index < to; index++) {
+            char letter = text.charAt(index);
+            if (letter < 0x80) {
+                bytes += 1;
+            } else if (letter < 0x800) {
+                bytes += 2;
+            } else if (Character.isHighSurrogate(letter) && index + 1 < to
+                    && Character.isLowSurrogate(text.charAt(index + 1))) {
+                bytes += 4;
+                index++;
+            } else {
+                bytes += 3;
+            }
+        }
+        return bytes;
     }
 }

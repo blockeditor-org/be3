@@ -19,6 +19,12 @@ fn ime_messages_round_trip() {
                     width: 1.0,
                     height: 12.0,
                 },
+                text: Some(ImeText {
+                    start: 4,
+                    text: "say helo".into(),
+                    selection: (8, 8),
+                    composing: Some((4, 8)),
+                }),
             }),
         }),
         Message::Editor(EditorMessage::Ime {
@@ -30,8 +36,23 @@ fn ime_messages_round_trip() {
             screen: ScreenId(2),
             events: vec![
                 InputEvent::Ime(ImeInput::Enabled),
-                InputEvent::Ime(ImeInput::Preedit("か".into())),
-                InputEvent::Ime(ImeInput::Commit("漢".into())),
+                InputEvent::Ime(ImeInput::SetComposingText("か".into())),
+                InputEvent::Ime(ImeInput::CommitText("漢".into())),
+                InputEvent::Ime(ImeInput::FinishComposing),
+                InputEvent::Ime(ImeInput::SetComposingRegion { start: 4, end: 8 }),
+                InputEvent::Ime(ImeInput::ReplaceText {
+                    start: 4,
+                    end: 8,
+                    text: "hello".into(),
+                }),
+                InputEvent::Ime(ImeInput::DeleteSurrounding {
+                    before: 1,
+                    after: 2,
+                }),
+                InputEvent::Ime(ImeInput::SetSelection {
+                    anchor: 3,
+                    focus: 3,
+                }),
                 InputEvent::Ime(ImeInput::Disabled),
             ],
         }),

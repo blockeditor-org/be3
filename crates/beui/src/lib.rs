@@ -30,8 +30,8 @@ pub use beui_core::icons;
 pub use beui_core::image::{Image, ImageFit, ImageId, Thumbhash};
 pub use beui_core::input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DroppedFile, Event, ImeArea, ImeEvent,
-    InputState, Key, KeyPress, Modifiers, PointerButton, PointerPress, RawInput, ScrollGesture,
-    SecondaryDrag, TouchId, TouchPhase, TouchPoint, TouchState, ZoomGesture,
+    ImeText, InputState, Key, KeyPress, Modifiers, PointerButton, PointerPress, RawInput,
+    ScrollGesture, SecondaryDrag, TouchId, TouchPhase, TouchPoint, TouchState, ZoomGesture,
 };
 pub use beui_core::interact::forward::ForwardedInput;
 pub use beui_core::node::{ClickHandler, Handler, NodeId, NodeOf};
