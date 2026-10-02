@@ -9,6 +9,7 @@ mod connection_markers_render_as_wire_value_triangles;
 mod connection_stub_extends_outward_from_the_wired_port;
 mod input_and_output_leads_extend_to_the_viewport_edge;
 mod merger_splitter_renders_order_lines;
+mod mirrored_merger_splitter_renders_crossing_order_lines;
 mod one_x_grid_emits_lines_one_world_unit_apart;
 mod storage_state_renders_as_wire_value_rectangle;
 mod viewport_grid_and_entities_are_layered_and_bounded;
@@ -32,4 +33,3 @@ fn bbox(triangles: &[DrawTriangle]) -> [f32; 4] {
     }
     bounds
 }
-mod mirrored_merger_splitter_renders_crossing_order_lines;

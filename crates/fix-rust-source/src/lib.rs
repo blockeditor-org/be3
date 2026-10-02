@@ -306,6 +306,13 @@ fn find_violations(root: &Path) -> Result<Vec<String>, Box<dyn Error>> {
                 ));
             }
         }
+        let content = fs::read_to_string(&aggregator)?;
+        if sorted_test_modules(&content, &directory) != content {
+            violations.push(format!(
+                "unsorted test modules: {}",
+                relative(root, &aggregator)
+            ));
+        }
     }
 
     Ok(violations)
@@ -719,7 +726,60 @@ fn synchronize_test_modules(root: &Path) -> Result<(), Box<dyn Error>> {
             fs::write(production, source)?;
         }
     }
+    for directory in &directories {
+        let aggregator = directory.with_extension("rs");
+        let content = fs::read_to_string(&aggregator)?;
+        let sorted = sorted_test_modules(&content, directory);
+        if sorted != content {
+            fs::write(aggregator, sorted)?;
+        }
+    }
     Ok(())
+}
+
+fn sorted_test_modules(content: &str, directory: &Path) -> String {
+    let lines = content.lines().collect::<Vec<_>>();
+    let test_module = |index: usize| {
+        lines[index]
+            .strip_prefix("mod ")
+            .and_then(|module| module.strip_suffix(';'))
+            .filter(|module| directory.join(module).with_extension("rs").exists())
+            .filter(|_| index == 0 || !lines[index - 1].trim_start().starts_with("#["))
+    };
+    let mut modules = (0..lines.len()).filter_map(test_module).collect::<Vec<_>>();
+    if modules.is_empty() {
+        return content.to_owned();
+    }
+    modules.sort_unstable();
+    modules.dedup();
+
+    let mut kept = Vec::new();
+    let mut placed = false;
+    let mut removed = false;
+    for (index, line) in lines.iter().enumerate() {
+        if test_module(index).is_some() {
+            if !placed {
+                kept.extend(modules.iter().map(|module| format!("mod {module};")));
+                placed = true;
+            }
+            removed = true;
+            continue;
+        }
+        if removed
+            && line.trim().is_empty()
+            && kept
+                .last()
+                .is_some_and(|last: &String| last.trim().is_empty())
+        {
+            continue;
+        }
+        removed = false;
+        kept.push((*line).to_owned());
+    }
+    while kept.last().is_some_and(|line| line.trim().is_empty()) {
+        kept.pop();
+    }
+    format!("{}\n", kept.join("\n"))
 }
 
 fn remove_stale_modules(aggregator: &Path, directory: &Path) -> Result<(), Box<dyn Error>> {
