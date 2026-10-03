@@ -56,7 +56,8 @@ fn a_shown_dmabuf_is_released_once_a_newer_one_is_painted() {
         let fd = rustix::fs::memfd_create("dmabuf", rustix::fs::MemfdFlags::CLOEXEC)
             .expect("a memfd opens");
         let mut file = std::fs::File::from(fd);
-        file.write_all(&pattern(64, 16)).expect("the pixels are written");
+        file.write_all(&pattern(64, 16))
+            .expect("the pixels are written");
         harness
             .client
             .attach_dmabuf_unsent(&window, file.as_fd(), 64, 16);
