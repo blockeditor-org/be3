@@ -203,10 +203,11 @@ Run them from a checkout of the repository.
    sudo chmod 755 "$server/run-action"
    ```
 
-8. **Write `$server/nativelink.json5`.** Set the CAS's `max_bytes` to the disk
-   space the cache may use: the disk's size, less about 15 GB for the image,
-   the action cache and actions' work directories. Set `max_inflight_tasks` to
-   the machine's core count.
+8. **Write `$server/nativelink.json5`.** Set the CAS's `max_bytes` to about
+   60% of the disk's size. `max_bytes` bounds only `cas`; the rest of the disk
+   is for `cas.exec` (see Disk space below), the image, the action cache and
+   actions' work directories. Set `max_inflight_tasks` to the machine's core
+   count.
    ```
    sudo tee "$server/nativelink.json5" << 'EOF'
    {
@@ -218,7 +219,7 @@ Run them from a checkout of the repository.
              filesystem: {
                content_path: "/var/lib/be3-build-server/cas",
                temp_path: "/var/lib/be3-build-server/cas-tmp",
-               eviction_policy: { max_bytes: 80000000000 },
+               eviction_policy: { max_bytes: 60000000000 },
              },
            },
            slow: { noop: {} },
@@ -363,5 +364,13 @@ The cache starts empty, so the first build of everything takes a while.
 - **Empty the cache:** stop the service, delete `cas`, `ac` and `work` in
   `$server`, and start the service again. Every client must also run
   `./scripts/buck kill`, because buck2 remembers which blobs it uploaded.
+- **Disk space.** `max_bytes` does not bound the disk. NativeLink also keeps
+  a second copy of every blob an action used as an executable in `cas.exec`,
+  which no limit covers; it grew to 18 GB beside an 80 GB CAS and filled a
+  100 GB disk, and actions failed with `No space left on device`. NativeLink
+  empties `cas.exec` when it starts, so restarting the service frees it. To
+  shrink the cache, lower `max_bytes` and restart; NativeLink evicts down to
+  it as it starts. If the cache has a disk of its own, give `be3-build` the
+  blocks ext4 reserves for root: `sudo tune2fs -m 0 DEVICE`.
 - **What the key gives away.** Anyone with the key can run any command on the
   machine as `be3-build`, so they can also read its secrets.
