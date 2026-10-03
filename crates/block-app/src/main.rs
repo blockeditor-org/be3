@@ -155,6 +155,7 @@ impl Shell {
                 <ui::Root view />
             }
         });
+        document.on_interacted(plugin_host::start_frames);
         document.on_laid_out(|| {
             plugin_host::settle();
             compositor::notify_plugins();

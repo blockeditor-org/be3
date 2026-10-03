@@ -1607,7 +1607,10 @@ A frame is input, then layout, then paint. Input is dispatched against the rects
 the previous frame painted, which is what the reader was looking at when they
 clicked, and the tree is laid out exactly once afterwards.
 
-The one exception is `Document::on_laid_out`, a callback that runs inside the
+`Document::on_interacted` runs a callback once the frame's input has been
+dispatched and before anything is laid out, for an app that wants work started
+by that input under way while the document lays out. The one exception to the
+single layout is `Document::on_laid_out`, a callback that runs inside the
 document's reactive scope between layout and paint, for an app that has to
 answer something layout decided: block-app waits there for its plugins to draw
 at the sizes they were just given. Whatever it changes is laid out again before

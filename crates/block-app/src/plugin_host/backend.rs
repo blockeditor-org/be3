@@ -9,6 +9,13 @@ use super::web::Web;
 
 pub(super) const NOT_INSTALLED: &str = "The plugin host is not installed.";
 
+#[derive(Clone, Copy, Default)]
+pub(super) struct StepTime {
+    pub(super) step: Duration,
+    pub(super) gpu: Duration,
+    pub(super) submit: Duration,
+}
+
 pub(super) trait ShownFrame {
     fn presents(&self) -> u64;
 
@@ -44,7 +51,7 @@ pub(super) trait Backend: Sized {
         false
     }
 
-    fn took(&mut self) -> Option<Duration> {
+    fn took(&mut self) -> Option<StepTime> {
         None
     }
 

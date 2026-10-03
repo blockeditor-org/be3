@@ -90,6 +90,7 @@ pub struct Document {
     paint_revision: u64,
     delivering: bool,
     pub deferred_reveals: Vec<NodeId>,
+    interaction_done: Option<Rc<dyn Fn()>>,
     laid_out: Option<Rc<dyn Fn()>>,
     constrained: HashSet<NodeId>,
     measurements: NodeMap<Vec<(Vec2, Vec2)>>,
@@ -289,6 +290,7 @@ impl Document {
             paint_revision: 0,
             delivering: false,
             deferred_reveals: Vec::new(),
+            interaction_done: None,
             laid_out: None,
             constrained: HashSet::new(),
             measurements: NodeMap::default(),
@@ -808,6 +810,10 @@ impl Document {
         ctx.show_mouse_simulation(rect);
     }
 
+    pub fn on_interacted(&mut self, interacted: impl Fn() + 'static) {
+        self.interaction_done = Some(Rc::new(interacted));
+    }
+
     pub fn on_laid_out(&mut self, laid_out: impl Fn() + 'static) {
         self.laid_out = Some(Rc::new(laid_out));
     }
@@ -945,6 +951,11 @@ impl Document {
                     });
                 }
             });
+        }
+        if let Some(interacted) = self.interaction_done.clone() {
+            let context = self.reactive_scope().context();
+            let _guard = crate::current::install(self);
+            context.run(|| interacted());
         }
         if self.handles_back() {
             ctx.handle_back();

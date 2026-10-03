@@ -303,6 +303,15 @@ impl Runtime {
         true
     }
 
+    fn start(&mut self, pass: u64) {
+        self.detect_error();
+        if self.error.is_some() || !(self.instances.has_mounted() || self.pass + 1 >= pass) {
+            return;
+        }
+        self.pump();
+        self.request_frame();
+    }
+
     fn settle(&mut self, deadline: Deadline) -> bool {
         while self.error.is_none() && !self.backend.settled() && self.backend.wait(deadline) {
             self.pump();
@@ -391,11 +400,18 @@ impl Runtime {
         self.apply(forwarded);
         if let Some(mut frame) = self.backend.received_frame() {
             if let Some(took) = self.backend.took() {
-                crate::performance::record_group_duration(
-                    PACING,
-                    &format!("{} step", self.plugin.identity.id),
-                    took,
-                );
+                let id = &self.plugin.identity.id;
+                for (name, duration) in [
+                    ("step", took.step),
+                    ("GPU calls", took.gpu),
+                    ("submit", took.submit),
+                ] {
+                    crate::performance::record_group_duration(
+                        PACING,
+                        &format!("{id} {name}"),
+                        duration,
+                    );
+                }
             }
             frame.set_damage(self.presents.damage_through(frame.presents()));
             self.shared.borrow_mut().publish(&self.layout, Some(frame));
@@ -780,6 +796,15 @@ pub(crate) fn settle() {
         }
         host.waited += started.elapsed();
         host.over_budget += u64::from(over);
+    });
+}
+
+pub(crate) fn start_frames() {
+    let pass = host::pass();
+    HOST.with(|host| {
+        for runtime in host.borrow_mut().runtimes.values_mut() {
+            runtime.start(pass);
+        }
     });
 }
 

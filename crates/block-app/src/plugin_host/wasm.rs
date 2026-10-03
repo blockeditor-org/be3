@@ -7,7 +7,7 @@ use std::{
         mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError},
     },
     thread,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use crate::editors::plugin::discovery::{self, Module};
@@ -16,7 +16,7 @@ use block_plugin_api::{Message, PluginManifest, ScreenLayout, decode_frame, enco
 use block_wasm_host::{Host, Plugin};
 
 use super::{
-    backend::Deadline,
+    backend::{Deadline, StepTime},
     surface::{SurfaceFrame, gpu},
 };
 
@@ -45,7 +45,7 @@ struct Target {
 struct Produced {
     outbound: Vec<Vec<u8>>,
     presented: Option<Target>,
-    took: Duration,
+    took: StepTime,
 }
 
 impl Produced {
@@ -76,7 +76,7 @@ struct Worker {
     target: Option<Target>,
     presented: bool,
     presents: u64,
-    took: Option<Duration>,
+    took: Option<StepTime>,
 }
 
 pub(super) struct Wasm {
@@ -216,7 +216,7 @@ impl super::backend::Backend for Wasm {
         true
     }
 
-    fn took(&mut self) -> Option<Duration> {
+    fn took(&mut self) -> Option<StepTime> {
         self.worker.as_mut()?.took.take()
     }
 
@@ -355,7 +355,7 @@ fn run(
     }
     if !report(
         &reports,
-        Event::Ready(produced(&mut plugin, Duration::ZERO)),
+        Event::Ready(produced(&mut plugin, StepTime::default())),
         true,
         &waiting,
     ) {
@@ -369,7 +369,11 @@ fn run(
         plugin.take_wake();
         let started = Instant::now();
         let event = match plugin.step() {
-            Ok(()) => Event::Stepped(produced(&mut plugin, started.elapsed())),
+            Ok(()) => {
+                let step = started.elapsed();
+                let (gpu, submit) = plugin.take_gpu_time();
+                Event::Stepped(produced(&mut plugin, StepTime { step, gpu, submit }))
+            }
             Err(error) => Event::Failed(error),
         };
         let woken = plugin.take_wake();
@@ -390,7 +394,7 @@ fn report(reports: &Sender<Event>, event: Event, woken: bool, waiting: &AtomicBo
     sent
 }
 
-fn produced(plugin: &mut Plugin, took: Duration) -> Produced {
+fn produced(plugin: &mut Plugin, took: StepTime) -> Produced {
     let outbound = plugin.take_outbound();
     let presented = plugin
         .take_presented()
