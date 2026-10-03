@@ -15,6 +15,7 @@ export_file(
 # each names.
 #
 #   ./scripts/buck run //:verify [-- --check] [--lint] [--tests] [--plugin-tests]
+#   ./scripts/buck run //:ci [-- --check] [--android DIR] [--previews BASE OUT]
 #   ./scripts/buck run //:check
 #   ./scripts/buck run //:lock-sysroot
 #   ./scripts/buck run //:rust-project
@@ -26,6 +27,15 @@ tool(
     command = [
         "sh",
         "$(location //buck/dev:verify.sh)",
+    ],
+)
+
+# Everything CI runs, in the one command its job runs: buck/dev/ci.sh.
+tool(
+    name = "ci",
+    command = [
+        "sh",
+        "$(location //buck/dev:ci.sh)",
     ],
 )
 

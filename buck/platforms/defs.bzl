@@ -1,7 +1,7 @@
 load("@prelude//cfg/exec_platform:marker.bzl", "get_exec_platform_marker")
 
 # prelude//platforms:defs.bzl's execution_platform, pointed at a remote executor.
-# Actions run on BuildBuddy unless their rule asks to run locally.
+# Actions run on the build server unless their rule asks to run locally.
 def _execution_platform_impl(ctx: AnalysisContext) -> list[Provider]:
     constraints = dict()
     constraints.update(ctx.attrs.cpu_configuration[ConfigurationInfo].constraints)

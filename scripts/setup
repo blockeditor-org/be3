@@ -5,7 +5,7 @@
 # Everything here is idempotent, so running it again on a machine that is
 # already set up only reports what is already there. It assumes apt.
 #
-# Everything the project builds, buck2 builds, on BuildBuddy's workers with
+# Everything the project builds, buck2 builds, on our build server with
 # compilers it brings itself, so what this machine needs is buck2, the Python
 # buck2's own rules run their helpers with, and the libraries the app and the
 # plugin tests load when they run here.
@@ -91,7 +91,7 @@ else
     DEBIAN_FRONTEND=noninteractive $sudo apt-get install -y "${missing[@]}"
 fi
 
-# buck2 builds and tests the workspace on BuildBuddy's workers;
+# buck2 builds and tests the workspace on our build server;
 # guides/buck2.md says what it covers. It is a download of a pinned release, so
 # it costs seconds.
 step 'Installing buck2'
@@ -99,7 +99,7 @@ step 'Installing buck2'
 
 end_step
 echo ''
-echo 'Setup finished. Every build runs on BuildBuddy, so put its API key in'
-echo 'BUILDBUDDY_API_KEY or in ~/.config/be3/buildbuddy-api-key - guides/buck2.md'
+echo 'Setup finished. Every build runs on our build server, so put its key in'
+echo 'BE3_BUILD_SERVER_KEY or in ~/.config/be3/build-server-key - guides/build_server.md'
 echo 'says more - then check the workspace compiles with'
 echo './scripts/buck run //:check, and run ./scripts/buck run //:verify before committing.'
