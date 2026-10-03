@@ -326,6 +326,8 @@ pub struct Renderer {
     list_top: usize,
     generation: u64,
     lists: HashMap<ListKey, Encoded>,
+    drawn: std::collections::HashSet<ListKey>,
+    frames: u64,
     live: usize,
     atlas_epoch: u64,
     pub encoded: usize,
@@ -385,6 +387,7 @@ struct Encoded {
     parts: Vec<(usize, usize)>,
     placed: Option<(u64, u32)>,
     atlas: u64,
+    seen: u64,
 }
 
 enum ListRun {
@@ -717,6 +720,8 @@ impl Renderer {
             list_top: 0,
             generation: 0,
             lists: HashMap::new(),
+            drawn: std::collections::HashSet::new(),
+            frames: 0,
             live: 0,
             atlas_epoch: 0,
             encoded: 0,
@@ -984,6 +989,7 @@ impl Renderer {
         }
         queue.write_buffer(&self.space_buffer, 0, &spaces);
         self.record_drawings(device, queue, &frame.drawings);
+        self.release_drawings();
         if self.lists.len() > 2 * self.live + LISTED {
             self.sweep(output, pixels_per_point);
         }
@@ -1144,6 +1150,14 @@ impl Renderer {
             Some(encoded) if encoded.atlas == self.atlas_epoch => encoded,
             _ => self.encode_list(frame.queue, display, &at),
         };
+        encoded.seen = self.frames;
+        if encoded
+            .runs
+            .iter()
+            .any(|run| matches!(run, ListRun::Drawing { .. }))
+        {
+            self.drawn.insert(key);
+        }
         let base = match encoded.placed {
             Some((generation, start)) if generation == self.generation => start,
             _ => {
@@ -1324,7 +1338,22 @@ impl Renderer {
             parts,
             placed: None,
             atlas: self.atlas_epoch,
+            seen: self.frames,
         }
+    }
+
+    fn release_drawings(&mut self) {
+        let frames = self.frames;
+        let lists = &mut self.lists;
+        self.drawn.retain(|key| match lists.get(key) {
+            Some(encoded) if encoded.seen == frames => true,
+            Some(_) => {
+                lists.remove(key);
+                false
+            }
+            None => false,
+        });
+        self.frames += 1;
     }
 
     fn sweep(&mut self, output: &FrameOutput, pixels_per_point: f32) {
