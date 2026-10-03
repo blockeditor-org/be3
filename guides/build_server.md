@@ -37,23 +37,15 @@ You need:
 - an Ubuntu machine (24.04 or newer) with sudo
 - a domain whose A record points at the machine
 - ports 80 and 443 open, so Caddy can get a certificate and serve
-- a disk of its own for `/var/lib/be3-build-server`, 100 GB or more. One of
-  CI's builds needs more than 35 GB of cache at once. A blob evicted partway
+- 100 GB or more free where `/var/lib/be3-build-server` lives. One of CI's
+  builds needs more than 35 GB of cache at once. A blob evicted partway
   through a build is an input buck2 thinks it already uploaded, and the
   actions that need it fail with `not found in either fast or slow store`.
 
 Then:
 
-1. Format the disk and mount it before running `install`:
-   ```
-   sudo parted -s /dev/sdX mklabel gpt mkpart be3-build ext4 1MiB 100%
-   sudo mkfs.ext4 -L be3-build /dev/sdX1
-   echo "UUID=$(sudo blkid -s UUID -o value /dev/sdX1) /var/lib/be3-build-server ext4 defaults,noatime,nofail 0 2" | sudo tee -a /etc/fstab
-   sudo mkdir -p /var/lib/be3-build-server && sudo mount /var/lib/be3-build-server
-   ```
-   On this server it is `/dev/sdb`.
-2. Clone the repository on the machine.
-3. Run `./scripts/build-server install DOMAIN`. Running it again is safe: it
+1. Clone the repository on the machine.
+2. Run `./scripts/build-server install DOMAIN`. Running it again is safe: it
    changes only what differs, and restarts only what it changed. It:
    - installs `busybox-static`, `uidmap` and `caddy` if they are missing
    - adds the system user `be3-build` with subordinate group IDs
@@ -65,13 +57,13 @@ Then:
    - makes `/etc/be3-build-server/secrets` for the secrets actions ask for
    - replaces `/etc/caddy/Caddyfile` with the server's site. A Caddyfile it
      did not write is first kept as `Caddyfile.before-build-server`.
-4. If the domain is new, change it in three places:
+3. If the domain is new, change it in three places:
    - the `[buck2_re_client]` addresses in `.buckconfig`
    - the example host in `scripts/internal/re-relay/main.go`
    - this guide
-5. Give the key to every machine that builds, and to CI as the secret
+4. Give the key to every machine that builds, and to CI as the secret
    `BE3_BUILD_SERVER_KEY`.
-6. Give it CI's Android keystore (below).
+5. Give it CI's Android keystore (below).
 
 The cache starts empty, so the first build of everything takes a while.
 `//:check` took about 16 minutes on six cores.
@@ -109,10 +101,11 @@ as an update over the last.
   API on `127.0.0.1:50062`.
 - **Concurrency.** The worker runs as many actions at once as the machine has
   cores.
-- **Cache size.** When `/var/lib/be3-build-server` is a disk of its own, the
-  CAS fills all of that disk except 15 GB, which is kept for the image, the
-  action cache and the actions' work directories. On a shared disk the CAS is
-  limited to 35 GB, which isn't enough for CI's build.
+- **Cache size.** `install` sets the CAS limit to the space it can use at that
+  moment: what the CAS already holds plus the free space on the same
+  filesystem, minus 15 GB kept for the image, the action cache and the
+  actions' work directories. After freeing or adding disk space, run
+  `install` again.
 - **Evicted outputs.** The action cache reports a result as a miss once the
   CAS has evicted that result's outputs.
 - **Actions run as root in the workers' image.** That image is

@@ -196,17 +196,15 @@ print(next(m["digest"] for m in index["manifests"] if m.get("platform") == {"arc
     echo "$digest" | sudo -u "$service_user" tee "$rootfs.digest" > /dev/null
 }
 
-# The CAS's size. One build of everything CI builds needs more than 35 GB at
-# once, and a blob evicted mid-build is an input buck2 believes it uploaded,
-# so the cache wants a disk of its own: on one, the cache is all of it but
-# 15 GB for the image, the action cache and actions' work directories. On a
-# shared disk it stays at 35 GB, which is enough for everything but CI's build.
+# The CAS's size: what it holds now and what is free beside it, but 15 GB for
+# the image, the action cache and actions' work directories, as of this
+# install. One build of everything CI builds needs more than 35 GB at once,
+# and a blob evicted partway through is an input buck2 believes it uploaded.
 cache_bytes() {
-    if [[ "$(findmnt -n -o TARGET --target "$server")" == "$server" ]]; then
-        echo $(($(df -B1 --output=size "$server" | tail -1) - 15000000000))
-    else
-        echo 35000000000
-    fi
+    local held free
+    held="$(sudo du -sb "$server/cas" 2> /dev/null | cut -f1)"
+    free="$(df -B1 --output=avail "$server" | tail -1)"
+    echo $((${held:-0} + free - 15000000000))
 }
 
 # What changed among the files below, so that the service restarts only for a
