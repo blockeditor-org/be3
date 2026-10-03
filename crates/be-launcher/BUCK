@@ -1,4 +1,4 @@
-load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
+load("@root//buck/android:defs.bzl", "android_apk")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
 load("@root//buck/tools:defs.bzl", "tool")
 
@@ -51,10 +51,18 @@ tool(
     ],
 )
 
-signed_apk(
+# What CI ships, signed on the runner with CI's keystore:
+# `./scripts/buck run :android-dist -- --keystore FILE --out APK`.
+tool(
     name = "android-dist",
-    apk = ":apk-dist",
-    exec_compatible_with = ["root//buck/constraints:android_keystore"],
-    key_version = 1,
-    visibility = ["//buck/ci:"],
+    command = [
+        "sh",
+        "$(location //buck/android:sign.sh)",
+        "$(location //buck/android:jdk)",
+        "$(location //buck/android:build-tools)",
+        "$(location //buck/android:platform-tools)",
+        "$(location :apk-dist)",
+        "be-launcher",
+        "com.be3.launcher.LauncherActivity",
+    ],
 )

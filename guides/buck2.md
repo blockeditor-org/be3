@@ -1,7 +1,7 @@
 # buck2
 
-buck2 builds, lints and tests the workspace, and every action runs on
-BuildBuddy's remote workers. Every command is a buck2 target started through
+buck2 builds, lints and tests the workspace, and every action runs on our
+build server (guides/build_server.md). Every command is a buck2 target started through
 `./scripts/buck`. cargo builds nothing; `Cargo.toml` is still the one place a
 dependency is declared, and buck2 reads it through cargo's own plans.
 
@@ -20,7 +20,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
-| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's, signed on a worker with CI's key) |
+| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`run :android-dist -- --keystore FILE --out APK` is CI's, signed with CI's key) |
 | `./scripts/buck run //crates/beui-demo:demo` | beui's demo in a window |
 | `./scripts/buck run //crates/beui:survey-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //crates/beui-web-demo:web-serve` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
@@ -45,19 +45,18 @@ these in front of the pinned buck2:
 - **buck2 itself.** The release pinned in `scripts/internal/common.sh` is
   installed into `target/tools/buck2-<version>/` the first time it is missing.
   A `buck2` on `PATH` is not used, since each buck2 carries its own prelude.
-- **The BuildBuddy key**: `BUILDBUDDY_API_KEY`, else `.buildbuddy-api-key` at
-  the root (git ignores it), else `~/.config/be3/buildbuddy-api-key`. With
+- **The build server's key**: `BE3_BUILD_SERVER_KEY`, else `.build-server-key`
+  at the root (git ignores it), else `~/.config/be3/build-server-key`. With
   none, a person at a terminal is asked for it and it is saved to
-  `.buildbuddy-api-key`; without a terminal it fails and says what to set.
-  After changing the key, restart the daemon with `./scripts/buck killall`.
-- **An HTTPS proxy.** buck2's remote execution client dials BuildBuddy directly
-  and never reads `HTTPS_PROXY`. When it is set, `./scripts/buck` builds
+  `~/.config/be3/build-server-key`; without a terminal it fails and says what
+  to set. After changing the key, restart the daemon with
+  `./scripts/buck killall`.
+- **An HTTPS proxy.** buck2's remote execution client dials the build server
+  directly and never reads `HTTPS_PROXY`. When it is set, `./scripts/buck` builds
   `scripts/internal/re-relay` with Go (1.24 or newer), leaves it running on
   `127.0.0.1:18980`, and writes a `.buckconfig.local` pointing buck2 at it; the
   relay sends each call on through the proxy, over HTTP/1.1 if that is all the
-  proxy speaks. It still needs a key, though a proxy that adds BuildBuddy's
-  header itself accepts any value, such as `BUILDBUDDY_API_KEY=proxy-injected`.
-  Its errors go to `target/re-relay.log`. A `.buckconfig.local` a person wrote
+  proxy speaks. Its errors go to `target/re-relay.log`. A `.buckconfig.local` a person wrote
   is left alone, and the relay is not used then.
 - **The generated rules.** `buck/cargo/crates.bzl` is not checked in: every
   crate's dependencies, features and targets, first- and third-party, from
@@ -78,8 +77,8 @@ these in front of the pinned buck2:
   it, and a Windows checkout has none, so no file a build reads may have one:
   Windows would miss every cache entry Linux wrote. Scripts are run with `sh`,
   and `//:verify`'s lint clears the bit from anything outside `scripts/`.
-- **One retry.** buck2 exits with 2 for an infrastructure error, such as
-  BuildBuddy resetting a download partway, which buck2 does not retry itself.
+- **One retry.** buck2 exits with 2 for an infrastructure error, such as a
+  connection to the build server resetting partway through a download, which buck2 does not retry itself.
   The wrapper runs such a command once more; the actions are cached by then.
   For `run` it builds first (`run --command-args-file`; Windows refuses
   `--emit-shell`) and retries that, since the program's own exit status is
@@ -87,21 +86,15 @@ these in front of the pinned buck2:
 
 It also lets `test` put tests on the workers (below).
 
-## Building without BuildBuddy
-
-`./scripts/build-server` runs our own server in BuildBuddy's place, and
-`./scripts/build-server use DOMAIN` builds on it. guides/build_server.md says
-how to use it and how to set up a new one.
-
 ## Layout
 
-- `.buckconfig`: cells, the execution platform, BuildBuddy. The prelude is the
+- `.buckconfig`: cells, the execution platform, the build server. The prelude is the
   one bundled in the buck2 binary.
 - `BUCK.v2`: the `//:` commands, scripts in `buck/dev`. (`BUCK.v2` rather than
   `BUCK`, which a case-insensitive filesystem cannot hold beside `buck/`.)
 - `buck/tools`: every compiler and tool, downloaded and pinned by hash and size.
 - `buck/toolchains`: the toolchains built from them, per target platform.
-- `buck/platforms`: the execution platform (a BuildBuddy worker) and every
+- `buck/platforms`: the execution platform (the build server's worker) and every
   target platform; `cross.bzl` lists the cross-compiled ones.
 - `buck/sysroot`: the Ubuntu 24.04 packages everything is compiled against.
 - `buck/cargo`: the BXL that writes `crates.bzl` and the macros that read it:
@@ -226,11 +219,11 @@ A native target depends on a wasm one through a transition in
   the app's own and beui's (`//crates/beui-adapter-android:android-java`), against the
   platform alone: the APK carries no libraries. `:android` signs it
   locally with `target/android-debug.keystore`, made on first use.
-  `:android-dist` signs on a worker with CI's keystore, which BuildBuddy keeps
-  as the secret `ANDROID_DEBUG_KEYSTORE_BASE64` and passes only to actions on
-  the `android_signing` execution platform, with its own application id and
-  label (`com.be3.block.ci`, `Block (CI)`) so it installs beside a local build.
-  After changing the secret, bump `key_version` in `crates/block-app/BUCK`.
+  `:android-dist` is the APK CI ships, with its own application id and label
+  (`com.be3.block.ci`, `Block (CI)`) so it installs beside a local build. CI
+  signs it on the runner with its keystore, the GitHub secret
+  `ANDROID_DEBUG_KEYSTORE_BASE64`, so successive builds install as updates;
+  a new keystore means uninstalling the CI app and launcher once.
   The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).
 - `crates/be-launcher` is an APK too. It downloads and installs the APKs CI
@@ -261,12 +254,10 @@ extension ships: the toolchain's panics on this workspace.
   `buck/toolchains/BUCK`: otherwise the prelude sets `RUSTC_BOOTSTRAP=1`, and
   `cfg(target_feature = "atomics")` on `wasm32-wasip1-threads` then answers
   differently from cargo, which broke wgpu's `Send`/`Sync` checks.
-- **The key.** A wrong or missing key looks like a build with no cache hits,
-  not an error. `buck2 log show | grep -i 'invalid api key'` finds it.
+- **The key.** The build server answers a call with a wrong or missing key
+  with `UNAUTHENTICATED`, which buck2 reports as failing to reach it.
 - **Downloads.** Every `http_archive` has `size_bytes` as well as `sha256`;
   without it buck2 sends a HEAD request per download on every new daemon.
 - **Clippy** runs through `buck/dev/workspace.bxl` over every target's
   `[clippy.json]` in every configuration, including the wasm ones, which is why
   wasm-only code is linted. `clippy.toml` is empty but must exist.
-- **Build metadata.** BuildBuddy reads it from Bazel's Build Event Stream,
-  which buck2 does not implement, so its invocations carry no branch or commit.

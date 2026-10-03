@@ -2,8 +2,8 @@
 #
 # Signs an APK buck2 built, here, because the key is this machine's: Android
 # only installs an update signed with the same key. The keystore is --keystore,
-# target/android-debug.keystore by default, made on first use. CI's APK is
-# signed on a worker instead (signed_apk). --install installs it with adb and
+# target/android-debug.keystore by default, made on first use; CI passes its
+# own for :android-dist. --install installs it with adb and
 # starts ACTIVITY. NAME names the APK in target/android.
 #
 # Usage:

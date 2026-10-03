@@ -166,10 +166,11 @@ tools_missing() {
     return 1
 }
 
-# When BuildBuddy resets a download, ./scripts/buck builds again and buck2 can
-# answer that everything is built while some of the files it lost are not on
-# disk, because its materializer state says they are. Cleaning forgets that
-# state, and the next build downloads them from the cache.
+# When the build server's connection resets a download, ./scripts/buck builds
+# again and buck2 can answer that everything is built while some of the files
+# it lost are not on disk, because its materializer state says they are.
+# Cleaning forgets that state, and the next build downloads them from the
+# cache.
 if $lint; then
     build_tools
     if tools_missing; then

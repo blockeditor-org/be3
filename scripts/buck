@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# buck2, run against BuildBuddy or scripts/build-server's server, on Linux, macOS or Git Bash on Windows. Before
-# starting it, this installs the pinned buck2 if it is missing, finds the
-# BuildBuddy key (asking for it at a terminal), and regenerates the crates'
+# buck2, run against our build server, on Linux, macOS or Git Bash on Windows.
+# Before starting it, this installs the pinned buck2 if it is missing, finds the
+# build server's key (asking for it at a terminal), and regenerates the crates'
 # rules if their inputs changed (scripts/internal/common.sh). Arguments go to
 # buck2 unchanged, except that tests may run on the workers, on anything but
 # Linux x86_64 `run` builds for this machine unless it names
@@ -23,23 +23,17 @@ buck2="$(buck2_path)"
 if [[ ! -x "$buck2" ]]; then
     "$internal/install-buck2.sh" >&2
 fi
-# On our own build server (scripts/build-server) BuildBuddy's key is not
-# needed, though .buckconfig still names it.
-if [[ -n "$(build_server_host)" ]]; then
-    assert_build_server_key
-    export BUILDBUDDY_API_KEY="${BUILDBUDDY_API_KEY:-none}"
-else
-    assert_buildbuddy_key
-fi
+assert_build_server_key
 mkdir -p "$repository/target"
-configure_remote_execution "$buck2"
+configure_https_proxy_relay "$buck2"
 ensure_generated_rules "$buck2"
 
 command="${1:-}"
 
 # buck2 exits with 2 for an infrastructure error and with other statuses for a
-# build that is wrong. BuildBuddy sometimes resets a download partway, which
-# buck2 does not retry itself; the second attempt finds the actions cached.
+# build that is wrong. A connection to the build server sometimes resets
+# partway through a download, which buck2 does not retry itself; the second
+# attempt finds the actions cached.
 retrying() {
     local status=0
     "$@" || status=$?

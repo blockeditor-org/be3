@@ -1,28 +1,23 @@
 #!/usr/bin/env bash
 #
-# Our own remote execution server, in BuildBuddy's place: one machine runs it
-# behind Caddy at https://DOMAIN, and any machine, CI included, can build on it
-# with the key.
+# Our remote execution server, which runs every buck2 action: one machine runs
+# it behind Caddy at https://DOMAIN, and every machine, CI included, builds on
+# it with the key. .buckconfig names the domain; guides/build_server.md says
+# how to set up a new server.
 #
 # Usage:
-#   ./scripts/build-server use DOMAIN       build on DOMAIN's server from this machine
-#   ./scripts/build-server off              build on BuildBuddy again
+#   ./scripts/build-server install DOMAIN
 #   ./scripts/build-server status
-#   ./scripts/build-server install DOMAIN   run the server on this machine (uses sudo)
 #
-# `use` keeps the domain in ~/.config/be3/build-server and the key in
-# ~/.config/be3/build-server-key, so it covers every checkout on the machine;
-# BE3_BUILD_SERVER and BE3_BUILD_SERVER_KEY in the environment do the same for
-# one command, which is how CI is pointed at it.
-#
-# The server is NativeLink (CAS, action cache, scheduler and one worker in one
-# process), a systemd service running as the unprivileged user be3-build, with
-# its cache in /var/lib/be3-build-server. Caddy terminates TLS and turns away
-# any call without `Authorization: Bearer KEY`. Each action runs where a
-# BuildBuddy worker would run it: as root, in the container image
-# buck/tools/defs.bzl names, which is unpacked once and entered with a user
-# namespace and chroot rather than Docker. The key is a shell on this machine
-# as be3-build, so keep it to people who could have one.
+# install sets the server up on this machine, using sudo, and can run again:
+# it changes only what differs. The server is NativeLink (CAS, action cache,
+# scheduler and one worker in one process), a systemd service running as the
+# unprivileged user be3-build, with its cache in /var/lib/be3-build-server.
+# Caddy terminates TLS and turns away any call without `Authorization: Bearer
+# KEY`. Each action runs as root in the container image buck/tools/defs.bzl
+# names, which is unpacked once and entered with a user namespace and chroot
+# rather than Docker. The key is a shell on this machine as be3-build, so keep
+# it to people who could have one.
 
 set -euo pipefail
 
@@ -122,7 +117,7 @@ ensure_nativelink() {
     rm "$archive"
 }
 
-# The image BuildBuddy runs every action in, as buck/tools/defs.bzl pins it:
+# The image every action runs in, as buck/tools/defs.bzl pins it:
 # an index digest, whose linux/amd64 manifest and layers are each checked
 # against the digest that names them.
 image_digest() {
@@ -199,11 +194,11 @@ print(next(m["digest"] for m in index["manifests"] if m.get("platform") == {"arc
 changed=false
 
 install_file() {
-    local destination="$1" mode="$2" owner="${3:-root}" staged
+    local destination="$1" mode="$2" owner="${3:-root:root}" staged
     staged="$(mktemp)"
     cat > "$staged"
     if ! sudo cmp -s "$staged" "$destination"; then
-        sudo install -D -m "$mode" -o "$owner" -g "$owner" "$staged" "$destination"
+        sudo install -D -m "$mode" -o "${owner%:*}" -g "${owner#*:}" "$staged" "$destination"
         changed=true
     fi
     rm "$staged"
@@ -235,14 +230,14 @@ EOF
           filesystem: {
             content_path: "$server/cas",
             temp_path: "$server/cas-tmp",
-            eviction_policy: { max_bytes: 20000000000 },
+            eviction_policy: { max_bytes: 35000000000 },
           },
         },
         slow: { noop: {} },
       },
     },
-    // A cached result whose outputs the CAS has since evicted is a miss, as
-    // it is on BuildBuddy, rather than an action buck2 cannot download.
+    // A cached result whose outputs the CAS has since evicted is a miss
+    // rather than an action buck2 cannot download.
     {
       name: "AC",
       completeness_checking: {
@@ -264,7 +259,6 @@ EOF
         supported_platform_properties: {
           OSFamily: "ignore",
           "container-image": "ignore",
-          "env-secrets": "ignore",
         },
       },
     },
@@ -334,7 +328,8 @@ ensure_key() {
 write_caddy_site() {
     local domain="$1" key
     key="$(sudo cat "$key_file")"
-    if [[ -f "$caddy_site" ]] && ! head -1 "$caddy_site" | grep -qF "$caddy_marker"; then
+    if sudo test -f "$caddy_site" && ! sudo head -1 "$caddy_site" | grep -qF "$caddy_marker" &&
+        ! sudo test -e "$caddy_site.before-build-server"; then
         sudo cp "$caddy_site" "$caddy_site.before-build-server"
         echo "Caddy's old configuration is in $caddy_site.before-build-server." >&2
     fi
@@ -352,7 +347,7 @@ $domain {
 	handle {
 		header Content-Type application/grpc
 		header Grpc-Status 16
-		header Grpc-Message "This build server needs its key: ./scripts/build-server use $domain"
+		header Grpc-Message "This build server needs its key: guides/build_server.md"
 		respond 200
 	}
 }
@@ -382,53 +377,27 @@ install_server() {
     fi
     write_caddy_site "$domain"
     echo "The build server is running; its log is journalctl -u be3-build-server." >&2
-    use_server "$domain" "$(sudo cat "$key_file")"
-    echo "Its key, for ./scripts/build-server use $domain elsewhere, is in $key_file." >&2
-}
 
-config_directory="${XDG_CONFIG_HOME:-$HOME/.config}/be3"
-
-use_server() {
-    local domain="$1" key="${2:-${BE3_BUILD_SERVER_KEY:-}}"
-    if [[ -z "$key" && -t 0 ]]; then
-        read -r -s -p "The key for $domain: " key
-        echo '' >&2
+    # This machine builds on it too, with the key where ./scripts/buck looks.
+    local saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/build-server-key"
+    mkdir -p "$(dirname "$saved")"
+    (umask 077 && sudo cat "$key_file" > "$saved")
+    echo "Its key is in $key_file, and in $saved for this user." >&2
+    if [[ "$(build_server_host)" != "$domain" ]]; then
+        echo "Point .buckconfig's [buck2_re_client] addresses at $domain:443 so builds use it." >&2
     fi
-    key="$(printf '%s' "$key" | tr -d '[:space:]')"
-    if [[ -z "$key" ]]; then
-        echo "No key: set BE3_BUILD_SERVER_KEY, or run this at a terminal to be asked." >&2
-        exit 1
-    fi
-    mkdir -p "$config_directory"
-    (umask 077 && printf '%s\n' "$key" > "$config_directory/build-server-key")
-    printf '%s\n' "$domain" > "$config_directory/build-server"
-    stop_buck2
-    echo "./scripts/buck builds on $domain." >&2
-}
-
-stop_buck2() {
-    local buck2
-    buck2="$(buck2_path)"
-    [[ -x "$buck2" ]] && "$buck2" kill > /dev/null 2>&1 || true
 }
 
 case "${1:-}" in
     install)
-        [[ -n "${2:-}" ]] || { echo 'Usage: ./scripts/build-server install DOMAIN' >&2; exit 1; }
+        if [[ -z "${2:-}" || -n "${3:-}" ]]; then
+            echo 'Usage: ./scripts/build-server install DOMAIN' >&2
+            exit 1
+        fi
         install_server "$2"
         ;;
-    use)
-        [[ -n "${2:-}" ]] || { echo 'Usage: ./scripts/build-server use DOMAIN' >&2; exit 1; }
-        use_server "$2"
-        ;;
-    off)
-        rm -f "$config_directory/build-server"
-        stop_buck2
-        echo './scripts/buck builds on BuildBuddy again.' >&2
-        ;;
     status)
-        host="$(build_server_host)"
-        echo "./scripts/buck builds on ${host:-BuildBuddy}."
+        echo "./scripts/buck builds on $(build_server_host)."
         if systemctl list-unit-files be3-build-server.service > /dev/null 2>&1; then
             echo "This machine's server is $(systemctl is-active be3-build-server)."
         fi

@@ -1,4 +1,4 @@
-load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
+load("@root//buck/android:defs.bzl", "android_apk")
 load("@root//buck/app:defs.bzl", "app")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
@@ -233,14 +233,20 @@ tool(
     ],
 )
 
-# What CI ships, signed on a worker with CI's keystore, so the runner downloads
-# only the APK: `./scripts/buck build :android-dist --out block-app.apk`.
-signed_apk(
+# What CI ships, signed on the runner with CI's keystore:
+# `./scripts/buck run :android-dist -- --keystore FILE --out APK`.
+tool(
     name = "android-dist",
-    apk = ":apk-dist",
-    exec_compatible_with = ["root//buck/constraints:android_keystore"],
-    key_version = 1,
-    visibility = ["//buck/ci:"],
+    command = [
+        "sh",
+        "$(location //buck/android:sign.sh)",
+        "$(location //buck/android:jdk)",
+        "$(location //buck/android:build-tools)",
+        "$(location //buck/android:platform-tools)",
+        "$(location :apk-dist)",
+        "block-app",
+        "com.be3.block.MainActivity",
+    ],
 )
 
 export_file(
