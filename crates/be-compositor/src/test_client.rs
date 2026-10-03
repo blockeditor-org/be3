@@ -31,6 +31,7 @@ pub(crate) struct Received {
     pub(crate) pointer_surface: Option<wl_surface::WlSurface>,
     pub(crate) buttons: Vec<(u32, bool)>,
     pub(crate) frames: usize,
+    pub(crate) released: usize,
 }
 
 pub(crate) struct TestClient {
@@ -446,7 +447,21 @@ wayland_client::delegate_noop!(Received: ignore wl_compositor::WlCompositor);
 wayland_client::delegate_noop!(Received: ignore wl_surface::WlSurface);
 wayland_client::delegate_noop!(Received: ignore wl_shm::WlShm);
 wayland_client::delegate_noop!(Received: ignore wl_shm_pool::WlShmPool);
-wayland_client::delegate_noop!(Received: ignore wl_buffer::WlBuffer);
+impl Dispatch<wl_buffer::WlBuffer, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &wl_buffer::WlBuffer,
+        event: wl_buffer::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wl_buffer::Event::Release = event {
+            state.released += 1;
+        }
+    }
+}
+
 wayland_client::delegate_noop!(Received: ignore wl_seat::WlSeat);
 wayland_client::delegate_noop!(Received: ignore zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1);
 wayland_client::delegate_noop!(Received: ignore zwp_linux_buffer_params_v1::ZwpLinuxBufferParamsV1);

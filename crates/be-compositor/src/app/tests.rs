@@ -5,6 +5,7 @@ mod a_new_gpu_redraws_windows_from_the_buffers_they_still_hold;
 mod a_new_window_floats_at_the_size_it_drew;
 mod closing_a_window_removes_its_tab;
 mod keys_follow_the_focus_between_beui_and_a_window;
+mod a_shown_dmabuf_is_released_once_a_newer_one_is_painted;
 
 use beui::{FrameOutput, RawInput, Vec2, pos2};
 
