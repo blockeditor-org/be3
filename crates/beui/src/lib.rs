@@ -107,8 +107,8 @@ pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<
 
 #[cfg(test)]
 use beui_core::{
-    accessibility, base, color, context, culling, damage, draw, drawing, filter, flash, font,
-    geometry, image, input, interact, node, painter, screen_simulation,
+    accessibility, base, color, context, damage, draw, drawing, filter, flash, font, geometry,
+    image, input, interact, node, painter, screen_simulation, sight,
 };
 #[cfg(test)]
 use beui_inspector::{self as inspector, mouse_simulation};

@@ -1,6 +1,5 @@
 use std::any::Any;
 
-use crate::culling::{Axis, Culling};
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 use crate::pixel_grid::PixelGrid;
@@ -453,17 +452,6 @@ impl Element for ListNode {
             false => vec![self.line(doc, painter, available_main, available_cross, true)],
         };
         let single = lines.len() == 1 && !self.wrap;
-        let region = match doc.delivering() {
-            true => Culling::region(painter.state()),
-            false => Rect::EVERYTHING,
-        };
-        let mut culling = Culling::ANY;
-        let axis = match self.direction {
-            Direction::Horizontal => Axis::X,
-            Direction::Vertical => Axis::Y,
-        };
-        let region_start = self.main_and_cross(region.min.to_vec2()).0;
-        let region_end = self.main_and_cross(region.max.to_vec2()).0;
         let mut line_start = 0.0f32;
         for line in &lines {
             let cross = match single {
@@ -482,35 +470,15 @@ impl Element for ListNode {
                     pos2(rect.left() + offset.x, rect.top() + offset.y),
                     self.axes(item.main, length),
                 );
-                let (start, end) = (
-                    self.main_and_cross(child_rect.min.to_vec2()).0,
-                    self.main_and_cross(child_rect.max.to_vec2()).0,
-                );
-                if end <= region_start {
-                    culling.cull_before(end, axis);
-                    crate::layout::cull(doc, painter, item.child, child_rect, out);
-                    continue;
-                }
-                if start >= region_end {
-                    culling.cull_after(start, axis);
-                    crate::layout::cull(doc, painter, item.child, child_rect, out);
-                    continue;
-                }
-                culling.keep(start, end, axis);
                 crate::layout::layout(doc, painter, item.child, child_rect, out);
             }
             line_start += line.cross + spacing;
-        }
-        if let Some(id) = doc.laying_out() {
-            doc.note_culling(id, culling);
         }
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
         for item in self.items.iter() {
-            if rects.contains_key(&item.child) && !doc.is_culled(item.child) {
-                crate::paint::paint(doc, painter, rects, item.child);
-            }
+            crate::paint::paint(doc, painter, rects, item.child);
         }
     }
 

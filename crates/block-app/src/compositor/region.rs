@@ -209,6 +209,9 @@ pub(crate) fn PluginRegion(
             })
         })
     }));
+    let ime_keyboard = create_memo(clone!(state -> move || {
+        state.with(|view| view.ime.as_ref().is_none_or(|area| area.keyboard))
+    }));
     let ime_text = create_memo(clone!(state -> move || {
         state.with(|view| view.ime.as_ref().and_then(|area| area.text.clone()))
     }));
@@ -254,6 +257,7 @@ pub(crate) fn PluginRegion(
                     focusable=true
                     cursor={cursor}
                     ime={ime}
+                    ime_keyboard={ime_keyboard}
                     ime_cursor={ime_cursor}
                     ime_text={ime_text}
                     on_forward={forward}

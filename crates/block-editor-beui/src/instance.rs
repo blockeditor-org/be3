@@ -696,6 +696,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 rect: area.rect.scaled(unscale),
                 cursor: area.cursor.scaled(unscale),
                 text: area.text.as_ref().map(beui_plugin_input::protocol_ime_text),
+                keyboard: area.keyboard,
             }),
             handles_back: output.handles_back,
         };

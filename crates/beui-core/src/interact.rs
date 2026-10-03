@@ -292,7 +292,7 @@ pub fn interact(
         && ((input.pressed_this_frame && !input.touch_started)
             || (input.touch_ended && !input.touch_dragged && !input.touch_cancelled))
     {
-        doc.update_focus(focus_target);
+        doc.press_focus(focus_target);
     }
 
     doc.validate_focus();
@@ -654,7 +654,7 @@ fn interact_node(
     }
 
     for &child in &children {
-        if rects.contains_key(&child) {
+        if rects.contains_key(&child) && !doc.is_culled(child) {
             doc.interact_parents.insert(child, id);
             interact_node(doc, painter, input, child, reach, focus_target, pool);
         }

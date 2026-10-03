@@ -4,7 +4,6 @@ pub mod base;
 pub mod callback;
 pub mod color;
 pub mod context;
-pub mod culling;
 pub mod current;
 pub mod damage;
 pub mod display;
@@ -31,6 +30,7 @@ pub mod pixel_grid;
 pub mod renderer;
 pub mod rich;
 pub mod screen_simulation;
+pub mod sight;
 pub mod timer;
 
 pub use ::geometry;

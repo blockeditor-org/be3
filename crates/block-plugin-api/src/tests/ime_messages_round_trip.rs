@@ -25,6 +25,7 @@ fn ime_messages_round_trip() {
                     selection: (8, 8),
                     composing: Some((4, 8)),
                 }),
+                keyboard: false,
             }),
         }),
         Message::Editor(EditorMessage::Ime {

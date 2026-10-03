@@ -71,6 +71,8 @@ thread_local! {
     static TIMER: RefCell<Option<Closure<dyn FnMut()>>> = const { RefCell::new(None) };
     static TIMEOUT: Cell<Option<i32>> = const { Cell::new(None) };
     static MIRROR: RefCell<ImeMirror> = RefCell::new(ImeMirror::default());
+    static HELD_FIELD: Cell<Option<Rect>> = const { Cell::new(None) };
+    static REFOCUSING: Cell<bool> = const { Cell::new(false) };
 }
 
 fn push(event: Event) {
@@ -224,6 +226,17 @@ impl Runner {
             let _ = self.agent.set_selection_range(start, end);
         }
         if output.ime != self.ime {
+            let held = output.ime.as_ref().filter(|area| !area.keyboard);
+            let was_held = HELD_FIELD.replace(held.map(|area| area.rect)).is_some();
+            match held {
+                Some(_) => {
+                    let _ = self.agent.set_attribute("inputmode", "none");
+                }
+                None if was_held => {
+                    let _ = self.agent.remove_attribute("inputmode");
+                }
+                None => {}
+            }
             self.ime = output.ime.clone();
             if let Some(area) = &output.ime {
                 let css = 1.0 / INPUT.with(|input| input.scale.get());
@@ -483,6 +496,18 @@ fn listen(
                 event.shift_key(),
             );
             let pos = position(&surface, &event);
+            if event.pointer_type() == "touch"
+                && HELD_FIELD
+                    .with(|held| held.get())
+                    .is_some_and(|rect| rect.contains(pos))
+            {
+                HELD_FIELD.set(None);
+                let _ = agent.remove_attribute("inputmode");
+                REFOCUSING.set(true);
+                let _ = agent.blur();
+                let _ = agent.focus();
+                REFOCUSING.set(false);
+            }
             if event.pointer_type() == "touch" {
                 push(touch(&event, TouchPhase::Start, pos));
                 return;
@@ -716,9 +741,14 @@ fn listen(
         }
     })?;
     on(agent_target, "focus", |_event: web_sys::FocusEvent| {
-        push(Event::Focus(true));
+        if !REFOCUSING.get() {
+            push(Event::Focus(true));
+        }
     })?;
     on(agent_target, "blur", |_event: web_sys::FocusEvent| {
+        if REFOCUSING.get() {
+            return;
+        }
         INPUT.with(|input| input.buttons.set(0));
         push(Event::Focus(false));
     })?;

@@ -426,7 +426,7 @@ impl Runner {
                 let text = self.ime.as_ref().and_then(|area| area.text.clone());
                 self.set_ime_text(text.as_ref(), 0);
                 self.sent_ime = Some((text, 0));
-                if self.ime.is_some() {
+                if self.ime.as_ref().is_some_and(|area| area.keyboard) {
                     self.set_keyboard(true);
                 }
                 if self.handles_back {
@@ -671,7 +671,8 @@ impl Runner {
         let pending = renderers.prepare(&output, scale, self.app.clear_color());
         self.next_update = Instant::now().checked_add(output.repaint_after);
 
-        let asked = self.ime.is_some();
+        let asked = self.ime.as_ref().is_some_and(|area| area.keyboard);
+        let wanted = output.ime.as_ref().is_some_and(|area| area.keyboard);
         let tapped_field = self.tapped_at.take().is_some_and(|tap| {
             asked
                 && output
@@ -685,9 +686,9 @@ impl Runner {
             self.set_ime_text(sent.0.as_ref(), sent.1);
             self.sent_ime = Some(sent);
         }
-        if output.ime.is_some() != asked {
-            self.set_keyboard(output.ime.is_some());
-        } else if output.ime.is_some() && tapped_field {
+        if wanted != asked {
+            self.set_keyboard(wanted);
+        } else if wanted && tapped_field {
             self.set_keyboard(true);
         }
         self.ime = output.ime;
