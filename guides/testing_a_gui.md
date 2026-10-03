@@ -205,7 +205,7 @@ editor paints is comparable like anything else.
 
 ./scripts/buck run //:verify runs them, through buck2: ./scripts/buck run //:verify -- --plugin-tests is the plugin
 tests alone, and accepts what they paint. buck2 compiles each plugin's tests for
-wasm32-wasip1-threads against the WASI sysroot the web build uses, on BuildBuddy's workers,
+wasm32-wasip1-threads against the WASI sysroot the web build uses, on the build server,
 and runs the module here through crates/plugin-test-runner, which is wasmtime with the
 plugin's own imports linked: the gpu abi a plugin draws through, the threads a plugin
 spawns, and the repository itself, opened so that a test writes the painting it accepted
@@ -227,6 +227,6 @@ test binary: ./scripts/buck test //crates/editors/checklist:test -- --test-arg s
 Cranelift compiles each test module once, as an action of its own, and leaves the machine
 code as a .cwasm the runner maps in, so a run that changed nothing takes seconds; that
 action is cached like any other, so a machine that never built the plugin gets it from
-BuildBuddy. The runner only opens a graphics adapter when a test calls the gpu abi, so a
+the build server. The runner only opens a graphics adapter when a test calls the gpu abi, so a
 machine without one still runs every test that does not, and what a test compares never
 passes through a gpu.

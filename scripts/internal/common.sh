@@ -304,48 +304,55 @@ buck2_release_sha256() {
     echo "${!name}"
 }
 
-# Every action runs on BuildBuddy, so a build without the key has nowhere to
-# run. buck2 would say so only as a failed connection, well into the build. The
-# key is BUILDBUDDY_API_KEY from the environment, or else the first of two files
-# that holds it: .buildbuddy-api-key at the root of the checkout, which git
-# ignores, or ~/.config/be3/buildbuddy-api-key. Either way it is exported, which
-# is how .buckconfig's $BUILDBUDDY_API_KEY reaches the daemon.
+# Every action runs on our build server (guides/build_server.md), which turns
+# away a call without its key, so a build without the key has nowhere to run.
+# buck2 would say so only as a failed connection, well into the build. The key
+# is BE3_BUILD_SERVER_KEY from the environment, or else the first of two files
+# that holds it: .build-server-key at the root of the checkout, which git
+# ignores, or ~/.config/be3/build-server-key. Either way it is exported, which
+# is how .buckconfig's $BE3_BUILD_SERVER_KEY reaches the daemon.
 #
 # With none of them, a person at a terminal is asked for the key, and it is
-# saved to .buildbuddy-api-key for next time. Anything else - a pipe, CI, an
-# agent's shell - has nobody to answer, so it is told what to set instead of
-# waiting for input that will not come.
-assert_buildbuddy_key() {
-    local file key
-    if [[ -z "${BUILDBUDDY_API_KEY:-}" ]]; then
-        for file in "$repository/.buildbuddy-api-key" "${XDG_CONFIG_HOME:-$HOME/.config}/be3/buildbuddy-api-key"; do
+# saved to ~/.config/be3/build-server-key for every checkout. Anything else - a
+# pipe, CI, an agent's shell - has nobody to answer, so it is told what to set
+# instead of waiting for input that will not come.
+assert_build_server_key() {
+    local file key saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/build-server-key"
+    if [[ -z "${BE3_BUILD_SERVER_KEY:-}" ]]; then
+        for file in "$repository/.build-server-key" "$saved"; do
             if [[ -f "$file" ]]; then
-                BUILDBUDDY_API_KEY="$(tr -d '[:space:]' < "$file")"
+                BE3_BUILD_SERVER_KEY="$(tr -d '[:space:]' < "$file")"
                 break
             fi
         done
     fi
-    if [[ -z "${BUILDBUDDY_API_KEY:-}" && -t 0 && -t 2 ]]; then
-        echo 'buck2 runs every build on BuildBuddy, and needs an API key for it.' >&2
-        echo 'Find one under Settings at https://app.buildbuddy.io.' >&2
-        read -r -s -p 'BuildBuddy API key: ' key
+    if [[ -z "${BE3_BUILD_SERVER_KEY:-}" && -t 0 && -t 2 ]]; then
+        echo "buck2 runs every build on $(build_server_host), and needs its key." >&2
+        echo 'Whoever runs the server has it (guides/build_server.md).' >&2
+        read -r -s -p 'Build server key: ' key
         echo '' >&2
         key="$(printf '%s' "$key" | tr -d '[:space:]')"
         if [[ -n "$key" ]]; then
-            (umask 077 && printf '%s\n' "$key" > "$repository/.buildbuddy-api-key")
-            echo "Saved it to $repository/.buildbuddy-api-key, which git ignores." >&2
-            BUILDBUDDY_API_KEY="$key"
+            mkdir -p "$(dirname "$saved")"
+            (umask 077 && printf '%s\n' "$key" > "$saved")
+            echo "Saved it to $saved." >&2
+            BE3_BUILD_SERVER_KEY="$key"
         fi
     fi
-    if [[ -n "${BUILDBUDDY_API_KEY:-}" ]]; then
-        export BUILDBUDDY_API_KEY
+    if [[ -n "${BE3_BUILD_SERVER_KEY:-}" ]]; then
+        export BE3_BUILD_SERVER_KEY
         return 0
     fi
-    echo 'buck2 runs every build on BuildBuddy, and there is no BuildBuddy API key.' >&2
-    echo 'Set BUILDBUDDY_API_KEY, or write the key to .buildbuddy-api-key at the root' >&2
-    echo 'of the checkout or to ~/.config/be3/buildbuddy-api-key. Run ./scripts/buck' >&2
-    echo 'from a terminal to be asked for it. guides/buck2.md has more.' >&2
+    echo "buck2 runs every build on $(build_server_host), and there is no key for it." >&2
+    echo 'Set BE3_BUILD_SERVER_KEY, or write the key to .build-server-key at the root' >&2
+    echo 'of the checkout or to ~/.config/be3/build-server-key. Run ./scripts/buck' >&2
+    echo 'from a terminal to be asked for it. guides/build_server.md has more.' >&2
     exit 1
+}
+
+# The build server's host, as .buckconfig names it.
+build_server_host() {
+    sed -n 's/^engine_address *= *\([^:]*\):.*/\1/p' "$repository/.buckconfig"
 }
 
 # What buck2 reads the workspace's Cargo.toml files through -
@@ -409,24 +416,23 @@ write_if_changed() {
     fi
 }
 
-# buck2's remote execution client dials BuildBuddy itself and never reads
-# HTTPS_PROXY, so on a machine whose way out is that proxy - or where the proxy
-# is what adds the BuildBuddy key - buck2 alone cannot reach its workers. There
-# it is pointed, through .buckconfig.local, at scripts/internal/re-relay: a
-# relay on localhost, built with Go and left running in the background, that
-# sends each call on through the proxy. Without a proxy a .buckconfig.local
-# this wrote is removed, since it would point buck2 at a relay that is not
-# there. A file a person wrote is left alone either way. buck2 reads the
-# remote execution settings when its daemon starts, so the daemon is stopped
-# whenever the file changes.
+# buck2's remote execution client dials the build server itself and never
+# reads HTTPS_PROXY, so on a machine whose way out is that proxy buck2 alone
+# cannot reach it. There it is pointed, through .buckconfig.local, at
+# scripts/internal/re-relay: a relay on localhost, built with Go and left
+# running in the background, that sends each call on through the proxy.
+# Without a proxy a .buckconfig.local this wrote is removed, since it would
+# point buck2 at a relay that is not there. A file a person wrote is left alone
+# either way. buck2 reads the remote execution settings when its daemon starts,
+# so the daemon is stopped whenever the file changes.
 re_relay_address='127.0.0.1:18980'
 
 configure_https_proxy_relay() {
     local buck2="$1"
     local path="$repository/.buckconfig.local"
-    local marker='# @generated by ./scripts/buck: buck2 reaches BuildBuddy through scripts/internal/re-relay.'
+    local marker='# @generated by ./scripts/buck: buck2 reaches the build server through scripts/internal/re-relay.'
     local generated=false
-    if [[ -f "$path" ]] && head -1 "$path" | grep -q '@generated by ./scripts/buck'; then
+    if [[ -f "$path" ]] && head -1 "$path" | grep -q '@generated by ./scripts/'; then
         generated=true
     fi
     if [[ -z "${HTTPS_PROXY:-${https_proxy:-}}" ]]; then
@@ -438,12 +444,13 @@ configure_https_proxy_relay() {
     fi
     if [[ -f "$path" ]] && ! $generated; then
         echo 'HTTPS_PROXY is set, but .buckconfig.local was written by hand, so buck2 is' >&2
-        echo 'left to reach BuildBuddy without scripts/internal/re-relay.' >&2
+        echo 'left to reach the build server without scripts/internal/re-relay.' >&2
         return 0
     fi
 
-    assert_command go 'HTTPS_PROXY is set, and buck2 reaches BuildBuddy through it with scripts/internal/re-relay, which needs Go 1.24 or newer.'
-    local version relay
+    assert_command go 'HTTPS_PROXY is set, and buck2 reaches the build server through it with scripts/internal/re-relay, which needs Go 1.24 or newer.'
+    local version relay upstream
+    upstream="$(build_server_host)"
     version="$(cat "$internal"/re-relay/* | cksum | cut -d ' ' -f 1)"
     relay="$repository/target/tools/re-relay-$version/re-relay$(go env GOEXE)"
     if [[ ! -x "$relay" ]]; then
@@ -451,8 +458,8 @@ configure_https_proxy_relay() {
         (cd "$internal/re-relay" && go build -trimpath -o "$relay.partial" .)
         mv -f "$relay.partial" "$relay"
     fi
-    "$relay" ensure -listen "$re_relay_address" -upstream remote.buildbuddy.io \
-        -version "$version" -log "$repository/target/re-relay.log"
+    "$relay" ensure -listen "$re_relay_address" -upstream "$upstream" \
+        -version "$version-$upstream" -log "$repository/target/re-relay.log"
 
     local config="$repository/target/buckconfig.local.partial"
     {

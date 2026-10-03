@@ -60,7 +60,6 @@ app(
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
     precompiler = "//crates/plugin-test-runner:precompiler",
-    visibility = ["//buck/ci:"],
 )
 
 # The plugins alone: every editor's manifest and module, for CI to ship once
@@ -73,7 +72,6 @@ app(
     modules = ["//{}:module".format(package) for package in editor_packages()],
     precompile = False,
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
-    visibility = ["//buck/ci:"],
 )
 
 # What CI ships per platform: the app and server under cargo's names; the
@@ -87,7 +85,6 @@ app(
     modules = [],
     precompile = False,
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
-    visibility = ["//buck/ci:"],
 )
 
 # The web bundle: the app for wasi and the gpu shim for wasm32, each through
@@ -137,7 +134,6 @@ app(
     precompile = False,
     precompiler = "//crates/plugin-test-runner:plugin-test-runner-bin",
     wasm_bindgen = "//buck/cargo:wasm-bindgen",
-    visibility = ["//buck/ci:"],
 )
 
 # The bundle served here by Caddy, with be-server behind it (web/serve.sh).
@@ -233,14 +229,12 @@ tool(
     ],
 )
 
-# What CI ships, signed on a worker with CI's keystore, so the runner downloads
+# What CI ships, signed on the build server with CI's keystore, so the runner downloads
 # only the APK: `./scripts/buck build :android-dist --out block-app.apk`.
 signed_apk(
     name = "android-dist",
     apk = ":apk-dist",
-    exec_compatible_with = ["root//buck/constraints:android_keystore"],
-    key_version = 1,
-    visibility = ["//buck/ci:"],
+    key_version = 2,
 )
 
 export_file(
