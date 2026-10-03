@@ -1,4 +1,4 @@
-// A relay between buck2 and BuildBuddy for a machine whose way out is an
+// A relay between buck2 and the build server for a machine whose way out is an
 // HTTPS proxy. buck2's remote execution client dials its gRPC endpoints
 // directly and never reads HTTPS_PROXY, so where the proxy is the only way
 // out, or the one that adds credentials, buck2 is pointed at this instead:
@@ -8,8 +8,8 @@
 // left out: the one in its headers when it had nothing else to say, and OK
 // when its body arrived whole.
 //
-//	re-relay serve  -listen 127.0.0.1:18980 -upstream remote.buildbuddy.io
-//	re-relay ensure -listen 127.0.0.1:18980 -upstream remote.buildbuddy.io -version <hash> -log <path>
+//	re-relay serve  -listen 127.0.0.1:18980 -upstream blocks.pfg.pw
+//	re-relay ensure -listen 127.0.0.1:18980 -upstream blocks.pfg.pw -version <hash> -log <path>
 //
 // ensure returns once a relay of that version is listening, starting one in
 // the background if there is none, and replacing one of another version.
@@ -49,11 +49,14 @@ func main() {
 	}
 	flags := flag.NewFlagSet(os.Args[1], flag.ExitOnError)
 	listen := flags.String("listen", "127.0.0.1:18980", "the address buck2 is pointed at")
-	upstream := flags.String("upstream", "remote.buildbuddy.io", "the host the calls go on to, over HTTPS on 443")
+	upstream := flags.String("upstream", "", "the host the calls go on to, over HTTPS on 443")
 	version := flags.String("version", "", "what ensure expects a running relay to answer")
 	logPath := flags.String("log", "", "where a relay ensure starts writes its errors")
 	connections := flags.Int("connections", 128, "at most this many connections to the upstream at once")
 	flags.Parse(os.Args[2:])
+	if *upstream == "" {
+		fail("-upstream is required")
+	}
 	switch os.Args[1] {
 	case "serve":
 		serve(*listen, *upstream, *version, *connections)
@@ -162,7 +165,7 @@ func isClosed(err error) bool {
 	return strings.Contains(err.Error(), "use of closed network connection")
 }
 
-// The proxy between here and BuildBuddy sometimes answers a call itself, with
+// The proxy between here and the build server sometimes answers a call itself, with
 // an HTTP error and a page of text, when it could not reach the upstream.
 // That is not gRPC, and passed on as it was it read to buck2 as a corrupt
 // message and failed the whole build. Every call buck2 makes to remote

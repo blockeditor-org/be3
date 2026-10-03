@@ -54,7 +54,5 @@ tool(
 signed_apk(
     name = "android-dist",
     apk = ":apk-dist",
-    exec_compatible_with = ["root//buck/constraints:android_keystore"],
-    key_version = 1,
-    visibility = ["//buck/ci:"],
+    key_version = 2,
 )
