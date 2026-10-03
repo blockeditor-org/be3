@@ -23,6 +23,13 @@ With none of them, it asks for the key at a terminal and saves it to
 When `HTTPS_PROXY` is set, buck2 reaches the server through
 `scripts/internal/re-relay` (guides/buck2.md).
 
+A proxy can supply the key itself. In that case it adds
+`Authorization: Bearer KEY` to requests for the server's host, and
+`BE3_BUILD_SERVER_KEY` can be any placeholder, such as `proxy-injected`. The
+server accepts a call if any of its `Authorization` headers carries the key,
+so it doesn't matter whether the proxy replaces buck2's placeholder header or
+adds its own beside it.
+
 ## Setting up a new server
 
 You need:
