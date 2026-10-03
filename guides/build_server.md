@@ -45,6 +45,7 @@ Then:
    - writes the systemd service `be3-build-server`
    - generates a key into `/etc/be3-build-server/key`, and copies it to the
      key file for the user who ran `install`
+   - makes `/etc/be3-build-server/secrets` for the secrets actions ask for
    - replaces `/etc/caddy/Caddyfile` with the server's site. A Caddyfile it
      did not write is first kept as `Caddyfile.before-build-server`.
 3. If the domain is new, change it in three places:
@@ -53,9 +54,36 @@ Then:
    - this guide
 4. Give the key to every machine that builds, and to CI as the secret
    `BE3_BUILD_SERVER_KEY`.
+5. Give it CI's Android keystore (below).
 
 The cache starts empty, so the first build of everything takes a while.
 `//:check` took about 16 minutes on six cores.
+
+## Secrets
+
+`./scripts/build-server secret NAME < FILE` keeps a value in
+`/etc/be3-build-server/secrets/NAME`, readable by `be3-build` alone.
+
+How an action receives a secret:
+
+1. The action names the secrets it wants in its `BE3_BUILD_SERVER_SECRETS`
+   environment variable, separated by commas.
+2. `run-action` exports each one as a variable of that name.
+
+The only secret today is CI's Android keystore, `ANDROID_DEBUG_KEYSTORE_BASE64`.
+`:android-dist` (`signed_apk` in `buck/android/defs.bzl`) signs CI's APKs with
+it, and every build is signed with the same keystore so that each one installs
+as an update over the last.
+
+- The value is the keystore in base64:
+  `base64 -w0 debug.keystore | ./scripts/build-server secret ANDROID_DEBUG_KEYSTORE_BASE64`.
+- Moving to a new server means copying the file from the old one. A new
+  keystore means every device must uninstall the CI app and launcher once.
+- The secret is not part of the action's key. After it changes, bump
+  `key_version` in `crates/block-app/BUCK` and `crates/be-launcher/BUCK`.
+- NativeLink's worker never sees buck2's platform properties, because buck2
+  puts them in the Command and not the Action. So a platform property can't
+  carry this request; it goes in the environment.
 
 ## How it works
 
@@ -95,7 +123,4 @@ The cache starts empty, so the first build of everything takes a while.
   also run `./scripts/buck kill`, because buck2 remembers which blobs it
   uploaded.
 - **What the key gives away.** Anyone with the key can run any command on the
-  machine as `be3-build`.
-
-The server holds no secrets for actions, so CI signs its APKs on the runner
-(guides/buck2.md).
+  machine as `be3-build`, so they can also read its secrets.

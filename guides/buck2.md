@@ -20,7 +20,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
-| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`run :android-dist -- --keystore FILE --out APK` is CI's, signed with CI's key) |
+| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's, signed on the build server with CI's key) |
 | `./scripts/buck run //crates/beui-demo:demo` | beui's demo in a window |
 | `./scripts/buck run //crates/beui:survey-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //crates/beui-web-demo:web-serve` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
@@ -219,11 +219,11 @@ A native target depends on a wasm one through a transition in
   the app's own and beui's (`//crates/beui-adapter-android:android-java`), against the
   platform alone: the APK carries no libraries. `:android` signs it
   locally with `target/android-debug.keystore`, made on first use.
-  `:android-dist` is the APK CI ships, with its own application id and label
-  (`com.be3.block.ci`, `Block (CI)`) so it installs beside a local build. CI
-  signs it on the runner with its keystore, the GitHub secret
-  `ANDROID_DEBUG_KEYSTORE_BASE64`, so successive builds install as updates;
-  a new keystore means uninstalling the CI app and launcher once.
+  `:android-dist` signs on the build server with CI's keystore, the secret
+  `ANDROID_DEBUG_KEYSTORE_BASE64` it keeps (guides/build_server.md), with its
+  own application id and label (`com.be3.block.ci`, `Block (CI)`) so it
+  installs beside a local build. After changing the secret, bump
+  `key_version` in `crates/block-app/BUCK` and `crates/be-launcher/BUCK`.
   The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).
 - `crates/be-launcher` is an APK too. It downloads and installs the APKs CI

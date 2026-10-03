@@ -1,10 +1,10 @@
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
 
-# An APK, made on a worker without Gradle by buck-tools apk, unsigned; sign.sh
-# signs it here, with this machine's key or with CI's. An APK is only ever
-# Android's, so the rule moves itself there: asked for under any target
-# platform, it is the one configured target, and building //crates/... for
-# every platform makes one APK rather than one for each.
+# An APK, made on a worker without Gradle by buck-tools apk, unsigned; sign.sh signs it
+# locally with this machine's key, and signed_apk on a worker with CI's. An APK
+# is only ever Android's, so both rules move themselves there: asked for under
+# any target platform, they are the one configured target, and building
+# //crates/... for every platform makes one APK rather than one for each.
 # The NDK's libc++_shared.so goes beside the native library.
 
 def _android_transition_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
@@ -78,4 +78,53 @@ android_apk = rule(
     },
     cfg = android_transition,
     impl = _android_apk_impl,
+)
+
+_sign = """
+set -eu
+jdk="$1" build_tools="$2" unsigned="$3" out="$4"
+if [ -z "${ANDROID_DEBUG_KEYSTORE_BASE64:-}" ]; then
+    echo 'The build server passed no ANDROID_DEBUG_KEYSTORE_BASE64: guides/build_server.md says how to give it one.' >&2
+    exit 1
+fi
+keystore="$(mktemp)"
+printf '%s' "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 -d > "$keystore"
+JAVA_HOME="$jdk" "$jdk/bin/java" -jar "$build_tools/lib/apksigner.jar" sign \
+    --ks "$keystore" --ks-pass pass:android --in "$unsigned" --out "$out"
+rm -f "$keystore"
+"""
+
+# An APK signed on the build server with the keystore it keeps as a secret,
+# which it passes to an action that names it in BE3_BUILD_SERVER_SECRETS
+# (guides/build_server.md). The secret is not part of the action's key, so
+# key_version is: bump it with the secret, or builds go on reusing APKs the old
+# key signed.
+def _signed_apk_impl(ctx: AnalysisContext) -> list[Provider]:
+    out = ctx.actions.declare_output(ctx.label.name + ".apk")
+    ctx.actions.run(
+        cmd_args(
+            "sh",
+            "-c",
+            _sign,
+            "sh",
+            ctx.attrs._jdk,
+            ctx.attrs._build_tools,
+            ctx.attrs.apk[DefaultInfo].default_outputs[0],
+            out.as_output(),
+            "key-version-{}".format(ctx.attrs.key_version),
+        ),
+        category = "apk_sign",
+        env = {"BE3_BUILD_SERVER_SECRETS": "ANDROID_DEBUG_KEYSTORE_BASE64"},
+    )
+    return [DefaultInfo(default_output = out)]
+
+signed_apk = rule(
+    attrs = {
+        "apk": attrs.dep(),
+        "key_version": attrs.int(),
+        "_build_tools": attrs.default_only(attrs.source(default = "root//buck/android:build-tools")),
+        "_jdk": attrs.default_only(attrs.source(default = "root//buck/android:jdk")),
+    },
+    cfg = android_transition,
+    impl = _signed_apk_impl,
 )

@@ -71,22 +71,6 @@ jobs:
           COMMIT: ${{ github.sha }}
         run: ./scripts/buck build -c "be3.commit=$COMMIT" //buck/ci:artifacts --out dist
 
-      # The APKs are signed here with CI's debug keystore, the secret
-      # ANDROID_DEBUG_KEYSTORE_BASE64, so successive CI builds install as
-      # updates over one another. The keystore is written into the runner's
-      # temporary directory, which nothing the build runs reads.
-      - name: Sign the Android builds
-        env:
-          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
-        run: |
-          keystore="$RUNNER_TEMP/android-debug.keystore"
-          printf '%s' "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 -d > "$keystore"
-          ./scripts/buck run //crates/block-app:android-dist -- \
-            --keystore "$keystore" --out dist/block-app-android-aarch64/block-app.apk
-          ./scripts/buck run //crates/be-launcher:android-dist -- \
-            --keystore "$keystore" --out dist/be-launcher-android-aarch64/be-launcher.apk
-          rm "$keystore"
-
       # Each platform's app and server. The plugins are uploaded once
       # beside them, since every platform loads the same bytes and a manifest
       # resolves its entry point against its own directory.
@@ -132,8 +116,10 @@ jobs:
           path: dist/block-plugins
           retention-days: 14
 
-      # Signed above with CI's debug keystore. The plugins are in it, since an
-      # APK has nowhere else to find them.
+      # Signed on the build server with CI's debug keystore, the secret
+      # ANDROID_DEBUG_KEYSTORE_BASE64 it keeps, so successive CI builds install
+      # as updates over one another. The plugins are in it, since an APK has
+      # nowhere else to find them.
       - uses: actions/upload-artifact@v7
         with:
           name: block-app-android-aarch64
@@ -535,7 +521,7 @@ jobs:
   # API key once it is uploaded. The APKs it no longer names are deleted after
   # it. android-builds.yml deletes a closed pull request's slot.
   # Only main and pull requests from this repository have one, since a fork's
-  # pull request has no keystore to sign it with. As with the paint
+  # pull request has no build server key to sign it with. As with the paint
   # previews, the storage key is given to the upload step alone, and what the
   # artifacts hold is only data here.
   #
