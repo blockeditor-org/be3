@@ -1,19 +1,32 @@
 # The build server
 
-Every buck2 action runs on our own remote execution server at
-https://blocks.pfg.pw, which `.buckconfig` names. Only callers with the key
-can use it.
+Every buck2 action runs on one of our own remote execution servers. Only
+callers with a server's key can use it.
+
+| Server | Notes |
+|---|---|
+| `blocks.pfg.pw` | the one `.buckconfig` names, and the one CI builds on |
+| `buildserver.pfg.pw` | 8 cores |
+
+The servers share nothing: each has its own cache and its own key.
 
 ## Building on it
 
-`./scripts/buck` needs the key. It looks for it in this order:
+`./scripts/buck` builds on `.buckconfig`'s server unless another is picked,
+with the host alone, in either of:
+
+1. `BE3_BUILD_SERVER` in the environment
+2. `.build-server` at the root of the checkout
+
+`./scripts/buck` needs the server's key. It looks for it in this order:
 
 1. `BE3_BUILD_SERVER_KEY` in the environment
 2. `.build-server-key` at the root of the checkout
 3. `~/.config/be3/build-server-key`
 
-With none of them, it asks for the key at a terminal and saves it to
-`~/.config/be3/build-server-key`.
+With none of them, it asks for the key at a terminal and saves it to the
+last. For a server other than `.buckconfig`'s, both files end in its host:
+`.build-server-key.buildserver.pfg.pw`.
 
 - **CI:** it reads the key from the repository secret `BE3_BUILD_SERVER_KEY`.
   Set it with `gh secret set BE3_BUILD_SERVER_KEY`.
@@ -337,10 +350,9 @@ Run them from a checkout of the repository.
     }
     ```
 
-12. **If the domain is new,** change it in three places:
-    - the `[buck2_re_client]` addresses in `.buckconfig`
-    - the example host in `scripts/internal/re-relay/main.go`
-    - this guide
+12. **Name the server** in the table at the top of this guide. If it
+    replaces `.buckconfig`'s, also change the `[buck2_re_client]` addresses
+    there and the example host in `scripts/internal/re-relay/main.go`.
 
 13. **Hand out the key** to every machine that builds, and to CI as the secret
     `BE3_BUILD_SERVER_KEY`.

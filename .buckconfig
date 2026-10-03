@@ -42,7 +42,8 @@ defer_write_actions = true
 sqlite_materializer_state = true
 
 # Our build server's executor, action cache and CAS (guides/build_server.md);
-# a new server is a new host here. A mistake here
+# a new server is a new host here, and ./scripts/buck points buck2 at another
+# one for a checkout that picks it. A mistake here
 # looks like a refused or empty cache rather than an error: the address is a
 # bare host:port (buck2 rejects grpcs:// and https://), http_headers uses a
 # colon, and there is no instance name. $BE3_BUILD_SERVER_KEY is expanded from
