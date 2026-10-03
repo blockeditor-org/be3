@@ -189,7 +189,6 @@ fn watch(fds: &[OwnedFd], waiter: &Waiter, wake: &dyn Fn()) {
             let fired = ready[1 + display + index];
             index += 1;
             if fired {
-                crate::trace!("watch: a blocker fired");
                 flag.store(true, Ordering::SeqCst);
                 woke = true;
             }

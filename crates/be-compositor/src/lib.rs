@@ -5,7 +5,6 @@ pub mod render;
 pub mod server;
 pub mod session;
 pub mod state;
-pub mod trace;
 pub mod ui;
 
 #[cfg(test)]
