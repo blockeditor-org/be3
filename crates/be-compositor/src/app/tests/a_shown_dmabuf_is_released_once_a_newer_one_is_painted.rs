@@ -52,23 +52,34 @@ fn a_shown_dmabuf_is_released_once_a_newer_one_is_painted() {
 
     let committed = 6;
     let mut files = Vec::new();
+    let mut buffers = Vec::new();
     for _ in 0..committed {
         let fd = rustix::fs::memfd_create("dmabuf", rustix::fs::MemfdFlags::CLOEXEC)
             .expect("a memfd opens");
         let mut file = std::fs::File::from(fd);
-        file.write_all(&pattern(64, 16)).expect("the pixels are written");
-        harness
-            .client
-            .attach_dmabuf_unsent(&window, file.as_fd(), 64, 16);
+        file.write_all(&pattern(64, 16))
+            .expect("the pixels are written");
+        buffers.push(
+            harness
+                .client
+                .attach_dmabuf_unsent(&window, file.as_fd(), 64, 16),
+        );
         files.push(file);
         harness.frame(Vec::new());
         paint(&mut harness);
     }
     harness.frame(Vec::new());
 
+    let released = &harness.client.received.released;
+    let (shown, replaced) = buffers.split_last().expect("buffers were committed");
+    for (index, buffer) in replaced.iter().enumerate() {
+        assert!(
+            released.contains(buffer),
+            "dmabuf {index} of {committed} was replaced but not released"
+        );
+    }
     assert!(
-        harness.client.received.released >= committed - 1,
-        "{} of {committed} dmabufs were released; only the one on screen may be held",
-        harness.client.received.released
+        !released.contains(shown),
+        "the dmabuf on screen is still held"
     );
 }

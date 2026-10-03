@@ -31,7 +31,7 @@ pub(crate) struct Received {
     pub(crate) pointer_surface: Option<wl_surface::WlSurface>,
     pub(crate) buttons: Vec<(u32, bool)>,
     pub(crate) frames: usize,
-    pub(crate) released: usize,
+    pub(crate) released: Vec<wl_buffer::WlBuffer>,
 }
 
 pub(crate) struct TestClient {
@@ -193,7 +193,7 @@ impl TestClient {
         fd: std::os::fd::BorrowedFd<'_>,
         width: i32,
         height: i32,
-    ) {
+    ) -> wl_buffer::WlBuffer {
         let dmabuf: zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1 = self.bind("zwp_linux_dmabuf_v1", 3);
         let params = dmabuf.create_params(&self.handle, ());
         params.add(fd, 0, 0, (width * 4) as u32, 0, 0);
@@ -208,6 +208,7 @@ impl TestClient {
         window.surface.attach(Some(&buffer), 0, 0);
         window.surface.damage_buffer(0, 0, width, height);
         window.surface.commit();
+        buffer
     }
 
     pub(crate) fn popup(
@@ -450,14 +451,14 @@ wayland_client::delegate_noop!(Received: ignore wl_shm_pool::WlShmPool);
 impl Dispatch<wl_buffer::WlBuffer, ()> for Received {
     fn event(
         state: &mut Self,
-        _: &wl_buffer::WlBuffer,
+        buffer: &wl_buffer::WlBuffer,
         event: wl_buffer::Event,
         _: &(),
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
         if let wl_buffer::Event::Release = event {
-            state.released += 1;
+            state.released.push(buffer.clone());
         }
     }
 }
