@@ -26,6 +26,10 @@ env:
   # BuildBuddy, which runs every buck2 action. A pull request from a fork sees
   # an empty value, and ./scripts/buck says so rather than building.
   BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+  # Our own server (scripts/build-server) in BuildBuddy's place, while the
+  # repository variable BE3_BUILD_SERVER names one.
+  BE3_BUILD_SERVER: ${{ vars.BE3_BUILD_SERVER }}
+  BE3_BUILD_SERVER_KEY: ${{ secrets.BE3_BUILD_SERVER_KEY }}
 
 # Two jobs do the work. build is one buck2 build of everything CI builds, on
 # every platform, and uploads what ships. verify is ./scripts/buck run //:verify,

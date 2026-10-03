@@ -89,19 +89,9 @@ It also lets `test` put tests on the workers (below).
 
 ## Building without BuildBuddy
 
-`./scripts/local-build-server start` runs a remote execution server on this
-machine (NativeLink, with one worker) and writes a `.buckconfig.local` that
-points buck2 at it; `off` stops it and points buck2 back at BuildBuddy. While
-that file is in place `./scripts/buck` needs no key and starts the server
-whenever it is not running. Its cache starts empty and has one machine's
-cores, so builds are slower. Each action runs as root in the workers' image
-(`worker_properties` in `buck/tools/defs.bzl`), unpacked once and entered
-through a user namespace and chroot (`scripts/internal/build-server-action.sh`)
-rather than Docker. On Ubuntu, which lets only programs AppArmor names create
-user namespaces, the first `start` installs a root-owned copy of `unshare` and
-a profile for it with sudo. Everything else, the log included, is in
-`~/.cache/be3/build-server`, shared by every checkout. Tests that would run
-on a worker run there too; the Android signing secret does not exist there.
+`./scripts/build-server` runs our own server in BuildBuddy's place, and
+`./scripts/build-server use DOMAIN` builds on it. guides/build_server.md says
+how to use it and how to set up a new one.
 
 ## Layout
 

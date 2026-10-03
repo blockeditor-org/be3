@@ -1,4 +1,4 @@
-# One action on scripts/local-build-server's worker, run as root in fresh user,
+# One action on scripts/build-server's worker, run as root in fresh user,
 # mount and pid namespaces: the workers' image is the root, with the host's
 # devices, a /proc for these processes, a /tmp of the action's own and the
 # server's work directory, where the action's inputs are, at the same path.
