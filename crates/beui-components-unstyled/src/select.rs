@@ -238,6 +238,7 @@ pub fn Select(
                             @node_ref={&state.search}
                             value={search_text}
                             focused={focused.memo(Focus::Search)}
+                            keyboard_on_focus=false
                             placeholder={search_placeholder}
                             style={search_style}
                             content={search_content.unwrap_or_else(|| Render::new(|handle: TextInputHandle| handle.field))}

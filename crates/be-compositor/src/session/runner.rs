@@ -1,5 +1,7 @@
 use beui::Repainting;
 use std::error::Error;
+use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -22,6 +24,8 @@ use smithay::backend::udev::{UdevBackend, UdevEvent, all_gpus, primary_gpu};
 use smithay::reexports::calloop::ping::make_ping;
 use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
 use smithay::reexports::calloop::{EventLoop, LoopHandle, LoopSignal, RegistrationToken};
+use smithay::reexports::drm;
+use smithay::reexports::drm::control::Device as ControlDevice;
 use smithay::reexports::input::Libinput;
 use smithay::reexports::rustix::fs::OFlags;
 use smithay::utils::DeviceFd;
@@ -71,15 +75,7 @@ pub fn run(launches: Vec<String>) -> Result<(), Box<dyn Error>> {
         LibSeatSession::new().map_err(|error| format!("no seat could be opened: {error:?}"))?;
     handle.insert_source(notifier, |event, _, session| session.seat_event(event))?;
     let name = seat.seat();
-    let path = primary_gpu(&name)?
-        .or_else(|| all_gpus(&name).ok()?.into_iter().next())
-        .ok_or("no GPU was found on this seat")?;
-    let fd = seat
-        .open(
-            &path,
-            OFlags::RDWR | OFlags::CLOEXEC | OFlags::NOCTTY | OFlags::NONBLOCK,
-        )
-        .map_err(|error| format!("{} could not be opened: {error:?}", path.display()))?;
+    let fd = open_display(&mut seat, &name)?;
     let fd = DrmDeviceFd::new(DeviceFd::from(fd));
     let (drm, drm_events) = DrmDevice::new(fd.clone(), true)?;
     let node = drm.device_id();
@@ -141,6 +137,55 @@ pub fn run(launches: Vec<String>) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn open_display(seat: &mut LibSeatSession, name: &str) -> Result<OwnedFd, String> {
+    let mut paths: Vec<PathBuf> = primary_gpu(name).ok().flatten().into_iter().collect();
+    for path in all_gpus(name).unwrap_or_default() {
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
+    if paths.is_empty() {
+        return Err("no GPU was found on this seat".to_owned());
+    }
+    let mut failures = Vec::new();
+    for path in paths {
+        let fd = match seat.open(
+            &path,
+            OFlags::RDWR | OFlags::CLOEXEC | OFlags::NOCTTY | OFlags::NONBLOCK,
+        ) {
+            Ok(fd) => fd,
+            Err(error) => {
+                failures.push(format!("{} could not be opened: {error:?}", path.display()));
+                continue;
+            }
+        };
+        match Probe(fd.as_fd()).resource_handles() {
+            Ok(resources) if !resources.connectors().is_empty() => return Ok(fd),
+            Ok(_) => failures.push(format!("{} has no connectors", path.display())),
+            Err(error) => {
+                failures.push(format!("{} cannot drive displays: {error}", path.display()))
+            }
+        }
+        let _ = seat.close(fd);
+    }
+    Err(format!(
+        "no device on this seat can drive a display: {}",
+        failures.join("; ")
+    ))
+}
+
+struct Probe<'a>(BorrowedFd<'a>);
+
+impl AsFd for Probe<'_> {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.0
+    }
+}
+
+impl drm::Device for Probe<'_> {}
+
+impl ControlDevice for Probe<'_> {}
+
 fn scale() -> f32 {
     std::env::var("BE_COMPOSITOR_SCALE")
         .ok()
@@ -150,7 +195,7 @@ fn scale() -> f32 {
 }
 
 fn open_gpu(node: u64, lost: &Arc<AtomicBool>) -> Result<(wgpu::Device, wgpu::Queue), String> {
-    let adapter = adapter_for(node).ok_or("no Vulkan device drives this display")?;
+    let adapter = adapter_for(node).ok_or("no Vulkan device was found")?;
     let descriptor = wgpu::DeviceDescriptor {
         label: Some("be-compositor"),
         required_features: wgpu::Features::empty(),

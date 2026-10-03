@@ -39,7 +39,9 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
     );
 
     let composing = harness
-        .frame(vec![Event::Ime(ImeEvent::Preedit("nihao".to_owned()))])
+        .frame(vec![Event::Ime(ImeEvent::SetComposingText(
+            "nihao".to_owned(),
+        ))])
         .ime
         .expect("the keyboard is asked for while composing");
     assert!(
@@ -48,7 +50,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
     );
 
     let cleared = harness
-        .frame(vec![Event::Ime(ImeEvent::Disabled)])
+        .frame(vec![Event::Ime(ImeEvent::SetComposingText(String::new()))])
         .ime
         .expect("the keyboard is still asked for");
     assert_eq!(

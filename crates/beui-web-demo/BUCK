@@ -3,8 +3,9 @@ load("@root//buck/cargo:defs.bzl", "cargo_library")
 load("@root//buck/tools:defs.bzl", "tool")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 
-# beui's demo (crates/beui-demo) in a browser, drawn with DOM elements rather
-# than wgpu: `./scripts/buck run //crates/beui-web-demo:web-serve`.
+# beui's demo (crates/beui-demo) in a browser, drawn with DOM elements or with
+# wgpu, switched at runtime from the inspector's Perf tab:
+# `./scripts/buck run //crates/beui-web-demo:web-serve`.
 cargo_library(
     rustc_flags = wasi_app_flags,
     target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],

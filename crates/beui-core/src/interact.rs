@@ -292,7 +292,7 @@ pub fn interact(
         && ((input.pressed_this_frame && !input.touch_started)
             || (input.touch_ended && !input.touch_dragged && !input.touch_cancelled))
     {
-        doc.update_focus(focus_target);
+        doc.press_focus(focus_target);
     }
 
     doc.validate_focus();
@@ -334,21 +334,12 @@ pub fn interact(
                 doc.reveal_focus(painter);
                 continue;
             }
-            Event::Ime(ImeEvent::Preedit(text)) => {
-                doc.preedit_focused(&text);
-                doc.reveal_focus(painter);
-                continue;
-            }
-            Event::Ime(ImeEvent::Commit(text)) => {
-                doc.preedit_focused("");
-                if !text.is_empty() {
-                    doc.text_focused(&text);
+            Event::Ime(ime) => {
+                let reveals = !matches!(ime, ImeEvent::Enabled | ImeEvent::Disabled);
+                doc.ime_focused(ime);
+                if reveals {
+                    doc.reveal_focus(painter);
                 }
-                doc.reveal_focus(painter);
-                continue;
-            }
-            Event::Ime(ImeEvent::Disabled) => {
-                doc.preedit_focused("");
                 continue;
             }
             Event::Key {
@@ -663,7 +654,7 @@ fn interact_node(
     }
 
     for &child in &children {
-        if rects.contains_key(&child) {
+        if rects.contains_key(&child) && !doc.is_culled(child) {
             doc.interact_parents.insert(child, id);
             interact_node(doc, painter, input, child, reach, focus_target, pool);
         }

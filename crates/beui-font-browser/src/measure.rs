@@ -7,7 +7,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 
 use beui_core::font::{
-    FontBackend, FontFamily, FontId, Galley, GalleyLine, Shaping, TextLayout, break_lines,
+    FontBackend, FontFamily, FontId, Galley, GalleyLine, Shaping, TextLayout, Wraps, break_lines,
 };
 use beui_core::geometry::vec2;
 
@@ -214,10 +214,11 @@ impl FontBackend for BrowserFonts {
         let mut rows = Vec::new();
         let mut width = 0.0f32;
         let mut start = 0;
+        let mut wraps = Wraps::ANY;
 
         for line in text.split('\n') {
             let steps = self.steps(&measured, line);
-            let runs = break_lines(&steps, line, shape.wrap(), |step| {
+            let runs = break_lines(&steps, line, shape.wrap(), &mut wraps, |step| {
                 (step.cluster, step.x_advance)
             });
             let last = runs.len() - 1;
@@ -280,6 +281,7 @@ impl FontBackend for BrowserFonts {
             baseline / scale,
             Vec::new(),
             lines,
+            wraps,
         )
     }
 

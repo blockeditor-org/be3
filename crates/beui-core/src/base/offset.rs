@@ -602,9 +602,15 @@ impl Document {
         if !self.focus_path(root, node, &mut path) {
             return;
         }
+        let placed = path
+            .iter()
+            .rev()
+            .copied()
+            .find(|id| self.node_rect(*id).is_some())
+            .unwrap_or(node);
         for id in path.into_iter().rev().skip(1) {
             if let Some(offset) = self.arena.kind_of::<OffsetNode>(id) {
-                self.reveal_offset_item(offset, node);
+                self.reveal_offset_item(offset, placed);
                 return;
             }
         }

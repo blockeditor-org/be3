@@ -3,7 +3,7 @@
 # What `./scripts/buck run //:verify` runs: Cargo.lock, fix-rust-source,
 # rustfmt, starlark_fmt and clippy (--lint), the tests (--tests), and the
 # plugin tests (--plugin-tests), which run here because they read and write
-# snapshots/. Naming none runs all three; CI runs them on three runners.
+# snapshots/. Naming none runs all three, as CI does through //:ci.
 # Every tool writes its fixes and the plugin tests accept new paintings, unless
 # --check, which writes nothing and fails on anything that would change.
 # Locally it prints only what failed, cut down by scripts/internal/quiet.awk;
@@ -166,10 +166,11 @@ tools_missing() {
     return 1
 }
 
-# When BuildBuddy resets a download, ./scripts/buck builds again and buck2 can
-# answer that everything is built while some of the files it lost are not on
-# disk, because its materializer state says they are. Cleaning forgets that
-# state, and the next build downloads them from the cache.
+# When the build server's connection resets a download, ./scripts/buck builds
+# again and buck2 can answer that everything is built while some of the files
+# it lost are not on disk, because its materializer state says they are.
+# Cleaning forgets that state, and the next build downloads them from the
+# cache.
 if $lint; then
     build_tools
     if tools_missing; then

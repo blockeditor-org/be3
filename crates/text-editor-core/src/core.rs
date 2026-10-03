@@ -4,6 +4,10 @@ use serde::{Deserialize, Serialize};
 use similar::{Algorithm, DiffTag, capture_diff_slices};
 use unicode_segmentation::UnicodeSegmentation;
 
+mod ime;
+
+pub use ime::{ImeCommand, ImeState};
+
 use crate::{
     Highlighter, Language, SyntaxHighlight,
     document::{Anchor, Document, DocumentRead, DocumentView, TextIndentation, TextLanguage},
@@ -288,6 +292,8 @@ pub enum EditorCommand<'a> {
     Uncollapse,
 
     ToggleCollapseAt(Position),
+
+    Ime(ImeCommand<'a>),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -370,6 +376,7 @@ pub struct Core {
 
     collapse_state: Vec<Position>,
     section_shapes: std::cell::RefCell<Option<(u64, Arc<[SectionShape]>)>>,
+    composition: Option<(Position, Position)>,
 }
 
 #[derive(Clone, Copy)]
@@ -391,6 +398,7 @@ impl Core {
             highlighter_language: None,
             collapse_state: Vec::new(),
             section_shapes: std::cell::RefCell::new(None),
+            composition: None,
         }
     }
 
@@ -818,7 +826,11 @@ impl Core {
 
     pub fn execute_command(&mut self, command: EditorCommand<'_>) {
         self.normalize_cursors();
+        if !matches!(command, EditorCommand::Ime(_)) {
+            self.composition = None;
+        }
         match command {
+            EditorCommand::Ime(command) => self.ime(command),
             EditorCommand::SetSelection { anchor, focus } => {
                 self.select(Selection::range(anchor, focus));
             }
@@ -889,15 +901,7 @@ impl Core {
     }
 
     fn insert_text(&mut self, text: &[u8]) {
-        let mut classification = UndoClassification::InsertAlphanumeric;
-        for byte in text {
-            if byte.is_ascii_whitespace() {
-                classification = UndoClassification::InsertSpace;
-            }
-            if matches!(byte, b'(' | b'{' | b'[' | b'<') {
-                classification = UndoClassification::AlwaysSplit;
-            }
-        }
+        let classification = insert_classification(text);
         let history_cursors = self.cursor_positions.clone();
         let Some(read) = self.document.read() else {
             return;
@@ -2137,6 +2141,19 @@ enum BetweenCharsStop {
 enum BoundaryMode {
     Direction,
     Select,
+}
+
+fn insert_classification(text: &[u8]) -> UndoClassification {
+    let mut classification = UndoClassification::InsertAlphanumeric;
+    for byte in text {
+        if byte.is_ascii_whitespace() {
+            classification = UndoClassification::InsertSpace;
+        }
+        if matches!(byte, b'(' | b'{' | b'[' | b'<') {
+            classification = UndoClassification::AlwaysSplit;
+        }
+    }
+    classification
 }
 
 fn resolve_selection(document: &dyn DocumentRead, selection: Selection) -> ResolvedSelection {

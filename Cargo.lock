@@ -836,6 +836,8 @@ dependencies = [
  "beui-renderer-wgpu",
  "beui-view",
  "beui_macros",
+ "pollster",
+ "raw-window-handle",
  "reactive",
  "text-editor-core",
  "wasm-bindgen",
@@ -850,14 +852,12 @@ dependencies = [
  "accesskit",
  "accesskit_android",
  "beui-core",
- "beui-renderer-wgpu",
  "jni 0.22.4",
  "libc",
  "ndk 0.9.0",
  "ndk-context",
  "ndk-sys 0.6.0+11769913",
- "pollster",
- "wgpu",
+ "raw-window-handle",
 ]
 
 [[package]]
@@ -880,10 +880,8 @@ dependencies = [
  "arboard",
  "ashpd",
  "beui-core",
- "beui-renderer-wgpu",
  "pollster",
  "rfd",
- "wgpu",
  "winit",
 ]
 
@@ -923,6 +921,7 @@ dependencies = [
  "accesskit",
  "foldhash 0.2.0",
  "geometry",
+ "raw-window-handle",
  "reactive",
  "thumbhash",
  "unicode-segmentation",
@@ -953,6 +952,7 @@ name = "beui-font-freetype"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "foldhash 0.2.0",
  "freetype",
  "harfbuzz_rs",
  "libloading",

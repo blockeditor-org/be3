@@ -6,9 +6,9 @@ fn a_crowded_dock_tab_bar_scrolls_rather_than_spilling() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let area = harness.rect(dock);
-    let last = dock_tab(harness.document(), dock, "Tab 12");
     assert!(
-        harness.rect(last).left() > area.right(),
+        text_within(harness.document(), dock, "Tab 12")
+            .is_none_or(|last| harness.rect(last).left() > area.right()),
         "the tabs a pane has no room for sit past its edge"
     );
 
@@ -21,9 +21,9 @@ fn a_crowded_dock_tab_bar_scrolls_rather_than_spilling() {
         harness.rect(last).right() <= area.right(),
         "walking to the last tab scrolls the bar until it is in view"
     );
-    let first = dock_tab(harness.document(), dock, "Tab 1");
     assert!(
-        harness.rect(first).right() < area.left(),
+        text_within(harness.document(), dock, "Tab 1")
+            .is_none_or(|first| harness.rect(first).right() < area.left()),
         "the tabs it scrolled past are the ones that leave"
     );
 }

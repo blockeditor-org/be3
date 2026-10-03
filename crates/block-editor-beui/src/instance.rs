@@ -15,7 +15,7 @@ use block_editor_plugin::{
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect, wgpu};
-use block_plugin_api::{CursorIcon, FilePick, ImeInput, InputEvent, PointerButton, WheelUnit};
+use block_plugin_api::{CursorIcon, FilePick, InputEvent, PointerButton, WheelUnit};
 use block_plugin_api::{EMPTY_PANE, PaneId, PaneInfo, PaneLayout};
 use uuid::Uuid;
 
@@ -692,9 +692,11 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             content: content.map(|rect| rect.scaled(unscale)),
             painted: painted.iter().map(|rect| rect.scaled(unscale)).collect(),
             floating: floating.iter().map(|rect| rect.scaled(unscale)).collect(),
-            ime: output.ime.map(|area| Ime {
+            ime: output.ime.as_ref().map(|area| Ime {
                 rect: area.rect.scaled(unscale),
                 cursor: area.cursor.scaled(unscale),
+                text: area.text.as_ref().map(beui_plugin_input::protocol_ime_text),
+                keyboard: area.keyboard,
             }),
             handles_back: output.handles_back,
         };
@@ -922,12 +924,9 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 state.emulated_touch = false;
                 state.events.push(beui::Event::Focus(false));
             }
-            InputEvent::Ime(ime) => state.events.push(beui::Event::Ime(match ime {
-                ImeInput::Enabled => beui::ImeEvent::Enabled,
-                ImeInput::Preedit(text) => beui::ImeEvent::Preedit(text.clone()),
-                ImeInput::Commit(text) => beui::ImeEvent::Commit(text.clone()),
-                ImeInput::Disabled => beui::ImeEvent::Disabled,
-            })),
+            InputEvent::Ime(ime) => state
+                .events
+                .push(beui::Event::Ime(beui_plugin_input::beui_ime(ime))),
             InputEvent::Focus(_) => {}
             InputEvent::Back(phase) => state
                 .events

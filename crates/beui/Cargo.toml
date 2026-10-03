@@ -7,7 +7,12 @@ license.workspace = true
 [features]
 default = ["window"]
 render = ["dep:beui-renderer-wgpu"]
-window = ["render", "dep:beui-adapter-android", "dep:beui-adapter-winit"]
+window = [
+    "render",
+    "dep:beui-adapter-android",
+    "dep:beui-adapter-winit",
+    "dep:pollster",
+]
 web = [
     "render",
     "beui-renderer-wgpu/web",
@@ -15,7 +20,12 @@ web = [
     "dep:wasm-bindgen",
     "dep:web-sys",
 ]
-dom = ["dep:beui-adapter-web", "dep:beui-font-browser", "dep:beui-renderer-dom"]
+dom = [
+    "dep:beui-adapter-web",
+    "dep:beui-font-browser",
+    "dep:beui-renderer-dom",
+    "dep:web-sys",
+]
 
 [dependencies]
 accesskit = "0.24.1"
@@ -29,6 +39,9 @@ beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+pollster = { version = "0.4", optional = true }
+
 [target.'cfg(target_os = "android")'.dependencies]
 beui-adapter-android = { path = "../beui-adapter-android", optional = true }
 
@@ -40,9 +53,18 @@ beui-adapter-web = { path = "../beui-adapter-web", optional = true }
 beui-font-browser = { path = "../beui-font-browser", optional = true }
 beui-renderer-dom = { path = "../beui-renderer-dom", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["HtmlCanvasElement", "HtmlElement"] }
+web-sys = { version = "0.3", optional = true, features = [
+    "CssStyleDeclaration",
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "HtmlElement",
+    "Node",
+    "console",
+] }
 
 [dev-dependencies]
+raw-window-handle = "0.6"
 text-editor-core = { path = "../text-editor-core" }
 wgpu = { version = "29", default-features = false }
 

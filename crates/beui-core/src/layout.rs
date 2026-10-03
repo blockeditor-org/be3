@@ -62,12 +62,13 @@ pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out
         return;
     }
     doc.note_placed_work(false);
-    doc.record_placement(id, rect, state, own.state(), out);
+    let culled = doc.culls(id, rect.size(), own.state());
+    doc.record_placement(id, rect, state, own.state(), out, culled);
     let watermark = doc.arena.relaid_len();
     doc.deliver_unmeasured_constraint(id, rect.size());
     doc.deliver_placement(id, rect.translate(state.origin));
     doc.assert_confined(id, watermark);
-    if !doc.arena.contains(id) {
+    if culled || !doc.arena.contains(id) {
         return;
     }
     let mut element = doc.arena.take(id);

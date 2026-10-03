@@ -24,16 +24,16 @@ use jni::vm::JavaVM;
 use jni::{EnvUnowned, jni_sig, jni_str};
 use ndk::asset::AssetManager;
 use ndk::native_window::NativeWindow;
+use raw_window_handle as rwh;
 
-use beui_core::app::accessibility_dump::AccessibilityDump;
-use beui_core::app::{App, SafeArea, Setup, Waker, next_batch, press, safe_rect, typed};
-use beui_core::context::Context;
+use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::file_picker::{FilePick, FilePickId, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
-    BackEdge, BackGesture, Event, ImeArea, ImeEvent, Key, Modifiers, RawInput, TouchId, TouchPhase,
+    BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Modifiers, TouchId, TouchPhase,
 };
-use beui_renderer_wgpu::present::{Gpu, GpuSetup, OpenDevice, Presented, Target, create_gpu};
+use beui_core::renderer::{Loaded, WindowHandle};
+use beui_core::runner::{Adapter, Launch, Platform, Running};
 use clipboard::Clipboard;
 
 const LINE_HEIGHT: f32 = 40.0;
@@ -97,21 +97,10 @@ enum Message {
         modifiers: Modifiers,
         text: Option<String>,
     },
-    Compose(String),
-    Commit {
-        text: String,
-        composing: bool,
+    Ime {
+        event: ImeEvent,
+        serial: u64,
     },
-    Recompose {
-        by: i32,
-        delete: u32,
-        text: String,
-    },
-    Delete {
-        before: u32,
-        after: u32,
-    },
-    Move(i32),
     Back(BackGesture),
     InitialTreeRequested,
     Action(ActionRequest),
@@ -145,66 +134,61 @@ fn send(message: Message) -> bool {
     shared().sender.send(message).is_ok()
 }
 
-pub struct RunOptions {
-    pub title: String,
-    pub app_id: Option<String>,
-    pub size: Vec2,
-    pub accessibility_dump: Option<std::path::PathBuf>,
-    pub open_device: Option<OpenDevice>,
+type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>>>;
+
+pub struct Android {
+    load: Load,
 }
 
-impl RunOptions {
-    pub fn new(title: impl Into<String>) -> Self {
+impl Android {
+    pub fn new(
+        load: impl FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>> + 'static,
+    ) -> Self {
         Self {
-            title: title.into(),
-            app_id: None,
-            size: Vec2::new(1280.0, 800.0),
-            accessibility_dump: None,
-            open_device: None,
+            load: Box::new(load),
         }
     }
 }
 
-pub fn run_with(
-    options: RunOptions,
-    context: Context,
-    app: impl App + 'static,
-) -> Result<(), Box<dyn Error>> {
+impl Adapter for Android {
+    fn name(&self) -> &'static str {
+        "android"
+    }
+
+    fn run(self: Box<Self>, launch: Launch) -> Running {
+        Box::pin(async move { run(launch, self.load) })
+    }
+}
+
+fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
     let receiver = shared()
         .receiver
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .take()
         .ok_or("the app is already running")?;
-    let accessibility_dump = options
-        .accessibility_dump
-        .clone()
-        .map(AccessibilityDump::new);
+    launch.context.set_test_ids_published(false);
     let mut runner = Runner {
-        vm: JavaVM::singleton()?,
-        options,
-        app: Box::new(app),
-        context,
-        gpu: None,
-        target: None,
+        runner: beui_core::runner::Runner::new(launch),
+        platform: AndroidPlatform {
+            vm: JavaVM::singleton()?,
+            view: None,
+            accessibility: None,
+            accessibility_active: false,
+            clipboard: Clipboard::new(),
+            ime: None,
+            handles_back: false,
+            ime_serial: 0,
+            sent_ime: None,
+            tapped_at: None,
+        },
+        load: Some(load),
         window: None,
         density: 1.0,
-        view: None,
-        accessibility: None,
-        accessibility_active: false,
-        accessibility_dump,
-        events: Vec::new(),
         modifiers: Modifiers::NONE,
         safe_area: SafeArea::default(),
-        ime: None,
-        handles_back: false,
-        preedit: String::new(),
-        restart_input: false,
-        tapped_at: None,
         next_update: None,
         redraw: false,
-        clipboard: Clipboard::new(),
-        exiting: false,
         error: None,
     };
     runner.run(&receiver);
@@ -215,95 +199,80 @@ pub fn run_with(
 }
 
 struct Runner {
-    vm: JavaVM,
-    options: RunOptions,
-    app: Box<dyn App>,
-    context: Context,
-    gpu: Option<Gpu>,
-    target: Option<Target>,
+    runner: beui_core::runner::Runner,
+    platform: AndroidPlatform,
+    load: Option<Load>,
     window: Option<NativeWindow>,
     density: f32,
-    view: Option<Arc<Global<JObject<'static>>>>,
-    accessibility: Option<InjectingAdapter>,
-    accessibility_active: bool,
-    accessibility_dump: Option<AccessibilityDump>,
-    events: Vec<Event>,
     modifiers: Modifiers,
     safe_area: SafeArea,
-    ime: Option<ImeArea>,
-    handles_back: bool,
-    preedit: String,
-    restart_input: bool,
-    tapped_at: Option<Pos2>,
     next_update: Option<Instant>,
     redraw: bool,
-    clipboard: Clipboard,
-    exiting: bool,
     error: Option<String>,
 }
 
-impl Runner {
-    fn run(&mut self, receiver: &Receiver<Message>) {
-        while !self.exiting {
-            let due = self.redraw
-                || !self.events.is_empty()
-                || self
-                    .next_update
-                    .is_some_and(|deadline| deadline <= Instant::now());
-            let message = if due {
-                match receiver.try_recv() {
-                    Ok(message) => Some(message),
-                    Err(TryRecvError::Empty) => None,
-                    Err(TryRecvError::Disconnected) => break,
-                }
-            } else {
-                match self.next_update {
-                    Some(deadline) => {
-                        match receiver
-                            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
-                        {
-                            Ok(message) => Some(message),
-                            Err(RecvTimeoutError::Timeout) => None,
-                            Err(RecvTimeoutError::Disconnected) => break,
-                        }
-                    }
-                    None => match receiver.recv() {
-                        Ok(message) => Some(message),
-                        Err(_) => break,
-                    },
-                }
-            };
-            match message {
-                Some(message) => self.handle(message),
-                None => self.frame(),
-            }
+struct AndroidPlatform {
+    vm: JavaVM,
+    view: Option<Arc<Global<JObject<'static>>>>,
+    accessibility: Option<InjectingAdapter>,
+    accessibility_active: bool,
+    clipboard: Clipboard,
+    ime: Option<ImeArea>,
+    handles_back: bool,
+    ime_serial: u64,
+    sent_ime: Option<(Option<ImeText>, u64)>,
+    tapped_at: Option<Pos2>,
+}
+
+impl Platform for AndroidPlatform {
+    fn copy(&mut self, text: String) {
+        self.clipboard.set(text);
+    }
+
+    fn paste(&mut self) -> Option<String> {
+        self.clipboard.get()
+    }
+
+    fn pick_file(&mut self, request: FilePickRequest) {
+        AndroidPlatform::pick_file(self, request);
+    }
+
+    fn set_handles_back(&mut self, handles: bool) {
+        self.handles_back = handles;
+        self.set_back_handled(handles);
+    }
+
+    fn show_ime(&mut self, ime: Option<&ImeArea>) {
+        let asked = self.ime.as_ref().is_some_and(|area| area.keyboard);
+        let wanted = ime.is_some_and(|area| area.keyboard);
+        let tapped_field = self
+            .tapped_at
+            .take()
+            .is_some_and(|tap| asked && ime.is_some_and(|area| area.rect.contains(tap)));
+        let text = ime.and_then(|area| area.text.clone());
+        let sent = (text, self.ime_serial);
+        if self.sent_ime.as_ref() != Some(&sent) {
+            self.set_ime_text(sent.0.as_ref(), sent.1);
+            self.sent_ime = Some(sent);
         }
-        self.exit();
+        if wanted != asked {
+            self.set_keyboard(wanted);
+        } else if wanted && tapped_field {
+            self.set_keyboard(true);
+        }
+        self.ime = ime.cloned();
     }
 
-    fn exit(&mut self) {
-        if !self.exiting {
-            self.exiting = true;
-            self.app.exiting();
+    fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
+        if self.accessibility_active
+            && let Some(accessibility) = &mut self.accessibility
+        {
+            accessibility.update_if_active(tree);
         }
     }
+}
 
-    fn fail(&mut self, error: impl ToString) {
-        self.error = Some(error.to_string());
-        self.exit();
-    }
-
-    fn scale_factor(&self) -> f32 {
-        self.context
-            .simulated_pixels_per_point()
-            .unwrap_or(self.density * self.context.zoom_factor())
-    }
-
-    fn logical(&self, x: f32, y: f32) -> Pos2 {
-        let scale = self.scale_factor();
-        pos2(x / scale, y / scale)
-    }
-
+impl AndroidPlatform {
     fn set_keyboard(&self, shown: bool) {
         let Some(view) = &self.view else {
             return;
@@ -316,6 +285,43 @@ impl Runner {
                     jni_str!("setKeyboard"),
                     jni_sig!("(Z)V"),
                     &[JValue::Bool(shown)],
+                )?;
+                Ok(())
+            });
+    }
+
+    fn set_ime_text(&self, text: Option<&ImeText>, serial: u64) {
+        let Some(view) = &self.view else {
+            return;
+        };
+        let offset = |index: usize| jlong::try_from(index).unwrap_or(jlong::MAX);
+        let _ = self
+            .vm
+            .attach_current_thread(|env| -> Result<(), JniError> {
+                let (start, value, selection, composing) = match text {
+                    Some(text) => (
+                        offset(text.start),
+                        env.new_string(&text.text)?,
+                        (offset(text.selection.start), offset(text.selection.end)),
+                        text.composing
+                            .as_ref()
+                            .map_or((-1, -1), |range| (offset(range.start), offset(range.end))),
+                    ),
+                    None => (0, env.new_string("")?, (0, 0), (-1, -1)),
+                };
+                env.call_method(
+                    view.as_obj(),
+                    jni_str!("setImeText"),
+                    jni_sig!("(JLjava/lang/String;JJJJJ)V"),
+                    &[
+                        JValue::Long(start),
+                        JValue::Object(&value),
+                        JValue::Long(selection.0),
+                        JValue::Long(selection.1),
+                        JValue::Long(composing.0),
+                        JValue::Long(composing.1),
+                        JValue::Long(jlong::try_from(serial).unwrap_or(jlong::MAX)),
+                    ],
                 )?;
                 Ok(())
             });
@@ -387,167 +393,6 @@ impl Runner {
         }
     }
 
-    fn press(&mut self, key: Key, times: u32) {
-        for _ in 0..times {
-            press(key, &mut self.events);
-        }
-    }
-
-    fn move_by(&mut self, by: i32) {
-        let key = if by < 0 {
-            Key::ArrowLeft
-        } else {
-            Key::ArrowRight
-        };
-        self.press(key, by.unsigned_abs());
-    }
-
-    fn handle(&mut self, message: Message) {
-        match message {
-            Message::View(view) => {
-                self.accessibility = None;
-                self.view = Some(view);
-                self.attach_accessibility();
-                if self.ime.is_some() {
-                    self.set_keyboard(true);
-                }
-                if self.handles_back {
-                    self.set_back_handled(true);
-                }
-            }
-            Message::Surface {
-                window,
-                width,
-                height,
-                density,
-            } => self.surface(window, width, height, density),
-            Message::SurfaceGone(done) => {
-                if let Some(target) = &mut self.target {
-                    target.detach();
-                }
-                self.window = None;
-                let _ = done.send(());
-            }
-            Message::Insets(area) => {
-                self.safe_area = area;
-                self.redraw = true;
-            }
-            Message::Focus(focused) => {
-                if !focused && self.modifiers != Modifiers::NONE {
-                    self.modifiers = Modifiers::NONE;
-                    self.events.push(Event::Modifiers(self.modifiers));
-                }
-                self.events.push(Event::Focus(focused));
-            }
-            Message::Touch {
-                device,
-                id,
-                phase,
-                x,
-                y,
-                force,
-            } => {
-                let pos = self.logical(x, y);
-                if phase == TouchPhase::Start && !self.preedit.is_empty() {
-                    let preedit = std::mem::take(&mut self.preedit);
-                    self.events.push(Event::Ime(ImeEvent::Commit(preedit)));
-                    self.restart_input = true;
-                }
-                if phase == TouchPhase::End {
-                    self.tapped_at = Some(pos);
-                }
-                self.events.push(Event::Touch {
-                    id: TouchId {
-                        device: u64::from(device.cast_unsigned()),
-                        finger: u64::from(id.cast_unsigned()),
-                    },
-                    phase,
-                    pos,
-                    force: Some(force),
-                });
-            }
-            Message::Scroll(delta) => self.events.push(Event::Scroll(delta * LINE_HEIGHT)),
-            Message::Key {
-                key,
-                pressed,
-                repeat,
-                modifiers,
-                text,
-            } => {
-                if modifiers != self.modifiers {
-                    self.modifiers = modifiers;
-                    self.events.push(Event::Modifiers(modifiers));
-                }
-                if pressed
-                    && key == Some(Key::V)
-                    && modifiers.ctrl
-                    && !modifiers.alt
-                    && let Some(text) = self.clipboard.get()
-                {
-                    self.events.push(Event::Text(text));
-                }
-                if let Some(key) = key {
-                    self.events.push(Event::Key {
-                        key,
-                        pressed,
-                        repeat,
-                        modifiers,
-                    });
-                }
-                if pressed
-                    && !modifiers.ctrl
-                    && !modifiers.alt
-                    && let Some(text) = text
-                {
-                    self.events.push(Event::Text(text));
-                }
-            }
-            Message::Compose(text) => {
-                self.preedit.clone_from(&text);
-                self.events.push(Event::Ime(ImeEvent::Preedit(text)));
-            }
-            Message::Commit { text, composing } => {
-                if composing || !self.preedit.is_empty() {
-                    self.preedit.clear();
-                    self.events
-                        .push(Event::Ime(ImeEvent::Commit(String::new())));
-                }
-                typed("", &text, &mut self.events);
-            }
-            Message::Recompose { by, delete, text } => {
-                self.move_by(by);
-                self.press(Key::Backspace, delete);
-                self.preedit.clone_from(&text);
-                self.events.push(Event::Ime(ImeEvent::Preedit(text)));
-            }
-            Message::Delete { before, after } => {
-                self.press(Key::Backspace, before);
-                self.press(Key::Delete, after);
-            }
-            Message::Move(by) => self.move_by(by),
-            Message::Back(gesture) => self.events.push(Event::Back(gesture)),
-            Message::InitialTreeRequested => {
-                self.accessibility_active = true;
-                self.context.reset_accessibility();
-                self.redraw = true;
-            }
-            Message::Action(request) => {
-                self.context.accessibility_action(request);
-                self.redraw = true;
-            }
-            Message::FilePicked(id, pick) => {
-                self.context.file_picked(id, pick);
-                self.redraw = true;
-            }
-            Message::Wake => self.redraw = true,
-            Message::Destroy { finishing } => {
-                if finishing {
-                    self.exit();
-                }
-            }
-        }
-    }
-
     fn attach_accessibility(&mut self) {
         let Some(view) = &self.view else {
             return;
@@ -570,159 +415,272 @@ impl Runner {
             Err(error) => eprintln!("beui: accessibility is unavailable: {error}"),
         }
     }
+}
+
+impl Runner {
+    fn run(&mut self, receiver: &Receiver<Message>) {
+        while !self.runner.exited() {
+            let due = self.redraw
+                || self.runner.has_events()
+                || self
+                    .next_update
+                    .is_some_and(|deadline| deadline <= Instant::now());
+            let message = if due {
+                match receiver.try_recv() {
+                    Ok(message) => Some(message),
+                    Err(TryRecvError::Empty) => None,
+                    Err(TryRecvError::Disconnected) => break,
+                }
+            } else {
+                match self.next_update {
+                    Some(deadline) => {
+                        match receiver
+                            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                        {
+                            Ok(message) => Some(message),
+                            Err(RecvTimeoutError::Timeout) => None,
+                            Err(RecvTimeoutError::Disconnected) => break,
+                        }
+                    }
+                    None => match receiver.recv() {
+                        Ok(message) => Some(message),
+                        Err(_) => break,
+                    },
+                }
+            };
+            match message {
+                Some(message) => self.handle(message),
+                None => self.frame(),
+            }
+        }
+        self.exit();
+    }
+
+    fn exit(&mut self) {
+        self.runner.exit();
+    }
+
+    fn fail(&mut self, error: impl ToString) {
+        self.error = Some(error.to_string());
+        self.exit();
+    }
+
+    fn scale_factor(&self) -> f32 {
+        let context = self.runner.context();
+        context
+            .simulated_pixels_per_point()
+            .unwrap_or(self.density * context.zoom_factor())
+    }
+
+    fn logical(&self, x: f32, y: f32) -> Pos2 {
+        let scale = self.scale_factor();
+        pos2(x / scale, y / scale)
+    }
+
+    fn handle(&mut self, message: Message) {
+        match message {
+            Message::View(view) => {
+                let platform = &mut self.platform;
+                platform.accessibility = None;
+                platform.view = Some(view);
+                platform.attach_accessibility();
+                platform.ime_serial = 0;
+                let text = platform.ime.as_ref().and_then(|area| area.text.clone());
+                platform.set_ime_text(text.as_ref(), 0);
+                platform.sent_ime = Some((text, 0));
+                if platform.ime.as_ref().is_some_and(|area| area.keyboard) {
+                    platform.set_keyboard(true);
+                }
+                if platform.handles_back {
+                    platform.set_back_handled(true);
+                }
+            }
+            Message::Surface {
+                window,
+                width,
+                height,
+                density,
+            } => self.surface(window, width, height, density),
+            Message::SurfaceGone(done) => {
+                if let Some(renderers) = self.runner.renderers() {
+                    renderers.detach();
+                }
+                self.window = None;
+                let _ = done.send(());
+            }
+            Message::Insets(area) => {
+                self.safe_area = area;
+                self.redraw = true;
+            }
+            Message::Focus(focused) => {
+                if !focused && self.modifiers != Modifiers::NONE {
+                    self.modifiers = Modifiers::NONE;
+                    self.runner.push(Event::Modifiers(self.modifiers));
+                }
+                self.runner.push(Event::Focus(focused));
+            }
+            Message::Touch {
+                device,
+                id,
+                phase,
+                x,
+                y,
+                force,
+            } => {
+                let pos = self.logical(x, y);
+                if phase == TouchPhase::End {
+                    self.platform.tapped_at = Some(pos);
+                }
+                self.runner.push(Event::Touch {
+                    id: TouchId {
+                        device: u64::from(device.cast_unsigned()),
+                        finger: u64::from(id.cast_unsigned()),
+                    },
+                    phase,
+                    pos,
+                    force: Some(force),
+                });
+            }
+            Message::Scroll(delta) => self.runner.push(Event::Scroll(delta * LINE_HEIGHT)),
+            Message::Key {
+                key,
+                pressed,
+                repeat,
+                modifiers,
+                text,
+            } => {
+                if modifiers != self.modifiers {
+                    self.modifiers = modifiers;
+                    self.runner.push(Event::Modifiers(modifiers));
+                }
+                if pressed
+                    && key == Some(Key::V)
+                    && modifiers.ctrl
+                    && !modifiers.alt
+                    && let Some(text) = self.platform.clipboard.get()
+                {
+                    self.runner.push(Event::Text(text));
+                }
+                if let Some(key) = key {
+                    self.runner.push(Event::Key {
+                        key,
+                        pressed,
+                        repeat,
+                        modifiers,
+                    });
+                }
+                if pressed
+                    && !modifiers.ctrl
+                    && !modifiers.alt
+                    && let Some(text) = text
+                {
+                    self.runner.push(Event::Text(text));
+                }
+            }
+            Message::Ime { event, serial } => {
+                self.platform.ime_serial = self.platform.ime_serial.max(serial);
+                self.runner.push(Event::Ime(event));
+            }
+            Message::Back(gesture) => self.runner.push(Event::Back(gesture)),
+            Message::InitialTreeRequested => {
+                self.platform.accessibility_active = true;
+                self.runner.context().reset_accessibility();
+                self.redraw = true;
+            }
+            Message::Action(request) => {
+                self.runner.context().accessibility_action(request);
+                self.redraw = true;
+            }
+            Message::FilePicked(id, pick) => {
+                self.runner.context().file_picked(id, pick);
+                self.redraw = true;
+            }
+            Message::Wake => self.redraw = true,
+            Message::Destroy { finishing } => {
+                if finishing {
+                    self.exit();
+                }
+            }
+        }
+    }
 
     fn surface(&mut self, window: NativeWindow, width: u32, height: u32, density: f32) {
         self.density = density;
         self.redraw = true;
-        if self.gpu.is_none()
+        if !self.runner.started()
             && let Err(error) = self.start(&window)
         {
             return self.fail(error);
         }
-        let (Some(gpu), Some(target)) = (&self.gpu, &mut self.target) else {
+        let Some(renderers) = self.runner.renderers() else {
             return;
         };
-        if target.attached() && self.window.as_ref() == Some(&window) {
-            target.resize(gpu, width, height);
+        if renderers.attached() && self.window.as_ref() == Some(&window) {
+            renderers.resize(width, height);
             return;
         }
-        target.detach();
+        renderers.detach();
         self.window = None;
-        let surface = match create_surface(&gpu.instance, &window) {
-            Ok(surface) => surface,
-            Err(error) => return self.fail(error),
-        };
-        self.window = Some(window);
-        if let Err(error) = target.attach(gpu, surface, width, height) {
-            self.fail(error);
+        let handle = Arc::new(SurfaceWindow(window.clone()));
+        if let Err(error) = renderers.attach(handle, width, height) {
+            return self.fail(error);
         }
+        self.window = Some(window);
     }
 
     fn start(&mut self, window: &NativeWindow) -> Result<(), Box<dyn Error>> {
-        let instance = wgpu::Instance::default();
-        let probe = create_surface(&instance, window)?;
-        let gpu = pollster::block_on(create_gpu(
-            instance,
-            &probe,
-            &self.context,
-            self.options.open_device.clone(),
-        ))?;
-        drop(probe);
+        let load = self
+            .load
+            .take()
+            .ok_or("the renderers were already loaded")?;
+        let loaded = load(Arc::new(SurfaceWindow(window.clone())))?;
         let sender = shared().sender.clone();
-        let mut setup = Setup::new(Waker::new(move || {
+        let setup = Setup::new(Waker::new(move || {
             let _ = sender.send(Message::Wake);
         }));
-        setup.provide(GpuSetup {
-            device: gpu.device.clone(),
-            queue: gpu.queue.clone(),
-            format: gpu.format,
-        });
-        self.target = Some(Target::new(gpu.format));
-        self.gpu = Some(gpu);
-        self.app.setup(&setup);
-        Ok(())
+        self.runner.start(loaded, setup)
     }
 
     fn frame(&mut self) {
         let redraw = std::mem::take(&mut self.redraw);
         let pending = self.update();
-        if !(pending || redraw) {
-            return;
-        }
-        let (Some(target), Some(gpu)) = (&mut self.target, &mut self.gpu) else {
-            return;
-        };
-        if let Presented::Again = target.present(gpu, self.app.clear_color()) {
+        if (pending || redraw) && self.runner.present() {
             self.redraw = true;
         }
     }
 
     fn update(&mut self) -> bool {
-        let (Some(target), Some(gpu)) = (&mut self.target, &mut self.gpu) else {
-            return false;
-        };
-        let Some(physical) = target.physical() else {
-            self.events.clear();
+        let Some(frame) = self
+            .runner
+            .frame(&mut self.platform, self.density, self.safe_area)
+        else {
             self.next_update = None;
             return false;
         };
-
-        self.context.set_pixels_per_point(self.density);
-        self.context.set_test_ids_published(false);
-        let scale = self.context.pixels_per_point();
-        let screen = vec2(physical.x / scale, physical.y / scale);
-
-        let raw = RawInput {
-            events: next_batch(&mut self.events),
-        };
-        let app = &mut self.app;
-        let safe_area = self.safe_area;
-        let mut output = self.context.run(raw, |context| {
-            app.update(context, safe_rect(screen, safe_area, scale));
-        });
-        if self.accessibility_active
-            && let Some(accessibility) = &mut self.accessibility
-        {
-            accessibility
-                .update_if_active(|| output.accessibility_tree(&self.options.title, screen));
-        }
-        if let Some(dump) = &mut self.accessibility_dump {
-            dump.update(output.accessibility_tree(&self.options.title, screen));
-        }
-
-        if let Some(text) = &output.copied_text {
-            self.clipboard.set(text.clone());
-        }
-        if output.paste_requested
-            && let Some(text) = self.clipboard.get()
-        {
-            self.events.push(Event::Text(text));
+        self.next_update = Instant::now().checked_add(frame.repaint_after);
+        if frame.deferred {
             self.redraw = true;
         }
-        let file_picks = std::mem::take(&mut output.file_picks);
-        let pending = target.prepare(gpu, &output, scale, self.app.clear_color());
-        self.next_update = Instant::now().checked_add(output.repaint_after);
-
-        let asked = self.ime.is_some();
-        let restart = std::mem::take(&mut self.restart_input);
-        let tapped_field = self
-            .tapped_at
-            .take()
-            .is_some_and(|tap| asked && output.ime.is_some_and(|area| area.rect.contains(tap)));
-        if output.ime.is_some() != asked {
-            self.preedit.clear();
-            self.set_keyboard(output.ime.is_some());
-        } else if output.ime.is_some() && (restart || tapped_field) {
-            self.set_keyboard(true);
-        }
-        self.ime = output.ime;
-        if output.handles_back != self.handles_back {
-            self.handles_back = output.handles_back;
-            self.set_back_handled(output.handles_back);
-        }
-        for request in file_picks {
-            self.pick_file(request);
-        }
-        if output.close_requested {
-            self.finish_activity();
+        if frame.close_requested {
+            self.platform.finish_activity();
             self.exit();
         }
-        pending
+        frame.pending
     }
 }
 
-fn create_surface(
-    instance: &wgpu::Instance,
-    window: &NativeWindow,
-) -> Result<wgpu::Surface<'static>, wgpu::CreateSurfaceError> {
-    let handle = wgpu::rwh::AndroidNdkWindowHandle::new(window.ptr().cast());
-    unsafe {
-        instance.create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
-            raw_display_handle: Some(wgpu::rwh::RawDisplayHandle::Android(
-                wgpu::rwh::AndroidDisplayHandle::new(),
-            )),
-            raw_window_handle: wgpu::rwh::RawWindowHandle::AndroidNdk(handle),
-        })
+struct SurfaceWindow(NativeWindow);
+
+impl rwh::HasWindowHandle for SurfaceWindow {
+    fn window_handle(&self) -> Result<rwh::WindowHandle<'_>, rwh::HandleError> {
+        let handle = rwh::AndroidNdkWindowHandle::new(self.0.ptr().cast());
+        Ok(unsafe { rwh::WindowHandle::borrow_raw(rwh::RawWindowHandle::AndroidNdk(handle)) })
+    }
+}
+
+impl rwh::HasDisplayHandle for SurfaceWindow {
+    fn display_handle(&self) -> Result<rwh::DisplayHandle<'_>, rwh::HandleError> {
+        Ok(rwh::DisplayHandle::android())
     }
 }
 
@@ -1099,62 +1057,43 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeKey<'local>(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_com_be3_beui_BeuiView_nativeCompose<'local>(
+pub extern "system" fn Java_com_be3_beui_BeuiView_nativeIme<'local>(
     env: EnvUnowned<'local>,
     _: JClass<'local>,
+    kind: jint,
+    first: jlong,
+    second: jlong,
     text: JString<'local>,
+    serial: jlong,
 ) {
-    send(Message::Compose(read(env, &text)));
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_be3_beui_BeuiView_nativeCommit<'local>(
-    env: EnvUnowned<'local>,
-    _: JClass<'local>,
-    text: JString<'local>,
-    composing: jboolean,
-) {
-    send(Message::Commit {
-        text: read(env, &text),
-        composing,
+    let index = |value: jlong| usize::try_from(value).unwrap_or(0);
+    let string = || match text.is_null() {
+        true => String::new(),
+        false => read(env, &text),
+    };
+    let event = match kind {
+        0 => ImeEvent::SetComposingText(string()),
+        1 => ImeEvent::CommitText(string()),
+        2 => ImeEvent::FinishComposing,
+        3 => ImeEvent::SetComposingRegion(index(first)..index(second)),
+        4 => ImeEvent::ReplaceText {
+            range: index(first)..index(second),
+            text: string(),
+        },
+        5 => ImeEvent::DeleteSurrounding {
+            before: index(first),
+            after: index(second),
+        },
+        6 => ImeEvent::SetSelection {
+            anchor: index(first),
+            focus: index(second),
+        },
+        _ => return,
+    };
+    send(Message::Ime {
+        event,
+        serial: u64::try_from(serial).unwrap_or(0),
     });
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_be3_beui_BeuiView_nativeRecompose<'local>(
-    env: EnvUnowned<'local>,
-    _: JClass<'local>,
-    by: jint,
-    delete: jint,
-    text: JString<'local>,
-) {
-    send(Message::Recompose {
-        by,
-        delete: count(delete),
-        text: read(env, &text),
-    });
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_be3_beui_BeuiView_nativeDelete<'local>(
-    _env: EnvUnowned<'local>,
-    _: JClass<'local>,
-    before: jint,
-    after: jint,
-) {
-    send(Message::Delete {
-        before: count(before),
-        after: count(after),
-    });
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_com_be3_beui_BeuiView_nativeMove<'local>(
-    _env: EnvUnowned<'local>,
-    _: JClass<'local>,
-    by: jint,
-) {
-    send(Message::Move(by));
 }
 
 #[unsafe(no_mangle)]

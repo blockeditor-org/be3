@@ -2,7 +2,7 @@ use beui::{Event, Vec2};
 use beui_plugin_input::{
     back_phase, pointer_button, protocol_key, protocol_modifiers, touch_phase,
 };
-use block_plugin_api::{ImeInput, InputEvent, Modifiers, WheelUnit};
+use block_plugin_api::{InputEvent, Modifiers, WheelUnit};
 
 #[derive(Default)]
 pub(crate) struct Input {
@@ -101,12 +101,7 @@ impl Input {
             }
             Event::Modifiers(modifiers) => self.modifiers(modifiers, output),
             Event::Text(text) => output.push(InputEvent::Text(text)),
-            Event::Ime(ime) => output.push(InputEvent::Ime(match ime {
-                beui::ImeEvent::Enabled => ImeInput::Enabled,
-                beui::ImeEvent::Preedit(text) => ImeInput::Preedit(text),
-                beui::ImeEvent::Commit(text) => ImeInput::Commit(text),
-                beui::ImeEvent::Disabled => ImeInput::Disabled,
-            })),
+            Event::Ime(ime) => output.push(InputEvent::Ime(beui_plugin_input::protocol_ime(&ime))),
             Event::Focus(focused) => output.push(InputEvent::Focus(focused)),
             Event::Back(gesture) => output.push(InputEvent::Back(back_phase(gesture))),
             _ => {}

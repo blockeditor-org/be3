@@ -2,6 +2,9 @@ use super::*;
 
 mod a_character_no_font_covers_is_looked_up_once_and_drawn_with_what_is_found;
 mod a_full_galley_cache_keeps_what_is_still_being_used;
+mod a_galley_is_reused_at_every_width_that_breaks_it_the_same_way;
 mod a_subpixel_phase_never_leaves_its_whole_pixel;
+mod a_word_that_fits_stays_on_its_line;
 mod fonts_added_later_redraw_the_text_that_was_missing_them;
 mod letters_land_where_their_advances_put_them;
+mod replacing_the_fonts_lays_the_text_out_again;

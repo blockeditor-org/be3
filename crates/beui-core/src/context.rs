@@ -51,6 +51,7 @@ struct Inner {
     input_simulation: RefCell<Option<Box<dyn InputSimulation>>>,
     simulation_area: Cell<(Rect, f32)>,
     mouse_viewport: Cell<Option<Rect>>,
+    shown: Cell<Option<Rect>>,
     pixels_per_point: Cell<f32>,
     native_pixels_per_point: Cell<f32>,
     simulated_pixels_per_point: Cell<Option<f32>>,
@@ -67,6 +68,8 @@ struct Inner {
     accessibility_published: RefCell<HashSet<u32>>,
     test_ids_published: Cell<bool>,
     renderer_info: RefCell<Option<RendererInfo>>,
+    renderers: RefCell<RendererChoices>,
+    renderer_choice: Cell<Option<usize>>,
     clock: Cell<Option<Instant>>,
     now: Cell<Instant>,
 }
@@ -94,6 +97,12 @@ pub trait InputSimulation: Any {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct RendererInfo {
     pub rows: Vec<(&'static str, String)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct RendererChoices {
+    pub names: Vec<&'static str>,
+    pub active: usize,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -200,9 +209,13 @@ impl FrameOutput {
 
 impl Context {
     pub fn new(fonts: impl FontBackend + 'static) -> Self {
+        Self::with_fonts(Box::new(fonts))
+    }
+
+    pub fn with_fonts(fonts: Box<dyn FontBackend>) -> Self {
         Self {
             inner: Rc::new(Inner {
-                fonts: RefCell::new(Fonts::new(fonts)),
+                fonts: RefCell::new(Fonts::boxed(fonts)),
                 input: RefCell::new(InputState::default()),
                 layers: RefCell::new(Vec::new()),
                 top_shapes: RefCell::new(Vec::new()),
@@ -228,6 +241,7 @@ impl Context {
                 input_simulation: RefCell::new(None),
                 simulation_area: Cell::new((Rect::NOTHING, 1.0)),
                 mouse_viewport: Cell::new(None),
+                shown: Cell::new(None),
                 pixels_per_point: Cell::new(1.0),
                 native_pixels_per_point: Cell::new(1.0),
                 simulated_pixels_per_point: Cell::new(None),
@@ -244,6 +258,8 @@ impl Context {
                 accessibility_published: RefCell::new(HashSet::new()),
                 test_ids_published: Cell::new(true),
                 renderer_info: RefCell::new(None),
+                renderers: RefCell::new(RendererChoices::default()),
+                renderer_choice: Cell::new(None),
                 clock: Cell::new(None),
                 now: Cell::new(Instant::now()),
             }),
@@ -256,6 +272,29 @@ impl Context {
 
     pub fn renderer_info(&self) -> Option<RendererInfo> {
         self.inner.renderer_info.borrow().clone()
+    }
+
+    pub fn set_renderers(&self, renderers: RendererChoices) {
+        *self.inner.renderers.borrow_mut() = renderers;
+    }
+
+    pub fn renderers(&self) -> RendererChoices {
+        self.inner.renderers.borrow().clone()
+    }
+
+    pub fn choose_renderer(&self, index: usize) {
+        if index != self.inner.renderers.borrow().active {
+            self.inner.renderer_choice.set(Some(index));
+            self.request_repaint();
+        }
+    }
+
+    pub fn take_renderer_choice(&self) -> Option<usize> {
+        self.inner.renderer_choice.take()
+    }
+
+    pub fn replace_fonts(&self, fonts: Box<dyn FontBackend>) -> Box<dyn FontBackend> {
+        self.inner.fonts.borrow_mut().replace(fonts)
     }
 
     pub fn set_accessibility_active(&self, active: bool) {
@@ -312,6 +351,7 @@ impl Context {
         self.inner.repaint.set(false);
         self.inner.repaint_after.set(Duration::MAX);
         self.inner.mouse_viewport.set(None);
+        self.inner.shown.set(None);
         let (raw, wake) = match self.inner.input_simulation.borrow_mut().as_mut() {
             Some(simulation) => simulation.translate(raw, now),
             None => (raw, None),
@@ -369,8 +409,16 @@ impl Context {
                         .zip(layers.iter())
                         .all(|(old, new)| old.same(new));
                 if reported.is_empty() && !same {
+                    let shown = self.inner.shown.get();
+                    let visible = |layers: &[Layer]| {
+                        let mut shapes = crate::display::flatten(layers);
+                        if let Some(shown) = shown {
+                            shapes.retain(|shape| damage::bounds(shape).intersects(shown));
+                        }
+                        shapes
+                    };
                     debug_assert!(
-                        crate::display::flatten(&old.layers) == crate::display::flatten(&layers),
+                        visible(&old.layers) == visible(&layers),
                         "a frame that reported no damage changed the shapes it painted"
                     );
                 }
@@ -395,7 +443,7 @@ impl Context {
             changed,
             repaint_after: self.inner.repaint_after.get(),
             cursor_icon: self.inner.cursor_icon.get(),
-            ime: self.inner.ime.get(),
+            ime: self.inner.ime.take(),
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
             handles_back: self.inner.handles_back.get(),
@@ -704,7 +752,11 @@ impl Context {
         }
     }
 
-    pub fn show_painting(&self, painting: &[(Rc<Display>, Entry)]) {
+    pub fn show_painting(&self, painting: &[(Rc<Display>, Entry)], within: Rect) {
+        let shown = self.inner.shown.get();
+        self.inner
+            .shown
+            .set(Some(shown.map_or(within, |shown| shown.union(within))));
         self.inner
             .layers
             .borrow_mut()
@@ -869,6 +921,7 @@ impl Context {
             self.inner.ime.set(Some(ImeArea {
                 rect: area.rect.scaled(scale),
                 cursor: area.cursor.scaled(scale),
+                ..area
             }));
         }
         self.inner.input.replace(input);
@@ -906,6 +959,10 @@ impl Context {
     }
 
     pub fn fonts_generation(&self) -> u64 {
+        self.inner.fonts.borrow_mut().generation()
+    }
+
+    pub fn font_generation(&self) -> u64 {
         self.inner.fonts.borrow_mut().generation()
     }
 

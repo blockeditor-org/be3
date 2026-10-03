@@ -20,6 +20,7 @@ use crate::Draggable;
 use crate::DropHandle;
 use crate::DropTarget;
 use crate::Scroll;
+use crate::back_slide::BackSlide;
 use crate::context_menu::{ContextMenu, MenuStyle};
 use crate::menu::MenuItem;
 use crate::rubber_band::{Band, WINDOW_SPRING};
@@ -29,7 +30,6 @@ use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
-use beui_view::components::back::BackHandler;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
     Action, Callback, Canvas, CanvasItem, Child, ClickCallback, Dynamic, ForEach, Frame, Func,
@@ -1076,7 +1076,7 @@ fn DockStack(dock: Handle) -> NodeId {
     let barred = create_memo(clone!(occupied -> move || bar.is_some() && occupied.get()));
     let empty = dock.empty.clone();
     view! {
-        <BackHandler
+        <BackSlide
             enabled={away}
             on_back={move || {
                 if let Some(home) = going.home.get_untracked() {
@@ -1095,7 +1095,7 @@ fn DockStack(dock: Handle) -> NodeId {
                     <Portal node={panel.clone()} @sizing=ItemSize::Percent(100.0) />
                 </Show>
             </List>
-        </BackHandler>
+        </BackSlide>
     }
 }
 

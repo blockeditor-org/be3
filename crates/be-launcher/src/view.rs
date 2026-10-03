@@ -4,8 +4,6 @@ use beui::icons::{
     ICON_CALL_SPLIT, ICON_CANCEL, ICON_DRAFT, ICON_FRAME_INSPECT, ICON_MERGE, ICON_REFRESH,
     ICON_SEARCH,
 };
-#[cfg(target_os = "android")]
-use beui::reactive::BackHandler;
 use beui::reactive::with_document;
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Prop, Show, Spacer, Text, clone,
@@ -17,6 +15,8 @@ use beui::styled::theme::{FONT_BODY, FONT_SMALL};
 use beui::styled::{
     Caption, Heading, Icon, IconButton, ListRow, Scroll, Spinner, Tabs, TextInput, use_theme,
 };
+#[cfg(target_os = "android")]
+use beui::unstyled::BackSlide;
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, Document, NodeId};
 
@@ -61,7 +61,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
             </Show>
             <Show condition={reading}>
                 {move || clone!(back model -> view! {
-                    <BackHandler @sizing=ItemSize::Percent(100.0) on_back={gesture.clone()}>
+                    <BackSlide @sizing=ItemSize::Percent(100.0) on_back={gesture.clone()}>
                         <List spacing=0.0>
                             <Frame padding_horizontal=8.0 padding_vertical=4.0>
                                 <IconButton
@@ -72,7 +72,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                             </Frame>
                             <Detail @sizing=ItemSize::Percent(100.0) model={model.clone()} />
                         </List>
-                    </BackHandler>
+                    </BackSlide>
                 })}
             </Show>
             <ImageViewer model={viewer} />

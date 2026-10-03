@@ -139,7 +139,7 @@ struct Inner {
     heights: RefCell<HashMap<u64, (f32, f32)>>,
     find: Find,
     canvas: NodeRef,
-    cursor_cache: RefCell<Vec<CursorPosition>>,
+    cursor_cache: RefCell<(Vec<CursorPosition>, Option<std::ops::Range<usize>>)>,
     selecting: Cell<bool>,
     touch_mode: ReadSignal<bool>,
     set_touch_mode: WriteSignal<bool>,
@@ -188,7 +188,7 @@ impl TextAreaState {
             heights: RefCell::default(),
             find: Find::new(),
             canvas: NodeRef::new(),
-            cursor_cache: RefCell::new(Vec::new()),
+            cursor_cache: RefCell::new((Vec::new(), None)),
             selecting: Cell::new(false),
             touch_mode,
             set_touch_mode,
@@ -661,7 +661,10 @@ impl TextAreaState {
     }
 
     fn sync_cursors(&self) {
-        let positions = self.0.core.borrow().cursor_positions().to_vec();
+        let positions = {
+            let core = self.0.core.borrow();
+            (core.cursor_positions().to_vec(), core.composition())
+        };
         if *self.0.cursor_cache.borrow() == positions {
             return;
         }

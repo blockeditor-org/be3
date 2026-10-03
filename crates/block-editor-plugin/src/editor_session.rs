@@ -718,11 +718,11 @@ impl EditorSession {
     fn ime_areas(&mut self) -> Vec<(EditorRegion, Option<ImeArea>)> {
         let mut areas = Vec::new();
         for (region, state) in &mut self.regions {
-            if state.reported_ime == Some(state.ime) {
+            if state.reported_ime.as_ref() == Some(&state.ime) {
                 continue;
             }
-            state.reported_ime = Some(state.ime);
-            areas.push((*region, state.ime));
+            state.reported_ime = Some(state.ime.clone());
+            areas.push((*region, state.ime.clone()));
         }
         areas
     }
@@ -931,9 +931,11 @@ impl EditorSession {
             };
             state.occluders = occluders;
             state.cursor = frame.cursor;
-            state.ime = frame.ime.map(|ime| ImeArea {
+            state.ime = frame.ime.as_ref().map(|ime| ImeArea {
                 rect: reported(ime.rect),
                 cursor: reported(ime.cursor),
+                text: ime.text.clone(),
+                keyboard: ime.keyboard,
             });
             let reports = matches!(region, EditorRegion::Frame | EditorRegion::Pane(_));
             state.report = reports.then(|| FrameReport {

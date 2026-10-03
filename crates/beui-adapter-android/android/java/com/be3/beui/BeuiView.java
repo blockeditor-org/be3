@@ -29,6 +29,8 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     private final InputMethodManager input;
     private boolean keyboard;
     private BeuiInputConnection connection;
+    private ImeText ime = new ImeText(0, "", 0, 0, -1, -1, 0);
+    private long imeSerial;
 
     BeuiView(Context context) {
         super(context);
@@ -149,10 +151,60 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
         info.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN
                 | EditorInfo.IME_FLAG_NO_EXTRACT_UI
                 | EditorInfo.IME_ACTION_NONE;
-        info.initialSelStart = 0;
-        info.initialSelEnd = 0;
-        connection = new BeuiInputConnection(this);
+        info.initialSelStart = ime.index(ime.selectionStart);
+        info.initialSelEnd = ime.index(ime.selectionEnd);
+        connection = new BeuiInputConnection(this, ime);
         return connection;
+    }
+
+    long nextImeSerial() {
+        return ++imeSerial;
+    }
+
+    void syncIme() {
+        if (connection != null && ime.serial >= imeSerial) connection.sync(ime);
+    }
+
+    public void setImeText(long start, String text, long selectionStart, long selectionEnd,
+            long composingStart, long composingEnd, long serial) {
+        ImeText state = new ImeText(start, text, selectionStart, selectionEnd, composingStart,
+                composingEnd, serial);
+        post(() -> {
+            ime = state;
+            syncIme();
+        });
+    }
+
+    static final class ImeText {
+        final long start;
+        final String text;
+        final long selectionStart;
+        final long selectionEnd;
+        final long composingStart;
+        final long composingEnd;
+        final long serial;
+
+        ImeText(long start, String text, long selectionStart, long selectionEnd,
+                long composingStart, long composingEnd, long serial) {
+            this.start = start;
+            this.text = text;
+            this.selectionStart = selectionStart;
+            this.selectionEnd = selectionEnd;
+            this.composingStart = composingStart;
+            this.composingEnd = composingEnd;
+            this.serial = serial;
+        }
+
+        int index(long offset) {
+            long bytes = offset - start;
+            int index = 0;
+            while (index < text.length() && bytes > 0) {
+                int next = index + Character.charCount(text.codePointAt(index));
+                bytes -= BeuiInputConnection.utf8(text, index, next);
+                index = next;
+            }
+            return index;
+        }
     }
 
     void updateSelection(int start, int end, int composingStart, int composingEnd) {
@@ -230,15 +282,7 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     private static native boolean nativeKey(int code, boolean pressed, int repeat, int meta,
             int character);
 
-    static native void nativeCompose(String text);
-
-    static native void nativeCommit(String text, boolean composing);
-
-    static native void nativeRecompose(int move, int delete, String text);
-
-    static native void nativeDelete(int before, int after);
-
-    static native void nativeMove(int by);
+    static native void nativeIme(int kind, long first, long second, String text, long serial);
 
     static native void nativeFilePicked(long id, String name, byte[] data, String error);
 }

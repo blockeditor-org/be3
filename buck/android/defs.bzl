@@ -84,7 +84,7 @@ _sign = """
 set -eu
 jdk="$1" build_tools="$2" unsigned="$3" out="$4"
 if [ -z "${ANDROID_DEBUG_KEYSTORE_BASE64:-}" ]; then
-    echo 'BuildBuddy passed no ANDROID_DEBUG_KEYSTORE_BASE64: add it under the organization secrets.' >&2
+    echo 'The build server passed no ANDROID_DEBUG_KEYSTORE_BASE64: guides/build_server.md says how to give it one.' >&2
     exit 1
 fi
 keystore="$(mktemp)"
@@ -94,11 +94,11 @@ JAVA_HOME="$jdk" "$jdk/bin/java" -jar "$build_tools/lib/apksigner.jar" sign \
 rm -f "$keystore"
 """
 
-# An APK signed on a worker with the keystore BuildBuddy keeps as a secret,
-# which it passes only to actions on root//buck/platforms:android_signing: the
-# target names root//buck/constraints:android_keystore in exec_compatible_with.
-# The secret is not part of the action's key, so key_version is: bump it
-# with the secret, or builds go on reusing APKs the old key signed.
+# An APK signed on the build server with the keystore it keeps as a secret,
+# which it passes to an action that names it in BE3_BUILD_SERVER_SECRETS
+# (guides/build_server.md). The secret is not part of the action's key, so
+# key_version is: bump it with the secret, or builds go on reusing APKs the old
+# key signed.
 def _signed_apk_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output(ctx.label.name + ".apk")
     ctx.actions.run(
@@ -114,6 +114,7 @@ def _signed_apk_impl(ctx: AnalysisContext) -> list[Provider]:
             "key-version-{}".format(ctx.attrs.key_version),
         ),
         category = "apk_sign",
+        env = {"BE3_BUILD_SERVER_SECRETS": "ANDROID_DEBUG_KEYSTORE_BASE64"},
     )
     return [DefaultInfo(default_output = out)]
 

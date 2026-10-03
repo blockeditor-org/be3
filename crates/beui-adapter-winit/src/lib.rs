@@ -22,16 +22,18 @@ use winit::window::{
     CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Window, WindowId,
 };
 
-use beui_core::app::accessibility_dump::AccessibilityDump;
-use beui_core::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
+use accesskit::TreeUpdate;
+use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::context::Context;
+use beui_core::file_picker::FilePickRequest;
 use beui_core::geometry::Vec2;
 use beui_core::geometry::{Pos2, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, RawInput,
-    TouchId, TouchPhase,
+    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId,
+    TouchPhase,
 };
-use beui_renderer_wgpu::present::{Gpu, GpuSetup, OpenDevice, Presented, Target, create_gpu};
+use beui_core::renderer::{Loaded, WindowHandle};
+use beui_core::runner::{Adapter, Launch, Platform, Running};
 use clipboard::Clipboard;
 use file_picker::FilePicker;
 
@@ -54,44 +56,44 @@ impl From<AccessKitEvent> for UserEvent {
     }
 }
 
-pub struct RunOptions {
-    pub title: String,
-    pub app_id: Option<String>,
-    pub size: Vec2,
-    pub accessibility_dump: Option<std::path::PathBuf>,
-    pub open_device: Option<OpenDevice>,
+type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>>>;
+
+pub struct Winit {
+    load: Load,
 }
 
-impl RunOptions {
-    pub fn new(title: impl Into<String>) -> Self {
+impl Winit {
+    pub fn new(
+        load: impl FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>> + 'static,
+    ) -> Self {
         Self {
-            title: title.into(),
-            app_id: None,
-            size: Vec2::new(1280.0, 800.0),
-            accessibility_dump: None,
-            open_device: None,
+            load: Box::new(load),
         }
     }
 }
 
-pub fn run_with(
-    options: RunOptions,
-    context: Context,
-    app: impl App + 'static,
-) -> Result<(), Box<dyn Error>> {
+impl Adapter for Winit {
+    fn name(&self) -> &'static str {
+        "winit"
+    }
+
+    fn run(self: Box<Self>, launch: Launch) -> Running {
+        Box::pin(async move { run(launch, self.load) })
+    }
+}
+
+fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
     event_loop.set_control_flow(ControlFlow::Wait);
-    let accessibility_dump = options
-        .accessibility_dump
-        .clone()
-        .map(AccessibilityDump::new);
+    let size = launch.options.size;
+    let app_id = launch.options.app_id.clone();
+    launch.context.set_test_ids_published(false);
     let mut runner = Runner {
-        options,
-        app: Box::new(app),
-        context,
-        gpu: None,
+        runner: beui_core::runner::Runner::new(launch),
+        size,
+        app_id,
+        load: Some(load),
         surface: None,
-        events: Vec::new(),
         modifiers: Modifiers::NONE,
         pointer: Pos2::ZERO,
         emulated_touch: false,
@@ -103,8 +105,6 @@ pub fn run_with(
         file_picker: FilePicker::new(),
         event_loop_proxy: event_loop.create_proxy(),
         accessibility_active: false,
-        accessibility_dump,
-        exiting: false,
     };
     event_loop.run_app(&mut runner)?;
     match runner.error {
@@ -115,23 +115,18 @@ pub fn run_with(
 
 struct Surface {
     window: Arc<Window>,
-    target: Target,
-    cursor_icon: CursorIcon,
     pointer_locked: bool,
-    touch_emulation: bool,
     touch_cursor: CustomCursor,
     ime: Option<ImeArea>,
-    fullscreen: bool,
     accessibility: AccessKitAdapter,
 }
 
 struct Runner {
-    options: RunOptions,
-    app: Box<dyn App>,
-    context: Context,
-    gpu: Option<Gpu>,
+    runner: beui_core::runner::Runner,
+    size: Vec2,
+    app_id: Option<String>,
+    load: Option<Load>,
     surface: Option<Surface>,
-    events: Vec<Event>,
     modifiers: Modifiers,
     pointer: Pos2,
     emulated_touch: bool,
@@ -143,8 +138,85 @@ struct Runner {
     file_picker: FilePicker,
     event_loop_proxy: EventLoopProxy<UserEvent>,
     accessibility_active: bool,
-    accessibility_dump: Option<AccessibilityDump>,
-    exiting: bool,
+}
+
+struct WinitPlatform<'a> {
+    surface: &'a mut Surface,
+    clipboard: &'a mut Clipboard,
+    file_picker: &'a FilePicker,
+    proxy: &'a EventLoopProxy<UserEvent>,
+    accessibility_active: bool,
+}
+
+impl Platform for WinitPlatform<'_> {
+    fn copy(&mut self, text: String) {
+        self.clipboard.set(text);
+    }
+
+    fn paste(&mut self) -> Option<String> {
+        let text = self.clipboard.get();
+        if text.is_some() {
+            self.surface.window.request_redraw();
+        }
+        text
+    }
+
+    fn pick_file(&mut self, request: FilePickRequest) {
+        let proxy = self.proxy.clone();
+        self.file_picker.open(request, move || {
+            let _ = proxy.send_event(UserEvent::Wake);
+        });
+    }
+
+    fn set_cursor(&mut self, icon: CursorIcon, touch_emulation: bool) {
+        let window = &self.surface.window;
+        if touch_emulation {
+            window.set_cursor(self.surface.touch_cursor.clone());
+            window.set_cursor_visible(true);
+            return;
+        }
+        match cursor(icon) {
+            Some(icon) => {
+                window.set_cursor(icon);
+                window.set_cursor_visible(!self.surface.pointer_locked);
+            }
+            None => window.set_cursor_visible(false),
+        }
+    }
+
+    fn lock_pointer(&mut self, locked: bool) {
+        self.surface.pointer_locked = locked;
+        lock_pointer(&self.surface.window, locked);
+    }
+
+    fn set_fullscreen(&mut self, fullscreen: bool) {
+        self.surface
+            .window
+            .set_fullscreen(fullscreen.then_some(Fullscreen::Borderless(None)));
+    }
+
+    fn show_ime(&mut self, ime: Option<&ImeArea>) {
+        let surface = &mut *self.surface;
+        if ime == surface.ime.as_ref() {
+            return;
+        }
+        if ime.is_some() != surface.ime.is_some() {
+            surface.window.set_ime_allowed(ime.is_some());
+        }
+        if let Some(area) = ime {
+            surface.window.set_ime_cursor_area(
+                LogicalPosition::new(area.cursor.min.x, area.cursor.min.y),
+                LogicalSize::new(area.cursor.width().max(1.0), area.cursor.height().max(1.0)),
+            );
+        }
+        surface.ime = ime.cloned();
+    }
+
+    fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
+        if self.accessibility_active {
+            self.surface.accessibility.update_if_active(tree);
+        }
+    }
 }
 
 impl Runner {
@@ -154,15 +226,16 @@ impl Runner {
     }
 
     fn exit(&mut self, event_loop: &ActiveEventLoop) {
-        if !self.exiting {
-            self.exiting = true;
-            self.app.exiting();
-        }
+        self.runner.exit();
         event_loop.exit();
     }
 
     fn push(&mut self, event: Event) {
-        self.events.push(event);
+        self.runner.push(event);
+    }
+
+    fn context(&self) -> &Context {
+        self.runner.context()
     }
 
     fn request_redraw(&self) {
@@ -176,9 +249,10 @@ impl Runner {
             .surface
             .as_ref()
             .map_or(1.0, |surface| surface.window.scale_factor());
-        self.context
+        let context = self.context();
+        context
             .simulated_pixels_per_point()
-            .map_or(native * f64::from(self.context.zoom_factor()), f64::from)
+            .map_or(native * f64::from(context.zoom_factor()), f64::from)
     }
 
     fn logical(&self, position: PhysicalPosition<f64>) -> Pos2 {
@@ -187,127 +261,48 @@ impl Runner {
     }
 
     fn update(&mut self, event_loop: &ActiveEventLoop) -> bool {
-        let (Some(surface), Some(gpu)) = (&mut self.surface, &mut self.gpu) else {
+        let Some(surface) = &mut self.surface else {
             return false;
         };
-        let Some(physical) = surface.target.physical() else {
-            self.events.clear();
+        self.file_picker.deliver(self.runner.context());
+        let pixels_per_point = surface.window.scale_factor() as f32;
+        let mut platform = WinitPlatform {
+            surface,
+            clipboard: &mut self.clipboard,
+            file_picker: &self.file_picker,
+            proxy: &self.event_loop_proxy,
+            accessibility_active: self.accessibility_active,
+        };
+        let Some(frame) = self
+            .runner
+            .frame(&mut platform, pixels_per_point, SafeArea::default())
+        else {
             self.next_update = None;
             return false;
         };
-
-        self.context
-            .set_pixels_per_point(surface.window.scale_factor() as f32);
-        self.context.set_test_ids_published(false);
-        let scale = self.context.pixels_per_point();
-        let screen = vec2(physical.x / scale, physical.y / scale);
-
-        self.file_picker.deliver(&self.context);
-        let raw = RawInput {
-            events: next_batch(&mut self.events),
-        };
-        let app = &mut self.app;
-        let mut output = self.context.run(raw, |context| {
-            app.update(context, safe_rect(screen, SafeArea::default(), scale));
-        });
-        if self.accessibility_active {
-            surface
-                .accessibility
-                .update_if_active(|| output.accessibility_tree(&self.options.title, screen));
-        }
-        if let Some(dump) = &mut self.accessibility_dump {
-            dump.update(output.accessibility_tree(&self.options.title, screen));
-        }
-
-        if let Some(text) = &output.copied_text {
-            self.clipboard.set(text.clone());
-        }
-        for request in std::mem::take(&mut output.file_picks) {
-            let proxy = self.event_loop_proxy.clone();
-            self.file_picker.open(request, move || {
-                let _ = proxy.send_event(UserEvent::Wake);
-            });
-        }
-        if output.paste_requested
-            && let Some(text) = self.clipboard.get()
-        {
-            self.events.push(Event::Text(text));
-            surface.window.request_redraw();
-        }
-        if output.pointer_locked != surface.pointer_locked {
-            surface.pointer_locked = output.pointer_locked;
-            lock_pointer(&surface.window, output.pointer_locked);
-        }
-        let touch_emulation = self.context.touch_emulation();
-        if output.cursor_icon != surface.cursor_icon || touch_emulation != surface.touch_emulation {
-            surface.cursor_icon = output.cursor_icon;
-            surface.touch_emulation = touch_emulation;
-            if touch_emulation {
-                surface.window.set_cursor(surface.touch_cursor.clone());
-                surface.window.set_cursor_visible(true);
-            } else {
-                match cursor(output.cursor_icon) {
-                    Some(icon) => {
-                        surface.window.set_cursor(icon);
-                        surface.window.set_cursor_visible(!surface.pointer_locked);
-                    }
-                    None => surface.window.set_cursor_visible(false),
-                }
-            }
-        }
-        if output.ime != surface.ime {
-            if output.ime.is_some() != surface.ime.is_some() {
-                surface.window.set_ime_allowed(output.ime.is_some());
-            }
-            if let Some(area) = output.ime {
-                surface.window.set_ime_cursor_area(
-                    LogicalPosition::new(area.cursor.min.x, area.cursor.min.y),
-                    LogicalSize::new(area.cursor.width().max(1.0), area.cursor.height().max(1.0)),
-                );
-            }
-            surface.ime = output.ime;
-        }
-        if let Some(fullscreen) = output.fullscreen
-            && fullscreen != surface.fullscreen
-        {
-            surface.fullscreen = fullscreen;
-            surface
-                .window
-                .set_fullscreen(fullscreen.then_some(Fullscreen::Borderless(None)));
-        }
-
-        let pending = surface
-            .target
-            .prepare(gpu, &output, scale, self.app.clear_color());
-        self.next_update = Instant::now().checked_add(output.repaint_after);
-        if output.close_requested {
+        self.next_update = Instant::now().checked_add(frame.repaint_after);
+        if frame.close_requested {
             self.exit(event_loop);
         }
-        pending
+        frame.pending
     }
 
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
         self.update(event_loop);
-        let (Some(surface), Some(gpu)) = (&mut self.surface, &mut self.gpu) else {
-            return;
-        };
-        if let Presented::Again = surface.target.present(gpu, self.app.clear_color()) {
-            surface.window.request_redraw();
+        if self.runner.present() {
+            self.request_redraw();
         }
     }
 
     fn attach(&mut self) -> Result<(), Box<dyn Error>> {
-        let (Some(surface), Some(gpu)) = (&mut self.surface, &self.gpu) else {
+        let (Some(surface), Some(renderers)) = (&self.surface, self.runner.renderers()) else {
             return Ok(());
         };
-        if surface.target.attached() {
+        if renderers.attached() {
             return Ok(());
         }
         let size = surface.window.inner_size();
-        let target = gpu.instance.create_surface(surface.window.clone())?;
-        surface
-            .target
-            .attach(gpu, target, size.width, size.height)?;
+        renderers.attach(surface.window.clone(), size.width, size.height)?;
         surface.window.request_redraw();
         Ok(())
     }
@@ -315,7 +310,7 @@ impl Runner {
 
 impl ApplicationHandler<UserEvent> for Runner {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if (!self.events.is_empty()
+        if (self.runner.has_events()
             || self
                 .next_update
                 .is_some_and(|deadline| deadline <= Instant::now()))
@@ -337,11 +332,11 @@ impl ApplicationHandler<UserEvent> for Runner {
             return;
         }
         let attributes = Window::default_attributes()
-            .with_title(self.options.title.clone())
+            .with_title(self.runner.title().to_owned())
             .with_visible(false)
-            .with_inner_size(LogicalSize::new(self.options.size.x, self.options.size.y));
+            .with_inner_size(LogicalSize::new(self.size.x, self.size.y));
         #[cfg(all(unix, not(target_os = "macos")))]
-        let attributes = match &self.options.app_id {
+        let attributes = match &self.app_id {
             Some(app_id) => {
                 use winit::platform::wayland::WindowAttributesExtWayland;
                 WindowAttributesExtWayland::with_name(attributes, app_id, app_id)
@@ -359,41 +354,36 @@ impl ApplicationHandler<UserEvent> for Runner {
         );
         let touch_cursor = event_loop.create_custom_cursor(touch_cursor_source());
         window.set_visible(true);
-        let gpu = match open_gpu(&window, &self.context, self.options.open_device.clone()) {
-            Ok(gpu) => gpu,
+        let Some(load) = self.load.take() else {
+            return;
+        };
+        let loaded = match load(window.clone()) {
+            Ok(loaded) => loaded,
             Err(error) => return self.fail(event_loop, error),
         };
         let proxy = self.event_loop_proxy.clone();
         let mut setup = Setup::new(Waker::new(move || {
             let _ = proxy.send_event(UserEvent::Wake);
         }));
-        setup.provide(GpuSetup {
-            device: gpu.device.clone(),
-            queue: gpu.queue.clone(),
-            format: gpu.format,
-        });
         setup.provide(window.clone());
         self.surface = Some(Surface {
             window,
-            target: Target::new(gpu.format),
-            cursor_icon: CursorIcon::Default,
             pointer_locked: false,
-            touch_emulation: false,
             touch_cursor,
             ime: None,
-            fullscreen: false,
             accessibility,
         });
-        self.gpu = Some(gpu);
-        if let Err(error) = self.attach() {
+        if let Err(error) = self.runner.start(loaded, setup) {
             return self.fail(event_loop, error);
         }
-        self.app.setup(&setup);
+        if let Err(error) = self.attach() {
+            self.fail(event_loop, error);
+        }
     }
 
     fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(surface) = &mut self.surface {
-            surface.target.detach();
+        if let Some(renderers) = self.runner.renderers() {
+            renderers.detach();
         }
     }
 
@@ -414,11 +404,11 @@ impl ApplicationHandler<UserEvent> for Runner {
         match event.window_event {
             accesskit_winit::WindowEvent::InitialTreeRequested => {
                 self.accessibility_active = true;
-                self.context.reset_accessibility();
+                self.context().reset_accessibility();
                 self.request_redraw();
             }
             accesskit_winit::WindowEvent::ActionRequested(request) => {
-                self.context.accessibility_action(request);
+                self.runner.context().accessibility_action(request);
                 surface.window.request_redraw();
             }
             accesskit_winit::WindowEvent::AccessibilityDeactivated => {
@@ -442,7 +432,7 @@ impl ApplicationHandler<UserEvent> for Runner {
         }
         match event {
             WindowEvent::CloseRequested => {
-                if self.app.close_requested() {
+                if self.runner.close_requested() {
                     self.exit(event_loop);
                 } else {
                     self.request_redraw();
@@ -450,8 +440,8 @@ impl ApplicationHandler<UserEvent> for Runner {
             }
             WindowEvent::Destroyed => self.exit(event_loop),
             WindowEvent::Resized(size) => {
-                if let (Some(surface), Some(gpu)) = (&mut self.surface, &self.gpu) {
-                    surface.target.resize(gpu, size.width, size.height);
+                if let (Some(surface), Some(renderers)) = (&self.surface, self.runner.renderers()) {
+                    renderers.resize(size.width, size.height);
                     surface.window.request_redraw();
                 }
             }
@@ -475,7 +465,7 @@ impl ApplicationHandler<UserEvent> for Runner {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 self.pointer = self.logical(position);
-                if self.context.touch_emulation() {
+                if self.context().touch_emulation() {
                     if self.emulated_touch {
                         self.push(emulated_touch(TouchPhase::Move, self.pointer));
                     }
@@ -503,7 +493,7 @@ impl ApplicationHandler<UserEvent> for Runner {
                 if released_outside {
                     self.pointer_left = false;
                 }
-                if self.context.touch_emulation() {
+                if self.context().touch_emulation() {
                     if button != MouseButton::Left {
                         return;
                     }
@@ -599,17 +589,17 @@ impl ApplicationHandler<UserEvent> for Runner {
                     self.push(Event::Text(text.to_string()));
                 }
             }
-            WindowEvent::Ime(Ime::Commit(text)) => {
-                if !text.is_empty() {
-                    self.push(Event::Text(text));
-                }
+            WindowEvent::Ime(Ime::Enabled) => self.push(Event::Ime(ImeEvent::Enabled)),
+            WindowEvent::Ime(Ime::Preedit(text, _)) => {
+                self.push(Event::Ime(ImeEvent::SetComposingText(text)));
             }
-            WindowEvent::Ime(ime) => self.push(Event::Ime(match ime {
-                Ime::Enabled => ImeEvent::Enabled,
-                Ime::Preedit(text, _) => ImeEvent::Preedit(text),
-                Ime::Commit(text) => ImeEvent::Commit(text),
-                Ime::Disabled => ImeEvent::Disabled,
-            })),
+            WindowEvent::Ime(Ime::Commit(text)) => {
+                self.push(Event::Ime(ImeEvent::CommitText(text)))
+            }
+            WindowEvent::Ime(Ime::Disabled) => {
+                self.push(Event::Ime(ImeEvent::SetComposingText(String::new())));
+                self.push(Event::Ime(ImeEvent::Disabled));
+            }
             WindowEvent::HoveredFile(_) => self.push(Event::FileHovered),
             WindowEvent::HoveredFileCancelled => self.push(Event::FileHoverCancelled),
             WindowEvent::DroppedFile(path) => {
@@ -638,7 +628,7 @@ impl ApplicationHandler<UserEvent> for Runner {
         let DeviceEvent::MouseMotion { delta } = event else {
             return;
         };
-        if !self.context.pointer_locked() {
+        if !self.context().pointer_locked() {
             return;
         }
         let scale = self.scale_factor() as f32;
@@ -700,16 +690,6 @@ fn touch_force(force: winit::event::Force) -> f32 {
             ..
         } => (force / max_possible_force) as f32,
     }
-}
-
-fn open_gpu(
-    window: &Arc<Window>,
-    context: &Context,
-    open_device: Option<OpenDevice>,
-) -> Result<Gpu, Box<dyn Error>> {
-    let instance = wgpu::Instance::default();
-    let probe = instance.create_surface(window.clone())?;
-    pollster::block_on(create_gpu(instance, &probe, context, open_device))
 }
 
 fn touch_cursor_source() -> CustomCursorSource {

@@ -2,17 +2,18 @@ mod library;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod system;
 
-use std::collections::HashMap;
+use std::ops::Range;
 use std::ptr;
 use std::rc::Rc;
 
+use foldhash::HashMap;
 use freetype::freetype as ft;
 use harfbuzz_rs::{Blob, Face as HbFace, Font as HbFont, Owned, Tag, UnicodeBuffer, shape};
 use unicode_script::{Script, UnicodeScript};
 
 use beui_core::font::{
     FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,
-    TextLayout, break_lines,
+    TextLayout, Wraps, break_lines,
 };
 use beui_core::geometry::vec2;
 
@@ -28,6 +29,7 @@ pub struct FreetypeFonts {
     monospace: Vec<usize>,
     icons: Vec<usize>,
     glyphs: HashMap<GlyphId, Rc<GlyphImage>>,
+    shaped: ShapedLines,
 }
 
 impl FreetypeFonts {
@@ -43,7 +45,8 @@ impl FreetypeFonts {
             proportional: Vec::new(),
             monospace: Vec::new(),
             icons: Vec::new(),
-            glyphs: HashMap::new(),
+            glyphs: HashMap::default(),
+            shaped: ShapedLines::default(),
         };
         backend.load_families();
         backend
@@ -71,6 +74,7 @@ impl FreetypeFonts {
         self.generation = generation;
         self.close_faces();
         self.glyphs.clear();
+        self.shaped = ShapedLines::default();
         self.load_families();
     }
 
@@ -81,6 +85,9 @@ impl FreetypeFonts {
         let added = self.fonts.fallback_from(self.fallbacks);
         self.fallbacks += added.len();
         let loaded = self.load_chain(&added);
+        if !loaded.is_empty() {
+            self.shaped = ShapedLines::default();
+        }
         for index in &loaded {
             for family in [&mut self.proportional, &mut self.monospace] {
                 if !family.contains(index) {
@@ -160,10 +167,11 @@ impl FreetypeFonts {
         let mut rows: Vec<Row> = Vec::new();
         let mut width = 0.0f32;
         let mut start = 0;
+        let mut wraps = Wraps::ANY;
 
         for line in text.split('\n') {
-            let shaped = self.shape_line(line, family, pixel_size);
-            let runs = break_lines(&shaped, line, shape.wrap(), |glyph| {
+            let shaped = self.shaped(line, family, pixel_size);
+            let runs = break_lines(&shaped, line, shape.wrap(), &mut wraps, |glyph| {
                 (glyph.cluster, glyph.x_advance)
             });
             let last = runs.len() - 1;
@@ -173,11 +181,14 @@ impl FreetypeFonts {
                         Some(glyph) if index < last => glyph.cluster,
                         _ => line.len(),
                     };
-                let glyphs = shaped[run].to_vec();
-                let advance = glyphs.iter().map(|glyph| glyph.x_advance).sum::<f32>();
+                let advance = shaped[run.clone()]
+                    .iter()
+                    .map(|glyph| glyph.x_advance)
+                    .sum::<f32>();
                 width = width.max(advance);
                 rows.push(Row {
-                    glyphs,
+                    glyphs: shaped.clone(),
+                    run,
                     start,
                     end,
                     advance,
@@ -186,8 +197,8 @@ impl FreetypeFonts {
             start += line.len() + 1;
         }
 
-        let mut placed = Vec::new();
-        let mut lines = Vec::new();
+        let mut placed = Vec::with_capacity(rows.iter().map(|row| row.run.len()).sum());
+        let mut lines = Vec::with_capacity(rows.len());
         let mut cursor = 0.0;
         for row in rows {
             let indent = TextLayout {
@@ -196,8 +207,8 @@ impl FreetypeFonts {
             }
             .indent_of(width, row.advance);
             let mut pen = indent;
-            let mut cursors = Vec::new();
-            for glyph in &row.glyphs {
+            let mut cursors = Vec::with_capacity(row.run.len() + 1);
+            for glyph in &row.glyphs[row.run.clone()] {
                 let at = row.start + glyph.cluster;
                 if cursors.last().is_none_or(|(previous, _)| *previous != at) {
                     cursors.push((at, pen / scale));
@@ -230,6 +241,7 @@ impl FreetypeFonts {
             baseline / scale,
             placed,
             lines,
+            wraps,
         )
     }
 
@@ -326,6 +338,15 @@ impl FreetypeFonts {
                 metrics.descender as f32 / 64.0,
             )
         }
+    }
+
+    fn shaped(&mut self, line: &str, family: FontFamily, pixel_size: u32) -> Rc<[ShapedGlyph]> {
+        if let Some(glyphs) = self.shaped.get(line, family, pixel_size) {
+            return glyphs;
+        }
+        let glyphs: Rc<[ShapedGlyph]> = self.shape_line(line, family, pixel_size).into();
+        self.shaped.insert(line, family, pixel_size, glyphs.clone());
+        glyphs
     }
 
     fn shape_line(&mut self, text: &str, family: FontFamily, pixel_size: u32) -> Vec<ShapedGlyph> {
@@ -457,12 +478,50 @@ unsafe extern "C" {
 }
 
 struct Row {
-    glyphs: Vec<ShapedGlyph>,
+    glyphs: Rc<[ShapedGlyph]>,
+    run: Range<usize>,
     start: usize,
     end: usize,
     advance: f32,
 }
 const SUBPIXEL_POSITIONS: u32 = 4;
+const SHAPED_LINE_LIMIT: usize = 4096;
+
+type Lines = HashMap<String, Rc<[ShapedGlyph]>>;
+
+#[derive(Default)]
+struct ShapedLines {
+    recent: HashMap<(FontFamily, u32), Lines>,
+    cooling: HashMap<(FontFamily, u32), Lines>,
+    count: usize,
+}
+
+impl ShapedLines {
+    fn get(&mut self, line: &str, family: FontFamily, size: u32) -> Option<Rc<[ShapedGlyph]>> {
+        if let Some(glyphs) = self
+            .recent
+            .get(&(family, size))
+            .and_then(|lines| lines.get(line))
+        {
+            return Some(glyphs.clone());
+        }
+        let glyphs = self.cooling.get_mut(&(family, size))?.remove(line)?;
+        self.insert(line, family, size, glyphs.clone());
+        Some(glyphs)
+    }
+
+    fn insert(&mut self, line: &str, family: FontFamily, size: u32, glyphs: Rc<[ShapedGlyph]>) {
+        if self.count >= SHAPED_LINE_LIMIT {
+            self.cooling = std::mem::take(&mut self.recent);
+            self.count = 0;
+        }
+        self.recent
+            .entry((family, size))
+            .or_default()
+            .insert(line.to_owned(), glyphs);
+        self.count += 1;
+    }
+}
 
 fn split_subpixel(x: f32) -> (f32, u32) {
     let positions = SUBPIXEL_POSITIONS as f32;

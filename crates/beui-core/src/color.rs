@@ -26,6 +26,12 @@ impl Color32 {
         self.0[3]
     }
 
+    pub fn scale_alpha(self, factor: f32) -> Self {
+        let [red, green, blue, alpha] = self.0;
+        let alpha = (f32::from(alpha) * factor.clamp(0.0, 1.0)).round() as u8;
+        Self([red, green, blue, alpha])
+    }
+
     pub fn to_normalized_gamma_f32(self) -> [f32; 4] {
         let [red, green, blue, alpha] = self.0;
         [

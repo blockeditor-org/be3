@@ -1847,15 +1847,30 @@ pub enum TouchPhase {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ImeInput {
     Enabled,
-    Preedit(String),
-    Commit(String),
     Disabled,
+    SetComposingText(String),
+    CommitText(String),
+    FinishComposing,
+    SetComposingRegion { start: u64, end: u64 },
+    ReplaceText { start: u64, end: u64, text: String },
+    DeleteSurrounding { before: u64, after: u64 },
+    SetSelection { anchor: u64, focus: u64 },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImeText {
+    pub start: u64,
+    pub text: String,
+    pub selection: (u64, u64),
+    pub composing: Option<(u64, u64)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ImeArea {
     pub rect: ChildRect,
     pub cursor: ChildRect,
+    pub text: Option<ImeText>,
+    pub keyboard: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2204,9 +2219,11 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                 match event {
                     InputEvent::Text(value)
                     | InputEvent::Paste(value)
-                    | InputEvent::Ime(ImeInput::Preedit(value) | ImeInput::Commit(value)) => {
-                        text(value)?
-                    }
+                    | InputEvent::Ime(
+                        ImeInput::SetComposingText(value)
+                        | ImeInput::CommitText(value)
+                        | ImeInput::ReplaceText { text: value, .. },
+                    ) => text(value)?,
                     _ => {}
                 }
             }
@@ -2307,6 +2324,14 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             RegenerationOutcome::Failed(message) => string(message),
         },
         EditorMessage::OpenCreation { template, .. } => string(template),
+        EditorMessage::Ime {
+            area:
+                Some(ImeArea {
+                    text: Some(surrounding),
+                    ..
+                }),
+            ..
+        } => text(&surrounding.text),
         EditorMessage::OpenArtifact { data, .. }
         | EditorMessage::ArtifactSettings { data, .. }
         | EditorMessage::ArtifactEdited { data, .. }

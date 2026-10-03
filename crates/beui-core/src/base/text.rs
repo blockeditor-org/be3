@@ -92,6 +92,15 @@ pub struct TextNode {
     items: ChildList<NodeId>,
     placed: Rc<RefCell<Option<Placed>>>,
     shaped: RefCell<Option<Shaped>>,
+    measured: RefCell<Option<(MeasuredKey, Galley)>>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct MeasuredKey {
+    font: FontId,
+    line_height: Option<f32>,
+    scale: f32,
+    generation: u64,
 }
 
 impl ChildHost for TextNode {
@@ -157,7 +166,7 @@ impl TextNode {
             padding: rich.padding,
             style: self.style(),
         };
-        let strut = painter.layout_text(String::new(), options.style.font, TextLayout::DEFAULT);
+        let strut = painter.layout_text("", options.style.font, TextLayout::DEFAULT);
         if let Some(shaped) = self.shaped.borrow().as_ref()
             && shaped.strut == strut
             && shaped.options == options
@@ -168,9 +177,8 @@ impl TextNode {
             return Rc::clone(&shaped.layout);
         }
         let size_of = |index: usize| sizes.get(index).copied().unwrap_or(Vec2::ZERO);
-        let mut shaper = |text: &str, font: FontId| {
-            painter.layout_text(text.to_owned(), font, TextLayout::DEFAULT)
-        };
+        let mut shaper =
+            |text: &str, font: FontId| painter.layout_text(text, font, TextLayout::DEFAULT);
         let layout = Rc::new(RichLayout::new(
             &self.content,
             &rich.spans,
@@ -215,7 +223,7 @@ impl TextNode {
         }
         *self.placed.borrow_mut() = Some(Placed {
             rect,
-            galley: painter.layout_text(String::new(), self.font(), TextLayout::DEFAULT),
+            galley: painter.layout_text("", self.font(), TextLayout::DEFAULT),
             origin,
             rich: Some(layout),
         });
@@ -351,7 +359,7 @@ impl TextNode {
 
     fn galley(&self, painter: &Painter, text: &str, available_width: f32) -> Galley {
         painter.layout_text(
-            text.to_owned(),
+            text,
             self.font(),
             TextLayout {
                 wrap_width: self.wrap_width(available_width),
@@ -361,12 +369,32 @@ impl TextNode {
         )
     }
 
+    fn content_galley(&self, painter: &Painter, available_width: f32) -> Galley {
+        let ctx = painter.ctx();
+        let key = MeasuredKey {
+            font: self.font(),
+            line_height: self.line_height,
+            scale: ctx.pixels_per_point(),
+            generation: ctx.font_generation(),
+        };
+        let wrap = self.wrap_width(available_width) * key.scale;
+        if let Some((known, galley)) = self.measured.borrow().as_ref()
+            && *known == key
+            && galley.wraps().contains(wrap)
+        {
+            return galley.clone();
+        }
+        let galley = self.galley(painter, &self.content, available_width);
+        *self.measured.borrow_mut() = Some((key, galley.clone()));
+        galley
+    }
+
     fn truncates(&self) -> bool {
         self.ellipsis && !self.wrap && !self.icon
     }
 
     fn fitted(&self, painter: &Painter, width: f32) -> Galley {
-        let galley = self.galley(painter, &self.content, width);
+        let galley = self.content_galley(painter, width);
         if !self.truncates() || galley.size().x <= width {
             return galley;
         }
@@ -444,7 +472,7 @@ impl Element for TextNode {
         match &self.rich {
             Some(rich) => self.rich_layout(doc, painter, rich, available.x).size,
             None => {
-                let size = self.galley(painter, &self.content, available.x).size();
+                let size = self.content_galley(painter, available.x).size();
                 match self.truncates() {
                     true => Vec2::new(size.x.min(available.x.max(0.0)), size.y),
                     false => size,
@@ -460,7 +488,7 @@ impl Element for TextNode {
                 layout.lines.first().map(|line| line.top + line.baseline)
             }
             None => {
-                let galley = self.galley(painter, &self.content, available.x);
+                let galley = self.content_galley(painter, available.x);
                 let top = galley.lines().first().map_or(0.0, |line| line.top);
                 Some(top + galley.baseline())
             }
@@ -574,6 +602,7 @@ impl Document {
             rich: None,
             items: ChildList::default(),
             placed: Rc::new(RefCell::new(None)),
+            measured: RefCell::new(None),
             shaped: RefCell::new(None),
         })
     }
@@ -581,7 +610,9 @@ impl Document {
     pub fn set_text(&mut self, id: NodeOf<TextNode>, content: impl Into<String>) {
         let value = content.into();
         if self.arena.get_as::<TextNode>(id).content != value {
-            self.arena.get_mut_as::<TextNode>(id).content = value;
+            let node = self.arena.get_mut_as::<TextNode>(id);
+            node.content = value;
+            node.measured.take();
         }
     }
 

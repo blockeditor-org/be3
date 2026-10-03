@@ -217,7 +217,7 @@ direction:
 
 | Crate | Owns |
 | --- | --- |
-| `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, and the `App` contract the runners drive |
+| `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
 | `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas, for the DOM renderer; no fonts in the module |
 | `beui-view` | `beui::reactive`: components, child slots, the `view!` integration and the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes |
@@ -226,7 +226,7 @@ direction:
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
-| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's runner: its window or view, input, IME, clipboard, file picker and accessibility adapter |
+| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter |
 
 Core cannot see the crates above it, so the few places it used to reach up are
 hooks the higher crates fill in:
@@ -246,8 +246,28 @@ hooks the higher crates fill in:
   (`Document::extension`); `beui::styled::DocumentTheme` reads and writes it.
 - A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
   the wgpu renderer.
-- The web runner draws through a `WebRenderer`, which the facade fills in with
-  the wgpu renderer's `CanvasSurface`.
+- Each platform is a `beui_core::runner::Adapter`, a trait object the facade
+  picks (`beui::window_adapter`, `beui::web_adapter`) and runs with a `Launch`
+  (`RunOptions`, `Context`, the `App`). The adapter owns the event loop and
+  turns the platform's input into `Event`s; everything one frame does is
+  `beui_core::runner::Runner::frame`, shared by all of them: it runs the
+  app, publishes accessibility, and tells the adapter's `Platform` (another
+  trait object) to copy, paste, pick a file, or change the cursor, pointer
+  lock, IME, fullscreen and back handling, only when one of them changed.
+  A new platform implements those two traits and hands its window or element
+  to the renderer loader the facade gives it.
+- Every adapter draws through `beui_core::renderer::Renderer` trait objects and
+  names no renderer crate: wgpu's `WindowSurface` (native windows),
+  `CanvasSurface` (a browser canvas) and `DomRenderer` implement it, and the
+  facade hands the runner the ones to load. A renderer is told where to draw
+  with `attach` (a raw-window-handle `WindowHandle`) or is made with its element,
+  and draws a frame in two steps, `prepare` and then `present`.
+  `beui_core::renderer::Renderers` holds what a runner loaded, each with the
+  `FontBackend` its text is measured with if it needs its own, and shows one.
+  `Context::choose_renderer` (the inspector's Perf tab offers it when more
+  than one is loaded) hides and detaches the shown one, attaches or resizes
+  the chosen one, and swaps the context's fonts with `Context::replace_fonts`,
+  which lays all text out again.
 
 Inside the family, crates name each other directly (`beui_core::document::Document`),
 and the component crates declare `extern crate beui_view as beui;` so the
@@ -513,6 +533,20 @@ and `on_change` still reports the position for anything else that wants it.
 
 ### Long lists
 
+Layout already skips the work for nodes far from the view. Every node is
+still measured, since sizes need them all, but `layout::layout` *culls* a node
+whose rect ends more than `CULLING_MARGIN` outside the visible part of its
+parent's painter: it keeps its rect, so `node_rect`, `reveal_node` and
+placement signals still find it, but nothing inside it is laid out, painted or
+interacted with (`Document::is_culled` says which). This holds for the children
+of any container, and the node holding the focus and its ancestors and
+descendants are never culled. Each placement records its `Sight`, the range of
+visible regions it stays right for (a node that reads its space through the
+painter is right only exactly where it was), and a parent's sight takes in its
+children's, so a scroll lays a subtree out again only once a node in it crosses
+the margin. A long scroll of ordinary content needs nothing more than this;
+reach for a `VirtualList` when building every row is itself the cost.
+
 A `VirtualList` is a box like any other. It takes `keys` the way `ForEach` does,
 reports one `item_size` per key as its own length, and builds only the rows that
 its slice of the enclosing viewport
@@ -765,12 +799,19 @@ and a press there closes it and still lands): it goes on the overlay stack, so i
 nothing else, it can trap focus, Escape closes the topmost one, and a press
 outside it dismisses it.
 
-Back - Android's back gesture, or the Back key or mouse button - closes the
-topmost modal overlay too, and while the gesture is held the overlay slides
-with it and its scrim fades. With no modal open, back goes to the most
-recently made enabled `BackHandler`, which slides its child the same way and
-calls `on_back` when the gesture completes: wrap a page in one to make back
-leave it. The document reports whether anything would take back through
+Back - Android's back gesture, or the Back key or mouse button - goes to the
+most recently made enabled `BackHandler` inside the topmost modal overlay, or,
+with no modal open, outside every overlay; with no such handler it closes the
+topmost modal. A base `BackHandler` only routes: it calls `on_back` when back
+completes, or hands every phase of the gesture to `on_gesture` if it has one,
+and moves nothing. The motion lives above it. `unstyled::BackSlide` wraps a
+page: held, the page follows the finger across a good share of the screen;
+let go, it carries on off the edge before `on_back` runs and the next page
+slides in behind it, and a cancelled gesture eases it back. A back with no
+gesture before it (a key) goes back at once. `styled::Dialog` and
+`Fullscreen` slide away the same way and fade their scrim, and a `Sheet`
+sinks with the gesture and slides on down from where it was. The document
+reports whether anything would take back through
 `FrameOutput::handles_back`; on Android the runner passes that to the
 activity's `setBackHandled`, and when nothing takes it the system's own back
 (to the home screen) plays instead.
@@ -1278,10 +1319,13 @@ Android its inset joins the safe area, and on the web the pages' viewport meta
 asks for `interactive-widget=resizes-content`. When the rectangle a document is
 shown in changes size while the focus takes text, the document scrolls the
 focused field into what is left, through every scroll it sits in.
-- `web` adds the browser runner, `beui::run_web(canvas_id, options, app)`,
-  and enables `render`.
-- `dom` is the other browser runner,
-  `beui::run_dom(element_id, icons_font, options, app)`, which draws with DOM
+- `web` and `dom` add the browser runner,
+  `beui::run_web(element_id, renderers, options, app)`, which loads each
+  `beui::WebRenderer` it is given into the element, shows the first that
+  loads, and skips (with a console warning) any that fail. `web` enables
+  `render` and adds `WebRenderer::Wgpu`, which draws into the element if it is
+  a canvas and into a canvas it adds otherwise.
+- `dom` adds `WebRenderer::Dom { icons_font }`, which draws with DOM
   elements instead of wgpu. Layout, input and focus are beui's as everywhere
   else. Each `Display` in the frame's display tree keeps one element across
   frames (by `Display::key`), holding its shapes and its children's elements
@@ -1290,12 +1334,14 @@ focused field into what is left, through every scroll it sits in.
   inside them. Text is measured and drawn with the browser's fonts
   (`beui-font-browser`), and the browser fetches the icon font from the URL
   `icons_font` names. A `Drawing`, a `Punch` and a `Filter` draw nothing there.
-  `crates/beui-web-demo` is the demo this way:
+  `crates/beui-web-demo` is the demo with both renderers, DOM first:
   `./scripts/buck run //crates/beui-web-demo:web-serve` serves it on
   http://127.0.0.1:8070.
 
 `beui::run_with` takes `RunOptions` (title, app id, starting size) where
-`beui::run` takes only a title. The rest of
+`beui::run` takes only a title; both load wgpu, and
+`beui::run_with_renderers` takes the `beui::WindowRenderer`s to load instead
+(be-compositor's opens its device itself). The rest of
 `App` is optional:
 
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.

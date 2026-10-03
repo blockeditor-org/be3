@@ -299,9 +299,31 @@ pub enum BackEdge {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum ImeEvent {
     Enabled,
-    Preedit(String),
-    Commit(String),
     Disabled,
+    SetComposingText(String),
+    CommitText(String),
+    FinishComposing,
+    SetComposingRegion(std::ops::Range<usize>),
+    ReplaceText {
+        range: std::ops::Range<usize>,
+        text: String,
+    },
+    DeleteSurrounding {
+        before: usize,
+        after: usize,
+    },
+    SetSelection {
+        anchor: usize,
+        focus: usize,
+    },
+}
+
+#[derive(Clone, PartialEq, Eq, Default, Debug)]
+pub struct ImeText {
+    pub start: usize,
+    pub text: String,
+    pub selection: std::ops::Range<usize>,
+    pub composing: Option<std::ops::Range<usize>>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -311,10 +333,12 @@ pub struct DroppedFile {
     pub bytes: Option<std::sync::Arc<[u8]>>,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct ImeArea {
     pub rect: crate::geometry::Rect,
     pub cursor: crate::geometry::Rect,
+    pub text: Option<ImeText>,
+    pub keyboard: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]

@@ -27,8 +27,11 @@ pub mod paint;
 pub mod painter;
 pub mod performance;
 pub mod pixel_grid;
+pub mod renderer;
 pub mod rich;
+pub mod runner;
 pub mod screen_simulation;
+pub mod sight;
 pub mod timer;
 
 pub use ::geometry;

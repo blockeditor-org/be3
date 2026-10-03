@@ -13,6 +13,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let server = Server::new()?;
     let mut options = beui::RunOptions::new("BE Compositor");
     options.app_id = Some("be-compositor".to_owned());
-    options.open_device = Some(std::sync::Arc::new(be_compositor::gpu::open_device));
-    beui::run_with(options, Compositor::new(server, launches))
+    let renderer = beui::WindowRenderer::Wgpu {
+        open_device: Some(std::sync::Arc::new(be_compositor::gpu::open_device)),
+    };
+    beui::run_with_renderers(options, vec![renderer], Compositor::new(server, launches))
 }
