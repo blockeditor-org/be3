@@ -26,4 +26,11 @@ export HOME="${HOME:-/root}"
 # dpkg-deb asks for them anyway, and its packages are all root's.
 export TAR_OPTIONS="--no-same-owner${TAR_OPTIONS:+ $TAR_OPTIONS}"
 
-exec chroot "$rootfs" /bin/sh -c 'cd "$0" && exec "$@"' "$PWD" "$@"
+# The loader variables run-action put aside come back for the action alone.
+exec chroot "$rootfs" /bin/sh -c '
+    cd "$0" || exit
+    for name in LD_LIBRARY_PATH LD_PRELOAD LD_AUDIT; do
+        eval "if [ -n \"\${BE3_ACTION_$name+x}\" ]; then export $name=\"\$BE3_ACTION_$name\"; unset BE3_ACTION_$name; fi"
+    done
+    exec "$@"
+' "$PWD" "$@"

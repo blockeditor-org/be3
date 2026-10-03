@@ -56,7 +56,10 @@ as_root() {
     "$(unshare_path)" --map-user=0 --map-group=0 --map-groups=auto "$@"
 }
 
+action_loader_variables='LD_LIBRARY_PATH LD_PRELOAD LD_AUDIT'
+
 ensure_user_namespaces() {
+    [[ -x /bin/busybox ]] || { echo 'Install the busybox-static package.' >&2; exit 1; }
     assert_command newgidmap 'Install the uidmap package.'
     if ! grep -q "^$(id -un):" /etc/subgid; then
         echo "$(id -un) has no subordinate groups in /etc/subgid. Add some with" >&2
@@ -171,8 +174,14 @@ print(next(m["digest"] for m in index["manifests"] if m.get("platform") == {"arc
 write_config() {
     mkdir -p "$server/work"
     cp "$internal/build-server-action.sh" "$server/action.sh"
+    # The action's environment arrives with it, and a test's LD_LIBRARY_PATH
+    # names the sysroot's glibc, which no program on the way into the image
+    # can load. So the first is static, and puts LD_* aside until the action.
     cat > "$server/run-action" << EOF
-#!/bin/sh
+#!/bin/busybox sh
+for name in $action_loader_variables; do
+    eval "if [ -n \"\\\${\$name+x}\" ]; then export BE3_ACTION_\$name=\"\\\$\$name\"; unset \$name; fi"
+done
 exec "$(unshare_path)" --map-user=0 --map-group=0 --map-groups=auto --mount --pid --fork --kill-child -- \\
     /bin/sh "$server/action.sh" "$server/rootfs" "$server/work" "\$@"
 EOF
@@ -181,24 +190,31 @@ EOF
 {
   stores: [
     {
-      name: "AC",
-      filesystem: {
-        content_path: "$server/ac",
-        temp_path: "$server/ac-tmp",
-        eviction_policy: { max_bytes: 1000000000 },
-      },
-    },
-    {
       name: "CAS",
       fast_slow: {
         fast: {
           filesystem: {
             content_path: "$server/cas",
             temp_path: "$server/cas-tmp",
-            eviction_policy: { max_bytes: 10000000000 },
+            eviction_policy: { max_bytes: 20000000000 },
           },
         },
         slow: { noop: {} },
+      },
+    },
+    // A cached result whose outputs the CAS has since evicted is a miss, as
+    // it is on BuildBuddy, rather than an action buck2 cannot download.
+    {
+      name: "AC",
+      completeness_checking: {
+        backend: {
+          filesystem: {
+            content_path: "$server/ac",
+            temp_path: "$server/ac-tmp",
+            eviction_policy: { max_bytes: 1000000000 },
+          },
+        },
+        cas_store: { ref_store: { name: "CAS" } },
       },
     },
   ],
@@ -274,6 +290,9 @@ start_server() {
         return 0
     fi
     stop_server
+    # buck2 remembers which blobs it has uploaded, and a server starting with a
+    # smaller cache, or one that was not running, may no longer have them.
+    buck2_kill
     cp "$server/nativelink.json5" "$server/nativelink.json5.running"
     setsid "$nativelink" "$server/nativelink.json5" >> "$server/nativelink.log" 2>&1 < /dev/null &
     echo $! > "$server/nativelink.pid"
