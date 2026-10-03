@@ -8,7 +8,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-beui = { path = "../beui", default-features = false, features = ["dom"] }
+beui = { path = "../beui", default-features = false, features = ["dom", "web"] }
 beui-demo = { path = "../beui-demo" }
 wasi-threads = { path = "../wasi-threads" }
 wasm-bindgen = "0.2"

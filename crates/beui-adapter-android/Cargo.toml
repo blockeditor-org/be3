@@ -8,14 +8,12 @@ license.workspace = true
 accesskit = "0.24.1"
 accesskit_android = { version = "0.7.5", features = ["embedded-dex"] }
 beui-core = { path = "../beui-core" }
-beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 jni = "0.22"
 libc = "0.2"
 ndk = { version = "0.9", default-features = false }
 ndk-context = "0.1"
 ndk-sys = "0.6"
-pollster = "0.4"
-wgpu = "29"
+raw-window-handle = "0.6"
 
 [lints]
 workspace = true

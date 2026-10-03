@@ -8,6 +8,7 @@ license.workspace = true
 accesskit = "0.24.1"
 foldhash = "0.2"
 geometry = { path = "../geometry" }
+raw-window-handle = { version = "0.6", features = ["alloc"] }
 reactive = { path = "../reactive" }
 thumbhash = "0.1"
 unicode-segmentation = "1.13"

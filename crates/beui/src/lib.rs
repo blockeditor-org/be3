@@ -1,6 +1,6 @@
 extern crate self as beui;
 
-#[cfg(all(feature = "window", not(target_os = "android")))]
+#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 use std::error::Error;
 
 pub use accesskit;
@@ -12,7 +12,9 @@ pub use beui_core::base::{
     Align, Direction, ImeCursor, ItemSize, Justify, ScrollPosition, Sizing, Track, focus_within,
 };
 pub use beui_core::color::{Color32, Hsva, format_hex, parse_hex};
-pub use beui_core::context::{Context, FrameOutput, InputSimulation, Moved, RendererInfo};
+pub use beui_core::context::{
+    Context, FrameOutput, InputSimulation, Moved, RendererChoices, RendererInfo,
+};
 pub use beui_core::damage::Region;
 pub use beui_core::document::{
     Document, OverRepaint, Tools, detect_over_repaint, take_over_repaints, verify_paint,
@@ -53,20 +55,22 @@ pub use beui_renderer_wgpu::{
 pub use beui_view::{child_type, value_child_type};
 
 #[cfg(all(feature = "window", target_os = "android"))]
-pub use beui_adapter_android::{AndroidApp, RunOptions};
+pub use beui_adapter_android::AndroidApp;
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
-pub use beui_adapter_web::{RunOptions, accessibility_tree};
+pub use beui_adapter_web::accessibility_tree;
 #[cfg(all(feature = "window", not(target_os = "android")))]
-pub use beui_adapter_winit::{RunOptions, winit};
-#[cfg(all(feature = "dom", target_arch = "wasm32"))]
-pub use dom::run_dom;
-#[cfg(all(feature = "web", target_arch = "wasm32"))]
-pub use web::run_web;
+pub use beui_adapter_winit::winit;
+pub use beui_core::runner::{Adapter, Launch, Platform, RunOptions};
+#[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
+pub use web::{WebRenderer, run_web, web_adapter};
 
-#[cfg(all(feature = "dom", target_arch = "wasm32"))]
-mod dom;
-#[cfg(all(feature = "web", target_arch = "wasm32"))]
+#[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 mod web;
+#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
+pub use window::{WindowRenderer, run_with, run_with_renderers, window_adapter};
+
+#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
+mod window;
 
 pub mod reactive {
     pub use beui_components_unstyled::Button;
@@ -97,30 +101,9 @@ pub fn system_context() -> Context {
     Context::new(FreetypeFonts::new(system_fonts()))
 }
 
-#[cfg(all(feature = "window", not(target_os = "android")))]
+#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
     run_with(RunOptions::new(title), app)
-}
-
-#[cfg(all(feature = "window", not(target_os = "android")))]
-pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
-    beui_adapter_winit::run_with(options, system_context(), app)
-}
-
-#[cfg(all(feature = "window", target_os = "android"))]
-pub fn run(
-    title: impl Into<String>,
-    app: impl App + 'static,
-) -> Result<(), Box<dyn std::error::Error>> {
-    run_with(RunOptions::new(title), app)
-}
-
-#[cfg(all(feature = "window", target_os = "android"))]
-pub fn run_with(
-    options: RunOptions,
-    app: impl App + 'static,
-) -> Result<(), Box<dyn std::error::Error>> {
-    beui_adapter_android::run_with(options, system_context(), app)
 }
 
 #[cfg(test)]

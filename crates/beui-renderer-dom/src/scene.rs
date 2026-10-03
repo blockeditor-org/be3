@@ -5,10 +5,12 @@ use std::rc::Rc;
 use wasm_bindgen::JsCast;
 
 use beui_core::color::Color32;
-use beui_core::context::{Context, FrameOutput, RendererInfo};
+use beui_core::context::{FrameOutput, RendererInfo};
 use beui_core::display::{Display, Layer, Part};
+use beui_core::geometry::Vec2;
 use beui_core::image::{Image, ImageId};
 use beui_core::painter::{Entry, Shape};
+use beui_core::renderer::Renderer;
 
 use crate::style::{self, Look};
 
@@ -67,10 +69,11 @@ pub struct DomRenderer {
     nodes: HashMap<u64, Node>,
     images: HashMap<ImageId, Rc<str>>,
     prepared: Option<(f32, f32, Color32)>,
+    size: Option<(u32, u32)>,
 }
 
 impl DomRenderer {
-    pub fn new(root: web_sys::HtmlElement, context: &Context) -> Result<Self, Box<dyn Error>> {
+    pub fn new(root: web_sys::HtmlElement) -> Result<Self, Box<dyn Error>> {
         let document = root
             .owner_document()
             .ok_or("the element is not in a document")?;
@@ -90,9 +93,6 @@ impl DomRenderer {
         stage.set_class_name("beui-stage");
         root.append_child(&stage)
             .map_err(|_| "could not add the stage to the root element")?;
-        context.set_renderer_info(RendererInfo {
-            rows: vec![("Renderer", "DOM".to_owned())],
-        });
         Ok(Self {
             document,
             root,
@@ -104,10 +104,11 @@ impl DomRenderer {
             nodes: HashMap::new(),
             images: HashMap::new(),
             prepared: None,
+            size: None,
         })
     }
 
-    pub fn draw(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+    fn show(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
         let ratio = web_sys::window().map_or(1.0, |window| window.device_pixel_ratio() as f32);
         let zoom = scale / ratio;
         let prepared = Some((scale, zoom, background));
@@ -427,6 +428,48 @@ impl DomRenderer {
         let url: Rc<str> = data_url(&self.document, image)?.into();
         self.images.insert(image.id(), Rc::clone(&url));
         Some(url)
+    }
+}
+
+impl Renderer for DomRenderer {
+    fn name(&self) -> &'static str {
+        "DOM"
+    }
+
+    fn info(&self) -> RendererInfo {
+        RendererInfo {
+            rows: vec![("Renderer", "DOM".to_owned())],
+        }
+    }
+
+    fn set_active(&mut self, active: bool) {
+        let display = match active {
+            true => "",
+            false => "none",
+        };
+        let _ = self.stage.style().set_property("display", display);
+        if !active {
+            self.prepared = None;
+            self.clear();
+        }
+    }
+
+    fn resize(&mut self, width: u32, height: u32) {
+        self.size = Some((width, height));
+    }
+
+    fn physical(&self) -> Option<Vec2> {
+        self.size
+            .map(|(width, height)| Vec2::new(width as f32, height as f32))
+    }
+
+    fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
+        self.show(output, scale, background);
+        false
+    }
+
+    fn present(&mut self, _background: Color32) -> bool {
+        false
     }
 }
 

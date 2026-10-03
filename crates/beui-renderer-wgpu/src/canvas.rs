@@ -1,8 +1,10 @@
 use std::error::Error;
 
+use beui_core::app::Setup;
 use beui_core::color::Color32;
-use beui_core::context::{Context, FrameOutput};
+use beui_core::context::{FrameOutput, RendererInfo};
 use beui_core::geometry::Vec2;
+use beui_core::renderer;
 
 use crate::present::{GpuSetup, surface_format};
 use crate::{Renderer, Repaint, clear_color_in, renderer_info};
@@ -17,6 +19,9 @@ impl wgpu::rwh::HasDisplayHandle for Display {
 }
 
 pub struct CanvasSurface {
+    canvas: web_sys::HtmlCanvasElement,
+    display: Option<String>,
+    info: RendererInfo,
     _instance: wgpu::Instance,
     _adapter: wgpu::Adapter,
     device: wgpu::Device,
@@ -28,16 +33,13 @@ pub struct CanvasSurface {
 }
 
 impl CanvasSurface {
-    pub async fn new(
-        canvas: web_sys::HtmlCanvasElement,
-        context: &Context,
-    ) -> Result<Self, Box<dyn Error>> {
+    pub async fn new(canvas: web_sys::HtmlCanvasElement) -> Result<Self, Box<dyn Error>> {
         let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
         descriptor.backends = wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL;
         descriptor.display = Some(Box::new(Display));
         let instance = wgpu::util::new_instance_with_webgpu_detection(descriptor).await;
         let surface = instance
-            .create_surface(wgpu::SurfaceTarget::Canvas(canvas))
+            .create_surface(wgpu::SurfaceTarget::Canvas(canvas.clone()))
             .map_err(|error| error.to_string())?;
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -71,7 +73,7 @@ impl CanvasSurface {
                 .copied()
                 .unwrap_or(wgpu::CompositeAlphaMode::Auto),
         };
-        context.set_renderer_info(renderer_info(&adapter.get_info(), format));
+        let info = renderer_info(&adapter.get_info(), format);
         let renderer = Renderer::new(&device, format);
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -84,6 +86,9 @@ impl CanvasSurface {
             view_formats: Vec::new(),
         };
         Ok(Self {
+            canvas,
+            display: None,
+            info,
             _instance: instance,
             _adapter: adapter,
             device,
@@ -103,36 +108,7 @@ impl CanvasSurface {
         }
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
-        self.config.width = width;
-        self.config.height = height;
-        self.surface.configure(&self.device, &self.config);
-    }
-
-    pub fn draw(
-        &mut self,
-        output: &FrameOutput,
-        physical: Vec2,
-        scale: f32,
-        background: Color32,
-    ) -> bool {
-        let stale = self.prepared != Some((physical, scale, background));
-        if !(output.changed || stale) {
-            return false;
-        }
-        self.renderer.prepare(
-            &self.device,
-            &self.queue,
-            output,
-            physical,
-            scale,
-            Repaint::Everything,
-        );
-        self.prepared = Some((physical, scale, background));
-        self.present(background)
-    }
-
-    fn present(&mut self, background: Color32) -> bool {
+    fn present_frame(&mut self, background: Color32) -> bool {
         let frame = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame)
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
@@ -163,5 +139,74 @@ impl CanvasSurface {
         self.queue.submit(Some(encoder.finish()));
         frame.present();
         false
+    }
+}
+
+impl renderer::Renderer for CanvasSurface {
+    fn name(&self) -> &'static str {
+        "wgpu"
+    }
+
+    fn info(&self) -> RendererInfo {
+        self.info.clone()
+    }
+
+    fn provide(&self, setup: &mut Setup) {
+        setup.provide(self.gpu());
+    }
+
+    fn set_active(&mut self, active: bool) {
+        let style = self.canvas.style();
+        match active {
+            true => {
+                if let Some(display) = self.display.take() {
+                    let _ = style.set_property("display", &display);
+                }
+            }
+            false => {
+                if self.display.is_none() {
+                    self.display = style.get_property_value("display").ok();
+                }
+                let _ = style.set_property("display", "none");
+            }
+        }
+        self.prepared = None;
+    }
+
+    fn resize(&mut self, width: u32, height: u32) {
+        self.canvas.set_width(width);
+        self.canvas.set_height(height);
+        self.config.width = width;
+        self.config.height = height;
+        self.surface.configure(&self.device, &self.config);
+    }
+
+    fn physical(&self) -> Option<Vec2> {
+        (self.config.width > 0 && self.config.height > 0)
+            .then(|| Vec2::new(self.config.width as f32, self.config.height as f32))
+    }
+
+    fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
+        let Some(physical) = self.physical() else {
+            return false;
+        };
+        let stale = self.prepared != Some((physical, scale, background));
+        if !(output.changed || stale) {
+            return false;
+        }
+        self.renderer.prepare(
+            &self.device,
+            &self.queue,
+            output,
+            physical,
+            scale,
+            Repaint::Everything,
+        );
+        self.prepared = Some((physical, scale, background));
+        true
+    }
+
+    fn present(&mut self, background: Color32) -> bool {
+        self.present_frame(background)
     }
 }
