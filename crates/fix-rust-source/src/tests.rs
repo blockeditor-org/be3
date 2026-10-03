@@ -20,6 +20,7 @@ mod fix_repository_ignores_sources_outside_crates;
 mod fix_repository_removes_test_path_attributes;
 mod fix_repository_reports_beui_rule_breaks;
 mod fix_repository_skips_hidden_directories;
+mod fix_repository_sorts_test_modules;
 mod format_views_always_breaks_children_onto_their_own_lines;
 mod format_views_breaks_a_nested_view_inside_an_expression;
 mod format_views_breaks_a_tag_that_does_not_fit;

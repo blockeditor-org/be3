@@ -12,14 +12,14 @@ fn field(field_type: DatabaseFieldType) -> DatabaseField {
         block_options: Default::default(),
     }
 }
+mod color_datetime_and_boolean_text_round_trip;
 mod enum_value_formats_as_option_name;
+mod invalid_typed_values_do_not_produce_replacements;
 mod number_parsing_accepts_valid_and_rejects_invalid_and_empty;
 mod string_empty_is_stored;
+mod typed_numbers_clamp_to_configured_boundaries;
 
 use be_block::{
     database::{DatabaseColor, DatabaseValue},
     database_schema::{DatabaseNumberOptions, DatabaseNumberScale},
 };
-mod color_datetime_and_boolean_text_round_trip;
-mod invalid_typed_values_do_not_produce_replacements;
-mod typed_numbers_clamp_to_configured_boundaries;

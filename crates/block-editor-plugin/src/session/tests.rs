@@ -54,6 +54,7 @@ mod accepts_ordered_lifecycle;
 mod opens_and_closes_editor_instance;
 mod refuses_to_draw_without_a_surface;
 mod rejects_child_statuses_for_unopened_instances;
+mod rejects_content_for_an_instance_that_was_never_opened;
 mod rejects_messages_only_a_plugin_may_send;
 mod rejects_out_of_order_messages;
 mod rejects_screens_for_unopened_instances;
@@ -67,4 +68,3 @@ fn content(instance: EditorInstanceId) -> Message {
         applied: 0,
     })
 }
-mod rejects_content_for_an_instance_that_was_never_opened;
