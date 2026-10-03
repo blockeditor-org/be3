@@ -98,18 +98,20 @@ fn push(event: Event) {
 }
 
 fn schedule() {
-    let first = INPUT.with(|input| !input.scheduled.replace(true));
-    if !first {
+    if INPUT.with(|input| input.scheduled.get()) {
         return;
     }
     let Some(window) = web_sys::window() else {
         return;
     };
-    FRAME.with(|frame| {
-        if let Some(frame) = frame.borrow().as_ref() {
-            let _ = window.request_animation_frame(frame.as_ref().unchecked_ref());
-        }
+    let requested = FRAME.with(|frame| {
+        frame.borrow().as_ref().is_some_and(|frame| {
+            window
+                .request_animation_frame(frame.as_ref().unchecked_ref())
+                .is_ok()
+        })
     });
+    INPUT.with(|input| input.scheduled.set(requested));
 }
 
 fn schedule_after(delay: Duration) {

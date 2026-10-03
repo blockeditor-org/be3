@@ -47,6 +47,9 @@ async fn load(
         WebRenderer::Wgpu => load_wgpu(element).await,
         #[cfg(feature = "dom")]
         WebRenderer::Dom { icons_font } => {
+            if element.tag_name().eq_ignore_ascii_case("canvas") {
+                return Err("the DOM renderer cannot draw inside a canvas".into());
+            }
             beui_font_browser::watch(icons_font.as_deref(), beui_adapter_web::request_frame)?;
             Ok(Loaded {
                 renderer: Box::new(beui_renderer_dom::DomRenderer::new(element.clone())?),
