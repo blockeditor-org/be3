@@ -196,6 +196,19 @@ print(next(m["digest"] for m in index["manifests"] if m.get("platform") == {"arc
     echo "$digest" | sudo -u "$service_user" tee "$rootfs.digest" > /dev/null
 }
 
+# The CAS's size. One build of everything CI builds needs more than 35 GB at
+# once, and a blob evicted mid-build is an input buck2 believes it uploaded,
+# so the cache wants a disk of its own: on one, the cache is all of it but
+# 15 GB for the image, the action cache and actions' work directories. On a
+# shared disk it stays at 35 GB, which is enough for everything but CI's build.
+cache_bytes() {
+    if [[ "$(findmnt -n -o TARGET --target "$server")" == "$server" ]]; then
+        echo $(($(df -B1 --output=size "$server" | tail -1) - 15000000000))
+    else
+        echo 35000000000
+    fi
+}
+
 # What changed among the files below, so that the service restarts only for a
 # change, and buck2 forgets the blobs a restarted server may have evicted.
 changed=false
@@ -243,7 +256,7 @@ EOF
           filesystem: {
             content_path: "$server/cas",
             temp_path: "$server/cas-tmp",
-            eviction_policy: { max_bytes: 35000000000 },
+            eviction_policy: { max_bytes: $(cache_bytes) },
           },
         },
         slow: { noop: {} },
@@ -315,6 +328,7 @@ EOF
 [Unit]
 Description=be3's remote execution server (./scripts/build-server)
 After=network.target
+RequiresMountsFor=$server
 
 [Service]
 User=$service_user

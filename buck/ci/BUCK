@@ -27,20 +27,6 @@ NATIVE = {
     for name, platform in NATIVE.items()
 ]
 
-# What `./scripts/buck run //crates/block-app:app` builds on a machine of each
-# platform, which builds for that machine: the dev app with its plugins
-# precompiled for it. Built so that running it on a commit CI has seen is a
-# cache hit; everything else a person builds is for Linux on x86_64 wherever
-# they are, and //crates/... is that.
-[
-    configured_alias(
-        name = "app-" + name,
-        actual = "//crates/block-app:app",
-        platform = "//buck/platforms:" + platform,
-    )
-    for name, platform in NATIVE.items()
-]
-
 # The plugin modules every platform shares, and the web bundle without them.
 configured_alias(
     name = "plugins",
@@ -67,5 +53,5 @@ bundle(
 
 group(
     name = "everything",
-    deps = [":artifacts"] + [":app-" + name for name in NATIVE],
+    deps = [":artifacts"],
 )

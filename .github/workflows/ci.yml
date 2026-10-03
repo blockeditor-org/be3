@@ -38,10 +38,11 @@ env:
 jobs:
   # buck/ci/BUCK names what is built: //crates/... for the host, which is what
   # ./scripts/buck builds for on every machine; each platform's release app
-  # and server; the plugins, the web bundle and the APK; and each platform's
-  # dev app, which is what `run` builds on a machine of that platform, so that
-  # running it on a commit CI has seen is a cache hit. The first command builds
-  # all of it and downloads nothing. The second downloads only what is
+  # and server; and the plugins, the web bundle and the APK. Every other
+  # platform's dev app, which `run` builds on a machine of that platform, is
+  # left out: the build server's cache holds one build of what is here, and
+  # development happens on Linux x86_64. The first command builds all of it
+  # and downloads nothing. The second downloads only what is
   # uploaded, which the first has built; --out takes one target, and one that
   # downloads nothing cannot be written out.
   build:

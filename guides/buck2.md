@@ -184,8 +184,9 @@ turns.
 | `wasm32` | nothing | rust-lld (the games, the gpu shim) |
 
 All of them build on the same Linux workers. CI builds `//buck/ci:everything`
-and `//crates/...` in one command: every platform's release app and dev app,
-the plugins, the web bundle and the APKs (`buck/ci/BUCK`). Apple's SDK licence allows it on Apple hardware only, so release builds
+and `//crates/...` in one command: every platform's release app, the
+plugins, the web bundle and the APKs (`buck/ci/BUCK`). Other platforms' dev
+apps are left out, so `run` on a Mac or Windows machine is not a cache hit. Apple's SDK licence allows it on Apple hardware only, so release builds
 for macOS move to a Mac or Asahi worker before anything ships; xwin accepts
 Microsoft's Build Tools licence.
 
