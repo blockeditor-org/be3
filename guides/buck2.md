@@ -51,10 +51,15 @@ these in front of the pinned buck2:
   `~/.config/be3/build-server-key`; without a terminal it fails and says what
   to set. After changing the key, restart the daemon with
   `./scripts/buck killall`.
+- **The build server.** `.buckconfig` names one; `BE3_BUILD_SERVER`, else
+  `.build-server` at the root (git ignores it), picks another by host, and
+  its key files end in that host (guides/build_server.md). `./scripts/buck`
+  writes a `.buckconfig.local` naming it and restarts the daemon when the
+  server changes.
 - **An HTTPS proxy.** buck2's remote execution client dials the build server
   directly and never reads `HTTPS_PROXY`. When it is set, `./scripts/buck` builds
   `scripts/internal/re-relay` with Go (1.24 or newer), leaves it running on
-  `127.0.0.1:18980`, and writes a `.buckconfig.local` pointing buck2 at it; the
+  `127.0.0.1:18980`, and points buck2 at it in the same `.buckconfig.local`; the
   relay sends each call on through the proxy, over HTTP/1.1 if that is all the
   proxy speaks. Its errors go to `target/re-relay.log`. A `.buckconfig.local` a person wrote
   is left alone, and the relay is not used then.
