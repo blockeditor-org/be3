@@ -7,6 +7,7 @@ use std::{
 use crate::ui::PerformanceRow;
 
 const SAMPLE_CAPACITY: usize = 120;
+const PACING: &str = crate::plugin_host::PACING;
 
 #[derive(Clone)]
 pub struct LastFrame {
@@ -36,6 +37,7 @@ struct Group {
 struct PerformanceState {
     frame: u64,
     frame_start: Option<Instant>,
+    update_start: Option<Instant>,
     last_frame: Option<LastFrame>,
     frame_times: VecDeque<Duration>,
     groups: BTreeMap<String, Group>,
@@ -65,6 +67,17 @@ pub fn end_frame() {
         });
         push_sample(&mut state.frame_times, elapsed);
     }
+}
+
+pub fn record_update(started: Instant) {
+    const CONTINUOUS: Duration = Duration::from_millis(100);
+    let previous = state().update_start.replace(started);
+    if let Some(interval) = previous.map(|previous| started - previous)
+        && interval < CONTINUOUS
+    {
+        record_duration_in(PACING, "Frame interval", interval);
+    }
+    record_duration_in(PACING, "Host frame", started.elapsed());
 }
 
 pub fn last_frame() -> Option<LastFrame> {
@@ -111,7 +124,7 @@ pub fn rows() -> Vec<PerformanceRow> {
     for (id, group) in state
         .groups
         .iter()
-        .filter(|(_, group)| group.seen_frame == frame)
+        .filter(|(_, group)| group.seen_frame + 1 >= frame)
     {
         rows.push(PerformanceRow {
             heading: true,

@@ -34,6 +34,7 @@ const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 const FRAME_TIMEOUT_SECONDS: f64 = 1.0;
 const FRAME_BUDGET: Duration = Duration::from_millis(8);
+pub(crate) const PACING: &str = "Frame pacing";
 const REMEMBERED_PRESENTS: usize = 16;
 const SURFACE: SurfaceSpec = SurfaceSpec {
     format: SurfaceFormat::Rgba8Unorm,
@@ -47,6 +48,8 @@ thread_local! {
 struct Host {
     availability: Availability,
     deadline: Option<(u64, Deadline)>,
+    waited: Duration,
+    over_budget: u64,
     runtimes: HashMap<String, Runtime>,
     focus: Focus,
     grabbed: bool,
@@ -57,6 +60,8 @@ impl Host {
         Self {
             availability: Availability::missing(),
             deadline: None,
+            waited: Duration::ZERO,
+            over_budget: 0,
             runtimes: HashMap::new(),
             focus: Focus::default(),
             grabbed: false,
@@ -283,7 +288,7 @@ impl Runtime {
     }
 
     fn ask(&mut self, pass: u64) -> bool {
-        if self.placed == pass {
+        if self.placed == pass || self.instances.has_mounted() {
             self.begin_pass(pass);
         }
         self.detect_error();
@@ -298,11 +303,12 @@ impl Runtime {
         true
     }
 
-    fn settle(&mut self, deadline: Deadline) {
+    fn settle(&mut self, deadline: Deadline) -> bool {
         while self.error.is_none() && !self.backend.settled() && self.backend.wait(deadline) {
             self.pump();
             self.request_frame();
         }
+        self.error.is_none() && !self.backend.settled()
     }
 
     fn request_frame(&mut self) {
@@ -384,6 +390,13 @@ impl Runtime {
         }
         self.apply(forwarded);
         if let Some(mut frame) = self.backend.received_frame() {
+            if let Some(took) = self.backend.took() {
+                crate::performance::record_group_duration(
+                    PACING,
+                    &format!("{} step", self.plugin.identity.id),
+                    took,
+                );
+            }
             frame.set_damage(self.presents.damage_through(frame.presents()));
             self.shared.borrow_mut().publish(&self.layout, Some(frame));
             self.frames += 1;
@@ -758,12 +771,25 @@ pub(crate) fn settle() {
             .iter_mut()
             .filter_map(|(id, runtime)| runtime.ask(pass).then(|| id.clone()))
             .collect();
+        let started = std::time::Instant::now();
+        let mut over = false;
         for id in asked {
             if let Some(runtime) = host.runtimes.get_mut(&id) {
-                runtime.settle(deadline);
+                over |= runtime.settle(deadline);
             }
         }
+        host.waited += started.elapsed();
+        host.over_budget += u64::from(over);
     });
+}
+
+pub(crate) fn record_pacing() {
+    let (waited, over_budget) = HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        (std::mem::take(&mut host.waited), host.over_budget)
+    });
+    crate::performance::record_group_duration(PACING, "Waiting on plugins", waited);
+    crate::performance::record_group_count(PACING, "Frames over budget", over_budget);
 }
 
 pub(crate) fn flush() {

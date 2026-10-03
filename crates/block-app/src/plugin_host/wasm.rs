@@ -7,7 +7,7 @@ use std::{
         mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError},
     },
     thread,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use crate::editors::plugin::discovery::{self, Module};
@@ -45,6 +45,7 @@ struct Target {
 struct Produced {
     outbound: Vec<Vec<u8>>,
     presented: Option<Target>,
+    took: Duration,
 }
 
 impl Produced {
@@ -75,6 +76,7 @@ struct Worker {
     target: Option<Target>,
     presented: bool,
     presents: u64,
+    took: Option<Duration>,
 }
 
 pub(super) struct Wasm {
@@ -136,6 +138,7 @@ impl super::backend::Backend for Wasm {
                     target: None,
                     presented: false,
                     presents: 0,
+                    took: None,
                 })
             }
             Err(error) => self.error = Some(format!("the plugin worker could not start: {error}")),
@@ -211,6 +214,10 @@ impl super::backend::Backend for Wasm {
             self.worker = None;
         }
         true
+    }
+
+    fn took(&mut self) -> Option<Duration> {
+        self.worker.as_mut()?.took.take()
     }
 
     fn take_error(&mut self) -> Option<String> {
@@ -293,6 +300,7 @@ impl Worker {
     fn absorb(&mut self, produced: Produced) {
         self.received.extend(produced.outbound);
         if let Some(target) = produced.presented {
+            self.took = Some(produced.took);
             self.target = Some(target);
             self.presented = true;
             self.presents += 1;
@@ -347,7 +355,7 @@ fn run(
     }
     if !report(
         &reports,
-        Event::Ready(produced(&mut plugin)),
+        Event::Ready(produced(&mut plugin, Duration::ZERO)),
         true,
         &waiting,
     ) {
@@ -359,8 +367,9 @@ fn run(
             plugin.send(frame);
         }
         plugin.take_wake();
+        let started = Instant::now();
         let event = match plugin.step() {
-            Ok(()) => Event::Stepped(produced(&mut plugin)),
+            Ok(()) => Event::Stepped(produced(&mut plugin, started.elapsed())),
             Err(error) => Event::Failed(error),
         };
         let woken = plugin.take_wake();
@@ -381,7 +390,7 @@ fn report(reports: &Sender<Event>, event: Event, woken: bool, waiting: &AtomicBo
     sent
 }
 
-fn produced(plugin: &mut Plugin) -> Produced {
+fn produced(plugin: &mut Plugin, took: Duration) -> Produced {
     let outbound = plugin.take_outbound();
     let presented = plugin
         .take_presented()
@@ -395,5 +404,6 @@ fn produced(plugin: &mut Plugin) -> Produced {
     Produced {
         outbound,
         presented,
+        took,
     }
 }

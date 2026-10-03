@@ -44,6 +44,10 @@ pub(super) trait Backend: Sized {
         false
     }
 
+    fn took(&mut self) -> Option<Duration> {
+        None
+    }
+
     fn take_error(&mut self) -> Option<String>;
 
     fn state(&self) -> &'static str;
