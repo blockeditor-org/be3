@@ -12,10 +12,6 @@ BE3 aims to solve this.
 
 See guides/buck2.md for detailed instructions
 
-Basic setup:
-
-`./scripts/setup`, then put a BuildBuddy API key in `~/.config/be3/buildbuddy-api-key`
-
 ```
 # run app
 ./scripts/buck run //crates/block-app:app
