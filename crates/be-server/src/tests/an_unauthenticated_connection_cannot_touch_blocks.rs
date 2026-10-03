@@ -19,6 +19,7 @@ async fn an_unauthenticated_connection_cannot_touch_blocks() {
     let response = stranger
         .send(|request| ClientMessage::Authenticate {
             request,
+            version: be_protocol::PROTOCOL_VERSION,
             token: "not a token".into(),
         })
         .await;

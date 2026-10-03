@@ -36,6 +36,7 @@ async fn a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens() {
     let refused = client
         .send(|request| ClientMessage::Register {
             request,
+            version: be_protocol::PROTOCOL_VERSION,
             email: "stranger@example.com".into(),
             display_name: "Stranger".into(),
             password: "correct horse battery".into(),
@@ -54,6 +55,7 @@ async fn a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens() {
     let refused = client
         .send(|request| ClientMessage::Login {
             request,
+            version: be_protocol::PROTOCOL_VERSION,
             email: "owner@example.com".into(),
             password: "correct horse battery".into(),
         })
@@ -71,6 +73,7 @@ async fn a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens() {
     let resumed = client
         .send(|request| ClientMessage::Authenticate {
             request,
+            version: be_protocol::PROTOCOL_VERSION,
             token: token.clone(),
         })
         .await;

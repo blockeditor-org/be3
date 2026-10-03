@@ -19,6 +19,7 @@ use super::*;
 
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_bunny_storage_zone_holds_a_backup;
+mod a_client_on_another_protocol_version_is_told_to_update;
 mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
 mod a_session_hands_ownership_over_without_a_merge;
@@ -30,6 +31,7 @@ mod an_unauthenticated_connection_cannot_touch_blocks;
 mod blocks_publish_and_read_back_through_the_server;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
+mod every_older_database_schema_migrates_to_the_current_one;
 mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
 mod old_database_backups_thin_out_by_age;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
@@ -90,6 +92,7 @@ impl Harness {
         let response = client
             .send(|request| ClientMessage::Authenticate {
                 request,
+                version: be_protocol::PROTOCOL_VERSION,
                 token: token.to_owned(),
             })
             .await;
@@ -124,10 +127,12 @@ impl TestClient {
     async fn send(&mut self, build: impl FnOnce(u64) -> ClientMessage) -> ServerMessage {
         self.next += 1;
         let request = self.next;
-        self.socket
-            .send(WsMessage::Binary(encode_message(&build(request)).unwrap()))
-            .await
-            .unwrap();
+        let bytes = encode_message(&build(request)).unwrap();
+        self.exchange(request, bytes).await
+    }
+
+    async fn exchange(&mut self, request: u64, bytes: Vec<u8>) -> ServerMessage {
+        self.socket.send(WsMessage::Binary(bytes)).await.unwrap();
         loop {
             let message = tokio::time::timeout(Duration::from_secs(10), self.socket.next())
                 .await
@@ -193,6 +198,7 @@ impl TestClient {
         let response = self
             .send(|request| ClientMessage::Register {
                 request,
+                version: be_protocol::PROTOCOL_VERSION,
                 email: email.into(),
                 display_name: email.into(),
                 password: "correct horse battery".into(),

@@ -33,53 +33,32 @@ Landed. What it left open:
 - Conflicts and diverged sessions are reported only through the status
   error and the debug window. Phase 5 adds the UI.
 
-## Phase 2: Version the formats
+## Phase 2: Version the formats (done)
 
-This is format work, not the freeze: it can land at any point, and the formats
-it versions can still change afterwards. Nothing written today carries a
-version. Everything is bare postcard, which
-cannot tell a missing field from corruption, and whose enum variants are
-positional.
+Landed (`guides/the_new_block_stack.md`, Stored formats):
+- a format byte on sealed objects and on keys sealed by be-keys;
+- `Commit`, `be_vcs::Tree` and `BlockMetadata` stored inside a `V1` enum;
+- a format byte before streamed headers;
+- a magic and a format byte on be-model documents, a test that holds the
+  `Value`, `Change` and `Anchor` variants in place, a kind change that keeps
+  the stored value and refuses writes, and merges that keep fields only one
+  side has;
+- `PROTOCOL_VERSION` in `Register`, `Login` and `Authenticate`, refused on a
+  mismatch with `UpdateRequired`; a frame that does not decode is answered
+  with its request id, and an app that cannot read a reply fails that request
+  instead of waiting forever;
+- ordered SQLite migrations counted by `PRAGMA user_version` on the server and
+  in the app, with a test that migrates every older schema, and a database
+  from a newer version refused;
+- `#[serde(default)]` on the web `SavedAccount`'s optional fields.
 
-### What gets a version
-
-- **Sealed objects.**
-  - Add a one-byte format/algorithm prefix before `nonce || ciphertext`
-    (`be-store/src/vault.rs:38-62`).
-  - A future cipher, nonce scheme or key epoch can then be told apart from
-    corruption.
-  - The prefix also carries the key epoch (phase 3).
-- **`Commit`, `Manifest`, `be_vcs::Tree`.**
-  - `CommitId` is the hash of their exact bytes, so they must never be
-    re-encoded.
-  - Wrap each in a versioned enum (`enum CommitV { V1(Commit) }`), so a new
-    shape is a new variant and old commits still decode.
-- **`BlockMetadata`.** Version it the same way.
-- **Streamed headers** (`TextHeader`, every blob header; `be-block/src/streamed.rs`).
-  - Put a version before the postcard header.
-  - Text stays raw UTF-8 after the header. That part is already the right
-    long-term format.
-- **be-model documents** (folder, settings, profile and the rest).
-  - Prefix `Tree::encode` with a magic and a version.
-  - Freeze the order of the `Value` and `Change` variants: append only, and
-    say so in a test.
-  - `Tree::upgrade` replaces a field whose kind changed with a blank, and
-    that blank is written out on the next seal (`be-model/src/tree.rs:47-60`).
-    Make a kind mismatch keep the stored value and refuse writes to it.
-  - `merge_fields` drops trailing fields that only the other side has
-    (`merge.rs:149-182`). Keep them.
-- **Wire protocol.**
-  - Send `PROTOCOL_VERSION` (`be-protocol/src/lib.rs:9`, never read today)
-    in `Login`, `Register` and `Authenticate`. Refuse a mismatch with a clear
-    "update the app" error.
-  - When a frame does not decode, reply with its request id.
-- **SQLite.**
-  - The server (`be-server/src/schema.rs`) and the client
-    (`block-app/src/app_state/native.rs`) both use `CREATE TABLE IF NOT EXISTS`
-    with no migrations.
-  - Done: `PRAGMA user_version`, ordered migrations, and a test that opens
-    every older schema.
-  - Web `SavedAccount` fields get `#[serde(default)]`.
+What it left open:
+- There is no key epoch: phase 3 landed without key rotation. The format byte
+  is where one would go.
+- `Manifest` has no wrapper of its own. It is only ever stored inside a commit
+  or a snapshot tree, whose versions cover it.
+- be-model reports a document in an unknown format as `Malformed`, the same as
+  corruption.
 
 ## Phase 3: A real encryption key, with backup (done)
 
@@ -345,7 +324,7 @@ and deleting a database stops being a fix.
 
 1. Start the server on the VPS (`guides/hosting.md`), with backups from day one.
 2. The profiling at the start of phase 6.
-3. Phase 2, versioning the formats, whenever it is convenient.
+3. Phase 2, versioning the formats (done).
 4. Phases 5 and 7 in parallel. Start real use when offline open, the status
    indicator, Move to…, search and export exist.
 5. The rest of phase 6, measured against the profile.

@@ -4,6 +4,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Anchor, Change, Malformed, Model, Object, ObjectId, Objects, Place, Touched, Value};
 
+pub(crate) const MAGIC: [u8; 4] = *b"BEMD";
+
+pub(crate) const FORMAT: u8 = 1;
+
 pub(crate) type Gone = BTreeMap<ObjectId, (Place, Anchor)>;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -48,15 +52,9 @@ impl Tree {
         let Some(object) = self.objects.get_mut(&id) else {
             return;
         };
-        for (index, value) in blank.into_iter().enumerate() {
-            match object.fields.get_mut(index) {
-                Some(held) if std::mem::discriminant(&*held) != std::mem::discriminant(&value) => {
-                    *held = value;
-                }
-                Some(_) => {}
-                None => object.fields.push(value),
-            }
-        }
+        object
+            .fields
+            .extend(blank.into_iter().skip(object.fields.len()));
     }
 
     pub(crate) fn list_ids(&self, place: Place) -> Vec<ObjectId> {
@@ -84,11 +82,18 @@ impl Tree {
     }
 
     pub(crate) fn encode(&self) -> Vec<u8> {
-        postcard::to_stdvec(self).unwrap_or_default()
+        let mut bytes = MAGIC.to_vec();
+        bytes.push(FORMAT);
+        postcard::to_extend(self, bytes).unwrap_or_default()
     }
 
     pub(crate) fn decode(bytes: &[u8]) -> Result<Self, Malformed> {
-        let tree: Self = postcard::from_bytes(bytes).map_err(|_| Malformed)?;
+        let body = bytes.strip_prefix(&MAGIC).ok_or(Malformed)?;
+        let (&format, body) = body.split_first().ok_or(Malformed)?;
+        if format != FORMAT {
+            return Err(Malformed);
+        }
+        let tree: Self = postcard::from_bytes(body).map_err(|_| Malformed)?;
         if !tree.objects.contains_key(&ObjectId::ROOT) {
             return Err(Malformed);
         }

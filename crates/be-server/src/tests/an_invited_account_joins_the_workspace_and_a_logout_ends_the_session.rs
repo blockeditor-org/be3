@@ -59,7 +59,11 @@ async fn an_invited_account_joins_the_workspace_and_a_logout_ends_the_session() 
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");
     let mut returning = harness.client().await;
     let response = returning
-        .send(|request| ClientMessage::Authenticate { request, token })
+        .send(|request| ClientMessage::Authenticate {
+            request,
+            version: be_protocol::PROTOCOL_VERSION,
+            token,
+        })
         .await;
     assert!(
         matches!(response, ServerMessage::Failed { .. }),

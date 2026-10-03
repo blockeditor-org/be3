@@ -12,6 +12,8 @@ use spake2::{Ed25519Group, Identity, Password, Spake2};
 use x25519_dalek::{PublicKey, StaticSecret};
 
 const NONCE_LEN: usize = 12;
+
+const SEALED_FORMAT: u8 = 1;
 const PHRASE_ENTROPY: usize = 16;
 const RECOVERY_INFO: &[u8] = b"be3.recovery.v1";
 const SEAL_INFO: &[u8] = b"be3.seal.v1";
@@ -52,13 +54,15 @@ fn seal_with(key: &[u8; 32], plain: &[u8]) -> Vec<u8> {
     let ciphertext = cipher
         .encrypt(Nonce::from_slice(&nonce), plain)
         .expect("chacha20poly1305 never fails on a valid key and nonce");
-    let mut sealed = Vec::with_capacity(NONCE_LEN + ciphertext.len());
+    let mut sealed = Vec::with_capacity(1 + NONCE_LEN + ciphertext.len());
+    sealed.push(SEALED_FORMAT);
     sealed.extend_from_slice(&nonce);
     sealed.extend_from_slice(&ciphertext);
     sealed
 }
 
 fn open_with(key: &[u8; 32], sealed: &[u8], error: KeyError) -> Result<Vec<u8>, KeyError> {
+    let sealed = sealed.strip_prefix(&[SEALED_FORMAT]).ok_or(error)?;
     let (nonce, ciphertext) = sealed.split_at_checked(NONCE_LEN).ok_or(error)?;
     ChaCha20Poly1305::new(Key::from_slice(key))
         .decrypt(Nonce::from_slice(nonce), ciphertext)

@@ -84,7 +84,11 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
 async fn guest_account(guest: &mut TestClient) -> Uuid {
     let token = guest.token.clone();
     let response = guest
-        .send(|request| ClientMessage::Authenticate { request, token })
+        .send(|request| ClientMessage::Authenticate {
+            request,
+            version: be_protocol::PROTOCOL_VERSION,
+            token,
+        })
         .await;
     let ServerMessage::Authenticated { account, .. } = response else {
         panic!("the guest could not re-authenticate: {response:?}");

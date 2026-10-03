@@ -412,6 +412,32 @@ editor sends and echoes them back as operations marked as its own, the way the
 app's host does; `store()` hands a test fixture the same `ContentStore` to read
 or write between runs.
 
+## Stored formats
+
+Everything the stack writes says which format it is in, so a later shape can
+be told apart from corruption:
+
+- Sealed objects start with a format byte (`vault::SEALED_FORMAT`), and so do
+  keys sealed by be-keys.
+- `Commit`, `be_vcs::Tree` and `BlockMetadata` are stored inside a private
+  `V1` enum. A new shape is a new variant beside the old one, never an edit to
+  it: a `CommitId` is the hash of a commit's exact bytes, so old commits must
+  keep decoding as they are.
+- Streamed content (`encode_streamed`) starts with `STREAMED_FORMAT`, then the
+  header's length.
+- be-model documents start with a magic and a format byte. `Value`, `Change`
+  and `Anchor` variants are only ever appended
+  (`value_and_change_variants_keep_their_positions`). A field whose kind
+  changed keeps its stored value and refuses writes, and a merge keeps fields
+  only one side knows.
+- The server's and the app's SQLite schemas are ordered lists of migrations
+  (`MIGRATIONS`), counted by `PRAGMA user_version`. Change a schema by adding a
+  migration, never by editing one.
+- `Register`, `Login` and `Authenticate` carry `PROTOCOL_VERSION`. Bump it when
+  the wire format changes; a mismatch is refused with `UpdateRequired`. Those
+  three keep their positions and their leading `request` and `version` fields,
+  so a server can read them from any app.
+
 ## Version control
 
 Version control is two content types and a peer-side operation set, not a

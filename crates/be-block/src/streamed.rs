@@ -2,7 +2,9 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{BlockContent, ContentError};
 
-pub const HEADER_PREFIX_BYTES: usize = 4;
+pub const STREAMED_FORMAT: u8 = 1;
+
+pub const HEADER_PREFIX_BYTES: usize = 5;
 
 pub trait Streamed: BlockContent {
     type Header: Clone + Serialize + DeserializeOwned + Send + Sync + 'static;
@@ -18,6 +20,7 @@ pub fn encode_streamed<H: Serialize>(header: &H, payload: &[u8]) -> Vec<u8> {
     let encoded = postcard::to_stdvec(header).unwrap_or_default();
     let length = u32::try_from(encoded.len()).unwrap_or(u32::MAX);
     let mut bytes = Vec::with_capacity(HEADER_PREFIX_BYTES + encoded.len() + payload.len());
+    bytes.push(STREAMED_FORMAT);
     bytes.extend_from_slice(&length.to_le_bytes());
     bytes.extend_from_slice(&encoded);
     bytes.extend_from_slice(payload);
@@ -35,10 +38,13 @@ pub fn decode_streamed<H: DeserializeOwned>(bytes: &[u8]) -> Result<(H, Vec<u8>)
 }
 
 pub fn payload_start(prefix: &[u8]) -> Result<usize, ContentError> {
-    let length = prefix
+    let prefix = prefix
         .get(..HEADER_PREFIX_BYTES)
         .ok_or(ContentError::Truncated)?;
-    let length = u32::from_le_bytes(length.try_into().expect("four bytes")) as usize;
+    if prefix[0] != STREAMED_FORMAT {
+        return Err(ContentError::UnknownFormat(prefix[0]));
+    }
+    let length = u32::from_le_bytes(prefix[1..].try_into().expect("four bytes")) as usize;
     HEADER_PREFIX_BYTES
         .checked_add(length)
         .ok_or(ContentError::Malformed("header length"))

@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet, VecDeque},
     fmt,
 };
@@ -59,6 +60,11 @@ pub struct Commit {
     pub time: i64,
     pub kind: CommitKind,
     pub references: Vec<Uuid>,
+}
+
+#[derive(Deserialize, Serialize)]
+enum StoredCommit<'a> {
+    V1(Cow<'a, Commit>),
 }
 
 impl Commit {
@@ -126,11 +132,16 @@ impl<S: ObjectStore> CommitStore<S> {
     }
 
     pub fn put(&self, commit: &Commit) -> Result<CommitId, StoreError> {
-        Ok(CommitId(self.vault.put_value(commit)?))
+        Ok(CommitId(
+            self.vault
+                .put_value(&StoredCommit::V1(Cow::Borrowed(commit)))?,
+        ))
     }
 
     pub fn get(&self, id: CommitId) -> Result<Commit, StoreError> {
-        self.vault.get_value(id.0)
+        match self.vault.get_value(id.0)? {
+            StoredCommit::V1(commit) => Ok(commit.into_owned()),
+        }
     }
 
     pub fn try_get(&self, id: CommitId) -> Result<Option<Commit>, StoreError> {
