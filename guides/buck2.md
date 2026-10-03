@@ -183,10 +183,9 @@ turns.
 | `wasi_guest` | the WASI sysroot | rust-lld (the plugins) |
 | `wasm32` | nothing | rust-lld (the games, the gpu shim) |
 
-All of them build on the same Linux workers. CI builds `//buck/ci:everything`
-and `//crates/...` in one command: every platform's release app, the
-plugins, the web bundle and the APKs (`buck/ci/BUCK`). Other platforms' dev
-apps are left out, so `run` on a Mac or Windows machine is not a cache hit. Apple's SDK licence allows it on Apple hardware only, so release builds
+All of them build on the same Linux workers. CI builds and ships only the
+Android app and launcher (`:android-dist`); the other platforms are built by
+hand. Apple's SDK licence allows it on Apple hardware only, so release builds
 for macOS move to a Mac or Asahi worker before anything ships; xwin accepts
 Microsoft's Build Tools licence.
 
@@ -206,8 +205,7 @@ A native target depends on a wasm one through a transition in
   per module for the platform the app is built for, by
   `//crates/plugin-test-runner:precompiler`, which is always the Linux x86_64
   build the workers can run.
-- `:dist` is what CI ships per platform, and `:plugins` the plugins once for all.
-  `//buck/ci:artifacts` is all of what CI uploads, in one directory.
+- `:dist` is a platform's release, and `:plugins` the plugins once for all.
 - `:web` is block-app for `wasi` and `block-gpu-shim` for `wasm32`, each run
   through `wasm-bindgen` (`buck/cargo:wasm-bindgen`, pinned to `Cargo.lock`'s
   version), with the page and shims from `crates/block-app/web` and a

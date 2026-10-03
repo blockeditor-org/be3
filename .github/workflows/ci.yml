@@ -28,23 +28,18 @@ env:
   # ./scripts/buck says so rather than building.
   BE3_BUILD_SERVER_KEY: ${{ secrets.BE3_BUILD_SERVER_KEY }}
 
-# Two jobs do the work. build is one buck2 build of everything CI builds, on
-# every platform, and uploads what ships. verify is ./scripts/buck run //:verify,
-# a runner for each of its three parts, which fixes what it can on a pull
-# request. autofix pushes those fixes, paint-previews shows a pull request's
+# Two jobs do the work. build builds the Android app and launcher and uploads
+# them. verify is ./scripts/buck run //:verify, a runner for each of its three
+# parts, which fixes what it can on a pull request. autofix pushes those fixes, paint-previews shows a pull request's
 # changed paintings in a comment, publish-android puts the Android build where
 # the launcher on Android finds it, and CI OK is the gate. Everything runs on the build server, so what a runner
 # needs is buck2 and whatever runs here rather than there.
 jobs:
-  # buck/ci/BUCK names what is built: //crates/... for the host, which is what
-  # ./scripts/buck builds for on every machine; each platform's release app
-  # and server; and the plugins, the web bundle and the APK. Every other
-  # platform's dev app, which `run` builds on a machine of that platform, is
-  # left out: the build server's cache holds one build of what is here, and
-  # development happens on Linux x86_64. The first command builds all of it
-  # and downloads nothing. The second downloads only what is
-  # uploaded, which the first has built; --out takes one target, and one that
-  # downloads nothing cannot be written out.
+  # The Android builds the launcher installs, signed on the build server with
+  # CI's keystore, the secret ANDROID_DEBUG_KEYSTORE_BASE64 it keeps, so
+  # successive CI builds install as updates over one another. The plugins are
+  # in each, since an APK has nowhere else to find them. --out takes one
+  # target, so each is a command of its own.
   build:
     name: build
     runs-on: ubuntu-24.04
@@ -58,93 +53,28 @@ jobs:
 
       - uses: ./.github/actions/buck2
 
-      # The commit the release apps report; the dev builds say unknown whatever
-      # this is, so they stay the ones a person's machine asks for.
-      - name: Build everything
-        env:
-          COMMIT: ${{ github.sha }}
+      - name: Build the Android app
         run: >-
-          ./scripts/buck build --materializations=none -c "be3.commit=$COMMIT"
-          //buck/ci:everything //crates/...
+          ./scripts/buck build //crates/block-app:android-dist
+          --out dist/block-app-android-aarch64/block-app.apk
 
-      - name: Download what is uploaded
-        env:
-          COMMIT: ${{ github.sha }}
-        run: ./scripts/buck build -c "be3.commit=$COMMIT" //buck/ci:artifacts --out dist
+      - name: Build the Android launcher
+        run: >-
+          ./scripts/buck build //crates/be-launcher:android-dist
+          --out dist/be-launcher-android-aarch64/be-launcher.apk
 
-      # Each platform's app and server. The plugins are uploaded once
-      # beside them, since every platform loads the same bytes and a manifest
-      # resolves its entry point against its own directory.
-      - uses: actions/upload-artifact@v7
-        with:
-          name: block-linux-x86_64
-          path: dist/block-linux-x86_64
-          retention-days: 14
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: block-linux-aarch64
-          path: dist/block-linux-aarch64
-          retention-days: 14
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: block-windows-x86_64
-          path: dist/block-windows-x86_64
-          retention-days: 14
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: block-windows-aarch64
-          path: dist/block-windows-aarch64
-          retention-days: 14
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: block-macos-aarch64
-          path: dist/block-macos-aarch64
-          retention-days: 14
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: block-macos-x86_64
-          path: dist/block-macos-x86_64
-          retention-days: 14
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: block-plugins
-          path: dist/block-plugins
-          retention-days: 14
-
-      # Signed on the build server with CI's debug keystore, the secret
-      # ANDROID_DEBUG_KEYSTORE_BASE64 it keeps, so successive CI builds install
-      # as updates over one another. The plugins are in it, since an APK has
-      # nowhere else to find them.
       - uses: actions/upload-artifact@v7
         with:
           name: block-app-android-aarch64
           path: dist/block-app-android-aarch64/block-app.apk
           retention-days: 14
 
-      # The launcher for Android, signed with the same keystore, which
-      # installs the APKs publish-android puts on be3-ci.
+      # The launcher installs the APKs publish-android puts on be3-ci.
       - uses: actions/upload-artifact@v7
         with:
           name: be-launcher-android-aarch64
           path: dist/be-launcher-android-aarch64/be-launcher.apk
           retention-days: 14
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: block-web
-          path: dist/block-web
-          retention-days: 14
-
-      - uses: actions/upload-pages-artifact@v5
-        if: github.ref == 'refs/heads/main'
-        with:
-          path: dist/block-web
 
   # ./scripts/buck run //:verify, the way a person runs it: the lint pass and
   # the tests on the build server, and the plugin tests here, since they
