@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"io"
@@ -183,26 +184,17 @@ func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r 
 		return
 	}
 
-	var resp *http.Response
-	var failure string
-	for attempt := 1; ; attempt++ {
-		resp, failure = roundTrip(transport, upstream, r, body)
-		if failure == "" {
-			break
-		}
-		fmt.Fprintf(os.Stderr, "re-relay: %s %s, attempt %d of %d: %s\n",
-			time.Now().Format(time.RFC3339), r.URL.Path, attempt, attempts, failure)
-		if attempt == attempts {
-			grpcError(w, 14, "re-relay: "+failure)
-			return
-		}
-		select {
-		case <-r.Context().Done():
-			return
-		case <-time.After(time.Duration(250<<(attempt-1)) * time.Millisecond):
-		}
+	resp, failure := call(transport, upstream, r, r.URL.Path, body)
+	if failure != "" {
+		grpcError(w, 14, "re-relay: "+failure)
+		return
 	}
 	defer resp.Body.Close()
+
+	if r.URL.Path == executionService+"Execute" || r.URL.Path == executionService+"WaitExecution" {
+		relayOperations(transport, upstream, w, r, resp)
+		return
+	}
 
 	copyHeaders(w.Header(), resp.Header)
 	trailersOnly := resp.Header.Get("Grpc-Status") != ""
@@ -242,9 +234,188 @@ func relay(transport *http.Transport, upstream string, w http.ResponseWriter, r 
 	}
 }
 
+// A call to path, made again until it succeeds or has failed attempts times:
+// its response, or why the last attempt failed.
+func call(transport *http.Transport, upstream string, r *http.Request, path string, body []byte) (*http.Response, string) {
+	for attempt := 1; ; attempt++ {
+		resp, failure := roundTrip(transport, upstream, r, path, body)
+		if failure == "" {
+			return resp, ""
+		}
+		fmt.Fprintf(os.Stderr, "re-relay: %s %s, attempt %d of %d: %s\n",
+			time.Now().Format(time.RFC3339), path, attempt, attempts, failure)
+		if attempt == attempts {
+			return nil, failure
+		}
+		select {
+		case <-r.Context().Done():
+			return nil, r.Context().Err().Error()
+		case <-time.After(time.Duration(250<<(attempt-1)) * time.Millisecond):
+		}
+	}
+}
+
+const executionService = "/build.bazel.remote.execution.v2.Execution/"
+
+// Execute and WaitExecution answer with a stream of Operations that stays
+// open for as long as the action runs. The proxy closes a connection after
+// about five minutes however busy it is, which failed every longer action.
+// Here the stream is passed on an Operation at a time, and when it breaks
+// before the last one, it is picked up again with WaitExecution on the name
+// of the last Operation passed on.
+func relayOperations(transport *http.Transport, upstream string, w http.ResponseWriter, r *http.Request, resp *http.Response) {
+	copyHeaders(w.Header(), resp.Header)
+	w.WriteHeader(resp.StatusCode)
+	if resp.Header.Get("Grpc-Status") != "" {
+		return
+	}
+
+	flusher := w.(http.Flusher)
+	name := ""
+	for {
+		frames := bufio.NewReader(resp.Body)
+		done := false
+		var broken error
+		for {
+			frame, err := readFrame(frames)
+			if err != nil {
+				if err != io.EOF {
+					broken = err
+				}
+				break
+			}
+			if operationName, operationDone, ok := parseOperation(frame[5:]); ok {
+				name = operationName
+				done = done || operationDone
+			}
+			if _, err := w.Write(frame); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+		if broken == nil && (done || resp.Trailer.Get("Grpc-Status") != "") {
+			resp.Body.Close()
+			for k, vs := range resp.Trailer {
+				for _, v := range vs {
+					w.Header().Add(http.TrailerPrefix+k, v)
+				}
+			}
+			if resp.Trailer.Get("Grpc-Status") == "" {
+				w.Header().Set(http.TrailerPrefix+"Grpc-Status", "0")
+			}
+			return
+		}
+		resp.Body.Close()
+		if r.Context().Err() != nil {
+			return
+		}
+
+		why := "the stream ended before the action did"
+		if broken != nil {
+			why = broken.Error()
+		}
+		if name == "" {
+			w.Header().Set(http.TrailerPrefix+"Grpc-Status", "14")
+			w.Header().Set(http.TrailerPrefix+"Grpc-Message", "re-relay: "+why)
+			return
+		}
+		fmt.Fprintf(os.Stderr, "re-relay: %s %s: %s; waiting on %s again\n",
+			time.Now().Format(time.RFC3339), r.URL.Path, why, name)
+
+		var failure string
+		resp, failure = call(transport, upstream, r, executionService+"WaitExecution", waitExecutionRequest(name))
+		if failure != "" {
+			w.Header().Set(http.TrailerPrefix+"Grpc-Status", "14")
+			w.Header().Set(http.TrailerPrefix+"Grpc-Message", "re-relay: "+failure)
+			return
+		}
+		if status := resp.Header.Get("Grpc-Status"); status != "" {
+			resp.Body.Close()
+			w.Header().Set(http.TrailerPrefix+"Grpc-Status", status)
+			w.Header().Set(http.TrailerPrefix+"Grpc-Message", resp.Header.Get("Grpc-Message"))
+			return
+		}
+	}
+}
+
+// One gRPC message with its five byte prefix: a compression flag and the
+// message's length.
+func readFrame(r *bufio.Reader) ([]byte, error) {
+	prefix := make([]byte, 5)
+	if _, err := io.ReadFull(r, prefix); err != nil {
+		return nil, err
+	}
+	length := binary.BigEndian.Uint32(prefix[1:])
+	if length > 1<<30 {
+		return nil, fmt.Errorf("a message of %d bytes", length)
+	}
+	frame := make([]byte, 5+int(length))
+	copy(frame, prefix)
+	if _, err := io.ReadFull(r, frame[5:]); err != nil {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+		return nil, err
+	}
+	return frame, nil
+}
+
+// The name (field 1) and done (field 3) of a google.longrunning.Operation.
+func parseOperation(message []byte) (string, bool, bool) {
+	name, done := "", false
+	for len(message) > 0 {
+		tag, n := binary.Uvarint(message)
+		if n <= 0 {
+			return "", false, false
+		}
+		message = message[n:]
+		switch tag & 7 {
+		case 0:
+			value, n := binary.Uvarint(message)
+			if n <= 0 {
+				return "", false, false
+			}
+			message = message[n:]
+			if tag>>3 == 3 {
+				done = value != 0
+			}
+		case 1:
+			if len(message) < 8 {
+				return "", false, false
+			}
+			message = message[8:]
+		case 2:
+			length, n := binary.Uvarint(message)
+			if n <= 0 || uint64(len(message)-n) < length {
+				return "", false, false
+			}
+			if tag>>3 == 1 {
+				name = string(message[n : n+int(length)])
+			}
+			message = message[n+int(length):]
+		case 5:
+			if len(message) < 4 {
+				return "", false, false
+			}
+			message = message[4:]
+		default:
+			return "", false, false
+		}
+	}
+	return name, done, name != ""
+}
+
+// A WaitExecutionRequest naming the operation, as one gRPC message.
+func waitExecutionRequest(name string) []byte {
+	message := binary.AppendUvarint([]byte{1<<3 | 2}, uint64(len(name)))
+	message = append(message, name...)
+	frame := binary.BigEndian.AppendUint32([]byte{0}, uint32(len(message)))
+	return append(frame, message...)
+}
+
 // One attempt at a call: the response when it is gRPC's, or why it is not.
-func roundTrip(transport *http.Transport, upstream string, r *http.Request, body []byte) (*http.Response, string) {
-	out, err := http.NewRequestWithContext(r.Context(), r.Method, "https://"+upstream+r.URL.RequestURI(), bytes.NewReader(body))
+func roundTrip(transport *http.Transport, upstream string, r *http.Request, path string, body []byte) (*http.Response, string) {
+	out, err := http.NewRequestWithContext(r.Context(), r.Method, "https://"+upstream+path, bytes.NewReader(body))
 	if err != nil {
 		return nil, err.Error()
 	}
