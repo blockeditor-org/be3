@@ -217,7 +217,7 @@ direction:
 
 | Crate | Owns |
 | --- | --- |
-| `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, and the `App` contract the runners drive |
+| `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
 | `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas, for the DOM renderer; no fonts in the module |
 | `beui-view` | `beui::reactive`: components, child slots, the `view!` integration and the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes |
@@ -226,7 +226,7 @@ direction:
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
-| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's runner: its window or view, input, IME, clipboard, file picker and accessibility adapter |
+| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter |
 
 Core cannot see the crates above it, so the few places it used to reach up are
 hooks the higher crates fill in:
@@ -246,7 +246,17 @@ hooks the higher crates fill in:
   (`Document::extension`); `beui::styled::DocumentTheme` reads and writes it.
 - A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
   the wgpu renderer.
-- Every runner draws through `beui_core::renderer::Renderer` trait objects and
+- Each platform is a `beui_core::runner::Adapter`, a trait object the facade
+  picks (`beui::window_adapter`, `beui::web_adapter`) and runs with a `Launch`
+  (`RunOptions`, `Context`, the `App`). The adapter owns the event loop and
+  turns the platform's input into `Event`s; everything one frame does is
+  `beui_core::runner::Runner::frame`, shared by all of them: it runs the
+  app, publishes accessibility, and tells the adapter's `Platform` (another
+  trait object) to copy, paste, pick a file, or change the cursor, pointer
+  lock, IME, fullscreen and back handling, only when one of them changed.
+  A new platform implements those two traits and hands its window or element
+  to the renderer loader the facade gives it.
+- Every adapter draws through `beui_core::renderer::Renderer` trait objects and
   names no renderer crate: wgpu's `WindowSurface` (native windows),
   `CanvasSurface` (a browser canvas) and `DomRenderer` implement it, and the
   facade hands the runner the ones to load. A renderer is told where to draw

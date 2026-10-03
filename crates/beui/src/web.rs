@@ -1,8 +1,9 @@
 use std::error::Error;
 
-use beui_adapter_web::RunOptions;
+use beui_adapter_web::Web;
 use beui_core::app::App;
 use beui_core::renderer::{Loaded, any_loaded};
+use beui_core::runner::{Adapter, Launch, RunOptions};
 
 pub enum WebRenderer {
     #[cfg(feature = "web")]
@@ -17,22 +18,24 @@ pub async fn run_web(
     options: RunOptions,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
-    beui_adapter_web::run_web(
-        element_id,
+    let launch = Launch {
         options,
-        crate::context(),
-        app,
-        async |element| {
-            let mut results = Vec::new();
-            for renderer in renderers {
-                results.push(load(renderer, &element).await);
-            }
-            any_loaded(results, |error| {
-                web_sys::console::warn_1(&format!("beui: a renderer did not load: {error}").into());
-            })
-        },
-    )
-    .await
+        context: crate::context(),
+        app: Box::new(app),
+    };
+    web_adapter(element_id, renderers).run(launch).await
+}
+
+pub fn web_adapter(element_id: &str, renderers: Vec<WebRenderer>) -> Box<dyn Adapter> {
+    Box::new(Web::new(element_id, async move |element| {
+        let mut results = Vec::new();
+        for renderer in renderers {
+            results.push(load(renderer, &element).await);
+        }
+        any_loaded(results, |error| {
+            web_sys::console::warn_1(&format!("beui: a renderer did not load: {error}").into());
+        })
+    }))
 }
 
 async fn load(

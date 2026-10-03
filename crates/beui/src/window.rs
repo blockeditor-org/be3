@@ -6,7 +6,7 @@ use beui_core::renderer::{Loaded, WindowHandle, any_loaded};
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_renderer_wgpu::window::WindowSurface;
 
-use crate::RunOptions;
+use beui_core::runner::{Adapter, Launch, RunOptions};
 
 pub enum WindowRenderer {
     Wgpu { open_device: Option<OpenDevice> },
@@ -27,6 +27,15 @@ pub fn run_with_renderers(
     renderers: Vec<WindowRenderer>,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
+    let launch = Launch {
+        options,
+        context: crate::system_context(),
+        app: Box::new(app),
+    };
+    pollster::block_on(window_adapter(renderers).run(launch))
+}
+
+pub fn window_adapter(renderers: Vec<WindowRenderer>) -> Box<dyn Adapter> {
     let load = move |window: Arc<dyn WindowHandle>| {
         let results = renderers
             .into_iter()
@@ -36,9 +45,9 @@ pub fn run_with_renderers(
         })
     };
     #[cfg(target_os = "android")]
-    return beui_adapter_android::run_with(options, crate::system_context(), app, load);
+    return Box::new(beui_adapter_android::Android::new(load));
     #[cfg(not(target_os = "android"))]
-    return beui_adapter_winit::run_with(options, crate::system_context(), app, load);
+    return Box::new(beui_adapter_winit::Winit::new(load));
 }
 
 fn load(renderer: WindowRenderer, window: Arc<dyn WindowHandle>) -> Result<Loaded, Box<dyn Error>> {

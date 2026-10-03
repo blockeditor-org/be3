@@ -55,18 +55,19 @@ pub use beui_renderer_wgpu::{
 pub use beui_view::{child_type, value_child_type};
 
 #[cfg(all(feature = "window", target_os = "android"))]
-pub use beui_adapter_android::{AndroidApp, RunOptions};
+pub use beui_adapter_android::AndroidApp;
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
-pub use beui_adapter_web::{RunOptions, accessibility_tree};
+pub use beui_adapter_web::accessibility_tree;
 #[cfg(all(feature = "window", not(target_os = "android")))]
-pub use beui_adapter_winit::{RunOptions, winit};
+pub use beui_adapter_winit::winit;
+pub use beui_core::runner::{Adapter, Launch, Platform, RunOptions};
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
-pub use web::{WebRenderer, run_web};
+pub use web::{WebRenderer, run_web, web_adapter};
 
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 mod web;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub use window::{WindowRenderer, run_with, run_with_renderers};
+pub use window::{WindowRenderer, run_with, run_with_renderers, window_adapter};
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 mod window;

@@ -26,16 +26,14 @@ use ndk::asset::AssetManager;
 use ndk::native_window::NativeWindow;
 use raw_window_handle as rwh;
 
-use beui_core::app::accessibility_dump::AccessibilityDump;
-use beui_core::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
-use beui_core::context::Context;
+use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::file_picker::{FilePick, FilePickId, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
-    BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Modifiers, RawInput, TouchId,
-    TouchPhase,
+    BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Modifiers, TouchId, TouchPhase,
 };
-use beui_core::renderer::{Loaded, Renderers, WindowHandle};
+use beui_core::renderer::{Loaded, WindowHandle};
+use beui_core::runner::{Adapter, Launch, Platform, Running};
 use clipboard::Clipboard;
 
 const LINE_HEIGHT: f32 = 40.0;
@@ -136,67 +134,61 @@ fn send(message: Message) -> bool {
     shared().sender.send(message).is_ok()
 }
 
-pub struct RunOptions {
-    pub title: String,
-    pub app_id: Option<String>,
-    pub size: Vec2,
-    pub accessibility_dump: Option<std::path::PathBuf>,
+type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>>>;
+
+pub struct Android {
+    load: Load,
 }
 
-impl RunOptions {
-    pub fn new(title: impl Into<String>) -> Self {
+impl Android {
+    pub fn new(
+        load: impl FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>> + 'static,
+    ) -> Self {
         Self {
-            title: title.into(),
-            app_id: None,
-            size: Vec2::new(1280.0, 800.0),
-            accessibility_dump: None,
+            load: Box::new(load),
         }
     }
 }
 
-type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>>>;
+impl Adapter for Android {
+    fn name(&self) -> &'static str {
+        "android"
+    }
 
-pub fn run_with(
-    options: RunOptions,
-    context: Context,
-    app: impl App + 'static,
-    load: impl FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>> + 'static,
-) -> Result<(), Box<dyn Error>> {
+    fn run(self: Box<Self>, launch: Launch) -> Running {
+        Box::pin(async move { run(launch, self.load) })
+    }
+}
+
+fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
     let receiver = shared()
         .receiver
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .take()
         .ok_or("the app is already running")?;
-    let accessibility_dump = options
-        .accessibility_dump
-        .clone()
-        .map(AccessibilityDump::new);
+    launch.context.set_test_ids_published(false);
     let mut runner = Runner {
-        vm: JavaVM::singleton()?,
-        options,
-        app: Box::new(app),
-        context,
-        load: Some(Box::new(load)),
-        renderers: None,
+        runner: beui_core::runner::Runner::new(launch),
+        platform: AndroidPlatform {
+            vm: JavaVM::singleton()?,
+            view: None,
+            accessibility: None,
+            accessibility_active: false,
+            clipboard: Clipboard::new(),
+            ime: None,
+            handles_back: false,
+            ime_serial: 0,
+            sent_ime: None,
+            tapped_at: None,
+        },
+        load: Some(load),
         window: None,
         density: 1.0,
-        view: None,
-        accessibility: None,
-        accessibility_active: false,
-        accessibility_dump,
-        events: Vec::new(),
         modifiers: Modifiers::NONE,
         safe_area: SafeArea::default(),
-        ime: None,
-        handles_back: false,
-        ime_serial: 0,
-        sent_ime: None,
-        tapped_at: None,
         next_update: None,
         redraw: false,
-        clipboard: Clipboard::new(),
-        exiting: false,
         error: None,
     };
     runner.run(&receiver);
@@ -207,95 +199,80 @@ pub fn run_with(
 }
 
 struct Runner {
-    vm: JavaVM,
-    options: RunOptions,
-    app: Box<dyn App>,
-    context: Context,
+    runner: beui_core::runner::Runner,
+    platform: AndroidPlatform,
     load: Option<Load>,
-    renderers: Option<Renderers>,
     window: Option<NativeWindow>,
     density: f32,
+    modifiers: Modifiers,
+    safe_area: SafeArea,
+    next_update: Option<Instant>,
+    redraw: bool,
+    error: Option<String>,
+}
+
+struct AndroidPlatform {
+    vm: JavaVM,
     view: Option<Arc<Global<JObject<'static>>>>,
     accessibility: Option<InjectingAdapter>,
     accessibility_active: bool,
-    accessibility_dump: Option<AccessibilityDump>,
-    events: Vec<Event>,
-    modifiers: Modifiers,
-    safe_area: SafeArea,
+    clipboard: Clipboard,
     ime: Option<ImeArea>,
     handles_back: bool,
     ime_serial: u64,
     sent_ime: Option<(Option<ImeText>, u64)>,
     tapped_at: Option<Pos2>,
-    next_update: Option<Instant>,
-    redraw: bool,
-    clipboard: Clipboard,
-    exiting: bool,
-    error: Option<String>,
 }
 
-impl Runner {
-    fn run(&mut self, receiver: &Receiver<Message>) {
-        while !self.exiting {
-            let due = self.redraw
-                || !self.events.is_empty()
-                || self
-                    .next_update
-                    .is_some_and(|deadline| deadline <= Instant::now());
-            let message = if due {
-                match receiver.try_recv() {
-                    Ok(message) => Some(message),
-                    Err(TryRecvError::Empty) => None,
-                    Err(TryRecvError::Disconnected) => break,
-                }
-            } else {
-                match self.next_update {
-                    Some(deadline) => {
-                        match receiver
-                            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
-                        {
-                            Ok(message) => Some(message),
-                            Err(RecvTimeoutError::Timeout) => None,
-                            Err(RecvTimeoutError::Disconnected) => break,
-                        }
-                    }
-                    None => match receiver.recv() {
-                        Ok(message) => Some(message),
-                        Err(_) => break,
-                    },
-                }
-            };
-            match message {
-                Some(message) => self.handle(message),
-                None => self.frame(),
-            }
+impl Platform for AndroidPlatform {
+    fn copy(&mut self, text: String) {
+        self.clipboard.set(text);
+    }
+
+    fn paste(&mut self) -> Option<String> {
+        self.clipboard.get()
+    }
+
+    fn pick_file(&mut self, request: FilePickRequest) {
+        AndroidPlatform::pick_file(self, request);
+    }
+
+    fn set_handles_back(&mut self, handles: bool) {
+        self.handles_back = handles;
+        self.set_back_handled(handles);
+    }
+
+    fn show_ime(&mut self, ime: Option<&ImeArea>) {
+        let asked = self.ime.as_ref().is_some_and(|area| area.keyboard);
+        let wanted = ime.is_some_and(|area| area.keyboard);
+        let tapped_field = self
+            .tapped_at
+            .take()
+            .is_some_and(|tap| asked && ime.is_some_and(|area| area.rect.contains(tap)));
+        let text = ime.and_then(|area| area.text.clone());
+        let sent = (text, self.ime_serial);
+        if self.sent_ime.as_ref() != Some(&sent) {
+            self.set_ime_text(sent.0.as_ref(), sent.1);
+            self.sent_ime = Some(sent);
         }
-        self.exit();
+        if wanted != asked {
+            self.set_keyboard(wanted);
+        } else if wanted && tapped_field {
+            self.set_keyboard(true);
+        }
+        self.ime = ime.cloned();
     }
 
-    fn exit(&mut self) {
-        if !self.exiting {
-            self.exiting = true;
-            self.app.exiting();
+    fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
+        if self.accessibility_active
+            && let Some(accessibility) = &mut self.accessibility
+        {
+            accessibility.update_if_active(tree);
         }
     }
+}
 
-    fn fail(&mut self, error: impl ToString) {
-        self.error = Some(error.to_string());
-        self.exit();
-    }
-
-    fn scale_factor(&self) -> f32 {
-        self.context
-            .simulated_pixels_per_point()
-            .unwrap_or(self.density * self.context.zoom_factor())
-    }
-
-    fn logical(&self, x: f32, y: f32) -> Pos2 {
-        let scale = self.scale_factor();
-        pos2(x / scale, y / scale)
-    }
-
+impl AndroidPlatform {
     fn set_keyboard(&self, shown: bool) {
         let Some(view) = &self.view else {
             return;
@@ -416,132 +393,6 @@ impl Runner {
         }
     }
 
-    fn handle(&mut self, message: Message) {
-        match message {
-            Message::View(view) => {
-                self.accessibility = None;
-                self.view = Some(view);
-                self.attach_accessibility();
-                self.ime_serial = 0;
-                let text = self.ime.as_ref().and_then(|area| area.text.clone());
-                self.set_ime_text(text.as_ref(), 0);
-                self.sent_ime = Some((text, 0));
-                if self.ime.as_ref().is_some_and(|area| area.keyboard) {
-                    self.set_keyboard(true);
-                }
-                if self.handles_back {
-                    self.set_back_handled(true);
-                }
-            }
-            Message::Surface {
-                window,
-                width,
-                height,
-                density,
-            } => self.surface(window, width, height, density),
-            Message::SurfaceGone(done) => {
-                if let Some(renderers) = &mut self.renderers {
-                    renderers.detach();
-                }
-                self.window = None;
-                let _ = done.send(());
-            }
-            Message::Insets(area) => {
-                self.safe_area = area;
-                self.redraw = true;
-            }
-            Message::Focus(focused) => {
-                if !focused && self.modifiers != Modifiers::NONE {
-                    self.modifiers = Modifiers::NONE;
-                    self.events.push(Event::Modifiers(self.modifiers));
-                }
-                self.events.push(Event::Focus(focused));
-            }
-            Message::Touch {
-                device,
-                id,
-                phase,
-                x,
-                y,
-                force,
-            } => {
-                let pos = self.logical(x, y);
-                if phase == TouchPhase::End {
-                    self.tapped_at = Some(pos);
-                }
-                self.events.push(Event::Touch {
-                    id: TouchId {
-                        device: u64::from(device.cast_unsigned()),
-                        finger: u64::from(id.cast_unsigned()),
-                    },
-                    phase,
-                    pos,
-                    force: Some(force),
-                });
-            }
-            Message::Scroll(delta) => self.events.push(Event::Scroll(delta * LINE_HEIGHT)),
-            Message::Key {
-                key,
-                pressed,
-                repeat,
-                modifiers,
-                text,
-            } => {
-                if modifiers != self.modifiers {
-                    self.modifiers = modifiers;
-                    self.events.push(Event::Modifiers(modifiers));
-                }
-                if pressed
-                    && key == Some(Key::V)
-                    && modifiers.ctrl
-                    && !modifiers.alt
-                    && let Some(text) = self.clipboard.get()
-                {
-                    self.events.push(Event::Text(text));
-                }
-                if let Some(key) = key {
-                    self.events.push(Event::Key {
-                        key,
-                        pressed,
-                        repeat,
-                        modifiers,
-                    });
-                }
-                if pressed
-                    && !modifiers.ctrl
-                    && !modifiers.alt
-                    && let Some(text) = text
-                {
-                    self.events.push(Event::Text(text));
-                }
-            }
-            Message::Ime { event, serial } => {
-                self.ime_serial = self.ime_serial.max(serial);
-                self.events.push(Event::Ime(event));
-            }
-            Message::Back(gesture) => self.events.push(Event::Back(gesture)),
-            Message::InitialTreeRequested => {
-                self.accessibility_active = true;
-                self.context.reset_accessibility();
-                self.redraw = true;
-            }
-            Message::Action(request) => {
-                self.context.accessibility_action(request);
-                self.redraw = true;
-            }
-            Message::FilePicked(id, pick) => {
-                self.context.file_picked(id, pick);
-                self.redraw = true;
-            }
-            Message::Wake => self.redraw = true,
-            Message::Destroy { finishing } => {
-                if finishing {
-                    self.exit();
-                }
-            }
-        }
-    }
-
     fn attach_accessibility(&mut self) {
         let Some(view) = &self.view else {
             return;
@@ -564,16 +415,204 @@ impl Runner {
             Err(error) => eprintln!("beui: accessibility is unavailable: {error}"),
         }
     }
+}
+
+impl Runner {
+    fn run(&mut self, receiver: &Receiver<Message>) {
+        while !self.runner.exited() {
+            let due = self.redraw
+                || self.runner.has_events()
+                || self
+                    .next_update
+                    .is_some_and(|deadline| deadline <= Instant::now());
+            let message = if due {
+                match receiver.try_recv() {
+                    Ok(message) => Some(message),
+                    Err(TryRecvError::Empty) => None,
+                    Err(TryRecvError::Disconnected) => break,
+                }
+            } else {
+                match self.next_update {
+                    Some(deadline) => {
+                        match receiver
+                            .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                        {
+                            Ok(message) => Some(message),
+                            Err(RecvTimeoutError::Timeout) => None,
+                            Err(RecvTimeoutError::Disconnected) => break,
+                        }
+                    }
+                    None => match receiver.recv() {
+                        Ok(message) => Some(message),
+                        Err(_) => break,
+                    },
+                }
+            };
+            match message {
+                Some(message) => self.handle(message),
+                None => self.frame(),
+            }
+        }
+        self.exit();
+    }
+
+    fn exit(&mut self) {
+        self.runner.exit();
+    }
+
+    fn fail(&mut self, error: impl ToString) {
+        self.error = Some(error.to_string());
+        self.exit();
+    }
+
+    fn scale_factor(&self) -> f32 {
+        let context = self.runner.context();
+        context
+            .simulated_pixels_per_point()
+            .unwrap_or(self.density * context.zoom_factor())
+    }
+
+    fn logical(&self, x: f32, y: f32) -> Pos2 {
+        let scale = self.scale_factor();
+        pos2(x / scale, y / scale)
+    }
+
+    fn handle(&mut self, message: Message) {
+        match message {
+            Message::View(view) => {
+                let platform = &mut self.platform;
+                platform.accessibility = None;
+                platform.view = Some(view);
+                platform.attach_accessibility();
+                platform.ime_serial = 0;
+                let text = platform.ime.as_ref().and_then(|area| area.text.clone());
+                platform.set_ime_text(text.as_ref(), 0);
+                platform.sent_ime = Some((text, 0));
+                if platform.ime.as_ref().is_some_and(|area| area.keyboard) {
+                    platform.set_keyboard(true);
+                }
+                if platform.handles_back {
+                    platform.set_back_handled(true);
+                }
+            }
+            Message::Surface {
+                window,
+                width,
+                height,
+                density,
+            } => self.surface(window, width, height, density),
+            Message::SurfaceGone(done) => {
+                if let Some(renderers) = self.runner.renderers() {
+                    renderers.detach();
+                }
+                self.window = None;
+                let _ = done.send(());
+            }
+            Message::Insets(area) => {
+                self.safe_area = area;
+                self.redraw = true;
+            }
+            Message::Focus(focused) => {
+                if !focused && self.modifiers != Modifiers::NONE {
+                    self.modifiers = Modifiers::NONE;
+                    self.runner.push(Event::Modifiers(self.modifiers));
+                }
+                self.runner.push(Event::Focus(focused));
+            }
+            Message::Touch {
+                device,
+                id,
+                phase,
+                x,
+                y,
+                force,
+            } => {
+                let pos = self.logical(x, y);
+                if phase == TouchPhase::End {
+                    self.platform.tapped_at = Some(pos);
+                }
+                self.runner.push(Event::Touch {
+                    id: TouchId {
+                        device: u64::from(device.cast_unsigned()),
+                        finger: u64::from(id.cast_unsigned()),
+                    },
+                    phase,
+                    pos,
+                    force: Some(force),
+                });
+            }
+            Message::Scroll(delta) => self.runner.push(Event::Scroll(delta * LINE_HEIGHT)),
+            Message::Key {
+                key,
+                pressed,
+                repeat,
+                modifiers,
+                text,
+            } => {
+                if modifiers != self.modifiers {
+                    self.modifiers = modifiers;
+                    self.runner.push(Event::Modifiers(modifiers));
+                }
+                if pressed
+                    && key == Some(Key::V)
+                    && modifiers.ctrl
+                    && !modifiers.alt
+                    && let Some(text) = self.platform.clipboard.get()
+                {
+                    self.runner.push(Event::Text(text));
+                }
+                if let Some(key) = key {
+                    self.runner.push(Event::Key {
+                        key,
+                        pressed,
+                        repeat,
+                        modifiers,
+                    });
+                }
+                if pressed
+                    && !modifiers.ctrl
+                    && !modifiers.alt
+                    && let Some(text) = text
+                {
+                    self.runner.push(Event::Text(text));
+                }
+            }
+            Message::Ime { event, serial } => {
+                self.platform.ime_serial = self.platform.ime_serial.max(serial);
+                self.runner.push(Event::Ime(event));
+            }
+            Message::Back(gesture) => self.runner.push(Event::Back(gesture)),
+            Message::InitialTreeRequested => {
+                self.platform.accessibility_active = true;
+                self.runner.context().reset_accessibility();
+                self.redraw = true;
+            }
+            Message::Action(request) => {
+                self.runner.context().accessibility_action(request);
+                self.redraw = true;
+            }
+            Message::FilePicked(id, pick) => {
+                self.runner.context().file_picked(id, pick);
+                self.redraw = true;
+            }
+            Message::Wake => self.redraw = true,
+            Message::Destroy { finishing } => {
+                if finishing {
+                    self.exit();
+                }
+            }
+        }
+    }
 
     fn surface(&mut self, window: NativeWindow, width: u32, height: u32, density: f32) {
         self.density = density;
         self.redraw = true;
-        if self.renderers.is_none()
+        if !self.runner.started()
             && let Err(error) = self.start(&window)
         {
             return self.fail(error);
         }
-        let Some(renderers) = &mut self.renderers else {
+        let Some(renderers) = self.runner.renderers() else {
             return;
         };
         if renderers.attached() && self.window.as_ref() == Some(&window) {
@@ -595,115 +634,38 @@ impl Runner {
             .take()
             .ok_or("the renderers were already loaded")?;
         let loaded = load(Arc::new(SurfaceWindow(window.clone())))?;
-        let renderers = Renderers::new(&self.context, loaded)?;
         let sender = shared().sender.clone();
-        let mut setup = Setup::new(Waker::new(move || {
+        let setup = Setup::new(Waker::new(move || {
             let _ = sender.send(Message::Wake);
         }));
-        renderers.provide(&mut setup);
-        self.renderers = Some(renderers);
-        self.app.setup(&setup);
-        Ok(())
+        self.runner.start(loaded, setup)
     }
 
     fn frame(&mut self) {
         let redraw = std::mem::take(&mut self.redraw);
         let pending = self.update();
-        if !(pending || redraw) {
-            return;
-        }
-        let Some(renderers) = &mut self.renderers else {
-            return;
-        };
-        if renderers.present(self.app.clear_color()) {
+        if (pending || redraw) && self.runner.present() {
             self.redraw = true;
         }
     }
 
     fn update(&mut self) -> bool {
-        let Some(renderers) = &mut self.renderers else {
-            return false;
-        };
-        match renderers.follow_choice(&self.context) {
-            Ok(true) => self.redraw = true,
-            Ok(false) => {}
-            Err(error) => eprintln!("beui: could not switch renderers: {error}"),
-        }
-        let Some(physical) = renderers.physical() else {
-            self.events.clear();
+        let Some(frame) = self
+            .runner
+            .frame(&mut self.platform, self.density, self.safe_area)
+        else {
             self.next_update = None;
             return false;
         };
-
-        self.context.set_pixels_per_point(self.density);
-        self.context.set_test_ids_published(false);
-        let scale = self.context.pixels_per_point();
-        let screen = vec2(physical.x / scale, physical.y / scale);
-
-        let raw = RawInput {
-            events: next_batch(&mut self.events),
-        };
-        let app = &mut self.app;
-        let safe_area = self.safe_area;
-        let mut output = self.context.run(raw, |context| {
-            app.update(context, safe_rect(screen, safe_area, scale));
-        });
-        if self.accessibility_active
-            && let Some(accessibility) = &mut self.accessibility
-        {
-            accessibility
-                .update_if_active(|| output.accessibility_tree(&self.options.title, screen));
-        }
-        if let Some(dump) = &mut self.accessibility_dump {
-            dump.update(output.accessibility_tree(&self.options.title, screen));
-        }
-
-        if let Some(text) = &output.copied_text {
-            self.clipboard.set(text.clone());
-        }
-        if output.paste_requested
-            && let Some(text) = self.clipboard.get()
-        {
-            self.events.push(Event::Text(text));
+        self.next_update = Instant::now().checked_add(frame.repaint_after);
+        if frame.deferred {
             self.redraw = true;
         }
-        let file_picks = std::mem::take(&mut output.file_picks);
-        let pending = renderers.prepare(&output, scale, self.app.clear_color());
-        self.next_update = Instant::now().checked_add(output.repaint_after);
-
-        let asked = self.ime.as_ref().is_some_and(|area| area.keyboard);
-        let wanted = output.ime.as_ref().is_some_and(|area| area.keyboard);
-        let tapped_field = self.tapped_at.take().is_some_and(|tap| {
-            asked
-                && output
-                    .ime
-                    .as_ref()
-                    .is_some_and(|area| area.rect.contains(tap))
-        });
-        let text = output.ime.as_ref().and_then(|area| area.text.clone());
-        let sent = (text, self.ime_serial);
-        if self.sent_ime.as_ref() != Some(&sent) {
-            self.set_ime_text(sent.0.as_ref(), sent.1);
-            self.sent_ime = Some(sent);
-        }
-        if wanted != asked {
-            self.set_keyboard(wanted);
-        } else if wanted && tapped_field {
-            self.set_keyboard(true);
-        }
-        self.ime = output.ime;
-        if output.handles_back != self.handles_back {
-            self.handles_back = output.handles_back;
-            self.set_back_handled(output.handles_back);
-        }
-        for request in file_picks {
-            self.pick_file(request);
-        }
-        if output.close_requested {
-            self.finish_activity();
+        if frame.close_requested {
+            self.platform.finish_activity();
             self.exit();
         }
-        pending
+        frame.pending
     }
 }
 
