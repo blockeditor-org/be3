@@ -15,51 +15,53 @@ use std::time::Duration;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 
-use beui_core::app::accessibility_dump::AccessibilityDump;
 use beui_core::app::ime_mirror::{ImeInput, ImeMirror};
-use beui_core::app::{App, Setup, Waker, next_batch};
-use beui_core::color::Color32;
+use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::context::Context;
-use beui_core::context::FrameOutput;
-use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
+use beui_core::file_picker::FilePickRequest;
+use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, RawInput,
-    TouchId, TouchPhase,
+    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId,
+    TouchPhase,
 };
+use beui_core::renderer::Loaded;
+use beui_core::runner::{Adapter, Launch, Platform, Running};
 
 const LINE_HEIGHT: f32 = 40.0;
 const PAGE_HEIGHT: f32 = 800.0;
 const PINCH_SPEED: f32 = 0.01;
 
-pub trait WebRenderer: 'static {
-    fn provide(&self, _setup: &mut Setup) {}
+type Loading = Pin<Box<dyn Future<Output = Result<Vec<Loaded>, Box<dyn Error>>>>>;
+type Load = Box<dyn FnOnce(web_sys::HtmlElement) -> Loading>;
 
-    fn resize(&mut self, width: u32, height: u32);
-
-    fn draw(
-        &mut self,
-        output: &FrameOutput,
-        physical: Vec2,
-        scale: f32,
-        background: Color32,
-    ) -> bool;
+pub struct Web {
+    element_id: String,
+    load: Load,
 }
 
-pub struct RunOptions {
-    pub title: String,
-    pub app_id: Option<String>,
-    pub size: Vec2,
-    pub accessibility_tree: bool,
-}
-
-impl RunOptions {
-    pub fn new(title: impl Into<String>) -> Self {
+impl Web {
+    pub fn new<F>(
+        element_id: impl Into<String>,
+        load: impl FnOnce(web_sys::HtmlElement) -> F + 'static,
+    ) -> Self
+    where
+        F: Future<Output = Result<Vec<Loaded>, Box<dyn Error>>> + 'static,
+    {
         Self {
-            title: title.into(),
-            app_id: None,
-            size: Vec2::new(1280.0, 800.0),
-            accessibility_tree: false,
+            element_id: element_id.into(),
+            load: Box::new(move |element| Box::pin(load(element))),
         }
+    }
+}
+
+impl Adapter for Web {
+    fn name(&self) -> &'static str {
+        "web"
+    }
+
+    fn run(self: Box<Self>, launch: Launch) -> Running {
+        let Web { element_id, load } = *self;
+        Box::pin(async move { run(&element_id, launch, load).await })
     }
 }
 
@@ -96,18 +98,20 @@ fn push(event: Event) {
 }
 
 fn schedule() {
-    let first = INPUT.with(|input| !input.scheduled.replace(true));
-    if !first {
+    if INPUT.with(|input| input.scheduled.get()) {
         return;
     }
     let Some(window) = web_sys::window() else {
         return;
     };
-    FRAME.with(|frame| {
-        if let Some(frame) = frame.borrow().as_ref() {
-            let _ = window.request_animation_frame(frame.as_ref().unchecked_ref());
-        }
+    let requested = FRAME.with(|frame| {
+        frame.borrow().as_ref().is_some_and(|frame| {
+            window
+                .request_animation_frame(frame.as_ref().unchecked_ref())
+                .is_ok()
+        })
     });
+    INPUT.with(|input| input.scheduled.set(requested));
 }
 
 fn schedule_after(delay: Duration) {
@@ -141,18 +145,104 @@ fn run_frame() {
 }
 
 struct Runner {
-    app: Box<dyn App>,
+    runner: beui_core::runner::Runner,
+    platform: WebPlatform,
+    size: (u32, u32),
+}
+
+struct WebPlatform {
     context: Context,
     surface: web_sys::HtmlElement,
     agent: web_sys::HtmlTextAreaElement,
-    renderer: Box<dyn WebRenderer>,
-    size: (u32, u32),
-    cursor_icon: CursorIcon,
-    pointer_locked: bool,
     ime: Option<ImeArea>,
-    fullscreen: bool,
-    title: String,
-    accessibility: Option<AccessibilityDump>,
+}
+
+impl Platform for WebPlatform {
+    fn copy(&mut self, text: String) {
+        if let Some(window) = web_sys::window() {
+            let _ = window.navigator().clipboard().write_text(&text);
+        }
+    }
+
+    fn paste(&mut self) -> Option<String> {
+        let read = web_sys::window()?.navigator().clipboard().read_text();
+        wasm_bindgen_futures::spawn_local(async move {
+            if let Ok(text) = wasm_bindgen_futures::JsFuture::from(read).await
+                && let Some(text) = text.as_string()
+            {
+                push(Event::Text(text));
+            }
+        });
+        None
+    }
+
+    fn pick_file(&mut self, request: FilePickRequest) {
+        file_picker::open(&self.context, request);
+    }
+
+    fn set_cursor(&mut self, icon: CursorIcon, _touch_emulation: bool) {
+        let _ = self.surface.style().set_property("cursor", cursor(icon));
+    }
+
+    fn lock_pointer(&mut self, locked: bool) {
+        match locked {
+            true => self.surface.request_pointer_lock(),
+            false => {
+                if let Some(document) = web_sys::window().and_then(|window| window.document()) {
+                    document.exit_pointer_lock();
+                }
+            }
+        }
+    }
+
+    fn set_fullscreen(&mut self, fullscreen: bool) {
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+            return;
+        };
+        match fullscreen {
+            true => {
+                if let Some(root) = document.document_element() {
+                    let _ = root.request_fullscreen();
+                }
+            }
+            false => document.exit_fullscreen(),
+        }
+    }
+
+    fn show_ime(&mut self, ime: Option<&ImeArea>) {
+        let mirrored = MIRROR.with(|mirror| {
+            let mut mirror = mirror.borrow_mut();
+            let text = ime.and_then(|area| area.text.as_ref());
+            mirror
+                .sync(text)
+                .then(|| (mirror.value().to_owned(), mirror.selection()))
+        });
+        if let Some((value, (start, end))) = mirrored {
+            self.agent.set_value(&value);
+            let _ = self.agent.set_selection_range(start, end);
+        }
+        if ime == self.ime.as_ref() {
+            return;
+        }
+        let held = ime.filter(|area| !area.keyboard);
+        let was_held = HELD_FIELD.replace(held.map(|area| area.rect)).is_some();
+        match held {
+            Some(_) => {
+                let _ = self.agent.set_attribute("inputmode", "none");
+            }
+            None if was_held => {
+                let _ = self.agent.remove_attribute("inputmode");
+            }
+            None => {}
+        }
+        self.ime = ime.cloned();
+        if let Some(area) = ime {
+            let css = 1.0 / INPUT.with(|input| input.scale.get());
+            let style = self.agent.style();
+            let _ = style.set_property("left", &format!("{}px", area.cursor.min.x * css));
+            let _ = style.set_property("top", &format!("{}px", area.cursor.max.y * css));
+        }
+    }
 }
 
 impl Runner {
@@ -164,122 +254,32 @@ impl Runner {
             window.clear_timeout_with_handle(previous);
         }
         let ratio = window.device_pixel_ratio() as f32;
-        let bounds = self.surface.get_bounding_client_rect();
+        let bounds = self.platform.surface.get_bounding_client_rect();
         let width = ((bounds.width() as f32) * ratio).round().max(1.0) as u32;
         let height = ((bounds.height() as f32) * ratio).round().max(1.0) as u32;
-        if self.size != (width, height) {
-            self.size = (width, height);
-            self.renderer.resize(width, height);
-        }
-        self.context.set_pixels_per_point(ratio);
-        let scale = self
-            .context
-            .simulated_pixels_per_point()
-            .unwrap_or(self.context.pixels_per_point());
-        INPUT.with(|input| input.scale.set(ratio / scale));
-        let physical = vec2(width as f32, height as f32);
-        let screen = physical / scale;
-        let (events, deferred) = INPUT.with(|input| {
-            let mut pending = input.events.borrow_mut();
-            let events = next_batch(&mut pending);
-            (events, !pending.is_empty())
-        });
-        let app = &mut self.app;
-        let mut output = self.context.run(RawInput { events }, |context| {
-            app.update(context, Rect::from_min_size(Pos2::ZERO, screen));
-        });
-        if let Some(accessibility) = &mut self.accessibility {
-            accessibility.update(output.accessibility_tree(&self.title, screen));
-        }
-
-        if let Some(text) = &output.copied_text {
-            let _ = window.navigator().clipboard().write_text(text);
-        }
-        for request in std::mem::take(&mut output.file_picks) {
-            file_picker::open(&self.context, request);
-        }
-        if output.paste_requested {
-            let read = window.navigator().clipboard().read_text();
-            wasm_bindgen_futures::spawn_local(async move {
-                if let Ok(text) = wasm_bindgen_futures::JsFuture::from(read).await
-                    && let Some(text) = text.as_string()
-                {
-                    push(Event::Text(text));
-                }
-            });
-        }
-        if output.pointer_locked != self.pointer_locked {
-            self.pointer_locked = output.pointer_locked;
-            match output.pointer_locked {
-                true => self.surface.request_pointer_lock(),
-                false => {
-                    if let Some(document) = window.document() {
-                        document.exit_pointer_lock();
-                    }
-                }
-            }
-        }
-        if output.cursor_icon != self.cursor_icon {
-            self.cursor_icon = output.cursor_icon;
-            let _ = self
-                .surface
-                .style()
-                .set_property("cursor", cursor(output.cursor_icon));
-        }
-        let mirrored = MIRROR.with(|mirror| {
-            let mut mirror = mirror.borrow_mut();
-            let text = output.ime.as_ref().and_then(|area| area.text.as_ref());
-            mirror
-                .sync(text)
-                .then(|| (mirror.value().to_owned(), mirror.selection()))
-        });
-        if let Some((value, (start, end))) = mirrored {
-            self.agent.set_value(&value);
-            let _ = self.agent.set_selection_range(start, end);
-        }
-        if output.ime != self.ime {
-            let held = output.ime.as_ref().filter(|area| !area.keyboard);
-            let was_held = HELD_FIELD.replace(held.map(|area| area.rect)).is_some();
-            match held {
-                Some(_) => {
-                    let _ = self.agent.set_attribute("inputmode", "none");
-                }
-                None if was_held => {
-                    let _ = self.agent.remove_attribute("inputmode");
-                }
-                None => {}
-            }
-            self.ime = output.ime.clone();
-            if let Some(area) = &output.ime {
-                let css = 1.0 / INPUT.with(|input| input.scale.get());
-                let style = self.agent.style();
-                let _ = style.set_property("left", &format!("{}px", area.cursor.min.x * css));
-                let _ = style.set_property("top", &format!("{}px", area.cursor.max.y * css));
-            }
-        }
-        if let Some(fullscreen) = output.fullscreen
-            && fullscreen != self.fullscreen
+        if self.size != (width, height)
+            && let Some(renderers) = self.runner.renderers()
         {
-            self.fullscreen = fullscreen;
-            if let Some(document) = window.document() {
-                match fullscreen {
-                    true => {
-                        if let Some(root) = document.document_element() {
-                            let _ = root.request_fullscreen();
-                        }
-                    }
-                    false => document.exit_fullscreen(),
-                }
-            }
+            self.size = (width, height);
+            renderers.resize(width, height);
         }
-
-        let background = self.app.clear_color();
-        let again = self.renderer.draw(&output, physical, scale, background);
-
-        if again || deferred || output.repaint || output.repaint_after.is_zero() {
+        let context = self.runner.context();
+        context.set_pixels_per_point(ratio);
+        INPUT.with(|input| input.scale.set(ratio / context.pixels_per_point()));
+        for event in INPUT.with(|input| input.events.take()) {
+            self.runner.push(event);
+        }
+        let Some(frame) = self
+            .runner
+            .frame(&mut self.platform, ratio, SafeArea::default())
+        else {
+            return;
+        };
+        let again = frame.pending && self.runner.present();
+        if again || frame.again() {
             schedule();
-        } else if output.repaint_after != Duration::MAX {
-            schedule_after(output.repaint_after);
+        } else if frame.repaint_after != Duration::MAX {
+            schedule_after(frame.repaint_after);
         }
     }
 }
@@ -332,21 +332,14 @@ fn waker() -> Waker {
 pub fn accessibility_tree() -> Option<String> {
     let runner = RUNNER.with(|runner| runner.borrow().clone())?;
     let runner = runner.try_borrow().ok()?;
-    let accessibility = runner.accessibility.as_ref()?;
-    Some(accessibility.text().to_owned())
+    runner.runner.accessibility_text().map(str::to_owned)
 }
 
 pub fn request_frame() {
     schedule();
 }
 
-pub async fn run_web<R: WebRenderer>(
-    element_id: &str,
-    options: RunOptions,
-    context: Context,
-    app: impl App + 'static,
-    renderer: impl AsyncFnOnce(web_sys::HtmlElement, &Context) -> Result<R, Box<dyn Error>>,
-) -> Result<(), Box<dyn Error>> {
+async fn run(element_id: &str, launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
     let window = web_sys::window().ok_or("no browser window is available")?;
     let document = window
         .document()
@@ -356,30 +349,23 @@ pub async fn run_web<R: WebRenderer>(
         .ok_or_else(|| format!("no element has the id {element_id}"))?
         .dyn_into::<web_sys::HtmlElement>()
         .map_err(|_| format!("the element {element_id} is not an html element"))?;
-    document.set_title(&options.title);
+    document.set_title(&launch.options.title);
     let _ = surface.style().set_property("touch-action", "none");
     let agent = text_agent(&document)?;
-    let renderer = renderer(surface.clone(), &context).await?;
+    let loaded = load(surface.clone()).await?;
 
-    let mut app: Box<dyn App> = Box::new(app);
-    let mut setup = Setup::new(waker());
-    renderer.provide(&mut setup);
-    app.setup(&setup);
+    let context = launch.context.clone();
+    let mut runner = beui_core::runner::Runner::new(launch);
+    runner.start(loaded, Setup::new(waker()))?;
     let runner = Runner {
-        app,
-        context,
-        surface: surface.clone(),
-        agent: agent.clone(),
-        renderer: Box::new(renderer),
+        runner,
+        platform: WebPlatform {
+            context,
+            surface: surface.clone(),
+            agent: agent.clone(),
+            ime: None,
+        },
         size: (0, 0),
-        cursor_icon: CursorIcon::Default,
-        pointer_locked: false,
-        ime: None,
-        fullscreen: false,
-        accessibility: options
-            .accessibility_tree
-            .then(AccessibilityDump::in_memory),
-        title: options.title,
     };
     RUNNER.with(|slot| *slot.borrow_mut() = Some(Rc::new(RefCell::new(runner))));
     FRAME.with(|frame| *frame.borrow_mut() = Some(Closure::new(run_frame)));

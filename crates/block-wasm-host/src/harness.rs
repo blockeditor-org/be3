@@ -1,4 +1,8 @@
-use std::{path::Path, sync::Arc, time::Instant};
+use std::{
+    path::Path,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use wasmtime::{Linker, Module, Store, Trap, TypedFunc, WasmBacktrace};
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
@@ -142,6 +146,8 @@ impl Host {
             inbox: Default::default(),
             outbox: Vec::new(),
             started: Instant::now(),
+            gpu_time: Duration::ZERO,
+            submit_time: Duration::ZERO,
             threads: threads::Spawner::new(
                 self.engine.clone(),
                 module.clone(),

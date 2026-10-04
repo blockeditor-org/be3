@@ -7,7 +7,7 @@ use crate::Repainting;
 use crate::clear_color_in;
 use crate::renderer_info;
 use beui_core::color::Color32;
-use beui_core::context::{Context, FrameOutput, Moved};
+use beui_core::context::{FrameOutput, Moved, RendererInfo};
 use beui_core::geometry::{Vec2, vec2};
 
 pub type OpenDevice = Arc<
@@ -35,7 +35,6 @@ pub struct Gpu {
 pub async fn create_gpu(
     instance: wgpu::Instance,
     probe: &wgpu::Surface<'_>,
-    context: &Context,
     open_device: Option<OpenDevice>,
 ) -> Result<Gpu, Box<dyn Error>> {
     let adapter = instance
@@ -62,7 +61,6 @@ pub async fn create_gpu(
     let format =
         surface_format(&capabilities.formats).ok_or("the adapter does not support this surface")?;
     let renderer = Renderer::new(&device, format);
-    context.set_renderer_info(renderer_info(&adapter.get_info(), format));
     Ok(Gpu {
         instance,
         adapter,
@@ -71,6 +69,20 @@ pub async fn create_gpu(
         format,
         renderer,
     })
+}
+
+impl Gpu {
+    pub fn info(&self) -> RendererInfo {
+        renderer_info(&self.adapter.get_info(), self.format)
+    }
+
+    pub fn setup(&self) -> GpuSetup {
+        GpuSetup {
+            device: self.device.clone(),
+            queue: self.queue.clone(),
+            format: self.format,
+        }
+    }
 }
 
 pub fn surface_format(formats: &[wgpu::TextureFormat]) -> Option<wgpu::TextureFormat> {

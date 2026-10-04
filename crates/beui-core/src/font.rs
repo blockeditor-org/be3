@@ -574,13 +574,19 @@ pub struct Fonts {
     galleys: HashMap<u64, Vec<(GalleyKey, Galley)>>,
     cooling: HashMap<u64, Vec<(GalleyKey, Galley)>>,
     cached_galleys: usize,
+    backend_generation: u64,
     generation: u64,
 }
 
 impl Fonts {
     pub fn new(backend: impl FontBackend + 'static) -> Self {
+        Self::boxed(Box::new(backend))
+    }
+
+    pub fn boxed(backend: Box<dyn FontBackend>) -> Self {
         Self {
-            backend: Box::new(backend),
+            backend_generation: backend.generation(),
+            backend,
             galleys: HashMap::new(),
             cooling: HashMap::new(),
             cached_galleys: 0,
@@ -588,15 +594,26 @@ impl Fonts {
         }
     }
 
+    pub fn replace(&mut self, backend: Box<dyn FontBackend>) -> Box<dyn FontBackend> {
+        self.backend_generation = backend.generation();
+        self.forget();
+        std::mem::replace(&mut self.backend, backend)
+    }
+
     pub fn generation(&mut self) -> u64 {
-        let generation = self.backend.generation();
-        if generation != self.generation {
-            self.generation = generation;
-            self.galleys.clear();
-            self.cooling.clear();
-            self.cached_galleys = 0;
+        let backend = self.backend.generation();
+        if backend != self.backend_generation {
+            self.backend_generation = backend;
+            self.forget();
         }
-        generation
+        self.generation
+    }
+
+    fn forget(&mut self) {
+        self.generation += 1;
+        self.galleys.clear();
+        self.cooling.clear();
+        self.cached_galleys = 0;
     }
 
     pub fn layout(

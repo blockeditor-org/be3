@@ -103,6 +103,10 @@ pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
 pub(crate) fn notify() {
     apply_shell();
     crate::surfaces::apply();
+    notify_plugins();
+}
+
+pub(crate) fn notify_plugins() {
     let changed = crate::plugin_host::take_changed();
     if (!changed.is_empty() || CHANGED.with(|flag| flag.replace(false)))
         && let Some((_, write)) = ANY.with(|any| any.borrow().clone())

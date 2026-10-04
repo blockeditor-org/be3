@@ -217,7 +217,7 @@ direction:
 
 | Crate | Owns |
 | --- | --- |
-| `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, and the `App` contract the runners drive |
+| `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
 | `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas, for the DOM renderer; no fonts in the module |
 | `beui-view` | `beui::reactive`: components, child slots, the `view!` integration and the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes |
@@ -226,7 +226,7 @@ direction:
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
-| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's runner: its window or view, input, IME, clipboard, file picker and accessibility adapter |
+| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter |
 
 Core cannot see the crates above it, so the few places it used to reach up are
 hooks the higher crates fill in:
@@ -246,8 +246,28 @@ hooks the higher crates fill in:
   (`Document::extension`); `beui::styled::DocumentTheme` reads and writes it.
 - A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
   the wgpu renderer.
-- The web runner draws through a `WebRenderer`, which the facade fills in with
-  the wgpu renderer's `CanvasSurface`.
+- Each platform is a `beui_core::runner::Adapter`, a trait object the facade
+  picks (`beui::window_adapter`, `beui::web_adapter`) and runs with a `Launch`
+  (`RunOptions`, `Context`, the `App`). The adapter owns the event loop and
+  turns the platform's input into `Event`s; everything one frame does is
+  `beui_core::runner::Runner::frame`, shared by all of them: it runs the
+  app, publishes accessibility, and tells the adapter's `Platform` (another
+  trait object) to copy, paste, pick a file, or change the cursor, pointer
+  lock, IME, fullscreen and back handling, only when one of them changed.
+  A new platform implements those two traits and hands its window or element
+  to the renderer loader the facade gives it.
+- Every adapter draws through `beui_core::renderer::Renderer` trait objects and
+  names no renderer crate: wgpu's `WindowSurface` (native windows),
+  `CanvasSurface` (a browser canvas) and `DomRenderer` implement it, and the
+  facade hands the runner the ones to load. A renderer is told where to draw
+  with `attach` (a raw-window-handle `WindowHandle`) or is made with its element,
+  and draws a frame in two steps, `prepare` and then `present`.
+  `beui_core::renderer::Renderers` holds what a runner loaded, each with the
+  `FontBackend` its text is measured with if it needs its own, and shows one.
+  `Context::choose_renderer` (the inspector's Perf tab offers it when more
+  than one is loaded) hides and detaches the shown one, attaches or resizes
+  the chosen one, and swaps the context's fonts with `Context::replace_fonts`,
+  which lays all text out again.
 
 Inside the family, crates name each other directly (`beui_core::document::Document`),
 and the component crates declare `extern crate beui_view as beui;` so the
@@ -1299,10 +1319,13 @@ Android its inset joins the safe area, and on the web the pages' viewport meta
 asks for `interactive-widget=resizes-content`. When the rectangle a document is
 shown in changes size while the focus takes text, the document scrolls the
 focused field into what is left, through every scroll it sits in.
-- `web` adds the browser runner, `beui::run_web(canvas_id, options, app)`,
-  and enables `render`.
-- `dom` is the other browser runner,
-  `beui::run_dom(element_id, icons_font, options, app)`, which draws with DOM
+- `web` and `dom` add the browser runner,
+  `beui::run_web(element_id, renderers, options, app)`, which loads each
+  `beui::WebRenderer` it is given into the element, shows the first that
+  loads, and skips (with a console warning) any that fail. `web` enables
+  `render` and adds `WebRenderer::Wgpu`, which draws into the element if it is
+  a canvas and into a canvas it adds otherwise.
+- `dom` adds `WebRenderer::Dom { icons_font }`, which draws with DOM
   elements instead of wgpu. Layout, input and focus are beui's as everywhere
   else. Each `Display` in the frame's display tree keeps one element across
   frames (by `Display::key`), holding its shapes and its children's elements
@@ -1311,12 +1334,14 @@ focused field into what is left, through every scroll it sits in.
   inside them. Text is measured and drawn with the browser's fonts
   (`beui-font-browser`), and the browser fetches the icon font from the URL
   `icons_font` names. A `Drawing`, a `Punch` and a `Filter` draw nothing there.
-  `crates/beui-web-demo` is the demo this way:
+  `crates/beui-web-demo` is the demo with both renderers, DOM first:
   `./scripts/buck run //crates/beui-web-demo:web-serve` serves it on
   http://127.0.0.1:8070.
 
 `beui::run_with` takes `RunOptions` (title, app id, starting size) where
-`beui::run` takes only a title. The rest of
+`beui::run` takes only a title; both load wgpu, and
+`beui::run_with_renderers` takes the `beui::WindowRenderer`s to load instead
+(be-compositor's opens its device itself). The rest of
 `App` is optional:
 
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.
@@ -1581,6 +1606,16 @@ without rebuilding their children.
 A frame is input, then layout, then paint. Input is dispatched against the rects
 the previous frame painted, which is what the reader was looking at when they
 clicked, and the tree is laid out exactly once afterwards.
+
+`Document::on_interacted` runs a callback once the frame's input has been
+dispatched and before anything is laid out, for an app that wants work started
+by that input under way while the document lays out. The one exception to the
+single layout is `Document::on_laid_out`, a callback that runs inside the
+document's reactive scope between layout and paint, for an app that has to
+answer something layout decided: block-app waits there for its plugins to draw
+at the sizes they were just given. Whatever it changes is laid out again before
+the frame is painted, and a layout that moved something runs the callback again,
+a few rounds at most.
 
 That holds even though `component_size` and `component_rect` feed measurements
 back into the tree, because both are delivered during the layout walk rather

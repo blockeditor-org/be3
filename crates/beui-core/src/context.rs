@@ -68,6 +68,8 @@ struct Inner {
     accessibility_published: RefCell<HashSet<u32>>,
     test_ids_published: Cell<bool>,
     renderer_info: RefCell<Option<RendererInfo>>,
+    renderers: RefCell<RendererChoices>,
+    renderer_choice: Cell<Option<usize>>,
     clock: Cell<Option<Instant>>,
     now: Cell<Instant>,
 }
@@ -95,6 +97,12 @@ pub trait InputSimulation: Any {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct RendererInfo {
     pub rows: Vec<(&'static str, String)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct RendererChoices {
+    pub names: Vec<&'static str>,
+    pub active: usize,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -201,9 +209,13 @@ impl FrameOutput {
 
 impl Context {
     pub fn new(fonts: impl FontBackend + 'static) -> Self {
+        Self::with_fonts(Box::new(fonts))
+    }
+
+    pub fn with_fonts(fonts: Box<dyn FontBackend>) -> Self {
         Self {
             inner: Rc::new(Inner {
-                fonts: RefCell::new(Fonts::new(fonts)),
+                fonts: RefCell::new(Fonts::boxed(fonts)),
                 input: RefCell::new(InputState::default()),
                 layers: RefCell::new(Vec::new()),
                 top_shapes: RefCell::new(Vec::new()),
@@ -246,6 +258,8 @@ impl Context {
                 accessibility_published: RefCell::new(HashSet::new()),
                 test_ids_published: Cell::new(true),
                 renderer_info: RefCell::new(None),
+                renderers: RefCell::new(RendererChoices::default()),
+                renderer_choice: Cell::new(None),
                 clock: Cell::new(None),
                 now: Cell::new(Instant::now()),
             }),
@@ -258,6 +272,29 @@ impl Context {
 
     pub fn renderer_info(&self) -> Option<RendererInfo> {
         self.inner.renderer_info.borrow().clone()
+    }
+
+    pub fn set_renderers(&self, renderers: RendererChoices) {
+        *self.inner.renderers.borrow_mut() = renderers;
+    }
+
+    pub fn renderers(&self) -> RendererChoices {
+        self.inner.renderers.borrow().clone()
+    }
+
+    pub fn choose_renderer(&self, index: usize) {
+        if index != self.inner.renderers.borrow().active {
+            self.inner.renderer_choice.set(Some(index));
+            self.request_repaint();
+        }
+    }
+
+    pub fn take_renderer_choice(&self) -> Option<usize> {
+        self.inner.renderer_choice.take()
+    }
+
+    pub fn replace_fonts(&self, fonts: Box<dyn FontBackend>) -> Box<dyn FontBackend> {
+        self.inner.fonts.borrow_mut().replace(fonts)
     }
 
     pub fn set_accessibility_active(&self, active: bool) {
