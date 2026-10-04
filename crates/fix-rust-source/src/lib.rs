@@ -1,8 +1,9 @@
 mod beui_rules;
 mod views;
 
-use ra_ap_syntax::ast::{self, AstNode, AstToken, HasAttrs, HasName};
+use ra_ap_syntax::ast::{self, AstNode, AstToken, HasAttrs, HasModuleItem, HasName};
 use ra_ap_syntax::{Edition, NodeOrToken, SourceFile, SyntaxNode};
+use std::collections::HashSet;
 use std::error::Error;
 use std::fs;
 use std::ops::Range;
@@ -738,13 +739,28 @@ fn synchronize_test_modules(root: &Path) -> Result<(), Box<dyn Error>> {
 }
 
 fn sorted_test_modules(content: &str, directory: &Path) -> String {
+    let Ok(tree) = parse(content.as_bytes()) else {
+        return content.to_owned();
+    };
+    let plain_lines = tree
+        .items()
+        .filter_map(|item| match item {
+            ast::Item::Module(module) => Some(module),
+            _ => None,
+        })
+        .filter(|module| module.attrs().next().is_none() && module.item_list().is_none())
+        .map(|module| {
+            let start = syntax_range(module.syntax().text_range()).start;
+            content[..start].matches('\n').count()
+        })
+        .collect::<HashSet<_>>();
     let lines = content.lines().collect::<Vec<_>>();
     let test_module = |index: usize| {
         lines[index]
             .strip_prefix("mod ")
             .and_then(|module| module.strip_suffix(';'))
             .filter(|module| directory.join(module).with_extension("rs").exists())
-            .filter(|_| index == 0 || !lines[index - 1].trim_start().starts_with("#["))
+            .filter(|_| plain_lines.contains(&index))
     };
     let mut modules = (0..lines.len()).filter_map(test_module).collect::<Vec<_>>();
     if modules.is_empty() {
