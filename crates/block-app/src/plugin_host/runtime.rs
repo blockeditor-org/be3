@@ -20,7 +20,7 @@ use crate::host;
 use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
-    backend::{Availability, Backend, Platform, ShownFrame},
+    backend::{Availability, Backend, Deadline, Platform, ShownFrame},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{
         self, Blit, MAX_SURFACES, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing,
@@ -33,6 +33,8 @@ const CROWDED: &str = "Too many plugin runtimes are already presenting.";
 const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 const FRAME_TIMEOUT_SECONDS: f64 = 1.0;
+const FRAME_BUDGET: Duration = Duration::from_millis(8);
+pub(crate) const PACING: &str = "Frame pacing";
 const REMEMBERED_PRESENTS: usize = 16;
 const SURFACE: SurfaceSpec = SurfaceSpec {
     format: SurfaceFormat::Rgba8Unorm,
@@ -45,6 +47,9 @@ thread_local! {
 
 struct Host {
     availability: Availability,
+    deadline: Option<(u64, Deadline)>,
+    waited: Duration,
+    over_budget: u64,
     runtimes: HashMap<String, Runtime>,
     focus: Focus,
     grabbed: bool,
@@ -54,6 +59,9 @@ impl Host {
     fn new() -> Self {
         Self {
             availability: Availability::missing(),
+            deadline: None,
+            waited: Duration::ZERO,
+            over_budget: 0,
             runtimes: HashMap::new(),
             focus: Focus::default(),
             grabbed: false,
@@ -115,6 +123,8 @@ pub(super) struct Runtime {
     pub(super) instances: Instances,
     pub(super) layout: ScreenLayout,
     pub(super) pass: u64,
+    since: u64,
+    placed: u64,
     surface: u32,
     status: PresenterStatus,
     shared: Rc<RefCell<Shared>>,
@@ -124,6 +134,7 @@ pub(super) struct Runtime {
     needed: bool,
     paint_at: Option<f64>,
     requested_at: Option<f64>,
+    animated: u64,
     theme: Theme,
     fonts_sent: bool,
     fallbacks: super::fonts::Fallbacks,
@@ -177,6 +188,8 @@ impl Runtime {
             instances,
             layout: ScreenLayout::default(),
             pass: 0,
+            since: 0,
+            placed: 0,
             surface,
             status: PresenterStatus::waiting(),
             shared: Rc::new(RefCell::new(Shared::default())),
@@ -186,6 +199,7 @@ impl Runtime {
             needed: false,
             paint_at: None,
             requested_at: None,
+            animated: 0,
             theme: theme(),
             fonts_sent: false,
             fallbacks: super::fonts::Fallbacks::new(),
@@ -226,10 +240,8 @@ impl Runtime {
         if self.pass == pass || self.error.is_some() {
             return;
         }
-        let previous = self.pass;
+        self.since = self.pass;
         self.pass = pass;
-        let drawing = self.session.granted_surface().is_some();
-        let next = self.instances.next_screens(previous);
         let mut messages = Vec::new();
         if !self.fonts_sent && *self.session.state() == SessionState::Running {
             self.fonts_sent = true;
@@ -240,6 +252,12 @@ impl Runtime {
             self.theme = theme;
             messages.push(Message::Theme(theme));
         }
+        self.update(messages);
+    }
+
+    fn update(&mut self, mut messages: Vec<Message>) {
+        let drawing = self.session.granted_surface().is_some();
+        let next = self.instances.next_screens(self.since);
         messages.extend(next.opened);
         if drawing && self.sent != next.screens {
             self.sent.clone_from(&next.screens);
@@ -264,21 +282,62 @@ impl Runtime {
         if self.error.is_some() || self.pass + 1 < pass {
             return;
         }
-        let mut messages = self.instances.drive_web_views(self.pass);
+        let messages = self.instances.drive_web_views(self.pass);
         self.needed |= !messages.is_empty();
+        self.send(messages);
+    }
+
+    fn ask(&mut self, pass: u64) -> bool {
+        if self.placed == pass || self.instances.has_mounted() {
+            self.begin_pass(pass);
+        }
+        self.detect_error();
+        if self.error.is_some() || self.pass + 1 < pass {
+            return false;
+        }
+        match self.pass == pass {
+            true => self.update(Vec::new()),
+            false => self.pump(),
+        }
+        self.request_frame();
+        true
+    }
+
+    fn start(&mut self, pass: u64) {
+        self.detect_error();
+        if self.error.is_some() || !(self.instances.has_mounted() || self.pass + 1 >= pass) {
+            return;
+        }
+        self.pump();
+        self.request_frame();
+    }
+
+    fn settle(&mut self, deadline: Deadline) -> bool {
+        while self.error.is_none() && !self.backend.settled() && self.backend.wait(deadline) {
+            self.pump();
+            self.request_frame();
+        }
+        self.error.is_none() && !self.backend.settled()
+    }
+
+    fn request_frame(&mut self) {
+        if self.error.is_some() {
+            return;
+        }
         if self.session.granted_surface().is_some() && self.frame_due() {
             self.requested_at = Some(self.now());
-            messages.push(Message::DrawFrame);
+            self.animated = host::pass();
+            self.send(vec![Message::DrawFrame]);
         }
         if self.requested_at.is_some() {
             host::request_repaint_after(Duration::from_secs_f64(FRAME_TIMEOUT_SECONDS));
         }
-        self.send(messages);
     }
 
     fn frame_due(&self) -> bool {
         let now = self.now();
-        (self.needed || self.paint_at.is_some_and(|at| at <= now))
+        (self.needed
+            || (self.animated != host::pass() && self.paint_at.is_some_and(|at| at <= now)))
             && self
                 .requested_at
                 .is_none_or(|at| now - at >= FRAME_TIMEOUT_SECONDS)
@@ -310,6 +369,7 @@ impl Runtime {
             return;
         }
         let now = self.milliseconds();
+        let before = self.session.state().clone();
         let received = self.backend.receive();
         if *self.session.state() == SessionState::Idle && self.backend.ready() {
             self.session.start(now);
@@ -323,6 +383,10 @@ impl Runtime {
         }
         self.deliver();
         self.session.tick(now);
+        if *self.session.state() != before {
+            mark(&self.plugin.identity.id);
+            host::request_repaint();
+        }
         if let Some(deadline) = self.session.next_deadline() {
             host::request_repaint_after(Duration::from_millis(deadline.saturating_sub(now)));
         }
@@ -335,9 +399,28 @@ impl Runtime {
         }
         self.apply(forwarded);
         if let Some(mut frame) = self.backend.received_frame() {
+            if let Some(took) = self.backend.took() {
+                let id = &self.plugin.identity.id;
+                for (name, duration) in [
+                    ("step", took.step),
+                    ("GPU calls", took.gpu),
+                    ("submit", took.submit),
+                ] {
+                    crate::performance::record_group_duration(
+                        PACING,
+                        &format!("{id} {name}"),
+                        duration,
+                    );
+                }
+            }
             frame.set_damage(self.presents.damage_through(frame.presents()));
             self.shared.borrow_mut().publish(&self.layout, Some(frame));
             self.frames += 1;
+            crate::performance::record_group_count(
+                PACING,
+                &format!("{} frames", self.plugin.identity.id),
+                self.frames,
+            );
             mark(&self.plugin.identity.id);
         }
     }
@@ -464,6 +547,11 @@ impl Runtime {
             quad: Quad::upright(Rect::ZERO),
             source: UNIT,
             drawn,
+            requested: self
+                .sent
+                .iter()
+                .find(|request| request.screen == screen)
+                .map(|request| (request.metrics.pixel_width, request.metrics.pixel_height)),
             placed: self
                 .layout
                 .placement(screen)
@@ -688,6 +776,50 @@ pub(crate) fn poll() {
             crate::host::set_grab(grabbed);
         }
     });
+}
+
+pub(crate) fn settle() {
+    let pass = host::pass();
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        let deadline = match host.deadline {
+            Some((at, deadline)) if at == pass => deadline,
+            _ => Deadline::after(FRAME_BUDGET),
+        };
+        host.deadline = Some((pass, deadline));
+        let asked: Vec<String> = host
+            .runtimes
+            .iter_mut()
+            .filter_map(|(id, runtime)| runtime.ask(pass).then(|| id.clone()))
+            .collect();
+        let started = std::time::Instant::now();
+        let mut over = false;
+        for id in asked {
+            if let Some(runtime) = host.runtimes.get_mut(&id) {
+                over |= runtime.settle(deadline);
+            }
+        }
+        host.waited += started.elapsed();
+        host.over_budget += u64::from(over);
+    });
+}
+
+pub(crate) fn start_frames() {
+    let pass = host::pass();
+    HOST.with(|host| {
+        for runtime in host.borrow_mut().runtimes.values_mut() {
+            runtime.start(pass);
+        }
+    });
+}
+
+pub(crate) fn record_pacing() {
+    let (waited, over_budget) = HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        (std::mem::take(&mut host.waited), host.over_budget)
+    });
+    crate::performance::record_group_duration(PACING, "Waiting on plugins", waited);
+    crate::performance::record_group_count(PACING, "Frames over budget", over_budget);
 }
 
 pub(crate) fn flush() {
@@ -1138,6 +1270,7 @@ pub(crate) fn place_region(
         if !runtime.instances.mounted(instance, region) {
             return;
         }
+        runtime.placed = host::pass();
         let RegionPlacement { rect, clip } = placement;
         let scale_factor = host::pixels_per_point();
         let size = match region {
