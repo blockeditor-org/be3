@@ -212,7 +212,7 @@ impl beui::App for Shell {
             context.request_repaint();
         }
         host::end(context);
-        performance::record_update(started);
+        performance::record_update(started, &self.document.performance().latest.timings);
         plugin_host::record_pacing();
     }
 

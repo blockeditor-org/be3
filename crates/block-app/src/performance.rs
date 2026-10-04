@@ -38,6 +38,8 @@ struct PerformanceState {
     frame: u64,
     frame_start: Option<Instant>,
     update_start: Option<Instant>,
+    update_end: Option<Instant>,
+    shown: Option<(Instant, Vec<PerformanceRow>)>,
     last_frame: Option<LastFrame>,
     frame_times: VecDeque<Duration>,
     groups: BTreeMap<String, Group>,
@@ -69,15 +71,35 @@ pub fn end_frame() {
     }
 }
 
-pub fn record_update(started: Instant) {
+pub fn record_update(started: Instant, document: &beui::PerformanceTimings) {
     const CONTINUOUS: Duration = Duration::from_millis(100);
-    let previous = state().update_start.replace(started);
+    let (previous, ended) = {
+        let mut state = state();
+        let previous = state.update_start.replace(started);
+        let ended = state.update_end.replace(Instant::now());
+        (previous, ended)
+    };
     if let Some(interval) = previous.map(|previous| started - previous)
         && interval < CONTINUOUS
     {
         record_duration_in(PACING, "Frame interval", interval);
+        if let Some(ended) = ended {
+            record_duration_in(
+                PACING,
+                "Between frames",
+                started.saturating_duration_since(ended),
+            );
+        }
     }
     record_duration_in(PACING, "Host frame", started.elapsed());
+    for (name, duration) in [
+        ("Host input", document.interaction),
+        ("Host layout", document.layout),
+        ("Host paint", document.paint),
+        ("Host accessibility", document.accessibility),
+    ] {
+        record_duration_in(PACING, name, duration);
+    }
 }
 
 pub fn last_frame() -> Option<LastFrame> {
@@ -118,9 +140,33 @@ fn push_sample(samples: &mut VecDeque<Duration>, duration: Duration) {
 }
 
 pub fn rows() -> Vec<PerformanceRow> {
-    let state = state();
+    const REFRESH: Duration = Duration::from_millis(250);
+    let mut state = state();
+    if let Some((at, rows)) = &state.shown
+        && at.elapsed() < REFRESH
+    {
+        return rows.clone();
+    }
+    let rows = build_rows(&state);
+    state.shown = Some((Instant::now(), rows.clone()));
+    rows
+}
+
+fn build_rows(state: &PerformanceState) -> Vec<PerformanceRow> {
     let frame = state.frame;
-    let mut rows = vec![timing_row("Full frame", &state.frame_times)];
+    let mut rows = vec![
+        PerformanceRow {
+            heading: false,
+            name: "Build".to_owned(),
+            current: match cfg!(debug_assertions) {
+                true => "dev, unoptimised".to_owned(),
+                false => "release".to_owned(),
+            },
+            average: String::new(),
+            peak: String::new(),
+        },
+        timing_row("Full frame", &state.frame_times),
+    ];
     for (id, group) in state
         .groups
         .iter()

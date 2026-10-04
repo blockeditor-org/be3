@@ -416,6 +416,11 @@ impl Runtime {
             frame.set_damage(self.presents.damage_through(frame.presents()));
             self.shared.borrow_mut().publish(&self.layout, Some(frame));
             self.frames += 1;
+            crate::performance::record_group_count(
+                PACING,
+                &format!("{} frames", self.plugin.identity.id),
+                self.frames,
+            );
             mark(&self.plugin.identity.id);
         }
     }
