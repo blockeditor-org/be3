@@ -145,7 +145,7 @@ struct Shell {
 impl Shell {
     fn new(app: BlockApp) -> Self {
         let mut view = None;
-        let document = beui::reactive::build(|| {
+        let mut document = beui::reactive::build(|| {
             compositor::install();
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
@@ -154,6 +154,11 @@ impl Shell {
             beui::reactive::view! {
                 <ui::Root view />
             }
+        });
+        document.on_interacted(plugin_host::start_frames);
+        document.on_laid_out(|| {
+            plugin_host::settle();
+            compositor::notify_plugins();
         });
         Self {
             document,
@@ -178,6 +183,7 @@ impl beui::App for Shell {
     }
 
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
+        let started = std::time::Instant::now();
         host::begin(context, &self.document);
         self.app.frame(context);
         if let Some(open) = self.app.inspector_requested.take()
@@ -206,6 +212,8 @@ impl beui::App for Shell {
             context.request_repaint();
         }
         host::end(context);
+        performance::record_update(started, &self.document.performance().latest.timings);
+        plugin_host::record_pacing();
     }
 
     fn clear_color(&self) -> beui::Color32 {

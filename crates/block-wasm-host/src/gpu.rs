@@ -98,7 +98,11 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
         |mut caller: Caller<'_, State>, pointer: u32, length: u32| {
             let state = caller.data_mut();
             match state.read_words(pointer, length) {
-                Ok(handles) => state.with_gpu(|gpu| gpu.submit(&handles)),
+                Ok(handles) => {
+                    let started = std::time::Instant::now();
+                    state.with_gpu(|gpu| gpu.submit(&handles));
+                    state.submit_time += started.elapsed();
+                }
                 Err(message) => state.report(message),
             }
         },

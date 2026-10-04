@@ -9,6 +9,13 @@ use super::web::Web;
 
 pub(super) const NOT_INSTALLED: &str = "The plugin host is not installed.";
 
+#[derive(Clone, Copy, Default)]
+pub(super) struct StepTime {
+    pub(super) step: Duration,
+    pub(super) gpu: Duration,
+    pub(super) submit: Duration,
+}
+
 pub(super) trait ShownFrame {
     fn presents(&self) -> u64;
 
@@ -36,6 +43,18 @@ pub(super) trait Backend: Sized {
 
     fn received_frame(&mut self) -> Option<Self::Frame>;
 
+    fn settled(&mut self) -> bool {
+        true
+    }
+
+    fn wait(&mut self, _deadline: Deadline) -> bool {
+        false
+    }
+
+    fn took(&mut self) -> Option<StepTime> {
+        None
+    }
+
     fn take_error(&mut self) -> Option<String>;
 
     fn state(&self) -> &'static str;
@@ -51,6 +70,31 @@ pub(super) type Platform = Wasm;
 pub(super) type Platform = Web;
 
 pub(super) type Frame = <Platform as Backend>::Frame;
+
+#[derive(Clone, Copy)]
+pub(super) struct Deadline {
+    #[cfg(not(target_arch = "wasm32"))]
+    at: std::time::Instant,
+}
+
+impl Deadline {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn after(budget: Duration) -> Self {
+        Self {
+            at: std::time::Instant::now() + budget,
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(super) fn after(_budget: Duration) -> Self {
+        Self {}
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(super) fn remaining(self) -> Option<Duration> {
+        self.at.checked_duration_since(std::time::Instant::now())
+    }
+}
 
 pub(super) struct Availability(pub(super) Result<(), String>);
 
