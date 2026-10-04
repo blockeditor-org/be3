@@ -2,7 +2,8 @@
 #
 # buck2, run against our build server, on Linux, macOS or Git Bash on Windows.
 # Before starting it, this installs the pinned buck2 if it is missing, finds the
-# build server's key (asking for it at a terminal), and regenerates the crates'
+# build server's key (asking for it at a terminal), points buck2 at the build
+# server this checkout picked, and regenerates the crates'
 # rules if their inputs changed (scripts/internal/common.sh). Arguments go to
 # buck2 unchanged, except that tests may run on the workers, on anything but
 # Linux x86_64 `run` builds for this machine unless it names
@@ -25,7 +26,7 @@ if [[ ! -x "$buck2" ]]; then
 fi
 assert_build_server_key
 mkdir -p "$repository/target"
-configure_https_proxy_relay "$buck2"
+configure_build_server "$buck2"
 ensure_generated_rules "$buck2"
 
 command="${1:-}"
