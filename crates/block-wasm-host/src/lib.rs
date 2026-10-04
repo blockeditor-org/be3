@@ -10,7 +10,11 @@ mod wake;
 #[cfg(test)]
 mod tests;
 
-use std::{path::Path, sync::Arc, time::Instant};
+use std::{
+    path::Path,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use block_gpu_host::Gpu;
 use wasmtime::{
@@ -111,6 +115,8 @@ impl Plugin {
             inbox: Default::default(),
             outbox: Vec::new(),
             started: Instant::now(),
+            gpu_time: Duration::ZERO,
+            submit_time: Duration::ZERO,
             threads: Spawner::new(
                 engine.clone(),
                 module.clone(),
@@ -193,6 +199,14 @@ impl Plugin {
 
     pub fn take_outbound(&mut self) -> Vec<Vec<u8>> {
         std::mem::take(&mut self.store.data_mut().outbox)
+    }
+
+    pub fn take_gpu_time(&mut self) -> (Duration, Duration) {
+        let state = self.store.data_mut();
+        (
+            std::mem::take(&mut state.gpu_time),
+            std::mem::take(&mut state.submit_time),
+        )
     }
 
     pub fn take_presented(&mut self) -> Vec<u32> {

@@ -1,4 +1,8 @@
-use std::{collections::VecDeque, sync::Arc, time::Instant};
+use std::{
+    collections::VecDeque,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use block_gpu_host::Gpu;
 use wasmtime::SharedMemory;
@@ -41,6 +45,8 @@ pub struct State {
     pub(crate) started: Instant,
     pub(crate) threads: Arc<Spawner>,
     pub(crate) wake: Arc<Wake>,
+    pub(crate) gpu_time: Duration,
+    pub(crate) submit_time: Duration,
 }
 
 pub(crate) struct Threaded {
@@ -130,7 +136,12 @@ impl State {
             };
         }
         match &mut self.device {
-            Device::Ready(gpu) => call(gpu.as_mut()),
+            Device::Ready(gpu) => {
+                let started = Instant::now();
+                let result = call(gpu.as_mut());
+                self.gpu_time += started.elapsed();
+                result
+            }
             Device::Unavailable(message) => {
                 let message = message.clone();
                 self.report(message);
