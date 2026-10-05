@@ -270,13 +270,14 @@ data, and for one file by that path, answered with its bytes or with why they
 could not be read. A plugin reaches only its own data; a path that is not a
 plain relative path is refused as an ordinary failure.
 
-An editor instance may ask the host for a web view, which is a window of the
+An editor instance may ask the host for web views, each a window of the
 operating system's own laid over the app rather than anything a plugin could
-draw: it opens one at a URL, says each frame where inside its own screen it
-goes and whether it is shown at all, and asks it to navigate, reload or hand
-the keyboard back to the app. The host maps that rectangle through the
-placement it last drew the instance's screen at, hides the view while the
-instance is not being drawn, and closes it with the instance. It reports back
+draw. The instance names each view it opens with an identifier of its own,
+opens it at a URL, asks it to navigate, reload or hand the keyboard back to
+the app, and shows it by placing it as a child, like a block; a view no child
+places is hidden. The host maps the child's rectangle through the placement it
+last drew the instance's screen at, hides the view while the instance is not
+being drawn, and closes it with the instance. It reports back
 what the page does - a navigation started or finished, a history entry pushed
 or replaced, a title, a history traversal the page asked for, a window it
 wanted to open, the address the view is now at - and why anything it was asked
@@ -374,7 +375,8 @@ An editor instance may embed other blocks' editors inside one of its screens.
 Once per frame the instance publishes, for that screen, the frame generation
 it drew, an ordered list of the children it placed and the occluder rectangles
 declared between them, all in the screen's own logical coordinates. A child
-carries its own identifier, the block and block type it shows, the rectangle
+carries its own identifier, what it shows - a block and its block type, one
+of the instance's web views, or a panel the host draws itself - the rectangle
 and clip it was placed at, the corner radius of the hole cut for it, whether
 it composites below or above the instance's own pixels, and whether the host
 should draw it as a preview, a passive editor, an active one, or a live one.
@@ -419,20 +421,9 @@ which of them was pressed, and the host hands that to the instance that placed
 the child, which decides what going back, switching file or showing the file's
 details means.
 
-A host that can lay out an instance's tabs in its own dock says so in the
-accepted handshake. An instance may then describe its tabs as panes: each
-pane's title and whether it can be closed, and a flat tree of the splits, tab
-bars and groups they sit in. The host draws each pane on a screen of its own,
-in the pane's region, and keeps them together as a group in its dock. When the
-user rearranges or closes a pane there, the host sends the new arrangement or
-the close back, numbering each arrangement; the instance stamps a layout with
-the last arrangement it has applied, so the host ignores one sent before it.
-The layout also names the pane back leads to when the host stacks its dock on
-a phone, and whether the instance draws a pane for an empty spot in the group,
-which the host places in the pane region of `EMPTY_PANE`. A pane may ask for a
-More button, which the host draws in its own bar and whose press it sends
-back. An instance that stops describing panes sends no layout, and the host
-shows its frame region in their place again.
+The panels the host draws itself - its debugging panels - are placed by the
+instance that draws the window, never by the host: the host asks that
+instance to show one, and draws it wherever a child places it.
 
 A block pick may name a place for what it makes: the top level or a block. The
 host then asks for a name and lets the user choose the place as well, and
