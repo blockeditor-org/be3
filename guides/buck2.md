@@ -63,6 +63,9 @@ these in front of the pinned buck2:
   relay sends each call on through the proxy, over HTTP/1.1 if that is all the
   proxy speaks. Its errors go to `target/re-relay.log`. A `.buckconfig.local` a person wrote
   is left alone, and the relay is not used then.
+- **CI's priority.** With `CI` set, the same `.buckconfig.local` sets
+  `be3.remote_execution_priority` to -1, so the server starts CI's actions
+  after any a person's build has queued (guides/build_server.md).
 - **The generated rules.** `buck/cargo/crates.bzl` is not checked in: every
   crate's dependencies, features and targets, first- and third-party, from
   cargo's plans, with each third-party crate's checksum and size.
