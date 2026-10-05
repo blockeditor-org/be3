@@ -1,5 +1,6 @@
 pub mod app;
 pub mod clients;
+pub mod decoration;
 pub mod gpu;
 pub mod render;
 pub mod server;
