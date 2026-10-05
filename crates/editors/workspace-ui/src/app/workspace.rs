@@ -19,8 +19,8 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
     AccessLevel, BlockFilter, BlockPick, ChildBlock, ChildBlockHandle, ChildMode, ChildState,
-    ChildTarget, Editor, EditorHost, FocusedBlock, HostPanel, HostWindow, HostWindowId, NARROW_WIDTH, PickedBlock, Pushed,
-    ShellDialog, TopBar,
+    ChildTarget, Editor, EditorHost, FocusedBlock, HostPanel, HostWindow, HostWindowId,
+    NARROW_WIDTH, PickedBlock, Pushed, ShellDialog, TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
