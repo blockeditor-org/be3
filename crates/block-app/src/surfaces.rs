@@ -13,16 +13,10 @@ use crate::host::{self, HostCommand, HostItem};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum SurfaceId {
-    Creation,
-    NestedCreation,
     ArtifactSettings,
 }
 
-const HOSTING: [SurfaceId; 3] = [
-    SurfaceId::Creation,
-    SurfaceId::NestedCreation,
-    SurfaceId::ArtifactSettings,
-];
+const HOSTING: [SurfaceId; 1] = [SurfaceId::ArtifactSettings];
 
 #[derive(Clone)]
 pub(crate) struct HostedRegion {
@@ -32,7 +26,7 @@ pub(crate) struct HostedRegion {
 }
 
 impl HostedRegion {
-    fn key(&self) -> (EditorInstanceId, EditorRegion) {
+    pub(crate) fn key(&self) -> (EditorInstanceId, EditorRegion) {
         (self.editor.instance, self.region)
     }
 }

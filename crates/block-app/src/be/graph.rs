@@ -31,6 +31,7 @@ pub(crate) struct Scope {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum Query {
+    All,
     Roots,
     Detached,
     Children(Uuid),
@@ -121,16 +122,13 @@ impl Graph {
         }
     }
 
-    pub(crate) fn nodes(&self) -> Vec<Node> {
-        self.nodes.values().cloned().collect()
-    }
-
     pub(crate) fn get(&self, block: Uuid) -> Option<&Node> {
         self.nodes.get(&block)
     }
 
     pub(crate) fn query(&self, query: Query) -> Vec<Node> {
         let mut found: Vec<Node> = match query {
+            Query::All => self.nodes.values().cloned().collect(),
             Query::Roots => self.with_parent(BlockParent::Root),
             Query::Detached => self.with_parent(BlockParent::Detached),
             Query::Children(parent) => self.with_parent(BlockParent::Block(parent)),

@@ -426,8 +426,8 @@ instance that draws the window, never by the host: the host asks that
 instance to show one, and draws it wherever a child places it.
 
 A block pick may name a place for what it makes: the top level or a block. The
-host then asks for a name and lets the user choose the place as well, and
-creates the block there under that name; its answer says so, and the plugin
+picker then asks for a name and lets the user choose the place as well, and
+the block is created there under that name; the answer says so, and the plugin
 only opens what it was given. A block chosen from the ones that already exist
 is never placed by the host, and the plugin places it as it would without a
 place.
@@ -481,6 +481,16 @@ Requests are identified per instance and may be outstanding together. A
 creation dialog asks the same way, which is how an editor whose block cannot be
 made until it references another one gets that block before its own exists; the
 host opens the picker over the dialog it is already showing.
+
+The host does not draw the picker itself. It forwards each pick to the
+instance that draws the window, which is told the pick, its filter and the
+block that asked, and answers it once; the host passes that answer back to the
+instance that asked. That instance makes new blocks by placing a child that
+shows a template being made, named by its editor and template from the
+catalog the host sends with the block types. The child's status reports the
+creation's progress - its options, whether they are ready, then the block it
+made or why it failed - and the instance asks the host to make it, under a
+parent and with a name, by committing the child.
 
 An editor instance may ask the host to present it: to give it the whole window
 and show nothing else of the app, which is what a slideshow or a video played

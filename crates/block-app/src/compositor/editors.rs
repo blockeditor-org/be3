@@ -12,16 +12,20 @@ use beui::reactive::{
 };
 use beui::{NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use block_plugin_api::{
-    BarAction, ChildId, ChildMode, ChildRect, EditorInstanceId, EditorRegion, FrameChrome,
-    FrameSpec, HostPanel, TopBar, ViewChange,
+    BarAction, ChildId, ChildMode, ChildRect, CreationProgress, EditorInstanceId, EditorRegion,
+    FrameChrome, FrameSpec, HostPanel, TopBar, ViewChange,
 };
 use uuid::Uuid;
 
 use super::region::{ChildView, PluginRegion, RegionEditor};
-use crate::editors::{BlockLabel, Chrome, EditorRegistry, PluginEditor, editor_access_ceiling};
+use crate::editors::plugin::PickSource;
+use crate::editors::{
+    BlockLabel, Chrome, CreationStep, EditorRegistry, PendingCreation, PluginEditor,
+    editor_access_ceiling,
+};
 use crate::host::HostItem;
-use crate::plugin_host::{self, EditorView, HostChild, HostChildStatus, HostContent};
-use crate::surfaces::HostItemFace;
+use crate::plugin_host::{self, ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
+use crate::surfaces::{HostItemFace, HostedRegion};
 use crate::ui::HostPanelSurface;
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;
@@ -33,6 +37,16 @@ pub(crate) struct State {
     client_id: Cell<Uuid>,
     open: RefCell<HashMap<Uuid, PluginEditor>>,
     simulated: RefCell<HashMap<Uuid, Access>>,
+    creations: RefCell<HashMap<CreationKey, CreationChild>>,
+    commits: RefCell<HashMap<(Uuid, ChildId), ChildCommit>>,
+}
+
+pub(crate) type CreationKey = (Uuid, EditorRegion, ChildId);
+
+struct CreationChild {
+    creation: Box<dyn PendingCreation>,
+    commit: Option<ChildCommit>,
+    progress: Option<CreationProgress>,
 }
 
 #[derive(Clone)]
@@ -58,6 +72,8 @@ impl Editors {
             client_id: Cell::new(client_id),
             open: RefCell::new(HashMap::new()),
             simulated: RefCell::new(HashMap::new()),
+            creations: RefCell::new(HashMap::new()),
+            commits: RefCell::new(HashMap::new()),
         }));
         EDITORS.with(|held| *held.borrow_mut() = Some(editors.clone()));
         editors
@@ -68,6 +84,8 @@ impl Editors {
         let closed: Vec<PluginEditor> =
             self.with(|open| open.drain().map(|(_, editor)| editor).collect());
         drop(closed);
+        self.0.creations.borrow_mut().clear();
+        self.0.commits.borrow_mut().clear();
         self.0.simulated.borrow_mut().clear();
         super::changed();
     }
@@ -111,6 +129,119 @@ impl Editors {
             open.entry(id)
                 .or_insert_with(|| registry.open(id, block_type).viewed_by(view_block));
         });
+    }
+
+    fn ensure_creation(&self, key: CreationKey, editor: Uuid, template: &str) -> bool {
+        if self.0.creations.borrow().contains_key(&key) {
+            return true;
+        }
+        let Some((_, creation)) = self.registry().create(editor, template) else {
+            return false;
+        };
+        let (parent, _, child) = key;
+        let commit = self.0.commits.borrow_mut().remove(&(parent, child));
+        self.0.creations.borrow_mut().insert(
+            key,
+            CreationChild {
+                creation,
+                commit,
+                progress: None,
+            },
+        );
+        true
+    }
+
+    fn forget_creation(&self, key: &CreationKey) {
+        let (parent, _, child) = key;
+        self.0.commits.borrow_mut().remove(&(*parent, *child));
+        let forgotten = self.0.creations.borrow_mut().remove(key);
+        drop(forgotten);
+    }
+
+    fn creation_region(&self, key: &CreationKey) -> Option<HostedRegion> {
+        let registry = self.registry();
+        self.0
+            .creations
+            .borrow()
+            .get(key)?
+            .creation
+            .region(&registry, self.client_id())
+    }
+
+    fn creation_status(
+        &self,
+        key: &CreationKey,
+    ) -> Option<(Option<CreationProgress>, Option<f32>)> {
+        let creations = self.0.creations.borrow();
+        let child = creations.get(key)?;
+        Some((child.progress.clone(), child.creation.height()))
+    }
+
+    pub(crate) fn commit_creations(&self, parent: Uuid, commits: Vec<ChildCommit>) {
+        let mut creations = self.0.creations.borrow_mut();
+        for commit in commits {
+            let held = creations
+                .iter_mut()
+                .find(|((owner, _, child), _)| *owner == parent && *child == commit.child);
+            match held {
+                Some((_, creation)) => creation.commit = Some(commit),
+                None => {
+                    self.0
+                        .commits
+                        .borrow_mut()
+                        .insert((parent, commit.child), commit);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn creation_pick_sources(&self) -> Vec<PickSource> {
+        self.0
+            .creations
+            .borrow()
+            .values()
+            .map(|child| child.creation.pick_source())
+            .collect()
+    }
+
+    pub(crate) fn step_creations(&self) {
+        let registry = self.registry();
+        let client_id = self.client_id();
+        let mut changed = false;
+        for child in self.0.creations.borrow_mut().values_mut() {
+            if matches!(
+                child.progress,
+                Some(CreationProgress::Created(_) | CreationProgress::Failed(_))
+            ) {
+                continue;
+            }
+            let step = child.creation.step(&registry, client_id);
+            let progress = match (&child.commit, step) {
+                (None, CreationStep::Options(ready)) => CreationProgress::Options { ready },
+                (None, CreationStep::Working) => CreationProgress::Options { ready: true },
+                (Some(commit), _) => match child.creation.create() {
+                    Ok(Some(block)) => {
+                        crate::be::set_parent(block, commit.parent);
+                        if let Some(name) = commit.name.clone() {
+                            crate::be::name_when_created(block, name);
+                        }
+                        CreationProgress::Created(block.into_bytes())
+                    }
+                    Ok(None) => CreationProgress::Working,
+                    Err(error) => {
+                        child.commit = None;
+                        CreationProgress::Failed(error)
+                    }
+                },
+            };
+            if child.progress.as_ref() != Some(&progress) {
+                child.progress = Some(progress);
+                changed = true;
+            }
+        }
+        if changed {
+            super::changed();
+        }
     }
 
     fn handle(&self, id: Uuid) -> Option<Handle> {
@@ -909,6 +1040,7 @@ enum Kind {
     FrameChild,
     Embedded,
     Panel(HostPanel),
+    Creation,
 }
 
 #[component]
@@ -932,11 +1064,19 @@ fn HostedChild(
         }),
     )));
     let content = create_memo(clone!(child -> move || child.get().map(|child| child.content)));
+    let creation_key: CreationKey = (parent, region, key);
+    on_cleanup(clone!(editors -> move || editors.forget_creation(&creation_key)));
     let kind = create_memo(clone!(editors child content any tab nesting -> move || {
         any.get();
         let (id, block_type, view_block) = match content.get() {
             None => return Kind::Missing,
             Some(HostContent::Panel(panel)) => return Kind::Panel(panel),
+            Some(HostContent::Creation { editor, template }) => {
+                return match editors.ensure_creation(creation_key, editor, &template) {
+                    true => Kind::Creation,
+                    false => Kind::Unavailable,
+                };
+            }
             Some(HostContent::Block {
                 block_id,
                 block_type,
@@ -978,7 +1118,12 @@ fn HostedChild(
             any.get();
             let child = child.get()?;
             let available = !matches!(kind.get(), Kind::Unavailable | Kind::Missing);
-            Some(status_of(&editors, &child, available))
+            let mut status = status_of(&editors, &child, available);
+            if let Some((progress, height)) = editors.creation_status(&creation_key) {
+                status.creation = progress;
+                status.intrinsic = height.map(|height| vec2(0.0, height));
+            }
+            Some(status)
         }));
         create_effect(clone!(reports status -> move || {
             let status = status.get();
@@ -1026,6 +1171,14 @@ fn HostedChild(
                                 },
                                 Kind::Panel(panel) => view! {
                                     <HostPanelSurface panel={panel} />
+                                },
+                                Kind::Creation => match editors.creation_region(&creation_key) {
+                                    Some(hosted) => view! {
+                                        <CreationSurface hosted />
+                                    },
+                                    None => view! {
+                                        <Frame />
+                                    },
                                 },
                                 Kind::Preview => {
                                     let rotation = create_memo(clone!(child -> move || {
@@ -1115,6 +1268,23 @@ fn HostedChild(
     }
 }
 
+#[component]
+fn CreationSurface(hosted: HostedRegion) -> NodeId {
+    let child_view: ChildView = Rc::new(|_, _, _| {
+        view! {
+            <Frame />
+        }
+    });
+    view! {
+        <PluginRegion
+            editor={hosted.editor}
+            region={hosted.region}
+            frame={hosted.frame}
+            child_view
+        />
+    }
+}
+
 fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChildStatus {
     let block = child.block_id().unwrap_or_default();
     let (interaction, capabilities, resize, intrinsic, aspect_ratio) =
@@ -1173,6 +1343,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         capabilities,
         resize,
         error: (!available).then(|| CHILD_UNAVAILABLE.to_owned()),
+        creation: None,
         menu: match available && child.frame_owner {
             true => frame_menu(editors, block),
             false => Vec::new(),

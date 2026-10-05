@@ -10,8 +10,8 @@ use beui::reactive::{
 };
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, EditorCapabilities, HostPanel,
-    InteractionMode, MenuEntry, ResizeMode, TopBar, ViewChange, WebViewId,
+    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
+    HostPanel, InteractionMode, MenuEntry, ResizeMode, TopBar, ViewChange, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -146,11 +146,12 @@ impl ChildTarget {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SubregionContent {
     Block(ChildTarget),
     WebView(WebViewId),
     Host(HostPanel),
+    Creation { editor: Uuid, template: String },
 }
 
 impl From<ChildTarget> for SubregionContent {
@@ -160,15 +161,19 @@ impl From<ChildTarget> for SubregionContent {
 }
 
 impl SubregionContent {
-    fn wire(self) -> ChildContent {
+    fn wire(&self) -> ChildContent {
         match self {
             Self::Block(target) => ChildContent::Block {
                 block_id: target.id.into_bytes(),
                 block_type: target.block_type.into_bytes(),
                 view_block: target.view_block.map(Uuid::into_bytes),
             },
-            Self::WebView(web_view) => ChildContent::WebView(web_view),
-            Self::Host(panel) => ChildContent::Host(panel),
+            Self::WebView(web_view) => ChildContent::WebView(*web_view),
+            Self::Host(panel) => ChildContent::Host(*panel),
+            Self::Creation { editor, template } => ChildContent::Creation {
+                editor: editor.into_bytes(),
+                template: template.clone(),
+            },
         }
     }
 }
@@ -187,6 +192,7 @@ pub struct ChildState {
     pub error: Option<String>,
     pub child: Option<ChildId>,
     pub menu: Vec<MenuEntry>,
+    pub creation: Option<CreationProgress>,
 }
 
 impl ChildState {
@@ -213,6 +219,7 @@ impl ChildState {
             error: status.error,
             child,
             menu: status.menu,
+            creation: status.creation,
         }
     }
 }

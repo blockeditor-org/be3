@@ -18,14 +18,17 @@ use block_editor_beui::beui::unstyled::{
 };
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
-    Editor, EditorHost, FocusedBlock, HostPanel, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
+    AccessLevel, BlockFilter, BlockPick, ChildBlock, ChildBlockHandle, ChildMode, ChildState,
+    ChildTarget, Editor, EditorHost, FocusedBlock, HostPanel, NARROW_WIDTH, PickedBlock, Pushed,
+    TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::panel::BlockPanel;
+use super::picker::{Pick, PickAction, PickOutcome};
+use super::picker_view::PickerDialogs;
 use super::saved::{self, LAYOUT};
 use super::tab::TabItem;
 
@@ -74,6 +77,9 @@ pub(crate) struct Workspace {
     set_phone: WriteSignal<bool>,
     pub(crate) sheet: ReadSignal<PhoneSheet>,
     set_sheet: WriteSignal<PhoneSheet>,
+    pub(crate) picks: ReadSignal<Vec<Pick>>,
+    set_picks: WriteSignal<Vec<Pick>>,
+    every_block: RefCell<Option<BlockList>>,
 }
 
 impl Workspace {
@@ -89,6 +95,7 @@ impl Workspace {
         let (routes, set_routes) = create_signal(0);
         let (phone, set_phone) = create_signal(false);
         let (sheet, set_sheet) = create_signal(PhoneSheet::Closed);
+        let (picks, set_picks) = create_signal(Vec::new());
         let workspace = Rc::new(Self {
             editor,
             layout,
@@ -119,6 +126,9 @@ impl Workspace {
             set_phone,
             sheet,
             set_sheet,
+            picks,
+            set_picks,
+            every_block: RefCell::new(None),
         });
         let shows = workspace.editor.pushed(Pushed::Shows);
         let showing = Rc::downgrade(&workspace);
@@ -222,6 +232,15 @@ impl Workspace {
     }
 
     fn show_requested(&self) {
+        let requested: Vec<Pick> = self
+            .host()
+            .take_pick_requests()
+            .into_iter()
+            .map(Pick::new)
+            .collect();
+        if !requested.is_empty() {
+            self.set_picks.update(|picks| picks.extend(requested));
+        }
         for panel in self.editor.take_panel_requests() {
             self.show_panel(panel);
         }
@@ -233,6 +252,81 @@ impl Workspace {
                 },
                 request.via,
             );
+        }
+    }
+
+    pub(crate) fn every_block(&self) -> Vec<BlockInfo> {
+        let mut held = self.every_block.borrow_mut();
+        held.get_or_insert_with(|| self.blocks().watch(BlockQuery::All))
+            .read()
+    }
+
+    pub(crate) fn pick(&self, pick: u64) -> Option<Pick> {
+        self.picks
+            .with(|picks| picks.iter().find(|held| held.pick == pick).cloned())
+    }
+
+    pub(crate) fn pick_action(&self, pick: u64, action: PickAction) {
+        let Some(held) = self.pick(pick) else {
+            return;
+        };
+        match held.act(action) {
+            PickOutcome::Open(mut held) => {
+                self.send_commit(&mut held);
+                self.resolve(PickOutcome::Open(held));
+            }
+            answered => self.resolve(answered),
+        }
+    }
+
+    fn send_commit(&self, held: &mut Pick) {
+        let name = Some(held.name.trim().to_owned()).filter(|name| !name.is_empty());
+        let parent = held.created_parent();
+        if let Some(creating) = &mut held.creating
+            && let Some(child) = creating.child
+            && creating.committed
+            && !creating.sent
+        {
+            creating.sent = true;
+            self.host().commit_child(child, parent, name);
+        }
+    }
+
+    pub(crate) fn creation_state(&self, pick: u64, state: &ChildState) {
+        let Some(mut held) = self.pick(pick) else {
+            return;
+        };
+        if let Some(creating) = &mut held.creating {
+            creating.child = state.child;
+        }
+        self.send_commit(&mut held);
+        match &state.creation {
+            Some(progress) => self.resolve(held.progressed(progress)),
+            None => self.resolve(PickOutcome::Open(held)),
+        }
+    }
+
+    fn resolve(&self, outcome: PickOutcome) {
+        match outcome {
+            PickOutcome::Open(held) => {
+                if self.pick(held.pick).as_ref() != Some(&held) {
+                    self.set_picks.update(|picks| {
+                        if let Some(slot) = picks.iter_mut().find(|slot| slot.pick == held.pick) {
+                            *slot = held;
+                        }
+                    });
+                }
+            }
+            PickOutcome::Answered(pick, answer, into) => {
+                self.set_picks
+                    .update(|picks| picks.retain(|held| held.pick != pick));
+                if let (BlockPick::Chosen { .. }, Some((block, block_type, container))) =
+                    (&answer, into)
+                {
+                    self.host().place_block(block, block_type, container, false);
+                }
+                self.host().answer_pick(pick, answer);
+            }
         }
     }
 
@@ -850,6 +944,7 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let changing = Rc::clone(&workspace);
     let closing = Rc::clone(&workspace);
     let content = Rc::clone(&workspace);
+    let pickers = Rc::clone(&workspace);
     let theme = use_theme();
     view! {
         <Frame @node_ref={&surface} color={theme.background.clone()}>
@@ -884,6 +979,7 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                         }
                     }}
                 </DockArea>
+                <PickerDialogs workspace={pickers} />
             </List>
         </Frame>
     }

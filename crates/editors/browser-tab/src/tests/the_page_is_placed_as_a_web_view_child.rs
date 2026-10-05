@@ -8,7 +8,7 @@ fn the_page_is_placed_as_a_web_view_child() {
         .editor
         .children()
         .iter()
-        .map(|placement| placement.content)
+        .map(|placement| placement.content.clone())
         .collect();
     assert_eq!(placed, [ChildContent::WebView(WebViewId(0))]);
 }

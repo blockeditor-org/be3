@@ -6,6 +6,8 @@ mod linked;
 mod menu;
 mod panel;
 mod phone;
+mod picker;
+mod picker_view;
 mod saved;
 mod status;
 mod tab;

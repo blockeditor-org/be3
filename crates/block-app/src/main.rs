@@ -2,7 +2,6 @@ mod accounts;
 mod app_state;
 mod be;
 mod block_label;
-mod block_picker;
 mod compositor;
 mod debug;
 mod editors;
@@ -32,8 +31,8 @@ use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
 use block_plugin_api::{AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel};
 use editors::{
-    ArtifactSession, ArtifactStatus, BlockLabel, EditorAccess, EditorAction, EditorRegistry,
-    PluginEditor, SidebarDragSource,
+    ArtifactSession, ArtifactStatus, BlockLabel, EditorAction, EditorRegistry, PluginEditor,
+    SidebarDragSource, plugin::PickSource,
 };
 use root_settings::RootSettings;
 use share::ShareDialog;
@@ -257,6 +256,8 @@ struct BlockApp {
     root_settings: RootSettings,
     choosing_profile: bool,
     shell: Option<Uuid>,
+    forwarded_picks: HashMap<u64, (PickSource, u64)>,
+    next_pick: u64,
     ui_settings: Option<Uuid>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
@@ -443,6 +444,8 @@ impl BlockApp {
             root_settings: RootSettings::default(),
             choosing_profile: false,
             shell: None,
+            forwarded_picks: HashMap::new(),
+            next_pick: 0,
             ui_settings: None,
             block_types: HashMap::new(),
             registry,
@@ -836,6 +839,7 @@ impl BlockApp {
     }
 
     fn open_workspace(&mut self, workspace: Workspace) {
+        self.cancel_forwarded_picks();
         be::stop();
         self.block_types.clear();
         self.registry = Rc::new(EditorRegistry::new());
@@ -935,6 +939,7 @@ impl BlockApp {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
         };
+        self.cancel_forwarded_picks();
         be::stop();
         self.block_types.clear();
         self.registry = Rc::new(EditorRegistry::new());
@@ -1336,29 +1341,71 @@ impl BlockApp {
                 self.with_editor(id, PluginEditor::stop_presenting_now);
             }
         }
-        for action in self.serve_block_picks() {
-            self.handle_editor_action(action);
-        }
+        self.forward_block_picks(shell);
+        self.editors.step_creations();
         for action in compositor::take_actions() {
             self.handle_editor_action(action);
         }
     }
 
-    fn serve_block_picks(&mut self) -> Vec<EditorAction> {
-        let ids: Vec<Uuid> = self.editors.with(|open| open.keys().copied().collect());
-        let mut actions = Vec::new();
-        for id in ids {
-            let Some(mut editor) = self.editors.with(|open| open.remove(&id)) else {
-                continue;
-            };
-            let action = self.editors.with(|open| {
-                let mut editors = EditorAccess::new(id, self.client_id, &self.registry, open);
-                editor.serve_block_pick(&mut editors)
-            });
-            self.editors.with(|open| open.insert(id, editor));
-            actions.extend(action);
+    fn cancel_forwarded_picks(&mut self) {
+        for (_, (source, request_id)) in self.forwarded_picks.drain() {
+            source.answer(request_id, block_plugin_api::BlockPick::Cancelled);
         }
-        actions
+    }
+
+    fn forward_block_picks(&mut self, shell: Uuid) {
+        let Some(shell_source) = self
+            .with_editor(shell, |editor| editor.pick_source())
+            .flatten()
+        else {
+            return;
+        };
+        for (pick, answer) in
+            crate::plugin_host::take_pick_answers(&shell_source.plugin_id, shell_source.instance)
+        {
+            if let Some((source, request_id)) = self.forwarded_picks.remove(&pick) {
+                source.answer(request_id, answer);
+            }
+        }
+        let editors: Vec<(Uuid, PickSource)> = self.editors.with(|open| {
+            open.values()
+                .filter_map(|editor| Some((editor.id(), editor.pick_source()?)))
+                .collect()
+        });
+        for (id, source) in &editors {
+            let commits =
+                crate::plugin_host::take_child_commits(&source.plugin_id, source.instance);
+            if !commits.is_empty() {
+                self.editors.commit_creations(*id, commits);
+            }
+        }
+        let creations = self.editors.creation_pick_sources();
+        let requesters = editors
+            .into_iter()
+            .map(|(id, source)| (Some(id), source))
+            .chain(creations.into_iter().map(|source| (None, source)));
+        for (block, source) in requesters {
+            while let Some(request) = source.take() {
+                let mut filter = request.filter;
+                filter.excluded.extend(block.map(Uuid::into_bytes));
+                let parent = match block {
+                    Some(block) => block_plugin_api::BlockLocation::Block(block.into_bytes()),
+                    None => block_plugin_api::BlockLocation::Root,
+                };
+                self.next_pick += 1;
+                let pick = self.next_pick;
+                self.forwarded_picks
+                    .insert(pick, (source.clone(), request.request_id));
+                crate::plugin_host::request_pick(
+                    &shell_source.plugin_id,
+                    shell_source.instance,
+                    pick,
+                    filter,
+                    parent,
+                );
+            }
+        }
     }
 
     fn poll_artifacts(&mut self) {
@@ -1884,7 +1931,6 @@ impl BlockApp {
             UiCommand::Unlink => self.unlink_artifact(),
             UiCommand::CancelUnlink => self.dynamic_artifact_unlink = None,
             UiCommand::Share(command) => self.share.command(command),
-            UiCommand::Picker(command) => block_picker::deliver(command),
             UiCommand::Debug(command) => debug::command(command),
             UiCommand::ShowPanel(panel) => self.show_panel(panel),
             UiCommand::ConfirmRecovery(words) => {
@@ -2060,7 +2106,6 @@ impl BlockApp {
             }),
             unlink: self.dynamic_artifact_unlink.is_some(),
             share: self.share.view(),
-            pickers: block_picker::views(),
             presenting: self
                 .editors
                 .with(|open| open.values().any(PluginEditor::presenting_now)),

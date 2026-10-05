@@ -2,12 +2,12 @@ use be_block::BlockContent as _;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, BlockTypeDescriptor, ChildContent,
-    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon,
-    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
-    FrameReport, FrameSpec, HostPanel, HostReply, HostRequest, Message, Occluder,
-    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
+    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
+    ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
+    EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
+    FrameSpec, HostPanel, HostReply, HostRequest, Message, Occluder, PerformanceMeasurement,
+    RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, Size,
+    ViewChange, WatchedContent, WebViewId,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -16,7 +16,8 @@ use std::{
 use uuid::Uuid;
 
 use super::{
-    BlockPickRequest, EditorBlock, HostChild, HostChildStatus, InstanceRole, MAX_LIVE_CHILDREN,
+    BlockPickRequest, ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole,
+    MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     input::{BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
     pieces,
@@ -38,7 +39,7 @@ pub(super) struct Instances {
     next_screen: u64,
     announced: HashSet<ScreenId>,
     request_id: u64,
-    block_types: Option<Arc<Vec<BlockTypeDescriptor>>>,
+    block_types: Option<Arc<block_plugin_api::Catalog>>,
     sent_block_types: bool,
     network: Vec<String>,
     plugin_id: String,
@@ -109,6 +110,8 @@ struct Instance {
     audio: Option<AudioPlayer>,
     reported_size: Option<Vec2>,
     block_picks: Vec<BlockPickRequest>,
+    pick_answers: Vec<(u64, BlockPick)>,
+    child_commits: Vec<ChildCommit>,
     view: Option<EditorView>,
     reported_view: Option<EditorView>,
     view_changes: Vec<ViewChange>,
@@ -278,6 +281,8 @@ impl Instance {
             audio: None,
             reported_size: None,
             block_picks: Vec::new(),
+            pick_answers: Vec::new(),
+            child_commits: Vec::new(),
             view: None,
             reported_view: None,
             view_changes: Vec::new(),
@@ -641,7 +646,7 @@ impl Instances {
         region: EditorRegion,
         client_id: Uuid,
         role: InstanceRole,
-        block_types: &Arc<Vec<BlockTypeDescriptor>>,
+        block_types: &Arc<block_plugin_api::Catalog>,
         frame: Option<FrameSpec>,
         size: Vec2,
         visible: Rect,
@@ -698,7 +703,7 @@ impl Instances {
         region: EditorRegion,
         client_id: Uuid,
         role: InstanceRole,
-        block_types: &Arc<Vec<BlockTypeDescriptor>>,
+        block_types: &Arc<block_plugin_api::Catalog>,
     ) {
         self.report(
             instance,
@@ -998,7 +1003,7 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         client_id: Uuid,
-        block_types: &Arc<Vec<BlockTypeDescriptor>>,
+        block_types: &Arc<block_plugin_api::Catalog>,
         role: InstanceRole,
     ) -> bool {
         self.connect(client_id);
@@ -1015,7 +1020,7 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         client_id: Uuid,
-        block_types: &Arc<Vec<BlockTypeDescriptor>>,
+        block_types: &Arc<block_plugin_api::Catalog>,
         source_type: Uuid,
         block: EditorBlock,
         data: &[u8],
@@ -1425,17 +1430,21 @@ impl Instances {
             }
         }
         for (index, child) in table.children.iter().enumerate() {
-            let content = match child.content {
+            let content = match &child.content {
                 ChildContent::Block {
                     block_id,
                     block_type,
                     view_block,
                 } => super::HostContent::Block {
-                    block_id: Uuid::from_bytes(block_id),
-                    block_type: Uuid::from_bytes(block_type),
+                    block_id: Uuid::from_bytes(*block_id),
+                    block_type: Uuid::from_bytes(*block_type),
                     view_block: view_block.map(Uuid::from_bytes),
                 },
-                ChildContent::Host(panel) => super::HostContent::Panel(panel),
+                ChildContent::Host(panel) => super::HostContent::Panel(*panel),
+                ChildContent::Creation { editor, template } => super::HostContent::Creation {
+                    editor: Uuid::from_bytes(*editor),
+                    template: template.clone(),
+                },
                 ChildContent::WebView(_) => continue,
             };
             if child.rect.is_empty() {
@@ -1611,6 +1620,7 @@ impl Instances {
                 resize: status.resize,
                 error: status.error,
                 menu: status.menu,
+                creation: status.creation,
             };
             if screen.reported_statuses.get(&status.child) == Some(&status) {
                 continue;
@@ -1638,6 +1648,41 @@ impl Instances {
             true => None,
             false => Some(entry.block_picks.remove(0)),
         }
+    }
+
+    pub(super) fn take_pick_answers(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Vec<(u64, BlockPick)> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.pick_answers))
+            .unwrap_or_default()
+    }
+
+    pub(super) fn take_child_commits(&mut self, instance: EditorInstanceId) -> Vec<ChildCommit> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.child_commits))
+            .unwrap_or_default()
+    }
+
+    pub(super) fn request_pick(
+        &self,
+        instance: EditorInstanceId,
+        pick: u64,
+        filter: block_plugin_api::BlockFilter,
+        parent: block_plugin_api::BlockLocation,
+    ) -> Vec<Message> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Message::Editor(EditorMessage::PickRequested {
+            instance,
+            pick,
+            filter,
+            parent,
+        })]
     }
 
     pub(super) fn block_picked(
@@ -2148,23 +2193,9 @@ impl Instances {
                 reply(HostReply::DataRead(fetch_result(body)));
             }),
             HostRequest::PickBlock(filter) => {
-                entry.block_picks.push(BlockPickRequest {
-                    request_id,
-                    block_types: filter
-                        .block_types
-                        .into_iter()
-                        .map(Uuid::from_bytes)
-                        .collect(),
-                    excluded: filter.excluded.into_iter().map(Uuid::from_bytes).collect(),
-                    templates: filter.templates,
-                    place: filter.place.and_then(|place| match place {
-                        block_plugin_api::BlockLocation::Root => Some(be_graph::BlockParent::Root),
-                        block_plugin_api::BlockLocation::Block(id) => {
-                            Some(be_graph::BlockParent::Block(Uuid::from_bytes(id)))
-                        }
-                        block_plugin_api::BlockLocation::Detached => None,
-                    }),
-                });
+                entry
+                    .block_picks
+                    .push(BlockPickRequest { request_id, filter });
             }
         }
         true
@@ -2172,6 +2203,33 @@ impl Instances {
 
     pub(super) fn editor_message(&mut self, message: EditorMessage) -> bool {
         match message {
+            EditorMessage::PickAnswered {
+                instance,
+                pick,
+                answer,
+            } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.pick_answers.push((pick, answer));
+                true
+            }
+            EditorMessage::CommitChild {
+                instance,
+                child,
+                parent,
+                name,
+            } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.child_commits.push(ChildCommit {
+                    child,
+                    parent: super::graph::parent_of(parent),
+                    name,
+                });
+                true
+            }
             EditorMessage::OpenBlock {
                 instance,
                 block_id,

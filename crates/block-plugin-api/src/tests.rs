@@ -96,6 +96,7 @@ mod file_drop_messages_round_trip;
 mod file_pick_messages_round_trip;
 mod file_save_messages_round_trip;
 mod focus_messages_round_trip;
+mod forwarded_picks_and_creation_children_round_trip;
 mod frame_round_trips;
 mod frame_screens_and_reports_round_trip;
 mod grabbing_the_cursor_round_trips;

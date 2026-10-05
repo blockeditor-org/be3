@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 64;
+pub const PROTOCOL_VERSION: u16 = 65;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -238,7 +238,7 @@ pub struct ChildRect {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WebViewId(pub u32);
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChildContent {
     Block {
         block_id: [u8; 16],
@@ -247,6 +247,10 @@ pub enum ChildContent {
     },
     WebView(WebViewId),
     Host(HostPanel),
+    Creation {
+        editor: [u8; 16],
+        template: String,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -279,12 +283,12 @@ impl ChildContent {
     pub fn block_id(&self) -> Option<[u8; 16]> {
         match self {
             Self::Block { block_id, .. } => Some(*block_id),
-            Self::WebView(_) | Self::Host(_) => None,
+            Self::WebView(_) | Self::Host(_) | Self::Creation { .. } => None,
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChildPlacement {
     pub child: ChildId,
     pub content: ChildContent,
@@ -350,6 +354,15 @@ pub struct ChildStatus {
     pub resize: ResizeMode,
     pub error: Option<String>,
     pub menu: Vec<MenuEntry>,
+    pub creation: Option<CreationProgress>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CreationProgress {
+    Options { ready: bool },
+    Working,
+    Created([u8; 16]),
+    Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -458,6 +471,23 @@ pub struct BlockTypeDescriptor {
     pub display_name: String,
     pub icon_codepoint: String,
     pub children: ChildOperations,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TemplateDescriptor {
+    pub editor: [u8; 16],
+    pub template: String,
+    pub block_type: [u8; 16],
+    pub name: String,
+    pub icon_codepoint: String,
+    pub category: TemplateCategory,
+    pub dialog: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Catalog {
+    pub types: Vec<BlockTypeDescriptor>,
+    pub templates: Vec<TemplateDescriptor>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -827,6 +857,23 @@ pub enum EditorMessage {
     CommitCreation {
         instance: EditorInstanceId,
     },
+    CommitChild {
+        instance: EditorInstanceId,
+        child: ChildId,
+        parent: BlockLocation,
+        name: Option<String>,
+    },
+    PickRequested {
+        instance: EditorInstanceId,
+        pick: u64,
+        filter: BlockFilter,
+        parent: BlockLocation,
+    },
+    PickAnswered {
+        instance: EditorInstanceId,
+        pick: u64,
+        answer: BlockPick,
+    },
     CreationBlock {
         instance: EditorInstanceId,
         outcome: CreationOutcome,
@@ -1026,6 +1073,9 @@ impl EditorMessage {
             | Self::OpenCreation { instance, .. }
             | Self::CreationReady { instance, .. }
             | Self::CommitCreation { instance, .. }
+            | Self::CommitChild { instance, .. }
+            | Self::PickRequested { instance, .. }
+            | Self::PickAnswered { instance, .. }
             | Self::CreationBlock { instance, .. }
             | Self::OpenArtifact { instance, .. }
             | Self::ArtifactSettings { instance, .. }
@@ -1121,6 +1171,7 @@ pub enum BlockLocation {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlockQuery {
+    All,
     Roots,
     Detached,
     Children([u8; 16]),
@@ -1493,7 +1544,7 @@ pub enum Message {
     Shutdown,
     ShutdownAcknowledged,
     Editor(EditorMessage),
-    BlockTypes(Vec<BlockTypeDescriptor>),
+    BlockTypes(Catalog),
     Children(ChildPlacements),
     ChildStatuses(Vec<ChildStatus>),
 }
@@ -1575,6 +1626,7 @@ impl EditorMessage {
             | Self::AudioStatus { .. }
             | Self::WebViewEvent { .. }
             | Self::CommitCreation { .. }
+            | Self::PickRequested { .. }
             | Self::ArtifactSettings { .. }
             | Self::RegenerateArtifact { .. }
             | Self::ArtifactStates { .. }
@@ -1597,6 +1649,8 @@ impl EditorMessage {
             | Self::LeaveFrame { .. }
             | Self::BarAction { .. }
             | Self::Menu { .. }
+            | Self::CommitChild { .. }
+            | Self::PickAnswered { .. }
             | Self::ChildMenuPick { .. }
             | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
@@ -2221,10 +2275,16 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
         Message::MissingCharacters(value) => collection(value.len()),
         Message::Editor(value) => validate_editor(value),
         Message::BlockTypes(value) => {
-            collection(value.len())?;
-            for descriptor in value {
+            collection(value.types.len())?;
+            collection(value.templates.len())?;
+            for descriptor in &value.types {
                 string(&descriptor.display_name)?;
                 string(&descriptor.icon_codepoint)?;
+            }
+            for template in &value.templates {
+                string(&template.template)?;
+                string(&template.name)?;
+                string(&template.icon_codepoint)?;
             }
             Ok(())
         }
@@ -2236,11 +2296,20 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                     string(error)?;
                 }
                 menu(&status.menu)?;
+                if let Some(CreationProgress::Failed(error)) = &status.creation {
+                    string(error)?;
+                }
             }
             Ok(())
         }
         _ => Ok(()),
     }
+}
+
+fn block_filter(filter: &BlockFilter) -> Result<(), DecodeError> {
+    string(&filter.name)?;
+    collection(filter.block_types.len())?;
+    collection(filter.excluded.len())
 }
 
 fn validate_children(placements: &ChildPlacements) -> Result<(), DecodeError> {
@@ -2259,6 +2328,11 @@ fn validate_children(placements: &ChildPlacements) -> Result<(), DecodeError> {
         }
         covered = occluder.after as usize;
     }
+    for child in &placements.children {
+        if let ChildContent::Creation { template, .. } = &child.content {
+            string(template)?;
+        }
+    }
     Ok(())
 }
 
@@ -2266,6 +2340,14 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
     match message {
         EditorMessage::Request { request, .. } => validate_request(request),
         EditorMessage::Replied { reply, .. } => validate_reply(reply),
+        EditorMessage::PickRequested { filter, .. } => block_filter(filter),
+        EditorMessage::CommitChild {
+            name: Some(name), ..
+        } => string(name),
+        EditorMessage::PickAnswered { answer, .. } => match answer {
+            BlockPick::Failed(error) => string(error),
+            BlockPick::Chosen { .. } | BlockPick::Cancelled => Ok(()),
+        },
         EditorMessage::Performance {
             group,
             measurements,
@@ -2445,11 +2527,7 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
             string(&file.mime_type)?;
             blob(&file.data)
         }
-        HostRequest::PickBlock(filter) => {
-            string(&filter.name)?;
-            collection(filter.block_types.len())?;
-            collection(filter.excluded.len())
-        }
+        HostRequest::PickBlock(filter) => block_filter(filter),
         HostRequest::PasteImage | HostRequest::ListData => Ok(()),
         HostRequest::Fetch(url) => string(url),
         HostRequest::ReadData(path) => string(path),

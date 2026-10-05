@@ -493,6 +493,7 @@ impl ContentStore {
             info
         };
         let listed: Vec<BlockInfo> = match query {
+            BlockQuery::All => nodes.clone(),
             BlockQuery::Roots => nodes
                 .iter()
                 .filter(|node| node.parent == BlockParent::Root)

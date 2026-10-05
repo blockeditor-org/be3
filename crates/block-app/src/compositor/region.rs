@@ -10,9 +10,7 @@ use beui::reactive::{
     create_memo, draw_gpu, on_cleanup, use_context, view,
 };
 use beui::{Align, CursorIcon, ForwardedInput, ImeCursor, NodeId, Pos2, Rect, Region, Vec2, pos2};
-use block_plugin_api::{
-    BlockTypeDescriptor, ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest,
-};
+use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
 use uuid::Uuid;
 
 use crate::host::HostItem;
@@ -26,7 +24,7 @@ pub(crate) struct RegionEditor {
     pub(crate) plugin: Arc<PluginManifest>,
     pub(crate) role: InstanceRole,
     pub(crate) instance: EditorInstanceId,
-    pub(crate) block_types: Arc<Vec<BlockTypeDescriptor>>,
+    pub(crate) block_types: Arc<block_plugin_api::Catalog>,
     pub(crate) client_id: Uuid,
 }
 

@@ -626,10 +626,6 @@ pub(crate) fn query(query: Query) -> Vec<Node> {
     with_shared(|shared| shared.graph.query(query)).unwrap_or_default()
 }
 
-pub(crate) fn nodes() -> Vec<Node> {
-    with_shared(|shared| shared.graph.nodes()).unwrap_or_default()
-}
-
 pub(crate) fn node(block: Uuid) -> Option<Node> {
     with_shared(|shared| shared.graph.get(block).cloned())?
 }

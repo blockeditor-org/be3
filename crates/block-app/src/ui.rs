@@ -2,7 +2,6 @@ mod debug;
 mod dialogs;
 mod keys;
 mod onboarding;
-mod picker;
 mod share;
 mod workspace;
 
@@ -16,7 +15,6 @@ use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
-use crate::block_picker::{PickerCommand, PickerView};
 use crate::share::{ShareCommand, ShareView};
 
 pub(crate) use debug::{
@@ -218,7 +216,6 @@ pub(crate) struct AppView {
     pub(crate) artifact_settings: Option<ArtifactSettingsView>,
     pub(crate) unlink: bool,
     pub(crate) share: Option<ShareView>,
-    pub(crate) pickers: Vec<PickerView>,
     pub(crate) presenting: bool,
     pub(crate) debug: DebugView,
 }
@@ -268,7 +265,6 @@ pub(crate) enum UiCommand {
     Unlink,
     CancelUnlink,
     Share(ShareCommand),
-    Picker(PickerCommand),
     Debug(DebugCommand),
     ShowPanel(HostPanel),
     ConfirmRecovery(Vec<String>),

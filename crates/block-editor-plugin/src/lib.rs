@@ -20,14 +20,14 @@ pub mod session;
 mod wasm;
 
 pub use block_plugin_api::{
-    AccessLevel, ArtifactAction, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockPick,
-    ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage,
-    ConflictSide, CursorIcon, DataListing, EditorCapabilities, EditorInstanceId, EditorRegion,
-    FetchResult, FileSave, FrameChrome, FrameSpec, HostPanel, HostReply, HostRequest, InputEvent,
-    InteractionMode, Key, MenuEntry, Modifiers, Occluder, PointerButton, ResizeMode,
-    ScreenPlacement, SurfaceRect, TopBar, TouchPhase, VersionBranch, VersionChange,
-    VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand,
-    WebViewEvent, WebViewId, WheelUnit,
+    AccessLevel, ArtifactAction, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation,
+    BlockPick, Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildStatus,
+    ClipboardImage, ConflictSide, CreationProgress, CursorIcon, DataListing, EditorCapabilities,
+    EditorInstanceId, EditorRegion, FetchResult, FileSave, FrameChrome, FrameSpec, HostPanel,
+    HostReply, HostRequest, InputEvent, InteractionMode, Key, MenuEntry, Modifiers, Occluder,
+    PointerButton, ResizeMode, ScreenPlacement, SurfaceRect, TemplateCategory, TemplateDescriptor,
+    TopBar, TouchPhase, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
+    VersionCommit, VersionStatus, ViewChange, WebViewCommand, WebViewEvent, WebViewId, WheelUnit,
 };
 pub use block_ui;
 pub use content::ContentProjection;
@@ -37,8 +37,8 @@ pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
     ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HostContent,
     ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
-    PerformanceReporter, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest,
-    ShownPresence, Waker,
+    PerformanceReporter, PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent,
+    ShowRequest, ShownPresence, Waker,
 };
 #[cfg(target_arch = "wasm32")]
 pub use plugin::PaintTarget;

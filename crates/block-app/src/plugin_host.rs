@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use beui::{Rect, Vec2, vec2};
 use block_plugin_api::{
-    BlockTypeDescriptor, ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId,
-    EditorRegion, InteractionMode, PluginManifest, ResizeMode, ScreenId,
+    ChildId, ChildLayer, ChildMode, EditorCapabilities, EditorInstanceId, EditorRegion,
+    InteractionMode, PluginManifest, ResizeMode, ScreenId,
 };
 use uuid::Uuid;
 
@@ -35,11 +35,11 @@ pub(crate) use runtime::{
     PACING, artifact, artifact_draft, aspect_ratio, block_picked, close, commit_creation, creation,
     creation_ready, flush, frame_child, frame_rects, hold, install, intrinsic_size, kill, menu,
     menu_pick, poll, present, presenting, record_pacing, regenerate_artifact, region_size,
-    replace_child, report_child_bars, report_child_views, report_children, resized,
+    replace_child, report_child_bars, report_child_views, report_children, request_pick, resized,
     revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible, settle,
     show_block, show_panel, start_frames, take_artifact_outcome, take_artifact_watch,
-    take_bar_actions, take_block_pick, take_child_menu_picks, take_created, take_focus_report,
-    take_leaving, take_view_changes,
+    take_bar_actions, take_block_pick, take_child_commits, take_child_menu_picks, take_created,
+    take_focus_report, take_leaving, take_pick_answers, take_view_changes,
 };
 pub(crate) use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, forward_region, frames, mount_region,
@@ -77,7 +77,7 @@ pub(crate) struct HostChild {
     pub(crate) opacity: f32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum HostContent {
     Block {
         block_id: Uuid,
@@ -85,13 +85,17 @@ pub(crate) enum HostContent {
         view_block: Option<Uuid>,
     },
     Panel(block_plugin_api::HostPanel),
+    Creation {
+        editor: Uuid,
+        template: String,
+    },
 }
 
 impl HostContent {
     pub(crate) fn block_id(&self) -> Option<Uuid> {
         match self {
             Self::Block { block_id, .. } => Some(*block_id),
-            Self::Panel(_) => None,
+            Self::Panel(_) | Self::Creation { .. } => None,
         }
     }
 }
@@ -123,14 +127,19 @@ pub(crate) struct HostChildStatus {
     pub(crate) resize: ResizeMode,
     pub(crate) error: Option<String>,
     pub(crate) menu: Vec<block_plugin_api::MenuEntry>,
+    pub(crate) creation: Option<block_plugin_api::CreationProgress>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ChildCommit {
+    pub(crate) child: ChildId,
+    pub(crate) parent: be_graph::BlockParent,
+    pub(crate) name: Option<String>,
 }
 
 pub(crate) struct BlockPickRequest {
     pub(crate) request_id: u64,
-    pub(crate) block_types: Vec<Uuid>,
-    pub(crate) excluded: Vec<Uuid>,
-    pub(crate) templates: bool,
-    pub(crate) place: Option<be_graph::BlockParent>,
+    pub(crate) filter: block_plugin_api::BlockFilter,
 }
 
 pub(crate) struct RuntimeStatus {
@@ -194,7 +203,7 @@ pub(crate) fn preview_size(size: Vec2, scale_factor: f32) -> Vec2 {
 
 pub(crate) struct CreationSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
+    pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
     pub(crate) role: InstanceRole,
@@ -231,7 +240,7 @@ impl InstanceRole {
 
 pub(crate) struct ArtifactSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<Vec<BlockTypeDescriptor>>,
+    pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
     pub(crate) source_type: Uuid,
