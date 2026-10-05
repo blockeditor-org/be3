@@ -1,12 +1,13 @@
 use beui_macros::{component, view};
 
+use crate::focus_ring::FocusRing;
 use crate::button::{Button, ButtonVariant};
 use crate::calendar::{CALENDAR_WIDTH, Calendar};
 use crate::popover::{PANEL_PADDING, PopoverPanel};
 use crate::scroll::scrollbar_style;
 use crate::tabs::Tabs;
 use crate::text::IconSized;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, field_border, use_theme};
+use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, field_border, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Weekday};
@@ -29,7 +30,6 @@ const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 8.0;
 const SEGMENT_PADDING: f32 = 2.0;
 const SEGMENT_RADIUS: u8 = 3;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 const TRIGGER_PADDING: f32 = 4.0;
 const TRIGGER_GAP: f32 = 4.0;
@@ -221,13 +221,7 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
     };
     view! {
         <Tooltip label disabled={open}>
-            <Frame
-                outline={theme.accent.clone()}
-                outline_width=FOCUS_RING_WIDTH
-                radius=RADIUS
-                outline_offset=1.0
-                outline_visible={focus_ring(focused)}
-            >
+            <FocusRing focused offset=1.0>
                 <Frame
                     color={fill}
                     radius=SEGMENT_RADIUS
@@ -236,7 +230,7 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
                 >
                     <IconSized glyph={glyph.to_owned()} font_size=ICON_SIZE color={ink} />
                 </Frame>
-            </Frame>
+            </FocusRing>
         </Tooltip>
     }
 }

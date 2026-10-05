@@ -50,8 +50,8 @@ pub use back_slide::BackSlide;
 pub use beui_core::drag_board::DragPoint;
 pub use button::{Button, ButtonHandle, button_active, button_focused};
 pub use calendar::{
-    Calendar, CalendarDayHandle, CalendarHeaderHandle, CalendarMode, CalendarMonthHandle,
-    CalendarYearHandle, calendar_active, calendar_mode, calendar_selected,
+    Calendar, CalendarCellHandle, CalendarHeaderHandle, CalendarMode, calendar_active,
+    calendar_mode, calendar_selected,
 };
 pub use choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, choice_selected};
 pub use color_area::{ColorArea, ColorAreaHandle, color_area_value};

@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use beui_core::color::Color32;
 
 use crate::context_menu::menu_style;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, field_border, use_theme};
+use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
 use beui_core::document::Document;
@@ -20,7 +20,6 @@ use crate::text::Icon;
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 const CLEAR_PADDING: f32 = 6.0;
 

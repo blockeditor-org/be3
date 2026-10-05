@@ -1,6 +1,7 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
+use crate::focus_ring::FocusRing;
 use crate::text::Icon;
 use crate::theme::{FONT_BODY, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
@@ -8,11 +9,10 @@ use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo, focus_ring,
+    Align, ClickCallback, Direction, List, Prop, Show, Text, clone, create_memo,
 };
 
 const ICON_SPACING: f32 = 6.0;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 const FOCUS_RING_RADIUS: u8 = 4;
 
@@ -69,13 +69,7 @@ fn LinkFace(
     let size = create_memo(move || font_size.get());
     let icon_size = size.clone();
     view! {
-        <Frame
-            outline={theme.accent.clone()}
-            outline_width=FOCUS_RING_WIDTH
-            radius=FOCUS_RING_RADIUS
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
-        >
+        <FocusRing focused radius=FOCUS_RING_RADIUS offset=FOCUS_RING_OFFSET>
             <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
                 <Show condition={has_glyph}>
                     <Icon
@@ -92,7 +86,7 @@ fn LinkFace(
                     underline={underlined}
                 />
             </List>
-        </Frame>
+        </FocusRing>
     }
 }
 

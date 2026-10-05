@@ -1,16 +1,17 @@
 use accesskit::Role;
 use beui_macros::{component, view};
 
+use crate::focus_ring::FocusRing;
 use beui_core::color::Color32;
 
 use crate::theme::{
-    BORDER_WIDTH, RADIUS, ThemeStore, control_outline, control_outline_visible, use_theme,
+    BORDER_WIDTH, ThemeStore, control_outline, control_outline_visible, use_theme,
 };
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Align, Callback, Frame, Prop, clone, create_memo, focus_ring};
+use beui_view::reactive::{Align, Callback, Frame, Prop, clone, create_memo};
 
 const WIDTH: f32 = 42.0;
 const HEIGHT: f32 = 24.0;
@@ -18,7 +19,6 @@ const KNOB_SIZE: f32 = 18.0;
 const PADDING: f32 = 3.0;
 const TRACK_RADIUS: u8 = 12;
 const KNOB_RADIUS: u8 = 9;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 4.0;
 
 #[component]
@@ -52,13 +52,7 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
         create_memo(clone!(theme -> move || track_fill(&theme, checked.get(), hovered.get())));
 
     view! {
-        <Frame
-            outline={theme.accent.clone()}
-            outline_width=FOCUS_RING_WIDTH
-            radius=RADIUS
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
-        >
+        <FocusRing focused offset=FOCUS_RING_OFFSET>
             <Frame
                 width=WIDTH
                 height=HEIGHT
@@ -82,7 +76,7 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
                     radius=KNOB_RADIUS
                 />
             </Frame>
-        </Frame>
+        </FocusRing>
     }
 }
 

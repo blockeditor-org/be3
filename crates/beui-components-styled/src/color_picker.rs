@@ -2,10 +2,11 @@ use std::rc::Rc;
 
 use beui_macros::{component, view};
 
+use crate::focus_ring::FocusRing;
 use crate::number_input::NumberInput;
 use crate::text::Caption;
 use crate::text_input::TextInput;
-use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, RADIUS, use_theme};
+use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, FOCUS_RING_WIDTH, RADIUS, use_theme};
 use beui_components_unstyled::{
     AlphaSlider, ChoiceOptionHandle, ColorAreaHandle, ColorPickerArea, ColorPickerState, HexText,
     HueSlider, SliderHandle, SwatchHandle, Swatches, alpha_image, hue_image, plane_image,
@@ -27,7 +28,6 @@ const SLIDER_HEIGHT: f32 = 16.0;
 const PREVIEW_SIZE: f32 = 40.0;
 const SWATCH_SIZE: f32 = 18.0;
 const SPACING: f32 = 10.0;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 2.0;
 const THUMB_RADIUS: f32 = 7.0;
 const KNOB_RADIUS: f32 = 8.0;
@@ -258,19 +258,12 @@ fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
             thumb(painter, centre, THUMB_RADIUS, fill);
         }) as Draw
     }));
-    let theme = use_theme();
     view! {
-        <Frame
-            outline={theme.accent.clone()}
-            outline_width=FOCUS_RING_WIDTH
-            radius={RADIUS + 2}
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
-        >
+        <FocusRing focused radius={RADIUS + 2} offset=FOCUS_RING_OFFSET>
             <Frame height=AREA_HEIGHT>
                 <Drawing draw />
             </Frame>
-        </Frame>
+        </FocusRing>
     }
 }
 
@@ -317,19 +310,12 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
             thumb(painter, centre, KNOB_RADIUS, knob);
         }) as Draw
     }));
-    let theme = use_theme();
     view! {
-        <Frame
-            outline={theme.accent.clone()}
-            outline_width=FOCUS_RING_WIDTH
-            radius=10
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
-        >
+        <FocusRing focused radius=10 offset=FOCUS_RING_OFFSET>
             <Frame height=SLIDER_HEIGHT>
                 <Drawing draw />
             </Frame>
-        </Frame>
+        </FocusRing>
     }
 }
 

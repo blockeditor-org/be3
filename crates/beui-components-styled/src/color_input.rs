@@ -1,9 +1,10 @@
 use beui_macros::{component, view};
 
+use crate::focus_ring::FocusRing;
 use crate::color_picker::{ColorPicker, ColorSwatch};
 use crate::popover::PopoverPanel;
 use crate::text_input::TextInput;
-use crate::theme::{RADIUS, use_theme};
+use crate::theme::RADIUS;
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ButtonHandle, HexText, PopoverHandle, PopoverTriggerHandle};
@@ -11,14 +12,12 @@ use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Frame, ItemSize, List, Memo, Prop, clone, create_effect, create_memo, create_signal,
-    focus_ring,
+    Callback, ItemSize, List, Memo, Prop, clone, create_effect, create_memo, create_signal,
 };
 
 const SWATCH_WIDTH: f32 = 32.0;
 const SWATCH_HEIGHT: f32 = 24.0;
 const SPACING: f32 = 8.0;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 2.0;
 
 #[component]
@@ -97,18 +96,11 @@ fn SwatchTrigger(
         open,
         button: ButtonHandle { focused, .. },
     } = handle;
-    let theme = use_theme();
     view! {
         <Tooltip label disabled={open}>
-            <Frame
-                outline={theme.accent.clone()}
-                outline_width=FOCUS_RING_WIDTH
-                radius={RADIUS + 2}
-                outline_offset=FOCUS_RING_OFFSET
-                outline_visible={focus_ring(focused)}
-            >
+            <FocusRing focused radius={RADIUS + 2} offset=FOCUS_RING_OFFSET>
                 <ColorSwatch color width=SWATCH_WIDTH height=SWATCH_HEIGHT />
-            </Frame>
+            </FocusRing>
         </Tooltip>
     }
 }

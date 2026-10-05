@@ -1,22 +1,22 @@
 use beui_macros::{component, view};
 
+use crate::focus_ring::FocusRing;
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 
-use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, FONT_BODY, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, ItemSize, List, Prop, Text, clone, create_memo, focus_ring,
+    Align, Callback, Direction, Frame, ItemSize, List, Prop, Text, clone, create_memo,
 };
 
 const BOX_SIZE: f32 = 18.0;
 const MARK_SIZE: f32 = 10.0;
 const MARK_RADIUS: u8 = 2;
 const SPACING: f32 = 10.0;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 4.0;
 
 #[component]
@@ -59,13 +59,7 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
     }));
 
     view! {
-        <Frame
-            outline={theme.accent.clone()}
-            outline_width=FOCUS_RING_WIDTH
-            radius=RADIUS
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
-        >
+        <FocusRing focused offset=FOCUS_RING_OFFSET>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Frame
                     width=BOX_SIZE
@@ -94,7 +88,7 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
                     align=TextAlign::Start
                 />
             </List>
-        </Frame>
+        </FocusRing>
     }
 }
 

@@ -2,7 +2,7 @@ use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
-use crate::theme::{RADIUS, ThemeStore, use_theme};
+use crate::theme::{FOCUS_RING_WIDTH, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ButtonHandle;
 use beui_core::node::NodeId;
@@ -50,7 +50,7 @@ fn ListRowFace(handle: ButtonHandle, selected: Prop<bool>, children: Child) -> N
         <Frame
             color={fill_color}
             outline={theme.accent.clone()}
-            outline_width=2.0
+            outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_visible={focus_ring(focused)}
             padding_horizontal=PADDING_HORIZONTAL

@@ -2,7 +2,7 @@ use beui_macros::{component, view};
 
 use crate::scroll::scrollbar_style;
 use crate::text_input::text_input_style;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, field_border, use_theme};
+use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, ThemeStore, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
@@ -21,7 +21,6 @@ const POPUP_PADDING: f32 = 6.0;
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
 const OPTION_PADDING_VERTICAL: f32 = 6.0;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 
 #[component]
