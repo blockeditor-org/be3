@@ -19,6 +19,7 @@ use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
 mod a_finger_drags_a_transform_field_in_the_sheet;
 mod a_finger_just_outside_a_corner_resizes_the_selection;
+mod a_finger_on_the_pen_tool_draws_before_it_moves;
 mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_narrow_canvas_opens_its_inspector_under_the_stage;
 mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
