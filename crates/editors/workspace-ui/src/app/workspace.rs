@@ -90,7 +90,6 @@ pub(crate) struct Workspace {
     every_block: RefCell<Option<BlockList>>,
     windows: Memo<Vec<HostWindow>>,
     known_windows: RefCell<HashSet<HostWindowId>>,
-    closing_windows: RefCell<HashSet<HostWindowId>>,
 }
 
 impl Workspace {
@@ -149,7 +148,6 @@ impl Workspace {
             every_block: RefCell::new(None),
             windows,
             known_windows: RefCell::new(HashSet::new()),
-            closing_windows: RefCell::new(HashSet::new()),
         });
         let shows = workspace.editor.pushed(Pushed::Shows);
         let showing = Rc::downgrade(&workspace);
@@ -467,19 +465,10 @@ impl Workspace {
         }
         let mut known = self.known_windows.borrow_mut();
         known.retain(|window| listed.contains(window));
-        let mut closing = self.closing_windows.borrow_mut();
-        closing.retain(|window| listed.contains(window));
-        for window in windows {
-            if let Some(parent) = window.parent
-                && !known.contains(&window.id)
-            {
-                closing.remove(&parent);
-            }
-        }
         let phone = self.phone.get_untracked();
         for window in windows {
             let tab = window_tab(window.id);
-            if layout.contains(tab) || closing.contains(&window.id) {
+            if layout.contains(tab) {
                 continue;
             }
             match window.parent.is_some() && !phone {
@@ -765,7 +754,6 @@ impl Workspace {
 
     fn close(&self, tab: TabId) {
         if let Some(window) = tab_window(tab) {
-            self.closing_windows.borrow_mut().insert(window);
             self.host().close_window(window);
             return;
         }
@@ -1130,6 +1118,7 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                     title={title}
                     icon={icon}
                     closable={Func::new(|tab: TabId| tab != FILES)}
+                    asks_to_close={Func::new(|tab: TabId| tab_window(tab).is_some())}
                     on_change={move |next: DockState| changing.changed(next)}
                     on_close={move |tab: TabId| closing.close(tab)}
                     empty={move || view! {

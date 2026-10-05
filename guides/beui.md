@@ -911,6 +911,9 @@ A tab is a `TabId` the caller mints, so whatever the tab stands for - a block,
 a file, a tool - stays the caller's. The dock asks for a title, hands the
 `TabId` back to the `content` builder for the panel to show, and reports the
 tabs it removes through `on_close` so the caller can drop what it was holding.
+A tab `asks_to_close` names is not removed when it is closed: `on_close` only
+asks, and the tab stays until the caller removes it, which is how a program's
+window keeps its tab while the program decides whether to quit.
 Because the state is a plain value, the caller opens, closes, splits and floats
 by writing it: `show`, `push`, `push_to_focused`, `split`, `remove`, `replace`
 and `drop_tab` are the whole vocabulary, and `find`, `all_tabs`, `focused_tab`
