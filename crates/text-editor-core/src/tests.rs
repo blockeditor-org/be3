@@ -14,6 +14,7 @@ mod collapsible_sections_detects_markdown_headings;
 mod core;
 mod ctrl_d;
 mod down_arrow_skips_past_a_collapsed_section;
+mod dragging_back_after_selecting_past_the_edge_follows_the_pointer;
 mod find_matches_is_case_insensitive_by_default;
 mod find_matches_matches_are_non_overlapping;
 mod find_matches_respects_case_sensitive_flag;
