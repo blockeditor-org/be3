@@ -10,8 +10,8 @@ use beui::reactive::{
 };
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, EditorCapabilities, InteractionMode,
-    MenuEntry, ResizeMode, TopBar, ViewChange, WebViewId,
+    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, EditorCapabilities, HostPanel,
+    InteractionMode, MenuEntry, ResizeMode, TopBar, ViewChange, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -150,6 +150,7 @@ impl ChildTarget {
 pub enum SubregionContent {
     Block(ChildTarget),
     WebView(WebViewId),
+    Host(HostPanel),
 }
 
 impl From<ChildTarget> for SubregionContent {
@@ -167,6 +168,7 @@ impl SubregionContent {
                 view_block: target.view_block.map(Uuid::into_bytes),
             },
             Self::WebView(web_view) => ChildContent::WebView(web_view),
+            Self::Host(panel) => ChildContent::Host(panel),
         }
     }
 }
@@ -345,7 +347,6 @@ struct EditorState {
     pending_reveal: Cell<Option<u64>>,
     replace: RefCell<Option<ReplaceChild>>,
     content: RefCell<Option<(NodeRef, u64)>>,
-    dock: RefCell<Option<Rc<crate::editor_dock::DockLink>>>,
     projections: RefCell<std::collections::HashMap<Option<Uuid>, Rc<dyn std::any::Any>>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
@@ -418,7 +419,6 @@ impl Editor {
             pending_reveal: Cell::new(None),
             replace: RefCell::new(None),
             content: RefCell::new(None),
-            dock: RefCell::new(None),
             projections: RefCell::new(std::collections::HashMap::new()),
             content_rect: Cell::new(Rect::ZERO),
             intrinsic: Cell::new(None),
@@ -648,6 +648,10 @@ impl Editor {
         })
     }
 
+    pub fn take_panel_requests(&self) -> Vec<HostPanel> {
+        self.0.host.take_panel_requests()
+    }
+
     pub fn web_view_events(&self) -> ReadSignal<u64> {
         self.pushed(Pushed::WebView)
     }
@@ -782,29 +786,6 @@ impl Editor {
 
     pub fn content(&self, node: &NodeRef) {
         *self.0.content.borrow_mut() = Some((node.clone(), document_zone()));
-    }
-
-    pub fn show_pane(&self, tab: beui::unstyled::TabId) {
-        self.0
-            .host
-            .show_pane(beui_plugin_input::panes::pane_of(tab));
-    }
-
-    pub(crate) fn set_dock(&self, link: crate::editor_dock::DockLink) {
-        *self.0.dock.borrow_mut() = Some(Rc::new(link));
-        self.0.host.waker().wake();
-    }
-
-    pub(crate) fn forget_dock(&self, key: u64) {
-        let mut dock = self.0.dock.borrow_mut();
-        if dock.as_ref().is_some_and(|link| link.key == key) {
-            *dock = None;
-            self.0.host.waker().wake();
-        }
-    }
-
-    pub(crate) fn dock(&self) -> Option<Rc<crate::editor_dock::DockLink>> {
-        self.0.dock.borrow().clone()
     }
 
     pub fn content_rect(&self) -> Rect {
@@ -1041,17 +1022,33 @@ impl Editor {
 
     pub fn end_frame(&self, document: &Document) {
         let zone = document.zone();
-        for record in self.records() {
-            if record.zone != 0 && record.zone != zone {
-                continue;
+        let mut records: Vec<(Vec<usize>, Rc<ChildRecord>)> = self
+            .records()
+            .into_iter()
+            .filter(|record| record.zone == 0 || record.zone == zone)
+            .map(|record| {
+                let order = record
+                    .slot
+                    .node()
+                    .map(|node| document.paint_order(node))
+                    .unwrap_or_default();
+                (order, record)
+            })
+            .collect();
+        records.sort_by(|(left, _), (right, _)| left.cmp(right));
+        let unscale = self.ratio().recip();
+        let overlays = document.overlay_layers();
+        let mut overlays = overlays.iter().peekable();
+        for (order, record) in records {
+            while let Some((_, rect)) = overlays.next_if(|(layer, _)| *layer < order) {
+                self.0.host.occlude(rect.scaled(unscale));
             }
             let child = self.place_child(document, &record);
             if record.child.replace(child) != child {
                 self.0.children_moved.set(true);
             }
         }
-        let unscale = self.ratio().recip();
-        for rect in document.overlay_rects() {
+        for (_, rect) in overlays {
             self.0.host.occlude(rect.scaled(unscale));
         }
         let node = self

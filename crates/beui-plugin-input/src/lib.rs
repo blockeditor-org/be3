@@ -1,5 +1,3 @@
-pub mod panes;
-
 use block_plugin_api::{
     BackEdge, BackPhase, ImeInput, ImeText, Key, Modifiers, PointerButton, TouchPhase,
 };

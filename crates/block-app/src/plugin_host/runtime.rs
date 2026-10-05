@@ -9,9 +9,9 @@ use std::{
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockPick, DEFAULT_SURFACE_SIDE, EditorInstanceId, EditorMessage,
-    EditorRegion, FrameSpec, HostSession, MAX_QUEUED_MESSAGES, Message, PaneId, PaneLayout,
-    PaneTree, PluginManifest, PresentedFrame, ScreenId, ScreenLayout, ScreenRequest, SessionState,
-    SurfaceFormat, SurfaceRect, SurfaceSpec, Theme, ViewChange,
+    EditorRegion, FrameSpec, HostPanel, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest,
+    PresentedFrame, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat,
+    SurfaceRect, SurfaceSpec, Theme, ViewChange,
 };
 use uuid::Uuid;
 
@@ -863,53 +863,6 @@ pub(crate) fn take_artifact_watch(
     .flatten()
 }
 
-pub(crate) fn panes(plugin_id: &str, instance: EditorInstanceId) -> Option<PaneLayout> {
-    with(plugin_id, |runtime| runtime.instances.panes(instance)).flatten()
-}
-
-pub(crate) fn take_shown_panes(plugin_id: &str, instance: EditorInstanceId) -> Vec<PaneId> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_shown_panes(instance)
-    })
-    .unwrap_or_default()
-}
-
-pub(crate) fn arrange_panes(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    arrangement: u64,
-    tree: PaneTree,
-    detached: Vec<PaneId>,
-    focused: Option<PaneId>,
-) {
-    with(plugin_id, |runtime| {
-        let messages =
-            runtime
-                .instances
-                .arrange_panes(instance, arrangement, tree, detached, focused);
-        runtime.send(messages);
-    });
-}
-
-pub(crate) fn close_pane(plugin_id: &str, instance: EditorInstanceId, pane: PaneId) {
-    with(plugin_id, |runtime| {
-        let messages = runtime.instances.close_pane(instance, pane);
-        runtime.send(messages);
-    });
-}
-
-pub(crate) fn pane_menu_pick(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    pane: PaneId,
-    id: String,
-) {
-    with(plugin_id, |runtime| {
-        let messages = runtime.instances.pane_menu_pick(instance, pane, id);
-        runtime.send(messages);
-    });
-}
-
 pub(crate) fn menu(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -933,6 +886,13 @@ pub(crate) fn take_child_menu_picks(
         runtime.instances.take_child_menu_picks(instance, children)
     })
     .unwrap_or_default()
+}
+
+pub(crate) fn show_panel(plugin_id: &str, instance: EditorInstanceId, panel: HostPanel) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.show_panel(instance, panel);
+        runtime.send(messages);
+    });
 }
 
 pub(crate) fn show_block(
@@ -1180,7 +1140,7 @@ pub(crate) fn running() -> Vec<RuntimeStatus> {
 }
 
 fn session() -> HostSession {
-    HostSession::new(HOST_NAME, Some(SURFACE), theme()).offer_panes()
+    HostSession::new(HOST_NAME, Some(SURFACE), theme())
 }
 
 fn theme() -> Theme {

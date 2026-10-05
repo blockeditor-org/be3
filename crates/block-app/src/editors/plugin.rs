@@ -1,8 +1,7 @@
 use beui::{Vec2, vec2};
 use block_plugin_api::{
     BlockPick, BlockTypeDescriptor, EditorCapabilities, EditorInstanceId, EditorManifest,
-    EditorRegion, FrameSpec, InteractionMode, PaneId, PaneLayout, PaneTree, PluginManifest,
-    ResizeMode,
+    EditorRegion, FrameSpec, HostPanel, InteractionMode, PluginManifest, ResizeMode,
 };
 use std::sync::{
     Arc,
@@ -373,10 +372,8 @@ impl PluginEditor {
     }
 
     pub(crate) fn has_region(&self, region: EditorRegion) -> bool {
-        matches!(region, EditorRegion::Pane(_))
-            || self
-                .manifest()
-                .is_some_and(|editor| editor.regions.contains(&region))
+        self.manifest()
+            .is_some_and(|editor| editor.regions.contains(&region))
     }
 
     pub(crate) fn serve_block_pick(
@@ -497,6 +494,12 @@ impl PluginEditor {
         crate::plugin_host::show_block(&plugin.identity.id, self.instance, id, block_type, via);
     }
 
+    pub(crate) fn show_panel(&self, panel: HostPanel) {
+        if let Some(plugin) = &self.plugin {
+            crate::plugin_host::show_panel(&plugin.identity.id, self.instance, panel);
+        }
+    }
+
     pub(crate) fn take_focus_report(&self) -> Option<FocusReport> {
         let plugin = self.plugin.as_ref()?;
         crate::plugin_host::take_focus_report(&plugin.identity.id, self.instance).map(|focus| {
@@ -510,49 +513,6 @@ impl PluginEditor {
     pub(crate) fn take_artifact_watch(&self) -> Option<Vec<Uuid>> {
         let plugin = self.plugin.as_ref()?;
         crate::plugin_host::take_artifact_watch(&plugin.identity.id, self.instance)
-    }
-
-    pub(crate) fn panes(&self) -> Option<PaneLayout> {
-        let plugin = self.plugin.as_ref()?;
-        crate::plugin_host::panes(&plugin.identity.id, self.instance)
-    }
-
-    pub(crate) fn take_shown_panes(&self) -> Vec<PaneId> {
-        let Some(plugin) = &self.plugin else {
-            return Vec::new();
-        };
-        crate::plugin_host::take_shown_panes(&plugin.identity.id, self.instance)
-    }
-
-    pub(crate) fn arrange_panes(
-        &self,
-        arrangement: u64,
-        tree: PaneTree,
-        detached: Vec<PaneId>,
-        focused: Option<PaneId>,
-    ) {
-        if let Some(plugin) = &self.plugin {
-            crate::plugin_host::arrange_panes(
-                &plugin.identity.id,
-                self.instance,
-                arrangement,
-                tree,
-                detached,
-                focused,
-            );
-        }
-    }
-
-    pub(crate) fn close_pane(&self, pane: PaneId) {
-        if let Some(plugin) = &self.plugin {
-            crate::plugin_host::close_pane(&plugin.identity.id, self.instance, pane);
-        }
-    }
-
-    pub(crate) fn pick_pane_menu(&self, pane: PaneId, id: String) {
-        if let Some(plugin) = &self.plugin {
-            crate::plugin_host::pane_menu_pick(&plugin.identity.id, self.instance, pane, id);
-        }
     }
 
     pub(crate) fn menu(&self) -> Vec<block_plugin_api::MenuEntry> {

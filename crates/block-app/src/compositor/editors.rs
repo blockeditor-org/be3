@@ -13,17 +13,16 @@ use beui::reactive::{
 use beui::{NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildRect, EditorInstanceId, EditorRegion, FrameChrome,
-    FrameSpec, PaneId, TopBar, ViewChange,
+    FrameSpec, HostPanel, TopBar, ViewChange,
 };
 use uuid::Uuid;
 
 use super::region::{ChildView, PluginRegion, RegionEditor};
 use crate::editors::{BlockLabel, Chrome, EditorRegistry, PluginEditor, editor_access_ceiling};
 use crate::host::HostItem;
-use crate::plugin_host::{
-    self, EditorView, HostChild, HostChildStatus, RegionPlacement, RegionSlot,
-};
+use crate::plugin_host::{self, EditorView, HostChild, HostChildStatus, HostContent};
 use crate::surfaces::HostItemFace;
+use crate::ui::HostPanelSurface;
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;
 const MAX_ZOOM: f32 = 32.0;
@@ -215,23 +214,6 @@ pub(crate) fn ShellSurface(shell: Memo<Option<Uuid>>) -> NodeId {
                     provide_context(Nesting::root());
                     view! {
                         <TabFrame block top_bar=TopBar::Hidden />
-                    }
-                }}
-            </ForEach>
-        </Layers>
-    }
-}
-
-#[component]
-pub(crate) fn PaneSurface(shell: Memo<Option<Uuid>>, pane: PaneId) -> NodeId {
-    let keys = create_memo(move || shell.get().into_iter().collect::<Vec<_>>());
-    view! {
-        <Layers>
-            <ForEach keys={keys}>
-                {move |block: Uuid| {
-                    provide_context(Nesting::root());
-                    view! {
-                        <BlockRegion block region=EditorRegion::Pane(pane) />
                     }
                 }}
             </ForEach>
@@ -926,6 +908,7 @@ enum Kind {
     OwnFrame,
     FrameChild,
     Embedded,
+    Panel(HostPanel),
 }
 
 #[component]
@@ -940,13 +923,25 @@ fn HostedChild(
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     let tab = use_context::<TabContext>();
     let any = super::any();
-    let block = create_memo(clone!(child -> move || {
-        child.get().map(|child| (child.block_id, child.block_type, child.view_block))
-    }));
-    let kind = create_memo(clone!(editors child block any tab nesting -> move || {
+    let inherited = super::region::occlusion();
+    provide_context(super::region::Occlusion(create_memo(
+        clone!(child -> move || {
+            let mut rects = inherited.as_ref().map(|inherited| inherited.get()).unwrap_or_default();
+            rects.extend(child.with(|child| child.as_ref().map(|child| child.occluders.clone()).unwrap_or_default()));
+            rects
+        }),
+    )));
+    let content = create_memo(clone!(child -> move || child.get().map(|child| child.content)));
+    let kind = create_memo(clone!(editors child content any tab nesting -> move || {
         any.get();
-        let Some((id, block_type, view_block)) = block.get() else {
-            return Kind::Missing;
+        let (id, block_type, view_block) = match content.get() {
+            None => return Kind::Missing,
+            Some(HostContent::Panel(panel)) => return Kind::Panel(panel),
+            Some(HostContent::Block {
+                block_id,
+                block_type,
+                view_block,
+            }) => (block_id, block_type, view_block),
         };
         if nesting.above.contains(&id) {
             return Kind::Unavailable;
@@ -969,7 +964,10 @@ fn HostedChild(
         let Some(child) = child.get() else {
             return;
         };
-        if let (Some(size), Some(handle)) = (child.intrinsic, editors.handle(child.block_id))
+        if let (Some(size), Some(handle)) = (
+            child.intrinsic,
+            child.block_id().and_then(|id| editors.handle(id)),
+        )
             && let Some(plugin_id) = handle.plugin_id()
         {
             plugin_host::resized(plugin_id, handle.instance, size);
@@ -1006,8 +1004,12 @@ fn HostedChild(
     let y = create_memo(clone!(local -> move || local.get().min.y));
     let width = create_memo(clone!(local -> move || local.get().width()));
     let height = create_memo(clone!(local -> move || local.get().height()));
-    let keys = create_memo(clone!(kind block -> move || {
-        block.get().map(|(id, _, _)| (id, kind.get())).into_iter().collect::<Vec<_>>()
+    let keys = create_memo(clone!(kind content -> move || {
+        content
+            .get()
+            .map(|content| (content.block_id().unwrap_or_default(), kind.get()))
+            .into_iter()
+            .collect::<Vec<_>>()
     }));
     let _ = rect;
     view! {
@@ -1021,6 +1023,9 @@ fn HostedChild(
                             match kind {
                                 Kind::Missing | Kind::Unavailable => view! {
                                     <Frame />
+                                },
+                                Kind::Panel(panel) => view! {
+                                    <HostPanelSurface panel={panel} />
                                 },
                                 Kind::Preview => {
                                     let rotation = create_memo(clone!(child -> move || {
@@ -1111,9 +1116,9 @@ fn HostedChild(
 }
 
 fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChildStatus {
-    let handle = editors.handle(child.block_id);
+    let block = child.block_id().unwrap_or_default();
     let (interaction, capabilities, resize, intrinsic, aspect_ratio) =
-        editors.with(|open| match open.get_mut(&child.block_id) {
+        editors.with(|open| match open.get_mut(&block) {
             Some(editor) if available => (
                 match editor.direct_editor_interaction() {
                     crate::editors::DirectEditorInteraction::Live => {
@@ -1156,7 +1161,6 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
                 None,
             ),
         });
-    let _ = handle;
     HostChildStatus {
         child: child.child,
         available,
@@ -1170,7 +1174,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         resize,
         error: (!available).then(|| CHILD_UNAVAILABLE.to_owned()),
         menu: match available && child.frame_owner {
-            true => frame_menu(editors, child.block_id),
+            true => frame_menu(editors, block),
             false => Vec::new(),
         },
     }
@@ -1272,65 +1276,4 @@ pub(super) fn provide_reports(reports: ChildReports) {
 
 pub(super) fn statuses(reports: &ChildReports) -> Vec<HostChildStatus> {
     reports.statuses.borrow().values().cloned().collect()
-}
-
-#[component]
-pub(crate) fn HeadlessShell(shell: Memo<Option<Uuid>>, rect: Memo<Rect>) -> NodeId {
-    let editors = editors();
-    let any = super::any();
-    let keys = create_memo(clone!(editors -> move || {
-        any.get();
-        shell
-            .get()
-            .and_then(|block| Some((block, region_key(&editors, block, false)?)))
-            .into_iter()
-            .collect::<Vec<_>>()
-    }));
-    view! {
-        <Layers>
-            <ForEach keys={keys}>
-                {move |(block, _): (Uuid, RegionKey)| {
-                    let Some(editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
-                        return view! {
-                            <Frame />
-                        };
-                    };
-                    view! {
-                        <HeadlessRegion editor rect={rect.clone()} />
-                    }
-                }}
-            </ForEach>
-        </Layers>
-    }
-}
-
-#[component]
-fn HeadlessRegion(editor: RegionEditor, rect: Memo<Rect>) -> NodeId {
-    let instance = editor.instance;
-    let plugin_id = editor.plugin_id().to_owned();
-    plugin_host::mount_region(RegionSlot {
-        plugin: &editor.plugin,
-        block_types: &editor.block_types,
-        client_id: editor.client_id,
-        role: editor.role,
-        instance,
-        region: EditorRegion::Frame,
-    });
-    on_cleanup(clone!(plugin_id -> move || {
-        plugin_host::unmount_region(&plugin_id, instance, EditorRegion::Frame)
-    }));
-    create_effect(move || {
-        let rect = rect.get();
-        plugin_host::place_region(
-            &plugin_id,
-            instance,
-            EditorRegion::Frame,
-            RegionPlacement { rect, clip: rect },
-            Some(FrameSpec::default()),
-            None,
-        );
-    });
-    view! {
-        <Frame />
-    }
 }

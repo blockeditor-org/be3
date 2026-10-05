@@ -50,7 +50,7 @@ Coordinates are CSS pixels from the page's top left corner, the same ones `drive
 so the centre of a node is `x + width / 2, y + height / 2`. `offscreen` marks a node scrolled
 out of view, and `focused` the node with keyboard focus.
 
-As natively, the tree holds only what the host draws itself. The workspace's panes, its file
+As natively, the tree holds only what the host draws itself. The workspace's dock, its file
 tree and every block's editor are drawn by plugins, and for those you take a screenshot and
 read it:
 

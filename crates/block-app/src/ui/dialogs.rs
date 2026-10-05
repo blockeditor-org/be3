@@ -12,7 +12,6 @@ use beui::unstyled::ChoiceOption;
 
 use super::onboarding::ErrorText;
 
-const PANEL_PADDING: f32 = 12.0;
 use super::{AppViewStore, UiCommand, send};
 use crate::surfaces::{self, HostedSurface, SurfaceId};
 
@@ -23,13 +22,41 @@ pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
             <DiscardDialog view={view.clone()} />
             <RenameDialog view={view.clone()} />
             <ArtifactSettingsDialog view={view.clone()} />
-            <UnlinkDialog view />
+            <UnlinkDialog view={view.clone()} />
+            <InviteDialog view={view.clone()} />
+            <AboutDialog view />
         </List>
     }
 }
 
 #[component]
-pub(super) fn InvitePanel(view: AppViewStore) -> NodeId {
+fn InviteDialog(view: AppViewStore) -> NodeId {
+    let invite = view.invite.clone();
+    let open = create_memo(move || invite.get().is_some());
+    view! {
+        <Dialog
+            open={open}
+            title="Invite member"
+            width=380.0
+            on_dismiss={|| send(UiCommand::CloseInvite)}
+        >
+            <InvitePanel view />
+        </Dialog>
+    }
+}
+
+#[component]
+fn AboutDialog(view: AppViewStore) -> NodeId {
+    let open = view.about.clone();
+    view! {
+        <Dialog open={open} title="About" width=420.0 on_dismiss={|| send(UiCommand::About(false))}>
+            <AboutPanel />
+        </Dialog>
+    }
+}
+
+#[component]
+fn InvitePanel(view: AppViewStore) -> NodeId {
     let invite = view.invite.clone();
     let workspace = create_memo(clone!(invite -> move || {
         format!(
@@ -59,7 +86,7 @@ pub(super) fn InvitePanel(view: AppViewStore) -> NodeId {
     let cannot =
         create_memo(clone!(email busy -> move || busy.get() || email.get().trim().is_empty()));
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame>
             <List spacing=8.0>
                 <Caption content={workspace} />
                 <Caption content="Email address" />
@@ -98,9 +125,9 @@ pub(super) fn InvitePanel(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-pub(super) fn AboutPanel() -> NodeId {
+fn AboutPanel() -> NodeId {
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame>
             <List spacing=8.0>
                 <Paragraph content="Block" />
                 <Caption content="Version" />

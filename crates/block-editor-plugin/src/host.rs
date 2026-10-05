@@ -11,9 +11,9 @@ use block_plugin_api::TopBar;
 use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand, BlockPick,
     ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus,
-    ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostReply,
-    HostRequest, MenuEntry, Occluder, PaneId, PaneLayout, PaneTree, PerformanceMeasurement, Size,
-    ViewChange, WebViewCommand, WebViewEvent, WebViewId,
+    ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostPanel,
+    HostReply, HostRequest, MenuEntry, Occluder, PerformanceMeasurement, Size, ViewChange,
+    WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -233,6 +233,7 @@ struct Region {
 enum Identity {
     Block([u8; 16]),
     WebView(WebViewId),
+    Host(HostPanel),
 }
 
 impl Identity {
@@ -240,6 +241,7 @@ impl Identity {
         match content {
             ChildContent::Block { block_id, .. } => Self::Block(*block_id),
             ChildContent::WebView(web_view) => Self::WebView(*web_view),
+            ChildContent::Host(panel) => Self::Host(*panel),
         }
     }
 }
@@ -339,11 +341,7 @@ impl Pushed {
 #[derive(Clone, Default)]
 pub struct EditorHost {
     waker: Waker,
-    panes_offered: Rc<Cell<bool>>,
-    pane_layout: Rc<RefCell<Option<PaneLayout>>>,
-    pane_events: Rc<RefCell<Vec<(u64, PaneEvent)>>>,
-    taken_arrangement: Rc<Cell<u64>>,
-    shown_panes: Rc<RefCell<Vec<PaneId>>>,
+    shown_panels: Rc<RefCell<Vec<HostPanel>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     changes: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
@@ -470,6 +468,15 @@ impl EditorHost {
 
     pub fn take_show_requests(&self) -> Vec<ShowRequest> {
         std::mem::take(&mut self.shows.borrow_mut())
+    }
+
+    pub fn take_panel_requests(&self) -> Vec<HostPanel> {
+        std::mem::take(&mut self.shown_panels.borrow_mut())
+    }
+
+    pub fn show_panel(&self, panel: HostPanel) {
+        self.shown_panels.borrow_mut().push(panel);
+        self.push(Pushed::Shows);
     }
 
     pub fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
@@ -1324,52 +1331,6 @@ impl EditorHost {
         self.creation_changed.set(true);
     }
 
-    pub fn panes_offered(&self) -> bool {
-        self.panes_offered.get()
-    }
-
-    pub(crate) fn offer_panes(&self, offered: bool) {
-        self.panes_offered.set(offered);
-    }
-
-    pub fn set_pane_layout(&self, layout: Option<PaneLayout>) {
-        *self.pane_layout.borrow_mut() = layout;
-    }
-
-    pub(crate) fn pane_layout(&self) -> Option<PaneLayout> {
-        self.pane_layout.borrow().clone()
-    }
-
-    pub(crate) fn push_pane_event(&self, arrangement: u64, event: PaneEvent) {
-        self.pane_events.borrow_mut().push((arrangement, event));
-        self.waker.wake();
-    }
-
-    pub fn take_pane_events(&self) -> Vec<PaneEvent> {
-        let taken = std::mem::take(&mut *self.pane_events.borrow_mut());
-        taken
-            .into_iter()
-            .map(|(arrangement, event)| {
-                self.taken_arrangement
-                    .set(self.taken_arrangement.get().max(arrangement));
-                event
-            })
-            .collect()
-    }
-
-    pub(crate) fn taken_arrangement(&self) -> u64 {
-        self.taken_arrangement.get()
-    }
-
-    pub fn show_pane(&self, pane: PaneId) {
-        self.shown_panes.borrow_mut().push(pane);
-        self.waker.wake();
-    }
-
-    pub(crate) fn take_shown_panes(&self) -> Vec<PaneId> {
-        std::mem::take(&mut self.shown_panes.borrow_mut())
-    }
-
     pub fn take_opens(&self) -> Vec<OpenRequest> {
         std::mem::take(&mut self.opens.borrow_mut())
     }
@@ -1625,17 +1586,6 @@ impl ImagePaster {
         self.request = Some(host.paste_image());
         None
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum PaneEvent {
-    Arranged {
-        tree: PaneTree,
-        detached: Vec<PaneId>,
-        focused: Option<PaneId>,
-    },
-    Closed(PaneId),
-    MenuPick(PaneId, String),
 }
 
 pub enum PastedImage {

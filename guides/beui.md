@@ -939,9 +939,9 @@ The menu is not tied to the stacked bar: a tiled pane offers the menu of the tab
 it shows behind a More button just before its close button, at the end of its
 tab bar or at the top of its sidebar, and so does a window. A menu is a list of
 actions rather than a node, so a dock that lays out tabs built somewhere else
-(the app's dock holding a plugin's panes) can draw it from rows it was sent,
-with actions made by `ActionBuilder::detached`, which runs without being
-registered for shortcuts or the palette, and pass the pick back.
+can draw it from rows it was sent, with actions made by
+`ActionBuilder::detached`, which runs without being registered for shortcuts or
+the palette, and pass the pick back.
 Each tab's panel is built once and moved between the two, so what it holds
 survives the switch. `recent_tabs` lists the tabs from the one shown last (the
 order is part of the state, so it is saved with the layout), and
@@ -1013,8 +1013,7 @@ tab cannot be dragged, popped or carried out of it with its pane. "Unpin from
 group" on a tab's menu (`set_tab_pinned`) lets it go, it may come back later,
 and "Pin to group" pins it again once it is back. A drag that the state would
 refuse (`admits`, `admits_leaf`) shows no drop marker, and letting go there
-does nothing. `unpin` makes the whole group an ordinary group again. The app keeps a plugin's panes in one (see
-guides/adding_a_plugin_editor.md). `tree` reads a surface's or a group's layout
+does nothing. `unpin` makes the whole group an ordinary group again. `tree` reads a surface's or a group's layout
 out as a `DockTree`, which names tabs but no leaf, split or group ids, so it can
 be compared, sent elsewhere and rebuilt: `from_tree` makes a state out of one
 and `set_tree` replaces a tree in place, moving in any of its tabs that were

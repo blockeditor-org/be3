@@ -12,18 +12,19 @@ use block_editor_beui::beui::reactive::{
     Align, Frame, Func, ItemSize, List, Memo, NodeRef, ReadSignal, Spacer, WriteSignal, clone,
     component, create_effect, create_memo, create_signal, untrack, view,
 };
-use block_editor_beui::beui::styled::{Caption, Heading, use_theme};
+use block_editor_beui::beui::styled::{Caption, DockArea, Heading, use_theme};
 use block_editor_beui::beui::unstyled::{
-    Container, DockMode, DockState, LeafId, Side, TabId, narrower_than,
+    Container, DockMode, DockState, Entry, LeafId, Side, TabId, narrower_than,
 };
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
     AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
-    Editor, EditorDock, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
+    Editor, EditorHost, FocusedBlock, HostPanel, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
+use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::panel::BlockPanel;
 use super::saved::{self, LAYOUT};
 use super::tab::TabItem;
@@ -221,6 +222,9 @@ impl Workspace {
     }
 
     fn show_requested(&self) {
+        for panel in self.editor.take_panel_requests() {
+            self.show_panel(panel);
+        }
         for request in self.host().take_show_requests() {
             self.open(
                 TabItem {
@@ -230,6 +234,19 @@ impl Workspace {
                 request.via,
             );
         }
+    }
+
+    fn show_panel(&self, panel: HostPanel) {
+        let tab = panel_tab(panel);
+        let mut layout = self.layout.get_untracked();
+        match (layout.contains(tab), self.phone.get_untracked()) {
+            (true, _) => layout.show(tab),
+            (false, true) => place_tab(&mut layout, tab),
+            (false, false) => {
+                layout.open_window(panel_window(panel), vec![tab]);
+            }
+        }
+        self.set_layout.set(settled(layout));
     }
 
     pub(crate) fn view_of(&self, tab: TabId) -> Option<Uuid> {
@@ -274,7 +291,7 @@ impl Workspace {
                 views.insert(tab, view);
             }
             for tab in dock.all_tabs() {
-                if tab != FILES && !tabs.contains_key(&tab) {
+                if tab != FILES && !tabs.contains_key(&tab) && tab_panel(tab).is_none() {
                     dock.remove(tab);
                 }
             }
@@ -461,7 +478,6 @@ impl Workspace {
                 false => place_tab(&mut layout, tab),
             }
             self.set_layout.set(settled(layout));
-            self.editor.show_pane(tab);
             self.active.set(Some(item.id));
             return;
         }
@@ -478,7 +494,6 @@ impl Workspace {
         let mut layout = self.layout.get_untracked();
         place_tab(&mut layout, tab);
         self.set_layout.set(settled(layout));
-        self.editor.show_pane(tab);
         self.active.set(Some(item.id));
     }
 
@@ -715,7 +730,10 @@ fn starting_layout_with(previous: DockState) -> DockState {
 }
 
 pub(crate) fn settled(mut state: DockState) -> DockState {
-    let open = state.all_tabs().into_iter().any(|tab| tab != FILES);
+    let open = state
+        .all_tabs()
+        .into_iter()
+        .any(|tab| tab != FILES && tab_panel(tab).is_none());
     if open {
         state.remove_empty_panes();
         return state;
@@ -736,18 +754,24 @@ fn files_only_leaf(state: &DockState) -> Option<LeafId> {
         .filter(|leaf| state.entries(*leaf).len() == 1)
 }
 
+fn panels_only(state: &DockState, leaf: LeafId) -> bool {
+    let entries = state.entries(leaf);
+    !entries.is_empty()
+        && entries
+            .iter()
+            .all(|entry| matches!(entry, Entry::Tab(tab) if tab_panel(*tab).is_some()))
+}
+
 fn editor_leaf(state: &DockState) -> Option<LeafId> {
     let exclusive = files_only_leaf(state);
-    state
-        .focused_leaf()
-        .filter(|leaf| Some(*leaf) != exclusive)
-        .or_else(|| {
-            state
-                .surfaces()
-                .into_iter()
-                .flat_map(|surface| state.leaves(surface))
-                .find(|leaf| Some(*leaf) != exclusive)
-        })
+    let holds_blocks = |leaf: &LeafId| Some(*leaf) != exclusive && !panels_only(state, *leaf);
+    state.focused_leaf().filter(holds_blocks).or_else(|| {
+        state
+            .surfaces()
+            .into_iter()
+            .flat_map(|surface| state.leaves(surface))
+            .find(holds_blocks)
+    })
 }
 
 pub(crate) fn place_tab(state: &mut DockState, tab: TabId) {
@@ -801,12 +825,12 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let layout = workspace.layout.clone();
     let titles = workspace.titles.clone();
     let failure = workspace.error.clone();
-    let docked = workspace.host().panes_offered();
-    let failed = create_memo(clone!(failure -> move || !docked && failure.get().is_some()));
+    let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
-    let title = Func::new(move |tab: TabId| match tab {
-        FILES => "Files".to_owned(),
-        tab => titles.with(|titles| {
+    let title = Func::new(move |tab: TabId| match (tab, tab_panel(tab)) {
+        (FILES, _) => "Files".to_owned(),
+        (_, Some(panel)) => panel.title().to_owned(),
+        (tab, None) => titles.with(|titles| {
             titles
                 .get(&tab)
                 .cloned()
@@ -814,9 +838,10 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
         }),
     });
     let naming = Rc::clone(&workspace);
-    let icon = Func::new(move |tab: TabId| match tab {
-        FILES => ICON_FOLDER.to_owned(),
-        tab => naming
+    let icon = Func::new(move |tab: TabId| match (tab, tab_panel(tab)) {
+        (FILES, _) => ICON_FOLDER.to_owned(),
+        (_, Some(panel)) => panel_icon(panel).to_owned(),
+        (tab, None) => naming
             .tab(tab)
             .and_then(|item| naming.label(item.id, item.block_type).icon)
             .unwrap_or_default()
@@ -825,15 +850,13 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let changing = Rc::clone(&workspace);
     let closing = Rc::clone(&workspace);
     let content = Rc::clone(&workspace);
-    let editor = workspace.editor().clone();
     let theme = use_theme();
     view! {
         <Frame @node_ref={&surface} color={theme.background.clone()}>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
-                <EditorDock
+                <DockArea
                     @sizing=ItemSize::Percent(100.0)
-                    editor={editor}
                     state={layout}
                     mode={mode}
                     home={Some(FILES)}
@@ -848,16 +871,19 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                 >
                     {move |tab: TabId| {
                         let workspace = Rc::clone(&content);
-                        match tab {
-                            FILES => view! {
+                        match (tab, tab_panel(tab)) {
+                            (FILES, _) => view! {
                                 <FilesPanel workspace={workspace} />
                             },
-                            tab => view! {
+                            (_, Some(panel)) => view! {
+                                <HostPanelView editor={workspace.editor().clone()} panel={panel} />
+                            },
+                            (tab, None) => view! {
                                 <BlockPanel workspace={workspace} tab={tab} />
                             },
                         }
                     }}
-                </EditorDock>
+                </DockArea>
             </List>
         </Frame>
     }
@@ -880,10 +906,6 @@ pub(crate) fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
         true => TopBar::Phone,
         false => TopBar::Hidden,
     });
-    let failure = workspace.error.clone();
-    let docked = workspace.host().panes_offered();
-    let failed = create_memo(clone!(failure -> move || docked && failure.get().is_some()));
-    let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let files = workspace.files.clone();
     let target = create_memo(move || {
         files
@@ -893,7 +915,6 @@ pub(crate) fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
     let editor = workspace.editor().clone();
     view! {
         <List spacing=0.0>
-            <Failure failed={failed} reason={reason} />
             <ChildBlock
                 @sizing=ItemSize::Percent(100.0)
                 editor={editor}

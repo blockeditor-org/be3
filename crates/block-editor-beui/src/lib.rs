@@ -10,7 +10,6 @@ mod chrome;
 pub mod database;
 mod dock;
 mod editor;
-mod editor_dock;
 mod file_chooser;
 pub mod fonts;
 pub mod headless;
@@ -30,7 +29,6 @@ pub use dock::BottomDock;
 pub use editor::{
     Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, SubregionContent, fit_content,
 };
-pub use editor_dock::EditorDock;
 pub use file_chooser::{ContentFileCreation, FileChooser};
 pub use instance::BeuiPlugin;
 pub use related_content::RelatedContent;

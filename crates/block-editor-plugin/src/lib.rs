@@ -23,7 +23,7 @@ pub use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockPick,
     ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage,
     ConflictSide, CursorIcon, DataListing, EditorCapabilities, EditorInstanceId, EditorRegion,
-    FetchResult, FileSave, FrameChrome, FrameSpec, HostReply, HostRequest, InputEvent,
+    FetchResult, FileSave, FrameChrome, FrameSpec, HostPanel, HostReply, HostRequest, InputEvent,
     InteractionMode, Key, MenuEntry, Modifiers, Occluder, PointerButton, ResizeMode,
     ScreenPlacement, SurfaceRect, TopBar, TouchPhase, VersionBranch, VersionChange,
     VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand,
@@ -36,7 +36,7 @@ pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphComm
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
     ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HostContent,
-    ImagePaster, OpenRequest, PaneEvent, PastedImage, PeerPresence, PerformanceMeasurementGuard,
+    ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
     PerformanceReporter, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest,
     ShownPresence, Waker,
 };

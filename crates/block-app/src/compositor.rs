@@ -10,7 +10,7 @@ use beui::reactive::{ReadSignal, WriteSignal, create_signal, on_cleanup};
 
 use crate::editors::EditorAction;
 
-pub(crate) use editors::{Editors, HeadlessShell, PaneSurface, PresentingSurface, ShellSurface};
+pub(crate) use editors::{Editors, PresentingSurface, ShellSurface};
 pub(crate) use region::{ChildView, PluginRegion, RegionEditor};
 
 type Listeners = HashMap<String, Vec<(u64, WriteSignal<u64>)>>;

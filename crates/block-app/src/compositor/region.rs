@@ -7,7 +7,7 @@ use std::{
 use beui::reactive::{
     BackHandler, Canvas, CanvasItem, Drawing, Embed, EmbedPlacement, EmbedSlot, ForEach, Frame,
     Interactive, Layers, List, Memo, NodeRef, Prop, Show, clone, component, create_effect,
-    create_memo, draw_gpu, on_cleanup, view,
+    create_memo, draw_gpu, on_cleanup, use_context, view,
 };
 use beui::{Align, CursorIcon, ForwardedInput, ImeCursor, NodeId, Pos2, Rect, Region, Vec2, pos2};
 use block_plugin_api::{
@@ -48,6 +48,13 @@ struct DrawingKey {
 }
 
 pub(crate) type ChildView = Rc<dyn Fn(ChildId, Memo<Option<HostChild>>, Memo<Rect>) -> NodeId>;
+
+#[derive(Clone)]
+pub(crate) struct Occlusion(pub(crate) Memo<Vec<Rect>>);
+
+pub(crate) fn occlusion() -> Option<Memo<Vec<Rect>>> {
+    use_context::<Occlusion>().map(|Occlusion(rects)| rects)
+}
 
 #[component]
 pub(crate) fn PluginRegion(
@@ -115,7 +122,7 @@ pub(crate) fn PluginRegion(
         let placed: Vec<(ChildId, Uuid)> = state.with_untracked(|view| {
             view.children
                 .iter()
-                .map(|child| (child.child, child.block_id))
+                .filter_map(|child| Some((child.child, child.block_id()?)))
                 .collect()
         });
         let children: Vec<ChildId> = placed.iter().map(|(child, _)| *child).collect();
@@ -239,8 +246,16 @@ pub(crate) fn PluginRegion(
     let back = clone!(plugin_id -> move |gesture: beui::BackGesture| {
         plugin_host::back_region(&plugin_id, instance, region, gesture);
     });
+    let occluded = occlusion();
     let takes = clone!(state passive -> move |local: Pos2| {
-        !passive.peek() && state.with_untracked(|view| view.takes(local))
+        !passive.peek()
+            && state.with_untracked(|view| {
+                let position = local + view.rect.min.to_vec2();
+                view.takes(local)
+                    && !occluded.as_ref().is_some_and(|occluded| {
+                        occluded.with_untracked(|rects| rects.iter().any(|rect| rect.contains(position)))
+                    })
+            })
     });
     let below = Rc::clone(&child_view);
     let above = child_view;

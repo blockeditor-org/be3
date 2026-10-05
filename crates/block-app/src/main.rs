@@ -6,7 +6,6 @@ mod block_picker;
 mod compositor;
 mod debug;
 mod editors;
-mod files;
 mod host;
 mod keys;
 mod panic_guard;
@@ -31,9 +30,7 @@ use be_block::{BlockContent, UiSettingsContent, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
-use block_plugin_api::{
-    AccessLevel, ArtifactAction, BlockCommand, BlockLocation, PaneId, PaneLayout,
-};
+use block_plugin_api::{AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel};
 use editors::{
     ArtifactSession, ArtifactStatus, BlockLabel, EditorAccess, EditorAction, EditorRegistry,
     PluginEditor, SidebarDragSource,
@@ -260,8 +257,6 @@ struct BlockApp {
     root_settings: RootSettings,
     choosing_profile: bool,
     shell: Option<Uuid>,
-    shell_panes: Option<PaneLayout>,
-    shown_pane: Option<(u64, PaneId)>,
     ui_settings: Option<Uuid>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
@@ -448,8 +443,6 @@ impl BlockApp {
             root_settings: RootSettings::default(),
             choosing_profile: false,
             shell: None,
-            shell_panes: None,
-            shown_pane: None,
             ui_settings: None,
             block_types: HashMap::new(),
             registry,
@@ -857,7 +850,6 @@ impl BlockApp {
         self.root_settings = RootSettings::default();
         self.choosing_profile = false;
         self.shell = None;
-        self.shell_panes = None;
         self.ui_settings = None;
         self.keys.cancel_pairing();
         self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
@@ -956,7 +948,6 @@ impl BlockApp {
         self.pending_transfers.clear();
         self.rename = None;
         self.share = ShareDialog::default();
-        debug::close_client_windows();
         self.about_open = false;
         self.app_menu_open = false;
         self.pending_destructive_action = None;
@@ -974,7 +965,6 @@ impl BlockApp {
         self.root_settings = RootSettings::default();
         self.choosing_profile = false;
         self.shell = None;
-        self.shell_panes = None;
         self.ui_settings = None;
         self.keys = keys::KeyState::default();
         self.workspace_key = None;
@@ -1262,6 +1252,12 @@ impl BlockApp {
         Some(id)
     }
 
+    fn show_panel(&mut self, panel: HostPanel) {
+        if let Some(shell) = self.shell {
+            self.with_editor(shell, |shell| shell.show_panel(panel));
+        }
+    }
+
     fn show_in_shell(&mut self, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
         self.block_types.insert(id, block_type);
         if let Some(shell) = self.shell {
@@ -1318,21 +1314,11 @@ impl BlockApp {
             return;
         };
         compositor::set_shell(Some(shell));
-        let Some((panes, shown, focus, watch)) = self.with_editor(shell, |editor| {
-            (
-                editor.panes(),
-                editor.take_shown_panes(),
-                editor.take_focus_report(),
-                editor.take_artifact_watch(),
-            )
+        let Some((focus, watch)) = self.with_editor(shell, |editor| {
+            (editor.take_focus_report(), editor.take_artifact_watch())
         }) else {
             return;
         };
-        self.shell_panes = panes;
-        for pane in shown {
-            let count = self.shown_pane.map_or(0, |(count, _)| count) + 1;
-            self.shown_pane = Some((count, pane));
-        }
         if let Some(focus) = focus {
             plugin_host::set_focus(focus.block, focus.via);
         }
@@ -1852,7 +1838,6 @@ impl BlockApp {
                 self.close_reauth();
             }
             UiCommand::ReauthClose => self.close_reauth(),
-            UiCommand::OpenSettings => self.open_settings(),
             UiCommand::SwitchProfile(profile) => {
                 self.root_settings.use_profile(self.client_id, profile);
             }
@@ -1901,28 +1886,7 @@ impl BlockApp {
             UiCommand::Share(command) => self.share.command(command),
             UiCommand::Picker(command) => block_picker::deliver(command),
             UiCommand::Debug(command) => debug::command(command),
-            UiCommand::ArrangePanes {
-                arrangement,
-                tree,
-                detached,
-                focused,
-            } => {
-                if let Some(shell) = self.shell {
-                    self.with_editor(shell, |shell| {
-                        shell.arrange_panes(arrangement, tree, detached, focused)
-                    });
-                }
-            }
-            UiCommand::ClosePane(pane) => {
-                if let Some(shell) = self.shell {
-                    self.with_editor(shell, |shell| shell.close_pane(pane));
-                }
-            }
-            UiCommand::PaneMenuPick(pane, id) => {
-                if let Some(shell) = self.shell {
-                    self.with_editor(shell, |shell| shell.pick_pane_menu(pane, id));
-                }
-            }
+            UiCommand::ShowPanel(panel) => self.show_panel(panel),
             UiCommand::ConfirmRecovery(words) => {
                 let held = self.held_keys();
                 self.keys.confirm_recovery(
@@ -2058,15 +2022,6 @@ impl BlockApp {
             }),
             status: ui::StatusView {
                 changes_saved,
-                frame: performance::last_frame()
-                    .map(|frame| {
-                        format!(
-                            "Frame {}: {:.3} ms",
-                            frame.number,
-                            frame.duration.as_secs_f64() * 1_000.0
-                        )
-                    })
-                    .unwrap_or_default(),
                 workspace: workspace_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
                 accounts,
@@ -2106,10 +2061,6 @@ impl BlockApp {
             unlink: self.dynamic_artifact_unlink.is_some(),
             share: self.share.view(),
             pickers: block_picker::views(),
-            panes: ui::PanesView {
-                layout: self.shell_panes.clone(),
-                shown: self.shown_pane,
-            },
             presenting: self
                 .editors
                 .with(|open| open.values().any(PluginEditor::presenting_now)),
