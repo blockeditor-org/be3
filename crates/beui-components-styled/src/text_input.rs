@@ -11,8 +11,8 @@ use beui_core::icons::ICON_CLOSE;
 use beui_core::input::KeyPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show,
-    clone, create_memo,
+    Align, Callback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show, clone,
+    create_memo,
 };
 
 use crate::icon_button::{IconButton, IconButtonSize};

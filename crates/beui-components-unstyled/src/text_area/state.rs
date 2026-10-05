@@ -492,8 +492,20 @@ impl TextAreaState {
         match (query_empty, self.find_status()) {
             (true, FindStatus { total: 0, .. }) => String::new(),
             (false, FindStatus { total: 0, .. }) => "No results".to_owned(),
-            (_, FindStatus { total, current: Some(current) }) => format!("{}/{total}", current + 1),
-            (_, FindStatus { total, current: None }) => format!("0/{total}"),
+            (
+                _,
+                FindStatus {
+                    total,
+                    current: Some(current),
+                },
+            ) => format!("{}/{total}", current + 1),
+            (
+                _,
+                FindStatus {
+                    total,
+                    current: None,
+                },
+            ) => format!("0/{total}"),
         }
     }
 

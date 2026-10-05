@@ -60,26 +60,26 @@ pub fn TextArea(
             >
                 {move |open_menu: Callback<Pos2>| view! {
                     <unstyled::TextArea
-                    @node_ref=&surface
-                    state={state}
-                    widgets
-                    colors
-                    remote_cursors
-                    drop_caret
-                    placeholder
-                    password
-                    on_widget_press={move |widget: usize| on_widget_press.call(widget)}
-                    on_key_override={move |press: KeyPress| on_key_override.call(press)}
-                    on_focus_change={move |focused: bool| on_focus_change.call(focused)}
-                    on_menu={move |at: Pos2| open_menu.call(at)}
-                    block={block}
-                    selected_widget={selected_widget}
-                    completer={match emoji {
-                        true => unstyled::emoji_completer(),
-                        false => Completer::none(),
-                    }}
-                    completion_menu={emoji_menu()}
-                />
+                        @node_ref=&surface
+                        state={state}
+                        widgets
+                        colors
+                        remote_cursors
+                        drop_caret
+                        placeholder
+                        password
+                        on_widget_press={move |widget: usize| on_widget_press.call(widget)}
+                        on_key_override={move |press: KeyPress| on_key_override.call(press)}
+                        on_focus_change={move |focused: bool| on_focus_change.call(focused)}
+                        on_menu={move |at: Pos2| open_menu.call(at)}
+                        block={block}
+                        selected_widget={selected_widget}
+                        completer={match emoji {
+                            true => unstyled::emoji_completer(),
+                            false => Completer::none(),
+                        }}
+                        completion_menu={emoji_menu()}
+                    />
                 }}
             </unstyled::TextContextMenu>
         </List>

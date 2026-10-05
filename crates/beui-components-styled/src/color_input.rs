@@ -1,7 +1,7 @@
 use beui_macros::{component, view};
 
-use crate::focus_ring::FocusRing;
 use crate::color_picker::{ColorPicker, ColorSwatch};
+use crate::focus_ring::FocusRing;
 use crate::popover::PopoverPanel;
 use crate::text_input::TextInput;
 use crate::theme::RADIUS;

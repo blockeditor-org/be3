@@ -1,7 +1,7 @@
 use beui_macros::{component, view};
 
-use crate::focus_ring::FocusRing;
 use crate::button::ButtonVariant;
+use crate::focus_ring::FocusRing;
 use crate::text_input::TextInput;
 use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;

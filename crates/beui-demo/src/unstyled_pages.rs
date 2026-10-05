@@ -8,14 +8,12 @@ use beui::unstyled::{
     ScrollbarHandle, ScrollbarStyle, SliderHandle, TextInputHandle, TextInputStyle, ToggleHandle,
     TooltipHandle, thumb_length, thumb_start,
 };
+use beui::unstyled::{ColorAreaHandle, ColorPickerArea, HueSlider, SwatchHandle, Swatches};
 use beui::unstyled::{
     ColorPickerState, CompletionMenu, CompletionRowHandle, DateSegmentHandle, DateTimeBoxHandle,
-    DateTimeCalendarHandle, DateTimePanelHandle, DateTimeTriggerHandle, HexText, MenuStyle, NumberFaceHandle,
-    NumberFieldHandle, SheetGripHandle, TreeRevealHandle, TreeRowHandle, TreeToggleHandle,
-    emoji_completer,
-};
-use beui::unstyled::{
-    ColorAreaHandle, ColorPickerArea, HueSlider, SwatchHandle, Swatches,
+    DateTimeCalendarHandle, DateTimePanelHandle, DateTimeTriggerHandle, HexText, MenuStyle,
+    NumberFaceHandle, NumberFieldHandle, SheetGripHandle, TreeRevealHandle, TreeRowHandle,
+    TreeToggleHandle, emoji_completer,
 };
 
 const FACE_PADDING_HORIZONTAL: f32 = 16.0;
@@ -1243,9 +1241,21 @@ fn HueAndHex() -> NodeId {
 fn PadFace(handle: ColorAreaHandle) -> NodeId {
     let ColorAreaHandle { color, x, y, .. } = handle;
     let fill = create_memo(move || color.get().to_color());
-    let place = create_memo(move || format!("{:.0}% saturation, {:.0}% value", x.get() * 100.0, (1.0 - y.get()) * 100.0));
+    let place = create_memo(move || {
+        format!(
+            "{:.0}% saturation, {:.0}% value",
+            x.get() * 100.0,
+            (1.0 - y.get()) * 100.0
+        )
+    });
     view! {
-        <Frame height=PAD_HEIGHT color={fill} radius=RADIUS padding_horizontal=8.0 padding_vertical=8.0>
+        <Frame
+            height=PAD_HEIGHT
+            color={fill}
+            radius=RADIUS
+            padding_horizontal=8.0
+            padding_vertical=8.0
+        >
             <Text string={place} color={Color32::WHITE} />
         </Frame>
     }
@@ -1256,7 +1266,9 @@ fn PadFace(handle: ColorAreaHandle) -> NodeId {
 fn SwatchDot(handle: SwatchHandle) -> NodeId {
     let SwatchHandle {
         color,
-        option: ChoiceOptionHandle { selected, focused, .. },
+        option: ChoiceOptionHandle {
+            selected, focused, ..
+        },
     } = handle;
     let theme = use_theme();
     let ring = create_memo(move || selected.get() || focused.get());
@@ -1443,18 +1455,18 @@ fn PlainNote() -> NodeId {
             >
                 {move |open_menu: Callback<Pos2>| view! {
                     <unstyled::TextArea
-                    state
-                    completer={emoji_completer()}
-                    completion_menu={CompletionMenu::new(
-                        |handle: CompletionRowHandle| view! {
-                            <CompletionRow handle />
-                        },
-                        |rows: Child| view! {
-                            <PopupPanel>{rows}</PopupPanel>
-                        },
-                    )}
-                    on_menu={move |at: Pos2| open_menu.call(at)}
-                />
+                        state
+                        completer={emoji_completer()}
+                        completion_menu={CompletionMenu::new(
+                            |handle: CompletionRowHandle| view! {
+                                <CompletionRow handle />
+                            },
+                            |rows: Child| view! {
+                                <PopupPanel>{rows}</PopupPanel>
+                            },
+                        )}
+                        on_menu={move |at: Pos2| open_menu.call(at)}
+                    />
                 }}
             </unstyled::TextContextMenu>
         </Frame>

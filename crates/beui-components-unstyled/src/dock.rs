@@ -1102,7 +1102,13 @@ fn DockStack(dock: Handle) -> NodeId {
         ))
     });
     let switcher = dock.switcher.clone().map(|switcher| {
-        switcher.call(switcher_handle(&dock, shown.clone(), tabs, switching, set_switching))
+        switcher.call(switcher_handle(
+            &dock,
+            shown.clone(),
+            tabs,
+            switching,
+            set_switching,
+        ))
     });
     on_cleanup(move || {
         if let Some(bar) = bar {
@@ -1289,10 +1295,7 @@ fn PlainBar(handle: DockBarHandle) -> NodeId {
         false => Direction::Horizontal,
     };
     view! {
-        <List direction spacing=0.0>
-            {grip}
-            {tabs}
-        </List>
+        <List direction spacing=0.0>{grip}{tabs}</List>
     }
 }
 
@@ -2355,7 +2358,11 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                             body: pane,
                                         };
                                         view! {
-                                            <DockChrome dock parts @sizing=ItemSize::Percent(100.0) />
+                                            <DockChrome
+                                                dock
+                                                parts
+                                                @sizing=ItemSize::Percent(100.0)
+                                            />
                                         }
                                     }}
                                 </Dynamic>

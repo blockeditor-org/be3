@@ -18,8 +18,8 @@ use beui_core::color::Color32;
 use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_HOME};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    ClickCallback, ForEach, Frame, Grid, List, Memo, Portal, Show, Text, Track, clone,
-    create_memo, focus_ring,
+    ClickCallback, ForEach, Frame, Grid, List, Memo, Portal, Show, Text, Track, clone, create_memo,
+    focus_ring,
 };
 
 const BAR_PADDING: f32 = 4.0;

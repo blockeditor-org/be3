@@ -79,10 +79,10 @@ pub use dock::{
     DockKey, DockLayout, DockMenus, DockMode, DockNode, DockPane, DockPreviewHandle, DockSplit,
     DockSplitter, DockSplitterHandle, DockStackHandle, DockState, DockSwitcherCardHandle,
     DockSwitcherHandle, DockTab, DockTabHandle, DockTabMenu, DockTree, DockTreeEntry, DockWindow,
-    Docking, DockingLayout, DockingSnapshot, Entry,
-    GroupId, LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SPLITTER_THICKNESS, Side,
-    SplitId, SurfaceId, TabId, TabPosition, Tree, dock_actions, dock_menu, dock_menu_items,
-    dock_state, layout_surface, layout_tree, sidebar_size,
+    Docking, DockingLayout, DockingSnapshot, Entry, GroupId, LeafId, MIN_PANE_LENGTH,
+    MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId,
+    TabPosition, Tree, dock_actions, dock_menu, dock_menu_items, dock_state, layout_surface,
+    layout_tree, sidebar_size,
 };
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,

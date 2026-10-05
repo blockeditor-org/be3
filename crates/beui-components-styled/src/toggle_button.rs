@@ -92,7 +92,11 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
                         <Icon glyph={glyph.clone()} color={icon_color.clone()} />
                     </Show>
                     <Show condition={named}>
-                        <Text string={label.clone()} font_size=FONT_BODY color={text_color.clone()} />
+                        <Text
+                            string={label.clone()}
+                            font_size=FONT_BODY
+                            color={text_color.clone()}
+                        />
                     </Show>
                 </List>
             </Frame>

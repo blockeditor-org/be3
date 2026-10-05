@@ -28,8 +28,8 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
 use beui_view::reactive::{
-    Callback, Child, ClickCallback, Frame, Memo, NodeRef, Prop, ReadSignal, Render, clone, create_effect,
-    create_memo, create_signal, set_component_state,
+    Callback, Child, ClickCallback, Frame, Memo, NodeRef, Prop, ReadSignal, Render, clone,
+    create_effect, create_memo, create_signal, set_component_state,
 };
 
 const FONT_SIZE: f32 = 14.0;

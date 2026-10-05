@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use super::state::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
 use super::{
-    Dock, DockConfig, DockGripHandle, DockMode, DockBarHandle, DockChromeHandle, DockPreviewHandle,
+    Dock, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle,
     DockSplitterHandle, DockStackHandle, DockState, DockSwitcherHandle, DockTabHandle, GroupId,
     LeafId, SIDEBAR_WIDTH, SPLITTER_THICKNESS, TabId,
 };

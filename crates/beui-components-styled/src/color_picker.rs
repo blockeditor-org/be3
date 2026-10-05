@@ -18,8 +18,8 @@ use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
 use beui_view::reactive::{
-    Callback, Draw, Drawing, Frame, Grid, ItemSize, List, Prop, ReadSignal, Show, Track,
-    clone, create_memo, focus_ring,
+    Callback, Draw, Drawing, Frame, Grid, ItemSize, List, Prop, ReadSignal, Show, Track, clone,
+    create_memo, focus_ring,
 };
 
 pub const PICKER_WIDTH: f32 = 244.0;
@@ -64,7 +64,8 @@ pub fn ColorPicker(
     let picker = ColorPickerState::new(value, disabled, on_change, on_preview);
     let color = picker.color();
     let has_swatches = !swatches.is_empty();
-    let (hue_picker, alpha_picker, swatch_picker) = (picker.clone(), picker.clone(), picker.clone());
+    let (hue_picker, alpha_picker, swatch_picker) =
+        (picker.clone(), picker.clone(), picker.clone());
     let shown = picker.shown();
     view! {
         <Frame width=PICKER_WIDTH>

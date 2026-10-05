@@ -199,7 +199,8 @@ pub fn Calendar(
     let next_label = create_memo(move || format!("Next {}", unit.get()));
     let months_open = create_memo(clone!(mode -> move || mode.get() == CalendarMode::Months));
     let years_open = create_memo(clone!(mode -> move || mode.get() == CalendarMode::Years));
-    let month_toggle = toggle_accessibility(month_label.clone(), "choose a month", months_open.clone());
+    let month_toggle =
+        toggle_accessibility(month_label.clone(), "choose a month", months_open.clone());
     let year_toggle = toggle_accessibility(year_label.clone(), "choose a year", years_open.clone());
     let header_node = header.call(CalendarHeaderHandle {
         month: shown_month.clone(),

@@ -2,7 +2,10 @@ use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, control_outline, control_outline_visible, use_theme};
+use crate::theme::{
+    BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, control_outline, control_outline_visible,
+    use_theme,
+};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SliderHandle, SliderScale};
 use beui_core::document::Document;

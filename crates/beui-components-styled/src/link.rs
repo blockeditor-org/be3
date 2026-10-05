@@ -63,7 +63,11 @@ fn LinkFace(handle: unstyled::ButtonHandle, font_size: Prop<f32>) -> NodeId {
         <FocusRing focused radius=FOCUS_RING_RADIUS offset=FOCUS_RING_OFFSET>
             <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
                 <Show condition={has_glyph}>
-                    <Icon glyph={glyph.clone()} text_size={icon_size.clone()} color={icon_color.clone()} />
+                    <Icon
+                        glyph={glyph.clone()}
+                        text_size={icon_size.clone()}
+                        color={icon_color.clone()}
+                    />
                 </Show>
                 <Text
                     string={label}

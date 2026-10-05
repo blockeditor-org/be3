@@ -12,8 +12,8 @@ use beui_core::geometry::{Rect, pos2};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ForEach, Memo, Prop, ReadSignal, Render, RenderFn, WriteSignal, clone,
-    create_effect, create_memo, create_signal,
+    Callback, ForEach, Memo, Prop, ReadSignal, Render, RenderFn, WriteSignal, clone, create_effect,
+    create_memo, create_signal,
 };
 
 const HUE_TEXELS: u32 = 96;
@@ -361,7 +361,10 @@ pub fn Swatches(
     let shown = picker.shown();
     let held = swatches.clone();
     let chosen = create_memo(move || held.iter().position(|swatch| *swatch == shown.get()));
-    let labels: Vec<String> = swatches.iter().map(|swatch| format_hex(*swatch, false)).collect();
+    let labels: Vec<String> = swatches
+        .iter()
+        .map(|swatch| format_hex(*swatch, false))
+        .collect();
     let indices: Vec<usize> = (0..swatches.len()).collect();
     let picked = swatches.clone();
     view! {

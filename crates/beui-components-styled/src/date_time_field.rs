@@ -1,13 +1,15 @@
 use beui_macros::{component, view};
 
-use crate::focus_ring::FocusRing;
 use crate::button::{Button, ButtonVariant};
 use crate::calendar::{CALENDAR_WIDTH, Calendar};
+use crate::focus_ring::FocusRing;
 use crate::popover::{PANEL_PADDING, PopoverPanel};
 use crate::scroll::scrollbar_style;
 use crate::tabs::Tabs;
 use crate::text::IconSized;
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, field_border, use_theme};
+use crate::theme::{
+    BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, field_border, use_theme,
+};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Weekday};
@@ -236,7 +238,12 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
 }
 
 #[component]
-fn PickerPanel(handle: DateTimePanelHandle, clearable: bool, first_weekday: Weekday, step_minutes: u32) -> NodeId {
+fn PickerPanel(
+    handle: DateTimePanelHandle,
+    clearable: bool,
+    first_weekday: Weekday,
+    step_minutes: u32,
+) -> NodeId {
     let DateTimePanelHandle {
         field,
         field_width,
@@ -404,7 +411,11 @@ fn Centred(children: Child) -> NodeId {
 }
 
 #[component]
-fn CalendarPane(handle: DateTimeCalendarHandle, width: Memo<f32>, first_weekday: Weekday) -> NodeId {
+fn CalendarPane(
+    handle: DateTimeCalendarHandle,
+    width: Memo<f32>,
+    first_weekday: Weekday,
+) -> NodeId {
     let DateTimeCalendarHandle {
         date,
         shown,
@@ -430,7 +441,12 @@ fn CalendarPane(handle: DateTimeCalendarHandle, width: Memo<f32>, first_weekday:
 }
 
 #[component]
-fn TimePane(handle: DateTimeTimesHandle, step_minutes: u32, max_columns: usize, height: f32) -> NodeId {
+fn TimePane(
+    handle: DateTimeTimesHandle,
+    step_minutes: u32,
+    max_columns: usize,
+    height: f32,
+) -> NodeId {
     let DateTimeTimesHandle {
         time,
         hour_cycle,
