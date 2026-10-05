@@ -2352,7 +2352,11 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                 if let Some(CreationProgress::Failed(error)) = &status.creation {
                     string(error)?;
                 }
-                if let Some(summary) = status.settings.as_ref().and_then(|settings| settings.summary.as_ref()) {
+                if let Some(summary) = status
+                    .settings
+                    .as_ref()
+                    .and_then(|settings| settings.summary.as_ref())
+                {
                     string(summary)?;
                 }
             }

@@ -14,7 +14,9 @@ use block_editor_beui::beui::styled::{
     Paragraph, Scroll, Select, Spinner, TextInput,
 };
 use block_editor_beui::beui::unstyled::ChoiceOption;
-use block_editor_beui::{AccessLevel, BlockParent, ChildMode, ChildState, Subregion, SubregionContent};
+use block_editor_beui::{
+    AccessLevel, BlockParent, ChildMode, ChildState, Subregion, SubregionContent,
+};
 use uuid::Uuid;
 
 use super::share::{GRANTABLE, Member, Person, ShareAction};
@@ -69,10 +71,8 @@ fn RenameDialog(workspace: Rc<Workspace>) -> NodeId {
     }));
     let invalid = create_memo(clone!(name -> move || name.get().len() > MAX_NAME_BYTES));
     let error = create_memo(clone!(invalid -> move || {
-        invalid
-            .get()
-            .then(|| format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes."))
-            .unwrap_or_default()
+        if invalid
+            .get() { format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes.") } else { Default::default() }
     }));
     let submitting = Rc::clone(&workspace);
     let submit: Rc<dyn Fn()> = Rc::new(clone!(name invalid -> move || {
@@ -300,7 +300,8 @@ fn ShareDialog(workspace: Rc<Workspace>) -> NodeId {
     }));
     let act = {
         let workspace = Rc::clone(&workspace);
-        Rc::new(move |action: ShareAction| workspace.share_action(action)) as Rc<dyn Fn(ShareAction)>
+        Rc::new(move |action: ShareAction| workspace.share_action(action))
+            as Rc<dyn Fn(ShareAction)>
     };
     let (dismiss, done) = (Rc::clone(&workspace), workspace);
     let (on_query, on_submit, on_access, on_add, on_refresh) = (

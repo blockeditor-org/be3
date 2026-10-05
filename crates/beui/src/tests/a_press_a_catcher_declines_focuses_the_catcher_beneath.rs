@@ -51,7 +51,10 @@ fn a_press_a_catcher_declines_focuses_the_catcher_beneath() {
     above.borrow_mut().clear();
     harness.frame(vec![Event::Text("a".to_owned())]);
     assert_eq!(*below.borrow(), [Event::Text("a".to_owned())]);
-    assert!(above.borrow().is_empty(), "the catcher that declined the press is not focused");
+    assert!(
+        above.borrow().is_empty(),
+        "the catcher that declined the press is not focused"
+    );
 
     harness.click(pos2(150.0, 50.0));
     below.borrow_mut().clear();

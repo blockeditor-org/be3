@@ -235,7 +235,11 @@ impl Editors {
     }
 
     pub(crate) fn settings_block(&self, parent: Uuid, child: ChildId) -> Option<Uuid> {
-        self.0.settings_children.borrow().get(&(parent, child)).copied()
+        self.0
+            .settings_children
+            .borrow()
+            .get(&(parent, child))
+            .copied()
     }
 
     pub(crate) fn set_settings_status(&self, status: Option<(Uuid, SettingsProgress, f32)>) {

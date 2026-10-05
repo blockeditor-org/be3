@@ -198,26 +198,28 @@ fn catalog() -> block_editor_beui::Catalog {
 }
 
 fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationProgress) {
-    fixture.test.report_children(|placement| block_editor_beui::ChildStatus {
-        instance: block_editor_beui::EditorInstanceId(0),
-        region: block_editor_beui::EditorRegion::Frame,
-        child: placement.child,
-        available: true,
-        intrinsic: None,
-        aspect_ratio: None,
-        hovered: false,
-        active: false,
-        interaction: block_editor_beui::InteractionMode::Live,
-        capabilities: block_editor_beui::EditorCapabilities::default(),
-        resize: block_editor_beui::ResizeMode::None,
-        error: None,
-        menu: Vec::new(),
-        creation: matches!(
-            placement.content,
-            block_editor_beui::ChildContent::Creation { .. }
-        )
-        .then(|| progress.clone()),
-        settings: None,
-    });
+    fixture
+        .test
+        .report_children(|placement| block_editor_beui::ChildStatus {
+            instance: block_editor_beui::EditorInstanceId(0),
+            region: block_editor_beui::EditorRegion::Frame,
+            child: placement.child,
+            available: true,
+            intrinsic: None,
+            aspect_ratio: None,
+            hovered: false,
+            active: false,
+            interaction: block_editor_beui::InteractionMode::Live,
+            capabilities: block_editor_beui::EditorCapabilities::default(),
+            resize: block_editor_beui::ResizeMode::None,
+            error: None,
+            menu: Vec::new(),
+            creation: matches!(
+                placement.content,
+                block_editor_beui::ChildContent::Creation { .. }
+            )
+            .then(|| progress.clone()),
+            settings: None,
+        });
     fixture.settle();
 }

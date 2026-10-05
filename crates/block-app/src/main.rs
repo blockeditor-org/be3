@@ -31,8 +31,8 @@ use block_plugin_api::{
     AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog,
 };
 use editors::{
-    ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry,
-    PluginEditor, SidebarDragSource, plugin::PickSource,
+    ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry, PluginEditor, SidebarDragSource,
+    plugin::PickSource,
 };
 use root_settings::RootSettings;
 use surfaces::SurfaceId;
@@ -269,7 +269,6 @@ struct BlockApp {
     dynamic_artifact_settings: HashMap<Uuid, Vec<u8>>,
 
     dynamic_artifact_settings_open: Option<Uuid>,
-
 
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,

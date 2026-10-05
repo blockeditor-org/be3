@@ -1,5 +1,5 @@
-use block_editor_beui::beui::Key;
 use block_editor_beui::ShellDialog;
+use block_editor_beui::beui::Key;
 
 use super::*;
 

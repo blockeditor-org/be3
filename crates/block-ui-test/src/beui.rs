@@ -830,7 +830,11 @@ impl<A: BeuiApp> BeuiTest<A> {
                 account,
                 access,
                 ..
-            } => Some((Uuid::from_bytes(*block_id), Uuid::from_bytes(*account), *access)),
+            } => Some((
+                Uuid::from_bytes(*block_id),
+                Uuid::from_bytes(*account),
+                *access,
+            )),
             _ => None,
         })
     }

@@ -1,8 +1,11 @@
 use block_editor_beui::{AccessGrant, AccessLevel, AccessListing};
 use uuid::Uuid;
 
-pub(crate) const GRANTABLE: [AccessLevel; 3] =
-    [AccessLevel::Edit, AccessLevel::View, AccessLevel::KnowExists];
+pub(crate) const GRANTABLE: [AccessLevel; 3] = [
+    AccessLevel::Edit,
+    AccessLevel::View,
+    AccessLevel::KnowExists,
+];
 
 const MAX_SUGGESTIONS: usize = 6;
 
@@ -77,7 +80,11 @@ impl Share {
         !self.loaded && self.error.is_none()
     }
 
-    pub(crate) fn act(&mut self, action: ShareAction, me: Uuid) -> (Vec<(Uuid, AccessLevel)>, bool) {
+    pub(crate) fn act(
+        &mut self,
+        action: ShareAction,
+        me: Uuid,
+    ) -> (Vec<(Uuid, AccessLevel)>, bool) {
         let mut grants = Vec::new();
         let mut reload = false;
         match action {
@@ -89,7 +96,11 @@ impl Share {
                 }
             }
             ShareAction::Pick(id) => {
-                if let Some(person) = self.candidates(me).into_iter().find(|person| person.id == id) {
+                if let Some(person) = self
+                    .candidates(me)
+                    .into_iter()
+                    .find(|person| person.id == id)
+                {
                     self.pending.push(person);
                     self.query.clear();
                 }

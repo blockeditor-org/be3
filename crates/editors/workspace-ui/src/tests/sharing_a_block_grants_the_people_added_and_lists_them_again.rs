@@ -1,5 +1,7 @@
 use block_editor_beui::beui::Key;
-use block_editor_beui::{AccessGrant, AccessLevel, AccessListing, HostReply, HostRequest, ShellDialog};
+use block_editor_beui::{
+    AccessGrant, AccessLevel, AccessListing, HostReply, HostRequest, ShellDialog,
+};
 
 use super::*;
 
@@ -15,7 +17,9 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         .test
         .take_requests()
         .into_iter()
-        .find_map(|(request, asked)| (asked == HostRequest::ListAccess(block.into_bytes())).then_some(request))
+        .find_map(|(request, asked)| {
+            (asked == HostRequest::ListAccess(block.into_bytes())).then_some(request)
+        })
         .expect("opening the share dialog asks who can open the block");
     let grant = |account: Uuid, name: &str, granted: Option<AccessLevel>| AccessGrant {
         account: account.into_bytes(),
@@ -34,7 +38,10 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
     );
     fixture.settle();
     assert!(fixture.says("This is you"));
-    assert!(!fixture.says("Friend"), "people without access are only offered once searched for");
+    assert!(
+        !fixture.says("Friend"),
+        "people without access are only offered once searched for"
+    );
 
     fixture.test.click("share.query");
     fixture.settle();

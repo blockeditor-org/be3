@@ -10,9 +10,9 @@ use beui::reactive::{
 };
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, SettingsProgress, EditorCapabilities,
-    HostPanel,
-    InteractionMode, MenuEntry, ResizeMode, TopBar, ViewChange, WebViewId,
+    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
+    HostPanel, InteractionMode, MenuEntry, ResizeMode, SettingsProgress, TopBar, ViewChange,
+    WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;

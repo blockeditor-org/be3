@@ -9,12 +9,11 @@ use std::{
 use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
 use block_plugin_api::{
-    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand, BlockPick,
-    ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus,
-    ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostPanel,
-    HostReply, HostRequest, MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size,
-    ViewChange,
-    WebViewCommand, WebViewEvent, WebViewId,
+    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
+    BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
+    ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
+    HostPanel, HostReply, HostRequest, MenuEntry, Occluder, PerformanceMeasurement, ShellDialog,
+    Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -259,7 +258,9 @@ impl Identity {
             ChildContent::Block { block_id, .. } => Self::Block(*block_id),
             ChildContent::WebView(web_view) => Self::WebView(*web_view),
             ChildContent::Host(panel) => Self::Host(*panel),
-            ChildContent::Creation { editor, template } => Self::Creation(*editor, template.clone()),
+            ChildContent::Creation { editor, template } => {
+                Self::Creation(*editor, template.clone())
+            }
             ChildContent::ArtifactSettings { block_id } => Self::ArtifactSettings(*block_id),
         }
     }
