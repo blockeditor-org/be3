@@ -1,16 +1,17 @@
 use std::any::Any;
 
+use crate::base::frame::Sides;
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
-pub struct ShiftNode {
+pub struct FadeNode {
     child: NodeId,
-    by: Vec2,
+    edges: Sides,
 }
 
-impl Element for ShiftNode {
+impl Element for FadeNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         crate::layout::measure(doc, painter, self.child, available)
     }
@@ -20,19 +21,18 @@ impl Element for ShiftNode {
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        let rect = rect.translate(doc.pixel_grid().snap_vec(self.by));
         crate::layout::layout(doc, painter, self.child, rect, out);
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, _rect: Rect) {
-        if self.by != Vec2::ZERO
-            && rects
-                .placed(&self.child)
-                .is_some_and(|placed| !placed.rect.intersects(painter.clip_rect()))
-        {
-            return;
-        }
-        crate::paint::paint(doc, painter, rects, self.child);
+    fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
+        let Sides {
+            left,
+            top,
+            right,
+            bottom,
+        } = self.edges;
+        let faded = painter.faded(rect, [left, top, right, bottom]);
+        crate::paint::paint(doc, &faded, rects, self.child);
     }
 
     fn interact(
@@ -52,12 +52,23 @@ impl Element for ShiftNode {
         vec![self.child]
     }
 
+    fn passes_scroll_anchor(&self) -> bool {
+        true
+    }
+
     fn kind(&self) -> &'static str {
-        "shift"
+        "fade"
     }
 
     fn detail(&self) -> Option<String> {
-        (self.by != Vec2::ZERO).then(|| format!("{:.1}, {:.1}", self.by.x, self.by.y))
+        let Sides {
+            left,
+            top,
+            right,
+            bottom,
+        } = self.edges;
+        (self.edges != Sides::default())
+            .then(|| format!("{left:.1}, {top:.1}, {right:.1}, {bottom:.1}"))
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -70,16 +81,20 @@ impl Element for ShiftNode {
 }
 
 impl Document {
-    pub fn create_shift(&mut self, child: NodeId) -> NodeOf<ShiftNode> {
-        self.arena.insert(ShiftNode {
+    pub fn create_fade(&mut self, child: NodeId) -> NodeOf<FadeNode> {
+        self.arena.insert(FadeNode {
             child,
-            by: Vec2::ZERO,
+            edges: Sides::default(),
         })
     }
 
-    pub fn set_shift(&mut self, shift: NodeOf<ShiftNode>, by: Vec2) {
-        if self.arena.get_as::<ShiftNode>(shift).by != by {
-            self.arena.get_mut_as::<ShiftNode>(shift).by = by;
+    pub fn set_fade(&mut self, fade: NodeOf<FadeNode>, edges: Sides) {
+        if self.delivering() {
+            self.deferred_fades.push((fade, edges));
+            return;
+        }
+        if self.arena.get_as::<FadeNode>(fade).edges != edges {
+            self.arena.paint_mut_as::<FadeNode>(fade).edges = edges;
         }
     }
 }

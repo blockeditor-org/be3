@@ -8,7 +8,6 @@ pub use beui_core::base::{Align, Direction, ItemSize, Justify, Sizing, Track};
 
 use beui_core::base::child_list::{ChildHost, ChildList, SlotId};
 use beui_core::base::list::{ListItem, ListNode};
-use beui_core::base::offset::OffsetNode;
 use beui_core::document::Document;
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::node::{NodeId, NodeOf};
@@ -837,10 +836,6 @@ impl SlotChild for NodeId {
     }
 }
 
-impl NodeSlot for NodeId {
-    type Host = OffsetNode;
-}
-
 struct RunState<S> {
     items: RefCell<ChildList<S>>,
     held: RefCell<Vec<Scope>>,
@@ -1359,6 +1354,7 @@ pub use crate::components::back::BackHandler;
 pub use crate::components::canvas::{Canvas, CanvasItem};
 pub use crate::components::drawing::Drawing;
 pub use crate::components::embed::Embed;
+pub use crate::components::fade::Fade;
 pub use crate::components::frame::Frame;
 pub use crate::components::grid::{Grid, GridCell};
 pub use crate::components::interactive::Interactive;

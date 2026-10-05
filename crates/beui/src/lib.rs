@@ -9,7 +9,8 @@ pub use beui_components_unstyled as unstyled;
 pub use beui_components_unstyled::datetime;
 pub use beui_core::app::{App, Setup, Waker};
 pub use beui_core::base::{
-    Align, Direction, ImeCursor, ItemSize, Justify, ScrollPosition, Sizing, Track, focus_within,
+    Align, Direction, ImeCursor, ItemSize, Justify, ScrollPosition, Sides, Sizing, Track,
+    focus_within,
 };
 pub use beui_core::color::{Color32, Hsva, format_hex, parse_hex};
 pub use beui_core::context::{

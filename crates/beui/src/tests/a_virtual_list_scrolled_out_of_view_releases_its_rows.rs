@@ -14,23 +14,25 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList
-                            @node_ref=&list
-                            keys={indices(ROWS)}
-                            item_size=VIRTUAL_ITEM_HEIGHT
-                        >
-                            {move |key: usize| {
-                                sink.borrow_mut().push(key);
-                                view! {
-                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                        <Spacer />
-                                    </Frame>
-                                }
-                            }}
-                        </VirtualList>
-                        <Frame height=BELOW>
-                            <Spacer />
-                        </Frame>
+                        <List spacing=0.0>
+                            <VirtualList
+                                @node_ref=&list
+                                keys={indices(ROWS)}
+                                item_size=VIRTUAL_ITEM_HEIGHT
+                            >
+                                {move |key: usize| {
+                                    sink.borrow_mut().push(key);
+                                    view! {
+                                        <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                            <Spacer />
+                                        </Frame>
+                                    }
+                                }}
+                            </VirtualList>
+                            <Frame height=BELOW>
+                                <Spacer />
+                            </Frame>
+                        </List>
                     </Offset>
                 </List>
             }

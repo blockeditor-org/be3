@@ -1,6 +1,6 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{DynamicSegment, ForEach, List, component, view};
+use crate::reactive::{DynamicSegment, ForEach, List, ListChild, component, view};
 use crate::unstyled::Scroll;
 
 #[test]
@@ -38,7 +38,7 @@ fn scrolling_damages_nothing_outside_the_scroll() {
 }
 
 #[component]
-fn Bands(count: usize) -> DynamicSegment<NodeId> {
+fn Bands(count: usize) -> DynamicSegment<ListChild> {
     view! {
         <ForEach keys={indices(count)}>
             {|index: usize| view! {

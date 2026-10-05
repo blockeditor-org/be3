@@ -1,7 +1,8 @@
 use super::*;
 use beui::KeyPress;
+use beui::Sides;
 use beui::reactive::{
-    Dynamic, Grid, GridCell, Interactive, Layers, NodeRef, Overlay, Placement, Shift, Track,
+    Dynamic, Fade, Grid, GridCell, Interactive, Layers, NodeRef, Overlay, Placement, Shift, Track,
 };
 
 const SWATCH: f32 = 72.0;
@@ -508,6 +509,9 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Shift" code={vec![NudgedTile::SOURCE]}>
                 <NudgedTile />
             </Sample>
+            <Sample title="Fade" code={vec![FadedStrip::SOURCE]}>
+                <FadedStrip />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -572,6 +576,25 @@ fn NudgedTile() -> NodeId {
             <Shift by={by}>
                 <Frame width=SWATCH height=SWATCH color={theme.accent.clone()} radius=12 />
             </Shift>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn FadedStrip() -> NodeId {
+    let edges = Sides::symmetric(48.0, 0.0);
+    view! {
+        <List direction=Direction::Horizontal spacing=0.0>
+            <Fade edges>
+                <List direction=Direction::Horizontal spacing=8.0>
+                    <ForEach keys={PLANETS.to_vec()}>
+                        {move |planet: &'static str| view! {
+                            <Tile label={planet.to_owned()} />
+                        }}
+                    </ForEach>
+                </List>
+            </Fade>
         </List>
     }
 }
