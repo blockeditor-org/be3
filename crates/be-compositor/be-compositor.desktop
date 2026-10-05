@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=BE Compositor
+Comment=The be3 Wayland compositor
+Exec=be-compositor --session
+DesktopNames=be-compositor

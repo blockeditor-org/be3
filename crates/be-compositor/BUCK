@@ -1,4 +1,5 @@
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/tools:defs.bzl", "tool")
 
 compositor_srcs = glob(["src/**/*.rs", "src/**/*.wgsl"])
 
@@ -28,5 +29,23 @@ cargo_test(
 
 cargo_binary(
     srcs = compositor_srcs,
+    target_compatible_with = linux,
+)
+
+export_file(name = "be-compositor.desktop")
+
+export_file(name = "install.sh")
+
+# be-compositor and its wayland-sessions entry, installed under /usr/local (or
+# the prefix given after `--`) for a display manager to start it from its login
+# screen: `./scripts/buck run //crates/be-compositor:install`.
+tool(
+    name = "install",
+    command = [
+        "sh",
+        "$(location :install.sh)",
+        "$(location :be-compositor-bin)",
+        "$(location :be-compositor.desktop)",
+    ],
     target_compatible_with = linux,
 )
