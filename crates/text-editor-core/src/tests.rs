@@ -54,6 +54,7 @@ mod replace_match_replaces_current_and_advances_to_next_match;
 mod replace_ranges_replaces_every_range;
 mod right_arrow_opens_a_collapsed_line;
 mod rust_syn_hl;
+mod shift_click_extends_a_keyboard_selection_from_its_anchor;
 mod slices_are_stitched_together_from_chunks;
 mod styles_read_before_an_edit_are_redone_around_it;
 mod tabs_are_used_for_automatic_indentation;

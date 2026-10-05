@@ -1782,7 +1782,7 @@ impl Core {
         if extend {
             if cursor.drag_info.is_none() {
                 cursor.drag_info = Some(DragInfo {
-                    start_pos: cursor.pos.focus,
+                    start_pos: cursor.pos.anchor,
                     selection_mode: mode,
                     select_syntax_node,
                 });
