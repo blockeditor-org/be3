@@ -351,8 +351,8 @@ impl Element for InteractiveNode {
         let contains_pointer = input.pointer_over(rect);
         if input.pressed_this_frame
             && !yielded
-            && (contains_pointer || captured)
-            && let Some(pos) = input.pointer_pos
+            && let Some(pos) = input.press_pos.or(input.pointer_pos)
+            && (input.over(rect, pos) || captured)
         {
             self.armed = true;
             let press = self.press(input, rect, pos);
@@ -375,6 +375,17 @@ impl Element for InteractiveNode {
             }
             self.armed = false;
             self.dragged = None;
+        }
+        if input.released_this_frame
+            && self.armed
+            && !input.touch_cancelled
+            && (!input.touch_scrolling || holds_drag)
+            && let Some(pos) = input.pointer_pos
+            && self.dragged.or(input.press_pos) != Some(pos)
+        {
+            self.dragged = Some(pos);
+            let press = self.press(input, rect, pos);
+            self.on_drag.call(press);
         }
         if input.released_this_frame {
             if self.armed
