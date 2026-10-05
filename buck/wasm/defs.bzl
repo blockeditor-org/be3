@@ -177,6 +177,12 @@ def editor(name, module, visibility = ["PUBLIC"], test_env = {}, data = {}, extr
 # A crate's tests compiled to wasm and run by plugin-test-runner, which gives
 # the module a plugin's imports; an editor's, block-editor-plugin's and
 # block-editor-beui's.
+#
+# The test crate itself is compiled at opt-level 0 while its dependencies keep
+# the plugin profile's 2. Every module instantiates beui's generics anew, so a
+# change to beui recompiles about thirty of them at once, and at opt-level 2
+# LLVM is most of that: the step took twice as long, though the tests run
+# faster and the modules are smaller to precompile.
 def plugin_tests(srcs, exports = [], env = {}, extra_deps = []):
     facts = cargo_wasm_facts()
     native.rust_binary(
@@ -187,7 +193,7 @@ def plugin_tests(srcs, exports = [], env = {}, extra_deps = []):
         edition = facts.edition,
         env = facts.env | env,
         features = facts.test_features,
-        rustc_flags = exports + ["--test"],
+        rustc_flags = exports + ["--test", "-Copt-level=0"],
         srcs = srcs,
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
     )
