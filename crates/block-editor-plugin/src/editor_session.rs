@@ -4,7 +4,7 @@ use block_plugin_api::{
     ChildStatus, CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion,
     FrameChrome, FrameReport, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
     MenuEntry, Message, Occluder, PaneId, PaneLayout, PaneTree, RegionSize, ScreenPlacement,
-    ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent,
+    ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -616,16 +616,10 @@ impl EditorSession {
                 command,
             }));
         }
-        for (region, rect) in self.host.take_web_view_placements() {
-            messages.push(Message::Editor(EditorMessage::WebView {
-                instance,
-                region,
-                rect,
-            }));
-        }
-        for command in self.host.take_web_view_commands() {
+        for (web_view, command) in self.host.take_web_view_commands() {
             messages.push(Message::Editor(EditorMessage::WebViewCommand {
                 instance,
+                web_view,
                 command,
             }));
         }
@@ -774,8 +768,8 @@ impl EditorSession {
         self.host.set_reply(request_id, reply);
     }
 
-    pub(crate) fn web_view_event(&self, event: WebViewEvent) {
-        self.host.push_web_view_event(event);
+    pub(crate) fn web_view_event(&self, web_view: WebViewId, event: WebViewEvent) {
+        self.host.push_web_view_event(web_view, event);
     }
 
     pub(crate) fn child_view_change(&self, child: ChildId, change: ViewChange) {

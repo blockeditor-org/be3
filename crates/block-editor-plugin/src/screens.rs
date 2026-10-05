@@ -517,9 +517,13 @@ impl Screens {
                     session.replied(*request_id, reply.clone());
                 }
             }
-            Message::Editor(EditorMessage::WebViewEvent { instance, event }) => {
+            Message::Editor(EditorMessage::WebViewEvent {
+                instance,
+                web_view,
+                event,
+            }) => {
                 if let Some(session) = self.sessions.get(instance) {
-                    session.web_view_event(event.clone());
+                    session.web_view_event(*web_view, event.clone());
                 }
             }
             Message::ChildStatuses(statuses) => {

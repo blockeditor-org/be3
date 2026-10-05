@@ -10,17 +10,15 @@ use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
 use block_plugin_api::{
     AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand, BlockPick,
-    ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus, ClipboardImage,
-    DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostReply, HostRequest, MenuEntry,
-    Occluder, PaneId, PaneLayout, PaneTree, PerformanceMeasurement, Size, ViewChange,
-    WebViewCommand, WebViewEvent,
+    ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus,
+    ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostReply,
+    HostRequest, MenuEntry, Occluder, PaneId, PaneLayout, PaneTree, PerformanceMeasurement, Size,
+    ViewChange, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};
 use uuid::Uuid;
-
-pub type WebViewPlacement = (EditorRegion, Option<ChildRect>);
 
 #[derive(Clone, Copy)]
 pub struct BlockDrag {
@@ -231,27 +229,42 @@ struct Region {
     origin: Vec2,
 }
 
-type ChildKey = (EditorRegion, Uuid, u32);
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+enum Identity {
+    Block([u8; 16]),
+    WebView(WebViewId),
+}
+
+impl Identity {
+    fn of(content: &ChildContent) -> Self {
+        match content {
+            ChildContent::Block { block_id, .. } => Self::Block(*block_id),
+            ChildContent::WebView(web_view) => Self::WebView(*web_view),
+        }
+    }
+}
+
+type ChildKey = (EditorRegion, Identity, u32);
 
 #[derive(Default)]
 struct Children {
     placements: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
-    ordinals: HashMap<Uuid, u32>,
+    ordinals: HashMap<Identity, u32>,
     identities: HashMap<ChildKey, ChildId>,
     used: Vec<ChildKey>,
     next: u64,
 }
 
 impl Children {
-    fn identify(&mut self, region: EditorRegion, block_id: Uuid) -> ChildId {
+    fn identify(&mut self, region: EditorRegion, identity: Identity) -> ChildId {
         let ordinal = {
-            let ordinal = self.ordinals.entry(block_id).or_default();
+            let ordinal = self.ordinals.entry(identity).or_default();
             let current = *ordinal;
             *ordinal += 1;
             current
         };
-        let key = (region, block_id, ordinal);
+        let key = (region, identity, ordinal);
         let child = match self.identities.get(&key) {
             Some(child) => *child,
             None => {
@@ -368,9 +381,8 @@ pub struct EditorHost {
     child_statuses: Rc<RefCell<HashMap<ChildId, ChildStatus>>>,
     audio_commands: Rc<RefCell<Vec<(Uuid, AudioCommand)>>>,
     audio_status: Rc<RefCell<AudioStatus>>,
-    web_view_placements: Rc<RefCell<Vec<WebViewPlacement>>>,
-    web_view_commands: Rc<RefCell<Vec<WebViewCommand>>>,
-    web_view_events: Rc<RefCell<Vec<WebViewEvent>>>,
+    web_view_commands: Rc<RefCell<Vec<(WebViewId, WebViewCommand)>>>,
+    web_view_events: Rc<RefCell<Vec<(WebViewId, WebViewEvent)>>>,
     cursor_grabbed: Rc<Cell<bool>>,
     cursor_grab_changed: Rc<Cell<bool>>,
     presenting: Rc<Cell<bool>>,
@@ -1095,51 +1107,47 @@ impl EditorHost {
         self.replies.borrow_mut().remove(&request);
     }
 
-    pub fn place_web_view(&self, rect: Option<Rect>) {
-        let state = self.region.get();
-        let region = state.region.unwrap_or(EditorRegion::Frame);
-        let rect = rect.map(|rect| child_rect(rect.translate(-state.origin)));
-        self.web_view_placements.borrow_mut().push((region, rect));
+    pub fn open_web_view(&self, web_view: WebViewId, url: impl Into<String>) {
+        self.command_web_view(web_view, WebViewCommand::Open(url.into()));
     }
 
-    pub fn open_web_view(&self, url: impl Into<String>) {
-        self.command_web_view(WebViewCommand::Open(url.into()));
+    pub fn load_web_view(&self, web_view: WebViewId, url: impl Into<String>) {
+        self.command_web_view(web_view, WebViewCommand::Load(url.into()));
     }
 
-    pub fn load_web_view(&self, url: impl Into<String>) {
-        self.command_web_view(WebViewCommand::Load(url.into()));
+    pub fn reload_web_view(&self, web_view: WebViewId) {
+        self.command_web_view(web_view, WebViewCommand::Reload);
     }
 
-    pub fn reload_web_view(&self) {
-        self.command_web_view(WebViewCommand::Reload);
+    pub fn close_web_view(&self, web_view: WebViewId) {
+        self.command_web_view(web_view, WebViewCommand::Close);
     }
 
-    pub fn close_web_view(&self) {
-        self.command_web_view(WebViewCommand::Close);
+    pub fn focus_app(&self, web_view: WebViewId) {
+        self.command_web_view(web_view, WebViewCommand::FocusApp);
     }
 
-    pub fn focus_app(&self) {
-        self.command_web_view(WebViewCommand::FocusApp);
+    fn command_web_view(&self, web_view: WebViewId, command: WebViewCommand) {
+        self.web_view_commands
+            .borrow_mut()
+            .push((web_view, command));
     }
 
-    fn command_web_view(&self, command: WebViewCommand) {
-        self.web_view_commands.borrow_mut().push(command);
+    pub fn take_web_view_events(&self, web_view: WebViewId) -> Vec<WebViewEvent> {
+        let mut events = self.web_view_events.borrow_mut();
+        let (taken, kept) = std::mem::take(&mut *events)
+            .into_iter()
+            .partition(|(id, _)| *id == web_view);
+        *events = kept;
+        taken.into_iter().map(|(_, event)| event).collect()
     }
 
-    pub fn take_web_view_events(&self) -> Vec<WebViewEvent> {
-        std::mem::take(&mut self.web_view_events.borrow_mut())
-    }
-
-    pub fn take_web_view_placements(&self) -> Vec<WebViewPlacement> {
-        std::mem::take(&mut self.web_view_placements.borrow_mut())
-    }
-
-    pub fn take_web_view_commands(&self) -> Vec<WebViewCommand> {
+    pub fn take_web_view_commands(&self) -> Vec<(WebViewId, WebViewCommand)> {
         std::mem::take(&mut self.web_view_commands.borrow_mut())
     }
 
-    pub fn push_web_view_event(&self, event: WebViewEvent) {
-        self.web_view_events.borrow_mut().push(event);
+    pub fn push_web_view_event(&self, web_view: WebViewId, event: WebViewEvent) {
+        self.web_view_events.borrow_mut().push((web_view, event));
         self.push(Pushed::WebView);
     }
 
@@ -1266,9 +1274,7 @@ impl EditorHost {
 
     pub fn place_child(
         &self,
-        block_id: Uuid,
-        block_type: Uuid,
-        view_block: Option<Uuid>,
+        content: ChildContent,
         rect: Rect,
         clip: Rect,
         mode: ChildMode,
@@ -1282,12 +1288,13 @@ impl EditorHost {
         let state = self.region.get();
         let clip = clip.intersect(swept(rect, rotation));
         let mut children = self.children.borrow_mut();
-        let child = children.identify(state.region.unwrap_or(EditorRegion::Frame), block_id);
+        let child = children.identify(
+            state.region.unwrap_or(EditorRegion::Frame),
+            Identity::of(&content),
+        );
         children.placements.push(ChildPlacement {
             child,
-            block_id: block_id.into_bytes(),
-            block_type: block_type.into_bytes(),
-            view_block: view_block.map(Uuid::into_bytes),
+            content,
             rect: child_rect(rect.translate(-state.origin)),
             clip: child_rect(clip.translate(-state.origin)),
             own_frame,

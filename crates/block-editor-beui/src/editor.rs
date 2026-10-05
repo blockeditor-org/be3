@@ -10,8 +10,8 @@ use beui::reactive::{
 };
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    BarAction, ChildId, ChildLayer, ChildMode, EditorCapabilities, InteractionMode, MenuEntry,
-    ResizeMode, TopBar, ViewChange,
+    BarAction, ChildContent, ChildId, ChildLayer, ChildMode, EditorCapabilities, InteractionMode,
+    MenuEntry, ResizeMode, TopBar, ViewChange, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -146,6 +146,31 @@ impl ChildTarget {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SubregionContent {
+    Block(ChildTarget),
+    WebView(WebViewId),
+}
+
+impl From<ChildTarget> for SubregionContent {
+    fn from(target: ChildTarget) -> Self {
+        Self::Block(target)
+    }
+}
+
+impl SubregionContent {
+    fn wire(self) -> ChildContent {
+        match self {
+            Self::Block(target) => ChildContent::Block {
+                block_id: target.id.into_bytes(),
+                block_type: target.block_type.into_bytes(),
+                view_block: target.view_block.map(Uuid::into_bytes),
+            },
+            Self::WebView(web_view) => ChildContent::WebView(web_view),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ChildState {
     pub placed: bool,
@@ -192,7 +217,7 @@ impl ChildState {
 
 struct ChildRecord {
     slot: EmbedSlot,
-    block: Prop<Option<ChildTarget>>,
+    content: Prop<Option<SubregionContent>>,
     mode: Prop<ChildMode>,
     layer: Prop<ChildLayer>,
     own_frame: Prop<bool>,
@@ -332,7 +357,6 @@ struct EditorState {
     seen: Cell<Option<(u64, f32)>>,
     shown_rect: Cell<Option<Rect>>,
     children_moved: Cell<bool>,
-    web_view: Cell<Option<Option<Rect>>>,
     wakes: Rc<RefCell<Vec<Wake>>>,
     pushed: Mirror,
     files: ReadSignal<Option<FileDrop>>,
@@ -406,7 +430,6 @@ impl Editor {
             seen: Cell::new(None),
             shown_rect: Cell::new(None),
             children_moved: Cell::new(false),
-            web_view: Cell::new(None),
             wakes: Rc::default(),
             pushed,
             files,
@@ -686,7 +709,7 @@ impl Editor {
     pub(crate) fn register_child(
         &self,
         slot: EmbedSlot,
-        block: Prop<Option<ChildTarget>>,
+        content: Prop<Option<SubregionContent>>,
         mode: Prop<ChildMode>,
         layer: Prop<ChildLayer>,
         own_frame: Prop<bool>,
@@ -705,7 +728,7 @@ impl Editor {
             key,
             Rc::new(ChildRecord {
                 slot,
-                block,
+                content,
                 mode,
                 layer,
                 own_frame,
@@ -889,10 +912,6 @@ impl Editor {
             .map(|rect| CanvasView::new(rect.min, scale))
     }
 
-    pub fn place_web_view(&self, rect: Option<Rect>) {
-        self.0.web_view.set(Some(rect));
-    }
-
     pub fn pan(&self, delta: Vec2) {
         self.0.host.pan_view(delta / self.ratio());
     }
@@ -1032,11 +1051,6 @@ impl Editor {
             }
         }
         let unscale = self.ratio().recip();
-        if let Some(rect) = self.0.web_view.get() {
-            self.0
-                .host
-                .place_web_view(rect.map(|rect| rect.scaled(unscale)));
-        }
         for rect in document.overlay_rects() {
             self.0.host.occlude(rect.scaled(unscale));
         }
@@ -1067,12 +1081,10 @@ impl Editor {
         let node = record.slot.node()?;
         let rect = document.node_rect(node)?;
         let placement = record.slot.placement()?;
-        let target = record.block.peek()?;
+        let content = record.content.peek()?;
         let unscale = self.ratio().recip();
         Some(self.0.host.place_child(
-            target.id,
-            target.block_type,
-            target.view_block,
+            content.wire(),
             rect.scaled(unscale),
             placement.clip.scaled(unscale),
             record.mode.peek(),

@@ -1,14 +1,15 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_REFRESH};
 use block_editor_beui::beui::reactive::{
-    Align, Frame, ItemSize, Justify, List, NodeRef, Show, clone, component, create_memo, view,
+    Align, Frame, ItemSize, Justify, Layers, List, NodeRef, Show, clone, component, create_memo,
+    view,
 };
 use block_editor_beui::beui::styled::{
     Button, ButtonVariant, Caption, IconButton, TextInput, use_theme,
 };
-use block_editor_beui::{Editor, Toolbar};
+use block_editor_beui::{Editor, Subregion, SubregionContent, Toolbar};
 
-use super::session::Session;
+use super::session::{PAGE, Session};
 
 #[component]
 pub fn BrowserTab(editor: Editor) -> NodeId {
@@ -22,6 +23,9 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     let no_forward = create_memo(clone!(forward -> move || forward.get().is_none()));
     let failed = create_memo(clone!(error -> move || error.get().is_some()));
     let reason = create_memo(clone!(error -> move || error.get().unwrap_or_default()));
+    let page = create_memo(clone!(failed -> move || {
+        (!failed.get()).then_some(SubregionContent::WebView(PAGE))
+    }));
 
     let go_back = clone!(session back -> move || {
         if let Some(index) = back.get_untracked() {
@@ -89,15 +93,18 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
                     />
                 </Toolbar>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <List align=Align::Center justify=Justify::Center spacing=0.0>
-                        <Show condition={failed}>
-                            <Caption
-                                content={reason.clone()}
-                                color={theme.danger.clone()}
-                                @test_id={"browser.error"}
-                            />
-                        </Show>
-                    </List>
+                    <Layers>
+                        <Subregion editor={editor.clone()} placed={page} punch=false />
+                        <List align=Align::Center justify=Justify::Center spacing=0.0>
+                            <Show condition={failed}>
+                                <Caption
+                                    content={reason.clone()}
+                                    color={theme.danger.clone()}
+                                    @test_id={"browser.error"}
+                                />
+                            </Show>
+                        </List>
+                    </Layers>
                 </Frame>
             </List>
         </Frame>

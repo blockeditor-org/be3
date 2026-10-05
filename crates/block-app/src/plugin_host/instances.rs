@@ -2,12 +2,12 @@ use be_block::BlockContent as _;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, BlockTypeDescriptor, ChildId,
-    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon,
+    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, BlockTypeDescriptor, ChildContent,
+    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon,
     DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
     FrameReport, FrameSpec, HostReply, HostRequest, Message, Occluder, PaneId, PaneLayout,
     PaneTree, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout,
-    ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent,
+    ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -118,8 +118,7 @@ struct Instance {
     presenting: bool,
     reported_presenting: bool,
     grabbed: bool,
-    web_view: Option<WebViewHost>,
-    web_view_rect: Option<(EditorRegion, block_plugin_api::ChildRect)>,
+    web_views: HashMap<WebViewId, WebViewHost>,
     presence_visible: Option<bool>,
     replacements: HashMap<(Uuid, Uuid), Replacement>,
     next_replacement: u64,
@@ -290,8 +289,7 @@ impl Instance {
             presenting: false,
             reported_presenting: false,
             grabbed: false,
-            web_view: None,
-            web_view_rect: None,
+            web_views: HashMap::new(),
             presence_visible: None,
             replacements: HashMap::new(),
             next_replacement: 0,
@@ -1431,6 +1429,14 @@ impl Instances {
             }
         }
         for (index, child) in table.children.iter().enumerate() {
+            let ChildContent::Block {
+                block_id,
+                block_type,
+                view_block,
+            } = child.content
+            else {
+                continue;
+            };
             if child.rect.is_empty() {
                 continue;
             }
@@ -1473,9 +1479,9 @@ impl Instances {
                     && !screen.frame_revoked.contains(&child.child),
                 own_frame: child.own_frame,
                 top_bar: child.top_bar,
-                block_id: Uuid::from_bytes(child.block_id),
-                block_type: Uuid::from_bytes(child.block_type),
-                view_block: child.view_block.map(Uuid::from_bytes),
+                block_id: Uuid::from_bytes(block_id),
+                block_type: Uuid::from_bytes(block_type),
+                view_block: view_block.map(Uuid::from_bytes),
                 rect: child_rect,
                 clip: child_clip,
                 layer: child.layer,
@@ -1545,14 +1551,15 @@ impl Instances {
             .children
             .children
             .iter()
-            .find(|child| {
+            .filter(|child| {
                 matches!(child.mode, ChildMode::Active | ChildMode::Live)
                     && !child.own_frame
                     && !screen.frame_revoked.contains(&child.child)
                     && !screen.revoked.contains(&child.child)
                     && !child.rect.is_empty()
             })
-            .map(|child| Uuid::from_bytes(child.block_id))
+            .find_map(|child| child.content.block_id())
+            .map(Uuid::from_bytes)
     }
 
     pub(super) fn revoke_frame_child(&mut self, instance: EditorInstanceId) {
@@ -1785,14 +1792,19 @@ impl Instances {
     pub(super) fn drive_web_views(&mut self, pass: u64) -> Vec<Message> {
         let mut messages = Vec::new();
         for (instance, entry) in &mut self.entries {
-            if entry.web_view.is_none() {
+            if entry.web_views.is_empty() {
                 continue;
             }
-            let rect = entry.web_view_rect.and_then(|(region, rect)| {
-                let screen = entry.screens.get(&region)?;
-                let placement = screen.placement?;
+            let mut rects = HashMap::new();
+            for screen in entry.screens.values() {
+                let Some(placement) = screen.placement else {
+                    continue;
+                };
                 let live =
                     screen.mounted > 0 || (placement.pass == pass && screen.last_seen == pass);
+                if !live {
+                    continue;
+                }
                 let origin = placement.rect.min.to_vec2();
                 let stretch = vec2(
                     ratio(placement.rect.width(), screen.request.metrics.logical_width),
@@ -1801,16 +1813,30 @@ impl Instances {
                         screen.request.metrics.logical_height,
                     ),
                 );
-                live.then(|| host_rect(rect, origin, stretch).intersect(placement.clip))
-            });
-            let mut events = Vec::new();
-            let view = entry.web_view.as_mut().expect("the web view is present");
-            view.drive(rect, &mut events);
-            for event in events {
-                messages.push(Message::Editor(EditorMessage::WebViewEvent {
-                    instance: *instance,
-                    event,
-                }));
+                for child in &screen.children.children {
+                    let ChildContent::WebView(web_view) = child.content else {
+                        continue;
+                    };
+                    if child.rect.is_empty() {
+                        continue;
+                    }
+                    let clip = host_rect(child.clip, origin, stretch).intersect(placement.clip);
+                    rects.insert(
+                        web_view,
+                        host_rect(child.rect, origin, stretch).intersect(clip),
+                    );
+                }
+            }
+            for (web_view, view) in &mut entry.web_views {
+                let mut events = Vec::new();
+                view.drive(rects.get(web_view).copied(), &mut events);
+                for event in events {
+                    messages.push(Message::Editor(EditorMessage::WebViewEvent {
+                        instance: *instance,
+                        web_view: *web_view,
+                        event,
+                    }));
+                }
             }
         }
         messages
@@ -2447,22 +2473,19 @@ impl Instances {
                 }
                 true
             }
-            EditorMessage::WebView {
+            EditorMessage::WebViewCommand {
                 instance,
-                region,
-                rect,
+                web_view,
+                command,
             } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry.web_view_rect = rect.map(|rect| (region, rect));
-                true
-            }
-            EditorMessage::WebViewCommand { instance, command } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.web_view.get_or_insert_default().command(command);
+                entry
+                    .web_views
+                    .entry(web_view)
+                    .or_default()
+                    .command(command);
                 true
             }
             EditorMessage::GrabCursor { instance, grabbed } => {

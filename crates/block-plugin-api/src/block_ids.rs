@@ -1,6 +1,7 @@
 use crate::{
-    ArtifactDescription, BlockCommand, BlockLocation, BlockPick, BlockQuery, CreationOutcome,
-    EditorInstanceId, EditorMessage, HostReply, HostRequest, Message, VersionCommand,
+    ArtifactDescription, BlockCommand, BlockLocation, BlockPick, BlockQuery, ChildContent,
+    CreationOutcome, EditorInstanceId, EditorMessage, HostReply, HostRequest, Message,
+    VersionCommand,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -17,13 +18,18 @@ impl Message {
             Self::Editor(message) => message.visit_block_ids(visit),
             Self::Children(placements) => {
                 for child in &mut placements.children {
-                    visit(
-                        placements.instance,
-                        BlockIdRole::Existing,
-                        &mut child.block_id,
-                    );
-                    if let Some(view_block) = &mut child.view_block {
-                        visit(placements.instance, BlockIdRole::Existing, view_block);
+                    match &mut child.content {
+                        ChildContent::Block {
+                            block_id,
+                            view_block,
+                            ..
+                        } => {
+                            visit(placements.instance, BlockIdRole::Existing, block_id);
+                            if let Some(view_block) = view_block {
+                                visit(placements.instance, BlockIdRole::Existing, view_block);
+                            }
+                        }
+                        ChildContent::WebView(_) => {}
                     }
                 }
             }
@@ -226,7 +232,6 @@ impl EditorMessage {
             | Self::DragAccepted { .. }
             | Self::AudioStatus { .. }
             | Self::GrabCursor { .. }
-            | Self::WebView { .. }
             | Self::WebViewCommand { .. }
             | Self::WebViewEvent { .. }
             | Self::OpenCreation { .. }

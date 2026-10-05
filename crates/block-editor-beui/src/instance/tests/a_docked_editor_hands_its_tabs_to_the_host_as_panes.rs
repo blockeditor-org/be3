@@ -78,7 +78,7 @@ fn a_docked_editor_hands_its_tabs_to_the_host_as_panes() {
         session
             .placed_children(pane)
             .first()
-            .map(|child| child.block_id),
+            .and_then(|child| child.content.block_id()),
         Some(FILES.into_bytes()),
         "a child block inside a pane is placed on that pane's screen"
     );
