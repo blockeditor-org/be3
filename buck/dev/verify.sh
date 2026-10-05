@@ -129,27 +129,37 @@ plugin_tests() {
         return 1
     }
     outputs="$("$buck" build --keep-going --materializations all --show-full-output $targets)" || return 1
-    directories="$(echo "$outputs" | awk 'NF == 2 { print $2 }')"
-    changed="$(for directory in $directories; do
+    directories="$(echo "$outputs" | sed -n 's/^[^ ]* //p')"
+    if [ "$(echo "$targets" | grep -c .)" != "$(echo "$directories" | grep -c .)" ]; then
+        echo "Not every plugin test reported where its paintings are:"
+        echo "$outputs"
+        return 1
+    fi
+    changed="$(echo "$directories" | while IFS= read -r directory; do
         for painting in "$directory"/changed/*.paint; do
             [ -e "$painting" ] && echo "$painting"
         done
     done)"
-    used="$(for directory in $directories; do ls "$directory/used"; done)"
+    used="$(echo "$directories" | while IFS= read -r directory; do
+        ls "$directory/used" || exit 1
+    done)" || {
+        echo "A plugin test's list of the paintings it compared could not be read."
+        return 1
+    }
     failed_paintings=false
     if [ -n "$changed" ]; then
         if $check; then
             echo "These paintings changed; run //:verify without --check to accept them, then review them in a Paint review block:"
-            echo "$changed" | while read -r painting; do
+            echo "$changed" | while IFS= read -r painting; do
                 echo "  snapshots/$(basename "$painting"): $(cat "$painting.why")"
             done
             failed_paintings=true
         else
             echo "Accepting the paintings that changed:"
-            echo "$changed" | while read -r painting; do
+            echo "$changed" | while IFS= read -r painting; do
                 echo "  snapshots/$(basename "$painting"): $(cat "$painting.why")"
-                cp "$painting" snapshots/
-            done
+                cp "$painting" snapshots/ || exit 1
+            done || return 1
         fi
     fi
     unused="$(for painting in snapshots/*.paint; do
