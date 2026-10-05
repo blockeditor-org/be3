@@ -461,6 +461,8 @@ mod showing_a_child_at_the_end_of_a_list_damages_only_that_child;
 mod simulating_a_device_pixel_ratio_in_the_inspector_changes_the_pixels_per_point;
 mod sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured;
 mod slider_home_end_and_page_keys_clamp_at_the_bounds;
+mod slowing_repaints_scans_a_change_in_from_its_top_edge;
+mod slowing_repaints_still_copies_what_a_scroll_moved_at_once;
 mod space_toggles_checkboxes_switches_and_toggle_buttons;
 mod splitting_a_dock_tab_with_the_next_shows_both_side_by_side;
 mod swiping_the_simulated_middle_button_scrolls_in_ticks;
@@ -1099,6 +1101,10 @@ impl Harness {
 
     pub(crate) fn damage_flash_toggle_center(&self) -> Pos2 {
         self.inspector_center("inspector.performance.flash_damage")
+    }
+
+    pub(crate) fn slow_repaint_toggle_center(&self) -> Pos2 {
+        self.inspector_center("inspector.performance.slow_repaints")
     }
 
     pub(crate) fn accesskit_tab_center(&self) -> Pos2 {

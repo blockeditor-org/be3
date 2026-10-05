@@ -10,7 +10,6 @@ pub mod tree;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::Instant;
 
 use beui_core::context::{Context, RendererChoices};
 use beui_core::filter::{ColorVision, Filter};
@@ -76,6 +75,7 @@ pub struct State {
     pub rubber_banding: Cell<bool>,
     pub flash_changes: Cell<bool>,
     pub flash_damage: Cell<bool>,
+    pub slow_repaints: Cell<bool>,
     pub simulated_pixels_per_point: Cell<Option<f32>>,
     pub screen_simulation: Cell<Option<ScreenSimulation>>,
     pub screen_reader: Cell<bool>,
@@ -108,6 +108,7 @@ impl State {
             rubber_banding: Cell::new(true),
             flash_changes: Cell::new(false),
             flash_damage: Cell::new(false),
+            slow_repaints: Cell::new(false),
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
             screen_simulation: Cell::new(ctx.screen_simulation()),
             screen_reader: Cell::new(false),
@@ -624,6 +625,7 @@ impl Inspector {
         ctx.set_accessibility_active(self.state.accessibility.get());
         target.track_changes(self.state.flash_changes.get());
         target.track_damage(self.state.flash_damage.get());
+        target.slow_repaints(self.state.slow_repaints.get());
         ctx.set_simulated_pixels_per_point(self.state.simulated_pixels_per_point.get());
         if let Some(theme) = self.state.requested_theme.take() {
             target.set_theme(theme);
@@ -1029,7 +1031,7 @@ impl Inspector {
 }
 
 fn flashes(painter: &Painter, target: &Document, scale: f32) {
-    let now = Instant::now();
+    let now = target.now();
     for (id, at) in target.change_flashes() {
         let Some(rect) = target.node_rect(id) else {
             continue;

@@ -703,8 +703,8 @@ fn PerformancePanel(
     renderers: ReadSignal<RendererChoices>,
     state: Rc<State>,
 ) -> NodeId {
-    let (change_state, damage_state, renderer_state) =
-        (state.clone(), state.clone(), state.clone());
+    let (change_state, damage_state, slow_state, renderer_state) =
+        (state.clone(), state.clone(), state.clone(), state.clone());
     let latest_work = performance_text(&performance, |summary| &summary.latest_work);
     let scene = performance_text(&performance, |summary| &summary.scene);
     let cache = performance_text(&performance, |summary| &summary.cache);
@@ -757,6 +757,12 @@ fn PerformancePanel(
                             label="Flash repainted regions"
                             checked={state.flash_damage.get()}
                             on_change={move |enabled| damage_state.flash_damage.set(enabled)}
+                        />
+                        <Checkbox
+                            @test_id={"inspector.performance.slow_repaints"}
+                            label="Slow down repaints"
+                            checked={state.slow_repaints.get()}
+                            on_change={move |enabled| slow_state.slow_repaints.set(enabled)}
                         />
                     </List>
                     <Separator />
