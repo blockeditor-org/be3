@@ -453,6 +453,11 @@ impl Screens {
                     session.show_panel(*panel);
                 }
             }
+            Message::Editor(EditorMessage::Windows { instance, windows }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.set_windows(windows.clone());
+                }
+            }
             Message::Editor(EditorMessage::MenuPick { instance, id }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.pick_menu(id.clone());

@@ -58,3 +58,16 @@ fn load(renderer: WindowRenderer, window: Arc<dyn WindowHandle>) -> Result<Loade
         }),
     }
 }
+
+pub fn run_on(
+    adapter: Box<dyn Adapter>,
+    options: RunOptions,
+    app: impl App + 'static,
+) -> Result<(), Box<dyn Error>> {
+    let launch = Launch {
+        options,
+        context: crate::system_context(),
+        app: Box::new(app),
+    };
+    pollster::block_on(adapter.run(launch))
+}

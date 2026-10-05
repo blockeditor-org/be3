@@ -31,6 +31,7 @@ impl Message {
                         }
                         ChildContent::WebView(_)
                         | ChildContent::Host(_)
+                        | ChildContent::Window(_)
                         | ChildContent::Creation { .. } => {}
                         ChildContent::ArtifactSettings { block_id } => {
                             visit(placements.instance, BlockIdRole::Existing, block_id);
@@ -256,6 +257,8 @@ impl EditorMessage {
             | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
             | Self::ShowPanel { .. }
+            | Self::Windows { .. }
+            | Self::CloseWindow { .. }
             | Self::WebViewEvent { .. }
             | Self::OpenCreation { .. }
             | Self::CreationReady { .. }

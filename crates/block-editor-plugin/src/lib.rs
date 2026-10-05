@@ -24,7 +24,7 @@ pub use block_plugin_api::{
     BlockFilter, BlockLocation, BlockPick, Catalog, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildPlacement, ChildStatus, ClipboardImage, ConflictSide, CreationProgress, CursorIcon,
     DataListing, EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, FileSave,
-    FrameChrome, FrameSpec, HostPanel, HostReply, HostRequest, InputEvent, InteractionMode, Key,
+    FrameChrome, FrameSpec, HostPanel, HostReply, HostRequest, HostWindow, HostWindowId, InputEvent, InteractionMode, Key,
     MenuEntry, Modifiers, Occluder, PointerButton, ResizeMode, ScreenPlacement, SettingsProgress,
     ShellDialog, SurfaceRect, TemplateCategory, TemplateDescriptor, TopBar, TouchPhase,
     VersionBranch, VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionStatus,

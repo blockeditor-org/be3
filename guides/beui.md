@@ -1339,7 +1339,9 @@ focused field into what is left, through every scroll it sits in.
 `beui::run_with` takes `RunOptions` (title, app id, starting size) where
 `beui::run` takes only a title; both load wgpu, and
 `beui::run_with_renderers` takes the `beui::WindowRenderer`s to load instead
-(be-compositor's opens its device itself). The rest of
+(block-app's opens its device itself, to import Wayland clients' buffers), and
+`beui::run_on` runs on an adapter of the caller's choosing, such as
+`beui_adapter_drm::Drm`, which drives the displays and input devices itself. The rest of
 `App` is optional:
 
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.

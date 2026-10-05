@@ -155,7 +155,8 @@ sysroot.
 
 ## Tests
 
-Most tests run on the workers, including beui-renderer-wgpu's and be-compositor's, which draw
+Most tests run on the workers, including beui-renderer-wgpu's, be-dmabuf's, be-wayland's and
+beui-adapter-drm's, which draw
 through lavapipe from `buck/sysroot:amd64-test`. buck2 runs a test again every
 time, so `cargo_test` also makes `:test_run`, an action that runs the test on a
 worker and passes when it does, which is cached like any other; `//:verify`

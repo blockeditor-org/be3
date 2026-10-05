@@ -37,7 +37,7 @@ pub(crate) struct Common {
 }
 
 #[cfg(not(target_os = "android"))]
-pub(crate) const COMMON: [Common; 6] = [
+pub(crate) const COMMON: [Common; 5] = [
     Common {
         title: "the app",
         args: "run //crates/block-app:app",
@@ -57,10 +57,6 @@ pub(crate) const COMMON: [Common; 6] = [
     Common {
         title: "beui's demo",
         args: "run //crates/beui-demo:demo",
-    },
-    Common {
-        title: "be-compositor",
-        args: "run //crates/be-compositor:be-compositor-bin",
     },
 ];
 

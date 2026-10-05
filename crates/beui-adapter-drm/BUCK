@@ -1,0 +1,27 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+drm_srcs = glob(["src/**/*.rs", "src/**/*.wgsl"])
+
+# Linux's displays and input devices, so Linux's alone: `//crates/...` for
+# another platform skips it rather than failing on it.
+linux = ["prelude//os:linux"]
+
+cargo_library(
+    srcs = drm_srcs,
+    target_compatible_with = linux,
+)
+
+# smithay builds a keyboard with libxkbcommon, which the worker's container has
+# neither the library nor the keymaps for: the library comes from the sysroot it
+# was linked against, the keymaps from the test runtime's. The screen tests draw
+# through a real Vulkan adapter, which on a worker is lavapipe from the test
+# runtime, as for beui's renderer tests.
+cargo_test(
+    env = {
+        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+        "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
+    },
+    srcs = drm_srcs,
+    target_compatible_with = linux,
+)

@@ -60,14 +60,14 @@ pub use beui_adapter_android::AndroidApp;
 pub use beui_adapter_web::accessibility_tree;
 #[cfg(all(feature = "window", not(target_os = "android")))]
 pub use beui_adapter_winit::winit;
-pub use beui_core::runner::{Adapter, Launch, Platform, RunOptions};
+pub use beui_core::runner::{Adapter, Launch, Platform, RunOptions, Running};
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 pub use web::{WebRenderer, run_web, web_adapter};
 
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 mod web;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub use window::{WindowRenderer, run_with, run_with_renderers, window_adapter};
+pub use window::{WindowRenderer, run_on, run_with, run_with_renderers, window_adapter};
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 mod window;

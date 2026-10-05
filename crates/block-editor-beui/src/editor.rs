@@ -11,7 +11,7 @@ use beui::reactive::{
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
-    HostPanel, InteractionMode, MenuEntry, ResizeMode, SettingsProgress, TopBar, ViewChange,
+    HostPanel, HostWindow, HostWindowId, InteractionMode, MenuEntry, ResizeMode, SettingsProgress, TopBar, ViewChange,
     WebViewId,
 };
 use block_ui::BlockCatalog;
@@ -152,6 +152,7 @@ pub enum SubregionContent {
     Block(ChildTarget),
     WebView(WebViewId),
     Host(HostPanel),
+    Window(HostWindowId),
     Creation { editor: Uuid, template: String },
     ArtifactSettings { block: Uuid },
 }
@@ -172,6 +173,7 @@ impl SubregionContent {
             },
             Self::WebView(web_view) => ChildContent::WebView(*web_view),
             Self::Host(panel) => ChildContent::Host(*panel),
+            Self::Window(window) => ChildContent::Window(*window),
             Self::Creation { editor, template } => ChildContent::Creation {
                 editor: editor.into_bytes(),
                 template: template.clone(),
@@ -664,6 +666,15 @@ impl Editor {
 
     pub fn take_panel_requests(&self) -> Vec<HostPanel> {
         self.0.host.take_panel_requests()
+    }
+
+    pub fn windows(&self) -> Memo<Vec<HostWindow>> {
+        let host = self.0.host.clone();
+        let revision = self.pushed(Pushed::Windows);
+        create_memo(move || {
+            revision.get();
+            host.windows()
+        })
     }
 
     pub fn web_view_events(&self) -> ReadSignal<u64> {

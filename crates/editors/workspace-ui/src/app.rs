@@ -13,6 +13,7 @@ mod saved;
 mod share;
 mod status;
 mod tab;
+mod window;
 pub(crate) mod workspace;
 
 use block_editor_beui::Editor;
