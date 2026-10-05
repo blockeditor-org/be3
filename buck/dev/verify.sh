@@ -92,11 +92,13 @@ cargo_lock() {
     return 1
 }
 
+jobs="$(getconf _NPROCESSORS_ONLN 2> /dev/null || echo 4)"
+
 rustfmt() {
     if $check; then
-        rust_files | xargs "$rustfmt" --edition 2024 --check
+        rust_files | xargs -P "$jobs" -n 100 "$rustfmt" --edition 2024 --check
     else
-        rust_files | xargs "$rustfmt" --edition 2024
+        rust_files | xargs -P "$jobs" -n 100 "$rustfmt" --edition 2024
     fi
 }
 
