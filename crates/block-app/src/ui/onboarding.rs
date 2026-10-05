@@ -492,12 +492,20 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
                             .unwrap_or_default()
                     });
                     view! {
-                        <Button
-                            label={label}
-                            glyph={ICON_WORKSPACES.to_owned()}
-                            variant=ButtonVariant::Secondary
-                            on_click={move || send(UiCommand::OpenWorkspace(id))}
-                        />
+                        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                            <Button
+                                @sizing=ItemSize::Percent(100.0)
+                                label={label}
+                                glyph={ICON_WORKSPACES.to_owned()}
+                                variant=ButtonVariant::Secondary
+                                on_click={move || send(UiCommand::OpenWorkspace(id))}
+                            />
+                            <IconButton
+                                glyph={ICON_KEYBOARD_ARROW_DOWN.to_owned()}
+                                label="Choose a profile"
+                                on_click={move || send(UiCommand::ChooseProfile(id))}
+                            />
+                        </List>
                     }
                 }}
             </ForEach>
@@ -561,6 +569,70 @@ pub(super) fn WorkspacesScreen(view: AppViewStore) -> NodeId {
             <CreateWorkspace busy={busy} created />
             <ErrorText text={error} />
             <ReauthDialog view />
+        </Column>
+    }
+}
+
+#[component]
+pub(super) fn ProfilesScreen(view: AppViewStore) -> NodeId {
+    let status = view.status.clone();
+    let keys = create_memo(clone!(status -> move || {
+        status
+            .get()
+            .profiles
+            .into_iter()
+            .map(|profile| profile.id)
+            .collect::<Vec<_>>()
+    }));
+    let loaded = create_memo(clone!(status -> move || status.get().profiles_loaded));
+    let loading = create_memo(clone!(loaded -> move || !loaded.get()));
+    let title = create_memo(clone!(status -> move || status.get().workspace));
+    let rows = status;
+    view! {
+        <Column>
+            <Title content={title} />
+            <Caption content="Choose a profile to open." />
+            <Show condition={loading.clone()}>
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <Spinner />
+                    <Caption content="Loading profiles…" />
+                </List>
+            </Show>
+            <ForEach keys={keys}>
+                {move |id: Uuid| {
+                    let rows = rows.clone();
+                    let label = create_memo(move || {
+                        rows.get()
+                            .profiles
+                            .into_iter()
+                            .find(|profile| profile.id == id)
+                            .map(|profile| match profile.current {
+                                true => format!("{} (last used)", profile.name),
+                                false => profile.name,
+                            })
+                            .unwrap_or_default()
+                    });
+                    view! {
+                        <Button
+                            label={label}
+                            variant=ButtonVariant::Secondary
+                            on_click={move || send(UiCommand::OpenProfile(id))}
+                        />
+                    }
+                }}
+            </ForEach>
+            <Button
+                label="New profile"
+                glyph={ICON_ADD.to_owned()}
+                variant=ButtonVariant::Secondary
+                disabled={loading}
+                on_click={|| send(UiCommand::OpenNewProfile)}
+            />
+            <Button
+                label="Back to workspaces"
+                variant=ButtonVariant::Ghost
+                on_click={|| send(UiCommand::SwitchWorkspace)}
+            />
         </Column>
     }
 }
