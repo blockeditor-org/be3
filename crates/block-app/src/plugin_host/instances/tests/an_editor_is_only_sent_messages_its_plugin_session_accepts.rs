@@ -25,7 +25,6 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
             max_side: DEFAULT_SURFACE_SIDE,
         }),
         theme: Theme { dark: true },
-        panes: false,
     }));
 
     let opened = next_screens(&mut instances).opened;

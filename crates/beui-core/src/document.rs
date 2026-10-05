@@ -524,6 +524,41 @@ impl Document {
         self.arena.get(id).children()
     }
 
+    pub fn overlay_layers(&self) -> Vec<(Vec<usize>, Rect)> {
+        self.overlays_bottom_up()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, overlay)| {
+                let rect = self.node_rect(self.overlay_content(overlay)?)?;
+                rect.is_positive().then(|| (vec![index + 1], rect))
+            })
+            .collect()
+    }
+
+    pub fn paint_order(&self, node: NodeId) -> Vec<usize> {
+        let overlays = self.overlays_bottom_up();
+        let mut path = Vec::new();
+        let mut current = node;
+        let layer = loop {
+            if let Some(layer) = overlays.iter().position(|overlay| overlay.id() == current) {
+                break layer + 1;
+            }
+            let Some(parent) = self.arena.parent(current) else {
+                break 0;
+            };
+            let index = self
+                .children(parent)
+                .iter()
+                .position(|child| *child == current)
+                .unwrap_or_default();
+            path.push(index);
+            current = parent;
+        };
+        path.push(layer);
+        path.reverse();
+        path
+    }
+
     pub fn open_child_slot<H: ChildHost>(&mut self, node: NodeOf<H>) -> SlotId {
         self.arena.get_mut_as::<H>(node).children().open()
     }

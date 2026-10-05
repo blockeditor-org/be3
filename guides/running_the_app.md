@@ -38,10 +38,10 @@ Coordinates are pixels relative to the window, the same ones xdotool takes, so t
 a node is `x + width / 2, y + height / 2`. `offscreen` marks a node scrolled out of view, and
 `focused` the node with keyboard focus.
 
-The tree holds only what the host draws itself: the account and workspace pages, the tab
-bar, the status bar and host dialogs such as Add block. Everything a plugin draws, which
-includes the workspace's panes and file tree and every block's editor, is a texture to the
-host and does not appear. For those, take a screenshot and read it:
+The tree holds only what the host draws itself: the account and workspace pages, the app
+menu, the debugging panels and host dialogs such as Add block. Everything a plugin draws,
+which includes the workspace's dock and file tree and every block's editor, is a texture to
+the host and does not appear. For those, take a screenshot and read it:
 
     import -window $WINDOW shot.png
 

@@ -8,7 +8,7 @@ use beui::styled::{Button, ButtonVariant, Caption, Heading, Icon, Spinner, use_t
 use beui::{Align, Color32, NodeId, TextAlign};
 use block_plugin_api::{EditorInstanceId, EditorRegion, FrameSpec};
 
-use crate::compositor::{ChildView, PaneSurface, PluginRegion, RegionEditor, ShellSurface};
+use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
 use crate::host::{self, HostCommand, HostItem};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -137,16 +137,6 @@ pub(crate) fn MainSurface() -> NodeId {
     let shell = create_memo(move || shell.get());
     view! {
         <ShellSurface shell />
-    }
-}
-
-#[component]
-pub(crate) fn PluginPane(pane: u64) -> NodeId {
-    let pane = block_plugin_api::PaneId(pane);
-    let shell = crate::compositor::shell();
-    let shell = create_memo(move || shell.get());
-    view! {
-        <PaneSurface shell pane />
     }
 }
 

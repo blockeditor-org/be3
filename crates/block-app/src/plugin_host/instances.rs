@@ -5,9 +5,9 @@ use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, BlockTypeDescriptor, ChildContent,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon,
     DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
-    FrameReport, FrameSpec, HostReply, HostRequest, Message, Occluder, PaneId, PaneLayout,
-    PaneTree, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout,
-    ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
+    FrameReport, FrameSpec, HostPanel, HostReply, HostRequest, Message, Occluder,
+    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
+    ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -129,8 +129,6 @@ struct Instance {
     block_queries: Vec<block_plugin_api::BlockQuery>,
     sent_blocks: HashMap<block_plugin_api::BlockQuery, Vec<block_plugin_api::BlockInfo>>,
     blocks_seen: Option<u64>,
-    panes: Option<PaneLayout>,
-    shown_panes: Vec<PaneId>,
     version_sent: Option<u64>,
     stale: bool,
 }
@@ -299,8 +297,6 @@ impl Instance {
             block_queries: Vec::new(),
             sent_blocks: HashMap::new(),
             blocks_seen: None,
-            panes: None,
-            shown_panes: Vec::new(),
             version_sent: None,
             stale: true,
             content: match role {
@@ -1429,13 +1425,18 @@ impl Instances {
             }
         }
         for (index, child) in table.children.iter().enumerate() {
-            let ChildContent::Block {
-                block_id,
-                block_type,
-                view_block,
-            } = child.content
-            else {
-                continue;
+            let content = match child.content {
+                ChildContent::Block {
+                    block_id,
+                    block_type,
+                    view_block,
+                } => super::HostContent::Block {
+                    block_id: Uuid::from_bytes(block_id),
+                    block_type: Uuid::from_bytes(block_type),
+                    view_block: view_block.map(Uuid::from_bytes),
+                },
+                ChildContent::Host(panel) => super::HostContent::Panel(panel),
+                ChildContent::WebView(_) => continue,
             };
             if child.rect.is_empty() {
                 continue;
@@ -1459,17 +1460,18 @@ impl Instances {
             };
             let child_rect = host_rect(child.rect, origin, stretch);
             let child_clip = host_rect(child.clip, origin, stretch).intersect(clip);
+            let occluders: Vec<Rect> = table
+                .occluders
+                .iter()
+                .filter(|occluder| occluder.after as usize > index)
+                .map(|occluder| host_rect(occluder.rect, origin, stretch))
+                .collect();
             if matches!(mode, ChildMode::Active | ChildMode::Live) {
                 let interactive = child_rect.intersect(child_clip);
                 if interactive.is_positive() {
                     holes.holes.push(Hole {
                         rect: interactive,
-                        occluders: table
-                            .occluders
-                            .iter()
-                            .filter(|occluder| occluder.after as usize > index)
-                            .map(|occluder| host_rect(occluder.rect, origin, stretch))
-                            .collect(),
+                        occluders: occluders.clone(),
                     });
                 }
             }
@@ -1479,10 +1481,9 @@ impl Instances {
                     && !screen.frame_revoked.contains(&child.child),
                 own_frame: child.own_frame,
                 top_bar: child.top_bar,
-                block_id: Uuid::from_bytes(block_id),
-                block_type: Uuid::from_bytes(block_type),
-                view_block: view_block.map(Uuid::from_bytes),
+                content,
                 rect: child_rect,
+                occluders,
                 clip: child_clip,
                 layer: child.layer,
                 mode,
@@ -2171,20 +2172,6 @@ impl Instances {
 
     pub(super) fn editor_message(&mut self, message: EditorMessage) -> bool {
         match message {
-            EditorMessage::Panes { instance, layout } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.panes = layout;
-                true
-            }
-            EditorMessage::ShowPane { instance, pane } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.shown_panes.push(pane);
-                true
-            }
             EditorMessage::OpenBlock {
                 instance,
                 block_id,
@@ -2739,62 +2726,22 @@ impl Instances {
         }
     }
 
-    pub(super) fn panes(&self, instance: EditorInstanceId) -> Option<PaneLayout> {
-        self.entries.get(&instance)?.panes.clone()
-    }
-
-    pub(super) fn take_shown_panes(&mut self, instance: EditorInstanceId) -> Vec<PaneId> {
-        self.entries
-            .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.shown_panes))
-            .unwrap_or_default()
-    }
-
-    pub(super) fn arrange_panes(
-        &mut self,
-        instance: EditorInstanceId,
-        arrangement: u64,
-        tree: PaneTree,
-        detached: Vec<PaneId>,
-        focused: Option<PaneId>,
-    ) -> Vec<Message> {
-        if !self.entries.contains_key(&instance) {
-            return Vec::new();
-        }
-        vec![Message::Editor(EditorMessage::PanesArranged {
-            instance,
-            arrangement,
-            tree,
-            detached,
-            focused,
-        })]
-    }
-
-    pub(super) fn close_pane(&mut self, instance: EditorInstanceId, pane: PaneId) -> Vec<Message> {
-        if !self.entries.contains_key(&instance) {
-            return Vec::new();
-        }
-        vec![Message::Editor(EditorMessage::ClosePane { instance, pane })]
-    }
-
-    pub(super) fn pane_menu_pick(
-        &mut self,
-        instance: EditorInstanceId,
-        pane: PaneId,
-        id: String,
-    ) -> Vec<Message> {
-        if !self.entries.contains_key(&instance) {
-            return Vec::new();
-        }
-        vec![Message::Editor(EditorMessage::PaneMenuPick {
-            instance,
-            pane,
-            id,
-        })]
-    }
-
     pub(super) fn take_artifact_watch(&mut self, instance: EditorInstanceId) -> Option<Vec<Uuid>> {
         self.entries.get_mut(&instance)?.artifact_watch.take()
+    }
+
+    pub(super) fn show_panel(
+        &mut self,
+        instance: EditorInstanceId,
+        panel: HostPanel,
+    ) -> Vec<Message> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Message::Editor(EditorMessage::ShowPanel {
+            instance,
+            panel,
+        })]
     }
 
     pub(super) fn show_block(

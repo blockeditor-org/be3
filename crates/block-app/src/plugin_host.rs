@@ -32,14 +32,14 @@ pub(crate) use presenter::shown as shown_blits;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use runtime::place_screens;
 pub(crate) use runtime::{
-    PACING, arrange_panes, artifact, artifact_draft, aspect_ratio, block_picked, close, close_pane,
-    commit_creation, creation, creation_ready, flush, frame_child, frame_rects, hold, install,
-    intrinsic_size, kill, menu, menu_pick, pane_menu_pick, panes, poll, present, presenting,
-    record_pacing, regenerate_artifact, region_size, replace_child, report_child_bars,
-    report_child_views, report_children, resized, revoke_frame_child, running, set_artifact_states,
-    set_focus, set_presence_visible, settle, show_block, start_frames, take_artifact_outcome,
-    take_artifact_watch, take_bar_actions, take_block_pick, take_child_menu_picks, take_created,
-    take_focus_report, take_leaving, take_shown_panes, take_view_changes,
+    PACING, artifact, artifact_draft, aspect_ratio, block_picked, close, commit_creation, creation,
+    creation_ready, flush, frame_child, frame_rects, hold, install, intrinsic_size, kill, menu,
+    menu_pick, poll, present, presenting, record_pacing, regenerate_artifact, region_size,
+    replace_child, report_child_bars, report_child_views, report_children, resized,
+    revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible, settle,
+    show_block, show_panel, start_frames, take_artifact_outcome, take_artifact_watch,
+    take_bar_actions, take_block_pick, take_child_menu_picks, take_created, take_focus_report,
+    take_leaving, take_view_changes,
 };
 pub(crate) use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, forward_region, frames, mount_region,
@@ -66,10 +66,9 @@ pub(crate) struct HostChild {
     pub(crate) frame_owner: bool,
     pub(crate) own_frame: bool,
     pub(crate) top_bar: block_plugin_api::TopBar,
-    pub(crate) block_id: Uuid,
-    pub(crate) block_type: Uuid,
-    pub(crate) view_block: Option<Uuid>,
+    pub(crate) content: HostContent,
     pub(crate) rect: Rect,
+    pub(crate) occluders: Vec<Rect>,
     pub(crate) clip: Rect,
     pub(crate) layer: ChildLayer,
     pub(crate) mode: ChildMode,
@@ -78,7 +77,30 @@ pub(crate) struct HostChild {
     pub(crate) opacity: f32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum HostContent {
+    Block {
+        block_id: Uuid,
+        block_type: Uuid,
+        view_block: Option<Uuid>,
+    },
+    Panel(block_plugin_api::HostPanel),
+}
+
+impl HostContent {
+    pub(crate) fn block_id(&self) -> Option<Uuid> {
+        match self {
+            Self::Block { block_id, .. } => Some(*block_id),
+            Self::Panel(_) => None,
+        }
+    }
+}
+
 impl HostChild {
+    pub(crate) fn block_id(&self) -> Option<Uuid> {
+        self.content.block_id()
+    }
+
     pub(crate) fn is_below(&self) -> bool {
         matches!(self.layer, ChildLayer::Below)
     }

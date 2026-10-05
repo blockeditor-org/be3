@@ -1,27 +1,18 @@
 use beui::NodeId;
 use beui::reactive::{
-    Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, Text, VirtualList, clone,
-    component, create_memo, view,
+    Align, Direction, Dynamic, ForEach, Frame, ItemSize, List, Memo, Show, Text, VirtualList,
+    clone, component, create_memo, on_cleanup, use_context, view,
 };
 use beui::styled::{
     Button, ButtonVariant, Caption, Code, Heading, Link, Scroll, Spinner, use_theme,
 };
+use block_plugin_api::HostPanel;
 
 use super::onboarding::ErrorText;
 use super::{UiCommand, send};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum DebugWindow {
-    Client,
-    Performance,
-    Plugins,
-    Version,
-}
-
 #[derive(Clone, Debug)]
 pub(crate) enum DebugCommand {
-    Open(DebugWindow),
-    Close(DebugWindow),
     KillPlugin(String),
     RefreshVersions,
     Install(u64),
@@ -104,6 +95,61 @@ pub(crate) struct DebugView {
     pub(crate) version: Option<VersionView>,
 }
 
+#[derive(Clone)]
+pub(crate) struct DebugPanels(pub(crate) Memo<DebugView>);
+
+#[component]
+pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
+    crate::debug::panel_shown(panel);
+    on_cleanup(move || crate::debug::panel_hidden(panel));
+    let provided = use_context::<DebugPanels>();
+    let debug = create_memo(move || {
+        provided
+            .as_ref()
+            .map(|DebugPanels(debug)| debug.get())
+            .unwrap_or_default()
+    });
+    let shown = create_memo(move || panel);
+    let theme = use_theme();
+    view! {
+        <Frame color={theme.background.clone()}>
+            <List spacing=0.0>
+                <Dynamic value={shown}>
+                    {move |panel: HostPanel| {
+                        let debug = debug.clone();
+                        match panel {
+                            HostPanel::BlockStack => {
+                                let client = create_memo(move || debug.get().client);
+                                view! {
+                                    <ClientPanel @sizing=ItemSize::Percent(100.0) client />
+                                }
+                            }
+                            HostPanel::Performance => {
+                                let performance = create_memo(move || debug.get().performance);
+                                view! {
+                                    <PerformancePanel @sizing=ItemSize::Percent(100.0) performance />
+                                }
+                            }
+                            HostPanel::Plugins => {
+                                let plugins = create_memo(move || debug.get().plugins);
+                                view! {
+                                    <PluginsPanel @sizing=ItemSize::Percent(100.0) plugins />
+                                }
+                            }
+                            HostPanel::Version => {
+                                let version = create_memo(move || debug.get().version);
+                                view! {
+                                    <VersionPanel @sizing=ItemSize::Percent(100.0) version />
+                                }
+                            }
+                        }
+                    }}
+                </Dynamic>
+            </List>
+        </Frame>
+    }
+}
+
 fn debug(command: DebugCommand) {
     send(UiCommand::Debug(command));
 }
@@ -159,7 +205,7 @@ fn LineView(line: Memo<Option<Line>>) -> NodeId {
 }
 
 #[component]
-pub(super) fn ClientPanel(client: Memo<Option<Vec<Line>>>) -> NodeId {
+fn ClientPanel(client: Memo<Option<Vec<Line>>>) -> NodeId {
     let lines = create_memo(move || client.get().unwrap_or_default());
     view! {
         <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
@@ -169,7 +215,7 @@ pub(super) fn ClientPanel(client: Memo<Option<Vec<Line>>>) -> NodeId {
 }
 
 #[component]
-pub(super) fn PerformancePanel(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
+fn PerformancePanel(performance: Memo<Option<Vec<PerformanceRow>>>) -> NodeId {
     let rows = create_memo(move || performance.get().unwrap_or_default());
     let keys = create_memo(clone!(rows -> move || (0..rows.get().len()).collect::<Vec<_>>()));
     view! {
@@ -248,7 +294,7 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
 }
 
 #[component]
-pub(super) fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
+fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
     let lines = create_memo(
         clone!(plugins -> move || plugins.get().map(|plugins| plugins.lines).unwrap_or_default()),
     );
@@ -340,7 +386,7 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
 }
 
 #[component]
-pub(super) fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
+fn VersionPanel(version: Memo<Option<VersionView>>) -> NodeId {
     let commit = create_memo(
         clone!(version -> move || version.get().map(|version| version.commit).unwrap_or_default()),
     );

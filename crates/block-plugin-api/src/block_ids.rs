@@ -29,7 +29,7 @@ impl Message {
                                 visit(placements.instance, BlockIdRole::Existing, view_block);
                             }
                         }
-                        ChildContent::WebView(_) => {}
+                        ChildContent::WebView(_) | ChildContent::Host(_) => {}
                     }
                 }
             }
@@ -233,6 +233,7 @@ impl EditorMessage {
             | Self::AudioStatus { .. }
             | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
+            | Self::ShowPanel { .. }
             | Self::WebViewEvent { .. }
             | Self::OpenCreation { .. }
             | Self::CreationReady { .. }
@@ -252,11 +253,6 @@ impl EditorMessage {
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
             | Self::Performance { .. }
-            | Self::Panes { .. }
-            | Self::ShowPane { .. }
-            | Self::PanesArranged { .. }
-            | Self::ClosePane { .. }
-            | Self::PaneMenuPick { .. }
             | Self::Menu { .. }
             | Self::MenuPick { .. }
             | Self::ChildMenuPick { .. } => {}

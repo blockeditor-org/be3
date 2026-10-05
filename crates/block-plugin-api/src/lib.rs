@@ -246,13 +246,40 @@ pub enum ChildContent {
         view_block: Option<[u8; 16]>,
     },
     WebView(WebViewId),
+    Host(HostPanel),
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum HostPanel {
+    BlockStack,
+    Performance,
+    Plugins,
+    Version,
+}
+
+impl HostPanel {
+    pub const ALL: [Self; 4] = [
+        Self::BlockStack,
+        Self::Performance,
+        Self::Plugins,
+        Self::Version,
+    ];
+
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::BlockStack => "Block Stack State",
+            Self::Performance => "Performance",
+            Self::Plugins => "Plugins",
+            Self::Version => "App Version",
+        }
+    }
 }
 
 impl ChildContent {
     pub fn block_id(&self) -> Option<[u8; 16]> {
         match self {
             Self::Block { block_id, .. } => Some(*block_id),
-            Self::WebView(_) => None,
+            Self::WebView(_) | Self::Host(_) => None,
         }
     }
 }
@@ -438,54 +465,7 @@ pub enum EditorRegion {
     Frame,
     Preview,
     ArtifactSettings,
-    Pane(PaneId),
 }
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct PaneId(pub u64);
-
-pub const MAX_PANE_DEPTH: usize = 32;
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum PaneItem {
-    Split {
-        horizontal: bool,
-        fraction: f32,
-    },
-    Tabs {
-        count: u32,
-        active: u32,
-        vertical: bool,
-        sidebar: f32,
-    },
-    Pane(PaneId),
-    Group,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct PaneTree {
-    pub items: Vec<PaneItem>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PaneInfo {
-    pub pane: PaneId,
-    pub title: String,
-    pub icon: String,
-    pub closable: bool,
-    pub menu: Vec<MenuEntry>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct PaneLayout {
-    pub panes: Vec<PaneInfo>,
-    pub tree: PaneTree,
-    pub arrangement: u64,
-    pub home: Option<PaneId>,
-    pub empty: bool,
-}
-
-pub const EMPTY_PANE: PaneId = PaneId(u64::MAX);
 
 impl EditorRegion {
     pub const ALL: [Self; 3] = [Self::Frame, Self::Preview, Self::ArtifactSettings];
@@ -737,6 +717,11 @@ pub enum EditorMessage {
         via: Option<[u8; 16]>,
     },
 
+    ShowPanel {
+        instance: EditorInstanceId,
+        panel: HostPanel,
+    },
+
     Focused {
         instance: EditorInstanceId,
         block_id: Option<[u8; 16]>,
@@ -982,30 +967,6 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         name: Option<String>,
     },
-    Panes {
-        instance: EditorInstanceId,
-        layout: Option<PaneLayout>,
-    },
-    ShowPane {
-        instance: EditorInstanceId,
-        pane: PaneId,
-    },
-    PanesArranged {
-        instance: EditorInstanceId,
-        arrangement: u64,
-        tree: PaneTree,
-        detached: Vec<PaneId>,
-        focused: Option<PaneId>,
-    },
-    ClosePane {
-        instance: EditorInstanceId,
-        pane: PaneId,
-    },
-    PaneMenuPick {
-        instance: EditorInstanceId,
-        pane: PaneId,
-        id: String,
-    },
     VersionControl {
         instance: EditorInstanceId,
         block_id: [u8; 16],
@@ -1045,6 +1006,7 @@ impl EditorMessage {
             | Self::Close { instance, .. }
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
+            | Self::ShowPanel { instance, .. }
             | Self::Focused { instance, .. }
             | Self::FocusChanged { instance, .. }
             | Self::DragBlock { instance, .. }
@@ -1092,11 +1054,6 @@ impl EditorMessage {
             | Self::CreateBlock { instance, .. }
             | Self::SetParent { instance, .. }
             | Self::SetName { instance, .. }
-            | Self::Panes { instance, .. }
-            | Self::ShowPane { instance, .. }
-            | Self::PanesArranged { instance, .. }
-            | Self::ClosePane { instance, .. }
-            | Self::PaneMenuPick { instance, .. }
             | Self::VersionControl { instance, .. }
             | Self::VersionStatus { instance, .. } => *instance,
         }
@@ -1609,6 +1566,7 @@ impl EditorMessage {
             | Self::Presence { .. }
             | Self::FocusChanged { .. }
             | Self::ShowBlock { .. }
+            | Self::ShowPanel { .. }
             | Self::DragOver { .. }
             | Self::DragLeft { .. }
             | Self::FileDrop { .. }
@@ -1625,9 +1583,6 @@ impl EditorMessage {
             | Self::ChildView { .. }
             | Self::ChildBar { .. }
             | Self::Blocks { .. }
-            | Self::PanesArranged { .. }
-            | Self::ClosePane { .. }
-            | Self::PaneMenuPick { .. }
             | Self::MenuPick { .. }
             | Self::VersionStatus { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
@@ -1669,8 +1624,6 @@ impl EditorMessage {
             | Self::WatchBlocks { .. }
             | Self::VersionControl { .. }
             | Self::CreateBlock { .. }
-            | Self::Panes { .. }
-            | Self::ShowPane { .. }
             | Self::SetParent { .. }
             | Self::SetName { .. } => Direction::ToHost,
         }
@@ -1690,7 +1643,6 @@ pub struct HelloAccepted {
     pub host_name: String,
     pub surface: Option<SurfaceSpec>,
     pub theme: Theme,
-    pub panes: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -2459,28 +2411,8 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(())
         }
         EditorMessage::CopyText { text: value, .. } => text(value),
-        EditorMessage::Panes { layout: None, .. } => Ok(()),
-        EditorMessage::Panes {
-            layout: Some(layout),
-            ..
-        } => {
-            collection(layout.panes.len())?;
-            collection(layout.tree.items.len())?;
-            strings(layout.panes.iter().map(|pane| &pane.title))?;
-            strings(layout.panes.iter().map(|pane| &pane.icon))?;
-            for pane in &layout.panes {
-                menu(&pane.menu)?;
-            }
-            Ok(())
-        }
         EditorMessage::Menu { entries, .. } => menu(entries),
-        EditorMessage::MenuPick { id, .. }
-        | EditorMessage::ChildMenuPick { id, .. }
-        | EditorMessage::PaneMenuPick { id, .. } => string(id),
-        EditorMessage::PanesArranged { tree, detached, .. } => {
-            collection(tree.items.len())?;
-            collection(detached.len())
-        }
+        EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),
         EditorMessage::WebViewCommand { command, .. } => match command {
             WebViewCommand::Open(url) | WebViewCommand::Load(url) => string(url),
             WebViewCommand::Reload | WebViewCommand::FocusApp | WebViewCommand::Close => Ok(()),
