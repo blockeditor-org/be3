@@ -1130,11 +1130,13 @@ impl Document {
             roots.push(root);
         }
         for overlay in self.overlays_bottom_up() {
-            if let Some(content) = self.overlay_content(overlay)
-                && self.rects.contains_key(&content)
-            {
-                paint::paint(self, &painter, &self.rects, content);
-                roots.push(content);
+            let scrim = self.overlay_scrim(overlay);
+            let content = self.overlay_content(overlay);
+            for layer in [Some(scrim), content].into_iter().flatten() {
+                if self.rects.contains_key(&layer) {
+                    paint::paint(self, &painter, &self.rects, layer);
+                    roots.push(layer);
+                }
             }
         }
         let cache = self.paint_cache.get_mut();

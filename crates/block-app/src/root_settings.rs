@@ -30,6 +30,7 @@ pub(crate) fn device_name() -> &'static str {
 pub(crate) struct RootSettings {
     block: Option<Uuid>,
     created_profile: Option<Uuid>,
+    chosen_profile: Option<Uuid>,
     decoded: std::cell::RefCell<Option<(u64, Settings)>>,
 }
 
@@ -63,6 +64,11 @@ impl RootSettings {
         self.block
     }
 
+    pub(crate) fn loaded(&self) -> bool {
+        self.block
+            .is_some_and(|block| self.decoded(block).is_some())
+    }
+
     fn decoded(&self, block: Uuid) -> Option<Settings> {
         be::hold(block, SettingsContent::CONTENT_TYPE);
         let revision = be::content_revision(block)?;
@@ -81,7 +87,7 @@ impl RootSettings {
         let Some(settings) = self.block.and_then(|block| self.decoded(block)) else {
             return Vec::new();
         };
-        let current = settings.profile(client);
+        let current = self.chosen_profile.or(settings.profile(client));
         let mut profiles: Vec<(Uuid, String, bool)> = settings
             .profiles()
             .into_iter()
@@ -105,6 +111,7 @@ impl RootSettings {
             be::next_origin(),
             SettingsContent::encode_operation(&Settings::use_profile(client, profile)),
         );
+        self.chosen_profile = Some(profile);
     }
 
     pub(crate) fn new_profile(&mut self, client: Uuid) {
@@ -127,11 +134,18 @@ impl RootSettings {
             be::next_origin(),
             SettingsContent::encode_operation(&Settings::add_profile(client, profile)),
         );
+        self.chosen_profile = Some(profile);
     }
 
     pub(crate) fn ensure_profile(&mut self, client: Uuid) -> Option<Uuid> {
         let settings_block = self.ensure()?;
         let settings = self.decoded(settings_block)?;
+        if let Some(chosen) = self.chosen_profile {
+            if settings.profile(client) != Some(chosen) {
+                return Some(chosen);
+            }
+            self.chosen_profile = None;
+        }
         if let Some(profile) = settings.profile(client) {
             self.created_profile = None;
             return Some(profile);

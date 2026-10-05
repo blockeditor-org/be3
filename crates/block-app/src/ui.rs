@@ -48,6 +48,7 @@ pub(crate) enum Screen {
     Workspaces,
     Recovery,
     Unlock,
+    Profiles,
     Workspace,
 }
 
@@ -157,6 +158,7 @@ pub(crate) struct StatusView {
     pub(crate) signed_in_as: String,
     pub(crate) accounts: Vec<AccountRow>,
     pub(crate) profiles: Vec<ProfileRow>,
+    pub(crate) profiles_loaded: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -236,6 +238,9 @@ pub(crate) enum UiCommand {
     CloseAddAccount,
     ReloadWorkspaces,
     OpenWorkspace(Uuid),
+    ChooseProfile(Uuid),
+    OpenProfile(Uuid),
+    OpenNewProfile,
     RespondInvitation(Uuid, bool),
     CreateWorkspace(String),
     SwitchAccount,
@@ -304,6 +309,9 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                             },
                             Screen::Unlock => view! {
                                 <keys::UnlockScreen @sizing=ItemSize::Percent(100.0) view />
+                            },
+                            Screen::Profiles => view! {
+                                <onboarding::ProfilesScreen @sizing=ItemSize::Percent(100.0) view />
                             },
                             Screen::Workspace => view! {
                                 <workspace::WorkspaceScreen @sizing=ItemSize::Percent(100.0) view />

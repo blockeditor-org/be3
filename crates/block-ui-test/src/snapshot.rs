@@ -21,7 +21,7 @@ pub fn assert_snapshot(name: &str, snapshot: &Snapshot) {
                 accepted.display()
             );
         }
-        write(&accepted, &bytes);
+        accept(&accepted, &bytes, "there is no accepted painting");
         return;
     }
 
@@ -29,29 +29,41 @@ pub fn assert_snapshot(name: &str, snapshot: &Snapshot) {
     if previous_bytes == bytes {
         return;
     }
-    if updating {
-        write(&accepted, &bytes);
-        return;
-    }
-
     let previous = Snapshot::decode(&previous_bytes).expect("the accepted painting is unreadable");
     let description = paint_snapshot::difference(&previous, snapshot)
         .map(|difference| difference.description)
         .unwrap_or_else(|| "the encoded painting changed, though it looks the same".to_owned());
+    if updating {
+        accept(&accepted, &bytes, &description);
+        return;
+    }
 
     panic!(
         "the painting changed: {description}\nto accept it:\n  ./scripts/buck run //:verify -- --plugin-tests, or ./scripts/buck test //crates/editors/<plugin>:test -- --env UPDATE_SNAPSHOTS=1\nthen {REVIEW}"
     );
 }
 
+fn accept(accepted: &Path, bytes: &[u8], why: &str) {
+    let Some(changed) = std::env::var_os("CHANGED_PAINTINGS") else {
+        write(accepted, bytes);
+        return;
+    };
+    let painting = PathBuf::from(changed).join(file_name(accepted));
+    write(&painting, bytes);
+    write(&painting.with_extension("paint.why"), why.as_bytes());
+}
+
+fn file_name(accepted: &Path) -> &std::ffi::OsStr {
+    accepted
+        .file_name()
+        .unwrap_or_else(|| panic!("{} names no painting", accepted.display()))
+}
+
 fn record_use(accepted: &Path) {
     let Some(used) = std::env::var_os("USED_PAINTINGS") else {
         return;
     };
-    let file = accepted
-        .file_name()
-        .unwrap_or_else(|| panic!("{} names no painting", accepted.display()));
-    write(&PathBuf::from(used).join(file), &[]);
+    write(&PathBuf::from(used).join(file_name(accepted)), &[]);
 }
 
 #[cfg(not(target_arch = "wasm32"))]
