@@ -9,9 +9,9 @@ use block_editor_beui::{
     ShownPresence, ViewChange, WebViewCommand, WebViewId,
 };
 use block_plugin_api::{
-    BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FrameChrome, FrameReport,
-    HelloAccepted, InputBatch, MenuEntry, Message, PROTOCOL_VERSION, ScreenId, ScreenRequest,
-    ScreenSet, SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
+    BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FrameChrome,
+    FrameReport, HelloAccepted, InputBatch, MenuEntry, Message, PROTOCOL_VERSION, ScreenId,
+    ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
@@ -797,12 +797,13 @@ impl<A: BeuiApp> BeuiTest<A> {
         filter: block_editor_beui::BlockFilter,
         parent: block_plugin_api::BlockLocation,
     ) {
-        self.inbox.push(Message::Editor(EditorMessage::PickRequested {
-            instance: INSTANCE,
-            pick,
-            filter,
-            parent,
-        }));
+        self.inbox
+            .push(Message::Editor(EditorMessage::PickRequested {
+                instance: INSTANCE,
+                pick,
+                filter,
+                parent,
+            }));
     }
 
     pub fn show_dialog(&mut self, block: Uuid, dialog: block_plugin_api::ShellDialog) {

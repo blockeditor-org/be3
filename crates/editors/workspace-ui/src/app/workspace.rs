@@ -281,6 +281,7 @@ impl Workspace {
     }
 
     pub(crate) fn open_dialog(&self, dialog: OpenDialog) {
+        self.forget_share();
         if let OpenDialog::Share(block) = dialog {
             let request = self.host().list_access(block);
             self.set_share.set(Some(Share::new(block, request)));
@@ -289,6 +290,11 @@ impl Workspace {
     }
 
     pub(crate) fn close_dialog(&self) {
+        self.forget_share();
+        self.set_dialog.set(None);
+    }
+
+    fn forget_share(&self) {
         if let Some(Share {
             request: Some(request),
             ..
@@ -297,7 +303,6 @@ impl Workspace {
             self.host().forget_request(request);
         }
         self.set_share.set(None);
-        self.set_dialog.set(None);
     }
 
     pub(crate) fn rename(&self, block: Uuid, name: &str) {
@@ -355,22 +360,36 @@ impl Workspace {
         let Some(held) = self.pick(pick) else {
             return;
         };
-        self.resolve(held.act(action));
+        match held.act(action) {
+            PickOutcome::Open(mut held) => {
+                self.send_commit(&mut held);
+                self.resolve(PickOutcome::Open(held));
+            }
+            answered => self.resolve(answered),
+        }
+    }
+
+    fn send_commit(&self, held: &mut Pick) {
+        let name = Some(held.name.trim().to_owned()).filter(|name| !name.is_empty());
+        let parent = held.created_parent();
+        if let Some(creating) = &mut held.creating
+            && let Some(child) = creating.child
+            && creating.committed
+            && !creating.sent
+        {
+            creating.sent = true;
+            self.host().commit_child(child, parent, name);
+        }
     }
 
     pub(crate) fn creation_state(&self, pick: u64, state: &ChildState) {
         let Some(mut held) = self.pick(pick) else {
             return;
         };
-        if let (Some(creating), Some(child)) = (&mut held.creating, state.child)
-            && creating.committed
-            && !creating.sent
-        {
-            creating.sent = true;
-            let name = Some(held.name.trim().to_owned()).filter(|name| !name.is_empty());
-            self.host()
-                .commit_child(child, held.created_parent(), name);
+        if let Some(creating) = &mut held.creating {
+            creating.child = state.child;
         }
+        self.send_commit(&mut held);
         match &state.creation {
             Some(progress) => self.resolve(held.progressed(progress)),
             None => self.resolve(PickOutcome::Open(held)),

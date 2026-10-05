@@ -13,8 +13,7 @@ pub(crate) mod discovery;
 
 use super::{
     ArtifactSession, ArtifactStatus, BlockTypeEntry, CreationStep, DirectEditorCapabilities,
-    DirectEditorInteraction, DirectEditorResize, EditorRegistry,
-    FocusReport, PendingCreation,
+    DirectEditorInteraction, DirectEditorResize, EditorRegistry, FocusReport, PendingCreation,
 };
 use crate::{
     compositor::RegionEditor,

@@ -176,7 +176,10 @@ impl Editors {
             .region(&registry, self.client_id())
     }
 
-    fn creation_status(&self, key: &CreationKey) -> Option<(Option<CreationProgress>, Option<f32>)> {
+    fn creation_status(
+        &self,
+        key: &CreationKey,
+    ) -> Option<(Option<CreationProgress>, Option<f32>)> {
         let creations = self.0.creations.borrow();
         let child = creations.get(key)?;
         Some((child.progress.clone(), child.creation.height()))
@@ -191,7 +194,10 @@ impl Editors {
             match held {
                 Some((_, creation)) => creation.commit = Some(commit),
                 None => {
-                    self.0.commits.borrow_mut().insert((parent, commit.child), commit);
+                    self.0
+                        .commits
+                        .borrow_mut()
+                        .insert((parent, commit.child), commit);
                 }
             }
         }
@@ -1097,11 +1103,13 @@ fn HostedChild(
     let tab = use_context::<TabContext>();
     let any = super::any();
     let inherited = super::region::occlusion();
-    provide_context(super::region::Occlusion(create_memo(clone!(child -> move || {
-        let mut rects = inherited.as_ref().map(|inherited| inherited.get()).unwrap_or_default();
-        rects.extend(child.with(|child| child.as_ref().map(|child| child.occluders.clone()).unwrap_or_default()));
-        rects
-    }))));
+    provide_context(super::region::Occlusion(create_memo(
+        clone!(child -> move || {
+            let mut rects = inherited.as_ref().map(|inherited| inherited.get()).unwrap_or_default();
+            rects.extend(child.with(|child| child.as_ref().map(|child| child.occluders.clone()).unwrap_or_default()));
+            rects
+        }),
+    )));
     let content = create_memo(clone!(child -> move || child.get().map(|child| child.content)));
     let creation_key: CreationKey = (parent, region, key);
     on_cleanup(clone!(editors -> move || {
@@ -1325,8 +1333,10 @@ fn HostedChild(
 
 #[component]
 fn CreationSurface(hosted: HostedRegion) -> NodeId {
-    let child_view: ChildView = Rc::new(|_, _, _| view! {
-        <Frame />
+    let child_view: ChildView = Rc::new(|_, _, _| {
+        view! {
+            <Frame />
+        }
     });
     view! {
         <PluginRegion

@@ -38,9 +38,9 @@ pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphComm
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
     ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HostContent,
-    ImagePaster, OpenRequest, PastedImage, PickRequest, PeerPresence, PerformanceMeasurementGuard,
-    PerformanceReporter, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest,
-    ShownPresence, Waker,
+    ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
+    PerformanceReporter, PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent,
+    ShowRequest, ShownPresence, Waker,
 };
 #[cfg(target_arch = "wasm32")]
 pub use plugin::PaintTarget;

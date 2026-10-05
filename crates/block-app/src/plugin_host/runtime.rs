@@ -656,15 +656,24 @@ pub(crate) fn take_block_pick(
     .flatten()
 }
 
-pub(crate) fn take_pick_answers(plugin_id: &str, instance: EditorInstanceId) -> Vec<(u64, BlockPick)> {
-    with(plugin_id, |runtime| runtime.instances.take_pick_answers(instance)).unwrap_or_default()
+pub(crate) fn take_pick_answers(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<(u64, BlockPick)> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_pick_answers(instance)
+    })
+    .unwrap_or_default()
 }
 
 pub(crate) fn take_child_commits(
     plugin_id: &str,
     instance: EditorInstanceId,
 ) -> Vec<super::ChildCommit> {
-    with(plugin_id, |runtime| runtime.instances.take_child_commits(instance)).unwrap_or_default()
+    with(plugin_id, |runtime| {
+        runtime.instances.take_child_commits(instance)
+    })
+    .unwrap_or_default()
 }
 
 pub(crate) fn request_pick(
@@ -675,7 +684,9 @@ pub(crate) fn request_pick(
     parent: block_plugin_api::BlockLocation,
 ) {
     with(plugin_id, |runtime| {
-        let messages = runtime.instances.request_pick(instance, pick, filter, parent);
+        let messages = runtime
+            .instances
+            .request_pick(instance, pick, filter, parent);
         runtime.send(messages);
     });
 }

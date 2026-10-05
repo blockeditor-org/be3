@@ -825,6 +825,7 @@ impl BlockApp {
     }
 
     fn open_workspace(&mut self, workspace: Workspace) {
+        self.cancel_forwarded_picks();
         be::stop();
         self.block_types.clear();
         self.registry = Rc::new(EditorRegistry::new());
@@ -921,6 +922,7 @@ impl BlockApp {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
         };
+        self.cancel_forwarded_picks();
         be::stop();
         self.block_types.clear();
         self.registry = Rc::new(EditorRegistry::new());
@@ -1327,15 +1329,22 @@ impl BlockApp {
         }
     }
 
+    fn cancel_forwarded_picks(&mut self) {
+        for (_, (source, request_id)) in self.forwarded_picks.drain() {
+            source.answer(request_id, block_plugin_api::BlockPick::Cancelled);
+        }
+    }
+
     fn forward_block_picks(&mut self, shell: Uuid) {
-        let Some(shell_source) = self.with_editor(shell, |editor| editor.pick_source()).flatten()
+        let Some(shell_source) = self
+            .with_editor(shell, |editor| editor.pick_source())
+            .flatten()
         else {
             return;
         };
-        for (pick, answer) in crate::plugin_host::take_pick_answers(
-            &shell_source.plugin_id,
-            shell_source.instance,
-        ) {
+        for (pick, answer) in
+            crate::plugin_host::take_pick_answers(&shell_source.plugin_id, shell_source.instance)
+        {
             if let Some((source, request_id)) = self.forwarded_picks.remove(&pick) {
                 source.answer(request_id, answer);
             }

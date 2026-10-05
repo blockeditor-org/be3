@@ -34,7 +34,9 @@ type Act = Rc<dyn Fn(PickAction)>;
 #[component]
 pub(crate) fn PickerDialogs(workspace: Rc<Workspace>) -> NodeId {
     let picks = workspace.picks.clone();
-    let ids = create_memo(move || picks.with(|picks| picks.iter().map(|held| held.pick).collect::<Vec<_>>()));
+    let ids = create_memo(move || {
+        picks.with(|picks| picks.iter().map(|held| held.pick).collect::<Vec<_>>())
+    });
     view! {
         <List spacing=0.0>
             <ForEach keys={ids}>
@@ -59,7 +61,12 @@ fn PickerDialog(workspace: Rc<Workspace>, pick: u64) -> NodeId {
     let error = create_memo(clone!(held -> move || held.get().and_then(|held| held.error)));
     view! {
         <List spacing=0.0>
-            <ChooseDialog workspace={Rc::clone(&workspace)} held={held.clone()} act={Rc::clone(&act)} phone={phone.clone()} />
+            <ChooseDialog
+                workspace={Rc::clone(&workspace)}
+                held={held.clone()}
+                act={Rc::clone(&act)}
+                phone={phone.clone()}
+            />
             <CreateDialog workspace pick held act={Rc::clone(&act)} phone />
             <PickerError error act />
         </List>
@@ -73,7 +80,9 @@ fn ChooseDialog(
     act: Act,
     phone: Memo<bool>,
 ) -> NodeId {
-    let choosing = create_memo(clone!(held -> move || held.with(|held| held.as_ref().is_some_and(Pick::choosing))));
+    let choosing = create_memo(
+        clone!(held -> move || held.with(|held| held.as_ref().is_some_and(Pick::choosing))),
+    );
     let wide = create_memo(clone!(choosing phone -> move || choosing.get() && !phone.get()));
     let narrow = create_memo(clone!(choosing phone -> move || choosing.get() && phone.get()));
     let placing = create_memo(clone!(held -> move || {
@@ -179,8 +188,12 @@ fn ChooseBody(workspace: Rc<Workspace>, held: Memo<Option<Pick>>, act: Act, phon
         true => None,
         false => Some(PICKER_HEIGHT),
     };
-    let (tab_act, search_act, tile_act, link_act) =
-        (Rc::clone(&act), Rc::clone(&act), Rc::clone(&act), Rc::clone(&act));
+    let (tab_act, search_act, tile_act, link_act) = (
+        Rc::clone(&act),
+        Rc::clone(&act),
+        Rc::clone(&act),
+        Rc::clone(&act),
+    );
     view! {
         <List spacing=10.0>
             <PlacingFields workspace held act />
@@ -216,7 +229,10 @@ fn ChooseBody(workspace: Rc<Workspace>, held: Memo<Option<Pick>>, act: Act, phon
                                                 sections.get().into_iter().find(|section| section.key == key)
                                             });
                                             view! {
-                                                <TileSectionView act={Rc::clone(&tile_act)} section />
+                                                <TileSectionView
+                                                    act={Rc::clone(&tile_act)}
+                                                    section
+                                                />
                                             }
                                         }}
                                     </ForEach>
@@ -321,7 +337,12 @@ fn PlacingFields(workspace: Rc<Workspace>, held: Memo<Option<Pick>>, act: Act) -
                                         places.get().into_iter().find(|place| place.parent == parent)
                                     }));
                                     view! {
-                                        <PlaceButton act={Rc::clone(&act)} chosen={chosen.clone()} parent place />
+                                        <PlaceButton
+                                            act={Rc::clone(&act)}
+                                            chosen={chosen.clone()}
+                                            parent
+                                            place
+                                        />
                                     }
                                 }}
                             </ForEach>
@@ -341,7 +362,9 @@ fn PlaceButton(
     parent: BlockParent,
     place: Memo<Option<Place>>,
 ) -> NodeId {
-    let label = create_memo(clone!(place -> move || place.get().map(|place| place.name).unwrap_or_default()));
+    let label = create_memo(
+        clone!(place -> move || place.get().map(|place| place.name).unwrap_or_default()),
+    );
     let glyph = create_memo(move || place.get().map(|place| place.icon).unwrap_or_default());
     let pressed = create_memo(move || chosen.get() == Some(parent));
     let named = match parent {
@@ -524,11 +547,7 @@ fn CreateDialog(
 }
 
 #[component]
-fn CreationChild(
-    workspace: Rc<Workspace>,
-    pick: u64,
-    creating: Memo<Option<Creating>>,
-) -> NodeId {
+fn CreationChild(workspace: Rc<Workspace>, pick: u64, creating: Memo<Option<Creating>>) -> NodeId {
     let placed = create_memo(move || {
         creating.with(|creating| {
             creating
@@ -623,7 +642,11 @@ fn CreateBody(
         )
     }));
     let height = create_memo(move || {
-        state.with(|state| state.intrinsic_size.map_or(CREATION_HEIGHT, |size| size.y.max(1.0)))
+        state.with(|state| {
+            state
+                .intrinsic_size
+                .map_or(CREATION_HEIGHT, |size| size.y.max(1.0))
+        })
     });
     let placed = create_memo(move || {
         creating.with(|creating| {
