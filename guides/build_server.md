@@ -67,6 +67,11 @@ adds its own beside it.
   static busybox script. A test's `LD_LIBRARY_PATH` names the sysroot's glibc,
   which none of the programs on the way into the image can load, so
   `run-action` holds `LD_*` back until the action itself starts.
+- **Priority.** The scheduler starts the queued action with the highest
+  `ExecutionPolicy.priority` first; 0 is the default, and CI's are -1
+  (guides/buck2.md). NativeLink's order is the reverse of the remote execution
+  API's. It never stops a running action, and an action that joins one
+  already queued keeps the first request's priority.
 - **Evicted outputs.** The action cache reports a result as a miss once the
   CAS has evicted that result's outputs.
 - **Cache size.** One of CI's builds needs more than 35 GB of cache at once. A
