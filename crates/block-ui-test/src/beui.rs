@@ -6,7 +6,7 @@ use block_editor_beui::headless::{Adopted, HeadlessPlugin};
 use block_editor_beui::{
     Artifacts, BeuiApp, ChildPlacement, ChildStatus, Creation, Editor, EditorHost,
     EditorInstanceId, EditorRegion, HostReply, HostRequest, Occluder, PeerPresence, SeededContent,
-    ShownPresence, ViewChange, WebViewCommand,
+    ShownPresence, ViewChange, WebViewCommand, WebViewId,
 };
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, ChildId, ChildRect, EditorMessage, FrameChrome, FrameReport,
@@ -577,10 +577,11 @@ impl<A: BeuiApp> BeuiTest<A> {
             }));
     }
 
-    pub fn web_view_event(&mut self, event: block_editor_beui::WebViewEvent) {
+    pub fn web_view_event(&mut self, web_view: WebViewId, event: block_editor_beui::WebViewEvent) {
         self.inbox
             .push(Message::Editor(EditorMessage::WebViewEvent {
                 instance: INSTANCE,
+                web_view,
                 event,
             }));
     }
@@ -870,9 +871,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
-    pub fn take_web_view_commands(&mut self) -> Vec<WebViewCommand> {
+    pub fn take_web_view_commands(&mut self) -> Vec<(WebViewId, WebViewCommand)> {
         self.take_where(|message| match message {
-            EditorMessage::WebViewCommand { command, .. } => Some(command.clone()),
+            EditorMessage::WebViewCommand {
+                web_view, command, ..
+            } => Some((*web_view, command.clone())),
             _ => None,
         })
     }

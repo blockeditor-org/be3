@@ -5,7 +5,9 @@ use block_editor_beui::be_block::{BrowserTab, BrowserTabContent, Edit, HistoryIt
 use block_editor_beui::beui::reactive::{
     Memo, ReadSignal, WriteSignal, create_effect, create_memo, create_signal, untrack,
 };
-use block_editor_beui::{ContentProjection, Editor, WebViewEvent};
+use block_editor_beui::{ContentProjection, Editor, WebViewEvent, WebViewId};
+
+pub(crate) const PAGE: WebViewId = WebViewId(0);
 
 #[derive(Default)]
 struct Navigation {
@@ -49,8 +51,6 @@ impl Session {
         create_effect(move || opening.open());
         let synchronizing = Rc::clone(&session);
         create_effect(move || synchronizing.synchronize());
-        let placing = Rc::clone(&session);
-        create_effect(move || placing.place());
         session
     }
 
@@ -87,25 +87,17 @@ impl Session {
     }
 
     pub(crate) fn reload(&self) {
-        self.editor.host().reload_web_view();
+        self.editor.host().reload_web_view(PAGE);
     }
 
     pub(crate) fn focus_app(&self) {
-        self.editor.host().focus_app();
+        self.editor.host().focus_app(PAGE);
     }
 
     pub(crate) fn navigate(&self, address: &str) {
         let url = browser_url(address);
         self.set_address.set(url.clone());
         self.push(url);
-    }
-
-    fn place(&self) {
-        let rect = self.error.with(Option::is_none).then(|| {
-            let rect = self.editor.placed().get();
-            rect.is_positive().then_some(rect)
-        });
-        self.editor.place_web_view(rect.flatten());
     }
 
     fn open(&self) {
@@ -125,11 +117,11 @@ impl Session {
         navigation.synchronized = Some((index, url.clone()));
         drop(navigation);
         self.set_address.set(url.clone());
-        self.editor.host().open_web_view(url);
+        self.editor.host().open_web_view(PAGE, url);
     }
 
     fn process_events(&self) {
-        for event in self.editor.host().take_web_view_events() {
+        for event in self.editor.host().take_web_view_events(PAGE) {
             match event {
                 WebViewEvent::Navigate(url) => self.navigation_started(url),
                 WebViewEvent::Finished(url) => self.navigation_finished(url),
@@ -260,7 +252,7 @@ impl Session {
         drop(navigation);
         self.set_address.set(url.clone());
         if load {
-            self.editor.host().load_web_view(url);
+            self.editor.host().load_web_view(PAGE, url);
         }
     }
 }

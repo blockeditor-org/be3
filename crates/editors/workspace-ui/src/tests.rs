@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::{EditorView, EditorViewContent, ViewState, WORKSPACE_EDITOR};
 
 use block_editor_beui::beui::{Document, NodeId, Rect, Vec2};
-use block_editor_beui::{BlockParent, Editor, EditorHost};
+use block_editor_beui::{BlockParent, ChildContent, Editor, EditorHost};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -38,7 +38,8 @@ impl Fixture {
         self.test
             .children()
             .iter()
-            .map(|placement| Uuid::from_bytes(placement.block_id))
+            .filter_map(|placement| placement.content.block_id())
+            .map(Uuid::from_bytes)
             .collect()
     }
 

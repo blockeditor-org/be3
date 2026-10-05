@@ -18,11 +18,10 @@ fn typing_an_address_navigates_the_web_view() {
         tab.urls().last().map(String::as_str),
         Some("https://example.org")
     );
-    assert!(
-        tab.editor
-            .take_web_view_commands()
-            .contains(&WebViewCommand::Load("https://example.org".into()))
-    );
+    assert!(tab.editor.take_web_view_commands().contains(&(
+        WebViewId(0),
+        WebViewCommand::Load("https://example.org".into())
+    )));
     tab.editor
         .snapshot("typing_an_address_navigates_the_web_view");
 }

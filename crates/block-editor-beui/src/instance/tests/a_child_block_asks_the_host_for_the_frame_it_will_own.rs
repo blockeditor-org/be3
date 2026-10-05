@@ -34,7 +34,7 @@ fn a_child_block_asks_the_host_for_the_frame_it_will_own() {
 
     let children = session.placed_children(EditorRegion::Frame);
     let child = children.first().expect("the app placed no child block");
-    assert_eq!(child.block_id, SLIDE.into_bytes());
+    assert_eq!(child.content.block_id(), Some(SLIDE.into_bytes()));
     assert_eq!(child.mode, ChildMode::Live);
     assert!(
         child.own_frame,

@@ -10,7 +10,7 @@ fn placed(fixture: &Fixture, id: Uuid) -> Option<block_editor_beui::ChildPlaceme
         .test
         .children()
         .iter()
-        .find(|placement| Uuid::from_bytes(placement.block_id) == id)
+        .find(|placement| placement.content.block_id() == Some(id.into_bytes()))
         .copied()
 }
 

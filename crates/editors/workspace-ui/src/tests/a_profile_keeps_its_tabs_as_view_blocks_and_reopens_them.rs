@@ -33,7 +33,10 @@ fn a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them() {
         .children()
         .last()
         .expect("the shown tab is placed");
-    assert_eq!(placement.view_block, Some(second_view.into_bytes()));
+    let ChildContent::Block { view_block, .. } = placement.content else {
+        panic!("the shown tab is a block");
+    };
+    assert_eq!(view_block, Some(second_view.into_bytes()));
 
     let (mut reopened, _) = profiled(Some(layout));
     reopened.settle();

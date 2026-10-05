@@ -235,12 +235,32 @@ pub struct ChildRect {
     pub height: f32,
 }
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WebViewId(pub u32);
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ChildContent {
+    Block {
+        block_id: [u8; 16],
+        block_type: [u8; 16],
+        view_block: Option<[u8; 16]>,
+    },
+    WebView(WebViewId),
+}
+
+impl ChildContent {
+    pub fn block_id(&self) -> Option<[u8; 16]> {
+        match self {
+            Self::Block { block_id, .. } => Some(*block_id),
+            Self::WebView(_) => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChildPlacement {
     pub child: ChildId,
-    pub block_id: [u8; 16],
-    pub block_type: [u8; 16],
-    pub view_block: Option<[u8; 16]>,
+    pub content: ChildContent,
     pub rect: ChildRect,
     pub clip: ChildRect,
     pub own_frame: bool,
@@ -797,17 +817,14 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         grabbed: bool,
     },
-    WebView {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        rect: Option<ChildRect>,
-    },
     WebViewCommand {
         instance: EditorInstanceId,
+        web_view: WebViewId,
         command: WebViewCommand,
     },
     WebViewEvent {
         instance: EditorInstanceId,
+        web_view: WebViewId,
         event: WebViewEvent,
     },
     OpenCreation {
@@ -1042,7 +1059,6 @@ impl EditorMessage {
             | Self::PlayAudio { instance, .. }
             | Self::AudioStatus { instance, .. }
             | Self::GrabCursor { instance, .. }
-            | Self::WebView { instance, .. }
             | Self::WebViewCommand { instance, .. }
             | Self::WebViewEvent { instance, .. }
             | Self::OpenCreation { instance, .. }
@@ -1628,7 +1644,6 @@ impl EditorMessage {
             | Self::Menu { .. }
             | Self::ChildMenuPick { .. }
             | Self::GrabCursor { .. }
-            | Self::WebView { .. }
             | Self::WebViewCommand { .. }
             | Self::CreationReady { .. }
             | Self::CreationBlock { .. }
