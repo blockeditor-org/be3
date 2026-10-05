@@ -204,6 +204,12 @@ def plugin_tests(srcs, exports = [], env = {}, extra_deps = []):
         precompile = per_cross_platform(True, lambda _: False),
         runner = "//crates/plugin-test-runner:plugin-test-runner-bin",
     )
+    plugin_test_run(
+        name = "test_run",
+        manifest = "Cargo.toml",
+        module = ":test_module",
+        runner = "//crates/plugin-test-runner:plugin-test-runner-bin",
+    )
 
 # Compiled to wasm, a plugin's tests paint with the FreeType and HarfBuzz it
 # ships, so the accepted paintings in snapshots/ stay put. The guest finds them
@@ -257,4 +263,54 @@ wasi_test = rule(
         "_inject_test_env": attrs.default_only(attrs.dep(default = "prelude//test/tools:inject_test_env")),
     },
     impl = _wasi_test_impl,
+)
+
+# The plugin tests as an action, which is how //:verify runs them: on a worker,
+# and answered from the cache when nothing they read has changed, which a test
+# never is. They read the accepted paintings from snapshots/ and accept every
+# painting, writing the ones that changed or are new to changed/ and naming the
+# ones they compared in used/; //:verify copies changed/ into snapshots/, or
+# under --check fails on it. They draw through lavapipe, as the renderer's tests
+# do.
+def _plugin_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
+    module = ctx.attrs.module[DefaultInfo].default_outputs[0]
+    paintings = ctx.actions.declare_output("paintings", dir = True, has_content_based_path = False)
+    sysroot = ctx.attrs._sysroot[DefaultInfo].default_outputs[0]
+    ctx.actions.run(
+        cmd_args(
+            "sh",
+            "-c",
+            'mkdir -p "$1/used" "$1/changed" && USED_PAINTINGS="$1/used" CHANGED_PAINTINGS="$1/changed" && export USED_PAINTINGS CHANGED_PAINTINGS && shift && exec "$@"',
+            "sh",
+            paintings.as_output(),
+            ctx.attrs.runner[RunInfo],
+            _precompiled(ctx, module),
+            hidden = ctx.attrs._inputs[DefaultInfo].default_outputs,
+        ),
+        category = "plugin_test",
+        env = {
+            "CARGO_MANIFEST_DIR": cmd_args(ctx.attrs.manifest, parent = 1),
+            "LD_LIBRARY_PATH": cmd_args(sysroot, format = "{}/usr/lib/x86_64-linux-gnu"),
+            "UPDATE_SNAPSHOTS": "1",
+            "VK_ICD_FILENAMES": ctx.attrs._lavapipe,
+        },
+    )
+    return [DefaultInfo(default_output = paintings)]
+
+plugin_test_run = rule(
+    attrs = {
+        "manifest": attrs.source(),
+        "module": attrs.transition_dep(cfg = wasi_transition),
+        "precompile": attrs.bool(default = True),
+        "runner": attrs.exec_dep(providers = [RunInfo]),
+        "_inputs": attrs.dep(default = "root//:plugin_test_inputs"),
+        "_lavapipe": attrs.source(default = "root//buck/sysroot:lavapipe_icd.json"),
+        "_sysroot": attrs.dep(default = "root//buck/sysroot:amd64-test"),
+    },
+    impl = _plugin_test_run_impl,
+)
+
+plugin_test_inputs = rule(
+    attrs = {"srcs": attrs.list(attrs.source())},
+    impl = lambda ctx: [DefaultInfo(default_outputs = ctx.attrs.srcs)],
 )

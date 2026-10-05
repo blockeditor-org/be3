@@ -116,33 +116,56 @@ starlark() {
     return 1
 }
 
-# Every plugin test names the painting it compares in USED_PAINTINGS, so once
-# all of them pass, a painting none of them named belongs to a test that is
-# gone: it is deleted, or with --check it fails the run. The directory is in
-# the checkout because that is all a plugin test can write to.
-used_paintings="$(pwd)/target/used-paintings"
-
+# The plugin tests run on a worker, as the :test_run action buck/wasm/defs.bzl
+# gives each plugin_tests(), and so come from the cache when nothing they read
+# changed. Each accepts every painting into its output: changed/ holds the ones
+# that changed or are new, with why beside each, and used/ names every painting
+# it compared. Those are copied into snapshots/, or with --check fail the run.
+# Once all of them pass, a painting none of them named belongs to a test that is
+# gone: it is deleted, or with --check it fails the run.
 plugin_tests() {
-    rm -rf "$used_paintings"
-    mkdir -p "$used_paintings"
-    if $check; then
-        "$buck" test //crates/... --include plugin -- --env "USED_PAINTINGS=$used_paintings" || return 1
-    else
-        "$buck" test //crates/... --include plugin -- --env UPDATE_SNAPSHOTS=1 --env "USED_PAINTINGS=$used_paintings" || return 1
+    targets="$("$buck" uquery 'kind("plugin_test_run", //crates/...)' 2> /dev/null)" || {
+        echo "The plugin tests could not be listed."
+        return 1
+    }
+    outputs="$("$buck" build --keep-going --materializations all --show-full-output $targets)" || return 1
+    directories="$(echo "$outputs" | awk 'NF == 2 { print $2 }')"
+    changed="$(for directory in $directories; do
+        for painting in "$directory"/changed/*.paint; do
+            [ -e "$painting" ] && echo "$painting"
+        done
+    done)"
+    used="$(for directory in $directories; do ls "$directory/used"; done)"
+    failed_paintings=false
+    if [ -n "$changed" ]; then
+        if $check; then
+            echo "These paintings changed; run //:verify without --check to accept them, then review them in a Paint review block:"
+            echo "$changed" | while read -r painting; do
+                echo "  snapshots/$(basename "$painting"): $(cat "$painting.why")"
+            done
+            failed_paintings=true
+        else
+            echo "Accepting the paintings that changed:"
+            echo "$changed" | while read -r painting; do
+                echo "  snapshots/$(basename "$painting"): $(cat "$painting.why")"
+                cp "$painting" snapshots/
+            done
+        fi
     fi
     unused="$(for painting in snapshots/*.paint; do
-        [ -e "$painting" ] && [ ! -e "$used_paintings/${painting#snapshots/}" ] && echo "$painting"
+        [ -e "$painting" ] && ! echo "$used" | grep -qxF "${painting#snapshots/}" && echo "$painting"
     done)"
-    [ -z "$unused" ] && return 0
-    if ! $check; then
+    if [ -n "$unused" ]; then
+        if $check; then
+            echo "No test compared these paintings; run //:verify without --check to delete them:"
+            echo "$unused" | sed 's/^/  /'
+            return 1
+        fi
         echo "Deleting the paintings no test compared:"
         echo "$unused" | sed 's/^/  /'
         echo "$unused" | while read -r painting; do rm "$painting"; done
-        return 0
     fi
-    echo "No test compared these paintings; run //:verify without --check to delete them:"
-    echo "$unused" | sed 's/^/  /'
-    return 1
+    ! $failed_paintings
 }
 
 build_tools() {

@@ -153,14 +153,20 @@ sysroot.
 ## Tests
 
 Most tests run on the workers, including beui-renderer-wgpu's and be-compositor's, which draw
-through lavapipe from `buck/sysroot:amd64-test`. Two kinds stay local:
+through lavapipe from `buck/sysroot:amd64-test`. buck2 runs a test again every
+time, cached or not. Two kinds are different:
 
 - **Plugin tests** read and write the accepted paintings in `snapshots/`.
-  They are labelled `plugin`, which is how `//:verify`'s `--tests` and
-  `--plugin-tests` split. Each is the crate's tests compiled to wasm and run by
-  `plugin-test-runner`, the host `block-app` runs a plugin in, so they paint
-  with the FreeType and HarfBuzz the plugin ships.
-- `block-plugin-api`'s test that walks `crates/editors`.
+  Each is the crate's tests compiled to wasm and run by `plugin-test-runner`,
+  the host `block-app` runs a plugin in, so they paint with the FreeType and
+  HarfBuzz the plugin ships. `buck2 test` runs a crate's `:test` here, writing
+  paintings straight into `snapshots/`; they are labelled `plugin`, which is
+  how `//:verify`'s `--tests` and `--plugin-tests` split. `//:verify` instead
+  builds each crate's `:test_run`, an action that runs them on a worker and is
+  cached like any other: it outputs the paintings that changed and the names
+  of the ones it compared, and `//:verify` copies the first into `snapshots/`
+  and deletes the paintings no test named.
+- `block-plugin-api`'s test that walks `crates/editors` stays local.
 
 `compile_fail/` holds code that must not compile: `compile_fail(name, deps)`
 in its `BUCK` makes `<name>/lib.rs` a crate and `:<name>-test`, which reads

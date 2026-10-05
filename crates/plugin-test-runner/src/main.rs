@@ -2,7 +2,10 @@ use std::path::{Path, PathBuf};
 
 use block_wasm_host::{Host, precompile, precompile_to};
 
+const GUEST_PATHS: [&str; 3] = ["CARGO_MANIFEST_DIR", "USED_PAINTINGS", "CHANGED_PAINTINGS"];
+
 fn main() {
+    absolute_guest_paths();
     let mut arguments = std::env::args();
     let program = arguments
         .next()
@@ -67,6 +70,20 @@ fn main() {
         Err(message) => {
             eprintln!("{message}");
             std::process::exit(1);
+        }
+    }
+}
+
+fn absolute_guest_paths() {
+    let Ok(current) = std::env::current_dir() else {
+        return;
+    };
+    for name in GUEST_PATHS {
+        let Some(path) = std::env::var_os(name).map(PathBuf::from) else {
+            continue;
+        };
+        if path.is_relative() {
+            unsafe { std::env::set_var(name, current.join(path)) };
         }
     }
 }
