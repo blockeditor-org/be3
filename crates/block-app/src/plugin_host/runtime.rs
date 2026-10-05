@@ -923,6 +923,18 @@ pub(crate) fn take_child_menu_picks(
     .unwrap_or_default()
 }
 
+pub(crate) fn show_dialog(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    block: Uuid,
+    dialog: block_plugin_api::ShellDialog,
+) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.show_dialog(instance, block, dialog);
+        runtime.send(messages);
+    });
+}
+
 pub(crate) fn show_panel(plugin_id: &str, instance: EditorInstanceId, panel: HostPanel) {
     with(plugin_id, |runtime| {
         let messages = runtime.instances.show_panel(instance, panel);

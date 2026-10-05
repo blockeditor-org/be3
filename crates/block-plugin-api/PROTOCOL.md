@@ -196,17 +196,17 @@ dropped into another. The drag ends with the pointer, and is not answered.
 An editor instance may ask the host to act on one of the blocks it draws: to
 share or rename it, to replace an occurrence of it inside a named container
 with a copy of its own, to take it out of where it is listed, to move it from
-there into another block, or to place it under one. These are the host's own
-dialogs and structural edits, which an instance cannot draw or make for
-itself, and each names where the block is listed - the root, the blocks with
+there into another block, or to place it under one. These are structural edits
+an instance cannot make for itself, and the ask to share or rename, which the
+host passes to the instance that draws the window to show its own dialog for;
+each names where the block is listed - the root, the blocks with
 no parent, or a container - and whether it is listed there as a reference
 rather than as a child, since that decides whether the block's own parent
 moves with it. None of them is answered.
 
-The same request carries four more the instance that owns the window needs,
+The same request carries three more the instance that owns the window needs,
 for blocks it is showing rather than drawing: to rebuild a block's dynamic
-artifact, to open the host's settings dialog for it, or to unlink it from the
-source it was generated from; to hold a block to no more access than a named
+artifact or to unlink it from the source it was generated from; to hold a block to no more access than a named
 level, which is what shows a block as an account with less access would see
 it; to reveal one client's presence cursor, which only the editor of that
 block can scroll to; and to close a block's editor, which is what a tab
@@ -219,7 +219,18 @@ type that generated it, what its settings currently produce, why they cannot
 be read, and whether it is being rebuilt. Only the plugin that made an
 artifact can describe it, so the host keeps that instance open for as long as
 a block is named and answers on its behalf. Naming a block again leaves it
-where it is; leaving one out closes the instance describing it.
+where it is; leaving one out closes the instance describing it. That instance
+also shows a block's artifact settings: an instance places a child showing
+them, whose status says whether the copy being edited differs from the stored
+settings and summarises what it would produce, and committing that child
+stores the copy.
+
+The instance that draws the window may ask the host who can open a block,
+answered once with every member of the workspace - their account, email, name,
+whether they administer the workspace, the access granted to them on that
+block if any and the access they end up with - or with why it could not be
+listed, and may grant a member a level of access to a block. A grant is not
+answered; the instance lists the block again to see it.
 
 An editor instance may ask the host to choose a file for it, which only the
 host can do on every platform the app runs on. The request carries the filter

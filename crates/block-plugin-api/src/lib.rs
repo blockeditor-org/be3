@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 65;
+pub const PROTOCOL_VERSION: u16 = 66;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -251,6 +251,9 @@ pub enum ChildContent {
         editor: [u8; 16],
         template: String,
     },
+    ArtifactSettings {
+        block_id: [u8; 16],
+    },
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -283,7 +286,10 @@ impl ChildContent {
     pub fn block_id(&self) -> Option<[u8; 16]> {
         match self {
             Self::Block { block_id, .. } => Some(*block_id),
-            Self::WebView(_) | Self::Host(_) | Self::Creation { .. } => None,
+            Self::WebView(_)
+            | Self::Host(_)
+            | Self::Creation { .. }
+            | Self::ArtifactSettings { .. } => None,
         }
     }
 }
@@ -355,6 +361,35 @@ pub struct ChildStatus {
     pub error: Option<String>,
     pub menu: Vec<MenuEntry>,
     pub creation: Option<CreationProgress>,
+    pub settings: Option<SettingsProgress>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SettingsProgress {
+    pub changed: bool,
+    pub summary: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ShellDialog {
+    Rename,
+    Share,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AccessGrant {
+    pub account: [u8; 16],
+    pub email: String,
+    pub display_name: String,
+    pub administrator: bool,
+    pub granted: Option<AccessLevel>,
+    pub effective: AccessLevel,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AccessListing {
+    Listed(Vec<AccessGrant>),
+    Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -752,6 +787,19 @@ pub enum EditorMessage {
         panel: HostPanel,
     },
 
+    ShowDialog {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        dialog: ShellDialog,
+    },
+
+    SetAccess {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        account: [u8; 16],
+        access: AccessLevel,
+    },
+
     Focused {
         instance: EditorInstanceId,
         block_id: Option<[u8; 16]>,
@@ -1054,6 +1102,8 @@ impl EditorMessage {
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
             | Self::ShowPanel { instance, .. }
+            | Self::ShowDialog { instance, .. }
+            | Self::SetAccess { instance, .. }
             | Self::Focused { instance, .. }
             | Self::FocusChanged { instance, .. }
             | Self::DragBlock { instance, .. }
@@ -1244,7 +1294,6 @@ impl AccessLevel {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ArtifactAction {
     Regenerate,
-    Settings,
     Unlink,
 }
 
@@ -1402,6 +1451,7 @@ pub enum HostRequest {
     PickFile(FileFilter),
     SaveFile(SavedFile),
     PickBlock(BlockFilter),
+    ListAccess([u8; 16]),
     PasteImage,
     Fetch(String),
     ListData,
@@ -1417,6 +1467,7 @@ pub enum HostReply {
     Fetched(FetchResult),
     DataListed(DataListing),
     DataRead(FetchResult),
+    AccessListed(AccessListing),
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1618,6 +1669,7 @@ impl EditorMessage {
             | Self::FocusChanged { .. }
             | Self::ShowBlock { .. }
             | Self::ShowPanel { .. }
+            | Self::ShowDialog { .. }
             | Self::DragOver { .. }
             | Self::DragLeft { .. }
             | Self::FileDrop { .. }
@@ -1650,6 +1702,7 @@ impl EditorMessage {
             | Self::BarAction { .. }
             | Self::Menu { .. }
             | Self::CommitChild { .. }
+            | Self::SetAccess { .. }
             | Self::PickAnswered { .. }
             | Self::ChildMenuPick { .. }
             | Self::GrabCursor { .. }
@@ -2299,6 +2352,13 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                 if let Some(CreationProgress::Failed(error)) = &status.creation {
                     string(error)?;
                 }
+                if let Some(summary) = status
+                    .settings
+                    .as_ref()
+                    .and_then(|settings| settings.summary.as_ref())
+                {
+                    string(summary)?;
+                }
             }
             Ok(())
         }
@@ -2528,6 +2588,7 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
             blob(&file.data)
         }
         HostRequest::PickBlock(filter) => block_filter(filter),
+        HostRequest::ListAccess(_) => Ok(()),
         HostRequest::PasteImage | HostRequest::ListData => Ok(()),
         HostRequest::Fetch(url) => string(url),
         HostRequest::ReadData(path) => string(path),
@@ -2554,7 +2615,16 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         | HostReply::ImagePasted(ClipboardImage::Failed(message))
         | HostReply::Fetched(FetchResult::Failed(message))
         | HostReply::DataRead(FetchResult::Failed(message))
-        | HostReply::DataListed(DataListing::Failed(message)) => string(message),
+        | HostReply::DataListed(DataListing::Failed(message))
+        | HostReply::AccessListed(AccessListing::Failed(message)) => string(message),
+        HostReply::AccessListed(AccessListing::Listed(grants)) => {
+            collection(grants.len())?;
+            for grant in grants {
+                string(&grant.email)?;
+                string(&grant.display_name)?;
+            }
+            Ok(())
+        }
         HostReply::FilePicked(FilePick::Cancelled)
         | HostReply::FileSaved(FileSave::Saved | FileSave::Cancelled)
         | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)

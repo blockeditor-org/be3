@@ -630,6 +630,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             error: None,
             menu: Vec::new(),
             creation: None,
+            settings: None,
         });
     }
 
@@ -803,6 +804,39 @@ impl<A: BeuiApp> BeuiTest<A> {
                 filter,
                 parent,
             }));
+    }
+
+    pub fn show_dialog(&mut self, block: Uuid, dialog: block_plugin_api::ShellDialog) {
+        self.inbox.push(Message::Editor(EditorMessage::ShowDialog {
+            instance: INSTANCE,
+            block_id: block.into_bytes(),
+            dialog,
+        }));
+    }
+
+    pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
+        self.take_where(|message| match message {
+            EditorMessage::SetName { block_id, name, .. } => {
+                Some((Uuid::from_bytes(*block_id), name.clone()))
+            }
+            _ => None,
+        })
+    }
+
+    pub fn take_access_changes(&mut self) -> Vec<(Uuid, Uuid, block_plugin_api::AccessLevel)> {
+        self.take_where(|message| match message {
+            EditorMessage::SetAccess {
+                block_id,
+                account,
+                access,
+                ..
+            } => Some((
+                Uuid::from_bytes(*block_id),
+                Uuid::from_bytes(*account),
+                *access,
+            )),
+            _ => None,
+        })
     }
 
     pub fn take_pick_answers(&mut self) -> Vec<(u64, block_editor_beui::BlockPick)> {

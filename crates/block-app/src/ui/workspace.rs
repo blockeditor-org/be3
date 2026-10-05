@@ -14,7 +14,6 @@ use block_plugin_api::HostPanel;
 use super::debug::DebugPanels;
 use super::dialogs::Dialogs;
 use super::keys::PairingDialog;
-use super::share::ShareWindow;
 use super::{AppViewStore, StatusView, UiCommand, send};
 use crate::compositor::PresentingSurface;
 use crate::surfaces::MainSurface;
@@ -64,7 +63,6 @@ fn WorkspaceBody(view: AppViewStore) -> NodeId {
             </Show>
             <Dialogs view={view.clone()} />
             <PairingDialog view={view.clone()} />
-            <ShareWindow view={view.clone()} />
         </List>
     }
 }

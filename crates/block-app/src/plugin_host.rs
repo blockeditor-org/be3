@@ -37,7 +37,7 @@ pub(crate) use runtime::{
     menu_pick, poll, present, presenting, record_pacing, regenerate_artifact, region_size,
     replace_child, report_child_bars, report_child_views, report_children, request_pick, resized,
     revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible, settle,
-    show_block, show_panel, start_frames, take_artifact_outcome, take_artifact_watch,
+    show_block, show_dialog, show_panel, start_frames, take_artifact_outcome, take_artifact_watch,
     take_bar_actions, take_block_pick, take_child_commits, take_child_menu_picks, take_created,
     take_focus_report, take_leaving, take_pick_answers, take_view_changes,
 };
@@ -89,13 +89,14 @@ pub(crate) enum HostContent {
         editor: Uuid,
         template: String,
     },
+    ArtifactSettings(Uuid),
 }
 
 impl HostContent {
     pub(crate) fn block_id(&self) -> Option<Uuid> {
         match self {
             Self::Block { block_id, .. } => Some(*block_id),
-            Self::Panel(_) | Self::Creation { .. } => None,
+            Self::Panel(_) | Self::Creation { .. } | Self::ArtifactSettings(_) => None,
         }
     }
 }
@@ -128,6 +129,7 @@ pub(crate) struct HostChildStatus {
     pub(crate) error: Option<String>,
     pub(crate) menu: Vec<block_plugin_api::MenuEntry>,
     pub(crate) creation: Option<block_plugin_api::CreationProgress>,
+    pub(crate) settings: Option<block_plugin_api::SettingsProgress>,
 }
 
 #[derive(Clone, Debug)]

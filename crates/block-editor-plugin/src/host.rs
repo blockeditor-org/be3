@@ -9,11 +9,11 @@ use std::{
 use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
 use block_plugin_api::{
-    AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand, BlockPick,
-    ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus,
-    ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostPanel,
-    HostReply, HostRequest, MenuEntry, Occluder, PerformanceMeasurement, Size, ViewChange,
-    WebViewCommand, WebViewEvent, WebViewId,
+    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
+    BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
+    ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
+    HostPanel, HostReply, HostRequest, MenuEntry, Occluder, PerformanceMeasurement, ShellDialog,
+    Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -249,6 +249,7 @@ enum Identity {
     WebView(WebViewId),
     Host(HostPanel),
     Creation([u8; 16], String),
+    ArtifactSettings([u8; 16]),
 }
 
 impl Identity {
@@ -260,6 +261,7 @@ impl Identity {
             ChildContent::Creation { editor, template } => {
                 Self::Creation(*editor, template.clone())
             }
+            ChildContent::ArtifactSettings { block_id } => Self::ArtifactSettings(*block_id),
         }
     }
 }
@@ -361,6 +363,8 @@ pub struct EditorHost {
     waker: Waker,
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
+    dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
+    access_changes: Rc<RefCell<Vec<(Uuid, Uuid, AccessLevel)>>>,
     pick_answers: Rc<RefCell<Vec<(u64, BlockPick)>>>,
     child_commits: Rc<RefCell<Vec<ChildCommit>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
@@ -489,6 +493,15 @@ impl EditorHost {
 
     pub fn take_show_requests(&self) -> Vec<ShowRequest> {
         std::mem::take(&mut self.shows.borrow_mut())
+    }
+
+    pub fn take_dialog_requests(&self) -> Vec<(Uuid, ShellDialog)> {
+        std::mem::take(&mut self.dialog_requests.borrow_mut())
+    }
+
+    pub fn show_dialog(&self, block_id: Uuid, dialog: ShellDialog) {
+        self.dialog_requests.borrow_mut().push((block_id, dialog));
+        self.push(Pushed::Shows);
     }
 
     pub fn take_pick_requests(&self) -> Vec<PickRequest> {
@@ -636,10 +649,6 @@ impl EditorHost {
 
     pub fn regenerate_artifact(&self, block_id: Uuid) {
         self.artifact_command(block_id, ArtifactAction::Regenerate);
-    }
-
-    pub fn edit_artifact(&self, block_id: Uuid) {
-        self.artifact_command(block_id, ArtifactAction::Settings);
     }
 
     pub fn unlink_artifact(&self, block_id: Uuid) {
@@ -1065,6 +1074,28 @@ impl EditorHost {
 
     pub fn pick_block(&self, filter: BlockFilter) -> u64 {
         self.ask(HostRequest::PickBlock(filter))
+    }
+
+    pub fn list_access(&self, block_id: Uuid) -> u64 {
+        self.ask(HostRequest::ListAccess(block_id.into_bytes()))
+    }
+
+    pub fn take_access_listing(&self, request: u64) -> Option<AccessListing> {
+        match self.take_reply(request)? {
+            HostReply::AccessListed(listing) => Some(listing),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
+    pub fn set_access(&self, block_id: Uuid, account: Uuid, access: AccessLevel) {
+        self.access_changes
+            .borrow_mut()
+            .push((block_id, account, access));
+        self.changed();
+    }
+
+    pub(crate) fn take_access_changes(&self) -> Vec<(Uuid, Uuid, AccessLevel)> {
+        std::mem::take(&mut self.access_changes.borrow_mut())
     }
 
     pub fn take_block_pick(&self, request: u64) -> Option<BlockPick> {

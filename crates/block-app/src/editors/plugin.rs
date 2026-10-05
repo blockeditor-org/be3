@@ -431,6 +431,12 @@ impl PluginEditor {
         crate::plugin_host::show_block(&plugin.identity.id, self.instance, id, block_type, via);
     }
 
+    pub(crate) fn show_dialog(&self, id: Uuid, dialog: block_plugin_api::ShellDialog) {
+        if let Some(plugin) = &self.plugin {
+            crate::plugin_host::show_dialog(&plugin.identity.id, self.instance, id, dialog);
+        }
+    }
+
     pub(crate) fn show_panel(&self, panel: HostPanel) {
         if let Some(plugin) = &self.plugin {
             crate::plugin_host::show_panel(&plugin.identity.id, self.instance, panel);

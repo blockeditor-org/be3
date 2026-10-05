@@ -20,16 +20,19 @@ use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
     AccessLevel, BlockFilter, BlockPick, ChildBlock, ChildBlockHandle, ChildMode, ChildState,
     ChildTarget, Editor, EditorHost, FocusedBlock, HostPanel, NARROW_WIDTH, PickedBlock, Pushed,
-    TopBar,
+    ShellDialog, TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
+use super::dialogs::OpenDialog;
+use super::dialogs::WorkspaceDialogs;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::panel::BlockPanel;
 use super::picker::{Pick, PickAction, PickOutcome};
 use super::picker_view::PickerDialogs;
 use super::saved::{self, LAYOUT};
+use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 
 pub(crate) const FILES: TabId = TabId::new(1);
@@ -79,6 +82,10 @@ pub(crate) struct Workspace {
     set_sheet: WriteSignal<PhoneSheet>,
     pub(crate) picks: ReadSignal<Vec<Pick>>,
     set_picks: WriteSignal<Vec<Pick>>,
+    pub(crate) dialog: ReadSignal<Option<OpenDialog>>,
+    set_dialog: WriteSignal<Option<OpenDialog>>,
+    pub(crate) share: ReadSignal<Option<Share>>,
+    set_share: WriteSignal<Option<Share>>,
     every_block: RefCell<Option<BlockList>>,
 }
 
@@ -96,6 +103,8 @@ impl Workspace {
         let (phone, set_phone) = create_signal(false);
         let (sheet, set_sheet) = create_signal(PhoneSheet::Closed);
         let (picks, set_picks) = create_signal(Vec::new());
+        let (dialog, set_dialog) = create_signal(None);
+        let (share, set_share) = create_signal(None);
         let workspace = Rc::new(Self {
             editor,
             layout,
@@ -128,6 +137,10 @@ impl Workspace {
             set_sheet,
             picks,
             set_picks,
+            dialog,
+            set_dialog,
+            share,
+            set_share,
             every_block: RefCell::new(None),
         });
         let shows = workspace.editor.pushed(Pushed::Shows);
@@ -160,6 +173,12 @@ impl Workspace {
         create_effect(move || {
             if let Some(workspace) = focusing.upgrade() {
                 workspace.report_focus();
+            }
+        });
+        let listing = Rc::downgrade(&workspace);
+        workspace.editor.on_reply(move || {
+            if let Some(workspace) = listing.upgrade() {
+                workspace.share_listed();
             }
         });
         let watching = Rc::downgrade(&workspace);
@@ -241,6 +260,12 @@ impl Workspace {
         if !requested.is_empty() {
             self.set_picks.update(|picks| picks.extend(requested));
         }
+        for (block, dialog) in self.host().take_dialog_requests() {
+            match dialog {
+                ShellDialog::Rename => self.open_dialog(OpenDialog::Rename(block)),
+                ShellDialog::Share => self.open_dialog(OpenDialog::Share(block)),
+            }
+        }
         for panel in self.editor.take_panel_requests() {
             self.show_panel(panel);
         }
@@ -253,6 +278,71 @@ impl Workspace {
                 request.via,
             );
         }
+    }
+
+    pub(crate) fn open_dialog(&self, dialog: OpenDialog) {
+        self.forget_share();
+        if let OpenDialog::Share(block) = dialog {
+            let request = self.host().list_access(block);
+            self.set_share.set(Some(Share::new(block, request)));
+        }
+        self.set_dialog.set(Some(dialog));
+    }
+
+    pub(crate) fn close_dialog(&self) {
+        self.forget_share();
+        self.set_dialog.set(None);
+    }
+
+    fn forget_share(&self) {
+        if let Some(Share {
+            request: Some(request),
+            ..
+        }) = self.share.get_untracked()
+        {
+            self.host().forget_request(request);
+        }
+        self.set_share.set(None);
+    }
+
+    pub(crate) fn rename(&self, block: Uuid, name: &str) {
+        let name = name.trim().to_owned();
+        self.blocks()
+            .set_name(block, (!name.is_empty()).then_some(name));
+        self.close_dialog();
+    }
+
+    pub(crate) fn share_action(&self, action: ShareAction) {
+        let Some(mut share) = self.share.get_untracked() else {
+            return;
+        };
+        let (grants, mut reload) = share.act(action, self.host().account_id());
+        for (account, access) in grants {
+            self.host().set_access(share.block, account, access);
+            reload = true;
+        }
+        if reload {
+            if let Some(request) = share.request.take() {
+                self.host().forget_request(request);
+            }
+            share.error = None;
+            share.request = Some(self.host().list_access(share.block));
+        }
+        self.set_share.set(Some(share));
+    }
+
+    fn share_listed(&self) {
+        let Some(mut share) = self.share.get_untracked() else {
+            return;
+        };
+        let Some(listing) = share
+            .request
+            .and_then(|request| self.host().take_access_listing(request))
+        else {
+            return;
+        };
+        share.listed(listing);
+        self.set_share.set(Some(share));
     }
 
     pub(crate) fn every_block(&self) -> Vec<BlockInfo> {
@@ -945,6 +1035,7 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let closing = Rc::clone(&workspace);
     let content = Rc::clone(&workspace);
     let pickers = Rc::clone(&workspace);
+    let dialogs = Rc::clone(&workspace);
     let theme = use_theme();
     view! {
         <Frame @node_ref={&surface} color={theme.background.clone()}>
@@ -980,6 +1071,7 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                     }}
                 </DockArea>
                 <PickerDialogs workspace={pickers} />
+                <WorkspaceDialogs workspace={dialogs} />
             </List>
         </Frame>
     }

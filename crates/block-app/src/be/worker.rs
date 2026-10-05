@@ -23,6 +23,8 @@ const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 const EDIT_BURST: Duration = Duration::from_millis(750);
 const HISTORY_STEPS: usize = 200;
 
+type AccessReply = Box<dyn FnOnce(Result<Vec<AccessEntry>, String>) + Send>;
+
 pub(super) enum Command {
     Open(Uuid, Uuid),
     Close(Uuid),
@@ -75,7 +77,7 @@ pub(super) enum Command {
     },
     ListAccess {
         block: Uuid,
-        reply: crate::host::WakingSender<Result<Vec<AccessEntry>, String>>,
+        reply: AccessReply,
     },
     Version {
         block: Uuid,
@@ -1214,7 +1216,8 @@ async fn apply(
                 .list_access(block)
                 .await
                 .map_err(|error| error.to_string());
-            let _ = reply.send(listed);
+            reply(listed);
+            crate::host::wake();
             false
         }
         Command::Flush(done) => {

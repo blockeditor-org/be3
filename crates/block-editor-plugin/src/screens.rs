@@ -439,6 +439,15 @@ impl Screens {
                     });
                 }
             }
+            Message::Editor(EditorMessage::ShowDialog {
+                instance,
+                block_id,
+                dialog,
+            }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.show_dialog(Uuid::from_bytes(*block_id), *dialog);
+                }
+            }
             Message::Editor(EditorMessage::ShowPanel { instance, panel }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.show_panel(*panel);

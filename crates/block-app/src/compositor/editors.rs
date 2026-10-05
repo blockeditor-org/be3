@@ -13,7 +13,7 @@ use beui::reactive::{
 use beui::{NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildRect, CreationProgress, EditorInstanceId, EditorRegion,
-    FrameChrome, FrameSpec, HostPanel, TopBar, ViewChange,
+    FrameChrome, FrameSpec, HostPanel, SettingsProgress, TopBar, ViewChange,
 };
 use uuid::Uuid;
 
@@ -25,7 +25,7 @@ use crate::editors::{
 };
 use crate::host::HostItem;
 use crate::plugin_host::{self, ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
-use crate::surfaces::{HostItemFace, HostedRegion};
+use crate::surfaces::{HostItemFace, HostedRegion, HostedSurface, SurfaceId};
 use crate::ui::HostPanelSurface;
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;
@@ -39,6 +39,9 @@ pub(crate) struct State {
     simulated: RefCell<HashMap<Uuid, Access>>,
     creations: RefCell<HashMap<CreationKey, CreationChild>>,
     commits: RefCell<HashMap<(Uuid, ChildId), ChildCommit>>,
+    settings_children: RefCell<HashMap<(Uuid, ChildId), Uuid>>,
+    settings_shown: RefCell<HashMap<CreationKey, Uuid>>,
+    settings_status: RefCell<Option<(Uuid, SettingsProgress, f32)>>,
 }
 
 pub(crate) type CreationKey = (Uuid, EditorRegion, ChildId);
@@ -74,6 +77,9 @@ impl Editors {
             simulated: RefCell::new(HashMap::new()),
             creations: RefCell::new(HashMap::new()),
             commits: RefCell::new(HashMap::new()),
+            settings_children: RefCell::new(HashMap::new()),
+            settings_shown: RefCell::new(HashMap::new()),
+            settings_status: RefCell::new(None),
         }));
         EDITORS.with(|held| *held.borrow_mut() = Some(editors.clone()));
         editors
@@ -86,6 +92,8 @@ impl Editors {
         drop(closed);
         self.0.creations.borrow_mut().clear();
         self.0.commits.borrow_mut().clear();
+        self.0.settings_children.borrow_mut().clear();
+        self.0.settings_shown.borrow_mut().clear();
         self.0.simulated.borrow_mut().clear();
         super::changed();
     }
@@ -193,6 +201,62 @@ impl Editors {
                 }
             }
         }
+    }
+
+    fn show_settings(&self, key: CreationKey, block: Uuid) {
+        let (parent, _, child) = key;
+        self.0
+            .settings_children
+            .borrow_mut()
+            .insert((parent, child), block);
+        self.0.settings_shown.borrow_mut().insert(key, block);
+    }
+
+    fn hide_settings(&self, key: &CreationKey) {
+        self.0.settings_shown.borrow_mut().remove(key);
+    }
+
+    pub(crate) fn forget_hidden_settings(&self) {
+        let shown: Vec<(Uuid, ChildId)> = self
+            .0
+            .settings_shown
+            .borrow()
+            .keys()
+            .map(|(parent, _, child)| (*parent, *child))
+            .collect();
+        self.0
+            .settings_children
+            .borrow_mut()
+            .retain(|key, _| shown.contains(key));
+    }
+
+    pub(crate) fn requested_settings(&self) -> Option<Uuid> {
+        self.0.settings_shown.borrow().values().next().copied()
+    }
+
+    pub(crate) fn settings_block(&self, parent: Uuid, child: ChildId) -> Option<Uuid> {
+        self.0
+            .settings_children
+            .borrow()
+            .get(&(parent, child))
+            .copied()
+    }
+
+    pub(crate) fn set_settings_status(&self, status: Option<(Uuid, SettingsProgress, f32)>) {
+        if *self.0.settings_status.borrow() == status {
+            return;
+        }
+        *self.0.settings_status.borrow_mut() = status;
+        super::changed();
+    }
+
+    fn settings_status(&self, block: Uuid) -> Option<(SettingsProgress, f32)> {
+        self.0
+            .settings_status
+            .borrow()
+            .as_ref()
+            .filter(|(shown, _, _)| *shown == block)
+            .map(|(_, progress, height)| (progress.clone(), *height))
     }
 
     pub(crate) fn creation_pick_sources(&self) -> Vec<PickSource> {
@@ -1041,6 +1105,7 @@ enum Kind {
     Embedded,
     Panel(HostPanel),
     Creation,
+    ArtifactSettings(Uuid),
 }
 
 #[component]
@@ -1065,12 +1130,19 @@ fn HostedChild(
     )));
     let content = create_memo(clone!(child -> move || child.get().map(|child| child.content)));
     let creation_key: CreationKey = (parent, region, key);
-    on_cleanup(clone!(editors -> move || editors.forget_creation(&creation_key)));
+    on_cleanup(clone!(editors -> move || {
+        editors.forget_creation(&creation_key);
+        editors.hide_settings(&creation_key);
+    }));
     let kind = create_memo(clone!(editors child content any tab nesting -> move || {
         any.get();
         let (id, block_type, view_block) = match content.get() {
             None => return Kind::Missing,
             Some(HostContent::Panel(panel)) => return Kind::Panel(panel),
+            Some(HostContent::ArtifactSettings(block)) => {
+                editors.show_settings(creation_key, block);
+                return Kind::ArtifactSettings(block);
+            }
             Some(HostContent::Creation { editor, template }) => {
                 return match editors.ensure_creation(creation_key, editor, &template) {
                     true => Kind::Creation,
@@ -1123,6 +1195,12 @@ fn HostedChild(
                 status.creation = progress;
                 status.intrinsic = height.map(|height| vec2(0.0, height));
             }
+            if let Kind::ArtifactSettings(block) = kind.get()
+                && let Some((progress, height)) = editors.settings_status(block)
+            {
+                status.settings = Some(progress);
+                status.intrinsic = Some(vec2(0.0, height));
+            }
             Some(status)
         }));
         create_effect(clone!(reports status -> move || {
@@ -1171,6 +1249,9 @@ fn HostedChild(
                                 },
                                 Kind::Panel(panel) => view! {
                                     <HostPanelSurface panel={panel} />
+                                },
+                                Kind::ArtifactSettings(_) => view! {
+                                    <HostedSurface id=SurfaceId::ArtifactSettings />
                                 },
                                 Kind::Creation => match editors.creation_region(&creation_key) {
                                     Some(hosted) => view! {
@@ -1344,6 +1425,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         resize,
         error: (!available).then(|| CHILD_UNAVAILABLE.to_owned()),
         creation: None,
+        settings: None,
         menu: match available && child.frame_owner {
             true => frame_menu(editors, block),
             false => Vec::new(),

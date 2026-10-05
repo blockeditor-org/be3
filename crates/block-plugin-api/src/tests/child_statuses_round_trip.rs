@@ -26,6 +26,10 @@ fn child_statuses_round_trip() {
                 enabled: true,
             }],
             creation: Some(CreationProgress::Options { ready: true }),
+            settings: Some(SettingsProgress {
+                changed: true,
+                summary: Some("Every 5 minutes".into()),
+            }),
         },
         ChildStatus {
             instance: EditorInstanceId(4),
@@ -42,6 +46,7 @@ fn child_statuses_round_trip() {
             error: Some("the block is already open above this editor".into()),
             menu: Vec::new(),
             creation: None,
+            settings: None,
         },
     ]);
     assert_eq!(
@@ -64,6 +69,7 @@ fn child_statuses_round_trip() {
         error: Some("x".repeat(MAX_STRING_BYTES + 1)),
         menu: Vec::new(),
         creation: None,
+        settings: None,
     }]);
     assert_eq!(
         encode_frame(&oversized),

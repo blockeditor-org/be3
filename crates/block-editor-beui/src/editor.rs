@@ -11,7 +11,8 @@ use beui::reactive::{
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
-    HostPanel, InteractionMode, MenuEntry, ResizeMode, TopBar, ViewChange, WebViewId,
+    HostPanel, InteractionMode, MenuEntry, ResizeMode, SettingsProgress, TopBar, ViewChange,
+    WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -152,6 +153,7 @@ pub enum SubregionContent {
     WebView(WebViewId),
     Host(HostPanel),
     Creation { editor: Uuid, template: String },
+    ArtifactSettings { block: Uuid },
 }
 
 impl From<ChildTarget> for SubregionContent {
@@ -174,6 +176,9 @@ impl SubregionContent {
                 editor: editor.into_bytes(),
                 template: template.clone(),
             },
+            Self::ArtifactSettings { block } => ChildContent::ArtifactSettings {
+                block_id: block.into_bytes(),
+            },
         }
     }
 }
@@ -193,6 +198,7 @@ pub struct ChildState {
     pub child: Option<ChildId>,
     pub menu: Vec<MenuEntry>,
     pub creation: Option<CreationProgress>,
+    pub settings: Option<SettingsProgress>,
 }
 
 impl ChildState {
@@ -220,6 +226,7 @@ impl ChildState {
             child,
             menu: status.menu,
             creation: status.creation,
+            settings: status.settings,
         }
     }
 }

@@ -40,6 +40,7 @@ fn clicking_a_live_editor_hands_it_the_frame() {
             error: None,
             menu: Vec::new(),
             creation: None,
+            settings: None,
         });
         editor.run();
     };

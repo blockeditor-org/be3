@@ -12,7 +12,6 @@ mod performance;
 mod platform;
 mod plugin_host;
 mod root_settings;
-mod share;
 mod surfaces;
 mod ui;
 
@@ -24,18 +23,18 @@ use std::{io, path::PathBuf};
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
-use be_block::metadata::MAX_NAME_BYTES;
 use be_block::{BlockContent, UiSettingsContent, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
-use block_plugin_api::{AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel};
+use block_plugin_api::{
+    AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog,
+};
 use editors::{
-    ArtifactSession, ArtifactStatus, BlockLabel, EditorAction, EditorRegistry, PluginEditor,
-    SidebarDragSource, plugin::PickSource,
+    ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry, PluginEditor, SidebarDragSource,
+    plugin::PickSource,
 };
 use root_settings::RootSettings;
-use share::ShareDialog;
 use surfaces::SurfaceId;
 use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
 use uuid::Uuid;
@@ -271,12 +270,8 @@ struct BlockApp {
 
     dynamic_artifact_settings_open: Option<Uuid>,
 
-    dynamic_artifact_unlink: Option<Uuid>,
-
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
-    rename: Option<RenameState>,
-    share: ShareDialog,
     about_open: bool,
     app_menu_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
@@ -357,11 +352,6 @@ struct PendingCopy {
 enum CopyStage {
     Duplicate,
     Replace { copy_id: Uuid, block_type: Uuid },
-}
-
-struct RenameState {
-    id: Uuid,
-    name: String,
 }
 
 impl BlockApp {
@@ -455,11 +445,8 @@ impl BlockApp {
             dynamic_artifact_errors: HashMap::new(),
             dynamic_artifact_settings: HashMap::new(),
             dynamic_artifact_settings_open: None,
-            dynamic_artifact_unlink: None,
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
-            rename: None,
-            share: ShareDialog::default(),
             about_open: false,
             app_menu_open: false,
             pending_destructive_action: None,
@@ -849,8 +836,6 @@ impl BlockApp {
         self.dynamic_artifact_errors.clear();
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
-        self.dynamic_artifact_unlink = None;
-        self.share = ShareDialog::default();
         self.root_settings = RootSettings::default();
         self.choosing_profile = false;
         self.shell = None;
@@ -949,10 +934,7 @@ impl BlockApp {
         self.dynamic_artifact_errors.clear();
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
-        self.dynamic_artifact_unlink = None;
         self.pending_transfers.clear();
-        self.rename = None;
-        self.share = ShareDialog::default();
         self.about_open = false;
         self.app_menu_open = false;
         self.pending_destructive_action = None;
@@ -1233,9 +1215,6 @@ impl BlockApp {
         if self.dynamic_artifact_settings_open == Some(id) {
             self.dynamic_artifact_settings_open = None;
         }
-        if self.dynamic_artifact_unlink == Some(id) {
-            self.dynamic_artifact_unlink = None;
-        }
     }
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
@@ -1255,6 +1234,12 @@ impl BlockApp {
         }
         self.shell = Some(id);
         Some(id)
+    }
+
+    fn show_dialog(&mut self, id: Uuid, dialog: ShellDialog) {
+        if let Some(shell) = self.shell {
+            self.with_editor(shell, |shell| shell.show_dialog(id, dialog));
+        }
     }
 
     fn show_panel(&mut self, panel: HostPanel) {
@@ -1305,8 +1290,7 @@ impl BlockApp {
                     self.dynamic_artifact_errors.remove(&id);
                 }
             }
-            ArtifactAction::Settings => self.dynamic_artifact_settings_open = Some(id),
-            ArtifactAction::Unlink => self.dynamic_artifact_unlink = Some(id),
+            ArtifactAction::Unlink => self.unlink_artifact(id),
         }
     }
 
@@ -1374,12 +1358,20 @@ impl BlockApp {
                 .collect()
         });
         for (id, source) in &editors {
-            let commits =
-                crate::plugin_host::take_child_commits(&source.plugin_id, source.instance);
+            let (settings, commits): (Vec<_>, Vec<_>) =
+                crate::plugin_host::take_child_commits(&source.plugin_id, source.instance)
+                    .into_iter()
+                    .partition(|commit| self.editors.settings_block(*id, commit.child).is_some());
+            for commit in settings {
+                if let Some(block) = self.editors.settings_block(*id, commit.child) {
+                    self.apply_artifact_settings(block);
+                }
+            }
             if !commits.is_empty() {
                 self.editors.commit_creations(*id, commits);
             }
         }
+        self.editors.forget_hidden_settings();
         let creations = self.editors.creation_pick_sources();
         let requesters = editors
             .into_iter()
@@ -1484,7 +1476,13 @@ impl BlockApp {
     }
 
     fn show_artifact_settings(&mut self) {
+        let requested = self.editors.requested_settings();
+        if self.dynamic_artifact_settings_open != requested {
+            self.cancel_artifact_settings();
+            self.dynamic_artifact_settings_open = requested;
+        }
         let Some(id) = self.dynamic_artifact_settings_open else {
+            self.editors.set_settings_status(None);
             return;
         };
         let descriptor = artifact_of(id);
@@ -1498,7 +1496,6 @@ impl BlockApp {
             .dynamic_artifact_settings
             .entry(id)
             .or_insert_with(|| descriptor.data.clone());
-        surfaces::set_height(SurfaceId::ArtifactSettings, Some(session.settings_height()));
         surfaces::host(
             SurfaceId::ArtifactSettings,
             Some(session.settings_region(&self.registry)),
@@ -1506,13 +1503,19 @@ impl BlockApp {
         if let Some(edited) = session.take_draft() {
             *draft = edited;
         }
+        let progress = block_plugin_api::SettingsProgress {
+            changed: *draft != descriptor.data,
+            summary: session.summary(draft),
+        };
+        self.editors
+            .set_settings_status(Some((id, progress, session.settings_height())));
         self.dynamic_artifact_sessions.insert(id, session);
     }
 
-    fn apply_artifact_settings(&mut self) {
-        let Some(id) = self.dynamic_artifact_settings_open else {
+    fn apply_artifact_settings(&mut self, id: Uuid) {
+        if self.dynamic_artifact_settings_open != Some(id) {
             return;
-        };
+        }
         let Some(descriptor) = artifact_of(id) else {
             self.dynamic_artifact_settings_open = None;
             return;
@@ -1544,10 +1547,7 @@ impl BlockApp {
         }
     }
 
-    fn unlink_artifact(&mut self) {
-        let Some(id) = self.dynamic_artifact_unlink else {
-            return;
-        };
+    fn unlink_artifact(&mut self, id: Uuid) {
         set_artifact(id, None);
         self.dynamic_artifact_errors.remove(&id);
         self.forget_dynamic_artifact_dialogs(id);
@@ -1570,26 +1570,10 @@ impl BlockApp {
         }
     }
 
-    fn block_label(&self, id: Uuid) -> BlockLabel {
-        be::node(id).map_or_else(
-            || {
-                let block_type = self.block_type_of(id).unwrap_or_default();
-                BlockLabel::new(&self.registry, block_type, None, false)
-            },
-            |node| BlockLabel::for_node(&self.registry, &node),
-        )
-    }
-
     fn handle_block_command(&mut self, id: Uuid, command: BlockCommand) {
         match command {
-            BlockCommand::Share => {
-                let label = self.block_label(id);
-                self.share.open(id, label);
-            }
-            BlockCommand::Rename => {
-                let name = self.block_label(id).name;
-                self.rename = Some(RenameState { id, name });
-            }
+            BlockCommand::Share => self.show_dialog(id, ShellDialog::Share),
+            BlockCommand::Rename => self.show_dialog(id, ShellDialog::Rename),
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
@@ -1722,7 +1706,6 @@ impl BlockApp {
         }
         self.process_pending_transfers();
         self.process_pending_copies();
-        self.share.poll();
         debug::poll();
         self.show_shell();
         self.poll_artifacts();
@@ -1917,20 +1900,6 @@ impl BlockApp {
             UiCommand::CloseInvite => self.invite_open = false,
             UiCommand::Discard => self.discard(context),
             UiCommand::CancelDiscard => self.pending_destructive_action = None,
-            UiCommand::SubmitRename(name) => {
-                if name.len() <= MAX_NAME_BYTES
-                    && let Some(rename) = self.rename.take()
-                {
-                    let name = name.trim().to_owned();
-                    be::set_name(rename.id, (!name.is_empty()).then_some(name));
-                }
-            }
-            UiCommand::CancelRename => self.rename = None,
-            UiCommand::ApplyArtifactSettings => self.apply_artifact_settings(),
-            UiCommand::CancelArtifactSettings => self.cancel_artifact_settings(),
-            UiCommand::Unlink => self.unlink_artifact(),
-            UiCommand::CancelUnlink => self.dynamic_artifact_unlink = None,
-            UiCommand::Share(command) => self.share.command(command),
             UiCommand::Debug(command) => debug::command(command),
             UiCommand::ShowPanel(panel) => self.show_panel(panel),
             UiCommand::ConfirmRecovery(words) => {
@@ -2088,24 +2057,6 @@ impl BlockApp {
             about: self.about_open,
             app_menu: self.app_menu_open,
             discard: self.pending_destructive_action.as_ref().map(discard_view),
-            rename: self.rename.as_ref().map(|rename| ui::RenameView {
-                id: rename.id,
-                name: rename.name.clone(),
-            }),
-            artifact_settings: self.dynamic_artifact_settings_open.and_then(|id| {
-                let descriptor = artifact_of(id)?;
-                let draft = self.dynamic_artifact_settings.get(&id);
-                let session = self.dynamic_artifact_sessions.get(&id);
-                Some(ui::ArtifactSettingsView {
-                    id,
-                    changed: draft.is_some_and(|draft| *draft != descriptor.data),
-                    summary: session
-                        .zip(draft)
-                        .and_then(|(session, draft)| session.summary(draft)),
-                })
-            }),
-            unlink: self.dynamic_artifact_unlink.is_some(),
-            share: self.share.view(),
             presenting: self
                 .editors
                 .with(|open| open.values().any(PluginEditor::presenting_now)),
