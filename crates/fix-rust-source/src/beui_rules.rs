@@ -24,14 +24,7 @@ pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -
         let name = function
             .name()
             .map_or_else(String::new, |name| name.text().to_string());
-        if is_component(&function) {
-            if let Some(problem) = view_shape(&function) {
-                violations.push(format!(
-                    "component view: {} `{name}` {problem}",
-                    at(function.syntax())
-                ));
-            }
-        } else if builds_nodes(&function) {
+        if !is_component(&function) && builds_nodes(&function) {
             violations.push(format!(
                 "component attribute: {} `{name}` builds part of a view but is not a #[component]",
                 at(function.syntax())
@@ -109,47 +102,11 @@ fn builds_nodes(function: &ast::Fn) -> bool {
         .is_some_and(|name| BUILT_TYPES.contains(&name.text()))
 }
 
-fn view_shape(function: &ast::Fn) -> Option<&'static str> {
-    let body = function.body()?;
-    let views = body
-        .syntax()
-        .descendants()
-        .filter_map(ast::MacroCall::cast)
-        .filter(|call| is_view(call) && belongs_to_body(call.syntax(), body.syntax()))
-        .collect::<Vec<_>>();
-    match views.as_slice() {
-        [] => None,
-        [view] => {
-            let tail = body.stmt_list()?.tail_expr();
-            let ends_with_it = tail.is_some_and(|tail| match tail {
-                ast::Expr::MacroExpr(expr) => expr
-                    .macro_call()
-                    .is_some_and(|call| call.syntax() == view.syntax()),
-                _ => false,
-            });
-            (!ends_with_it).then_some("must end with its one `view!` and have nothing after it")
-        }
-        _ => Some("builds more than one `view!`; choose between trees with `Show` or `Dynamic`"),
-    }
-}
-
 fn is_view(call: &ast::MacroCall) -> bool {
     call.path()
         .and_then(|path| path.segment())
         .and_then(|segment| segment.name_ref())
         .is_some_and(|name| name.text() == "view")
-}
-
-fn belongs_to_body(node: &SyntaxNode, body: &SyntaxNode) -> bool {
-    for ancestor in node.ancestors().skip(1) {
-        if &ancestor == body {
-            return true;
-        }
-        if ast::ClosureExpr::can_cast(ancestor.kind()) || ast::Fn::can_cast(ancestor.kind()) {
-            return false;
-        }
-    }
-    false
 }
 
 fn calls(call: &ast::CallExpr, function: &str) -> bool {

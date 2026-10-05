@@ -254,6 +254,7 @@ struct BlockApp {
     server_url: String,
     account: Account,
     root_settings: RootSettings,
+    choosing_profile: bool,
     shell: Option<Uuid>,
     forwarded_picks: HashMap<u64, (PickSource, u64)>,
     next_pick: u64,
@@ -441,6 +442,7 @@ impl BlockApp {
             server_url,
             account,
             root_settings: RootSettings::default(),
+            choosing_profile: false,
             shell: None,
             forwarded_picks: HashMap::new(),
             next_pick: 0,
@@ -850,6 +852,7 @@ impl BlockApp {
         self.dynamic_artifact_unlink = None;
         self.share = ShareDialog::default();
         self.root_settings = RootSettings::default();
+        self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;
         self.keys.cancel_pairing();
@@ -965,6 +968,7 @@ impl BlockApp {
         self.reauth = None;
         self.invite_open = false;
         self.root_settings = RootSettings::default();
+        self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;
         self.keys = keys::KeyState::default();
@@ -1647,8 +1651,10 @@ impl BlockApp {
     }
 
     fn frame(&mut self, context: &beui::Context) {
-        if self.error.is_none() {
-            self.error = panic_guard::take();
+        if self.error.is_none()
+            && let Some(report) = panic_guard::take()
+        {
+            self.crashed(report);
         }
         if self.error.is_some() {
             return;
@@ -1657,9 +1663,15 @@ impl BlockApp {
             self.run_frame(context);
         }));
         if caught.is_err() {
-            self.error =
-                Some(panic_guard::take().unwrap_or_else(|| "The app stopped responding.".into()));
+            self.crashed(
+                panic_guard::take().unwrap_or_else(|| "The app stopped responding.".into()),
+            );
         }
+    }
+
+    fn crashed(&mut self, report: String) {
+        self.error = Some(report);
+        let _ = self.app_state.clear_active_account();
     }
 
     fn run_frame(&mut self, context: &beui::Context) {
@@ -1703,6 +1715,11 @@ impl BlockApp {
         self.sync_be_stack();
         self.poll_workspace_request();
         self.poll_reauth_request();
+        if self.choosing_profile {
+            self.root_settings.ensure();
+            performance::end_frame();
+            return;
+        }
         self.process_pending_transfers();
         self.process_pending_copies();
         self.share.poll();
@@ -1823,6 +1840,25 @@ impl BlockApp {
                     self.open_workspace(workspace);
                 }
             }
+            UiCommand::ChooseProfile(id) => {
+                if let Some(workspace) = self
+                    .workspaces
+                    .iter()
+                    .find(|workspace| workspace.id == id)
+                    .cloned()
+                {
+                    self.open_workspace(workspace);
+                    self.choosing_profile = true;
+                }
+            }
+            UiCommand::OpenProfile(profile) => {
+                self.root_settings.use_profile(self.client_id, profile);
+                self.choosing_profile = false;
+            }
+            UiCommand::OpenNewProfile => {
+                self.root_settings.new_profile(self.client_id);
+                self.choosing_profile = false;
+            }
             UiCommand::RespondInvitation(id, accept) => {
                 self.begin_workspace_request(WorkspaceOperation::Respond(id, accept));
             }
@@ -1938,6 +1974,7 @@ impl BlockApp {
             (None, true, None) if self.keys.needs_recovery() => ui::Screen::Recovery,
             (None, true, None) => ui::Screen::Workspaces,
             (None, true, Some(_)) if self.workspace_key.is_none() => ui::Screen::Unlock,
+            (None, true, Some(_)) if self.choosing_profile => ui::Screen::Profiles,
             (None, true, Some(_)) => ui::Screen::Workspace,
         };
         let changes_saved = match screen {
@@ -2040,6 +2077,7 @@ impl BlockApp {
                     .into_iter()
                     .map(|(id, name, current)| ui::ProfileRow { id, name, current })
                     .collect(),
+                profiles_loaded: self.root_settings.loaded(),
             },
             invite: self.invite_open.then(|| ui::InviteView {
                 workspace: workspace_name,
