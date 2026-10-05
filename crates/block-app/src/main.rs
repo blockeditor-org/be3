@@ -14,6 +14,7 @@ mod plugin_host;
 mod root_settings;
 mod surfaces;
 mod ui;
+mod wayland;
 
 use beui::styled::DocumentTheme;
 use std::{collections::HashMap, error::Error, rc::Rc};
@@ -31,8 +32,8 @@ use block_plugin_api::{
     AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog,
 };
 use editors::{
-    ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry,
-    PluginEditor, SidebarDragSource, plugin::PickSource,
+    ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry, PluginEditor, SidebarDragSource,
+    plugin::PickSource,
 };
 use root_settings::RootSettings;
 use surfaces::SurfaceId;
@@ -64,16 +65,43 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     panic_guard::install();
     let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
     let mut options = run_options();
+    let mut session = false;
     for argument in std::env::args().skip(1) {
         if argument == "--dev-workspace" {
             app.open_dev_workspace(None);
+        } else if argument == "--session" && cfg!(target_os = "linux") {
+            session = true;
         } else if let Some(path) = argument.strip_prefix("--accessibility-tree=") {
             options.accessibility_dump = Some(PathBuf::from(path));
         } else {
             return Err(format!("unknown argument {argument}").into());
         }
     }
-    beui::run_with(options, Shell::new(app))
+    run_shell(options, Shell::new(app), session)
+}
+
+#[cfg(target_os = "linux")]
+fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(), Box<dyn Error>> {
+    if session {
+        return beui::run_on(Box::new(beui_adapter_drm::Drm), options, shell);
+    }
+    let renderer = beui::WindowRenderer::Wgpu {
+        open_device: Some(std::sync::Arc::new(be_dmabuf::open_device)),
+    };
+    beui::run_with_renderers(options, vec![renderer], shell)
+}
+
+#[cfg(all(
+    not(target_os = "linux"),
+    not(target_os = "android"),
+    not(target_arch = "wasm32")
+))]
+fn run_shell(
+    options: beui::RunOptions,
+    shell: Shell,
+    _session: bool,
+) -> Result<(), Box<dyn Error>> {
+    beui::run_with(options, shell)
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -142,6 +170,7 @@ impl Shell {
         let mut view = None;
         let mut document = beui::reactive::build(|| {
             compositor::install();
+            wayland::create();
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
             view = Some(store.clone());
@@ -167,6 +196,7 @@ impl beui::App for Shell {
     fn setup(&mut self, setup: &beui::Setup) {
         host::install_waker(setup.waker.clone());
         plugin_host::install(setup);
+        wayland::start(setup);
         #[cfg(all(
             feature = "web-view",
             not(target_os = "android"),
@@ -180,6 +210,7 @@ impl beui::App for Shell {
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
         let started = std::time::Instant::now();
         host::begin(context, &self.document);
+        wayland::before(context, rect, &mut self.document);
         self.app.frame(context);
         if let Some(open) = self.app.inspector_requested.take()
             && open
@@ -199,6 +230,7 @@ impl beui::App for Shell {
             self.document.theme().background,
         );
         self.document.show(context, rect);
+        wayland::after(context, &mut self.document);
         let commands = ui::take_commands();
         if !commands.is_empty() {
             for command in commands {
@@ -220,6 +252,7 @@ impl beui::App for Shell {
     }
 
     fn exiting(&mut self) {
+        wayland::exiting();
         be::flush();
         be::stop();
     }
@@ -255,6 +288,7 @@ struct BlockApp {
     root_settings: RootSettings,
     choosing_profile: bool,
     shell: Option<Uuid>,
+    windows_sent: Option<(Uuid, u64)>,
     forwarded_picks: HashMap<u64, (PickSource, u64)>,
     next_pick: u64,
     ui_settings: Option<Uuid>,
@@ -270,10 +304,10 @@ struct BlockApp {
 
     dynamic_artifact_settings_open: Option<Uuid>,
 
-
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
+    run_program_open: bool,
     app_menu_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
     scheduled_account_switch: Option<Account>,
@@ -435,6 +469,7 @@ impl BlockApp {
             root_settings: RootSettings::default(),
             choosing_profile: false,
             shell: None,
+            windows_sent: None,
             forwarded_picks: HashMap::new(),
             next_pick: 0,
             ui_settings: None,
@@ -449,6 +484,7 @@ impl BlockApp {
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
             about_open: false,
+            run_program_open: false,
             app_menu_open: false,
             pending_destructive_action: None,
             scheduled_account_switch: None,
@@ -937,6 +973,7 @@ impl BlockApp {
         self.dynamic_artifact_settings_open = None;
         self.pending_transfers.clear();
         self.about_open = false;
+        self.run_program_open = false;
         self.app_menu_open = false;
         self.pending_destructive_action = None;
         self.scheduled_account_switch = None;
@@ -1232,6 +1269,7 @@ impl BlockApp {
         if !self.editors.with(|open| open.contains_key(&id)) {
             let editor = self.registry.open(id, WORKSPACE_EDITOR).viewed_by(Some(id));
             self.editors.with(|open| open.insert(id, editor));
+            self.windows_sent = None;
         }
         self.shell = Some(id);
         Some(id)
@@ -1304,11 +1342,25 @@ impl BlockApp {
             return;
         };
         compositor::set_shell(Some(shell));
-        let Some((focus, watch)) = self.with_editor(shell, |editor| {
-            (editor.take_focus_report(), editor.take_artifact_watch())
+        let windows = (Some((shell, wayland::revision())) != self.windows_sent).then(|| {
+            self.windows_sent = Some((shell, wayland::revision()));
+            wayland::listed()
+        });
+        let Some((focus, watch, closed)) = self.with_editor(shell, |editor| {
+            if let Some(windows) = windows {
+                editor.set_windows(windows);
+            }
+            (
+                editor.take_focus_report(),
+                editor.take_artifact_watch(),
+                editor.take_closed_windows(),
+            )
         }) else {
             return;
         };
+        for window in closed {
+            wayland::close(window);
+        }
         if let Some(focus) = focus {
             plugin_host::set_focus(focus.block, focus.via);
         }
@@ -1889,6 +1941,11 @@ impl BlockApp {
                 }
             }
             UiCommand::About(open) => self.about_open = open,
+            UiCommand::RunProgram(open) => self.run_program_open = open,
+            UiCommand::Launch(command) => {
+                self.run_program_open = false;
+                wayland::launch(command);
+            }
             UiCommand::AppMenu(open) => self.app_menu_open = open,
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
@@ -2048,6 +2105,7 @@ impl BlockApp {
                     .map(|(id, name, current)| ui::ProfileRow { id, name, current })
                     .collect(),
                 profiles_loaded: self.root_settings.loaded(),
+                runs_programs: wayland::running(),
             },
             invite: self.invite_open.then(|| ui::InviteView {
                 workspace: workspace_name,
@@ -2056,6 +2114,7 @@ impl BlockApp {
                 sent: self.invite_sent,
             }),
             about: self.about_open,
+            run_program: self.run_program_open,
             app_menu: self.app_menu_open,
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             presenting: self

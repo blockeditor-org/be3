@@ -1,0 +1,21 @@
+[package]
+name = "be-wayland"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-dmabuf = { path = "../be-dmabuf" }
+beui = { path = "../beui" }
+bytemuck = { version = "1", features = ["derive"] }
+rustix = { version = "1", features = ["event", "fs"] }
+smithay = { version = "0.7", default-features = false, features = ["backend_drm", "desktop", "wayland_frontend"] }
+wgpu = { version = "29", default-features = false, features = ["vulkan"] }
+
+[dev-dependencies]
+rustix = { version = "1", features = ["event", "fs", "pipe"] }
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client"] }
+
+[lints]
+workspace = true

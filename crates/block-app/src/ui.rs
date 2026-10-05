@@ -155,6 +155,7 @@ pub(crate) struct StatusView {
     pub(crate) accounts: Vec<AccountRow>,
     pub(crate) profiles: Vec<ProfileRow>,
     pub(crate) profiles_loaded: bool,
+    pub(crate) runs_programs: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -195,6 +196,7 @@ pub(crate) struct AppView {
     pub(crate) status: StatusView,
     pub(crate) invite: Option<InviteView>,
     pub(crate) about: bool,
+    pub(crate) run_program: bool,
     pub(crate) app_menu: bool,
     pub(crate) discard: Option<DiscardView>,
     pub(crate) presenting: bool,
@@ -234,6 +236,8 @@ pub(crate) enum UiCommand {
     NewProfile,
     ManageAccounts,
     About(bool),
+    RunProgram(bool),
+    Launch(String),
     AppMenu(bool),
     SendInvite(String, WorkspaceRole),
     CloseInvite,

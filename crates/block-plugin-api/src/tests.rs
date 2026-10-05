@@ -102,6 +102,7 @@ mod frame_screens_and_reports_round_trip;
 mod grabbing_the_cursor_round_trips;
 mod history_messages_round_trip;
 mod host_panel_messages_round_trip;
+mod host_window_messages_round_trip;
 mod ime_messages_round_trip;
 mod manifest_validation;
 mod menus_and_their_picks_round_trip;

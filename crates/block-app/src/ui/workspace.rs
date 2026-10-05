@@ -1,6 +1,6 @@
 use beui::icons::{
     ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_BUG_REPORT, ICON_CHECK, ICON_DEVICES, ICON_INFO, ICON_KEY,
-    ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD, ICON_SWAP_HORIZ,
+    ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD, ICON_SWAP_HORIZ, ICON_TERMINAL,
 };
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component, create_memo,
@@ -126,6 +126,7 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
     let profile_names = status.clone();
     let listed = accounts.clone();
     let panel = |panel: HostPanel| move || pick(UiCommand::ShowPanel(panel));
+    let runs_programs = create_memo(clone!(status -> move || status.get().runs_programs));
     view! {
         <Frame padding_horizontal=MENU_PADDING padding_vertical=MENU_PADDING>
             <List spacing=0.0>
@@ -214,6 +215,14 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
                     disabled={unsaved}
                     on_click={|| pick(UiCommand::ManageAccounts)}
                 />
+                <Show condition={runs_programs}>
+                    <ActionRow
+                        @test_id={"app.menu.run-program"}
+                        label="Run a program"
+                        glyph={ICON_TERMINAL.to_owned()}
+                        on_click={|| pick(UiCommand::RunProgram(true))}
+                    />
+                </Show>
                 <ActionRow
                     @test_id={"app.menu.about"}
                     label="About"

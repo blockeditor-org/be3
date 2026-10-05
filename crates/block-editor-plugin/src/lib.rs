@@ -20,16 +20,16 @@ pub mod session;
 mod wasm;
 
 pub use block_plugin_api::{
-    AccessGrant, AccessLevel, AccessListing, ArtifactAction, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation,
-    BlockPick, Catalog, SettingsProgress, ShellDialog, TemplateCategory, TemplateDescriptor,
-    ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage,
-    CreationProgress,
-    ConflictSide, CursorIcon, DataListing, EditorCapabilities, EditorInstanceId, EditorRegion,
-    FetchResult, FileSave, FrameChrome, FrameSpec, HostPanel, HostReply, HostRequest, InputEvent,
-    InteractionMode, Key, MenuEntry, Modifiers, Occluder, PointerButton, ResizeMode,
-    ScreenPlacement, SurfaceRect, TopBar, TouchPhase, VersionBranch, VersionChange,
-    VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand,
-    WebViewEvent, WebViewId, WheelUnit,
+    AccessGrant, AccessLevel, AccessListing, ArtifactAction, AudioStatus, BarAction, BlockCommand,
+    BlockFilter, BlockLocation, BlockPick, Catalog, ChildContent, ChildId, ChildLayer, ChildMode,
+    ChildPlacement, ChildStatus, ClipboardImage, ConflictSide, CreationProgress, CursorIcon,
+    DataListing, EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, FileSave,
+    FrameChrome, FrameSpec, HostPanel, HostReply, HostRequest, HostWindow, HostWindowId,
+    InputEvent, InteractionMode, Key, MenuEntry, Modifiers, Occluder, PointerButton, ResizeMode,
+    ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect, TemplateCategory,
+    TemplateDescriptor, TopBar, TouchPhase, VersionBranch, VersionChange, VersionChangeKind,
+    VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand, WebViewEvent,
+    WebViewId, WheelUnit,
 };
 pub use block_ui;
 pub use content::ContentProjection;

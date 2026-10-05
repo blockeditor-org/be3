@@ -1,8 +1,8 @@
 use be_protocol::WorkspaceRole;
 use beui::NodeId;
 use beui::reactive::{
-    Align, Direction, Frame, List, Show, clone, component, create_effect,
-    create_memo, create_signal, untrack, view,
+    Align, Direction, Frame, List, Show, clone, component, create_effect, create_memo,
+    create_signal, untrack, view,
 };
 use beui::styled::{
     Button, ButtonVariant, Caption, Code, Dialog, Paragraph, Spinner, Tabs, TextInput,
@@ -19,7 +19,8 @@ pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
         <List spacing=0.0>
             <DiscardDialog view={view.clone()} />
             <InviteDialog view={view.clone()} />
-            <AboutDialog view />
+            <AboutDialog view={view.clone()} />
+            <RunProgramDialog view />
         </List>
     }
 }
@@ -46,6 +47,56 @@ fn AboutDialog(view: AppViewStore) -> NodeId {
     view! {
         <Dialog open={open} title="About" width=420.0 on_dismiss={|| send(UiCommand::About(false))}>
             <AboutPanel />
+        </Dialog>
+    }
+}
+
+#[component]
+fn RunProgramDialog(view: AppViewStore) -> NodeId {
+    let open = view.run_program.clone();
+    let (command, set_command) = create_signal(String::new());
+    create_effect(clone!(open set_command -> move || {
+        if open.get() {
+            untrack(|| set_command.set(String::new()));
+        }
+    }));
+    let blank = create_memo(clone!(command -> move || command.get().trim().is_empty()));
+    let run = clone!(command -> move || {
+        let line = command.get_untracked();
+        if !line.trim().is_empty() {
+            send(UiCommand::Launch(line));
+        }
+    });
+    let submit = run.clone();
+    view! {
+        <Dialog
+            open={open}
+            title="Run a program"
+            width=420.0
+            on_dismiss={|| send(UiCommand::RunProgram(false))}
+        >
+            <Frame>
+                <List spacing=8.0>
+                    <Caption content="Its windows open in the workspace." />
+                    <TextInput
+                        @test_id={"app.run-program.command"}
+                        value={command}
+                        label="Command"
+                        placeholder="A command, like foot or gtk4-demo"
+                        on_change={move |line: String| set_command.set(line)}
+                        on_submit={move |_: String| submit()}
+                    />
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <Button
+                            @test_id={"app.run-program.run"}
+                            label="Run"
+                            variant=ButtonVariant::Primary
+                            disabled={blank}
+                            on_click={run}
+                        />
+                    </List>
+                </List>
+            </Frame>
         </Dialog>
     }
 }
@@ -170,4 +221,3 @@ fn DiscardDialog(view: AppViewStore) -> NodeId {
         </Dialog>
     }
 }
-

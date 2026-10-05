@@ -13,9 +13,11 @@ use beui::reactive::{
 use beui::{NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildRect, CreationProgress, EditorInstanceId, EditorRegion,
-    FrameChrome, FrameSpec, HostPanel, SettingsProgress, TopBar, ViewChange,
+    FrameChrome, FrameSpec, HostPanel, HostWindowId, SettingsProgress, TopBar, ViewChange,
 };
 use uuid::Uuid;
+
+use crate::wayland::WindowSurface;
 
 use super::region::{ChildView, PluginRegion, RegionEditor};
 use crate::editors::plugin::PickSource;
@@ -235,7 +237,11 @@ impl Editors {
     }
 
     pub(crate) fn settings_block(&self, parent: Uuid, child: ChildId) -> Option<Uuid> {
-        self.0.settings_children.borrow().get(&(parent, child)).copied()
+        self.0
+            .settings_children
+            .borrow()
+            .get(&(parent, child))
+            .copied()
     }
 
     pub(crate) fn set_settings_status(&self, status: Option<(Uuid, SettingsProgress, f32)>) {
@@ -1100,6 +1106,7 @@ enum Kind {
     FrameChild,
     Embedded,
     Panel(HostPanel),
+    Window(HostWindowId),
     Creation,
     ArtifactSettings(Uuid),
 }
@@ -1135,6 +1142,12 @@ fn HostedChild(
         let (id, block_type, view_block) = match content.get() {
             None => return Kind::Missing,
             Some(HostContent::Panel(panel)) => return Kind::Panel(panel),
+            Some(HostContent::Window(window)) => {
+                return match super::shell().get() == Some(parent) {
+                    true => Kind::Window(window),
+                    false => Kind::Unavailable,
+                };
+            }
             Some(HostContent::ArtifactSettings(block)) => {
                 editors.show_settings(creation_key, block);
                 return Kind::ArtifactSettings(block);
@@ -1245,6 +1258,9 @@ fn HostedChild(
                                 },
                                 Kind::Panel(panel) => view! {
                                     <HostPanelSurface panel={panel} />
+                                },
+                                Kind::Window(window) => view! {
+                                    <WindowSurface window={window} />
                                 },
                                 Kind::ArtifactSettings(_) => view! {
                                     <HostedSurface id=SurfaceId::ArtifactSettings />

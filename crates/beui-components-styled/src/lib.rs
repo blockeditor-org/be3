@@ -61,7 +61,7 @@ pub use context_menu::ContextMenu;
 pub use date_time_field::DateTimeField;
 pub use dialog::Dialog;
 pub use dock::DockArea;
-pub use dock::{CHROME_BORDER, DOCK_INSET};
+pub use dock::{CHROME_BORDER, DOCK_INSET, WINDOW_CHROME};
 pub use fullscreen::Fullscreen;
 pub use icon_button::{IconButton, IconButtonSize};
 pub use link::Link;
