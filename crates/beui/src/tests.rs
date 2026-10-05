@@ -55,7 +55,6 @@ mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
 mod a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced;
 mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
-mod a_dock_tab_that_asks_to_close_stays_until_its_owner_removes_it;
 mod a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open;
 mod a_docked_pane_lays_its_content_inside_its_border;
 mod a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_tap;
@@ -284,6 +283,7 @@ mod clicking_an_accordion_header_hides_its_content;
 mod clicking_and_dragging_in_a_text_area_moves_the_caret_and_selects;
 mod clicking_outside_an_open_select_popup_closes_it_without_clicking_through;
 mod clicking_the_inspector_close_button_closes_the_panel;
+mod closing_a_dock_tab_asks_its_owner_to_remove_it;
 mod clicking_the_middle_of_a_placeholder_puts_the_caret_at_the_start;
 mod clicking_the_outer_tab_bar_takes_the_focus_out_of_a_group;
 mod clicking_the_padding_around_a_button_label_activates_it;
@@ -1506,13 +1506,16 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
         .collect();
     let document = build(move || {
         let (state, set_state) = create_signal(unstyled::DockState::new(tabs));
+        let closing = set_state.clone();
         view! {
             <styled::DockArea
                 @node_ref=&built
                 state={state}
                 title={Func::new(|tab: unstyled::TabId| format!("Tab {}", tab.value()))}
                 on_change={move |next: unstyled::DockState| set_state.set(next)}
-                on_close={move |_: unstyled::TabId| {}}
+                on_close={move |tab: unstyled::TabId| closing.update(|state| {
+                    state.close(tab);
+                })}
             >
                 {move |tab: unstyled::TabId| view! {
                     <Frame @test_id={format!("content.{}", tab.value())} />

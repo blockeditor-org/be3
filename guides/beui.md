@@ -900,7 +900,12 @@ view! {
         title={Func::new(move |tab: TabId| title_of(tab))}
         closable={Func::new(|tab: TabId| tab != FILES)}
         on_change={move |next: DockState| set_layout.set(next)}
-        on_close={move |tab: TabId| forget(tab)}
+        on_close={move |tab: TabId| {
+            set_layout.update(|layout| {
+                layout.close(tab);
+            });
+            forget(tab);
+        }}
     >
         {move |tab: TabId| view! { <Panel tab /> }}
     </DockArea>
@@ -910,10 +915,11 @@ view! {
 A tab is a `TabId` the caller mints, so whatever the tab stands for - a block,
 a file, a tool - stays the caller's. The dock asks for a title, hands the
 `TabId` back to the `content` builder for the panel to show, and reports the
-tabs it removes through `on_close` so the caller can drop what it was holding.
-A tab `asks_to_close` names is not removed when it is closed: `on_close` only
-asks, and the tab stays until the caller removes it, which is how a program's
-window keeps its tab while the program decides whether to quit.
+tabs the user closes through `on_close`. Closing is a request: the dock does
+not remove the tab itself, the caller does - usually with `DockState::close`,
+which also shows the most recent tab in place of a closed one that was on show -
+or keeps it, as the workspace does for a program's window until the program
+quits.
 Because the state is a plain value, the caller opens, closes, splits and floats
 by writing it: `show`, `push`, `push_to_focused`, `split`, `remove`, `replace`
 and `drop_tab` are the whole vocabulary, and `find`, `all_tabs`, `focused_tab`
