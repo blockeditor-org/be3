@@ -1,6 +1,6 @@
 mod a_committed_buffer_becomes_a_layer_of_its_window;
 mod a_dmabuf_commit_waits_until_its_buffer_is_readable;
-mod a_kde_decoration_is_told_server_side_once;
+mod a_kde_decoration_starts_server_side_and_acknowledges_requests;
 mod a_popup_is_drawn_where_the_pointer_finds_it;
 mod a_title_reaches_the_ui;
 mod an_xdg_decoration_is_configured_server_side;

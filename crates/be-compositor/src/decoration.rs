@@ -6,7 +6,7 @@ use smithay::reexports::wayland_protocols_misc::server_decoration::server::org_k
 };
 use smithay::reexports::wayland_protocols_misc::server_decoration::server::org_kde_kwin_server_decoration_manager::Mode as KdeDefaultMode;
 use smithay::reexports::wayland_server::protocol::wl_surface::WlSurface;
-use smithay::reexports::wayland_server::{DisplayHandle, WEnum};
+use smithay::reexports::wayland_server::DisplayHandle;
 use smithay::wayland::compositor::with_states;
 use smithay::wayland::shell::kde::decoration::{KdeDecorationHandler, KdeDecorationState};
 use smithay::wayland::shell::xdg::{ToplevelSurface, XdgToplevelSurfaceData};
@@ -63,17 +63,6 @@ impl KdeDecorationHandler for State {
 
     fn new_decoration(&mut self, _surface: &WlSurface, decoration: &OrgKdeKwinServerDecoration) {
         decoration.mode(KdeMode::Server);
-    }
-
-    fn request_mode(
-        &mut self,
-        _surface: &WlSurface,
-        decoration: &OrgKdeKwinServerDecoration,
-        mode: WEnum<KdeMode>,
-    ) {
-        if mode == WEnum::Value(KdeMode::Server) {
-            decoration.mode(KdeMode::Server);
-        }
     }
 }
 

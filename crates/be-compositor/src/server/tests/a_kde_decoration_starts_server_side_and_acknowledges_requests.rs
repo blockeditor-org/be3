@@ -8,7 +8,7 @@ use wayland_protocols_misc::server_decoration::client::{
 use crate::test_client::*;
 
 #[test]
-fn a_kde_decoration_is_told_server_side_once() {
+fn a_kde_decoration_starts_server_side_and_acknowledges_requests() {
     let mut server = server();
     let mut client = TestClient::connect(&mut server);
     let manager: OrgKdeKwinServerDecorationManager =
@@ -25,7 +25,7 @@ fn a_kde_decoration_is_told_server_side_once() {
     client.received.kde_decoration = None;
     decoration.request_mode(Mode::Client);
     client.exchange(&mut server);
-    assert_eq!(client.received.kde_decoration, None);
+    assert_eq!(client.received.kde_decoration, Some(Mode::Client));
 
     decoration.request_mode(Mode::Server);
     client.exchange(&mut server);
