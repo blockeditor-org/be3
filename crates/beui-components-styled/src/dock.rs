@@ -55,6 +55,7 @@ pub fn DockArea(
     group_title: Option<Func<GroupId, Option<String>>>,
     icon: Option<Func<TabId, String>>,
     closable: Option<Func<TabId, bool>>,
+    asks_to_close: Option<Func<TabId, bool>>,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] home: Prop<Option<TabId>>,
     empty: Option<RenderFn<()>>,
@@ -66,6 +67,7 @@ pub fn DockArea(
         DockMode::Stacked => 0.0,
     }));
     let closable = closable.unwrap_or_else(|| Func::new(|_| true));
+    let asks_to_close = asks_to_close.unwrap_or_else(|| Func::new(|_| false));
     let group_title = group_title.unwrap_or_else(|| Func::new(|_| None));
     let icon = icon.unwrap_or_else(|| Func::new(|_| String::new()));
     let empty = empty.unwrap_or_else(|| {
@@ -99,6 +101,7 @@ pub fn DockArea(
             title
             icon
             closable
+            asks_to_close
             menu={menu_style()}
             content
             empty={move || empty.call(())}

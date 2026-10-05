@@ -248,6 +248,7 @@ struct State {
     group_title: Func<GroupId, Option<String>>,
     icon: Func<TabId, String>,
     closable: Func<TabId, bool>,
+    asks_to_close: Func<TabId, bool>,
     menu: MenuStyle,
     home: Memo<Option<TabId>>,
     actions: ReadSignal<HashMap<TabId, NodeId>>,
@@ -446,13 +447,19 @@ impl State {
     }
 
     fn close_tab(&self, tab: TabId) {
-        self.edit(|state| {
-            state.remove(tab);
-        });
+        if !self.asks_to_close.call(tab) {
+            self.edit(|state| {
+                state.remove(tab);
+            });
+        }
         self.on_close.call(tab);
     }
 
     fn close_stacked(&self, tab: TabId) {
+        if self.asks_to_close.call(tab) {
+            self.on_close.call(tab);
+            return;
+        }
         self.edit(|state| {
             let shown = state.stacked_tab() == Some(tab);
             state.remove(tab);
@@ -908,6 +915,7 @@ pub fn Dock(
     group_title: Option<Func<GroupId, Option<String>>>,
     icon: Option<Func<TabId, String>>,
     closable: Option<Func<TabId, bool>>,
+    asks_to_close: Option<Func<TabId, bool>>,
     #[prop(default = MenuStyle::default())] menu: MenuStyle,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] home: Prop<Option<TabId>>,
@@ -944,6 +952,7 @@ pub fn Dock(
         group_title: group_title.unwrap_or_else(|| Func::new(|_| None)),
         icon: icon.unwrap_or_else(|| Func::new(|_| String::new())),
         closable: closable.unwrap_or_else(|| Func::new(|_| true)),
+        asks_to_close: asks_to_close.unwrap_or_else(|| Func::new(|_| false)),
         menu,
         home: create_memo(move || home.get()),
         actions,
