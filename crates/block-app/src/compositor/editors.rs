@@ -924,11 +924,13 @@ fn HostedChild(
     let tab = use_context::<TabContext>();
     let any = super::any();
     let inherited = super::region::occlusion();
-    provide_context(super::region::Occlusion(create_memo(clone!(child -> move || {
-        let mut rects = inherited.as_ref().map(|inherited| inherited.get()).unwrap_or_default();
-        rects.extend(child.with(|child| child.as_ref().map(|child| child.occluders.clone()).unwrap_or_default()));
-        rects
-    }))));
+    provide_context(super::region::Occlusion(create_memo(
+        clone!(child -> move || {
+            let mut rects = inherited.as_ref().map(|inherited| inherited.get()).unwrap_or_default();
+            rects.extend(child.with(|child| child.as_ref().map(|child| child.occluders.clone()).unwrap_or_default()));
+            rects
+        }),
+    )));
     let content = create_memo(clone!(child -> move || child.get().map(|child| child.content)));
     let kind = create_memo(clone!(editors child content any tab nesting -> move || {
         any.get();

@@ -32,5 +32,8 @@ fn switching_from_a_block_to_a_host_panel_keeps_the_panel_on_show() {
     fixture.settle();
     fixture.settle();
     assert!(panel_shown(&fixture), "the panel stays on show");
-    assert!(fixture.shown().is_empty(), "the block is not shown under it");
+    assert!(
+        fixture.shown().is_empty(),
+        "the block is not shown under it"
+    );
 }

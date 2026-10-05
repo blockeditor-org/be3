@@ -127,7 +127,10 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
                             HostPanel::Performance => {
                                 let performance = create_memo(move || debug.get().performance);
                                 view! {
-                                    <PerformancePanel @sizing=ItemSize::Percent(100.0) performance />
+                                    <PerformancePanel
+                                        @sizing=ItemSize::Percent(100.0)
+                                        performance
+                                    />
                                 }
                             }
                             HostPanel::Plugins => {
