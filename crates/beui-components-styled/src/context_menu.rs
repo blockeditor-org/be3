@@ -35,8 +35,7 @@ pub fn ContextMenu(
     view! {
         <unstyled::ContextMenu
             items
-            row={menu_row()}
-            panel={menu_panel()}
+            menu={menu_style()}
             child_size={child_size}
             disabled={disabled}
             open_at={open_at}
@@ -47,22 +46,6 @@ pub fn ContextMenu(
             {children}
         </unstyled::ContextMenu>
     }
-}
-
-pub fn menu_row() -> beui_view::reactive::RenderFn<MenuRowHandle> {
-    beui_view::reactive::RenderFn::new(|handle| {
-        view! {
-            <MenuRow handle />
-        }
-    })
-}
-
-pub fn menu_panel() -> beui_view::reactive::RenderFn<Child> {
-    beui_view::reactive::RenderFn::new(|content| {
-        view! {
-            <MenuPanel>{content}</MenuPanel>
-        }
-    })
 }
 
 pub fn menu_style() -> MenuStyle {

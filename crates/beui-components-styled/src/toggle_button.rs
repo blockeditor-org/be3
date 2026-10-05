@@ -1,6 +1,7 @@
-use accesskit::{Node, Role};
+use accesskit::Role;
 use beui_macros::{component, view};
 
+use crate::focus_ring::FocusRing;
 use crate::text::Icon;
 use crate::theme::{FONT_BODY, RADIUS, ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
@@ -10,8 +11,7 @@ use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Action, Align, Callback, Direction, Frame, List, Prop, Show, Text, action_disabled,
-    action_glyph, action_label, action_pressed, action_tooltip, clone, create_memo, focus_ring,
+    Action, Align, Callback, Direction, Frame, List, Memo, Prop, Show, Text, clone, create_memo,
 };
 
 #[component]
@@ -24,44 +24,21 @@ pub fn ToggleButton(
     action: Option<Action>,
     on_change: Callback<bool>,
 ) -> NodeId {
-    let label = action_label(action.as_ref(), label);
-    let glyph = action_glyph(action.as_ref(), glyph);
-    let pressed = action_pressed(action.as_ref(), pressed);
-    let disabled = action_disabled(action.as_ref(), disabled);
-    let tooltip = action_tooltip(action.as_ref(), label.clone());
-    let label_text = create_memo(clone!(label -> move || label.get()));
     let icon_only = create_memo(move || icon_only.get());
     let named = create_memo(clone!(icon_only -> move || !icon_only.get()));
-    let accessibility = create_memo({
-        let label_text = label_text.clone();
-        move || {
-            let label = label_text.get();
-            let mut node = Node::new(Role::Button);
-            node.set_label(label);
-            node
-        }
-    });
-
     view! {
         <Toggle
             checked={pressed}
-            disabled={disabled}
-            accessibility
-            on_change={move |pressed| {
-                if let Some(action) = &action {
-                    action.run();
-                }
-                on_change.call(pressed);
-            }}
+            label
+            glyph
+            role=Role::Button
+            action
+            disabled
+            on_change={move |pressed| on_change.call(pressed)}
         >
-            {move |handle| view! {
-                <Tooltip label={tooltip} disabled={named}>
-                    <ToggleButtonFace
-                        handle
-                        label={label_text}
-                        glyph={glyph}
-                        icon_only={icon_only}
-                    />
+            {move |handle: ToggleHandle| view! {
+                <Tooltip label={handle.tooltip.clone()} disabled={named}>
+                    <ToggleButtonFace handle icon_only />
                 </Tooltip>
             }}
         </Toggle>
@@ -69,23 +46,18 @@ pub fn ToggleButton(
 }
 
 #[component]
-fn ToggleButtonFace(
-    handle: ToggleHandle,
-    label: Prop<String>,
-    glyph: Prop<String>,
-    icon_only: Prop<bool>,
-) -> NodeId {
+fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
     let ToggleHandle {
         checked,
         hovered,
         focused,
         disabled,
+        label,
+        glyph,
         ..
     } = handle;
     let theme = use_theme();
-    let glyph_text = create_memo(move || glyph.get());
-    let has_glyph = create_memo(clone!(glyph_text -> move || !glyph_text.get().is_empty()));
-    let label_text = create_memo(move || label.get());
+    let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
     let named = create_memo(move || !icon_only.get());
     let text_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
         true => theme.text_muted.get(),
@@ -105,13 +77,7 @@ fn ToggleButtonFace(
     }));
 
     view! {
-        <Frame
-            outline={theme.accent.clone()}
-            outline_width=2.0
-            radius=RADIUS
-            outline_offset=3.0
-            outline_visible={focus_ring(focused)}
-        >
+        <FocusRing focused offset=3.0>
             <Frame
                 color={fill_color}
                 outline={border_color}
@@ -123,18 +89,14 @@ fn ToggleButtonFace(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                     <Show condition={has_glyph}>
-                        <Icon glyph={glyph_text.clone()} color={icon_color.clone()} />
+                        <Icon glyph={glyph.clone()} color={icon_color.clone()} />
                     </Show>
                     <Show condition={named}>
-                        <Text
-                            string={label_text.clone()}
-                            font_size=FONT_BODY
-                            color={text_color.clone()}
-                        />
+                        <Text string={label.clone()} font_size=FONT_BODY color={text_color.clone()} />
                     </Show>
                 </List>
             </Frame>
-        </Frame>
+        </FocusRing>
     }
 }
 

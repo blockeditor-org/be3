@@ -170,6 +170,7 @@ pub const CHIP_RADIUS: u8 = 4;
 pub const NARROW_WIDTH: f32 = 700.0;
 
 pub const BORDER_WIDTH: f32 = 1.0;
+pub const FOCUS_RING_WIDTH: f32 = 2.0;
 pub const SEPARATOR_THICKNESS: f32 = 1.0;
 pub const SCROLLBAR_WIDTH: f32 = 6.0;
 pub const SCROLLBAR_SPACING: f32 = 4.0;

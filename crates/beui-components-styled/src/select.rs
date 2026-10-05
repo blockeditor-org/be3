@@ -1,4 +1,3 @@
-use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::scroll::scrollbar_style;
@@ -34,19 +33,12 @@ pub fn Select(
     on_change: Callback<Option<usize>>,
 ) -> NodeId {
     let options = options.into_run();
-    let accessibility = label.map(|label| {
-        let mut node = Node::new(Role::ComboBox);
-        if !label.is_empty() {
-            node.set_label(label);
-        }
-        node
-    });
     view! {
         <unstyled::Select
             options
             selected
             disabled
-            accessibility
+            label
             on_change={move |selected| on_change.call(selected)}
             search_placeholder="Search"
             search_content={|handle| view! {

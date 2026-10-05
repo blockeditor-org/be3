@@ -6,6 +6,7 @@ use std::rc::Rc;
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
+use crate::button::{Button, ButtonHandle};
 use crate::floating::{Edge, Floating};
 use crate::typeahead::Typeahead;
 use beui_core::document::Document;
@@ -13,8 +14,8 @@ use beui_core::geometry::{Pos2, Rect};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, ClickCallback, ForEach, Func, Interactive, List, Memo, NodeRef, Prop,
-    ReadSignal, Render, RenderFn, Selector, WriteSignal, clone, component_accessibility,
+    Callback, Child, ClickCallback, DynamicSegment, ForEach, Func, Interactive, List, ListChild,
+    Memo, NodeRef, Prop, ReadSignal, Render, RenderFn, Selector, Show, WriteSignal, clone, component_accessibility,
     create_effect, create_memo, create_selector, create_signal, node_placed, node_rect, on_cleanup,
     set_component_state, untrack, with_document,
 };
@@ -264,6 +265,51 @@ where
                 target,
             })}
         </Interactive>
+    }
+}
+
+pub struct TreeToggleHandle {
+    pub button: ButtonHandle,
+    pub expanded: Memo<bool>,
+}
+
+#[component]
+pub fn TreeToggle(
+    item: Memo<TreeItem>,
+    toggle: Rc<dyn Fn()>,
+    #[prop(default = String::new())] button_test_id: String,
+    #[prop(children)] content: RenderFn<TreeToggleHandle>,
+) -> DynamicSegment<ListChild> {
+    let expandable = create_memo(clone!(item -> move || item.get().expandable));
+    let expanded = create_memo(move || item.get().expanded);
+    view! {
+        <Show condition={expandable}>
+            {move || clone!(expanded toggle content button_test_id -> {
+                let label = create_memo(clone!(expanded -> move || match expanded.get() {
+                    true => "Collapse".to_owned(),
+                    false => "Expand".to_owned(),
+                }));
+                let accessibility = create_memo(clone!(expanded -> move || {
+                    let mut node = Node::new(Role::Button);
+                    node.set_expanded(expanded.get());
+                    node
+                }));
+                view! {
+                    <Button
+                        @test_id={button_test_id}
+                        label
+                        tab_stop=false
+                        press_focus=false
+                        accessibility
+                        on_click={move || toggle()}
+                        content={move |button: ButtonHandle| content.call(TreeToggleHandle {
+                            button,
+                            expanded: expanded.clone(),
+                        })}
+                    />
+                }
+            })}
+        </Show>
     }
 }
 

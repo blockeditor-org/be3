@@ -1,4 +1,3 @@
-use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
@@ -32,13 +31,6 @@ pub fn Slider(
     #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<f32>,
 ) -> NodeId {
-    let accessibility = label.map(|label| {
-        let mut node = Node::new(Role::Slider);
-        if !label.is_empty() {
-            node.set_label(label);
-        }
-        node
-    });
     view! {
         <unstyled::Slider
             value
@@ -47,7 +39,7 @@ pub fn Slider(
             scale
             thumb=KNOB_SIZE
             disabled
-            accessibility
+            label
             on_change={move |value| on_change.call(value)}
         >
             {move |handle: SliderHandle| {

@@ -167,17 +167,11 @@ fn HeaderToggle(
     });
     view! {
         <unstyled::Button
+            label
             accessibility
             on_click={move || on_click.call()}
             content={move |button: unstyled::ButtonHandle| view! {
-                <ButtonFace
-                    handle={button}
-                    variant=ButtonVariant::Ghost
-                    label={label.clone()}
-                    glyph=String::new()
-                    trailing_glyph={glyph.clone()}
-                    disabled=false
-                />
+                <ButtonFace handle={button} variant=ButtonVariant::Ghost trailing_glyph={glyph.clone()} />
             }}
         />
     }

@@ -1,5 +1,6 @@
 extern crate beui_view as beui;
 
+pub mod accessibility;
 pub mod back_slide;
 pub mod button;
 pub mod calendar;
@@ -33,6 +34,7 @@ pub mod select;
 pub mod selectable;
 pub mod sheet;
 pub mod slider;
+pub mod split_button;
 pub mod stack;
 pub mod text_area;
 pub mod text_input;
@@ -43,6 +45,7 @@ pub mod tooltip;
 pub mod tree;
 pub mod typeahead;
 
+pub use accessibility::labelled_node;
 pub use back_slide::BackSlide;
 pub use beui_core::drag_board::DragPoint;
 pub use button::{Button, ButtonHandle, button_active, button_focused};
@@ -52,7 +55,10 @@ pub use calendar::{
 };
 pub use choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, choice_selected};
 pub use color_area::{ColorArea, ColorAreaHandle, color_area_value};
-pub use color_picker::{ColorPickerState, HexText};
+pub use color_picker::{
+    AlphaSlider, ColorPickerArea, ColorPickerState, HexText, HueSlider, SwatchHandle, Swatches,
+    alpha_image, hue_image, plane_image, texel_centres,
+};
 pub use command_palette::{
     CommandPalette, CommandRowHandle, command_palette_highlighted, command_palette_row,
     command_palette_search, command_palette_shown,
@@ -64,14 +70,16 @@ pub use date_time_field::{
     date_time_field_value,
 };
 pub use date_time_picker::{
-    DateTimeBoxHandle, DateTimePanelHandle, DateTimePicker, DateTimeTriggerHandle,
+    DateTimeBoxHandle, DateTimeCalendarHandle, DateTimePanelHandle, DateTimePanelLayout,
+    DateTimePicker, DateTimeTimesHandle, DateTimeTriggerHandle,
 };
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
-    DockDragged, DockDrop, DockEntry, DockGripHandle, DockGroup, DockKey, DockLayout, DockMenus,
-    DockMode, DockNode, DockPane, DockPanelHandle, DockPreviewHandle, DockSplit, DockSplitter,
-    DockSplitterHandle, DockStackHandle, DockState, DockTab, DockTabHandle, DockTabMenu, DockTree,
-    DockTreeEntry, DockWindow, DockWindowHandle, Docking, DockingLayout, DockingSnapshot, Entry,
+    DockBarHandle, DockChromeHandle, DockDragged, DockDrop, DockEntry, DockGripHandle, DockGroup,
+    DockKey, DockLayout, DockMenus, DockMode, DockNode, DockPane, DockPreviewHandle, DockSplit,
+    DockSplitter, DockSplitterHandle, DockStackHandle, DockState, DockSwitcherCardHandle,
+    DockSwitcherHandle, DockTab, DockTabHandle, DockTabMenu, DockTree, DockTreeEntry, DockWindow,
+    Docking, DockingLayout, DockingSnapshot, Entry,
     GroupId, LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SPLITTER_THICKNESS, Side,
     SplitId, SurfaceId, TabId, TabPosition, Tree, dock_actions, dock_menu, dock_menu_items,
     dock_state, layout_surface, layout_tree, sidebar_size,
@@ -106,6 +114,7 @@ pub use select::{
 pub use selectable::{Selectable, SelectableState, copy_selection, select_all, selectable_text};
 pub use sheet::{ModalSheet, SHEET_STOPS, Sheet, SheetGripHandle};
 pub use slider::{Slider, SliderHandle, SliderScale, slider_value};
+pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use text_area::text_area_handles;
 pub use text_area::{
@@ -120,10 +129,10 @@ pub use text_input::{
     text_input_text, text_input_value,
 };
 pub use text_menu::TextContextMenu;
-pub use time_list::{TimeList, TimeOptionHandle, time_list_selected};
+pub use time_list::{TimeList, TimeOptionHandle, grid_columns, time_list_selected};
 pub use toggle::{Toggle, ToggleHandle, toggle_checked};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
 pub use tree::{
     Tree, TreeItem, TreeReveal, TreeRevealHandle, TreeRowArea, TreeRowHandle, TreeRowTarget,
-    tree_focused, tree_row_node,
+    TreeToggle, TreeToggleHandle, tree_focused, tree_row_node,
 };

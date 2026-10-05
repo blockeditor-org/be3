@@ -15,7 +15,7 @@ use beui_core::geometry::Pos2;
 use beui_core::input::KeyPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Frame, List, NodeRef, Prop, RenderFn, create_memo, create_signal, set_component_state,
+    Callback, Frame, List, NodeRef, Prop, RenderFn, create_memo, set_component_state,
 };
 use emoji::emoji_menu;
 
@@ -42,8 +42,6 @@ pub fn TextArea(
         caret: theme.accent.get(),
         ..TextAreaColors::DEFAULT
     });
-    let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
-    let close_menu = set_menu_at.clone();
     let masked = password.clone();
     let menu_state = state.clone();
     let surface = NodeRef::new();
@@ -58,11 +56,10 @@ pub fn TextArea(
                 state={menu_state}
                 menu={menu_style()}
                 masked
-                open_at={menu_at}
                 child_size=ItemSize::Percent(100.0)
-                on_close={move || close_menu.set(None)}
             >
-                <unstyled::TextArea
+                {move |open_menu: Callback<Pos2>| view! {
+                    <unstyled::TextArea
                     @node_ref=&surface
                     state={state}
                     widgets
@@ -74,7 +71,7 @@ pub fn TextArea(
                     on_widget_press={move |widget: usize| on_widget_press.call(widget)}
                     on_key_override={move |press: KeyPress| on_key_override.call(press)}
                     on_focus_change={move |focused: bool| on_focus_change.call(focused)}
-                    on_menu={move |at: Pos2| set_menu_at.set(Some(at))}
+                    on_menu={move |at: Pos2| open_menu.call(at)}
                     block={block}
                     selected_widget={selected_widget}
                     completer={match emoji {
@@ -83,6 +80,7 @@ pub fn TextArea(
                     }}
                     completion_menu={emoji_menu()}
                 />
+                }}
             </unstyled::TextContextMenu>
         </List>
     }

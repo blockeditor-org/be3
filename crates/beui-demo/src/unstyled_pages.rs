@@ -10,7 +10,7 @@ use beui::unstyled::{
 };
 use beui::unstyled::{
     ColorPickerState, CompletionMenu, CompletionRowHandle, DateSegmentHandle, DateTimeBoxHandle,
-    DateTimePanelHandle, DateTimeTriggerHandle, HexText, MenuStyle, NumberFaceHandle,
+    DateTimeCalendarHandle, DateTimePanelHandle, DateTimeTriggerHandle, HexText, MenuStyle, NumberFaceHandle,
     NumberFieldHandle, SheetGripHandle, TreeRevealHandle, TreeRowHandle, emoji_completer,
 };
 
@@ -116,6 +116,7 @@ fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
         hovered,
         active,
         focused,
+        ..
     } = handle;
     let theme = use_theme();
     let fill = create_memo(clone!(theme -> move || {
@@ -631,19 +632,8 @@ fn InfoPopover() -> NodeId {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Popover
                 label="About"
-                trigger={move |handle: PopoverTriggerHandle| {
-                    let PopoverTriggerHandle {
-                        hovered,
-                        active,
-                        focused,
-                        ..
-                    } = handle;
-                    view! {
-                        <PillFace
-                            handle={ButtonHandle { hovered, active, focused }}
-                            label="About"
-                        />
-                    }
+                trigger={move |handle: PopoverTriggerHandle| view! {
+                    <PillFace handle={handle.button} label="About" />
                 }}
             >
                 {move |handle: PopoverHandle| {
@@ -716,26 +706,17 @@ fn ExportMenu() -> NodeId {
                         <unstyled::MenuItem label="PNG" />
                         <unstyled::MenuItem label="Markdown" />
                     }}
-                    trigger={move |handle: MenuButtonHandle| {
-                        let MenuButtonHandle {
-                            hovered,
-                            active,
-                            focused,
-                            ..
-                        } = handle;
-                        view! {
-                            <PillFace
-                                handle={ButtonHandle { hovered, active, focused }}
-                                label="Export"
-                            />
-                        }
+                    trigger={move |handle: MenuButtonHandle| view! {
+                        <PillFace handle={handle.button} label="Export" />
                     }}
-                    row={move |handle: MenuRowHandle| view! {
-                        <MenuRow handle />
-                    }}
-                    panel={move |menu: Child| view! {
-                        <PopupPanel>{menu}</PopupPanel>
-                    }}
+                    menu={MenuStyle::new(
+                        |handle: MenuRowHandle| view! {
+                            <MenuRow handle />
+                        },
+                        |menu: Child| view! {
+                            <PopupPanel>{menu}</PopupPanel>
+                        },
+                    )}
                     on_select={move |path: Vec<usize>| {
                         if let [index] = path.as_slice() {
                             set_exported.set(format!("Exported as {}", formats[*index]));
@@ -1338,8 +1319,6 @@ fn PlainNote() -> NodeId {
     )) as Arc<dyn text_editor_core::Document>;
     let state = TextAreaState::new(document);
     let menu_state = state.clone();
-    let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
-    let close_menu = set_menu_at.clone();
     let theme = use_theme();
     view! {
         <Frame
@@ -1359,11 +1338,10 @@ fn PlainNote() -> NodeId {
                         <PopupPanel>{menu}</PopupPanel>
                     },
                 )}
-                open_at={menu_at}
                 child_size=ItemSize::Percent(100.0)
-                on_close={move || close_menu.set(None)}
             >
-                <unstyled::TextArea
+                {move |open_menu: Callback<Pos2>| view! {
+                    <unstyled::TextArea
                     state
                     completer={emoji_completer()}
                     completion_menu={CompletionMenu::new(
@@ -1374,8 +1352,9 @@ fn PlainNote() -> NodeId {
                             <PopupPanel>{rows}</PopupPanel>
                         },
                     )}
-                    on_menu={move |at: Pos2| set_menu_at.set(Some(at))}
+                    on_menu={move |at: Pos2| open_menu.call(at)}
                 />
+                }}
             </unstyled::TextContextMenu>
         </Frame>
     }
@@ -1528,19 +1507,8 @@ fn DeadlinePicker() -> NodeId {
                     field={move |handle: DateTimeBoxHandle| view! {
                         <DateBox handle />
                     }}
-                    trigger={move |handle: DateTimeTriggerHandle| {
-                        let PopoverTriggerHandle {
-                            hovered,
-                            active,
-                            focused,
-                            ..
-                        } = handle.popover;
-                        view! {
-                            <PillFace
-                                handle={ButtonHandle { hovered, active, focused }}
-                                label="Pick"
-                            />
-                        }
+                    trigger={move |handle: DateTimeTriggerHandle| view! {
+                        <PillFace handle={handle.popover.button} label="Pick" />
                     }}
                     panel={move |handle: DateTimePanelHandle| view! {
                         <DatePresets handle />
@@ -1592,7 +1560,6 @@ fn DateBox(handle: DateTimeBoxHandle) -> NodeId {
         true => theme.accent.get(),
         false => theme.border.get(),
     }));
-    let has_trigger = trigger.is_some();
     view! {
         <Frame
             outline={line}
@@ -1604,7 +1571,7 @@ fn DateBox(handle: DateTimeBoxHandle) -> NodeId {
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 {field}
-                <Show condition=has_trigger>{trigger.unwrap_or_else(|| unreachable!())}</Show>
+                {trigger}
             </List>
         </Frame>
     }
@@ -1615,8 +1582,7 @@ fn DateBox(handle: DateTimeBoxHandle) -> NodeId {
 fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
     let DateTimePanelHandle {
         field,
-        today,
-        pick_date,
+        calendar: DateTimeCalendarHandle { today, pick, .. },
         now,
         now_label,
         clear,
@@ -1624,7 +1590,7 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
     } = handle;
     let start = today.get_untracked().unwrap_or_else(Date::today);
     let preset = move |label: &'static str, date: Date| {
-        let pick = pick_date.clone();
+        let pick = pick.clone();
         view! {
             <unstyled::Button
                 on_click={move || pick.call(date)}

@@ -6,7 +6,7 @@ use crate::text_input::TextInput;
 use crate::theme::{RADIUS, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{HexText, PopoverHandle, PopoverTriggerHandle};
+use beui_components_unstyled::{ButtonHandle, HexText, PopoverHandle, PopoverTriggerHandle};
 use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
@@ -93,7 +93,10 @@ fn SwatchTrigger(
     color: Memo<Color32>,
     label: Memo<String>,
 ) -> NodeId {
-    let PopoverTriggerHandle { open, focused, .. } = handle;
+    let PopoverTriggerHandle {
+        open,
+        button: ButtonHandle { focused, .. },
+    } = handle;
     let theme = use_theme();
     view! {
         <Tooltip label disabled={open}>

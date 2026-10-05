@@ -292,8 +292,13 @@ fn named_setter(prop: &Prop) -> Setter {
                 quote! { value: impl Into<String> },
                 quote! { Some(value.into()) },
             )
-        } else {
+        } else if is_primitive_type(inner_ty) {
             plain(quote! { value: #inner_ty }, quote! { Some(value) })
+        } else {
+            plain(
+                quote! { value: impl Into<Option<#inner_ty>> },
+                quote! { value.into() },
+            )
         }
     } else if prop.is_click_callback {
         plain(
@@ -429,6 +434,19 @@ fn is_string_type(ty: &Type) -> bool {
         return false;
     };
     segment.ident == "String" && matches!(segment.arguments, PathArguments::None)
+}
+
+fn is_primitive_type(ty: &Type) -> bool {
+    const PRIMITIVES: [&str; 15] = [
+        "bool", "char", "f32", "f64", "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16",
+        "u32", "u64", "usize",
+    ];
+    let Type::Path(path) = ty else {
+        return false;
+    };
+    path.path
+        .get_ident()
+        .is_some_and(|ident| PRIMITIVES.iter().any(|primitive| ident == primitive))
 }
 
 fn is_named_type(ty: &Type, name: &str) -> bool {
@@ -1260,7 +1278,7 @@ fn expand_child_items(children: &[ViewChild]) -> Vec<proc_macro2::TokenStream> {
                 Some(sizing) => {
                     let value = &sizing.value;
                     quote_spanned! { sizing.span =>
-                        ::beui::reactive::into_segment(::beui::reactive::ListChild::new(#node, #value))
+                        ::beui::reactive::into_segment(::beui::reactive::with_sizing(#node, #value))
                     }
                 }
             }
@@ -1282,7 +1300,7 @@ fn expand_child_block(children: &[ViewChild]) -> proc_macro2::TokenStream {
         Some(sizing) => {
             let value = &sizing.value;
             quote_spanned! { sizing.span =>
-                ::beui::reactive::SingleChild(::beui::reactive::ListChild::new(#node, #value))
+                ::beui::reactive::SingleChild(::beui::reactive::with_sizing(#node, #value))
             }
         }
     }
@@ -1366,7 +1384,7 @@ fn expand_view(view: &View) -> proc_macro2::TokenStream {
             Some(sizing) => {
                 let value = &sizing.value;
                 quote_spanned! { sizing.span =>
-                    ::beui::reactive::ListChild::new(#built, #value)
+                    ::beui::reactive::with_sizing(#built, #value)
                 }
             }
         };

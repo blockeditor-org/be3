@@ -40,6 +40,7 @@ fn ListRowFace(handle: ButtonHandle, selected: Prop<bool>, children: Child) -> N
         hovered,
         active,
         focused,
+        ..
     } = handle;
     let theme = use_theme();
     let fill_color = create_memo(clone!(theme -> move || {

@@ -6,9 +6,9 @@ use beui_core::input::CursorIcon;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Interactive, IntoProp, Memo, Prop, ReadSignal, Render, clone,
-    component_accessibility, create_effect, create_memo, create_signal, set_component_state,
-    untrack,
+    Action, Callback, Interactive, IntoProp, Memo, Prop, ReadSignal, Render, action_disabled,
+    action_glyph, action_label, action_pressed, action_tooltip, clone, component_accessibility,
+    create_effect, create_memo, create_signal, set_component_state, untrack,
 };
 
 pub struct ToggleHandle {
@@ -17,16 +17,31 @@ pub struct ToggleHandle {
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
     pub disabled: Memo<bool>,
+    pub label: Memo<String>,
+    pub glyph: Memo<String>,
+    pub tooltip: Memo<String>,
 }
 
 #[component]
 pub fn Toggle(
     checked: Prop<bool>,
+    #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = Role::CheckBox)] role: Role,
+    action: Option<Action>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(children)] content: Option<Render<ToggleHandle>>,
     on_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
+    let label = action_label(action.as_ref(), label);
+    let glyph = action_glyph(action.as_ref(), glyph);
+    let tooltip = action_tooltip(action.as_ref(), label.clone());
+    let checked = action_pressed(action.as_ref(), checked);
+    let disabled = action_disabled(action.as_ref(), disabled);
+    let label = create_memo(move || label.get());
+    let glyph = create_memo(move || glyph.get());
+    let tooltip = create_memo(move || tooltip.get());
     let (checked_read, set_checked) = create_signal(checked.peek());
     create_effect(clone!(set_checked -> move || set_checked.set(checked.get())));
     let (hovered, set_hovered) = create_signal(false);
@@ -35,9 +50,12 @@ pub fn Toggle(
     let (key_active, set_key_active) = create_signal(false);
     let disabled = create_memo(move || disabled.get());
 
-    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::CheckBox)));
-    component_accessibility(create_memo(clone!(checked_read disabled -> move || {
+    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
+    component_accessibility(create_memo(clone!(checked_read disabled label -> move || {
         let mut node = accessibility.get();
+        if node.label().is_none() && !label.get().is_empty() {
+            node.set_label(label.get());
+        }
         node.set_toggled(Toggled::from(checked_read.get()));
         if disabled.get() {
             node.set_disabled();
@@ -54,6 +72,9 @@ pub fn Toggle(
             active: active.clone(),
             focused: focused.clone(),
             disabled: disabled.clone(),
+            label,
+            glyph,
+            tooltip,
         })
     });
 
@@ -66,6 +87,9 @@ pub fn Toggle(
             }
             let next = !untrack(|| checked.get());
             set_checked.set(next);
+            if let Some(action) = &action {
+                action.run();
+            }
             on_change.call(next);
         }
     };

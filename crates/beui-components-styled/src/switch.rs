@@ -1,4 +1,4 @@
-use accesskit::{Node, Role};
+use accesskit::Role;
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
@@ -27,15 +27,8 @@ pub fn Switch(
     #[prop(default = String::new())] label: Prop<String>,
     on_change: Callback<bool>,
 ) -> NodeId {
-    let accessibility = label.map(|label| {
-        let mut node = Node::new(Role::Switch);
-        if !label.is_empty() {
-            node.set_label(label);
-        }
-        node
-    });
     view! {
-        <Toggle checked={on} accessibility on_change={move |on| on_change.call(on)}>
+        <Toggle checked={on} label role=Role::Switch on_change={move |on| on_change.call(on)}>
             {move |handle: ToggleHandle| {
                 view! {
                     <SwitchTrack handle />
