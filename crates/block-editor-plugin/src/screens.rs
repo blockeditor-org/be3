@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    Catalog, ChildStatus, DEFAULT_SURFACE_SIDE, EditorInstanceId, EditorMessage,
-    EditorRegion, Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
+    Catalog, ChildStatus, DEFAULT_SURFACE_SIDE, EditorInstanceId, EditorMessage, EditorRegion,
+    Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, TemplateEntry};
 use std::{

@@ -18,8 +18,8 @@ use block_editor_beui::beui::unstyled::{
 };
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
-    BlockPick, Editor, EditorHost, FocusedBlock, HostPanel, NARROW_WIDTH, PickedBlock, Pushed,
+    AccessLevel, BlockFilter, BlockPick, ChildBlock, ChildBlockHandle, ChildMode, ChildState,
+    ChildTarget, Editor, EditorHost, FocusedBlock, HostPanel, NARROW_WIDTH, PickedBlock, Pushed,
     TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
@@ -27,8 +27,8 @@ use uuid::Uuid;
 
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::panel::BlockPanel;
-use super::picker_view::PickerDialogs;
 use super::picker::{Pick, PickAction, PickOutcome};
+use super::picker_view::PickerDialogs;
 use super::saved::{self, LAYOUT};
 use super::tab::TabItem;
 
@@ -283,8 +283,7 @@ impl Workspace {
         {
             creating.sent = true;
             let name = Some(held.name.trim().to_owned()).filter(|name| !name.is_empty());
-            self.host()
-                .commit_child(child, held.created_parent(), name);
+            self.host().commit_child(child, held.created_parent(), name);
         }
         match &state.creation {
             Some(progress) => self.resolve(held.progressed(progress)),

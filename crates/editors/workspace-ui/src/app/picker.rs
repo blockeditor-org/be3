@@ -55,10 +55,14 @@ pub(crate) enum PickOutcome {
 
 impl Pick {
     pub(crate) fn new(request: PickRequest) -> Self {
-        let place = request.filter.place.map(BlockParent::decode).and_then(|place| match place {
-            BlockParent::Detached => None,
-            place => Some(place),
-        });
+        let place = request
+            .filter
+            .place
+            .map(BlockParent::decode)
+            .and_then(|place| match place {
+                BlockParent::Detached => None,
+                place => Some(place),
+            });
         Self {
             pick: request.pick,
             tab: match request.filter.templates {
@@ -80,11 +84,17 @@ impl Pick {
     }
 
     pub(crate) fn allowed(&self, block_type: Uuid) -> bool {
-        self.filter.block_types.is_empty() || self.filter.block_types.contains(&block_type.into_bytes())
+        self.filter.block_types.is_empty()
+            || self.filter.block_types.contains(&block_type.into_bytes())
     }
 
     pub(crate) fn excluded(&self) -> HashSet<Uuid> {
-        self.filter.excluded.iter().copied().map(Uuid::from_bytes).collect()
+        self.filter
+            .excluded
+            .iter()
+            .copied()
+            .map(Uuid::from_bytes)
+            .collect()
     }
 
     pub(crate) fn created_parent(&self) -> BlockParent {
@@ -196,7 +206,10 @@ pub(crate) fn tile_key(template: &TemplateEntry) -> String {
     format!("{}/{}", template.editor, template.template)
 }
 
-fn offered<'a>(catalog: &'a BlockCatalog, pick: &'a Pick) -> impl Iterator<Item = &'a TemplateEntry> {
+fn offered<'a>(
+    catalog: &'a BlockCatalog,
+    pick: &'a Pick,
+) -> impl Iterator<Item = &'a TemplateEntry> {
     catalog
         .templates()
         .iter()

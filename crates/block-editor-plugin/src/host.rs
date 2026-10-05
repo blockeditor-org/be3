@@ -257,7 +257,9 @@ impl Identity {
             ChildContent::Block { block_id, .. } => Self::Block(*block_id),
             ChildContent::WebView(web_view) => Self::WebView(*web_view),
             ChildContent::Host(panel) => Self::Host(*panel),
-            ChildContent::Creation { editor, template } => Self::Creation(*editor, template.clone()),
+            ChildContent::Creation { editor, template } => {
+                Self::Creation(*editor, template.clone())
+            }
         }
     }
 }

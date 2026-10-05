@@ -30,5 +30,8 @@ fn linking_a_block_in_the_picker_answers_the_pick() {
             }
         )]
     );
-    assert!(!fixture.says("Add block"), "an answered pick closes the picker");
+    assert!(
+        !fixture.says("Add block"),
+        "an answered pick closes the picker"
+    );
 }

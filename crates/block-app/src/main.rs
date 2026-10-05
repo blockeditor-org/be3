@@ -31,8 +31,8 @@ use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
 use block_plugin_api::{AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel};
 use editors::{
-    ArtifactSession, ArtifactStatus, BlockLabel, EditorAction, EditorRegistry,
-    PluginEditor, SidebarDragSource, plugin::PickSource,
+    ArtifactSession, ArtifactStatus, BlockLabel, EditorAction, EditorRegistry, PluginEditor,
+    SidebarDragSource, plugin::PickSource,
 };
 use root_settings::RootSettings;
 use share::ShareDialog;
@@ -1343,14 +1343,15 @@ impl BlockApp {
     }
 
     fn forward_block_picks(&mut self, shell: Uuid) {
-        let Some(shell_source) = self.with_editor(shell, |editor| editor.pick_source()).flatten()
+        let Some(shell_source) = self
+            .with_editor(shell, |editor| editor.pick_source())
+            .flatten()
         else {
             return;
         };
-        for (pick, answer) in crate::plugin_host::take_pick_answers(
-            &shell_source.plugin_id,
-            shell_source.instance,
-        ) {
+        for (pick, answer) in
+            crate::plugin_host::take_pick_answers(&shell_source.plugin_id, shell_source.instance)
+        {
             if let Some((source, request_id)) = self.forwarded_picks.remove(&pick) {
                 source.answer(request_id, answer);
             }
@@ -1361,7 +1362,8 @@ impl BlockApp {
                 .collect()
         });
         for (id, source) in &editors {
-            let commits = crate::plugin_host::take_child_commits(&source.plugin_id, source.instance);
+            let commits =
+                crate::plugin_host::take_child_commits(&source.plugin_id, source.instance);
             if !commits.is_empty() {
                 self.editors.commit_creations(*id, commits);
             }

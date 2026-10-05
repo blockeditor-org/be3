@@ -9,8 +9,8 @@ use crate::app::WorkspaceUiApp;
 
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
-mod a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick;
 mod a_closed_tab_gives_up_its_view_block;
+mod a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick;
 mod a_host_panel_the_host_asks_for_is_placed_in_its_own_window;
 mod a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches;
 mod a_placing_pick_names_and_places_the_block_it_creates;
@@ -195,25 +195,27 @@ fn catalog() -> block_editor_beui::Catalog {
 }
 
 fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationProgress) {
-    fixture.test.report_children(|placement| block_editor_beui::ChildStatus {
-        instance: block_editor_beui::EditorInstanceId(0),
-        region: block_editor_beui::EditorRegion::Frame,
-        child: placement.child,
-        available: true,
-        intrinsic: None,
-        aspect_ratio: None,
-        hovered: false,
-        active: false,
-        interaction: block_editor_beui::InteractionMode::Live,
-        capabilities: block_editor_beui::EditorCapabilities::default(),
-        resize: block_editor_beui::ResizeMode::None,
-        error: None,
-        menu: Vec::new(),
-        creation: matches!(
-            placement.content,
-            block_editor_beui::ChildContent::Creation { .. }
-        )
-        .then(|| progress.clone()),
-    });
+    fixture
+        .test
+        .report_children(|placement| block_editor_beui::ChildStatus {
+            instance: block_editor_beui::EditorInstanceId(0),
+            region: block_editor_beui::EditorRegion::Frame,
+            child: placement.child,
+            available: true,
+            intrinsic: None,
+            aspect_ratio: None,
+            hovered: false,
+            active: false,
+            interaction: block_editor_beui::InteractionMode::Live,
+            capabilities: block_editor_beui::EditorCapabilities::default(),
+            resize: block_editor_beui::ResizeMode::None,
+            error: None,
+            menu: Vec::new(),
+            creation: matches!(
+                placement.content,
+                block_editor_beui::ChildContent::Creation { .. }
+            )
+            .then(|| progress.clone()),
+        });
     fixture.settle();
 }

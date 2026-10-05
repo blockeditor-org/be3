@@ -38,7 +38,10 @@ fn a_template_without_a_dialog_is_created_and_answers_the_pick() {
     );
 
     let created = Uuid::new_v4();
-    report_creation(&mut fixture, CreationProgress::Created(created.into_bytes()));
+    report_creation(
+        &mut fixture,
+        CreationProgress::Created(created.into_bytes()),
+    );
 
     assert_eq!(
         fixture.test.take_pick_answers(),

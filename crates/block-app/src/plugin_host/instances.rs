@@ -2,12 +2,12 @@ use be_block::BlockContent as _;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent,
-    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon,
-    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
-    FrameReport, FrameSpec, HostPanel, HostReply, HostRequest, Message, Occluder,
-    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
+    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
+    ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
+    EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
+    FrameSpec, HostPanel, HostReply, HostRequest, Message, Occluder, PerformanceMeasurement,
+    RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, Size,
+    ViewChange, WatchedContent, WebViewId,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -16,7 +16,8 @@ use std::{
 use uuid::Uuid;
 
 use super::{
-    BlockPickRequest, ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole, MAX_LIVE_CHILDREN,
+    BlockPickRequest, ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole,
+    MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     input::{BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
     pieces,
@@ -1649,7 +1650,10 @@ impl Instances {
         }
     }
 
-    pub(super) fn take_pick_answers(&mut self, instance: EditorInstanceId) -> Vec<(u64, BlockPick)> {
+    pub(super) fn take_pick_answers(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Vec<(u64, BlockPick)> {
         self.entries
             .get_mut(&instance)
             .map(|entry| std::mem::take(&mut entry.pick_answers))
