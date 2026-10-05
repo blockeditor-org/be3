@@ -20,8 +20,7 @@ const PAGE: f32 = 0.1;
 const HUE_STEP: f32 = 1.0;
 const HUE_PAGE: f32 = 15.0;
 const DEGENERATE: f32 = 1e-6;
-pub const OKLCH_TIP_LIGHTNESS: f32 = 0.65;
-pub const OKLCH_TIP_CHROMA: f32 = 0.4;
+pub const OKLCH_TIP_CHROMA: f32 = 0.38;
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct WheelPoint {
@@ -48,19 +47,42 @@ impl WheelPoint {
     }
 
     pub fn of_oklch(color: Oklch) -> Self {
+        OklchTriangle::new(color.hue).point(color)
+    }
+
+    pub fn to_oklch(self, alpha: f32) -> Oklch {
+        OklchTriangle::new(self.hue).color(self, alpha)
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct OklchTriangle {
+    pub hue: f32,
+    pub tip_lightness: f32,
+}
+
+impl OklchTriangle {
+    pub fn new(hue: f32) -> Self {
+        Self {
+            hue,
+            tip_lightness: Oklch::cusp(hue).lightness,
+        }
+    }
+
+    pub fn point(self, color: Oklch) -> WheelPoint {
         let tip = color.chroma / OKLCH_TIP_CHROMA;
-        let value = color.lightness + tip * (1.0 - OKLCH_TIP_LIGHTNESS);
+        let value = color.lightness + tip * (1.0 - self.tip_lightness);
         let saturation = match value < DEGENERATE {
             true => 0.0,
             false => tip / value,
         };
-        Self::new(color.hue, saturation, value)
+        WheelPoint::new(self.hue, saturation, value)
     }
 
-    pub fn to_oklch(self, alpha: f32) -> Oklch {
-        let tip = self.value * self.saturation;
+    pub fn color(self, point: WheelPoint, alpha: f32) -> Oklch {
+        let tip = point.value * point.saturation;
         Oklch::new(
-            self.value - tip * (1.0 - OKLCH_TIP_LIGHTNESS),
+            point.value - tip * (1.0 - self.tip_lightness),
             tip * OKLCH_TIP_CHROMA,
             self.hue,
             alpha,

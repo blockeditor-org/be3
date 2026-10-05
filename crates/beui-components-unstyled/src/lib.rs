@@ -54,7 +54,10 @@ pub use calendar::{
 pub use choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, choice_selected};
 pub use color_area::{ColorArea, ColorAreaHandle, color_area_value};
 pub use color_picker::{ColorModel, ColorPickerState, HexText};
-pub use color_wheel::{ColorWheel, ColorWheelHandle, WheelGeometry, WheelPoint, color_wheel_value};
+pub use color_wheel::{
+    ColorWheel, ColorWheelHandle, OKLCH_TIP_CHROMA, OklchTriangle, WheelGeometry, WheelPoint,
+    color_wheel_value,
+};
 pub use command_palette::{
     CommandPalette, CommandRowHandle, command_palette_highlighted, command_palette_row,
     command_palette_search, command_palette_shown,

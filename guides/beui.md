@@ -732,9 +732,11 @@ field in step with a color for both.
 
 `styled::ColorWheel` is a hue ring around a triangle whose tip points at the
 hue, and `styled::OklchColorWheel` is the same wheel over OKLCH: the triangle is
-the lightness and chroma plane with a fixed tip, so turning the hue keeps both,
-and a point outside sRGB is painted and reported clamped to the most colorful
-color at its lightness and hue (`Oklch::clamped`). Both share
+the lightness and chroma plane, black to white with its tip at the hue's cusp
+lightness (`Oklch::cusp`) and a chroma past every hue's cusp, so it holds all of
+sRGB. Turning the hue keeps lightness and chroma. A point outside sRGB is painted
+and reported clamped to the most colorful color at its lightness and hue
+(`Oklch::clamped`), and a line on the triangle marks where sRGB ends. Both share
 `unstyled::ColorWheel`, which works in `WheelPoint`s (a hue and the triangle's
 saturation and value) and leaves the color model to its caller, and
 `ColorPickerState` is generic over the model (`Hsva` or `Oklch`). The faces are

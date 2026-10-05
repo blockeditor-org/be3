@@ -147,6 +147,7 @@ impl Hsva {
 
 const OKLCH_CHROMA_LIMIT: f32 = 0.5;
 const OKLCH_SEARCH_STEPS: u32 = 24;
+const CUSP_SEARCH_STEPS: u32 = 32;
 const GAMUT_SLACK: f32 = 1e-4;
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -205,6 +206,20 @@ impl Oklch {
             }
         }
         inside
+    }
+
+    pub fn cusp(hue: f32) -> Self {
+        let (mut darker, mut lighter) = (0.0, 1.0);
+        for _ in 0..CUSP_SEARCH_STEPS {
+            let third = (lighter - darker) / 3.0;
+            let (low, high) = (darker + third, lighter - third);
+            match Self::max_chroma(low, hue) < Self::max_chroma(high, hue) {
+                true => darker = low,
+                false => lighter = high,
+            }
+        }
+        let lightness = (darker + lighter) / 2.0;
+        Self::new(lightness, Self::max_chroma(lightness, hue), hue, 1.0)
     }
 
     pub fn in_gamut(self) -> bool {

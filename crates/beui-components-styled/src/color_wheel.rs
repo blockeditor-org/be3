@@ -6,7 +6,9 @@ use beui_macros::{component, view};
 use crate::color_picker::thumb;
 use crate::theme::{BORDER_WIDTH, use_theme};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{ColorPickerState, ColorWheelHandle, WheelGeometry, WheelPoint};
+use beui_components_unstyled::{
+    ColorPickerState, ColorWheelHandle, OklchTriangle, WheelGeometry, WheelPoint,
+};
 use beui_core::color::{Color32, Hsva, Oklch, gamma_from_linear};
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::image::Image;
@@ -23,6 +25,8 @@ const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 2.0;
 const RING_HUES: usize = 720;
 const LIGHTNESS_STEPS: usize = 256;
+const GAMUT_LINE_WIDTH: f32 = 1.25;
+const GAMUT_LINE_OPACITY: f32 = 0.7;
 const OUTLINE_DARK: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 110);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -105,7 +109,14 @@ pub fn OklchColorWheel(
                 accessibility
                 on_change={move |next: WheelPoint| {
                     let held = color.get_untracked();
-                    change.apply(next.to_oklch(held.alpha));
+                    let was = WheelPoint::of_oklch(held);
+                    let turned = next.hue != was.hue
+                        && next.saturation == was.saturation
+                        && next.value == was.value;
+                    change.apply(match turned {
+                        true => Oklch::new(held.lightness, held.chroma, next.hue, held.alpha),
+                        false => next.to_oklch(held.alpha),
+                    });
                 }}
                 on_drag_change={move |dragging: bool| drag.drag(dragging)}
             >
@@ -165,7 +176,7 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
                         image.clone()
                     }
                     _ => {
-                        let image = triangle_image(model, local, point.hue, pixels);
+                        let image = triangle_image(model, local, point.hue, pixels, scale);
                         *held = Some((pixels, point.hue.to_bits(), image.clone()));
                         image
                     }
@@ -269,39 +280,17 @@ fn ring_image(hues: &[[u8; 3]], wheel: WheelGeometry, gap: f32, pixels: u32) -> 
     Image::from_rgba(pixels, pixels, pixels_out)
 }
 
-fn triangle_image(model: Model, wheel: WheelGeometry, hue: f32, pixels: u32) -> Image {
-    let limits: Vec<f32> = match model {
-        Model::Hsv => Vec::new(),
-        Model::Oklch => (0..=LIGHTNESS_STEPS)
-            .map(|step| Oklch::max_chroma(step as f32 / LIGHTNESS_STEPS as f32, hue))
-            .collect(),
+fn triangle_image(model: Model, wheel: WheelGeometry, hue: f32, pixels: u32, scale: f32) -> Image {
+    let shade = match model {
+        Model::Hsv => Shade::Hsv,
+        Model::Oklch => Shade::oklch(hue),
     };
-    let shade = |point: WheelPoint| -> [u8; 3] {
-        match model {
-            Model::Hsv => {
-                let [red, green, blue, _] = point.to_hsva(1.0).to_color().to_array();
-                [red, green, blue]
-            }
-            Model::Oklch => {
-                let color = point.to_oklch(1.0);
-                let step = color.lightness * LIGHTNESS_STEPS as f32;
-                let below = (step.floor() as usize).min(LIGHTNESS_STEPS);
-                let above = (below + 1).min(LIGHTNESS_STEPS);
-                let blend = step - below as f32;
-                let limit = limits[below] + (limits[above] - limits[below]) * blend;
-                let [red, green, blue] = Oklch {
-                    chroma: color.chroma.min(limit),
-                    ..color
-                }
-                .linear_rgb();
-                [
-                    gamma_from_linear(red),
-                    gamma_from_linear(green),
-                    gamma_from_linear(blue),
-                ]
-            }
-        }
+    let at = |pos: Pos2| {
+        wheel
+            .triangle_at(hue, pos)
+            .map(|(saturation, value)| WheelPoint::new(hue, saturation, value))
     };
+    let half_line = GAMUT_LINE_WIDTH * scale / 2.0;
     let pixels_out = (0..(pixels * pixels) as usize)
         .flat_map(|index| {
             let pos = pixel_centre(index, pixels);
@@ -309,10 +298,86 @@ fn triangle_image(model: Model, wheel: WheelGeometry, hue: f32, pixels: u32) -> 
             if alpha <= 0.0 {
                 return [0, 0, 0, 0];
             }
-            let (saturation, value) = wheel.triangle_at(hue, pos).unwrap_or((0.0, 0.0));
-            let [red, green, blue] = shade(WheelPoint::new(hue, saturation, value));
+            let point = at(pos).unwrap_or(WheelPoint::new(hue, 0.0, 0.0));
+            let mut rgb = shade.rgb(point).map(f32::from);
+            let neighbours = [at(pos + Vec2::new(1.0, 0.0)), at(pos + Vec2::new(0.0, 1.0))];
+            if let Some(distance) = shade.gamut_distance(point, neighbours) {
+                let strength = coverage(half_line - distance.abs()) * GAMUT_LINE_OPACITY;
+                let luminance = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+                let ink = if luminance > 140.0 { 0.0 } else { 255.0 };
+                rgb = rgb.map(|channel| channel + (ink - channel) * strength);
+            }
+            let [red, green, blue] = rgb.map(|channel| channel.round().clamp(0.0, 255.0) as u8);
             [red, green, blue, (alpha * 255.0).round() as u8]
         })
         .collect();
     Image::from_rgba(pixels, pixels, pixels_out)
+}
+
+enum Shade {
+    Hsv,
+    Oklch {
+        triangle: OklchTriangle,
+        limits: Vec<f32>,
+    },
+}
+
+impl Shade {
+    fn oklch(hue: f32) -> Self {
+        Self::Oklch {
+            triangle: OklchTriangle::new(hue),
+            limits: (0..=LIGHTNESS_STEPS)
+                .map(|step| Oklch::max_chroma(step as f32 / LIGHTNESS_STEPS as f32, hue))
+                .collect(),
+        }
+    }
+
+    fn limit(limits: &[f32], lightness: f32) -> f32 {
+        let step = lightness.clamp(0.0, 1.0) * LIGHTNESS_STEPS as f32;
+        let below = (step.floor() as usize).min(LIGHTNESS_STEPS);
+        let above = (below + 1).min(LIGHTNESS_STEPS);
+        let blend = step - below as f32;
+        limits[below] + (limits[above] - limits[below]) * blend
+    }
+
+    fn rgb(&self, point: WheelPoint) -> [u8; 3] {
+        match self {
+            Shade::Hsv => {
+                let [red, green, blue, _] = point.to_hsva(1.0).to_color().to_array();
+                [red, green, blue]
+            }
+            Shade::Oklch { triangle, limits } => {
+                let color = triangle.color(point, 1.0);
+                let chroma = color.chroma.min(Self::limit(limits, color.lightness));
+                Oklch { chroma, ..color }
+                    .linear_rgb()
+                    .map(gamma_from_linear)
+            }
+        }
+    }
+
+    fn excess(&self, point: WheelPoint) -> Option<f32> {
+        match self {
+            Shade::Hsv => None,
+            Shade::Oklch { triangle, limits } => {
+                let color = triangle.color(point, 1.0);
+                Some(color.chroma - Self::limit(limits, color.lightness))
+            }
+        }
+    }
+
+    fn gamut_distance(
+        &self,
+        point: WheelPoint,
+        neighbours: [Option<WheelPoint>; 2],
+    ) -> Option<f32> {
+        let here = self.excess(point)?;
+        let [right, down] = neighbours.map(|neighbour| {
+            neighbour
+                .and_then(|neighbour| self.excess(neighbour))
+                .map(|there| there - here)
+        });
+        let slope = Vec2::new(right?, down?).length();
+        (slope > f32::EPSILON).then(|| here / slope)
+    }
 }
