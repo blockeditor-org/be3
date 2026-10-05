@@ -154,7 +154,9 @@ sysroot.
 
 Most tests run on the workers, including beui-renderer-wgpu's and be-compositor's, which draw
 through lavapipe from `buck/sysroot:amd64-test`. buck2 runs a test again every
-time, cached or not. Two kinds are different:
+time, so `cargo_test` also makes `:test_run`, an action that runs the test on a
+worker and passes when it does, which is cached like any other; `//:verify`
+builds those instead. Two kinds are different:
 
 - **Plugin tests** read and write the accepted paintings in `snapshots/`.
   Each is the crate's tests compiled to wasm and run by `plugin-test-runner`,

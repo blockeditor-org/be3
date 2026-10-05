@@ -124,7 +124,7 @@ starlark() {
 # Once all of them pass, a painting none of them named belongs to a test that is
 # gone: it is deleted, or with --check it fails the run.
 plugin_tests() {
-    targets="$("$buck" uquery 'kind("plugin_test_run", //crates/...)' 2> /dev/null)" || {
+    targets="$("$buck" uquery 'kind("^plugin_test_run$", //crates/...)' 2> /dev/null)" || {
         echo "The plugin tests could not be listed."
         return 1
     }
@@ -217,8 +217,23 @@ if $lint; then
     step starlark_fmt starlark
 fi
 
+# Most tests run as their :test_run actions (buck/cargo/defs.bzl), which come
+# from the cache when nothing they read changed; buck2 test runs the rest: the
+# ones that stay local and the compile_fail cases.
+tests() {
+    runs="$("$buck" uquery 'kind("^test_run$", //crates/...)' 2> /dev/null)" &&
+        rest="$("$buck" uquery 'attrfilter(remote_execution, disabled, //crates/...)' 2> /dev/null)" || {
+        echo "The tests could not be listed."
+        return 1
+    }
+    status=0
+    "$buck" build --keep-going $runs || status=1
+    "$buck" test //compile_fail/... $rest || status=1
+    return $status
+}
+
 if $tests; then
-    step "buck2 test" "$buck" test //crates/... //compile_fail/... --exclude plugin
+    step "tests" tests
 fi
 
 if $plugin_tests; then

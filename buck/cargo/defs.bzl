@@ -103,6 +103,34 @@ def cargo_test(name = "test", extra_deps = [], env = {}, **kwargs):
         srcs = _srcs(kwargs),
         **kwargs,
     )
+    if kwargs.get("remote_execution") != "disabled":
+        test_run(name = name + "_run", test = ":" + name)
+
+# A test as an action, which is how //:verify runs it: buck2 runs a test again
+# every time, where an action whose binary and inputs have not changed comes
+# from the cache. It runs the test's own command and environment on a worker,
+# and fails, with the test's output, when the test does.
+def _test_run_impl(ctx: AnalysisContext) -> list[Provider]:
+    test = ctx.attrs.test[ExternalRunnerTestInfo]
+    passed = ctx.actions.declare_output("passed")
+    ctx.actions.run(
+        cmd_args(
+            "sh",
+            "-c",
+            'passed="$1" && shift && "$@" && : > "$passed"',
+            "sh",
+            passed.as_output(),
+            test.command,
+        ),
+        category = "test_run",
+        env = test.env,
+    )
+    return [DefaultInfo(default_output = passed)]
+
+test_run = rule(
+    attrs = {"test": attrs.dep(providers = [ExternalRunnerTestInfo])},
+    impl = _test_run_impl,
+)
 
 # One of the crate's [[bin]] targets. A binary named like its package is
 # <name>-bin, since the library already has the name.
