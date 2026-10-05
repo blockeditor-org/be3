@@ -187,9 +187,9 @@ block_ui_test::DocumentTest, which drives the document itself with only the font
 carries, never the system's. Its tests are compiled to wasm with plugin_tests like an
 editor's; crates/beui-demo paints every page of the demo that way.
 
-A snapshot never holds the glyph atlas. Each glyph carries its own coverage image, keyed by
-what is in it, so where a glyph happened to land in the atlas cannot reach the file: text an
-earlier frame drew - a temporary directory's name, a uuid, the time - repacks the atlas
+A snapshot never holds the glyph atlases. Each glyph carries its own image - coverage, or
+colour for an emoji from a colour font - keyed by what is in it, so where a glyph happened
+to land in an atlas cannot reach the file: text an earlier frame drew - a temporary directory's name, a uuid, the time - repacks the atlases
 without moving anything in the snapshot. Text that varies in the frame the test captures is
 of course a different painting, and still has to be kept out of it.
 
