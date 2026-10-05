@@ -497,10 +497,20 @@ impl Document {
         self.overlay_stack
             .iter()
             .chain(self.passive_overlays.iter())
-            .filter_map(|overlay| self.overlay_content(*overlay))
-            .filter_map(|content| self.node_rect(content))
-            .filter(|rect| rect.is_positive())
+            .filter_map(|overlay| self.overlay_cover(*overlay))
             .collect()
+    }
+
+    pub fn overlay_cover(&self, overlay: NodeOf<OverlayNode>) -> Option<Rect> {
+        let node = self.arena.get_as::<OverlayNode>(overlay);
+        let content = self.node_rect(node.content?)?;
+        let cover = match node.mode.stacked() {
+            true => self
+                .node_rect(node.scrim)
+                .map_or(content, |scrim| scrim.union(content)),
+            false => content,
+        };
+        cover.is_positive().then_some(cover)
     }
 
     pub fn open_overlay(&mut self, overlay: NodeOf<OverlayNode>) {

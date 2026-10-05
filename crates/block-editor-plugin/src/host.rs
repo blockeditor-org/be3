@@ -68,6 +68,20 @@ pub struct FileDrop {
 
 pub type OpenRequest = (Uuid, Uuid, Option<Uuid>);
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ChildCommit {
+    pub(crate) child: ChildId,
+    pub(crate) parent: BlockParent,
+    pub(crate) name: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PickRequest {
+    pub pick: u64,
+    pub filter: BlockFilter,
+    pub parent: BlockParent,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ShowRequest {
     pub block_id: Uuid,
@@ -229,11 +243,12 @@ struct Region {
     origin: Vec2,
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 enum Identity {
     Block([u8; 16]),
     WebView(WebViewId),
     Host(HostPanel),
+    Creation([u8; 16], String),
 }
 
 impl Identity {
@@ -242,6 +257,7 @@ impl Identity {
             ChildContent::Block { block_id, .. } => Self::Block(*block_id),
             ChildContent::WebView(web_view) => Self::WebView(*web_view),
             ChildContent::Host(panel) => Self::Host(*panel),
+            ChildContent::Creation { editor, template } => Self::Creation(*editor, template.clone()),
         }
     }
 }
@@ -261,7 +277,7 @@ struct Children {
 impl Children {
     fn identify(&mut self, region: EditorRegion, identity: Identity) -> ChildId {
         let ordinal = {
-            let ordinal = self.ordinals.entry(identity).or_default();
+            let ordinal = self.ordinals.entry(identity.clone()).or_default();
             let current = *ordinal;
             *ordinal += 1;
             current
@@ -272,7 +288,7 @@ impl Children {
             None => {
                 self.next += 1;
                 let child = ChildId(self.next);
-                self.identities.insert(key, child);
+                self.identities.insert(key.clone(), child);
                 child
             }
         };
@@ -342,6 +358,9 @@ impl Pushed {
 pub struct EditorHost {
     waker: Waker,
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
+    pick_requests: Rc<RefCell<Vec<PickRequest>>>,
+    pick_answers: Rc<RefCell<Vec<(u64, BlockPick)>>>,
+    child_commits: Rc<RefCell<Vec<ChildCommit>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     changes: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
@@ -468,6 +487,37 @@ impl EditorHost {
 
     pub fn take_show_requests(&self) -> Vec<ShowRequest> {
         std::mem::take(&mut self.shows.borrow_mut())
+    }
+
+    pub fn take_pick_requests(&self) -> Vec<PickRequest> {
+        std::mem::take(&mut self.pick_requests.borrow_mut())
+    }
+
+    pub fn request_pick(&self, request: PickRequest) {
+        self.pick_requests.borrow_mut().push(request);
+        self.push(Pushed::Shows);
+    }
+
+    pub fn answer_pick(&self, pick: u64, answer: BlockPick) {
+        self.pick_answers.borrow_mut().push((pick, answer));
+        self.changed();
+    }
+
+    pub(crate) fn take_pick_answers(&self) -> Vec<(u64, BlockPick)> {
+        std::mem::take(&mut self.pick_answers.borrow_mut())
+    }
+
+    pub fn commit_child(&self, child: ChildId, parent: BlockParent, name: Option<String>) {
+        self.child_commits.borrow_mut().push(ChildCommit {
+            child,
+            parent,
+            name,
+        });
+        self.changed();
+    }
+
+    pub(crate) fn take_child_commits(&self) -> Vec<ChildCommit> {
+        std::mem::take(&mut self.child_commits.borrow_mut())
     }
 
     pub fn take_panel_requests(&self) -> Vec<HostPanel> {

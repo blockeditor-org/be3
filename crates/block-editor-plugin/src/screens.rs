@@ -1,8 +1,8 @@
 use block_plugin_api::{
-    BlockTypeDescriptor, ChildStatus, DEFAULT_SURFACE_SIDE, EditorInstanceId, EditorMessage,
-    EditorRegion, Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec,
+    Catalog, ChildStatus, DEFAULT_SURFACE_SIDE, EditorInstanceId, EditorMessage,
+    EditorRegion, Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
-use block_ui::{BlockCatalog, BlockTypeEntry};
+use block_ui::{BlockCatalog, BlockTypeEntry, TemplateEntry};
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
@@ -425,6 +425,20 @@ impl Screens {
                     );
                 }
             }
+            Message::Editor(EditorMessage::PickRequested {
+                instance,
+                pick,
+                filter,
+                parent,
+            }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.pick_requested(crate::host::PickRequest {
+                        pick: *pick,
+                        filter: filter.clone(),
+                        parent: crate::graph::BlockParent::decode(*parent),
+                    });
+                }
+            }
             Message::Editor(EditorMessage::ShowPanel { instance, panel }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.show_panel(*panel);
@@ -630,14 +644,17 @@ impl Screens {
     }
 }
 
-fn catalog(descriptors: &[BlockTypeDescriptor]) -> BlockCatalog {
-    BlockCatalog::new(descriptors.iter().map(|descriptor| {
-        let codepoint: &'static str = Box::leak(descriptor.icon_codepoint.clone().into_boxed_str());
+fn catalog(catalog: &Catalog) -> BlockCatalog {
+    let leak = |codepoint: &str| -> Option<&'static str> {
+        let codepoint: &'static str = Box::leak(codepoint.to_owned().into_boxed_str());
+        (!codepoint.is_empty()).then_some(codepoint)
+    };
+    BlockCatalog::new(catalog.types.iter().map(|descriptor| {
         (
             Uuid::from_bytes(descriptor.block_type),
             BlockTypeEntry {
                 display_name: descriptor.display_name.clone(),
-                icon: (!codepoint.is_empty()).then_some(codepoint),
+                icon: leak(&descriptor.icon_codepoint),
                 child_edits: block_ui::ChildEdits {
                     add: descriptor.children.add,
                     delete: descriptor.children.delete,
@@ -645,5 +662,19 @@ fn catalog(descriptors: &[BlockTypeDescriptor]) -> BlockCatalog {
                 },
             },
         )
+    }))
+    .with_templates(catalog.templates.iter().map(|template| TemplateEntry {
+        editor: Uuid::from_bytes(template.editor),
+        template: template.template.clone(),
+        block_type: Uuid::from_bytes(template.block_type),
+        name: template.name.clone(),
+        icon: leak(&template.icon_codepoint),
+        category: match template.category {
+            TemplateCategory::Important => block_ui::TemplateCategory::Important,
+            TemplateCategory::Regular => block_ui::TemplateCategory::Regular,
+            TemplateCategory::Debug => block_ui::TemplateCategory::Debug,
+            TemplateCategory::Template => block_ui::TemplateCategory::Template,
+        },
+        dialog: template.dialog,
     }))
 }

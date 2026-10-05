@@ -11,7 +11,7 @@ fn placed(fixture: &Fixture, id: Uuid) -> Option<block_editor_beui::ChildPlaceme
         .children()
         .iter()
         .find(|placement| placement.content.block_id() == Some(id.into_bytes()))
-        .copied()
+        .cloned()
 }
 
 fn top_bar(fixture: &Fixture, id: Uuid) -> Option<TopBar> {
@@ -114,6 +114,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
             }],
             false => Vec::new(),
         },
+        creation: None,
     });
     fixture.settle();
     tap(&mut fixture, "dock.menu");

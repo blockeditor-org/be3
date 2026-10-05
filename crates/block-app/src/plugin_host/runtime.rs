@@ -656,6 +656,30 @@ pub(crate) fn take_block_pick(
     .flatten()
 }
 
+pub(crate) fn take_pick_answers(plugin_id: &str, instance: EditorInstanceId) -> Vec<(u64, BlockPick)> {
+    with(plugin_id, |runtime| runtime.instances.take_pick_answers(instance)).unwrap_or_default()
+}
+
+pub(crate) fn take_child_commits(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<super::ChildCommit> {
+    with(plugin_id, |runtime| runtime.instances.take_child_commits(instance)).unwrap_or_default()
+}
+
+pub(crate) fn request_pick(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    pick: u64,
+    filter: block_plugin_api::BlockFilter,
+    parent: block_plugin_api::BlockLocation,
+) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.request_pick(instance, pick, filter, parent);
+        runtime.send(messages);
+    });
+}
+
 pub(crate) fn block_picked(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -1166,7 +1190,7 @@ pub(crate) fn take_changed() -> Vec<String> {
 
 pub(crate) struct RegionSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<Vec<block_plugin_api::BlockTypeDescriptor>>,
+    pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
     pub(crate) client_id: Uuid,
     pub(crate) role: InstanceRole,
     pub(crate) instance: EditorInstanceId,

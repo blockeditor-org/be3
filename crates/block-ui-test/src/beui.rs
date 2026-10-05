@@ -9,7 +9,7 @@ use block_editor_beui::{
     ShownPresence, ViewChange, WebViewCommand, WebViewId,
 };
 use block_plugin_api::{
-    BarAction, BlockTypeDescriptor, ChildId, ChildRect, EditorMessage, FrameChrome, FrameReport,
+    BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FrameChrome, FrameReport,
     HelloAccepted, InputBatch, MenuEntry, Message, PROTOCOL_VERSION, ScreenId, ScreenRequest,
     ScreenSet, SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
 };
@@ -434,7 +434,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn block_types(&mut self, descriptors: Vec<BlockTypeDescriptor>) {
-        self.inbox.push(Message::BlockTypes(descriptors));
+        self.catalog(Catalog {
+            types: descriptors,
+            templates: Vec::new(),
+        });
+    }
+
+    pub fn catalog(&mut self, catalog: Catalog) {
+        self.inbox.push(Message::BlockTypes(catalog));
         self.run();
     }
 
@@ -622,6 +629,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             resize: block_editor_beui::ResizeMode::None,
             error: None,
             menu: Vec::new(),
+            creation: None,
         });
     }
 
@@ -780,6 +788,41 @@ impl<A: BeuiApp> BeuiTest<A> {
             None => true,
         });
         taken
+    }
+
+    pub fn request_pick(
+        &mut self,
+        pick: u64,
+        filter: block_editor_beui::BlockFilter,
+        parent: block_plugin_api::BlockLocation,
+    ) {
+        self.inbox.push(Message::Editor(EditorMessage::PickRequested {
+            instance: INSTANCE,
+            pick,
+            filter,
+            parent,
+        }));
+    }
+
+    pub fn take_pick_answers(&mut self) -> Vec<(u64, block_editor_beui::BlockPick)> {
+        self.take_where(|message| match message {
+            EditorMessage::PickAnswered { pick, answer, .. } => Some((*pick, answer.clone())),
+            _ => None,
+        })
+    }
+
+    pub fn take_child_commits(
+        &mut self,
+    ) -> Vec<(ChildId, block_plugin_api::BlockLocation, Option<String>)> {
+        self.take_where(|message| match message {
+            EditorMessage::CommitChild {
+                child,
+                parent,
+                name,
+                ..
+            } => Some((*child, *parent, name.clone())),
+            _ => None,
+        })
     }
 
     pub fn take_view_changes(&mut self) -> Vec<ViewChange> {

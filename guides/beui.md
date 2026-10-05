@@ -1730,7 +1730,7 @@ creation flow, host connection, and current beui plugin capability limits.
 
 A template the manifest marks `"dialog": true` is made through `creation_view` instead, one
 more `#[component]` function that the framework builds a separate document of
-and shows in the host's creation dialog. It says what the dialog makes with
+and shows in the picker's creation dialog. It says what the dialog makes with
 `creation.on_create(...)` and answers `creation.set_ready(true)` once it has been
 filled in. Host services such as `BlockPicker` work there too, collected from
 `creation.on_reply(...)` when the host answers.

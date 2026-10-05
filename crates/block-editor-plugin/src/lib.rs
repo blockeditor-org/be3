@@ -20,8 +20,10 @@ pub mod session;
 mod wasm;
 
 pub use block_plugin_api::{
-    AccessLevel, ArtifactAction, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockPick,
+    AccessLevel, ArtifactAction, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation,
+    BlockPick, Catalog, TemplateCategory, TemplateDescriptor,
     ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage,
+    CreationProgress,
     ConflictSide, CursorIcon, DataListing, EditorCapabilities, EditorInstanceId, EditorRegion,
     FetchResult, FileSave, FrameChrome, FrameSpec, HostPanel, HostReply, HostRequest, InputEvent,
     InteractionMode, Key, MenuEntry, Modifiers, Occluder, PointerButton, ResizeMode,
@@ -36,7 +38,7 @@ pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphComm
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
     ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HostContent,
-    ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
+    ImagePaster, OpenRequest, PastedImage, PickRequest, PeerPresence, PerformanceMeasurementGuard,
     PerformanceReporter, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest,
     ShownPresence, Waker,
 };

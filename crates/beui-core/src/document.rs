@@ -528,10 +528,7 @@ impl Document {
         self.overlays_bottom_up()
             .into_iter()
             .enumerate()
-            .filter_map(|(index, overlay)| {
-                let rect = self.node_rect(self.overlay_content(overlay)?)?;
-                rect.is_positive().then(|| (vec![index + 1], rect))
-            })
+            .filter_map(|(index, overlay)| Some((vec![index + 1], self.overlay_cover(overlay)?)))
             .collect()
     }
 

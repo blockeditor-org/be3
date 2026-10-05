@@ -13,11 +13,10 @@ pub(crate) mod discovery;
 
 use super::{
     ArtifactSession, ArtifactStatus, BlockTypeEntry, CreationStep, DirectEditorCapabilities,
-    DirectEditorInteraction, DirectEditorResize, EditorAccess, EditorAction, EditorRegistry,
+    DirectEditorInteraction, DirectEditorResize, EditorRegistry,
     FocusReport, PendingCreation,
 };
 use crate::{
-    block_picker::BlockPicker,
     compositor::RegionEditor,
     host,
     plugin_host::{
@@ -66,7 +65,6 @@ pub(super) struct PluginCreation {
     opened: bool,
     state: CreationState,
     committed: bool,
-    block_pick: Option<PendingBlockPick>,
 }
 
 impl PluginCreation {
@@ -78,7 +76,6 @@ impl PluginCreation {
             opened: false,
             state: CreationState::Starting,
             committed: false,
-            block_pick: None,
         }
     }
 
@@ -86,14 +83,14 @@ impl PluginCreation {
         InstanceRole::Creation(self.target.editor, self.target.template)
     }
 
-    fn hosted(&self, editors: &EditorAccess<'_>) -> HostedRegion {
+    fn hosted(&self, registry: &EditorRegistry, client_id: Uuid) -> HostedRegion {
         HostedRegion {
             editor: RegionEditor {
                 plugin: Arc::clone(&self.plugin),
                 role: self.role(),
                 instance: self.instance,
-                block_types: Arc::clone(editors.registry().plugin_block_types()),
-                client_id: editors.client_id(),
+                block_types: Arc::clone(registry.plugin_block_types()),
+                client_id,
             },
             region: EditorRegion::Frame,
             frame: Some(FrameSpec::default()),
@@ -110,21 +107,20 @@ impl Drop for PluginCreation {
 }
 
 impl PendingCreation for PluginCreation {
-    fn region(&self, editors: &EditorAccess<'_>) -> Option<HostedRegion> {
-        self.target.dialog.then(|| self.hosted(editors))
+    fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> Option<HostedRegion> {
+        self.target.dialog.then(|| self.hosted(registry, client_id))
     }
 
-    fn step(&mut self, editors: &mut EditorAccess<'_>) -> CreationStep {
+    fn pick_source(&self) -> PickSource {
+        PickSource {
+            plugin_id: self.plugin.identity.id.clone(),
+            instance: self.instance,
+        }
+    }
+
+    fn step(&mut self, registry: &EditorRegistry, client_id: Uuid) -> CreationStep {
         self.opened = true;
         if self.target.dialog {
-            serve_block_pick(
-                &self.plugin.identity.id,
-                self.instance,
-                &mut self.block_pick,
-                editors,
-                Vec::new(),
-                be_graph::BlockParent::Root,
-            );
             let ready = crate::plugin_host::creation_ready(&self.plugin.identity.id, self.instance);
             if ready {
                 self.state = CreationState::Ready;
@@ -133,8 +129,8 @@ impl PendingCreation for PluginCreation {
         }
         self.state = crate::plugin_host::creation(CreationSlot {
             plugin: &self.plugin,
-            block_types: editors.registry().plugin_block_types(),
-            client_id: editors.client_id(),
+            block_types: registry.plugin_block_types(),
+            client_id,
             instance: self.instance,
             role: self.role(),
         });
@@ -191,71 +187,25 @@ pub(crate) struct PluginEditor {
     view_block: Option<Uuid>,
     instance: EditorInstanceId,
     opened: bool,
-    block_pick: Option<PendingBlockPick>,
     fullscreen: bool,
     presence_active: bool,
     shown: u32,
 }
 
-struct PendingBlockPick {
-    request_id: u64,
-    picker: BlockPicker,
+#[derive(Clone)]
+pub(crate) struct PickSource {
+    pub(crate) plugin_id: String,
+    pub(crate) instance: EditorInstanceId,
 }
 
-fn serve_block_pick(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    pending: &mut Option<PendingBlockPick>,
-    editors: &mut EditorAccess<'_>,
-    excluded: Vec<Uuid>,
-    parent: be_graph::BlockParent,
-) -> Option<EditorAction> {
-    if pending.is_none()
-        && let Some(request) = crate::plugin_host::take_block_pick(plugin_id, instance)
-    {
-        let mut picker = BlockPicker::default();
-        let excluded: Vec<_> = excluded.into_iter().chain(request.excluded).collect();
-        if request.templates {
-            picker.open_templates_for_types(excluded, request.block_types);
-        } else {
-            picker.open_for_types(excluded, request.block_types);
-        }
-        if let Some(place) = request.place {
-            picker.place_at(place);
-        }
-        *pending = Some(PendingBlockPick {
-            request_id: request.request_id,
-            picker,
-        });
+impl PickSource {
+    pub(crate) fn take(&self) -> Option<crate::plugin_host::BlockPickRequest> {
+        crate::plugin_host::take_block_pick(&self.plugin_id, self.instance)
     }
-    let waiting = pending.as_mut()?;
-    let picked = waiting.picker.handle(editors, parent);
-    let placing = picked.as_ref().and_then(|result| {
-        let container = result.into?;
-        Some(EditorAction::Command {
-            id: result.id,
-            command: block_plugin_api::BlockCommand::Place {
-                block_type: result.block_type.into_bytes(),
-                parent: container.into_bytes(),
-                linked: false,
-            },
-        })
-    });
-    let pick = match picked {
-        Some(result) => Some(BlockPick::Chosen {
-            block_id: result.id.into_bytes(),
-            block_type: result.block_type.into_bytes(),
-            linked: result.linked,
-            placed: result.placed,
-        }),
-        None if waiting.picker.is_open() => None,
-        None => Some(BlockPick::Cancelled),
-    };
-    let pick = pick?;
-    let request_id = waiting.request_id;
-    *pending = None;
-    crate::plugin_host::block_picked(plugin_id, instance, request_id, pick);
-    placing
+
+    pub(crate) fn answer(&self, request_id: u64, pick: BlockPick) {
+        crate::plugin_host::block_picked(&self.plugin_id, self.instance, request_id, pick);
+    }
 }
 
 impl PluginEditor {
@@ -275,7 +225,6 @@ impl PluginEditor {
             view_block: None,
             instance: next_instance(),
             opened: false,
-            block_pick: None,
             fullscreen: false,
             presence_active: false,
             shown: 0,
@@ -330,16 +279,12 @@ impl PluginEditor {
         }
     }
 
-    fn block_pick_ui(&mut self, editors: &mut EditorAccess<'_>) -> Option<EditorAction> {
+    pub(crate) fn pick_source(&self) -> Option<PickSource> {
         let plugin = self.plugin.as_ref()?;
-        serve_block_pick(
-            &plugin.identity.id,
-            self.instance,
-            &mut self.block_pick,
-            editors,
-            vec![self.id],
-            be_graph::BlockParent::Block(self.id),
-        )
+        Some(PickSource {
+            plugin_id: plugin.identity.id.clone(),
+            instance: self.instance,
+        })
     }
 
     fn close(&mut self) {
@@ -374,13 +319,6 @@ impl PluginEditor {
     pub(crate) fn has_region(&self, region: EditorRegion) -> bool {
         self.manifest()
             .is_some_and(|editor| editor.regions.contains(&region))
-    }
-
-    pub(crate) fn serve_block_pick(
-        &mut self,
-        editors: &mut EditorAccess<'_>,
-    ) -> Option<EditorAction> {
-        self.block_pick_ui(editors)
     }
 
     pub(crate) fn stop_presenting_now(&mut self) {

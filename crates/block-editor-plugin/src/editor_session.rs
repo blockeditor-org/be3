@@ -183,6 +183,10 @@ impl EditorSession {
         self.host.set_focused_block(focused);
     }
 
+    pub(crate) fn pick_requested(&self, request: crate::host::PickRequest) {
+        self.host.request_pick(request);
+    }
+
     pub(crate) fn show_panel(&self, panel: HostPanel) {
         self.host.show_panel(panel);
     }
@@ -563,6 +567,21 @@ impl EditorSession {
                 instance,
                 request_id,
                 request,
+            }));
+        }
+        for (pick, answer) in self.host.take_pick_answers() {
+            messages.push(Message::Editor(EditorMessage::PickAnswered {
+                instance,
+                pick,
+                answer,
+            }));
+        }
+        for commit in self.host.take_child_commits() {
+            messages.push(Message::Editor(EditorMessage::CommitChild {
+                instance,
+                child: commit.child,
+                parent: commit.parent.encode(),
+                name: commit.name,
             }));
         }
         for (block_id, command) in self.host.take_audio_commands() {

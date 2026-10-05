@@ -29,7 +29,9 @@ impl Message {
                                 visit(placements.instance, BlockIdRole::Existing, view_block);
                             }
                         }
-                        ChildContent::WebView(_) | ChildContent::Host(_) => {}
+                        ChildContent::WebView(_)
+                        | ChildContent::Host(_)
+                        | ChildContent::Creation { .. } => {}
                     }
                 }
             }
@@ -123,6 +125,18 @@ impl EditorMessage {
                     | BlockCommand::AppMenu => {}
                 }
             }
+            Self::PickRequested { filter, parent, .. } => {
+                filter.excluded.iter_mut().for_each(&mut existing);
+                if let Some(place) = &mut filter.place {
+                    location(place, &mut existing);
+                }
+                location(parent, &mut existing);
+            }
+            Self::CommitChild { parent, .. } => location(parent, &mut existing),
+            Self::PickAnswered { answer, .. } => match answer {
+                BlockPick::Chosen { block_id, .. } => existing(block_id),
+                BlockPick::Cancelled | BlockPick::Failed(_) => {}
+            },
             Self::Request { request, .. } => match request {
                 HostRequest::PickBlock(filter) => {
                     filter.excluded.iter_mut().for_each(&mut existing);
@@ -273,6 +287,6 @@ fn query(query: &mut BlockQuery, visit: &mut impl FnMut(&mut [u8; 16])) {
         | BlockQuery::Backrefs(block_id)
         | BlockQuery::Parents(block_id)
         | BlockQuery::Block(block_id) => visit(block_id),
-        BlockQuery::Roots | BlockQuery::Detached => {}
+        BlockQuery::All | BlockQuery::Roots | BlockQuery::Detached => {}
     }
 }

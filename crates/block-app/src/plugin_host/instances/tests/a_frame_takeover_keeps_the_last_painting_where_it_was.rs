@@ -14,7 +14,7 @@ fn resize(instances: &mut Instances, rect: Rect) {
         REGION,
         Uuid::nil(),
         role,
-        &Arc::new(Vec::new()),
+        &Arc::new(block_plugin_api::Catalog::default()),
         Some(block_plugin_api::FrameSpec::default()),
         rect.size(),
         Rect::from_min_size(Pos2::ZERO, rect.size()),

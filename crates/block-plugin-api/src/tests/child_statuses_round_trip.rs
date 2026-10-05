@@ -25,6 +25,7 @@ fn child_statuses_round_trip() {
                 glyph: "edit".into(),
                 enabled: true,
             }],
+            creation: Some(CreationProgress::Options { ready: true }),
         },
         ChildStatus {
             instance: EditorInstanceId(4),
@@ -40,6 +41,7 @@ fn child_statuses_round_trip() {
             resize: ResizeMode::Both,
             error: Some("the block is already open above this editor".into()),
             menu: Vec::new(),
+            creation: None,
         },
     ]);
     assert_eq!(
@@ -61,6 +63,7 @@ fn child_statuses_round_trip() {
         resize: ResizeMode::Both,
         error: Some("x".repeat(MAX_STRING_BYTES + 1)),
         menu: Vec::new(),
+        creation: None,
     }]);
     assert_eq!(
         encode_frame(&oversized),
