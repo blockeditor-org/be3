@@ -17,7 +17,8 @@ use winit::event::{
     DeviceEvent, DeviceId, ElementState, Ime, MouseButton, MouseScrollDelta, WindowEvent,
 };
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
-use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::keyboard::{KeyCode, NamedKey, PhysicalKey};
+use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
 use winit::window::{
     CursorGrabMode, CustomCursor, CustomCursorSource, Fullscreen, Window, WindowId,
 };
@@ -558,20 +559,22 @@ impl ApplicationHandler<UserEvent> for Runner {
                         self.push(Event::PhysicalKey { code, pressed });
                     }
                 }
-                let named = match event.physical_key {
-                    PhysicalKey::Code(code) => {
-                        if pressed
-                            && code == KeyCode::KeyV
-                            && self.modifiers.ctrl
-                            && !self.modifiers.alt
-                            && let Some(text) = self.clipboard.get()
-                        {
-                            self.push(Event::Text(text));
-                        }
-                        key(code)
-                    }
-                    PhysicalKey::Unidentified(_) => unidentified_key(event.physical_key),
+                let named = match logical_key(&event.key_without_modifiers()) {
+                    Logical::Key(key) => Some(key),
+                    Logical::Ignored => None,
+                    Logical::Unknown => match event.physical_key {
+                        PhysicalKey::Code(code) => key(code),
+                        PhysicalKey::Unidentified(_) => unidentified_key(event.physical_key),
+                    },
                 };
+                if pressed
+                    && named == Some(Key::V)
+                    && self.modifiers.ctrl
+                    && !self.modifiers.alt
+                    && let Some(text) = self.clipboard.get()
+                {
+                    self.push(Event::Text(text));
+                }
                 if let Some(key) = named {
                     self.push(Event::Key {
                         key,
@@ -782,6 +785,134 @@ fn unidentified_key(physical: PhysicalKey) -> Option<Key> {
 #[cfg(not(target_os = "linux"))]
 fn unidentified_key(_: PhysicalKey) -> Option<Key> {
     None
+}
+
+enum Logical {
+    Key(Key),
+    Ignored,
+    Unknown,
+}
+
+fn logical_key(logical: &winit::keyboard::Key) -> Logical {
+    use winit::keyboard::Key as Winit;
+    let named = match logical {
+        Winit::Named(named) => named_key(*named),
+        Winit::Character(text) => {
+            let mut chars = text.chars();
+            match (chars.next(), chars.next()) {
+                (Some(c), None) => character_key(c),
+                _ => None,
+            }
+        }
+        Winit::Unidentified(_) | Winit::Dead(_) => None,
+    };
+    match (named, logical) {
+        (Some(key), _) => Logical::Key(key),
+        (None, Winit::Named(_)) => Logical::Ignored,
+        (None, _) => Logical::Unknown,
+    }
+}
+
+fn named_key(named: NamedKey) -> Option<Key> {
+    let key = match named {
+        NamedKey::ArrowDown => Key::ArrowDown,
+        NamedKey::ArrowLeft => Key::ArrowLeft,
+        NamedKey::ArrowRight => Key::ArrowRight,
+        NamedKey::ArrowUp => Key::ArrowUp,
+        NamedKey::Backspace => Key::Backspace,
+        NamedKey::Delete => Key::Delete,
+        NamedKey::End => Key::End,
+        NamedKey::Enter => Key::Enter,
+        NamedKey::Escape => Key::Escape,
+        NamedKey::Home => Key::Home,
+        NamedKey::PageDown => Key::PageDown,
+        NamedKey::PageUp => Key::PageUp,
+        NamedKey::Space => Key::Space,
+        NamedKey::Tab => Key::Tab,
+        NamedKey::Insert => Key::Insert,
+        NamedKey::BrowserBack => Key::BrowserBack,
+        NamedKey::F1 => Key::F1,
+        NamedKey::F2 => Key::F2,
+        NamedKey::F3 => Key::F3,
+        NamedKey::F4 => Key::F4,
+        NamedKey::F5 => Key::F5,
+        NamedKey::F6 => Key::F6,
+        NamedKey::F7 => Key::F7,
+        NamedKey::F8 => Key::F8,
+        NamedKey::F9 => Key::F9,
+        NamedKey::F10 => Key::F10,
+        NamedKey::F11 => Key::F11,
+        NamedKey::F12 => Key::F12,
+        NamedKey::F13 => Key::F13,
+        NamedKey::F14 => Key::F14,
+        NamedKey::F15 => Key::F15,
+        NamedKey::F16 => Key::F16,
+        NamedKey::F17 => Key::F17,
+        NamedKey::F18 => Key::F18,
+        NamedKey::F19 => Key::F19,
+        NamedKey::F20 => Key::F20,
+        NamedKey::F21 => Key::F21,
+        NamedKey::F22 => Key::F22,
+        NamedKey::F23 => Key::F23,
+        NamedKey::F24 => Key::F24,
+        _ => return None,
+    };
+    Some(key)
+}
+
+fn character_key(c: char) -> Option<Key> {
+    let key = match c.to_ascii_lowercase() {
+        '[' | '{' => Key::BracketLeft,
+        ']' | '}' => Key::BracketRight,
+        '-' | '_' => Key::Minus,
+        '=' | '+' => Key::Plus,
+        ' ' => Key::Space,
+        '0' | ')' => Key::Zero,
+        '1' | '!' => Key::One,
+        '2' | '@' => Key::Two,
+        '3' | '#' => Key::Three,
+        '4' | '$' => Key::Four,
+        '5' | '%' => Key::Five,
+        '6' | '^' => Key::Six,
+        '7' | '&' => Key::Seven,
+        '8' | '*' => Key::Eight,
+        '9' | '(' => Key::Nine,
+        '`' | '~' => Key::Backtick,
+        ',' | '<' => Key::Comma,
+        '.' | '>' => Key::Period,
+        '/' | '?' => Key::Slash,
+        '\\' | '|' => Key::Backslash,
+        ';' | ':' => Key::Semicolon,
+        '\'' | '"' => Key::Quote,
+        'a' => Key::A,
+        'b' => Key::B,
+        'c' => Key::C,
+        'd' => Key::D,
+        'e' => Key::E,
+        'f' => Key::F,
+        'g' => Key::G,
+        'h' => Key::H,
+        'i' => Key::I,
+        'j' => Key::J,
+        'k' => Key::K,
+        'l' => Key::L,
+        'm' => Key::M,
+        'n' => Key::N,
+        'o' => Key::O,
+        'p' => Key::P,
+        'q' => Key::Q,
+        'r' => Key::R,
+        's' => Key::S,
+        't' => Key::T,
+        'u' => Key::U,
+        'v' => Key::V,
+        'w' => Key::W,
+        'x' => Key::X,
+        'y' => Key::Y,
+        'z' => Key::Z,
+        _ => return None,
+    };
+    Some(key)
 }
 
 fn key(code: KeyCode) -> Option<Key> {
