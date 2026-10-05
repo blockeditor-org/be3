@@ -3,11 +3,21 @@
 # default - cannot hold a file named BUCK beside the buck/ directory.
 
 load("//buck/tools:defs.bzl", "tool")
+load("//buck/wasm:defs.bzl", "plugin_test_inputs")
 
 # clippy.toml reaches the rust toolchain as a file, so it needs a target.
 export_file(
     name = "clippy.toml",
     src = "clippy.toml",
+    visibility = ["PUBLIC"],
+)
+
+# What the plugin tests read as an action (buck/wasm/defs.bzl), where they
+# read it: the manifest that tells them where the workspace is, and the
+# accepted paintings.
+plugin_test_inputs(
+    name = "plugin_test_inputs",
+    srcs = ["Cargo.toml"] + glob(["snapshots/*.paint"]),
     visibility = ["PUBLIC"],
 )
 

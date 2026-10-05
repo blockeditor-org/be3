@@ -7,6 +7,7 @@ use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::input::{CursorIcon, PointerPress};
 use crate::painter::Painter;
 
+use crate::base::frame::FrameNode;
 use crate::base::interactive::InteractiveNode;
 use crate::callback::{Callback, NodeRef};
 use crate::current::with_document;
@@ -57,7 +58,7 @@ impl OverlayMode {
 pub struct OverlayNode {
     content: Option<NodeId>,
     scrim: NodeId,
-    dim: Color32,
+    dim: NodeOf<FrameNode>,
     open: bool,
     anchor: OverlayAnchor,
     anchored: Option<Rect>,
@@ -70,11 +71,16 @@ pub struct OverlayNode {
 }
 
 impl OverlayNode {
-    fn new(scrim: NodeId, anchor: OverlayAnchor, placement: Placement) -> Self {
+    fn new(
+        scrim: NodeId,
+        dim: NodeOf<FrameNode>,
+        anchor: OverlayAnchor,
+        placement: Placement,
+    ) -> Self {
         Self {
             content: None,
             scrim,
-            dim: Color32::TRANSPARENT,
+            dim,
             open: false,
             anchor,
             anchored: None,
@@ -219,15 +225,10 @@ impl Element for OverlayNode {
         crate::layout::layout(doc, painter, content, rect, out);
     }
 
-    fn paint(&self, doc: &Document, painter: &Painter, _rects: &Rects, _rect: Rect) {
-        if self.paints() {
-            let viewport = doc.viewport_rect().translate(-painter.origin());
-            painter.rect_filled(viewport, 0.0, self.dim);
-        }
-    }
+    fn paint(&self, _doc: &Document, _painter: &Painter, _rects: &Rects, _rect: Rect) {}
 
     fn paints(&self) -> bool {
-        self.open && self.dim.alpha() > 0
+        false
     }
 
     fn interact(
@@ -318,6 +319,8 @@ impl Document {
         let tap_cell = overlay_cell.clone();
         let scrim = self.create_interactive(false);
         self.set_interactive_cursor(scrim, Some(CursorIcon::Default));
+        let dim = self.create_frame();
+        self.set_interactive_child(scrim, dim.id());
         let node = self.arena.touch_mut_as::<InteractiveNode>(scrim);
         node.on_press = Callback::new(move |press: PointerPress| {
             if press.touch {
@@ -335,7 +338,7 @@ impl Document {
         });
         let id = self
             .arena
-            .insert(OverlayNode::new(scrim.id(), anchor, placement));
+            .insert(OverlayNode::new(scrim.id(), dim, anchor, placement));
         overlay_cell.set(Some(id));
         id
     }
@@ -349,9 +352,8 @@ impl Document {
     }
 
     pub fn set_overlay_scrim(&mut self, overlay: NodeOf<OverlayNode>, color: Color32) {
-        if self.arena.get_as::<OverlayNode>(overlay).dim != color {
-            self.arena.paint_mut_as::<OverlayNode>(overlay).dim = color;
-        }
+        let dim = self.arena.get_as::<OverlayNode>(overlay).dim;
+        self.set_frame_color(dim, color);
     }
 
     pub fn set_overlay_placement(&mut self, overlay: NodeOf<OverlayNode>, placement: Placement) {
@@ -471,6 +473,10 @@ impl Document {
         self.arena
             .kind_of::<OverlayNode>(overlay)
             .is_some_and(|overlay| self.arena.get_as(overlay).open)
+    }
+
+    pub fn overlay_scrim(&self, overlay: NodeOf<OverlayNode>) -> NodeId {
+        self.arena.get_as::<OverlayNode>(overlay).scrim
     }
 
     pub fn overlay_content(&self, overlay: NodeOf<OverlayNode>) -> Option<NodeId> {

@@ -292,3 +292,57 @@ overflow-checks = false
 opt-level = 2
 debug-assertions = false
 overflow-checks = false
+
+# fix-rust-source parses every Rust file in the repository on every //:verify,
+# and unoptimised the parser took 8 seconds of it; optimised, about one. These
+# crates are its alone, so optimising them changes nothing else.
+
+[profile.dev.package.fix-rust-source]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.ra_ap_syntax]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.ra_ap_parser]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.ra-ap-rustc_lexer]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.ra_ap_stdx]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.ra_ap_edition]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.rowan]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.text-size]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.countme]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.rustc-literal-escaper]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false

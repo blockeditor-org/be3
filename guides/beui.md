@@ -69,10 +69,10 @@ colour from theme tokens and interaction state, mapping a value to a label,
 reading state back out of a built node — write those as plain functions, as
 `beui-components-styled`'s `checkbox.rs` does with `box_fill` and `checkbox_checked`.
 
-### A component ends with one `view!` and nothing after it
+### A component usually ends with one `view!` and nothing after it
 
-The last line of a component is a single `view! {}` producing the node it
-returns:
+Prefer making the last line of a component a single `view! {}` producing the
+node it returns:
 
 ```rust
 #[component]
@@ -87,14 +87,13 @@ fn LabeledValue(label: Prop<String>, value: Prop<String>) -> NodeId {
 }
 ```
 
-Signals, memos, callbacks, and handle destructuring go above it. Nothing goes
-below it, and there is no second `view!` earlier in the body: `view!` builds
+Signals, memos, callbacks, and handle destructuring go above it. Avoid putting
+anything below it or a second `view!` earlier in the body: `view!` builds
 nodes the moment it runs, so a subtree built into a local and then used
 conditionally has already been added to the document whether or not it ends up
 in the tree, and a subtree built in one place but parented somewhere else
-obscures which component's scope owns it. `./scripts/buck run //:verify`
-reports a component with a second `view!` outside a closure, or with anything
-after its last one.
+obscures which component's scope owns it. This is not enforced; break it where
+another shape is clearer.
 
 When part of the tree depends on something, express it in the view rather than
 in Rust control flow around it. `Show` takes a condition, builds its child each
