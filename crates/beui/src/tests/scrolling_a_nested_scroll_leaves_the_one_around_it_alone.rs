@@ -1,6 +1,6 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{DynamicSegment, ForEach, ItemSize, List, component, view};
+use crate::reactive::{DynamicSegment, ForEach, ItemSize, List, ListChild, component, view};
 use crate::unstyled::Scroll;
 
 #[test]
@@ -37,7 +37,7 @@ fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
 }
 
 #[component]
-fn Rows(count: usize) -> DynamicSegment<NodeId> {
+fn Rows(count: usize) -> DynamicSegment<ListChild> {
     view! {
         <ForEach keys={indices(count)}>
             {|index: usize| view! {

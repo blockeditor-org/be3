@@ -77,7 +77,6 @@ mod a_floating_overlay_follows_an_anchor_that_only_moves;
 mod a_focused_forwarding_catcher_takes_the_keys_from_the_document;
 mod a_focused_node_scrolled_far_away_stays_laid_out;
 mod a_focused_text_input_asks_for_the_keyboard;
-mod a_for_each_gives_a_scroll_items_of_its_own;
 mod a_for_each_keeps_its_rows_between_the_children_beside_it;
 mod a_for_each_places_the_items_of_a_canvas;
 mod a_for_each_row_picks_and_changes_its_own_size;
@@ -1718,7 +1717,7 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
 }
 
 use crate::interact::WHEEL_LATCH_TIMEOUT;
-use crate::reactive::DynamicSegment;
+use crate::reactive::{DynamicSegment, ListChild};
 use crate::unstyled::Scroll;
 
 fn nested() -> Document {
@@ -1740,7 +1739,7 @@ fn nested() -> Document {
 }
 
 #[component]
-fn Rows(count: usize) -> DynamicSegment<NodeId> {
+fn Rows(count: usize) -> DynamicSegment<ListChild> {
     view! {
         <ForEach keys={indices(count)}>
             {|index: usize| view! {

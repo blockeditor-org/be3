@@ -17,10 +17,9 @@ fn a_dynamic_child_can_fill_its_available_height() {
                                 view! {
                                     <List @sizing=ItemSize::Percent(100.0) spacing=10.0>
                                         <Frame height=20.0 />
-                                        <Offset
-                                            @sizing=ItemSize::Percent(100.0)
-                                            @node_ref=&scroll
-                                        />
+                                        <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                                            <List spacing=0.0 />
+                                        </Offset>
                                     </List>
                                 }
                             }}
