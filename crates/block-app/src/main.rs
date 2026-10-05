@@ -1372,6 +1372,7 @@ impl BlockApp {
                 self.editors.commit_creations(*id, commits);
             }
         }
+        self.editors.forget_hidden_settings();
         let creations = self.editors.creation_pick_sources();
         let requesters = editors
             .into_iter()

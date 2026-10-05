@@ -216,6 +216,20 @@ impl Editors {
         self.0.settings_shown.borrow_mut().remove(key);
     }
 
+    pub(crate) fn forget_hidden_settings(&self) {
+        let shown: Vec<(Uuid, ChildId)> = self
+            .0
+            .settings_shown
+            .borrow()
+            .keys()
+            .map(|(parent, _, child)| (*parent, *child))
+            .collect();
+        self.0
+            .settings_children
+            .borrow_mut()
+            .retain(|key, _| shown.contains(key));
+    }
+
     pub(crate) fn requested_settings(&self) -> Option<Uuid> {
         self.0.settings_shown.borrow().values().next().copied()
     }
