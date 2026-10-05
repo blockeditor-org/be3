@@ -23,7 +23,9 @@ struct Prop {
     is_child: bool,
     is_optional_child: bool,
     callback_signature: Option<proc_macro2::TokenStream>,
+    optional_callback_signature: Option<proc_macro2::TokenStream>,
     is_click_callback: bool,
+    is_optional_click_callback: bool,
     default: Option<Expr>,
     is_children_slot: bool,
 }
@@ -269,6 +271,16 @@ fn named_setter(prop: &Prop) -> Setter {
         func_setter(ident, args, |build| quote! { Some(#build) })
     } else if let Some(args) = &prop.func_args {
         func_setter(ident, args, |build| build)
+    } else if prop.is_optional_click_callback {
+        plain(
+            quote! { value: impl ::core::ops::FnMut() + 'static },
+            quote! { Some(::beui::reactive::ClickCallback::new(value)) },
+        )
+    } else if let Some(signature) = &prop.optional_callback_signature {
+        plain(
+            quote! { value: impl #signature + 'static },
+            quote! { Some(::beui::reactive::Callback::new(value)) },
+        )
     } else if let Some(inner_ty) = &prop.optional_reactive_inner_ty {
         plain(
             quote! { value: impl ::beui::reactive::IntoProp<#inner_ty> },
@@ -516,6 +528,14 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
                 .then(|| callback_signature(ty))
                 .transpose()?;
             let inner_ty = generic_inner(ty, "Option");
+            let is_optional_click_callback = inner_ty
+                .as_ref()
+                .is_some_and(|inner| is_named_type(inner, "ClickCallback"));
+            let optional_callback_signature = inner_ty
+                .as_ref()
+                .filter(|inner| is_named_type(inner, "Callback"))
+                .map(crate::callback_signature)
+                .transpose()?;
             let optional_reactive_inner_ty = inner_ty
                 .as_ref()
                 .and_then(|inner| generic_inner(inner, "Prop"));
@@ -541,7 +561,9 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
                 is_child,
                 is_optional_child,
                 callback_signature,
+                optional_callback_signature,
                 is_click_callback: is_named_type(ty, "ClickCallback"),
+                is_optional_click_callback,
                 default,
                 is_children_slot: children,
             })

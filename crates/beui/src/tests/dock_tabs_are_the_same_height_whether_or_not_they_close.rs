@@ -1,28 +1,23 @@
 use super::*;
+use crate::unstyled::{DockPane, DockTab, DockingLayout};
 
 #[test]
 fn dock_tabs_are_the_same_height_whether_or_not_they_close() {
-    let closable = Func::new(|tab: unstyled::TabId| tab != unstyled::TabId::new(1));
     let dock = NodeRef::new();
     let built = dock.clone();
     let document = build(move || {
-        let (state, set_state) = create_signal(unstyled::DockState::new([
-            unstyled::TabId::new(1),
-            unstyled::TabId::new(2),
-        ]));
+        let layout = DockingLayout::new();
         view! {
-            <styled::DockArea
-                @node_ref=&built
-                state={state}
-                closable={closable}
-                title={Func::new(|tab: unstyled::TabId| format!("Tab {}", tab.value()))}
-                on_change={move |next: unstyled::DockState| set_state.set(next)}
-                on_close={move |_: unstyled::TabId| {}}
-            >
-                {move |tab: unstyled::TabId| view! {
-                    <Frame @test_id={format!("content.{}", tab.value())} />
-                }}
-            </styled::DockArea>
+            <styled::Docking @node_ref=&built layout>
+                <DockPane id="tabs">
+                    <DockTab id=1u64 title="Tab 1">
+                        <Frame @test_id="content.1" />
+                    </DockTab>
+                    <DockTab id=2u64 title="Tab 2" on_close={|| {}}>
+                        <Frame @test_id="content.2" />
+                    </DockTab>
+                </DockPane>
+            </styled::Docking>
         }
     });
     let dock = dock.get();

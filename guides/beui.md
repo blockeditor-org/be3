@@ -883,54 +883,76 @@ tree and the beui inspector both work this way. `styled::tree_row_node` and
 
 ### Docking and windows
 
-`styled::DockArea` is the workspace layout: panes split from one another, a tab
+`styled::Docking` is the workspace layout: panes split from one another, a tab
 bar on each pane, and tabs that can be dragged between panes or out into
-windows that float over the rest of the dock. `unstyled::Dock` underneath it
+windows that float over the rest of the dock. `unstyled::Docking` underneath it
 owns the tree, the dragging and the keyboard, and paints nothing; the demo in
 `crates/beui-demo` is laid out in one.
 
-The layout is a `DockState`, which the caller keeps in a signal and hands back
-when the dock reports a change, the way `PanZoom` takes its camera:
+The children describe the layout the dock starts with and the tabs that exist;
+a `DockingLayout<K>` holds where everything is now, and is what the caller saves
+and restores:
 
 ```rust
-let (layout, set_layout) = create_signal(DockState::new([TabId::new(1)]));
+let layout = DockingLayout::new();
 view! {
-    <DockArea
-        state={layout}
-        title={Func::new(move |tab: TabId| title_of(tab))}
-        closable={Func::new(|tab: TabId| tab != FILES)}
-        on_change={move |next: DockState| set_layout.set(next)}
-        on_close={move |tab: TabId| {
-            set_layout.update(|layout| {
-                layout.close(tab);
-            });
-            forget(tab);
-        }}
-    >
-        {move |tab: TabId| view! { <Panel tab /> }}
-    </DockArea>
+    <Docking layout home=Key::Files>
+        <DockSplit id="root" direction=Direction::Horizontal fraction=0.25>
+            <DockPane id="files">
+                <DockTab id=Key::Files title="Files"><FilesPanel /></DockTab>
+            </DockPane>
+            <DockPane id="editors" empty={move || view! { <Nothing /> }}>
+                <ForEach keys={open}>
+                    {move |key: Key| view! {
+                        <DockTab id=key title={title_of(key)} on_close={move || close(key)}>
+                            <Panel key />
+                        </DockTab>
+                    }}
+                </ForEach>
+            </DockPane>
+        </DockSplit>
+        <DockWindow id="inspector" rect={INSPECTOR}>
+            <DockPane id="inspector">…</DockPane>
+        </DockWindow>
+    </Docking>
 }
 ```
 
-A tab is a `TabId` the caller mints, so whatever the tab stands for - a block,
-a file, a tool - stays the caller's. The dock asks for a title, hands the
-`TabId` back to the `content` builder for the panel to show, and reports the
-tabs the user closes through `on_close`. Closing is a request: the dock does
-not remove the tab itself, the caller does - usually with `DockState::close`,
-which also shows the most recent tab in place of a closed one that was on show -
-or keeps it, as the workspace does for a program's window until the program
-quits.
-Because the state is a plain value, the caller opens, closes, splits and floats
-by writing it: `show`, `push`, `push_to_focused`, `split`, `remove`, `replace`
-and `drop_tab` are the whole vocabulary, and `find`, `all_tabs`, `focused_tab`
-and `surface_tabs` read it back.
-A pane can hold no tabs at all - the main surface emptied of its last tab, or
-one `split` with none - and shows the `empty` view the caller passes in its
-body instead of a panel; `empty_panes` finds them and `remove_empty_panes`
-gives their room back, which is how the workspace keeps an empty pane beside
-Files that says nothing is open rather than a tab that says so.
+`DockSplit` takes two children, `fraction` being the first one's share.
+`DockPane` holds `DockTab`s and `DockGroup`s (a tab holding a tree of its own,
+`pinned` to keep its tabs in it), names its starting `active` tab, and can start
+with its tabs in a sidebar (`vertical`, `sidebar_width`). `DockWindow` floats one
+tree at a `rect`. A tab's key is any `Clone + Eq + Hash` type; a key that is a
+`TabId` or a `u64` names the tab's `TabId` too, which is what the test ids of its
+close button and switcher row carry. Every container has an `id`, saved with the
+layout, so that a layout saved by older code still finds its panes.
 
-Tiled, `DockArea` keeps its panes inset from its own edges.
+The children are the full set of tabs: a tab the code no longer declares is
+closed, and a tab it starts declaring is placed. Closing is a request -
+`on_close` gives the tab its close button, and the tab goes when the caller
+stops declaring it, or stays, as the workspace keeps a program's window until
+the program quits. A tab that appears joins the pane it was declared in, after
+the tab declared before it, and is shown. If the user has closed that pane, it
+joins the declared tab nearest it that is still open, then a window the code
+declared it in, and failing both it floats in a window of its own. A pane with an
+`empty` view is never closed: emptied, it shows that view, and dragging its grip
+onto another pane moves its tabs and leaves it behind. A split follows the
+`fraction` in the code until the user moves it. A pane, split or window the
+code adds is placed beside its declared sibling when the saved layout lacks it.
+
+`DockingLayout::snapshot` is the `DockingSnapshot` to save, and `restore` puts
+one back; restore it in the same `batch` that declares its tabs, since a tab not
+declared when the dock reconciles is closed. `reset` goes back to the layout the
+children describe. The handle also shows a tab (`show`) and reads which is
+focused (`focused`, `shown` for a stacked dock). A tab that stops being declared
+for a moment - a `Show` around it that flips, a `ForEach` rebuilt from new keys -
+loses its place, so keep a tab's declaration in one stable place.
+
+The `DockState` the layout holds is a plain value underneath:
+`state()` reads it, and `find`, `all_tabs`, `focused_tab` and `surface_tabs`
+answer from it.
+
+Tiled, `Docking` keeps its panes inset from its own edges.
 `mode=DockMode::Stacked` draws the same state as one screen: the focused tab
 fills the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
 the state is kept, so switching back to `DockMode::Tiled` restores the layout.

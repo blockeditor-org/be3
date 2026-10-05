@@ -1,7 +1,8 @@
 use super::*;
-use crate::unstyled::{DockMode, DockState, TabId, dock_actions};
+use crate::reactive::{ForEach, clone};
+use crate::unstyled::{DockMode, DockPane, DockTab, DockingLayout, TabId, dock_actions};
 
-const HOME: TabId = TabId::new(1);
+const HOME: u64 = 1;
 
 fn laid_out(harness: &Harness, test_id: &str) -> bool {
     harness
@@ -34,37 +35,40 @@ fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
     let closed = Rc::new(RefCell::new(Vec::new()));
     let closing = closed.clone();
     let document = build(move || {
-        let mut layout = DockState::new([HOME, TabId::new(2), TabId::new(3)]);
-        layout.show(TabId::new(3));
-        let (state, set_state) = create_signal(layout);
-        let removing = set_state.clone();
+        let layout = DockingLayout::new();
+        let (open, set_open) = create_signal(vec![2u64, 3]);
         view! {
-            <styled::DockArea
-                state={state}
-                mode=DockMode::Stacked
-                home={Some(HOME)}
-                title={Func::new(|tab: TabId| format!("Tab {}", tab.value()))}
-                closable={Func::new(|tab: TabId| tab != HOME)}
-                on_change={move |next: DockState| set_state.set(next)}
-                on_close={move |tab: TabId| {
-                    closing.borrow_mut().push(tab);
-                    removing.update(|state| {
-                        state.close(tab);
-                    });
-                }}
-            >
-                {move |tab: TabId| {
-                    let id = tab.value();
-                    if tab != HOME {
-                        dock_actions(move || view! {
-                            <Frame @test_id={format!("action.{id}")} width=24.0 height=24.0 />
-                        });
-                    }
-                    view! {
-                        <Frame @test_id={format!("content.{id}")} />
-                    }
-                }}
-            </styled::DockArea>
+            <styled::Docking layout mode=DockMode::Stacked home=HOME focus=3u64>
+                <DockPane id="tabs">
+                    <DockTab id=HOME title="Tab 1">
+                        <Frame @test_id="content.1" />
+                    </DockTab>
+                    <ForEach keys={open}>
+                        {move |id: u64| clone!(closing set_open -> view! {
+                            <DockTab
+                                id
+                                title={format!("Tab {id}")}
+                                on_close={move || {
+                                    closing.borrow_mut().push(TabId::new(id));
+                                    set_open.update(|open| open.retain(|other| *other != id));
+                                }}
+                                content={move || {
+                                    dock_actions(move || view! {
+                                        <Frame
+                                            @test_id={format!("action.{id}")}
+                                            width=24.0
+                                            height=24.0
+                                        />
+                                    });
+                                    view! {
+                                        <Frame @test_id={format!("content.{id}")} />
+                                    }
+                                }}
+                            />
+                        })}
+                    </ForEach>
+                </DockPane>
+            </styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

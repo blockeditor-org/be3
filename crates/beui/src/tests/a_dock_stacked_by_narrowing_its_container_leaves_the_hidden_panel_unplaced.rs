@@ -1,6 +1,8 @@
 use super::*;
 use crate::reactive::{build, clone, create_memo, view};
-use crate::unstyled::{Container, DockMode, DockState, Side, TabId, narrower_than};
+use crate::unstyled::{
+    Container, DockMode, DockPane, DockSplit, DockTab, DockingLayout, narrower_than,
+};
 
 const BREAKPOINT: f32 = 600.0;
 
@@ -19,29 +21,22 @@ fn a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced() 
                             true => DockMode::Stacked,
                             false => DockMode::Tiled,
                         }));
-                        let mut layout = DockState::new([TabId::new(1)]);
-                        let leaf = layout.leaves(layout.main())[0];
-                        layout.split(leaf, Side::Right, 0.5, vec![TabId::new(2)]);
-                        layout.show(TabId::new(2));
-                        let (state, set_state) = create_signal(layout);
+                        let layout = DockingLayout::new();
                         view! {
-                            <styled::DockArea
-                                state={state}
-                                mode={mode}
-                                home={Some(TabId::new(1))}
-                                title={Func::new(|tab: TabId| format!("Tab {}", tab.value()))}
-                                on_change={move |next: DockState| set_state.set(next)}
-                                on_close={move |_: TabId| {}}
-                            >
-                                {move |tab: TabId| match tab.value() {
-                                    1 => view! {
-                                        <Frame @node_ref=&home />
-                                    },
-                                    _ => view! {
-                                        <Frame />
-                                    },
-                                }}
-                            </styled::DockArea>
+                            <styled::Docking layout mode home=1u64 focus=2u64>
+                                <DockSplit id="split">
+                                    <DockPane id="left">
+                                        <DockTab id=1u64 title="Tab 1">
+                                            <Frame @node_ref=&home />
+                                        </DockTab>
+                                    </DockPane>
+                                    <DockPane id="right">
+                                        <DockTab id=2u64 title="Tab 2">
+                                            <Frame />
+                                        </DockTab>
+                                    </DockPane>
+                                </DockSplit>
+                            </styled::Docking>
                         }
                     }}
                 </Container>

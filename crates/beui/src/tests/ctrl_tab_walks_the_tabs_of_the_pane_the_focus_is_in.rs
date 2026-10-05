@@ -1,37 +1,38 @@
 use super::*;
+use crate::reactive::ForEach;
 use crate::styled::text_input_value;
-use crate::unstyled::{TabId, dock_state};
+use crate::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_state};
 
 #[test]
 fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
     let dock = NodeRef::new();
     let built = dock.clone();
     let document = build(move || {
-        let (state, set_state) = create_signal(unstyled::DockState::new([
-            TabId::new(1),
-            TabId::new(2),
-            TabId::new(3),
-        ]));
+        let layout = DockingLayout::new();
         view! {
-            <styled::DockArea
-                @node_ref=&built
-                state={state}
-                title={Func::new(|tab: TabId| format!("Tab {}", tab.value()))}
-                on_change={move |next: unstyled::DockState| set_state.set(next)}
-                on_close={move |_: TabId| {}}
-            >
-                {move |tab: TabId| {
-                    let (typed, set_typed) = create_signal(String::new());
-                    view! {
-                        <styled::TextInput
-                            @test_id={format!("input.{}", tab.value())}
-                            value={typed}
-                            label="Notes"
-                            on_change={move |text: String| set_typed.set(text)}
-                        />
-                    }
-                }}
-            </styled::DockArea>
+            <styled::Docking @node_ref=&built layout>
+                <DockPane id="tabs">
+                    <ForEach keys={vec![1u64, 2, 3]}>
+                        {move |id: u64| view! {
+                            <DockTab
+                                id
+                                title={format!("Tab {id}")}
+                                content={move || {
+                                    let (typed, set_typed) = create_signal(String::new());
+                                    view! {
+                                        <styled::TextInput
+                                            @test_id={format!("input.{id}")}
+                                            value={typed}
+                                            label="Notes"
+                                            on_change={move |text: String| set_typed.set(text)}
+                                        />
+                                    }
+                                }}
+                            />
+                        }}
+                    </ForEach>
+                </DockPane>
+            </styled::Docking>
         }
     });
     let dock = dock.get();
