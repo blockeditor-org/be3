@@ -502,9 +502,17 @@ impl Document {
     }
 
     pub fn overlay_cover(&self, overlay: NodeOf<OverlayNode>) -> Option<Rect> {
+        self.cover_of(overlay, true)
+    }
+
+    pub fn overlay_occluder(&self, overlay: NodeOf<OverlayNode>) -> Option<Rect> {
+        self.cover_of(overlay, false)
+    }
+
+    fn cover_of(&self, overlay: NodeOf<OverlayNode>, light_scrim: bool) -> Option<Rect> {
         let node = self.arena.get_as::<OverlayNode>(overlay);
         let content = self.node_rect(node.content?)?;
-        let cover = match node.mode.stacked() {
+        let cover = match node.mode.stacked() && (light_scrim || !node.light) {
             true => self
                 .node_rect(node.scrim)
                 .map_or(content, |scrim| scrim.union(content)),

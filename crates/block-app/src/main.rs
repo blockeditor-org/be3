@@ -837,6 +837,7 @@ impl BlockApp {
     }
 
     fn open_workspace(&mut self, workspace: Workspace) {
+        self.cancel_forwarded_picks();
         be::stop();
         self.block_types.clear();
         self.registry = Rc::new(EditorRegistry::new());
@@ -935,6 +936,7 @@ impl BlockApp {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
         };
+        self.cancel_forwarded_picks();
         be::stop();
         self.block_types.clear();
         self.registry = Rc::new(EditorRegistry::new());
@@ -1339,6 +1341,12 @@ impl BlockApp {
         self.editors.step_creations();
         for action in compositor::take_actions() {
             self.handle_editor_action(action);
+        }
+    }
+
+    fn cancel_forwarded_picks(&mut self) {
+        for (_, (source, request_id)) in self.forwarded_picks.drain() {
+            source.answer(request_id, block_plugin_api::BlockPick::Cancelled);
         }
     }
 

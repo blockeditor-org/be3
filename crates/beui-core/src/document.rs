@@ -528,7 +528,7 @@ impl Document {
         self.overlays_bottom_up()
             .into_iter()
             .enumerate()
-            .filter_map(|(index, overlay)| Some((vec![index + 1], self.overlay_cover(overlay)?)))
+            .filter_map(|(index, overlay)| Some((vec![index + 1], self.overlay_occluder(overlay)?)))
             .collect()
     }
 

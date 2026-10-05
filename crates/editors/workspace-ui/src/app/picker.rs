@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use block_editor_beui::be_block::{BlockContent, FolderContent};
 use block_editor_beui::block_ui::{BlockCatalog, BlockTypes, TemplateCategory, TemplateEntry};
 use block_editor_beui::{
-    BlockFilter, BlockInfo, BlockParent, BlockPick, CreationProgress, PickRequest,
+    BlockFilter, BlockInfo, BlockParent, BlockPick, ChildId, CreationProgress, PickRequest,
 };
 use uuid::Uuid;
 
@@ -19,6 +19,7 @@ pub(crate) struct Creating {
     pub(crate) template: TemplateEntry,
     pub(crate) committed: bool,
     pub(crate) sent: bool,
+    pub(crate) child: Option<ChildId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -120,6 +121,7 @@ impl Pick {
                     template,
                     committed: false,
                     sent: false,
+                    child: None,
                 });
                 if !dialog {
                     return self.act(PickAction::Create);
