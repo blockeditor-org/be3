@@ -41,14 +41,11 @@ impl PartialEq for HostedRegion {
 struct Hosted {
     region: ReadSignal<Option<HostedRegion>>,
     set_region: WriteSignal<Option<HostedRegion>>,
-    height: ReadSignal<Option<f32>>,
-    set_height: WriteSignal<Option<f32>>,
 }
 
 #[derive(Default)]
 struct Declared {
     regions: HashMap<SurfaceId, HostedRegion>,
-    heights: HashMap<SurfaceId, f32>,
 }
 
 thread_local! {
@@ -62,16 +59,7 @@ pub(crate) fn create_handles() {
         hosted.clear();
         for id in HOSTING {
             let (region, set_region) = create_signal(None);
-            let (height, set_height) = create_signal(None);
-            hosted.insert(
-                id,
-                Hosted {
-                    region,
-                    set_region,
-                    height,
-                    set_height,
-                },
-            );
+            hosted.insert(id, Hosted { region, set_region });
         }
     });
 }
@@ -96,20 +84,6 @@ pub(crate) fn host(id: SurfaceId, region: Option<HostedRegion>) {
     });
 }
 
-pub(crate) fn set_height(id: SurfaceId, height: Option<f32>) {
-    DECLARED.with(|declared| {
-        let mut declared = declared.borrow_mut();
-        match height {
-            Some(height) => declared.heights.insert(id, height),
-            None => declared.heights.remove(&id),
-        };
-    });
-}
-
-pub(crate) fn height(id: SurfaceId) -> ReadSignal<Option<f32>> {
-    hosted(id).height
-}
-
 pub(crate) fn apply() {
     let declared = DECLARED.with(|declared| std::mem::take(&mut *declared.borrow_mut()));
     for id in HOSTING {
@@ -117,10 +91,6 @@ pub(crate) fn apply() {
         let region = declared.regions.get(&id).cloned();
         if hosted.region.with_untracked(|held| *held != region) {
             hosted.set_region.set(region);
-        }
-        let height = declared.heights.get(&id).copied();
-        if hosted.height.get_untracked() != height {
-            hosted.set_height.set(height);
         }
     }
 }

@@ -32,6 +32,9 @@ impl Message {
                         ChildContent::WebView(_)
                         | ChildContent::Host(_)
                         | ChildContent::Creation { .. } => {}
+                        ChildContent::ArtifactSettings { block_id } => {
+                            visit(placements.instance, BlockIdRole::Existing, block_id);
+                        }
                     }
                 }
             }
@@ -86,6 +89,9 @@ impl EditorMessage {
             | Self::OpenArtifact { block_id, .. }
             | Self::SetName { block_id, .. }
             | Self::VersionStatus { block_id, .. } => existing(block_id),
+            Self::ShowDialog { block_id, .. } | Self::SetAccess { block_id, .. } => {
+                existing(block_id);
+            }
             Self::OpenBlock { block_id, via, .. } | Self::ShowBlock { block_id, via, .. } => {
                 existing(block_id);
                 via.iter_mut().for_each(existing);
@@ -144,6 +150,7 @@ impl EditorMessage {
                         location(place, &mut existing);
                     }
                 }
+                HostRequest::ListAccess(block_id) => existing(block_id),
                 HostRequest::PickFile(_)
                 | HostRequest::SaveFile(_)
                 | HostRequest::PasteImage
@@ -159,7 +166,8 @@ impl EditorMessage {
                 | HostReply::ImagePasted(_)
                 | HostReply::Fetched(_)
                 | HostReply::DataListed(_)
-                | HostReply::DataRead(_) => {}
+                | HostReply::DataRead(_)
+                | HostReply::AccessListed(_) => {}
             },
             Self::CreationBlock { outcome, .. } => match outcome {
                 CreationOutcome::Created(block_id) => existing(block_id),

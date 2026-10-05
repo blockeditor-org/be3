@@ -20,8 +20,8 @@ pub mod session;
 mod wasm;
 
 pub use block_plugin_api::{
-    AccessLevel, ArtifactAction, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation,
-    BlockPick, Catalog, TemplateCategory, TemplateDescriptor,
+    AccessGrant, AccessLevel, AccessListing, ArtifactAction, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation,
+    BlockPick, Catalog, SettingsProgress, ShellDialog, TemplateCategory, TemplateDescriptor,
     ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage,
     CreationProgress,
     ConflictSide, CursorIcon, DataListing, EditorCapabilities, EditorInstanceId, EditorRegion,

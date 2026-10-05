@@ -2,7 +2,6 @@ mod debug;
 mod dialogs;
 mod keys;
 mod onboarding;
-mod share;
 mod workspace;
 
 use std::cell::RefCell;
@@ -15,7 +14,6 @@ use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
-use crate::share::{ShareCommand, ShareView};
 
 pub(crate) use debug::{
     DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PerformanceRow, PluginsView,
@@ -179,19 +177,6 @@ pub(crate) struct DiscardView {
     pub(crate) button: String,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct RenameView {
-    pub(crate) id: Uuid,
-    pub(crate) name: String,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct ArtifactSettingsView {
-    pub(crate) id: Uuid,
-    pub(crate) changed: bool,
-    pub(crate) summary: Option<String>,
-}
-
 #[derive(Clone, Default, PartialEq, Store)]
 pub(crate) struct AppView {
     pub(crate) screen: Screen,
@@ -210,10 +195,6 @@ pub(crate) struct AppView {
     pub(crate) about: bool,
     pub(crate) app_menu: bool,
     pub(crate) discard: Option<DiscardView>,
-    pub(crate) rename: Option<RenameView>,
-    pub(crate) artifact_settings: Option<ArtifactSettingsView>,
-    pub(crate) unlink: bool,
-    pub(crate) share: Option<ShareView>,
     pub(crate) presenting: bool,
     pub(crate) debug: DebugView,
 }
@@ -253,13 +234,6 @@ pub(crate) enum UiCommand {
     CloseInvite,
     Discard,
     CancelDiscard,
-    SubmitRename(String),
-    CancelRename,
-    ApplyArtifactSettings,
-    CancelArtifactSettings,
-    Unlink,
-    CancelUnlink,
-    Share(ShareCommand),
     Debug(DebugCommand),
     ShowPanel(HostPanel),
     ConfirmRecovery(Vec<String>),

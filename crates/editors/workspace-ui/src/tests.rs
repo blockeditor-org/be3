@@ -23,6 +23,8 @@ mod an_open_menu_is_withheld_from_the_block_under_it;
 mod closing_the_only_tab_leaves_the_blank_workspace;
 mod crossing_the_phone_width_keeps_the_block_on_show;
 mod linking_a_block_in_the_picker_answers_the_pick;
+mod renaming_a_block_the_host_asks_about_saves_its_name;
+mod sharing_a_block_grants_the_people_added_and_lists_them_again;
 mod switching_from_a_block_to_a_host_panel_keeps_the_panel_on_show;
 mod the_back_gesture_on_a_phone_leaves_a_file_for_the_files;
 mod widening_the_phone_with_its_switcher_open_keeps_the_workspace;
@@ -214,6 +216,7 @@ fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationP
             block_editor_beui::ChildContent::Creation { .. }
         )
         .then(|| progress.clone()),
+        settings: None,
     });
     fixture.settle();
 }

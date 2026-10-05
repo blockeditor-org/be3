@@ -1444,6 +1444,9 @@ impl Instances {
                     editor: Uuid::from_bytes(*editor),
                     template: template.clone(),
                 },
+                ChildContent::ArtifactSettings { block_id } => {
+                    super::HostContent::ArtifactSettings(Uuid::from_bytes(*block_id))
+                }
                 ChildContent::WebView(_) => continue,
             };
             if child.rect.is_empty() {
@@ -1620,6 +1623,7 @@ impl Instances {
                 error: status.error,
                 menu: status.menu,
                 creation: status.creation,
+                settings: status.settings,
             };
             if screen.reported_statuses.get(&status.child) == Some(&status) {
                 continue;
@@ -2188,6 +2192,11 @@ impl Instances {
             HostRequest::ReadData(path) => discovery::data(&self.plugin_id, &path, move |body| {
                 reply(HostReply::DataRead(fetch_result(body)));
             }),
+            HostRequest::ListAccess(block) => {
+                crate::be::list_access(Uuid::from_bytes(block), move |listed| {
+                    reply(HostReply::AccessListed(super::graph::grants_of(listed)));
+                });
+            }
             HostRequest::PickBlock(filter) => {
                 entry
                     .block_picks
@@ -2208,6 +2217,19 @@ impl Instances {
                     return false;
                 };
                 entry.pick_answers.push((pick, answer));
+                true
+            }
+            EditorMessage::SetAccess {
+                block_id,
+                account,
+                access,
+                ..
+            } => {
+                crate::be::set_access(
+                    Uuid::from_bytes(block_id),
+                    Uuid::from_bytes(account),
+                    super::graph::access_of(access),
+                );
                 true
             }
             EditorMessage::CommitChild {
@@ -2782,6 +2804,22 @@ impl Instances {
 
     pub(super) fn take_artifact_watch(&mut self, instance: EditorInstanceId) -> Option<Vec<Uuid>> {
         self.entries.get_mut(&instance)?.artifact_watch.take()
+    }
+
+    pub(super) fn show_dialog(
+        &mut self,
+        instance: EditorInstanceId,
+        block: Uuid,
+        dialog: block_plugin_api::ShellDialog,
+    ) -> Vec<Message> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Message::Editor(EditorMessage::ShowDialog {
+            instance,
+            block_id: block.into_bytes(),
+            dialog,
+        })]
     }
 
     pub(super) fn show_panel(

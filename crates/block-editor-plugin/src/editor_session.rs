@@ -183,6 +183,10 @@ impl EditorSession {
         self.host.set_focused_block(focused);
     }
 
+    pub(crate) fn show_dialog(&self, block_id: Uuid, dialog: block_plugin_api::ShellDialog) {
+        self.host.show_dialog(block_id, dialog);
+    }
+
     pub(crate) fn pick_requested(&self, request: crate::host::PickRequest) {
         self.host.request_pick(request);
     }
@@ -574,6 +578,14 @@ impl EditorSession {
                 instance,
                 pick,
                 answer,
+            }));
+        }
+        for (block_id, account, access) in self.host.take_access_changes() {
+            messages.push(Message::Editor(EditorMessage::SetAccess {
+                instance,
+                block_id: block_id.into_bytes(),
+                account: account.into_bytes(),
+                access,
             }));
         }
         for commit in self.host.take_child_commits() {

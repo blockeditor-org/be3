@@ -1,6 +1,7 @@
 mod access;
 mod artifact;
 mod block_data;
+mod dialogs;
 mod host_panel;
 mod linked;
 mod menu;
@@ -9,6 +10,7 @@ mod phone;
 mod picker;
 mod picker_view;
 mod saved;
+mod share;
 mod status;
 mod tab;
 pub(crate) mod workspace;

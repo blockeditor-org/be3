@@ -123,6 +123,7 @@ mod rejects_unknown_message_kind;
 mod rejects_unordered_occluders;
 mod replacing_a_child_round_trips;
 mod resize_messages_round_trip;
+mod shell_dialog_and_access_messages_round_trip;
 mod show_block_request_round_trips;
 mod theme_messages_round_trip;
 mod touch_input_round_trips;
