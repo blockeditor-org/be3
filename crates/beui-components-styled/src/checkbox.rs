@@ -27,10 +27,10 @@ pub fn Checkbox(
     on_change: Callback<bool>,
 ) -> NodeId {
     view! {
-        <Toggle checked disabled on_change={move |checked| on_change.call(checked)}>
+        <Toggle checked label disabled on_change={move |checked| on_change.call(checked)}>
             {move |handle: ToggleHandle| {
                 view! {
-                    <CheckboxFace handle label />
+                    <CheckboxFace handle />
                 }
             }}
         </Toggle>
@@ -38,12 +38,13 @@ pub fn Checkbox(
 }
 
 #[component]
-fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
+fn CheckboxFace(handle: ToggleHandle) -> NodeId {
     let ToggleHandle {
         checked,
         hovered,
         focused,
         disabled,
+        label,
         ..
     } = handle;
     let theme = use_theme();

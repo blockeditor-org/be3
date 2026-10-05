@@ -33,6 +33,7 @@ pub fn Button(
     content: Option<Render<ButtonHandle>>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = Role::Button)] role: Role,
     action: Option<Action>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
@@ -61,7 +62,7 @@ pub fn Button(
     let label = create_memo(move || label.get());
     let glyph = create_memo(move || glyph.get());
     let tooltip = create_memo(move || tooltip.get());
-    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
+    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     component_accessibility(create_memo(clone!(disabled label -> move || {
         let mut node = accessibility.get();
         if node.label().is_none() && !label.get().is_empty() {
