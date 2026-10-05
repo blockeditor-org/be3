@@ -432,7 +432,7 @@ under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `TextArea`,
 `Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Popover`, `Container`,
 `PanZoom`, `PointerLock`, `Dock`, `Draggable`, `DropTarget`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
-`Stack`, `Calendar`, `DateTimeField`, `TimeList`, `ColorArea` and `Picture`. `TextArea` is the multiline one: it owns a
+`Stack`, `Calendar`, `DateTimeField`, `TimeList`, `ColorArea`, `ColorWheel` and `Picture`. `TextArea` is the multiline one: it owns a
 `text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
 document out with a gutter, wrapping, collapsible sections and markdown
 checkboxes, and lays out the inline and block `TextWidget`s the caller
@@ -729,6 +729,17 @@ moves and through `on_change` once, when it ends, the way `NumberInput`
 reports a scrub - so an edit lands in the undo history once per gesture.
 That state is `unstyled::ColorPickerState`, and `unstyled::HexText` keeps a hex
 field in step with a color for both.
+
+`styled::ColorWheel` is a hue ring around a triangle whose tip points at the
+hue, and `styled::OklchColorWheel` is the same wheel over OKLCH: the triangle is
+the lightness and chroma plane with a fixed tip, so turning the hue keeps both,
+and a point outside sRGB is painted and reported clamped to the most colorful
+color at its lightness and hue (`Oklch::clamped`). Both share
+`unstyled::ColorWheel`, which works in `WheelPoint`s (a hue and the triangle's
+saturation and value) and leaves the color model to its caller, and
+`ColorPickerState` is generic over the model (`Hsva` or `Oklch`). The faces are
+images rasterised on the CPU at the screen's pixel density, so they work on
+every renderer.
 
 `unstyled::Popover` is what both open: a trigger and a modal overlay, built the
 first time it opens, that traps Tab, closes on Escape, a press outside or its

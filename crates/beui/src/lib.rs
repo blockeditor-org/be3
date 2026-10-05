@@ -11,7 +11,7 @@ pub use beui_core::app::{App, Setup, Waker};
 pub use beui_core::base::{
     Align, Direction, ImeCursor, ItemSize, Justify, ScrollPosition, Sizing, Track, focus_within,
 };
-pub use beui_core::color::{Color32, Hsva, format_hex, parse_hex};
+pub use beui_core::color::{Color32, Hsva, Oklch, format_hex, parse_hex};
 pub use beui_core::context::{
     Context, FrameOutput, InputSimulation, Moved, RendererChoices, RendererInfo,
 };
