@@ -288,6 +288,7 @@ mod clicking_the_outer_tab_bar_takes_the_focus_out_of_a_group;
 mod clicking_the_padding_around_a_button_label_activates_it;
 mod clicking_the_scrollbar_track_pages_the_scroll_towards_the_click;
 mod clicking_the_start_of_a_text_input_puts_the_caret_before_the_text;
+mod closing_a_dock_tab_asks_its_owner_to_remove_it;
 mod compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end;
 mod copy_and_cut_export_only_selected_text_and_cut_can_be_undone;
 mod ctrl_a_selects_everything_so_typing_replaces_the_value;
@@ -1505,13 +1506,16 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
         .collect();
     let document = build(move || {
         let (state, set_state) = create_signal(unstyled::DockState::new(tabs));
+        let closing = set_state.clone();
         view! {
             <styled::DockArea
                 @node_ref=&built
                 state={state}
                 title={Func::new(|tab: unstyled::TabId| format!("Tab {}", tab.value()))}
                 on_change={move |next: unstyled::DockState| set_state.set(next)}
-                on_close={move |_: unstyled::TabId| {}}
+                on_close={move |tab: unstyled::TabId| closing.update(|state| {
+                    state.close(tab);
+                })}
             >
                 {move |tab: unstyled::TabId| view! {
                     <Frame @test_id={format!("content.{}", tab.value())} />

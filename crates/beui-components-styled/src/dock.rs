@@ -39,6 +39,10 @@ pub const CHROME_BORDER: f32 = 2.0;
 const GROUP_GLYPH: f32 = 16.0;
 const GROUP_INSET: f32 = 6.0;
 pub const DOCK_INSET: f32 = 8.0;
+pub const WINDOW_CHROME: beui_core::geometry::Vec2 = beui_core::geometry::Vec2::new(
+    2.0 * CHROME_BORDER,
+    TAB_HEIGHT + 2.0 * WINDOW_BAR_PADDING + CHROME_BORDER,
+);
 const DROP_ALPHA: u8 = 64;
 const PREVIEW_ALPHA: u8 = 235;
 

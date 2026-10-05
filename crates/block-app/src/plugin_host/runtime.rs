@@ -888,6 +888,16 @@ pub(crate) fn take_focus_report(plugin_id: &str, instance: EditorInstanceId) -> 
     .flatten()
 }
 
+pub(crate) fn take_closed_windows(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<block_plugin_api::HostWindowId> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_closed_windows(instance)
+    })
+    .unwrap_or_default()
+}
+
 pub(crate) fn take_artifact_watch(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -1090,6 +1100,19 @@ pub(crate) fn frame_rects(plugin_id: &str, instance: EditorInstanceId) -> Option
 
 pub(crate) fn presenting(plugin_id: &str, instance: EditorInstanceId) -> bool {
     with(plugin_id, |runtime| runtime.instances.presenting(instance)).unwrap_or_default()
+}
+
+pub(crate) fn set_windows(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    windows: Vec<block_plugin_api::HostWindow>,
+) {
+    with(plugin_id, |runtime| {
+        if runtime.instances.set_windows(instance, windows) {
+            mark(plugin_id);
+            host::request_repaint();
+        }
+    });
 }
 
 pub(crate) fn present(plugin_id: &str, instance: EditorInstanceId, presenting: bool) {

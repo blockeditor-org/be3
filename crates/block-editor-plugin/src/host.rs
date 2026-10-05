@@ -12,8 +12,8 @@ use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
     BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
     ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
-    HostPanel, HostReply, HostRequest, MenuEntry, Occluder, PerformanceMeasurement, ShellDialog,
-    Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
+    HostPanel, HostReply, HostRequest, HostWindow, HostWindowId, MenuEntry, Occluder,
+    PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -248,6 +248,7 @@ enum Identity {
     Block([u8; 16]),
     WebView(WebViewId),
     Host(HostPanel),
+    Window(HostWindowId),
     Creation([u8; 16], String),
     ArtifactSettings([u8; 16]),
 }
@@ -258,6 +259,7 @@ impl Identity {
             ChildContent::Block { block_id, .. } => Self::Block(*block_id),
             ChildContent::WebView(web_view) => Self::WebView(*web_view),
             ChildContent::Host(panel) => Self::Host(*panel),
+            ChildContent::Window(window) => Self::Window(*window),
             ChildContent::Creation { editor, template } => {
                 Self::Creation(*editor, template.clone())
             }
@@ -341,10 +343,11 @@ pub enum Pushed {
     WebView,
     Shows,
     Version,
+    Windows,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::Replies,
         Self::Peers,
         Self::Histories,
@@ -355,6 +358,7 @@ impl Pushed {
         Self::WebView,
         Self::Shows,
         Self::Version,
+        Self::Windows,
     ];
 }
 
@@ -362,6 +366,8 @@ impl Pushed {
 pub struct EditorHost {
     waker: Waker,
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
+    windows: Rc<RefCell<Vec<HostWindow>>>,
+    closed_windows: Rc<RefCell<Vec<HostWindowId>>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
     access_changes: Rc<RefCell<Vec<(Uuid, Uuid, AccessLevel)>>>,
@@ -542,6 +548,27 @@ impl EditorHost {
     pub fn show_panel(&self, panel: HostPanel) {
         self.shown_panels.borrow_mut().push(panel);
         self.push(Pushed::Shows);
+    }
+
+    pub fn windows(&self) -> Vec<HostWindow> {
+        self.windows.borrow().clone()
+    }
+
+    pub fn set_windows(&self, windows: Vec<HostWindow>) {
+        if *self.windows.borrow() == windows {
+            return;
+        }
+        *self.windows.borrow_mut() = windows;
+        self.push(Pushed::Windows);
+    }
+
+    pub fn close_window(&self, window: HostWindowId) {
+        self.closed_windows.borrow_mut().push(window);
+        self.changed();
+    }
+
+    pub(crate) fn take_closed_windows(&self) -> Vec<HostWindowId> {
+        std::mem::take(&mut self.closed_windows.borrow_mut())
     }
 
     pub fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {

@@ -402,6 +402,8 @@ fn DemoShell() -> NodeId {
     let catalog_state = set_state.clone();
     let active = create_selector(clone!(state -> move || active_page(&state.get())));
     let toolbar_state = set_state.clone();
+    let close_state = set_state.clone();
+    let closing = state.clone();
     view! {
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
@@ -418,7 +420,11 @@ fn DemoShell() -> NodeId {
                     icon={Func::new(tab_icon)}
                     closable={Func::new(|tab: TabId| tab != CATALOG)}
                     on_change={move |next: DockState| set_state.set(settled(next))}
-                    on_close={move |_: TabId| {}}
+                    on_close={move |tab: TabId| {
+                        let mut next = closing.get_untracked();
+                        next.close(tab);
+                        close_state.set(settled(next));
+                    }}
                     empty={move || view! {
                         <EmptyPanel />
                     }}

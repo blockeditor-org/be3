@@ -120,6 +120,9 @@ struct Instance {
     child_menu_picks: Vec<(ChildId, String)>,
     presenting: bool,
     reported_presenting: bool,
+    windows: Option<Vec<block_plugin_api::HostWindow>>,
+    reported_windows: Option<Vec<block_plugin_api::HostWindow>>,
+    closed_windows: Vec<block_plugin_api::HostWindowId>,
     grabbed: bool,
     web_views: HashMap<WebViewId, WebViewHost>,
     presence_visible: Option<bool>,
@@ -291,6 +294,9 @@ impl Instance {
             child_menu_picks: Vec::new(),
             presenting: false,
             reported_presenting: false,
+            windows: None,
+            reported_windows: None,
+            closed_windows: Vec::new(),
             grabbed: false,
             web_views: HashMap::new(),
             presence_visible: None,
@@ -927,6 +933,19 @@ impl Instances {
             .is_some_and(|entry| entry.presenting)
     }
 
+    pub(super) fn set_windows(
+        &mut self,
+        instance: EditorInstanceId,
+        windows: Vec<block_plugin_api::HostWindow>,
+    ) -> bool {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        let changed = entry.windows.as_ref() != Some(&windows);
+        entry.windows = Some(windows);
+        changed
+    }
+
     pub(super) fn set_presenting(&mut self, instance: EditorInstanceId, presenting: bool) -> bool {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
@@ -1100,6 +1119,7 @@ impl Instances {
             entry.reported_editable = None;
             entry.reported_view = None;
             entry.reported_presenting = false;
+            entry.reported_windows = None;
             entry.stale = true;
         }
         self.epoch += 1;
@@ -1233,6 +1253,13 @@ impl Instances {
                 opened.push(Message::Editor(EditorMessage::PresentingChanged {
                     instance,
                     presenting: entry.presenting,
+                }));
+            }
+            if entry.windows.is_some() && entry.windows != entry.reported_windows {
+                entry.reported_windows = entry.windows.clone();
+                opened.push(Message::Editor(EditorMessage::Windows {
+                    instance,
+                    windows: entry.windows.clone().unwrap_or_default(),
                 }));
             }
             if entry.view != entry.reported_view {
@@ -1441,6 +1468,7 @@ impl Instances {
                     view_block: view_block.map(Uuid::from_bytes),
                 },
                 ChildContent::Host(panel) => super::HostContent::Panel(*panel),
+                ChildContent::Window(window) => super::HostContent::Window(*window),
                 ChildContent::Creation { editor, template } => super::HostContent::Creation {
                     editor: Uuid::from_bytes(*editor),
                     template: template.clone(),
@@ -2223,6 +2251,13 @@ impl Instances {
                 entry.pick_answers.push((pick, answer));
                 true
             }
+            EditorMessage::CloseWindow { instance, window } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.closed_windows.push(window);
+                true
+            }
             EditorMessage::SetAccess {
                 block_id,
                 account,
@@ -2804,6 +2839,16 @@ impl Instances {
         } else {
             Some(entry.focus_reports.remove(0))
         }
+    }
+
+    pub(super) fn take_closed_windows(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Vec<block_plugin_api::HostWindowId> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.closed_windows))
+            .unwrap_or_default()
     }
 
     pub(super) fn take_artifact_watch(&mut self, instance: EditorInstanceId) -> Option<Vec<Uuid>> {

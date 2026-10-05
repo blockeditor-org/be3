@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::ICON_FOLDER;
+use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_WEB_ASSET};
 use block_editor_beui::beui::reactive::{
     Align, Frame, Func, ItemSize, List, Memo, NodeRef, ReadSignal, Spacer, WriteSignal, clone,
     component, create_effect, create_memo, create_signal, untrack, view,
@@ -19,8 +19,8 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
     AccessLevel, BlockFilter, BlockPick, ChildBlock, ChildBlockHandle, ChildMode, ChildState,
-    ChildTarget, Editor, EditorHost, FocusedBlock, HostPanel, NARROW_WIDTH, PickedBlock, Pushed,
-    ShellDialog, TopBar,
+    ChildTarget, Editor, EditorHost, FocusedBlock, HostPanel, HostWindow, HostWindowId,
+    NARROW_WIDTH, PickedBlock, Pushed, ShellDialog, TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -34,6 +34,7 @@ use super::picker_view::PickerDialogs;
 use super::saved::{self, LAYOUT};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
+use super::window::{WindowPanel, dialog_window, tab_window, window_tab, window_title};
 
 pub(crate) const FILES: TabId = TabId::new(1);
 const FIRST_BLOCK_TAB: u64 = 2;
@@ -87,6 +88,8 @@ pub(crate) struct Workspace {
     pub(crate) share: ReadSignal<Option<Share>>,
     set_share: WriteSignal<Option<Share>>,
     every_block: RefCell<Option<BlockList>>,
+    windows: Memo<Vec<HostWindow>>,
+    known_windows: RefCell<HashSet<HostWindowId>>,
 }
 
 impl Workspace {
@@ -105,6 +108,7 @@ impl Workspace {
         let (picks, set_picks) = create_signal(Vec::new());
         let (dialog, set_dialog) = create_signal(None);
         let (share, set_share) = create_signal(None);
+        let windows = editor.windows();
         let workspace = Rc::new(Self {
             editor,
             layout,
@@ -142,6 +146,8 @@ impl Workspace {
             share,
             set_share,
             every_block: RefCell::new(None),
+            windows,
+            known_windows: RefCell::new(HashSet::new()),
         });
         let shows = workspace.editor.pushed(Pushed::Shows);
         let showing = Rc::downgrade(&workspace);
@@ -149,6 +155,14 @@ impl Workspace {
             shows.get();
             if let Some(workspace) = showing.upgrade() {
                 untrack(|| workspace.show_requested());
+            }
+        });
+        let listing_windows = Rc::downgrade(&workspace);
+        let windows = workspace.windows.clone();
+        create_effect(move || {
+            let windows = windows.get();
+            if let Some(workspace) = listing_windows.upgrade() {
+                untrack(|| workspace.show_windows(&windows));
             }
         });
         let restoring = Rc::downgrade(&workspace);
@@ -433,6 +447,44 @@ impl Workspace {
         self.set_layout.set(settled(layout));
     }
 
+    fn show_windows(&self, windows: &[HostWindow]) {
+        let mut layout = self.layout.get_untracked();
+        if self.place_windows(&mut layout, windows) {
+            self.set_layout.set(settled(layout));
+        }
+    }
+
+    fn place_windows(&self, layout: &mut DockState, windows: &[HostWindow]) -> bool {
+        let listed: HashSet<HostWindowId> = windows.iter().map(|window| window.id).collect();
+        let mut changed = false;
+        for tab in layout.all_tabs() {
+            if tab_window(tab).is_some_and(|window| !listed.contains(&window)) {
+                layout.remove(tab);
+                changed = true;
+            }
+        }
+        let mut known = self.known_windows.borrow_mut();
+        known.retain(|window| listed.contains(window));
+        let phone = self.phone.get_untracked();
+        for window in windows {
+            let tab = window_tab(window.id);
+            if layout.contains(tab) {
+                continue;
+            }
+            match window.parent.is_some() && !phone {
+                true => {
+                    layout.open_window(dialog_window(window), vec![tab]);
+                }
+                false => place_tab(layout, tab),
+            }
+            if known.insert(window.id) {
+                layout.show(tab);
+            }
+            changed = true;
+        }
+        changed
+    }
+
     pub(crate) fn view_of(&self, tab: TabId) -> Option<Uuid> {
         self.views.with(|views| views.get(&tab).copied())
     }
@@ -507,6 +559,7 @@ impl Workspace {
             self.next_tab.set(next);
             self.set_tabs.set(tabs);
             self.set_views.set(views);
+            self.place_windows(&mut dock, &self.windows.get_untracked());
             self.set_layout.set(settled(dock));
         }
         let files = files.or_else(|| self.create_view(FILES_EDITOR, None));
@@ -700,6 +753,14 @@ impl Workspace {
     }
 
     fn close(&self, tab: TabId) {
+        if let Some(window) = tab_window(tab) {
+            self.host().close_window(window);
+            return;
+        }
+        let mut layout = self.layout.get_untracked();
+        if layout.close(tab) {
+            self.set_layout.set(settled(layout));
+        }
         let mut tabs = self.tabs.get_untracked();
         let Some(closed) = tabs.remove(&tab) else {
             return;
@@ -1011,26 +1072,38 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let failure = workspace.error.clone();
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
-    let title = Func::new(move |tab: TabId| match (tab, tab_panel(tab)) {
-        (FILES, _) => "Files".to_owned(),
-        (_, Some(panel)) => panel.title().to_owned(),
-        (tab, None) => titles.with(|titles| {
-            titles
-                .get(&tab)
-                .cloned()
-                .unwrap_or_else(|| "Untitled".to_owned())
-        }),
-    });
+    let windows = workspace.windows.clone();
+    let title = Func::new(
+        move |tab: TabId| match (tab, tab_panel(tab), tab_window(tab)) {
+            (FILES, _, _) => "Files".to_owned(),
+            (_, Some(panel), _) => panel.title().to_owned(),
+            (_, None, Some(window)) => windows.with(|windows| {
+                windows
+                    .iter()
+                    .find(|listed| listed.id == window)
+                    .map_or_else(|| "Window".to_owned(), window_title)
+            }),
+            (tab, None, None) => titles.with(|titles| {
+                titles
+                    .get(&tab)
+                    .cloned()
+                    .unwrap_or_else(|| "Untitled".to_owned())
+            }),
+        },
+    );
     let naming = Rc::clone(&workspace);
-    let icon = Func::new(move |tab: TabId| match (tab, tab_panel(tab)) {
-        (FILES, _) => ICON_FOLDER.to_owned(),
-        (_, Some(panel)) => panel_icon(panel).to_owned(),
-        (tab, None) => naming
-            .tab(tab)
-            .and_then(|item| naming.label(item.id, item.block_type).icon)
-            .unwrap_or_default()
-            .to_owned(),
-    });
+    let icon = Func::new(
+        move |tab: TabId| match (tab, tab_panel(tab), tab_window(tab)) {
+            (FILES, _, _) => ICON_FOLDER.to_owned(),
+            (_, Some(panel), _) => panel_icon(panel).to_owned(),
+            (_, None, Some(_)) => ICON_WEB_ASSET.to_owned(),
+            (tab, None, None) => naming
+                .tab(tab)
+                .and_then(|item| naming.label(item.id, item.block_type).icon)
+                .unwrap_or_default()
+                .to_owned(),
+        },
+    );
     let changing = Rc::clone(&workspace);
     let closing = Rc::clone(&workspace);
     let content = Rc::clone(&workspace);
@@ -1057,14 +1130,17 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                 >
                     {move |tab: TabId| {
                         let workspace = Rc::clone(&content);
-                        match (tab, tab_panel(tab)) {
-                            (FILES, _) => view! {
+                        match (tab, tab_panel(tab), tab_window(tab)) {
+                            (FILES, _, _) => view! {
                                 <FilesPanel workspace={workspace} />
                             },
-                            (_, Some(panel)) => view! {
+                            (_, Some(panel), _) => view! {
                                 <HostPanelView editor={workspace.editor().clone()} panel={panel} />
                             },
-                            (tab, None) => view! {
+                            (_, None, Some(window)) => view! {
+                                <WindowPanel editor={workspace.editor().clone()} window={window} />
+                            },
+                            (tab, None, None) => view! {
                                 <BlockPanel workspace={workspace} tab={tab} />
                             },
                         }

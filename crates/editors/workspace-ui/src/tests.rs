@@ -19,7 +19,10 @@ mod a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown;
 mod a_shown_block_is_remembered_in_the_recents;
 mod a_shown_block_is_reported_as_focused;
 mod a_template_without_a_dialog_is_created_and_answers_the_pick;
+mod a_window_the_host_runs_gets_a_tab_until_its_program_closes_it;
+mod a_window_with_a_parent_floats_at_the_size_it_drew;
 mod an_open_menu_is_withheld_from_the_block_under_it;
+mod closing_a_window_tab_asks_its_program_to_close;
 mod closing_the_only_tab_leaves_the_blank_workspace;
 mod creating_from_a_dialog_commits_the_creation_at_once;
 mod crossing_the_phone_width_keeps_the_block_on_show;
@@ -114,6 +117,37 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
         .children(id)
         .into_iter()
         .find_map(|child| text_within(document, child, words))
+}
+
+fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostWindow {
+    block_editor_beui::HostWindow {
+        id: block_editor_beui::HostWindowId(id),
+        title: title.to_owned(),
+        app_id: "test".to_owned(),
+        parent: parent.map(block_editor_beui::HostWindowId),
+        size: block_plugin_api::Size {
+            width: 320.0,
+            height: 200.0,
+        },
+    }
+}
+
+fn placed_windows(fixture: &Fixture) -> Vec<(u64, Rect)> {
+    fixture
+        .test
+        .children()
+        .iter()
+        .filter_map(|placement| match placement.content {
+            ChildContent::Window(window) => Some((
+                window.0,
+                Rect::from_min_size(
+                    block_editor_beui::pos2(placement.rect.x, placement.rect.y),
+                    block_editor_beui::vec2(placement.rect.width, placement.rect.height),
+                ),
+            )),
+            _ => None,
+        })
+        .collect()
 }
 
 fn editor() -> (Fixture, Uuid) {

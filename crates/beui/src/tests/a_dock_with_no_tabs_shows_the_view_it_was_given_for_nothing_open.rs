@@ -4,12 +4,15 @@ use super::*;
 fn a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open() {
     let document = build(move || {
         let (state, set_state) = create_signal(unstyled::DockState::new([unstyled::TabId::new(1)]));
+        let removing = set_state.clone();
         view! {
             <styled::DockArea
                 state={state}
                 title={Func::new(|tab: unstyled::TabId| format!("Tab {}", tab.value()))}
                 on_change={move |next: unstyled::DockState| set_state.set(next)}
-                on_close={move |_: unstyled::TabId| {}}
+                on_close={move |tab: unstyled::TabId| removing.update(|state| {
+                    state.close(tab);
+                })}
                 empty={move || view! {
                     <Frame @test_id={"nothing_open"} />
                 }}

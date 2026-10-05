@@ -998,6 +998,17 @@ impl DockState {
         true
     }
 
+    pub fn close(&mut self, tab: TabId) -> bool {
+        let shown = self.stacked_tab() == Some(tab);
+        if !self.remove(tab) {
+            return false;
+        }
+        if let Some(next) = self.recent_tabs().first().copied().filter(|_| shown) {
+            self.show(next);
+        }
+        true
+    }
+
     pub fn empty_panes(&self) -> Vec<LeafId> {
         self.surfaces
             .iter()

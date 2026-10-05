@@ -446,20 +446,6 @@ impl State {
     }
 
     fn close_tab(&self, tab: TabId) {
-        self.edit(|state| {
-            state.remove(tab);
-        });
-        self.on_close.call(tab);
-    }
-
-    fn close_stacked(&self, tab: TabId) {
-        self.edit(|state| {
-            let shown = state.stacked_tab() == Some(tab);
-            state.remove(tab);
-            if let Some(next) = state.recent_tabs().first().copied().filter(|_| shown) {
-                state.show(next);
-            }
-        });
         self.on_close.call(tab);
     }
 
@@ -1151,7 +1137,7 @@ fn stack_handle(dock: &Handle, shown: Memo<Option<TabId>>, away: Memo<bool>) -> 
             }
         }),
         show: Func::new(move |tab| show.show(tab)),
-        close: Func::new(move |tab| close.close_stacked(tab)),
+        close: Func::new(move |tab| close.close_tab(tab)),
     }
 }
 

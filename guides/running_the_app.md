@@ -23,6 +23,22 @@ What the launcher passes the app is available to any native run:
   the password `dev-password` if there is none, save a recovery phrase without asking, and
   open the last workspace, or the first one, or a new one called Dev.
 - `--accessibility-tree=PATH`: write the accessibility tree to PATH (see below).
+- `--session` (Linux): run on the displays and input devices themselves through
+  `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
+  server on it. Ctrl+Alt+Backspace quits and Ctrl+Alt+F<n> switches terminals.
+  `BEUI_SCALE` sets its scale.
+
+## Wayland programs
+
+On Linux the app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`,
+or `/tmp/be-wayland-<pid>` when that is unset, as it is under `:dev`. The app menu's "Run a
+program" starts a command with `WAYLAND_DISPLAY` pointing at it, and a program can also be
+started against it directly:
+
+    WAYLAND_DISPLAY=/tmp/be-wayland-<the app's pid> foot
+
+Each window opens as a tab of the workspace. `weston-simple-shm` (from the `weston` package)
+and `foot` are small clients to try it with.
 
 ## Seeing what is on screen
 

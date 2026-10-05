@@ -195,6 +195,10 @@ impl EditorSession {
         self.host.show_panel(panel);
     }
 
+    pub(crate) fn set_windows(&self, windows: Vec<block_plugin_api::HostWindow>) {
+        self.host.set_windows(windows);
+    }
+
     pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
         self.host.show_block(block_id, block_type, via);
     }
@@ -578,6 +582,12 @@ impl EditorSession {
                 instance,
                 pick,
                 answer,
+            }));
+        }
+        for window in self.host.take_closed_windows() {
+            messages.push(Message::Editor(EditorMessage::CloseWindow {
+                instance,
+                window,
             }));
         }
         for (block_id, account, access) in self.host.take_access_changes() {

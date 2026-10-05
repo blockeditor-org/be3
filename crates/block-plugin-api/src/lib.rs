@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 66;
+pub const PROTOCOL_VERSION: u16 = 67;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -238,6 +238,18 @@ pub struct ChildRect {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WebViewId(pub u32);
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct HostWindowId(pub u64);
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct HostWindow {
+    pub id: HostWindowId,
+    pub title: String,
+    pub app_id: String,
+    pub parent: Option<HostWindowId>,
+    pub size: Size,
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChildContent {
     Block {
@@ -247,6 +259,7 @@ pub enum ChildContent {
     },
     WebView(WebViewId),
     Host(HostPanel),
+    Window(HostWindowId),
     Creation {
         editor: [u8; 16],
         template: String,
@@ -288,6 +301,7 @@ impl ChildContent {
             Self::Block { block_id, .. } => Some(*block_id),
             Self::WebView(_)
             | Self::Host(_)
+            | Self::Window(_)
             | Self::Creation { .. }
             | Self::ArtifactSettings { .. } => None,
         }
@@ -787,6 +801,16 @@ pub enum EditorMessage {
         panel: HostPanel,
     },
 
+    Windows {
+        instance: EditorInstanceId,
+        windows: Vec<HostWindow>,
+    },
+
+    CloseWindow {
+        instance: EditorInstanceId,
+        window: HostWindowId,
+    },
+
     ShowDialog {
         instance: EditorInstanceId,
         block_id: [u8; 16],
@@ -1102,6 +1126,8 @@ impl EditorMessage {
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
             | Self::ShowPanel { instance, .. }
+            | Self::Windows { instance, .. }
+            | Self::CloseWindow { instance, .. }
             | Self::ShowDialog { instance, .. }
             | Self::SetAccess { instance, .. }
             | Self::Focused { instance, .. }
@@ -1669,6 +1695,7 @@ impl EditorMessage {
             | Self::FocusChanged { .. }
             | Self::ShowBlock { .. }
             | Self::ShowPanel { .. }
+            | Self::Windows { .. }
             | Self::ShowDialog { .. }
             | Self::DragOver { .. }
             | Self::DragLeft { .. }
@@ -1703,6 +1730,7 @@ impl EditorMessage {
             | Self::Menu { .. }
             | Self::CommitChild { .. }
             | Self::SetAccess { .. }
+            | Self::CloseWindow { .. }
             | Self::PickAnswered { .. }
             | Self::ChildMenuPick { .. }
             | Self::GrabCursor { .. }
@@ -2553,6 +2581,14 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(())
         }
         EditorMessage::CopyText { text: value, .. } => text(value),
+        EditorMessage::Windows { windows, .. } => {
+            collection(windows.len())?;
+            for window in windows {
+                string(&window.title)?;
+                string(&window.app_id)?;
+            }
+            Ok(())
+        }
         EditorMessage::Menu { entries, .. } => menu(entries),
         EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),
         EditorMessage::WebViewCommand { command, .. } => match command {

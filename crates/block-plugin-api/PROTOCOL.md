@@ -387,7 +387,8 @@ Once per frame the instance publishes, for that screen, the frame generation
 it drew, an ordered list of the children it placed and the occluder rectangles
 declared between them, all in the screen's own logical coordinates. A child
 carries its own identifier, what it shows - a block and its block type, one
-of the instance's web views, or a panel the host draws itself - the rectangle
+of the instance's web views, a panel the host draws itself, or a window of a
+program the host runs - the rectangle
 and clip it was placed at, the corner radius of the hole cut for it, whether
 it composites below or above the instance's own pixels, and whether the host
 should draw it as a preview, a passive editor, an active one, or a live one.
@@ -435,6 +436,16 @@ details means.
 The panels the host draws itself - its debugging panels - are placed by the
 instance that draws the window, never by the host: the host asks that
 instance to show one, and draws it wherever a child places it.
+
+The windows of the programs the host runs - on Linux it is a Wayland
+compositor - are placed the same way. The host tells the instance that draws
+the window every window it has whenever that changes: its title, its program's
+id, the window it belongs to if it is a dialog, and the size it drew itself at.
+The instance shows a window by placing it as a child, and the host draws the
+program's surfaces there, tells the program the size it was placed at, and
+gives it the input that lands on it. A window the instance does not place is
+not drawn. The instance asks the host to close a window, and the window stays
+listed until its program closes it.
 
 A block pick may name a place for what it makes: the top level or a block. The
 picker then asks for a name and lets the user choose the place as well, and
