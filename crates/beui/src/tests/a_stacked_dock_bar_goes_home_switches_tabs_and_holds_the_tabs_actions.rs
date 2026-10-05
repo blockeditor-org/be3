@@ -37,6 +37,7 @@ fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
         let mut layout = DockState::new([HOME, TabId::new(2), TabId::new(3)]);
         layout.show(TabId::new(3));
         let (state, set_state) = create_signal(layout);
+        let removing = set_state.clone();
         view! {
             <styled::DockArea
                 state={state}
@@ -45,7 +46,12 @@ fn a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions() {
                 title={Func::new(|tab: TabId| format!("Tab {}", tab.value()))}
                 closable={Func::new(|tab: TabId| tab != HOME)}
                 on_change={move |next: DockState| set_state.set(next)}
-                on_close={move |tab: TabId| closing.borrow_mut().push(tab)}
+                on_close={move |tab: TabId| {
+                    closing.borrow_mut().push(tab);
+                    removing.update(|state| {
+                        state.close(tab);
+                    });
+                }}
             >
                 {move |tab: TabId| {
                     let id = tab.value();

@@ -757,6 +757,10 @@ impl Workspace {
             self.host().close_window(window);
             return;
         }
+        let mut layout = self.layout.get_untracked();
+        if layout.close(tab) {
+            self.set_layout.set(settled(layout));
+        }
         let mut tabs = self.tabs.get_untracked();
         let Some(closed) = tabs.remove(&tab) else {
             return;
@@ -1118,7 +1122,6 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
                     title={title}
                     icon={icon}
                     closable={Func::new(|tab: TabId| tab != FILES)}
-                    asks_to_close={Func::new(|tab: TabId| tab_window(tab).is_some())}
                     on_change={move |next: DockState| changing.changed(next)}
                     on_close={move |tab: TabId| closing.close(tab)}
                     empty={move || view! {
