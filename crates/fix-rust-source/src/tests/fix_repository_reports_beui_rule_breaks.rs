@@ -66,9 +66,9 @@ fn lookup(document: &Document) -> NodeId {
 
     assert!(error.contains("component attribute: crates/widget/src/lib.rs:1 `helper`"));
     assert!(
-        error.contains("component view: crates/widget/src/lib.rs:7 `Twice` builds more than one")
+        !error.contains("component view:"),
+        "a component may build more than one view"
     );
-    assert!(error.contains("component view: crates/widget/src/lib.rs:19 `Trailing` must end"));
     assert!(error.contains("memo write: crates/widget/src/lib.rs:30"));
     assert!(
         !error.contains("`Rows`"),
