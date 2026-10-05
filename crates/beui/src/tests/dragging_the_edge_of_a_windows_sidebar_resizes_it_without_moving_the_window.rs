@@ -1,32 +1,33 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::unstyled::{DockState, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, TabId, dock_state};
+use crate::unstyled::{
+    DockPane, DockTab, DockWindow, DockingLayout, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, dock_state,
+};
 
 #[test]
 fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window() {
     let dock = NodeRef::new();
     let built = dock.clone();
     let document = build(move || {
-        let mut start = DockState::new([TabId::new(1)]);
-        let window = start.open_window(
-            Rect::from_min_size(pos2(80.0, 60.0), vec2(520.0, 320.0)),
-            vec![TabId::new(2)],
-        );
-        let leaf = start.leaves(window)[0];
-        start.set_vertical(leaf, true);
-        let (state, set_state) = create_signal(start);
+        let layout = DockingLayout::new();
         view! {
-            <styled::DockArea
-                @node_ref=&built
-                state={state}
-                title={Func::new(|tab: TabId| format!("Tab {}", tab.value()))}
-                on_change={move |next: DockState| set_state.set(next)}
-                on_close={move |_: TabId| {}}
-            >
-                {move |tab: TabId| view! {
-                    <Frame @test_id={format!("content.{}", tab.value())} />
-                }}
-            </styled::DockArea>
+            <styled::Docking @node_ref=&built layout>
+                <DockPane id="main">
+                    <DockTab id=1u64 title="Tab 1">
+                        <Frame @test_id="content.1" />
+                    </DockTab>
+                </DockPane>
+                <DockWindow
+                    id="window"
+                    rect={Rect::from_min_size(pos2(80.0, 60.0), vec2(520.0, 320.0))}
+                >
+                    <DockPane id="side" vertical=true>
+                        <DockTab id=2u64 title="Tab 2">
+                            <Frame @test_id="content.2" />
+                        </DockTab>
+                    </DockPane>
+                </DockWindow>
+            </styled::Docking>
         }
     });
     let dock = dock.get();

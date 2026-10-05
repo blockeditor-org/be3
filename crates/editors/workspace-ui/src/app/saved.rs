@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use block_editor_beui::be_block::ViewState;
-use block_editor_beui::beui::unstyled::{DockState, TabId};
+use block_editor_beui::beui::unstyled::{DockingSnapshot, TabId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -11,7 +11,7 @@ pub(crate) const LAYOUT: &str = "layout";
 
 #[derive(Deserialize, Serialize)]
 struct SavedLayout {
-    dock: DockState,
+    dock: DockingSnapshot<TabId>,
     next_tab: u64,
     files: usize,
     tabs: Vec<SavedTab>,
@@ -26,14 +26,14 @@ struct SavedTab {
 }
 
 pub(crate) struct Restored {
-    pub(crate) dock: DockState,
+    pub(crate) dock: DockingSnapshot<TabId>,
     pub(crate) next_tab: u64,
     pub(crate) files: Option<Uuid>,
     pub(crate) tabs: HashMap<TabId, (TabItem, Uuid)>,
 }
 
 pub(crate) fn save(
-    dock: &DockState,
+    dock: &DockingSnapshot<TabId>,
     next_tab: u64,
     files: Option<Uuid>,
     tabs: &HashMap<TabId, TabItem>,

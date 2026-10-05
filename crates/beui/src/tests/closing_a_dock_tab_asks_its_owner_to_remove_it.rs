@@ -1,5 +1,6 @@
 use super::*;
-use crate::unstyled::{TabId, dock_state};
+use crate::reactive::{ForEach, clone};
+use crate::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_state};
 
 #[test]
 fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
@@ -8,20 +9,23 @@ fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
     let closed = Rc::new(RefCell::new(Vec::new()));
     let asked = closed.clone();
     let document = build(move || {
-        let tabs = (1..=3).map(TabId::new).collect::<Vec<_>>();
-        let (state, set_state) = create_signal(unstyled::DockState::new(tabs));
+        let layout = DockingLayout::new();
         view! {
-            <styled::DockArea
-                @node_ref=&built
-                state={state}
-                title={Func::new(|tab: TabId| format!("Tab {}", tab.value()))}
-                on_change={move |next: unstyled::DockState| set_state.set(next)}
-                on_close={move |tab: TabId| asked.borrow_mut().push(tab)}
-            >
-                {move |tab: TabId| view! {
-                    <Frame @test_id={format!("content.{}", tab.value())} />
-                }}
-            </styled::DockArea>
+            <styled::Docking @node_ref=&built layout>
+                <DockPane id="tabs">
+                    <ForEach keys={vec![1u64, 2, 3]}>
+                        {move |id: u64| clone!(asked -> view! {
+                            <DockTab
+                                id
+                                title={format!("Tab {id}")}
+                                on_close={move || asked.borrow_mut().push(TabId::new(id))}
+                            >
+                                <Frame @test_id={format!("content.{id}")} />
+                            </DockTab>
+                        })}
+                    </ForEach>
+                </DockPane>
+            </styled::Docking>
         }
     });
     let dock = dock.get();

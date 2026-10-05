@@ -68,12 +68,13 @@ pub use date_time_picker::{
 };
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
-    Dock, DockDragged, DockDrop, DockGripHandle, DockLayout, DockMenus, DockMode, DockPanelHandle,
-    DockPreviewHandle, DockSplitter, DockSplitterHandle, DockStackHandle, DockState, DockTabHandle,
-    DockTabMenu, DockTree, DockTreeEntry, DockWindowHandle, Entry, GroupId, LeafId,
-    MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SPLITTER_THICKNESS, Side, SplitId,
-    SurfaceId, TabId, TabPosition, Tree, dock_actions, dock_menu, dock_menu_items, dock_state,
-    layout_surface, layout_tree, sidebar_size,
+    DockDragged, DockDrop, DockEntry, DockGripHandle, DockGroup, DockKey, DockLayout, DockMenus,
+    DockMode, DockNode, DockPane, DockPanelHandle, DockPreviewHandle, DockSplit, DockSplitter,
+    DockSplitterHandle, DockStackHandle, DockState, DockTab, DockTabHandle, DockTabMenu, DockTree,
+    DockTreeEntry, DockWindow, DockWindowHandle, Docking, DockingLayout, DockingSnapshot, Entry,
+    GroupId, LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH, SPLITTER_THICKNESS, Side,
+    SplitId, SurfaceId, TabId, TabPosition, Tree, dock_actions, dock_menu, dock_menu_items,
+    dock_state, layout_surface, layout_tree, sidebar_size,
 };
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,

@@ -100,6 +100,7 @@ mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it;
 mod a_justified_row_places_its_leftover_space;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
+mod a_layout_put_back_from_its_snapshot_keeps_the_tabs_where_they_were;
 mod a_light_overlay_occludes_only_its_content;
 mod a_list_in_a_scroll_lays_out_only_the_rows_near_the_view;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
@@ -571,8 +572,8 @@ use crate::base::text::TextNode;
 use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
 use crate::reactive::{
-    Canvas, CanvasItem, ClickCallback, ForEach, Frame, Func, List, NodeRef, Offset, Spacer, Text,
-    VirtualList, build, create_signal, with_document,
+    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Offset, Spacer, Text,
+    VirtualList, build, clone, create_signal, with_document,
 };
 use crate::styled;
 use crate::styled::DocumentTheme;
@@ -1501,26 +1502,25 @@ pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
 pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let built = dock.clone();
-    let tabs: Vec<unstyled::TabId> = (1..=tabs)
-        .map(|index| unstyled::TabId::new(index as u64))
-        .collect();
     let document = build(move || {
-        let (state, set_state) = create_signal(unstyled::DockState::new(tabs));
-        let closing = set_state.clone();
+        let layout = unstyled::DockingLayout::new();
+        let (open, set_open) = create_signal((1..=tabs as u64).collect::<Vec<_>>());
         view! {
-            <styled::DockArea
-                @node_ref=&built
-                state={state}
-                title={Func::new(|tab: unstyled::TabId| format!("Tab {}", tab.value()))}
-                on_change={move |next: unstyled::DockState| set_state.set(next)}
-                on_close={move |tab: unstyled::TabId| closing.update(|state| {
-                    state.close(tab);
-                })}
-            >
-                {move |tab: unstyled::TabId| view! {
-                    <Frame @test_id={format!("content.{}", tab.value())} />
-                }}
-            </styled::DockArea>
+            <styled::Docking @node_ref=&built layout>
+                <unstyled::DockPane id="tabs">
+                    <ForEach keys={open}>
+                        {move |id: u64| clone!(set_open -> view! {
+                            <unstyled::DockTab
+                                id
+                                title={format!("Tab {id}")}
+                                on_close={move || set_open.update(|open| open.retain(|other| *other != id))}
+                            >
+                                <Frame @test_id={format!("content.{id}")} />
+                            </unstyled::DockTab>
+                        })}
+                    </ForEach>
+                </unstyled::DockPane>
+            </styled::Docking>
         }
     });
     (document, dock.get())
