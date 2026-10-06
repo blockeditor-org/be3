@@ -46,17 +46,16 @@ these in front of the pinned buck2:
 - **buck2 itself.** The release pinned in `scripts/internal/common.sh` is
   installed into `target/tools/buck2-<version>/` the first time it is missing.
   A `buck2` on `PATH` is not used, since each buck2 carries its own prelude.
-- **Namespace's token**: `BE3_BUILD_SERVER_KEY`, else `.build-server-key`
-  at the root (git ignores it), else `~/.config/be3/build-server-key`. With
-  none, a person at a terminal is asked for it and it is saved to
-  `~/.config/be3/build-server-key`; without a terminal it fails and says what
-  to set. After changing the token, restart the daemon with
-  `./scripts/buck killall`.
+- **The build server.** The pinned `nsc` is installed into
+  `target/tools/nsc-<version>/` the first time it is missing, wakes the remote
+  execution cluster, and names its hosts, which go into a generated
+  `.buckconfig.local` (guides/build_server.md says when it asks, and where its
+  token comes from).
 - **An HTTPS proxy.** buck2's remote execution client dials Namespace's hosts
   directly and never reads `HTTPS_PROXY`. When it is set, `./scripts/buck` builds
   `scripts/internal/re-relay` with Go (1.24 or newer), leaves one running on
   `127.0.0.1:18980` for the executor and one on `127.0.0.1:18981` for the
-  storage, and points buck2 at them in a `.buckconfig.local`; each relay sends
+  storage, and points buck2 at them in the same `.buckconfig.local`; each relay sends
   its calls on through the proxy, over HTTP/1.1 if that is all the proxy
   speaks. Their errors go to `target/re-relay.log`. A `.buckconfig.local` a
   person wrote is left alone, and the relays are not used then.

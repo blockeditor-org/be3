@@ -304,125 +304,234 @@ buck2_release_sha256() {
     echo "${!name}"
 }
 
-# Every action runs on Namespace (guides/build_server.md), which turns away a
-# call without this repository's token, so a build without it has nowhere to
-# run. buck2 would say so only as a failed connection, well into the build. The
-# token is BE3_BUILD_SERVER_KEY from the environment, or else the first of two
-# files that holds it: .build-server-key at the root of the checkout, which git
-# ignores, or ~/.config/be3/build-server-key. Either way it is exported, which
-# is how .buckconfig's $BE3_BUILD_SERVER_KEY reaches the daemon.
-#
-# With none of them, a person at a terminal is asked for the token, and it is
-# saved under ~/.config/be3 for every checkout. Anything else - a pipe, CI, an
-# agent's shell - has nobody to answer, so it is told what to set instead of
-# waiting for input that will not come.
-assert_build_server_key() {
-    local file key name='build-server-key'
-    local saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/$name"
-    if [[ -z "${BE3_BUILD_SERVER_KEY:-}" ]]; then
-        for file in "$repository/.$name" "$saved"; do
-            if [[ -f "$file" ]]; then
-                BE3_BUILD_SERVER_KEY="$(tr -d '[:space:]' < "$file")"
-                break
-            fi
-        done
-    fi
-    if [[ -z "${BE3_BUILD_SERVER_KEY:-}" && -t 0 && -t 2 ]]; then
-        echo 'buck2 runs every build on Namespace, and needs its token.' >&2
-        echo 'guides/build_server.md says how to make one.' >&2
-        read -r -s -p 'Namespace token: ' key
-        echo '' >&2
-        key="$(printf '%s' "$key" | tr -d '[:space:]')"
-        if [[ -n "$key" ]]; then
-            mkdir -p "$(dirname "$saved")"
-            (umask 077 && printf '%s\n' "$key" > "$saved")
-            echo "Saved it to $saved." >&2
-            BE3_BUILD_SERVER_KEY="$key"
-        fi
-    fi
-    if [[ -n "${BE3_BUILD_SERVER_KEY:-}" ]]; then
-        export BE3_BUILD_SERVER_KEY
-        return 0
-    fi
-    echo 'buck2 runs every build on Namespace, and there is no token for it.' >&2
-    echo "Set BE3_BUILD_SERVER_KEY, or write the token to .$name at the root" >&2
-    echo "of the checkout or to ~/.config/be3/$name. Run ./scripts/buck" >&2
-    echo 'from a terminal to be asked for it. guides/build_server.md has more.' >&2
-    exit 1
+# The nsc release ./scripts/buck runs: Namespace's command-line tool, which
+# wakes the remote execution cluster and names its hosts
+# (guides/build_server.md). Its archives are checked against these hashes, by
+# the platform upstream names them after.
+nsc_version='0.0.586'
+nsc_sha256_linux_amd64='57ba36c1b8dc02689c7d4f630ed9767d26f0eb98acaa56a50c15f30fe45f8f73'
+nsc_sha256_linux_arm64='aa69e23a88df9ceb588bcbbe8781c08971d2b3ef40dbd89a3e68d6bdd361493c'
+nsc_sha256_darwin_amd64='62814ca37432d7727928c2d5b0beeebc4cc012bdf474c122418146805688c7f6'
+nsc_sha256_darwin_arm64='1e05852ce241508f4ced204688be434fe205a4d6bc382fddad114b95ac37abe9'
+nsc_sha256_windows_amd64='6fb562526757d7cf4ad43d64980cded6b875bbf55667d7bfbb96a142127027e9'
+nsc_sha256_windows_arm64='3b1b7d0fedd0ea07662bb6ea2894d3feb5bce747270694af563b5f8d9349c952'
+
+nsc_platform() {
+    local os architecture
+    case "$(uname -s)" in
+        Linux) os='linux' ;;
+        Darwin) os='darwin' ;;
+        MINGW* | MSYS* | CYGWIN*) os='windows' ;;
+        *)
+            echo "No nsc release is pinned here for $(uname -s)." >&2
+            return 1
+            ;;
+    esac
+    case "$(uname -m)" in
+        x86_64 | amd64) architecture='amd64' ;;
+        aarch64 | arm64) architecture='arm64' ;;
+        *)
+            echo "No nsc release is pinned here for $(uname -m)." >&2
+            return 1
+            ;;
+    esac
+    echo "${os}_$architecture"
 }
 
-# A host .buckconfig's [buck2_re_client] names, by its key there.
-build_server_host() {
-    sed -n "s/^$1 *= *\([^:]*\):.*/\1/p" "$repository/.buckconfig"
+nsc_path() {
+    echo "$repository/target/tools/nsc-$nsc_version/nsc$(buck2_binary_suffix)"
 }
 
-# buck2's remote execution client dials the hosts .buckconfig names itself and
-# never reads HTTPS_PROXY. Where the machine's way out is an HTTPS proxy, it is
-# pointed through .buckconfig.local at scripts/internal/re-relay instead: a
-# relay on localhost for each host, built with Go and left running in the
-# background, that sends each call on to it through the proxy. The executor and
-# the storage are separate hosts, so there are two relays.
+write_if_changed() {
+    if ! cmp -s "$1" "$2"; then
+        cp "$1" "$2.partial"
+        mv -f "$2.partial" "$2"
+    fi
+}
+
+# Where buck2 reaches the remote execution cluster, written into
+# .buckconfig.local. The cluster shuts down when it has had nothing to do for a
+# while, so its hosts are asked of nsc rather than kept in .buckconfig:
+# `nsc reapi setup buck2` starts the cluster if it is down and names its
+# executor, its storage and the header that authenticates to them. It is
+# always asked with the same arguments and the same --key: Namespace starts a
+# new cluster beside the old one when either differs. That answer is kept in
+# target/namespace/ and asked again when the executor stops answering, when it
+# is more than three hours old, or when the token changes.
 #
-# Without a proxy, a .buckconfig.local this wrote is removed, since it would
-# point buck2 at the wrong place. A file a person wrote is left alone either
-# way. buck2 reads the remote execution settings when its daemon starts and
-# remembers which blobs it has uploaded, so the daemon is stopped whenever the
-# file changes; the file names the hosts even when the relays' addresses are
-# all buck2 reads from it, so that a change of host behind a relay is a change
-# to the file too.
+# nsc authenticates with Namespace's token: BE3_NAMESPACE_TOKEN from the
+# environment, which is what CI and agents' sessions set, or else
+# .namespace-token.json at the root of the checkout, which git ignores, or
+# ~/.config/be3/namespace-token.json. Either holds what
+# `nsc reapi create-token` writes, or the bare token.
+#
+# buck2's remote execution client never reads HTTPS_PROXY. Where the machine's
+# way out is an HTTPS proxy, buck2 is pointed at scripts/internal/re-relay
+# instead: a relay on localhost for each host, built with Go and left running
+# in the background, that sends each call on through the proxy. The executor
+# and the storage are separate hosts, so there are two relays.
+#
+# A .buckconfig.local a person wrote is left alone. buck2 reads the remote
+# execution settings when its daemon starts and remembers which blobs it has
+# uploaded, so the daemon is stopped whenever the file changes; the file names
+# the hosts even when the relays' addresses are all buck2 reads from it, so
+# that a change of host behind a relay is a change to the file too.
 re_relay_engine_address='127.0.0.1:18980'
 re_relay_storage_address='127.0.0.1:18981'
+namespace_directory="$repository/target/namespace"
+namespace_cluster_key='buildserver'
+
+# Whether to look at the executor even when nsc was asked moments ago: after a
+# command failed with an infrastructure error, the cluster may have gone.
+namespace_recheck=false
+
+# The token file nsc is given, or nothing when there is none.
+namespace_token_file() {
+    local saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/namespace-token.json"
+    if [[ -n "${BE3_NAMESPACE_TOKEN:-}" ]]; then
+        local file="$namespace_directory/token.json" token
+        token="$(printf '%s' "$BE3_NAMESPACE_TOKEN" | tr -d '\r\n')"
+        mkdir -p "$namespace_directory"
+        if [[ "$token" != '{'* ]]; then
+            token="{\"bearer_token\":\"$token\"}"
+        fi
+        (umask 077 && printf '%s\n' "$token" > "$file.partial")
+        write_if_changed "$file.partial" "$file"
+        rm -f "$file.partial"
+        echo "$file"
+    elif [[ -f "$repository/.namespace-token.json" ]]; then
+        echo "$repository/.namespace-token.json"
+    elif [[ -f "$saved" ]]; then
+        echo "$saved"
+    fi
+}
+
+# A value from the configuration nsc wrote: a host without its scheme or port,
+# or the header as it is.
+namespace_host() {
+    sed -n "s|^$1 *= *\(grpcs*://\)\{0,1\}\([^:/]*\).*|\2|p" "$namespace_directory/buck2.buckconfig"
+}
+
+namespace_header() {
+    sed -n 's/^http_headers *= *//p' "$namespace_directory/buck2.buckconfig"
+}
+
+# Whether the executor nsc last named answers a gRPC call. A cluster that has
+# shut down answers 404 instead.
+namespace_answers() {
+    local engine header
+    engine="$(namespace_host engine_address)"
+    header="$(namespace_header)"
+    [[ -n "$engine" && -n "$header" ]] || return 1
+    (umask 077 && printf '%s\n' "${header/:/: }" > "$namespace_directory/probe-header")
+    printf '\0\0\0\0\0' > "$namespace_directory/probe-body"
+    curl --silent --max-time 20 --output /dev/null --dump-header - \
+        --header 'content-type: application/grpc' --header 'te: trailers' \
+        --header "@$namespace_directory/probe-header" \
+        --data-binary "@$namespace_directory/probe-body" \
+        "https://$engine/build.bazel.remote.execution.v2.Capabilities/GetCapabilities" 2> /dev/null |
+        grep -qi '^content-type: *application/grpc'
+}
+
+# Asks nsc for the cluster's hosts when what target/namespace/ holds will not
+# do, and says whether they changed.
+refresh_namespace_cluster() {
+    local nsc token stamp="$namespace_directory/asked" now age=999999 token_hash=''
+    nsc="$(nsc_path)"
+    if [[ ! -x "$nsc" ]]; then
+        "$internal/install-nsc.sh" >&2
+    fi
+    mkdir -p "$namespace_directory"
+    token="$(namespace_token_file)"
+    if [[ -z "$token" ]]; then
+        echo 'buck2 runs every build on Namespace, and there is no token for it. Set' >&2
+        echo 'BE3_NAMESPACE_TOKEN, or write the token to .namespace-token.json at the root' >&2
+        echo 'of the checkout or to ~/.config/be3/namespace-token.json.' >&2
+        echo 'guides/build_server.md says how to make one.' >&2
+        exit 1
+    fi
+    token_hash="$(sha256_of "$token")"
+    now="$(date +%s)"
+    if [[ -f "$stamp" && -f "$namespace_directory/buck2.buckconfig" ]] &&
+        [[ "$(sed -n 2p "$stamp")" == "$token_hash" ]]; then
+        age=$((now - $(sed -n 1p "$stamp")))
+    fi
+    if [[ $age -lt 600 ]] && ! $namespace_recheck; then
+        return 0
+    fi
+    if [[ $age -lt 10800 ]] && namespace_answers; then
+        return 0
+    fi
+
+    echo 'Waking the remote execution cluster with nsc...' >&2
+    if ! (umask 077 && NS_DO_NOT_UPDATE=1 "$nsc" reapi setup buck2 \
+        --token "$(native_path "$token")" --key "$namespace_cluster_key" \
+        --config "$(native_path "$namespace_directory/buck2.buckconfig.partial")" \
+        > "$namespace_directory/nsc.log" 2>&1); then
+        cat "$namespace_directory/nsc.log" >&2
+        echo '' >&2
+        echo 'nsc could not set up the remote execution cluster (guides/build_server.md).' >&2
+        exit 1
+    fi
+    mv -f "$namespace_directory/buck2.buckconfig.partial" "$namespace_directory/buck2.buckconfig"
+    printf '%s\n%s\n' "$now" "$token_hash" > "$stamp"
+    if [[ -z "$(namespace_host engine_address)" || -z "$(namespace_host cas_address)" || -z "$(namespace_header)" ]]; then
+        echo "nsc's configuration, $namespace_directory/buck2.buckconfig, does not name the" >&2
+        echo 'executor, the storage and the header buck2 needs.' >&2
+        exit 1
+    fi
+}
 
 configure_build_server() {
     local buck2="$1"
     local path="$repository/.buckconfig.local"
     local marker='# @generated by ./scripts/buck: where buck2 reaches the build server.'
-    local generated=false
-    if [[ -f "$path" ]] && head -1 "$path" | grep -q '@generated by ./scripts/'; then
-        generated=true
-    fi
-    local proxy="${HTTPS_PROXY:-${https_proxy:-}}"
-    if [[ -z "$proxy" ]]; then
-        if $generated; then
-            rm "$path"
-            "$buck2" kill > /dev/null 2>&1 || true
-        fi
-        return 0
-    fi
-    if [[ -f "$path" ]] && ! $generated; then
+    if [[ -f "$path" ]] && ! head -1 "$path" | grep -q '@generated by ./scripts/'; then
         echo '.buckconfig.local was written by hand, so buck2 is left to reach the build' >&2
-        echo 'server it names, not through scripts/internal/re-relay.' >&2
+        echo 'server it names.' >&2
         return 0
     fi
+    refresh_namespace_cluster
 
-    local engine storage
-    engine="$(build_server_host engine_address)"
-    storage="$(build_server_host cas_address)"
-    assert_command go 'HTTPS_PROXY is set, and buck2 reaches the build server through it with scripts/internal/re-relay, which needs Go 1.24 or newer.'
-    local version relay
-    version="$(cat "$internal"/re-relay/* | cksum | cut -d ' ' -f 1)"
-    relay="$repository/target/tools/re-relay-$version/re-relay$(go env GOEXE)"
-    if [[ ! -x "$relay" ]]; then
-        mkdir -p "$(dirname "$relay")"
-        (cd "$internal/re-relay" && go build -trimpath -o "$relay.partial" .)
-        mv -f "$relay.partial" "$relay"
+    local engine storage header proxy="${HTTPS_PROXY:-${https_proxy:-}}"
+    engine="$(namespace_host engine_address)"
+    storage="$(namespace_host cas_address)"
+    header="$(namespace_header)"
+    local engine_address="$engine:443" storage_address="$storage:443" tls=true
+    if [[ -n "$proxy" ]]; then
+        assert_command go 'HTTPS_PROXY is set, and buck2 reaches the build server through it with scripts/internal/re-relay, which needs Go 1.24 or newer.'
+        local version relay
+        version="$(cat "$internal"/re-relay/* | cksum | cut -d ' ' -f 1)"
+        relay="$repository/target/tools/re-relay-$version/re-relay$(go env GOEXE)"
+        if [[ ! -x "$relay" ]]; then
+            mkdir -p "$(dirname "$relay")"
+            (cd "$internal/re-relay" && go build -trimpath -o "$relay.partial" .)
+            mv -f "$relay.partial" "$relay"
+        fi
+        "$relay" ensure -listen "$re_relay_engine_address" -upstream "$engine" \
+            -version "$version-$engine" -log "$repository/target/re-relay.log"
+        "$relay" ensure -listen "$re_relay_storage_address" -upstream "$storage" \
+            -version "$version-$storage" -log "$repository/target/re-relay.log"
+        engine_address="$re_relay_engine_address"
+        storage_address="$re_relay_storage_address"
+        tls=false
     fi
-    "$relay" ensure -listen "$re_relay_engine_address" -upstream "$engine" \
-        -version "$version-$engine" -log "$repository/target/re-relay.log"
-    "$relay" ensure -listen "$re_relay_storage_address" -upstream "$storage" \
-        -version "$version-$storage" -log "$repository/target/re-relay.log"
 
     local config="$repository/target/buckconfig.local.partial"
-    {
-        echo "$marker"
-        echo "# The executor: $engine"
-        echo "# The storage: $storage"
-        echo '[buck2_re_client]'
-        echo "action_cache_address = $re_relay_storage_address"
-        echo "cas_address = $re_relay_storage_address"
-        echo "engine_address = $re_relay_engine_address"
-        echo 'tls = false'
-    } > "$config"
+    (
+        umask 077
+        {
+            echo "$marker"
+            echo "# The executor: $engine"
+            echo "# The storage: $storage"
+            echo '[buck2_re_client]'
+            echo "action_cache_address = $storage_address"
+            echo "cas_address = $storage_address"
+            echo "engine_address = $engine_address"
+            echo "http_headers = $header"
+            echo "tls = $tls"
+        } > "$config"
+    )
     if cmp -s "$config" "$path"; then
         rm "$config"
     else

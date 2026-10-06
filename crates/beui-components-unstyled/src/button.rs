@@ -6,14 +6,20 @@ use beui_core::input::{CursorIcon, KeyPress, PointerPress};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, ClickCallback, Interactive, Prop, ReadSignal, Render, clone,
-    component_accessibility, create_memo, create_signal, set_component_state, untrack,
+    Action, Callback, Child, ClickCallback, Interactive, Memo, Prop, ReadSignal, Render,
+    action_disabled, action_glyph, action_label, action_tooltip, clone, component_accessibility,
+    create_memo, create_signal, set_component_state, untrack,
 };
 
+#[derive(Clone)]
 pub struct ButtonHandle {
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
+    pub disabled: Memo<bool>,
+    pub label: Memo<String>,
+    pub glyph: Memo<String>,
+    pub tooltip: Memo<String>,
 }
 
 struct State {
@@ -25,6 +31,10 @@ struct State {
 pub fn Button(
     children: Option<Child>,
     content: Option<Render<ButtonHandle>>,
+    #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = Role::Button)] role: Role,
+    action: Option<Action>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = true)] tab_stop: Prop<bool>,
@@ -44,10 +54,20 @@ pub fn Button(
     let (active, set_active) = create_signal(false);
     let (focused, set_focused) = create_signal(false);
     let (key_active, set_key_active) = create_signal(false);
+    let label = action_label(action.as_ref(), label);
+    let glyph = action_glyph(action.as_ref(), glyph);
+    let tooltip = action_tooltip(action.as_ref(), label.clone());
+    let disabled = action_disabled(action.as_ref(), disabled);
     let disabled = create_memo(move || disabled.get());
-    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
-    component_accessibility(create_memo(clone!(disabled -> move || {
+    let label = create_memo(move || label.get());
+    let glyph = create_memo(move || glyph.get());
+    let tooltip = create_memo(move || tooltip.get());
+    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
+    component_accessibility(create_memo(clone!(disabled label -> move || {
         let mut node = accessibility.get();
+        if node.label().is_none() && !label.get().is_empty() {
+            node.set_label(label.get());
+        }
         if disabled.get() {
             node.set_disabled();
         } else {
@@ -61,6 +81,10 @@ pub fn Button(
             hovered,
             active: active.clone(),
             focused: focused.clone(),
+            disabled: disabled.clone(),
+            label,
+            glyph,
+            tooltip,
         })),
         None => children,
     };
@@ -70,6 +94,9 @@ pub fn Button(
         move || {
             if untrack(|| disabled.get()) {
                 return;
+            }
+            if let Some(action) = &action {
+                action.run();
             }
             on_click.call();
         }

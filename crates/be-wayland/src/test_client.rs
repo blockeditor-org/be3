@@ -12,6 +12,13 @@ use wayland_protocols::xdg::shell::client::{
 
 use crate::server::Server;
 
+use wayland_protocols::xdg::decoration::zv1::client::{
+    zxdg_decoration_manager_v1, zxdg_toplevel_decoration_v1,
+};
+use wayland_protocols_misc::server_decoration::client::{
+    org_kde_kwin_server_decoration, org_kde_kwin_server_decoration_manager,
+};
+
 use wayland_protocols::wp::linux_dmabuf::zv1::client::{
     zwp_linux_buffer_params_v1, zwp_linux_dmabuf_v1,
 };
@@ -32,6 +39,9 @@ pub(crate) struct Received {
     pub(crate) buttons: Vec<(u32, bool)>,
     pub(crate) frames: usize,
     pub(crate) released: Vec<wl_buffer::WlBuffer>,
+    pub(crate) xdg_decoration: Option<zxdg_toplevel_decoration_v1::Mode>,
+    pub(crate) kde_default_decoration: Option<org_kde_kwin_server_decoration_manager::Mode>,
+    pub(crate) kde_decoration: Option<org_kde_kwin_server_decoration::Mode>,
 }
 
 pub(crate) struct TestClient {
@@ -463,6 +473,63 @@ impl Dispatch<wl_buffer::WlBuffer, ()> for Received {
     }
 }
 
+impl Dispatch<zxdg_toplevel_decoration_v1::ZxdgToplevelDecorationV1, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &zxdg_toplevel_decoration_v1::ZxdgToplevelDecorationV1,
+        event: zxdg_toplevel_decoration_v1::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let zxdg_toplevel_decoration_v1::Event::Configure {
+            mode: WEnum::Value(mode),
+        } = event
+        {
+            state.xdg_decoration = Some(mode);
+        }
+    }
+}
+
+impl Dispatch<org_kde_kwin_server_decoration_manager::OrgKdeKwinServerDecorationManager, ()>
+    for Received
+{
+    fn event(
+        state: &mut Self,
+        _: &org_kde_kwin_server_decoration_manager::OrgKdeKwinServerDecorationManager,
+        event: org_kde_kwin_server_decoration_manager::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let org_kde_kwin_server_decoration_manager::Event::DefaultMode {
+            mode: WEnum::Value(mode),
+        } = event
+        {
+            state.kde_default_decoration = Some(mode);
+        }
+    }
+}
+
+impl Dispatch<org_kde_kwin_server_decoration::OrgKdeKwinServerDecoration, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &org_kde_kwin_server_decoration::OrgKdeKwinServerDecoration,
+        event: org_kde_kwin_server_decoration::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let org_kde_kwin_server_decoration::Event::Mode {
+            mode: WEnum::Value(mode),
+        } = event
+        {
+            state.kde_decoration = Some(mode);
+        }
+    }
+}
+
+wayland_client::delegate_noop!(Received: ignore zxdg_decoration_manager_v1::ZxdgDecorationManagerV1);
 wayland_client::delegate_noop!(Received: ignore wl_seat::WlSeat);
 wayland_client::delegate_noop!(Received: ignore zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1);
 wayland_client::delegate_noop!(Received: ignore zwp_linux_buffer_params_v1::ZwpLinuxBufferParamsV1);

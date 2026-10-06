@@ -1,4 +1,5 @@
 mod compositor;
+mod decoration;
 mod render;
 mod server;
 mod state;

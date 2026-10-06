@@ -314,6 +314,36 @@ impl<T: AcceptsSizing> IntoChild<T> for ListChild {
     }
 }
 
+#[diagnostic::on_unimplemented(
+    message = "`@sizing` cannot size a `{Self}`",
+    label = "`@sizing` takes a node, or an `Option` of one"
+)]
+pub trait WithSizing {
+    type Sized;
+
+    fn with_sizing(self, size: Prop<Sizing>) -> Self::Sized;
+}
+
+impl WithSizing for NodeId {
+    type Sized = ListChild;
+
+    fn with_sizing(self, size: Prop<Sizing>) -> ListChild {
+        ListChild::new(self, size)
+    }
+}
+
+impl WithSizing for Option<NodeId> {
+    type Sized = Option<ListChild>;
+
+    fn with_sizing(self, size: Prop<Sizing>) -> Option<ListChild> {
+        self.map(|node| ListChild::new(node, size))
+    }
+}
+
+pub fn with_sizing<C: WithSizing>(child: C, size: impl IntoProp<Sizing>) -> C::Sized {
+    child.with_sizing(size.into_prop())
+}
+
 impl IntoSegment<ListChild> for NodeId {
     fn into_segment(self) -> ChildSegment<ListChild> {
         ChildSegment::One(self.into_child())
@@ -323,6 +353,18 @@ impl IntoSegment<ListChild> for NodeId {
 impl<T: AcceptsSizing + SlotChild> IntoSegment<T> for ListChild {
     fn into_segment(self) -> ChildSegment<T> {
         ChildSegment::One(self.into_child())
+    }
+}
+
+impl IntoSegment<ListChild> for Option<NodeId> {
+    fn into_segment(self) -> ChildSegment<ListChild> {
+        ChildSegment::Many(self.into_iter().map(IntoChild::into_child).collect())
+    }
+}
+
+impl IntoSegment<ListChild> for Option<ListChild> {
+    fn into_segment(self) -> ChildSegment<ListChild> {
+        ChildSegment::Many(self.into_iter().map(IntoChild::into_child).collect())
     }
 }
 

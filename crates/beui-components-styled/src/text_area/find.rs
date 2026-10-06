@@ -1,6 +1,6 @@
 use beui_macros::{component, view};
 
-use text_editor_core::{FindDirection, FindStatus};
+use text_editor_core::FindDirection;
 
 use crate::Button;
 use crate::ButtonVariant;
@@ -39,18 +39,9 @@ pub fn FindBar(state: TextAreaState) -> NodeId {
 #[component]
 fn FindBarRows(state: TextAreaState) -> NodeId {
     let theme = use_theme();
-    let status = create_memo(clone!(state -> move || {
-        let query_empty = state.find().query.get().is_empty();
-        (query_empty, state.find_status())
-    }));
-    let summary = create_memo(clone!(status -> move || match status.get() {
-        (true, FindStatus { total: 0, .. }) => String::new(),
-        (false, FindStatus { total: 0, .. }) => "No results".to_owned(),
-        (_, FindStatus { total, current: Some(current) }) => format!("{}/{total}", current + 1),
-        (_, FindStatus { total, current: None }) => format!("0/{total}"),
-    }));
-    let no_matches = create_memo(clone!(status -> move || status.get().1.total == 0));
-    let no_current = create_memo(clone!(status -> move || status.get().1.current.is_none()));
+    let summary = create_memo(clone!(state -> move || state.find_summary()));
+    let no_matches = create_memo(clone!(state -> move || !state.find_has_matches()));
+    let no_current = create_memo(clone!(state -> move || !state.find_has_current()));
 
     let query = state.find().query.clone();
     let case_sensitive = state.find().case_sensitive.clone();

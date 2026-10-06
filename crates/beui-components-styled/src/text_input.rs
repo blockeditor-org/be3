@@ -1,10 +1,9 @@
-use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
 use crate::context_menu::menu_style;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, field_border, use_theme};
+use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
 use beui_core::document::Document;
@@ -12,8 +11,8 @@ use beui_core::icons::ICON_CLOSE;
 use beui_core::input::KeyPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, ClickCallback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show,
-    clone, create_memo,
+    Align, Callback, Direction, Frame, IntoProp, ItemSize, List, Memo, Prop, Show, clone,
+    create_memo,
 };
 
 use crate::icon_button::{IconButton, IconButtonSize};
@@ -21,7 +20,6 @@ use crate::text::Icon;
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 const CLEAR_PADDING: f32 = 6.0;
 
@@ -42,18 +40,9 @@ pub fn TextInput(
     on_focus_change: Callback<bool>,
     on_key_override: Callback<KeyPress, bool>,
 ) -> NodeId {
-    let accessibility = label.map(|label| {
-        let mut node = Node::new(Role::TextInput);
-        if !label.is_empty() {
-            node.set_label(label);
-        }
-        node
-    });
     let plain = create_memo(move || plain.get());
     let glyph = create_memo(move || glyph.get());
-    let current = value.clone();
-    let clearable = create_memo(move || clearable.get() && !current.get().is_empty());
-    let clear = on_change.clone();
+    let clearable = create_memo(move || clearable.get());
     view! {
         <unstyled::TextInput
             value
@@ -62,7 +51,7 @@ pub fn TextInput(
             focused
             password
             select_on_focus
-            accessibility
+            label
             style={text_input_style()}
             on_change={move |value| on_change.call(value)}
             on_submit={move |value| on_submit.call(value)}
@@ -75,7 +64,6 @@ pub fn TextInput(
                     plain={plain.clone()}
                     glyph={glyph.clone()}
                     clearable={clearable.clone()}
-                    on_clear={clone!(clear -> move || clear.call(String::new()))}
                 />
             }}
         </unstyled::TextInput>
@@ -88,14 +76,16 @@ fn TextInputFrame(
     plain: Memo<bool>,
     glyph: Memo<String>,
     clearable: Memo<bool>,
-    on_clear: ClickCallback,
 ) -> NodeId {
     let TextInputHandle {
         field,
         hovered,
         focused,
         disabled,
+        empty,
+        clear,
     } = handle;
+    let clearable = create_memo(move || clearable.get() && !empty.get());
     let theme = use_theme();
     let marked = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
     let raised = create_memo(clone!(focused hovered -> move || {
@@ -137,14 +127,14 @@ fn TextInputFrame(
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
-                        {move || clone!(on_clear -> view! {
+                        {move || clone!(clear -> view! {
                             <Frame padding_horizontal=CLEAR_PADDING>
                                 <IconButton
                                     glyph={ICON_CLOSE.to_owned()}
                                     label="Clear"
                                     size=IconButtonSize::Compact
                                     press_focus=false
-                                    on_click={move || on_clear.call()}
+                                    on_click={move || clear.call()}
                                 />
                             </Frame>
                         })}
