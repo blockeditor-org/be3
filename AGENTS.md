@@ -37,6 +37,7 @@ Do:
 - In your handoff message, mention any small issues you encountered or small things you noticed that could make the code / application better.
 - If you don't need tests in your search results, consider `grep --exclude-dir="tests"`
 - If you find yourself polling waiting for a command to finish, run `./scripts/nopoll` in the foreground
+- When updating github actions workflows, remember that the new version will run on old PRs that don't have main's new changes applied
 
 Do not:
 - Do not create routines. Do not subscribe to PRs. Do not set check-in timers.

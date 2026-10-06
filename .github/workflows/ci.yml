@@ -53,7 +53,7 @@ jobs:
   # the commit that carries it is what a reviewer looks at in Paint review.
   #
   # The Android builds are signed on a worker with CI's keystore, the secret
-  # ANDROID_DEBUG_KEYSTORE_BASE64, so successive CI builds install as updates
+  # ANDROID_CI_KEYSTORE_BASE64, so successive CI builds install as updates
   # over one another. The plugins are in each, since an APK has nowhere else
   # to find them.
   #
@@ -118,10 +118,10 @@ jobs:
       - name: Write CI's Android keystore
         if: ${{ !cancelled() }}
         env:
-          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+          ANDROID_CI_KEYSTORE_BASE64: ${{ secrets.ANDROID_CI_KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$ANDROID_DEBUG_KEYSTORE_BASE64" ]; then
-            (umask 077 && printf '%s' "$ANDROID_DEBUG_KEYSTORE_BASE64" > buck/android/ci-keystore.base64)
+          if [ -n "$ANDROID_CI_KEYSTORE_BASE64" ]; then
+            (umask 077 && printf '%s' "$ANDROID_CI_KEYSTORE_BASE64" > buck/android/ci-keystore.base64)
           fi
 
       - name: Run //:ci
@@ -176,10 +176,17 @@ jobs:
       # test has still accepted the paintings the others made, and a run that
       # failed on a clippy warning it could not fix has still formatted the
       # rest, and both of those are worth the push.
+      #
+      # The keystore is deleted first rather than left to .gitignore, because
+      # the .gitignore is the pull request's: one based on a main from before
+      # the keystore was ignored would stage it, and one that already tracks it
+      # would stage the secret's new value. Deleted, the most it can stage is
+      # its removal.
       - name: Collect what verification changed
         id: collect
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         run: |
+          rm -f buck/android/ci-keystore.base64
           git add --all
           if git diff --cached --quiet; then
             echo 'Verification changed nothing.'
