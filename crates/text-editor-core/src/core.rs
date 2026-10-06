@@ -971,9 +971,10 @@ impl Core {
             );
             *cursor = match mode {
                 MoveMode::Move => CursorPosition::at(Position::at(&document, moved)),
-                MoveMode::Select => {
-                    CursorPosition::range(cursor.pos.anchor, Position::at(&document, moved))
-                }
+                MoveMode::Select => CursorPosition {
+                    drag_info: cursor.drag_info,
+                    ..CursorPosition::range(cursor.pos.anchor, Position::at(&document, moved))
+                },
             };
         }
         self.collapse_state
@@ -1116,7 +1117,7 @@ impl Core {
                         pos: Selection::range(cursor.pos.anchor, stopped_position),
                         vertical_move_start: Some(target_position),
                         node_select_start: None,
-                        drag_info: None,
+                        drag_info: cursor.drag_info,
                     };
                 }
                 VerticalMoveMode::Duplicate => self.cursor_positions.push(CursorPosition {
@@ -1781,7 +1782,7 @@ impl Core {
         if extend {
             if cursor.drag_info.is_none() {
                 cursor.drag_info = Some(DragInfo {
-                    start_pos: cursor.pos.focus,
+                    start_pos: cursor.pos.anchor,
                     selection_mode: mode,
                     select_syntax_node,
                 });

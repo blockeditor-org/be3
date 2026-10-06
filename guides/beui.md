@@ -313,7 +313,7 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `Grid`, `Text`,
   `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`, `Embed`,
-  `Portal`, `BackHandler`, `Shift` — and it stays small because most things are
+  `Portal`, `BackHandler`, `Shift`, `Fade` — and it stays small because most things are
   compositions of those. `unstyled::Picture` is one: a `Drawing` with a size.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
@@ -431,10 +431,13 @@ surface — publishing the rectangle and the clip it was laid out in through the
 `EmbedSlot` it was given and cutting that rectangle out of the surface so what
 is behind shows through. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
-`Offset` keeps a run of items along a `direction` and lays them out from an
-offset; it answers no input at all, so nothing scrolls by putting one in a view
-(see [Scrolling](#scrolling)). With `fit` it measures as long as its items,
-so a box sized by what it holds can still scroll once it is squeezed. `Shift`
+`Offset` takes exactly one child, lays it out at its full length along a
+`direction` and shows it from an offset; a run of rows goes in a `List` inside
+it. It answers no input at all, so nothing scrolls by putting one in a view
+(see [Scrolling](#scrolling)). With `fit` it measures as long as its child,
+so a box sized by what it holds can still scroll once it is squeezed. Rows far
+outside its viewport are culled like any other node out of sight. `Fade` paints
+its one child faded out toward each edge over the widths its `edges` name. `Shift`
 lays its child out moved `by` a vector without moving the space it takes, and
 paints nothing while the child is off the screen, which is how a sheet slides in. `VirtualList` is an ordinary box that stands for
 one item per key, each of an estimated `item_size`, and builds only the ones its slice of
@@ -658,27 +661,30 @@ that has more content beyond it, over at most `length` points and only as far
 as the content has scrolled, so a scroll whose rows happen to end exactly at
 its edge still reads as scrollable. The styled layer's scrollbar style fades by
 `theme::SCROLL_FADE`, so `styled::Scroll` and every styled control that scrolls
-fade. The offset puts the fade on the entries of its items (`Painter::faded`,
-`Entry::fade`), the same way it puts its clip there: the wgpu renderer
-multiplies the alpha of everything in that space by it in the shader, and the
-DOM renderer masks the item's frame with a gradient. Shapes a node paints
-itself and custom `Drawing`s are not faded.
+fade. `unstyled::Scroll` works the widths out from the position its offset
+reports and wraps the offset in a base `Fade`, which puts them on the entry of
+its child (`Painter::faded`, `Entry::fade`) the same way a clip is put there:
+the wgpu renderer multiplies the alpha of everything in that space by it in the
+shader, and the DOM renderer masks the child's frame with a gradient. Shapes a
+node paints itself and custom `Drawing`s are not faded.
 
 Under both sits the base `Offset`, which is named for what
-it does rather than for what it is used for: it holds a run of items along a
-direction and lays them out from an offset, with no bar, no theme, and no input
-of their own. A wheel, a touch drag and the arrow keys are `unstyled::Scroll`'s,
-which wraps the offset in a focusable `Interactive` for the keys, the wheel and
-the drag, keeps the momentum an unfinished fling carries, and
-drives the offset from all three. So reach for `Offset` when something needs its
+it does rather than for what it is used for: it shows its one child along a
+direction from an offset, with no bar, no theme, no fade and no input of its
+own. A wheel, a touch drag and the arrow keys are `unstyled::Scroll`'s,
+which puts its children in a `List` inside the offset, wraps that in a
+focusable `Interactive` for the keys, the wheel and the drag, keeps the
+momentum an unfinished fling carries, and drives the offset from all three. So reach for `Offset` when something needs its
 content shifted under a viewport and nothing more, and for a `Scroll` whenever
 something needs to scroll.
 
 That offset is anchored to a node, not measured from the top of the content:
-the scroll remembers the item at the top of its viewport and the distance it
-starts above the edge, so a row further up growing or shrinking - a wrapping
-label, an image that finished loading - leaves what is being read exactly where
-it is.
+the scroll remembers the node at the top of its viewport and where it started,
+so a row further up growing or shrinking - a wrapping label, an image that
+finished loading - leaves what is being read exactly where it is. It finds that
+node by walking down from its child through the nodes that lay their children
+out in place (`Element::passes_scroll_anchor`: `List`, `Frame` and `Fade`),
+taking the first child that reaches past the top of the viewport each time.
 
 ### Slider scales
 

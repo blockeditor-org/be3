@@ -8,6 +8,8 @@ use accesskit::Node;
 
 use crate::accessibility::{self, AccessibilityTree};
 use crate::base::child_list::{ChildHost, NodeChildren, SlotId};
+use crate::base::fade::FadeNode;
+use crate::base::frame::Sides;
 use crate::context::{Context, Moved};
 use crate::damage::{Damage, Region};
 use crate::file_picker::{FileFilter, FilePick, FilePickId};
@@ -90,6 +92,7 @@ pub struct Document {
     paint_revision: u64,
     delivering: bool,
     pub deferred_reveals: Vec<NodeId>,
+    pub deferred_fades: Vec<(NodeOf<FadeNode>, Sides)>,
     interaction_done: Option<Rc<dyn Fn()>>,
     laid_out: Option<Rc<dyn Fn()>>,
     constrained: HashSet<NodeId>,
@@ -290,6 +293,7 @@ impl Document {
             paint_revision: 0,
             delivering: false,
             deferred_reveals: Vec::new(),
+            deferred_fades: Vec::new(),
             interaction_done: None,
             laid_out: None,
             constrained: HashSet::new(),
@@ -1797,6 +1801,9 @@ impl Document {
             {
                 self.drop_placement(child, out, &mut dropped);
             }
+            if previous_held.is_none_or(|(_, was)| !was) {
+                dropped.push(id);
+            }
             for node in dropped {
                 self.release_placement(node);
             }
@@ -1960,6 +1967,11 @@ impl Document {
             }
             if !unsettled && self.layout_revision == self.arena.layout_revision {
                 break;
+            }
+        }
+        for (fade, edges) in std::mem::take(&mut self.deferred_fades) {
+            if self.arena.contains(fade.id()) {
+                self.set_fade(fade, edges);
             }
         }
         for node in std::mem::take(&mut self.deferred_reveals) {

@@ -1,6 +1,8 @@
 use super::*;
 use crate::geometry::vec2;
-use crate::reactive::{DynamicSegment, ForEach, ItemSize, List, Offset, component, view};
+use crate::reactive::{
+    DynamicSegment, ForEach, ItemSize, List, ListChild, Offset, component, view,
+};
 use crate::unstyled::Scroll;
 
 #[test]
@@ -11,7 +13,9 @@ fn an_offset_leaves_the_wheel_to_the_scroll_around_it() {
                 <Scroll @sizing=ItemSize::Percent(100.0) @test_id="scroll">
                     <Frame height=150.0>
                         <Offset @test_id="offset">
-                            <Rows count=20 />
+                            <List spacing=0.0>
+                                <Rows count=20 />
+                            </List>
                         </Offset>
                     </Frame>
                     <Rows count=20 />
@@ -39,7 +43,7 @@ fn an_offset_leaves_the_wheel_to_the_scroll_around_it() {
 }
 
 #[component]
-fn Rows(count: usize) -> DynamicSegment<NodeId> {
+fn Rows(count: usize) -> DynamicSegment<ListChild> {
     view! {
         <ForEach keys={indices(count)}>
             {|index: usize| view! {

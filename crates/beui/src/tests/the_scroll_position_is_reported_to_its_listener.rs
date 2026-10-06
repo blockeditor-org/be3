@@ -12,15 +12,17 @@ fn the_scroll_position_is_reported_to_its_listener() {
                     @sizing=ItemSize::Percent(100.0)
                     on_change={move |position| sink.set(Some(position))}
                 >
-                    <ForEach keys={indices(100)}>
-                        {|index: usize| view! {
-                            <Text
-                                string={format!("Row {index}")}
-                                font_size=14.0
-                                color=Color32::WHITE
-                            />
-                        }}
-                    </ForEach>
+                    <List spacing=0.0>
+                        <ForEach keys={indices(100)}>
+                            {|index: usize| view! {
+                                <Text
+                                    string={format!("Row {index}")}
+                                    font_size=14.0
+                                    color=Color32::WHITE
+                                />
+                            }}
+                        </ForEach>
+                    </List>
                 </Offset>
             </List>
         }

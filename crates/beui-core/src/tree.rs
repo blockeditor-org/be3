@@ -10,7 +10,6 @@ use beui_tree::reactive::{
 
 use crate::base::child_list::ChildHost;
 use crate::base::list::{ListItem, ListNode};
-use crate::base::offset::OffsetNode;
 use crate::base::{ItemSize, Sizing};
 use crate::current::{try_with_document, with_document};
 use crate::geometry::{Rect, Vec2};
@@ -201,10 +200,6 @@ impl SlotChild for NodeId {
     fn discard(stored: &NodeId) {
         remove_stored_node(*stored);
     }
-}
-
-impl NodeSlot for NodeId {
-    type Host = OffsetNode;
 }
 
 impl IntoChild<NodeId> for NodeId {

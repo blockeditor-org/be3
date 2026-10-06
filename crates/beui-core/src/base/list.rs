@@ -499,6 +499,10 @@ impl Element for ListNode {
         self.items.nodes()
     }
 
+    fn passes_scroll_anchor(&self) -> bool {
+        true
+    }
+
     fn kind(&self) -> &'static str {
         match self.direction {
             Direction::Horizontal => "row",
