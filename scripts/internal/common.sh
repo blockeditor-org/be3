@@ -395,9 +395,9 @@ namespace_token_file() {
         if [[ "$token" != '{'* ]]; then
             token="{\"bearer_token\":\"$token\"}"
         fi
-        (umask 077 && printf '%s\n' "$token" > "$file.partial")
-        write_if_changed "$file.partial" "$file"
-        rm -f "$file.partial"
+        (umask 077 && printf '%s\n' "$token" > "$file.new")
+        write_if_changed "$file.new" "$file"
+        rm -f "$file.new"
         echo "$file"
     elif [[ -f "$repository/.namespace-token.json" ]]; then
         echo "$repository/.namespace-token.json"

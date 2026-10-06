@@ -2306,6 +2306,7 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
+                    "//third-party/rust:wayland-protocols-misc-0.3.12",
                 ],
                 "test_features": [],
             },
@@ -2324,6 +2325,7 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
+                    "//third-party/rust:wayland-protocols-misc-0.3.12",
                 ],
                 "test_features": [],
             },
@@ -2342,6 +2344,7 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
+                    "//third-party/rust:wayland-protocols-misc-0.3.12",
                 ],
                 "test_features": [],
             },
@@ -2360,6 +2363,7 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
+                    "//third-party/rust:wayland-protocols-misc-0.3.12",
                 ],
                 "test_features": [],
             },
@@ -2378,6 +2382,7 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
+                    "//third-party/rust:wayland-protocols-misc-0.3.12",
                 ],
                 "test_features": [],
             },
@@ -2396,6 +2401,7 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
+                    "//third-party/rust:wayland-protocols-misc-0.3.12",
                 ],
                 "test_features": [],
             },
@@ -2414,6 +2420,7 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
+                    "//third-party/rust:wayland-protocols-misc-0.3.12",
                 ],
                 "test_features": [],
             },
@@ -54773,12 +54780,15 @@ third_party = {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":wayland-backend-0.3.15",
+                    ":wayland-client-0.31.14",
                     ":wayland-protocols-0.32.12",
                     ":wayland-scanner-0.31.10",
                     ":wayland-server-0.31.14",
                 ],
                 "features": [
+                    "client",
                     "server",
+                    "wayland-client",
                     "wayland-server",
                 ],
             },
@@ -54786,12 +54796,15 @@ third_party = {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":wayland-backend-0.3.15",
+                    ":wayland-client-0.31.14",
                     ":wayland-protocols-0.32.12",
                     ":wayland-scanner-0.31.10",
                     ":wayland-server-0.31.14",
                 ],
                 "features": [
+                    "client",
                     "server",
+                    "wayland-client",
                     "wayland-server",
                 ],
             },
@@ -54799,12 +54812,15 @@ third_party = {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":wayland-backend-0.3.15",
+                    ":wayland-client-0.31.14",
                     ":wayland-protocols-0.32.12",
                     ":wayland-scanner-0.31.10",
                     ":wayland-server-0.31.14",
                 ],
                 "features": [
+                    "client",
                     "server",
+                    "wayland-client",
                     "wayland-server",
                 ],
             },
@@ -54812,12 +54828,15 @@ third_party = {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":wayland-backend-0.3.15",
+                    ":wayland-client-0.31.14",
                     ":wayland-protocols-0.32.12",
                     ":wayland-scanner-0.31.10",
                     ":wayland-server-0.31.14",
                 ],
                 "features": [
+                    "client",
                     "server",
+                    "wayland-client",
                     "wayland-server",
                 ],
             },
@@ -54825,12 +54844,15 @@ third_party = {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":wayland-backend-0.3.15",
+                    ":wayland-client-0.31.14",
                     ":wayland-protocols-0.32.12",
                     ":wayland-scanner-0.31.10",
                     ":wayland-server-0.31.14",
                 ],
                 "features": [
+                    "client",
                     "server",
+                    "wayland-client",
                     "wayland-server",
                 ],
             },
@@ -54838,12 +54860,15 @@ third_party = {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":wayland-backend-0.3.15",
+                    ":wayland-client-0.31.14",
                     ":wayland-protocols-0.32.12",
                     ":wayland-scanner-0.31.10",
                     ":wayland-server-0.31.14",
                 ],
                 "features": [
+                    "client",
                     "server",
+                    "wayland-client",
                     "wayland-server",
                 ],
             },
@@ -54851,12 +54876,15 @@ third_party = {
                 "deps": [
                     ":bitflags-2.12.1",
                     ":wayland-backend-0.3.15",
+                    ":wayland-client-0.31.14",
                     ":wayland-protocols-0.32.12",
                     ":wayland-scanner-0.31.10",
                     ":wayland-server-0.31.14",
                 ],
                 "features": [
+                    "client",
                     "server",
+                    "wayland-client",
                     "wayland-server",
                 ],
             },
