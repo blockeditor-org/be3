@@ -940,6 +940,7 @@ name = "beui-core"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "beui-tree",
  "foldhash 0.2.0",
  "geometry",
  "raw-window-handle",
@@ -1027,11 +1028,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-tree"
+version = "0.1.0"
+dependencies = [
+ "beui_macros",
+ "reactive",
+]
+
+[[package]]
 name = "beui-view"
 version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-core",
+ "beui-tree",
  "beui_macros",
  "reactive",
 ]

@@ -20,6 +20,12 @@ pub enum OverlayAnchor {
     Point(Pos2),
 }
 
+impl beui_tree::reactive::IntoProp<OverlayAnchor> for &NodeRef {
+    fn into_prop(self) -> beui_tree::reactive::Prop<OverlayAnchor> {
+        beui_tree::reactive::Prop::Static(OverlayAnchor::Node(self.clone()))
+    }
+}
+
 impl Default for OverlayAnchor {
     fn default() -> Self {
         OverlayAnchor::Point(Pos2::ZERO)

@@ -2,7 +2,7 @@ use std::any::Any;
 use std::cell::Cell;
 use std::collections::HashMap;
 
-use crate::base::child_list::{ChildHost, ChildList};
+use crate::base::child_list::{ChildHost, ChildList, NodeChildren};
 use crate::base::list::Direction;
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;

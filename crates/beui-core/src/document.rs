@@ -7,7 +7,7 @@ use std::time::Instant;
 use accesskit::Node;
 
 use crate::accessibility::{self, AccessibilityTree};
-use crate::base::child_list::{ChildHost, SlotId};
+use crate::base::child_list::{ChildHost, NodeChildren, SlotId};
 use crate::context::{Context, Moved};
 use crate::damage::{Damage, Region};
 use crate::file_picker::{FileFilter, FilePick, FilePickId};

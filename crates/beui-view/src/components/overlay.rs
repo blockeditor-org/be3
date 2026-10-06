@@ -1,8 +1,6 @@
 use beui_core::color::Color32;
 
-use crate::reactive::{
-    Child, ClickCallback, IntoProp, NodeRef, Prop, create_effect, with_document,
-};
+use crate::reactive::{Child, ClickCallback, NodeRef, Prop, create_effect, with_document};
 use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 use beui_core::node::NodeId;
 use beui_macros::component;
@@ -56,10 +54,4 @@ pub fn Overlay(
         });
     });
     overlay.id()
-}
-
-impl IntoProp<OverlayAnchor> for &NodeRef {
-    fn into_prop(self) -> Prop<OverlayAnchor> {
-        Prop::Static(OverlayAnchor::Node(self.clone()))
-    }
 }

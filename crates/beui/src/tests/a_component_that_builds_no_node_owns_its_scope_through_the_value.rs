@@ -12,10 +12,6 @@ struct Note {
 }
 
 impl ChildValue for Note {
-    fn anchor(&self) -> Option<NodeId> {
-        None
-    }
-
     fn adopt_scope(&mut self, scope: Scope) {
         self.scope.adopt(scope);
     }

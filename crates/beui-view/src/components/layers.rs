@@ -1,10 +1,11 @@
 use crate::reactive::{
-    BuildsNode, ChildSegment, ChildValue, Children, IntoChild, IntoSegment, NodeSlot, Scope,
-    SlotChild, with_document,
+    BuildsNode, ChildSegment, ChildValue, Children, ComponentContext, IntoChild, IntoSegment,
+    NodeSlot, Scope, SlotChild, with_document,
 };
 use beui_core::base::layers::LayersNode;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
+use beui_core::tree::remove_stored_node;
 use beui_macros::component;
 
 pub struct Layer {
@@ -18,12 +19,12 @@ impl BuildsNode for Layer {
 }
 
 impl ChildValue for Layer {
-    fn anchor(&self) -> Option<NodeId> {
-        Some(self.node)
-    }
-
     fn adopt_scope(&mut self, scope: Scope) {
         self.node.adopt_scope(scope);
+    }
+
+    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
+        self.node.finish_component(component, scope);
     }
 }
 
@@ -44,12 +45,12 @@ impl IntoSegment<Layer> for NodeId {
 impl SlotChild for Layer {
     type Stored = NodeId;
 
-    fn store(self, _parent: Option<NodeId>) -> NodeId {
+    fn store(self) -> NodeId {
         self.node
     }
 
-    fn stored_node(stored: &NodeId) -> Option<NodeId> {
-        Some(*stored)
+    fn discard(stored: &NodeId) {
+        remove_stored_node(*stored);
     }
 }
 

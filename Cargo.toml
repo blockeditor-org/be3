@@ -30,6 +30,7 @@ members = [
     "crates/beui-font-freetype",
     "crates/beui-inspector",
     "crates/beui-renderer-wgpu",
+    "crates/beui-tree",
     "crates/beui-view",
     "crates/beui-plugin-input",
     "crates/geometry",

@@ -78,10 +78,6 @@ enum EntryKind<K: 'static> {
 macro_rules! dock_child {
     ($ty:ident) => {
         impl<K: 'static> ChildValue for $ty<K> {
-            fn anchor(&self) -> Option<NodeId> {
-                None
-            }
-
             fn adopt_scope(&mut self, scope: Scope) {
                 self.scope.adopt(scope);
             }
@@ -108,12 +104,8 @@ macro_rules! dock_child {
         impl<K: 'static> SlotChild for $ty<K> {
             type Stored = Rc<$ty<K>>;
 
-            fn store(self, _parent: Option<NodeId>) -> Self::Stored {
+            fn store(self) -> Self::Stored {
                 Rc::new(self)
-            }
-
-            fn stored_node(_stored: &Self::Stored) -> Option<NodeId> {
-                None
             }
         }
     };
