@@ -1,6 +1,8 @@
 use super::*;
-use crate::reactive::{ReadSignal, create_memo};
-use crate::unstyled::{Container, DockMode, DockState, TabId, dock_actions, narrower_than};
+use crate::reactive::{ForEach, ReadSignal, create_memo};
+use crate::unstyled::{
+    Container, DockMode, DockPane, DockTab, DockingLayout, dock_actions, narrower_than,
+};
 
 const PHONE: Vec2 = Vec2::new(390.0, 800.0);
 const NARROW: f32 = 600.0;
@@ -12,28 +14,33 @@ fn Docked() -> NodeId {
         true => DockMode::Stacked,
         false => DockMode::Tiled,
     });
-    let mut layout = DockState::new([TabId::new(1), TabId::new(2)]);
-    layout.show(TabId::new(2));
-    let (state, set_state) = create_signal(layout);
+    let layout = DockingLayout::new();
     view! {
-        <styled::DockArea
-            state={state}
-            mode={mode}
-            home={Some(TabId::new(1))}
-            title={Func::new(|tab: TabId| format!("Tab {}", tab.value()))}
-            on_change={move |next: DockState| set_state.set(next)}
-            on_close={move |_: TabId| {}}
-        >
-            {move |tab: TabId| {
-                let id = tab.value();
-                dock_actions(move || view! {
-                    <Frame @test_id={format!("action.{id}")} width=24.0 height=24.0 />
-                });
-                view! {
-                    <Frame @test_id={format!("content.{id}")} />
-                }
-            }}
-        </styled::DockArea>
+        <styled::Docking layout mode={mode} home=1u64 focus=2u64>
+            <DockPane id="tabs">
+                <ForEach keys={vec![1u64, 2]}>
+                    {move |id: u64| view! {
+                        <DockTab
+                            id
+                            title={format!("Tab {id}")}
+                            on_close={|| {}}
+                            content={move || {
+                                dock_actions(move || view! {
+                                    <Frame
+                                        @test_id={format!("action.{id}")}
+                                        width=24.0
+                                        height=24.0
+                                    />
+                                });
+                                view! {
+                                    <Frame @test_id={format!("content.{id}")} />
+                                }
+                            }}
+                        />
+                    }}
+                </ForEach>
+            </DockPane>
+        </styled::Docking>
     }
 }
 

@@ -20,6 +20,12 @@ pub enum OverlayAnchor {
     Point(Pos2),
 }
 
+impl beui_tree::reactive::IntoProp<OverlayAnchor> for &NodeRef {
+    fn into_prop(self) -> beui_tree::reactive::Prop<OverlayAnchor> {
+        beui_tree::reactive::Prop::Static(OverlayAnchor::Node(self.clone()))
+    }
+}
+
 impl Default for OverlayAnchor {
     fn default() -> Self {
         OverlayAnchor::Point(Pos2::ZERO)
@@ -503,10 +509,28 @@ impl Document {
         self.overlay_stack
             .iter()
             .chain(self.passive_overlays.iter())
-            .filter_map(|overlay| self.overlay_content(*overlay))
-            .filter_map(|content| self.node_rect(content))
-            .filter(|rect| rect.is_positive())
+            .filter_map(|overlay| self.overlay_cover(*overlay))
             .collect()
+    }
+
+    pub fn overlay_cover(&self, overlay: NodeOf<OverlayNode>) -> Option<Rect> {
+        self.cover_of(overlay, true)
+    }
+
+    pub fn overlay_occluder(&self, overlay: NodeOf<OverlayNode>) -> Option<Rect> {
+        self.cover_of(overlay, false)
+    }
+
+    fn cover_of(&self, overlay: NodeOf<OverlayNode>, light_scrim: bool) -> Option<Rect> {
+        let node = self.arena.get_as::<OverlayNode>(overlay);
+        let content = self.node_rect(node.content?)?;
+        let cover = match node.mode.stacked() && (light_scrim || !node.light) {
+            true => self
+                .node_rect(node.scrim)
+                .map_or(content, |scrim| scrim.union(content)),
+            false => content,
+        };
+        cover.is_positive().then_some(cover)
     }
 
     pub fn open_overlay(&mut self, overlay: NodeOf<OverlayNode>) {

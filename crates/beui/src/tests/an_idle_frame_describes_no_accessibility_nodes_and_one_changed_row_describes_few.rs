@@ -1,22 +1,18 @@
 use super::*;
-use crate::base::offset::OffsetNode;
 
 const ROWS: usize = 40;
 
 #[test]
 fn an_idle_frame_describes_no_accessibility_nodes_and_one_changed_row_describes_few() {
     let mut document = Document::new();
-    let scroll = document.create_offset();
     let rows: Vec<NodeOf<TextNode>> = (0..ROWS)
         .map(|index| document.create_text(format!("row {index}"), 14.0, Color32::WHITE))
         .collect();
+    let list = document.create_list(Direction::Vertical, 0.0);
     for row in &rows {
-        document
-            .arena
-            .get_mut_as::<OffsetNode>(scroll)
-            .items
-            .push(row.id());
+        document.append_child(list, row.id(), ItemSize::Intrinsic);
     }
+    let scroll = document.create_offset(list.id());
     document.set_root(scroll.id());
     let mut harness = Harness::new(document);
     let first = harness.frame(Vec::new());

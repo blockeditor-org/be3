@@ -8,8 +8,8 @@
 // left out: the one in its headers when it had nothing else to say, and OK
 // when its body arrived whole.
 //
-//	re-relay serve  -listen 127.0.0.1:18980 -upstream blocks.pfg.pw
-//	re-relay ensure -listen 127.0.0.1:18980 -upstream blocks.pfg.pw -version <hash> -log <path>
+//	re-relay serve  -listen 127.0.0.1:18980 -upstream reapih-1qerp51pgtrac.iad4.namespaced.app
+//	re-relay ensure -listen 127.0.0.1:18980 -upstream reapih-1qerp51pgtrac.iad4.namespaced.app -version <hash> -log <path>
 //
 // ensure returns once a relay of that version is listening, starting one in
 // the background if there is none, and replacing one of another version.

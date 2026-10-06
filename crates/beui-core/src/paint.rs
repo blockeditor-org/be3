@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use crate::damage::Region;
 use crate::display::{Display, Item as DisplayItem, Part};
+use crate::fade::Fade;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::painter::{Entry, Painter, PainterState, Shape, placed_shape};
 
@@ -399,12 +400,17 @@ fn changed_items(old: &Display, new: &Display) -> Vec<Rect> {
             DisplayItem::Child(id, _) => children
                 .get(id)
                 .copied()
-                .filter(|at| *at >= next && before[*at].0 == *item),
+                .filter(|at| *at >= next && refaded(&before[*at].0, item).is_some()),
             _ => (next..before.len().min(next + SHAPE_REACH)).find(|at| before[*at].0 == *item),
         };
         match found {
             Some(at) => {
                 damaged.extend(before[next..at].iter().map(|(_, bounds)| *bounds));
+                if let Some((was, now)) = refaded(&before[at].0, item)
+                    && was != now
+                {
+                    damaged.extend(was.bands().into_iter().chain(now.bands()));
+                }
                 next = at + 1;
             }
             None => damaged.push(*bounds),
@@ -540,6 +546,9 @@ fn scrolled(old: &Painted, new: &Painted) -> Option<Moving> {
     if !old.placement.own.sees(new.placement.own) || !old.placement.own.settles(new.placement.own) {
         return None;
     }
+    let faded = [old.entry, new.entry]
+        .map(|entry| entry.fade.translate(-entry.translation).bands())
+        .concat();
     let (old, new) = (&old.display, &new.display);
     if unshifted(old) != unshifted(new) {
         return None;
@@ -600,6 +609,7 @@ fn scrolled(old: &Painted, new: &Painted) -> Option<Moving> {
         .into_iter()
         .chain(first.1.fade.bands())
         .chain(last.1.fade.bands())
+        .chain(faded)
     {
         damaged.push(within(rect));
         damaged.push(within(rect.translate(by)));
@@ -856,7 +866,27 @@ pub fn redrawn_in_place(old: &Shape, new: &Shape) -> Option<Region> {
 }
 
 fn children(display: &Display) -> impl Iterator<Item = (NodeId, Entry)> + '_ {
-    display.children().map(|(child, entry, _)| (child, entry))
+    display
+        .children()
+        .map(|(child, entry, _)| (child, unfaded(entry)))
+}
+
+fn unfaded(entry: Entry) -> Entry {
+    Entry {
+        fade: Fade::NONE,
+        ..entry
+    }
+}
+
+fn refaded(old: &DisplayItem<'_>, new: &DisplayItem<'_>) -> Option<(Fade, Fade)> {
+    match (old, new) {
+        (DisplayItem::Child(was, before), DisplayItem::Child(now, after))
+            if was == now && unfaded(*before) == unfaded(*after) =>
+        {
+            Some((before.fade, after.fade))
+        }
+        _ => None,
+    }
 }
 
 pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {

@@ -7,7 +7,9 @@ use std::time::Instant;
 use accesskit::Node;
 
 use crate::accessibility::{self, AccessibilityTree};
-use crate::base::child_list::{ChildHost, SlotId};
+use crate::base::child_list::{ChildHost, NodeChildren, SlotId};
+use crate::base::fade::FadeNode;
+use crate::base::frame::Sides;
 use crate::context::{Context, Moved};
 use crate::damage::{Damage, Region};
 use crate::file_picker::{FileFilter, FilePick, FilePickId};
@@ -90,6 +92,7 @@ pub struct Document {
     paint_revision: u64,
     delivering: bool,
     pub deferred_reveals: Vec<NodeId>,
+    pub deferred_fades: Vec<(NodeOf<FadeNode>, Sides)>,
     interaction_done: Option<Rc<dyn Fn()>>,
     laid_out: Option<Rc<dyn Fn()>>,
     constrained: HashSet<NodeId>,
@@ -290,6 +293,7 @@ impl Document {
             paint_revision: 0,
             delivering: false,
             deferred_reveals: Vec::new(),
+            deferred_fades: Vec::new(),
             interaction_done: None,
             laid_out: None,
             constrained: HashSet::new(),
@@ -522,6 +526,38 @@ impl Document {
 
     pub fn children(&self, id: NodeId) -> Vec<NodeId> {
         self.arena.get(id).children()
+    }
+
+    pub fn overlay_layers(&self) -> Vec<(Vec<usize>, Rect)> {
+        self.overlays_bottom_up()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, overlay)| Some((vec![index + 1], self.overlay_occluder(overlay)?)))
+            .collect()
+    }
+
+    pub fn paint_order(&self, node: NodeId) -> Vec<usize> {
+        let overlays = self.overlays_bottom_up();
+        let mut path = Vec::new();
+        let mut current = node;
+        let layer = loop {
+            if let Some(layer) = overlays.iter().position(|overlay| overlay.id() == current) {
+                break layer + 1;
+            }
+            let Some(parent) = self.arena.parent(current) else {
+                break 0;
+            };
+            let index = self
+                .children(parent)
+                .iter()
+                .position(|child| *child == current)
+                .unwrap_or_default();
+            path.push(index);
+            current = parent;
+        };
+        path.push(layer);
+        path.reverse();
+        path
     }
 
     pub fn open_child_slot<H: ChildHost>(&mut self, node: NodeOf<H>) -> SlotId {
@@ -1765,6 +1801,9 @@ impl Document {
             {
                 self.drop_placement(child, out, &mut dropped);
             }
+            if previous_held.is_none_or(|(_, was)| !was) {
+                dropped.push(id);
+            }
             for node in dropped {
                 self.release_placement(node);
             }
@@ -1928,6 +1967,11 @@ impl Document {
             }
             if !unsettled && self.layout_revision == self.arena.layout_revision {
                 break;
+            }
+        }
+        for (fade, edges) in std::mem::take(&mut self.deferred_fades) {
+            if self.arena.contains(fade.id()) {
+                self.set_fade(fade, edges);
             }
         }
         for node in std::mem::take(&mut self.deferred_reveals) {

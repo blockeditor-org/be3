@@ -7,26 +7,35 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::ICON_FOLDER;
+use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_WEB_ASSET};
 use block_editor_beui::beui::reactive::{
-    Align, Frame, Func, ItemSize, List, Memo, NodeRef, ReadSignal, Spacer, WriteSignal, clone,
-    component, create_effect, create_memo, create_signal, untrack, view,
+    Align, ForEach, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Spacer, WriteSignal, batch,
+    clone, component, create_effect, create_memo, create_signal, untrack, view,
 };
-use block_editor_beui::beui::styled::{Caption, Heading, use_theme};
+use block_editor_beui::beui::styled::{Caption, Docking, Heading, use_theme};
 use block_editor_beui::beui::unstyled::{
-    Container, DockMode, DockState, LeafId, Side, TabId, narrower_than,
+    Container, DockEntry, DockMode, DockNode, DockPane, DockSplit, DockTab, DockWindow,
+    DockingLayout, TabId, narrower_than,
 };
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, ChildBlock, ChildBlockHandle, ChildMode, ChildState, ChildTarget,
-    Editor, EditorDock, EditorHost, FocusedBlock, NARROW_WIDTH, PickedBlock, Pushed, TopBar,
+    AccessLevel, BlockFilter, BlockPick, ChildBlock, ChildBlockHandle, ChildMode, ChildState,
+    ChildTarget, Editor, EditorHost, FocusedBlock, HostPanel, HostWindow, HostWindowId,
+    NARROW_WIDTH, PickedBlock, Pushed, ShellDialog, TopBar,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
+use super::dialogs::OpenDialog;
+use super::dialogs::WorkspaceDialogs;
+use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::panel::BlockPanel;
+use super::picker::{Pick, PickAction, PickOutcome};
+use super::picker_view::PickerDialogs;
 use super::saved::{self, LAYOUT};
+use super::share::{Share, ShareAction};
 use super::tab::TabItem;
+use super::window::{WindowPanel, dialog_window, tab_window, window_tab, window_title};
 
 pub(crate) const FILES: TabId = TabId::new(1);
 const FIRST_BLOCK_TAB: u64 = 2;
@@ -45,8 +54,7 @@ pub(crate) enum PhoneSheet {
 
 pub(crate) struct Workspace {
     editor: Editor,
-    layout: ReadSignal<DockState>,
-    set_layout: WriteSignal<DockState>,
+    layout: DockingLayout<TabId>,
     tabs: ReadSignal<Tabs>,
     set_tabs: WriteSignal<Tabs>,
     views: ReadSignal<HashMap<TabId, Uuid>>,
@@ -73,11 +81,20 @@ pub(crate) struct Workspace {
     set_phone: WriteSignal<bool>,
     pub(crate) sheet: ReadSignal<PhoneSheet>,
     set_sheet: WriteSignal<PhoneSheet>,
+    pub(crate) picks: ReadSignal<Vec<Pick>>,
+    set_picks: WriteSignal<Vec<Pick>>,
+    pub(crate) dialog: ReadSignal<Option<OpenDialog>>,
+    set_dialog: WriteSignal<Option<OpenDialog>>,
+    pub(crate) share: ReadSignal<Option<Share>>,
+    set_share: WriteSignal<Option<Share>>,
+    every_block: RefCell<Option<BlockList>>,
+    windows: Memo<Vec<HostWindow>>,
+    panels: ReadSignal<Vec<HostPanel>>,
+    set_panels: WriteSignal<Vec<HostPanel>>,
 }
 
 impl Workspace {
     fn new(editor: Editor) -> Rc<Self> {
-        let (layout, set_layout) = create_signal(starting_layout());
         let (tabs, set_tabs) = create_signal(Tabs::new());
         let (views, set_views) = create_signal(HashMap::new());
         let (titles, set_titles) = create_signal(HashMap::new());
@@ -88,10 +105,14 @@ impl Workspace {
         let (routes, set_routes) = create_signal(0);
         let (phone, set_phone) = create_signal(false);
         let (sheet, set_sheet) = create_signal(PhoneSheet::Closed);
+        let (picks, set_picks) = create_signal(Vec::new());
+        let (dialog, set_dialog) = create_signal(None);
+        let (share, set_share) = create_signal(None);
+        let (panels, set_panels) = create_signal(Vec::new());
+        let windows = editor.windows();
         let workspace = Rc::new(Self {
             editor,
-            layout,
-            set_layout,
+            layout: DockingLayout::new(),
             tabs,
             set_tabs,
             views,
@@ -118,6 +139,16 @@ impl Workspace {
             set_phone,
             sheet,
             set_sheet,
+            picks,
+            set_picks,
+            dialog,
+            set_dialog,
+            share,
+            set_share,
+            every_block: RefCell::new(None),
+            windows,
+            panels,
+            set_panels,
         });
         let shows = workspace.editor.pushed(Pushed::Shows);
         let showing = Rc::downgrade(&workspace);
@@ -149,6 +180,12 @@ impl Workspace {
         create_effect(move || {
             if let Some(workspace) = focusing.upgrade() {
                 workspace.report_focus();
+            }
+        });
+        let listing = Rc::downgrade(&workspace);
+        workspace.editor.on_reply(move || {
+            if let Some(workspace) = listing.upgrade() {
+                workspace.share_listed();
             }
         });
         let watching = Rc::downgrade(&workspace);
@@ -221,6 +258,24 @@ impl Workspace {
     }
 
     fn show_requested(&self) {
+        let requested: Vec<Pick> = self
+            .host()
+            .take_pick_requests()
+            .into_iter()
+            .map(Pick::new)
+            .collect();
+        if !requested.is_empty() {
+            self.set_picks.update(|picks| picks.extend(requested));
+        }
+        for (block, dialog) in self.host().take_dialog_requests() {
+            match dialog {
+                ShellDialog::Rename => self.open_dialog(OpenDialog::Rename(block)),
+                ShellDialog::Share => self.open_dialog(OpenDialog::Share(block)),
+            }
+        }
+        for panel in self.editor.take_panel_requests() {
+            self.show_panel(panel);
+        }
         for request in self.host().take_show_requests() {
             self.open(
                 TabItem {
@@ -229,6 +284,153 @@ impl Workspace {
                 },
                 request.via,
             );
+        }
+    }
+
+    pub(crate) fn open_dialog(&self, dialog: OpenDialog) {
+        self.forget_share();
+        if let OpenDialog::Share(block) = dialog {
+            let request = self.host().list_access(block);
+            self.set_share.set(Some(Share::new(block, request)));
+        }
+        self.set_dialog.set(Some(dialog));
+    }
+
+    pub(crate) fn close_dialog(&self) {
+        self.forget_share();
+        self.set_dialog.set(None);
+    }
+
+    fn forget_share(&self) {
+        if let Some(Share {
+            request: Some(request),
+            ..
+        }) = self.share.get_untracked()
+        {
+            self.host().forget_request(request);
+        }
+        self.set_share.set(None);
+    }
+
+    pub(crate) fn rename(&self, block: Uuid, name: &str) {
+        let name = name.trim().to_owned();
+        self.blocks()
+            .set_name(block, (!name.is_empty()).then_some(name));
+        self.close_dialog();
+    }
+
+    pub(crate) fn share_action(&self, action: ShareAction) {
+        let Some(mut share) = self.share.get_untracked() else {
+            return;
+        };
+        let (grants, mut reload) = share.act(action, self.host().account_id());
+        for (account, access) in grants {
+            self.host().set_access(share.block, account, access);
+            reload = true;
+        }
+        if reload {
+            if let Some(request) = share.request.take() {
+                self.host().forget_request(request);
+            }
+            share.error = None;
+            share.request = Some(self.host().list_access(share.block));
+        }
+        self.set_share.set(Some(share));
+    }
+
+    fn share_listed(&self) {
+        let Some(mut share) = self.share.get_untracked() else {
+            return;
+        };
+        let Some(listing) = share
+            .request
+            .and_then(|request| self.host().take_access_listing(request))
+        else {
+            return;
+        };
+        share.listed(listing);
+        self.set_share.set(Some(share));
+    }
+
+    pub(crate) fn every_block(&self) -> Vec<BlockInfo> {
+        let mut held = self.every_block.borrow_mut();
+        held.get_or_insert_with(|| self.blocks().watch(BlockQuery::All))
+            .read()
+    }
+
+    pub(crate) fn pick(&self, pick: u64) -> Option<Pick> {
+        self.picks
+            .with(|picks| picks.iter().find(|held| held.pick == pick).cloned())
+    }
+
+    pub(crate) fn pick_action(&self, pick: u64, action: PickAction) {
+        let Some(held) = self.pick(pick) else {
+            return;
+        };
+        match held.act(action) {
+            PickOutcome::Open(mut held) => {
+                self.send_commit(&mut held);
+                self.resolve(PickOutcome::Open(held));
+            }
+            answered => self.resolve(answered),
+        }
+    }
+
+    fn send_commit(&self, held: &mut Pick) {
+        let name = Some(held.name.trim().to_owned()).filter(|name| !name.is_empty());
+        let parent = held.created_parent();
+        if let Some(creating) = &mut held.creating
+            && let Some(child) = creating.child
+            && creating.committed
+            && !creating.sent
+        {
+            creating.sent = true;
+            self.host().commit_child(child, parent, name);
+        }
+    }
+
+    pub(crate) fn creation_state(&self, pick: u64, state: &ChildState) {
+        let Some(mut held) = self.pick(pick) else {
+            return;
+        };
+        if let Some(creating) = &mut held.creating {
+            creating.child = state.child;
+        }
+        self.send_commit(&mut held);
+        match &state.creation {
+            Some(progress) => self.resolve(held.progressed(progress)),
+            None => self.resolve(PickOutcome::Open(held)),
+        }
+    }
+
+    fn resolve(&self, outcome: PickOutcome) {
+        match outcome {
+            PickOutcome::Open(held) => {
+                if self.pick(held.pick).as_ref() != Some(&held) {
+                    self.set_picks.update(|picks| {
+                        if let Some(slot) = picks.iter_mut().find(|slot| slot.pick == held.pick) {
+                            *slot = held;
+                        }
+                    });
+                }
+            }
+            PickOutcome::Answered(pick, answer, into) => {
+                self.set_picks
+                    .update(|picks| picks.retain(|held| held.pick != pick));
+                if let (BlockPick::Chosen { .. }, Some((block, block_type, container))) =
+                    (&answer, into)
+                {
+                    self.host().place_block(block, block_type, container, false);
+                }
+                self.host().answer_pick(pick, answer);
+            }
+        }
+    }
+
+    fn show_panel(&self, panel: HostPanel) {
+        match self.panels.with_untracked(|panels| panels.contains(&panel)) {
+            true => self.layout.show(&panel_tab(panel)),
+            false => self.set_panels.update(|panels| panels.push(panel)),
         }
     }
 
@@ -265,28 +467,12 @@ impl Workspace {
         let mut files = None;
         if let Some(restored) = restored {
             files = restored.files;
-            let mut dock = restored.dock;
             let mut tabs = Tabs::new();
             let mut views = HashMap::new();
             for (tab, (item, view)) in restored.tabs {
                 self.record_type(item.id, item.block_type);
                 tabs.insert(tab, item);
                 views.insert(tab, view);
-            }
-            for tab in dock.all_tabs() {
-                if tab != FILES && !tabs.contains_key(&tab) {
-                    dock.remove(tab);
-                }
-            }
-            if !dock.contains(FILES) {
-                dock = starting_layout_with(dock);
-            }
-            let mut orphans: Vec<TabId> = tabs.keys().copied().collect();
-            orphans.sort();
-            for tab in orphans {
-                if !dock.contains(tab) {
-                    place_tab(&mut dock, tab);
-                }
             }
             let mut next = restored
                 .next_tab
@@ -301,19 +487,26 @@ impl Workspace {
                 if let Some(view) = opened_views.remove(&tab) {
                     views.insert(moved, view);
                 }
-                place_tab(&mut dock, moved);
             }
             self.next_tab.set(next);
-            self.set_tabs.set(tabs);
-            self.set_views.set(views);
-            self.set_layout.set(settled(dock));
+            let panels: Vec<HostPanel> = restored
+                .dock
+                .keys()
+                .filter_map(|tab| tab_panel(*tab))
+                .collect();
+            batch(|| {
+                self.set_tabs.set(tabs);
+                self.set_views.set(views);
+                self.set_panels.set(panels);
+                self.layout.restore(restored.dock);
+            });
         }
         let files = files.or_else(|| self.create_view(FILES_EDITOR, None));
         self.set_files.set(files);
     }
 
     fn save(&self) {
-        let layout = self.layout.get();
+        let layout = self.layout.snapshot();
         let tabs = self.tabs.get();
         let views = self.views.get();
         let files = self.files.get();
@@ -342,8 +535,8 @@ impl Workspace {
 
     fn report_focus(&self) {
         let shown = match self.phone.get() {
-            true => self.layout.with(DockState::stacked_tab),
-            false => self.layout.with(DockState::focused_tab),
+            true => self.layout.shown(),
+            false => self.layout.focused(),
         };
         let current = shown
             .and_then(|tab| self.tabs.with(|tabs| tabs.get(&tab).copied()))
@@ -455,13 +648,7 @@ impl Workspace {
         self.record_via(item.id, via);
         self.record_type(item.id, item.block_type);
         if let Some(tab) = self.tab_showing(item.id) {
-            let mut layout = self.layout.get_untracked();
-            match layout.contains(tab) {
-                true => layout.show(tab),
-                false => place_tab(&mut layout, tab),
-            }
-            self.set_layout.set(settled(layout));
-            self.editor.show_pane(tab);
+            self.layout.show(&tab);
             self.active.set(Some(item.id));
             return;
         }
@@ -475,10 +662,6 @@ impl Workspace {
         let mut tabs = self.tabs.get_untracked();
         tabs.insert(tab, item);
         self.set_tabs.set(tabs);
-        let mut layout = self.layout.get_untracked();
-        place_tab(&mut layout, tab);
-        self.set_layout.set(settled(layout));
-        self.editor.show_pane(tab);
         self.active.set(Some(item.id));
     }
 
@@ -501,6 +684,15 @@ impl Workspace {
     }
 
     fn close(&self, tab: TabId) {
+        if let Some(window) = tab_window(tab) {
+            self.host().close_window(window);
+            return;
+        }
+        if let Some(panel) = tab_panel(tab) {
+            self.set_panels
+                .update(|panels| panels.retain(|open| *open != panel));
+            return;
+        }
         let mut tabs = self.tabs.get_untracked();
         let Some(closed) = tabs.remove(&tab) else {
             return;
@@ -531,10 +723,6 @@ impl Workspace {
             self.rerouted();
         }
         self.host().close_editor(id);
-    }
-
-    fn changed(&self, next: DockState) {
-        self.set_layout.set(settled(next));
     }
 
     fn set_phone(&self, phone: bool) {
@@ -699,69 +887,6 @@ impl Workspace {
     }
 }
 
-pub(crate) fn starting_layout() -> DockState {
-    let mut state = DockState::new([FILES]);
-    let files = state.leaves(state.main())[0];
-    state.split(files, Side::Right, 1.0 - FILES_SHARE, Vec::new());
-    state
-}
-
-fn starting_layout_with(previous: DockState) -> DockState {
-    let mut state = starting_layout();
-    for tab in previous.all_tabs() {
-        place_tab(&mut state, tab);
-    }
-    state
-}
-
-pub(crate) fn settled(mut state: DockState) -> DockState {
-    let open = state.all_tabs().into_iter().any(|tab| tab != FILES);
-    if open {
-        state.remove_empty_panes();
-        return state;
-    }
-    if !state.empty_panes().is_empty() {
-        return state;
-    }
-    if let Some(files) = files_only_leaf(&state) {
-        state.split(files, Side::Right, 1.0 - FILES_SHARE, Vec::new());
-    }
-    state
-}
-
-fn files_only_leaf(state: &DockState) -> Option<LeafId> {
-    state
-        .find(FILES)
-        .map(|position| position.leaf)
-        .filter(|leaf| state.entries(*leaf).len() == 1)
-}
-
-fn editor_leaf(state: &DockState) -> Option<LeafId> {
-    let exclusive = files_only_leaf(state);
-    state
-        .focused_leaf()
-        .filter(|leaf| Some(*leaf) != exclusive)
-        .or_else(|| {
-            state
-                .surfaces()
-                .into_iter()
-                .flat_map(|surface| state.leaves(surface))
-                .find(|leaf| Some(*leaf) != exclusive)
-        })
-}
-
-pub(crate) fn place_tab(state: &mut DockState, tab: TabId) {
-    let files = state.find(FILES).map(|position| position.leaf);
-    match (editor_leaf(state), files) {
-        (Some(leaf), _) => state.push(leaf, tab),
-        (None, Some(files)) => {
-            state.split(files, Side::Right, 1.0 - FILES_SHARE, vec![tab]);
-        }
-        (None, None) => state.push_to_focused(tab),
-    }
-    state.show(tab);
-}
-
 #[component]
 pub(crate) fn WorkspaceShell(editor: Editor) -> NodeId {
     let workspace = Workspace::new(editor);
@@ -799,67 +924,179 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     let layout = workspace.layout.clone();
-    let titles = workspace.titles.clone();
     let failure = workspace.error.clone();
-    let docked = workspace.host().panes_offered();
-    let failed = create_memo(clone!(failure -> move || !docked && failure.get().is_some()));
+    let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
-    let title = Func::new(move |tab: TabId| match tab {
-        FILES => "Files".to_owned(),
-        tab => titles.with(|titles| {
-            titles
-                .get(&tab)
-                .cloned()
-                .unwrap_or_else(|| "Untitled".to_owned())
-        }),
+    let listed = workspace.tabs.clone();
+    let block_tabs = create_memo(move || {
+        let mut tabs: Vec<TabId> = listed.with(|tabs| tabs.keys().copied().collect());
+        tabs.sort();
+        tabs
     });
-    let naming = Rc::clone(&workspace);
-    let icon = Func::new(move |tab: TabId| match tab {
-        FILES => ICON_FOLDER.to_owned(),
-        tab => naming
-            .tab(tab)
-            .and_then(|item| naming.label(item.id, item.block_type).icon)
-            .unwrap_or_default()
-            .to_owned(),
+    let windows = workspace.windows.clone();
+    let top_windows = create_memo(clone!(windows -> move || {
+        windows.with(|windows| {
+            windows
+                .iter()
+                .filter(|window| window.parent.is_none())
+                .map(|window| window.id)
+                .collect::<Vec<_>>()
+        })
+    }));
+    let dialog_windows = create_memo(move || {
+        windows.with(|windows| {
+            windows
+                .iter()
+                .filter(|window| window.parent.is_some())
+                .map(|window| window.id)
+                .collect::<Vec<_>>()
+        })
     });
-    let changing = Rc::clone(&workspace);
-    let closing = Rc::clone(&workspace);
-    let content = Rc::clone(&workspace);
-    let editor = workspace.editor().clone();
+    let panels = workspace.panels.clone();
+    let files = Rc::clone(&workspace);
+    let blocks = Rc::clone(&workspace);
+    let programs = Rc::clone(&workspace);
+    let hosted = Rc::clone(&workspace);
+    let dialogs = Rc::clone(&workspace);
+    let pickers = Rc::clone(&workspace);
+    let shell_dialogs = Rc::clone(&workspace);
     let theme = use_theme();
     view! {
         <Frame @node_ref={&surface} color={theme.background.clone()}>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
-                <EditorDock
-                    @sizing=ItemSize::Percent(100.0)
-                    editor={editor}
-                    state={layout}
-                    mode={mode}
-                    home={Some(FILES)}
-                    title={title}
-                    icon={icon}
-                    closable={Func::new(|tab: TabId| tab != FILES)}
-                    on_change={move |next: DockState| changing.changed(next)}
-                    on_close={move |tab: TabId| closing.close(tab)}
-                    empty={move || view! {
-                        <EmptyPanel />
-                    }}
-                >
-                    {move |tab: TabId| {
-                        let workspace = Rc::clone(&content);
-                        match tab {
-                            FILES => view! {
-                                <FilesPanel workspace={workspace} />
-                            },
-                            tab => view! {
-                                <BlockPanel workspace={workspace} tab={tab} />
-                            },
-                        }
-                    }}
-                </EditorDock>
+                <Docking @sizing=ItemSize::Percent(100.0) layout mode home=FILES>
+                    <DockSplit id="workspace" fraction=FILES_SHARE>
+                        <DockPane id="files">
+                            <DockTab id=FILES title="Files" icon=ICON_FOLDER>
+                                <FilesPanel workspace={Rc::clone(&files)} />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane
+                            id="editors"
+                            empty={move || view! {
+                                <EmptyPanel />
+                            }}
+                        >
+                            <ForEach keys={block_tabs}>
+                                {move |tab: TabId| view! {
+                                    <BlockTab workspace={Rc::clone(&blocks)} tab />
+                                }}
+                            </ForEach>
+                            <ForEach keys={top_windows}>
+                                {move |window: HostWindowId| view! {
+                                    <WindowTab workspace={Rc::clone(&programs)} window />
+                                }}
+                            </ForEach>
+                        </DockPane>
+                    </DockSplit>
+                    <ForEach keys={panels}>
+                        {move |panel: HostPanel| view! {
+                            <PanelWindow workspace={Rc::clone(&hosted)} panel />
+                        }}
+                    </ForEach>
+                    <ForEach keys={dialog_windows}>
+                        {move |window: HostWindowId| view! {
+                            <DialogWindow workspace={Rc::clone(&dialogs)} window />
+                        }}
+                    </ForEach>
+                </Docking>
+                <PickerDialogs workspace={pickers} />
+                <WorkspaceDialogs workspace={shell_dialogs} />
             </List>
         </Frame>
+    }
+}
+
+#[component]
+fn BlockTab(workspace: Rc<Workspace>, tab: TabId) -> DockEntry<TabId> {
+    let titles = workspace.titles.clone();
+    let title = create_memo(move || {
+        titles.with(|titles| {
+            titles
+                .get(&tab)
+                .cloned()
+                .unwrap_or_else(|| "Untitled".to_owned())
+        })
+    });
+    let naming = Rc::clone(&workspace);
+    let icon = create_memo(move || {
+        naming
+            .tab(tab)
+            .and_then(|item| naming.label(item.id, item.block_type).icon)
+            .unwrap_or_default()
+            .to_owned()
+    });
+    let closing = Rc::clone(&workspace);
+    view! {
+        <DockTab id=tab title icon on_close={move || closing.close(tab)}>
+            <BlockPanel workspace={Rc::clone(&workspace)} tab />
+        </DockTab>
+    }
+}
+
+#[component]
+fn WindowTab(workspace: Rc<Workspace>, window: HostWindowId) -> DockEntry<TabId> {
+    let windows = workspace.windows.clone();
+    let title = create_memo(move || {
+        windows.with(|windows| {
+            windows
+                .iter()
+                .find(|listed| listed.id == window)
+                .map_or_else(|| "Window".to_owned(), window_title)
+        })
+    });
+    let closing = Rc::clone(&workspace);
+    let editor = workspace.editor().clone();
+    view! {
+        <DockTab
+            id={window_tab(window)}
+            title
+            icon=ICON_WEB_ASSET
+            on_close={move || closing.close(window_tab(window))}
+        >
+            <WindowPanel editor={editor.clone()} window />
+        </DockTab>
+    }
+}
+
+#[component]
+fn DialogWindow(workspace: Rc<Workspace>, window: HostWindowId) -> DockNode<TabId> {
+    let rect = workspace
+        .windows
+        .get_untracked()
+        .iter()
+        .find(|listed| listed.id == window)
+        .map(dialog_window)
+        .unwrap_or_else(|| panel_window(HostPanel::BlockStack));
+    let key = format!("window.{}", window.0);
+    view! {
+        <DockWindow id={key.clone()} rect>
+            <DockPane id={key}>
+                <WindowTab workspace window />
+            </DockPane>
+        </DockWindow>
+    }
+}
+
+#[component]
+fn PanelWindow(workspace: Rc<Workspace>, panel: HostPanel) -> DockNode<TabId> {
+    let key = format!("panel.{panel:?}");
+    let closing = Rc::clone(&workspace);
+    let editor = workspace.editor().clone();
+    view! {
+        <DockWindow id={key.clone()} rect={panel_window(panel)}>
+            <DockPane id={key}>
+                <DockTab
+                    id={panel_tab(panel)}
+                    title={panel.title()}
+                    icon={panel_icon(panel)}
+                    on_close={move || closing.close(panel_tab(panel))}
+                >
+                    <HostPanelView editor={editor.clone()} panel />
+                </DockTab>
+            </DockPane>
+        </DockWindow>
     }
 }
 
@@ -880,10 +1117,6 @@ pub(crate) fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
         true => TopBar::Phone,
         false => TopBar::Hidden,
     });
-    let failure = workspace.error.clone();
-    let docked = workspace.host().panes_offered();
-    let failed = create_memo(clone!(failure -> move || docked && failure.get().is_some()));
-    let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
     let files = workspace.files.clone();
     let target = create_memo(move || {
         files
@@ -893,7 +1126,6 @@ pub(crate) fn FilesPanel(workspace: Rc<Workspace>) -> NodeId {
     let editor = workspace.editor().clone();
     view! {
         <List spacing=0.0>
-            <Failure failed={failed} reason={reason} />
             <ChildBlock
                 @sizing=ItemSize::Percent(100.0)
                 editor={editor}

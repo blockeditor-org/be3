@@ -1,0 +1,19 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+# Linux's dmabufs, so Linux's alone: `//crates/...` for another platform skips
+# it rather than failing on it.
+linux = ["prelude//os:linux"]
+
+cargo_library(
+    target_compatible_with = linux,
+)
+
+# The tests import buffers through a real Vulkan adapter, which on a worker is
+# lavapipe from the test runtime, as for beui's renderer tests.
+cargo_test(
+    env = {
+        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+    },
+    target_compatible_with = linux,
+)

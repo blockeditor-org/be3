@@ -23,25 +23,41 @@ What the launcher passes the app is available to any native run:
   the password `dev-password` if there is none, save a recovery phrase without asking, and
   open the last workspace, or the first one, or a new one called Dev.
 - `--accessibility-tree=PATH`: write the accessibility tree to PATH (see below).
+- `--session` (Linux): run on the displays and input devices themselves through
+  `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
+  server on it. Ctrl+Alt+Backspace quits and Ctrl+Alt+F<n> switches terminals.
+  `BEUI_SCALE` sets its scale.
+
+## Wayland programs
+
+On Linux the app is a Wayland compositor. Its socket is `wayland-<n>` in `XDG_RUNTIME_DIR`,
+or `/tmp/be-wayland-<pid>` when that is unset, as it is under `:dev`. The app menu's "Run a
+program" starts a command with `WAYLAND_DISPLAY` pointing at it, and a program can also be
+started against it directly:
+
+    WAYLAND_DISPLAY=/tmp/be-wayland-<the app's pid> foot
+
+Each window opens as a tab of the workspace. `weston-simple-shm` (from the `weston` package)
+and `foot` are small clients to try it with.
 
 ## Seeing what is on screen
 
 `cat $TREE` is the accessibility tree as text, rewritten whenever it changes, one node per
 line, indented under its parent:
 
-    Dialog "Add block" at 230,68 size 640x585
-      Button at 390,160 size 132x124
-        Label value="Text" at 443,259 size 26x15
-      Button at 250,977 size 132x124 offscreen
+    Dialog "Invite member" at 360,180 size 380x300
+      TextInput "Email address" at 380,260 size 340x36
+      Button at 380,420 size 116x36
+        Label value="Send invitation" at 392,430 size 92x15
 
 Coordinates are pixels relative to the window, the same ones xdotool takes, so the centre of
 a node is `x + width / 2, y + height / 2`. `offscreen` marks a node scrolled out of view, and
 `focused` the node with keyboard focus.
 
-The tree holds only what the host draws itself: the account and workspace pages, the tab
-bar, the status bar and host dialogs such as Add block. Everything a plugin draws, which
-includes the workspace's panes and file tree and every block's editor, is a texture to the
-host and does not appear. For those, take a screenshot and read it:
+The tree holds only what the host draws itself: the account and workspace pages, the app
+menu, the debugging panels and host dialogs such as Invite member. Everything a plugin draws,
+which includes the workspace's dock and file tree and every block's editor, is a texture to
+the host and does not appear. For those, take a screenshot and read it:
 
     import -window $WINDOW shot.png
 

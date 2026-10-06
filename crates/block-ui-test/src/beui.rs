@@ -9,9 +9,9 @@ use block_editor_beui::{
     ShownPresence, ViewChange, WebViewCommand, WebViewId,
 };
 use block_plugin_api::{
-    BarAction, BlockTypeDescriptor, ChildId, ChildRect, EditorMessage, FrameChrome, FrameReport,
-    HelloAccepted, InputBatch, MenuEntry, Message, PROTOCOL_VERSION, ScreenId, ScreenRequest,
-    ScreenSet, SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
+    BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FrameChrome,
+    FrameReport, HelloAccepted, InputBatch, MenuEntry, Message, PROTOCOL_VERSION, ScreenId,
+    ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
@@ -228,7 +228,6 @@ impl<A: BeuiApp> BeuiTest<A> {
                 max_side: SURFACE_SIDE,
             }),
             theme: Theme::default(),
-            panes: false,
         }));
         test.deliver(Message::Editor(open));
         test.place();
@@ -435,7 +434,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn block_types(&mut self, descriptors: Vec<BlockTypeDescriptor>) {
-        self.inbox.push(Message::BlockTypes(descriptors));
+        self.catalog(Catalog {
+            types: descriptors,
+            templates: Vec::new(),
+        });
+    }
+
+    pub fn catalog(&mut self, catalog: Catalog) {
+        self.inbox.push(Message::BlockTypes(catalog));
         self.run();
     }
 
@@ -623,6 +629,8 @@ impl<A: BeuiApp> BeuiTest<A> {
             resize: block_editor_beui::ResizeMode::None,
             error: None,
             menu: Vec::new(),
+            creation: None,
+            settings: None,
         });
     }
 
@@ -781,6 +789,75 @@ impl<A: BeuiApp> BeuiTest<A> {
             None => true,
         });
         taken
+    }
+
+    pub fn request_pick(
+        &mut self,
+        pick: u64,
+        filter: block_editor_beui::BlockFilter,
+        parent: block_plugin_api::BlockLocation,
+    ) {
+        self.inbox
+            .push(Message::Editor(EditorMessage::PickRequested {
+                instance: INSTANCE,
+                pick,
+                filter,
+                parent,
+            }));
+    }
+
+    pub fn show_dialog(&mut self, block: Uuid, dialog: block_plugin_api::ShellDialog) {
+        self.inbox.push(Message::Editor(EditorMessage::ShowDialog {
+            instance: INSTANCE,
+            block_id: block.into_bytes(),
+            dialog,
+        }));
+    }
+
+    pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
+        self.take_where(|message| match message {
+            EditorMessage::SetName { block_id, name, .. } => {
+                Some((Uuid::from_bytes(*block_id), name.clone()))
+            }
+            _ => None,
+        })
+    }
+
+    pub fn take_access_changes(&mut self) -> Vec<(Uuid, Uuid, block_plugin_api::AccessLevel)> {
+        self.take_where(|message| match message {
+            EditorMessage::SetAccess {
+                block_id,
+                account,
+                access,
+                ..
+            } => Some((
+                Uuid::from_bytes(*block_id),
+                Uuid::from_bytes(*account),
+                *access,
+            )),
+            _ => None,
+        })
+    }
+
+    pub fn take_pick_answers(&mut self) -> Vec<(u64, block_editor_beui::BlockPick)> {
+        self.take_where(|message| match message {
+            EditorMessage::PickAnswered { pick, answer, .. } => Some((*pick, answer.clone())),
+            _ => None,
+        })
+    }
+
+    pub fn take_child_commits(
+        &mut self,
+    ) -> Vec<(ChildId, block_plugin_api::BlockLocation, Option<String>)> {
+        self.take_where(|message| match message {
+            EditorMessage::CommitChild {
+                child,
+                parent,
+                name,
+                ..
+            } => Some((*child, *parent, name.clone())),
+            _ => None,
+        })
     }
 
     pub fn take_view_changes(&mut self) -> Vec<ViewChange> {

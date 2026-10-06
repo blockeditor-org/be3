@@ -1,3 +1,4 @@
+mod color;
 mod library;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod system;
@@ -287,10 +288,8 @@ impl FreetypeFonts {
     fn rasterize(&self, key: GlyphId) -> Option<GlyphImage> {
         let face = self.faces.get(key.face)?.face;
         unsafe {
-            if ft::FT_Set_Pixel_Sizes(face, 0, key.pixel_size) != 0 {
-                return None;
-            }
-            if ft::FT_Load_Glyph(face, key.glyph, ft::FT_LOAD_DEFAULT as i32) != 0 {
+            let scale = color::set_size(face, key.pixel_size)?;
+            if ft::FT_Load_Glyph(face, key.glyph, ft::FT_LOAD_COLOR as i32) != 0 {
                 return None;
             }
             let slot = (*face).glyph;
@@ -308,12 +307,17 @@ impl FreetypeFonts {
                 return None;
             }
             let bitmap = &(*slot).bitmap;
+            let (left, top) = ((*slot).bitmap_left, (*slot).bitmap_top);
+            if bitmap.pixel_mode == ft::FT_Pixel_Mode::FT_PIXEL_MODE_BGRA as u8 {
+                return Some(color::image(bitmap, left, top, scale));
+            }
             Some(GlyphImage {
                 width: bitmap.width,
                 height: bitmap.rows,
-                left: (*slot).bitmap_left,
-                top: (*slot).bitmap_top,
+                left,
+                top,
                 pixels: pixels(bitmap),
+                color: false,
             })
         }
     }

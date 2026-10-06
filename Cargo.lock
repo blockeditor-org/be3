@@ -670,18 +670,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "be-compositor"
+name = "be-dmabuf"
 version = "0.1.0"
 dependencies = [
  "ash",
- "beui",
- "bytemuck",
  "pollster",
  "rustix 1.1.4",
  "smithay",
- "wayland-client",
- "wayland-protocols",
- "wayland-protocols-misc",
  "wgpu",
 ]
 
@@ -820,6 +815,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-wayland"
+version = "0.1.0"
+dependencies = [
+ "be-dmabuf",
+ "beui",
+ "bytemuck",
+ "rustix 1.1.4",
+ "smithay",
+ "wayland-client",
+ "wayland-protocols",
+ "wayland-protocols-misc",
+ "wgpu",
+]
+
+[[package]]
 name = "beui"
 version = "0.1.0"
 dependencies = [
@@ -859,6 +869,17 @@ dependencies = [
  "ndk-context",
  "ndk-sys 0.6.0+11769913",
  "raw-window-handle",
+]
+
+[[package]]
+name = "beui-adapter-drm"
+version = "0.1.0"
+dependencies = [
+ "be-dmabuf",
+ "beui",
+ "bytemuck",
+ "smithay",
+ "wgpu",
 ]
 
 [[package]]
@@ -920,6 +941,7 @@ name = "beui-core"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "beui-tree",
  "foldhash 0.2.0",
  "geometry",
  "raw-window-handle",
@@ -1007,11 +1029,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-tree"
+version = "0.1.0"
+dependencies = [
+ "beui_macros",
+ "reactive",
+]
+
+[[package]]
 name = "beui-view"
 version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-core",
+ "beui-tree",
  "beui_macros",
  "reactive",
 ]
@@ -1143,13 +1174,16 @@ dependencies = [
  "be-block",
  "be-client",
  "be-commit",
+ "be-dmabuf",
  "be-graph",
  "be-keys",
  "be-protocol",
  "be-server",
  "be-store",
  "be-vcs",
+ "be-wayland",
  "beui",
+ "beui-adapter-drm",
  "beui-plugin-input",
  "block-editor-plugin",
  "block-plugin-api",
@@ -9150,6 +9184,7 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-beui",
+ "block-plugin-api",
  "block-ui-test",
  "serde",
  "serde_json",

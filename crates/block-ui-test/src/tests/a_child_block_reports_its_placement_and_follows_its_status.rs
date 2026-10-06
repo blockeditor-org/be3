@@ -6,7 +6,7 @@ fn a_child_block_reports_its_placement_and_follows_its_status() {
     test.run();
 
     let placement = match test.children() {
-        [placement] => *placement,
+        [placement] => placement.clone(),
         children => panic!("expected one placed child, got {}", children.len()),
     };
     assert_eq!(

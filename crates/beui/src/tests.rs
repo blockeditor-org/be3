@@ -77,7 +77,6 @@ mod a_floating_overlay_follows_an_anchor_that_only_moves;
 mod a_focused_forwarding_catcher_takes_the_keys_from_the_document;
 mod a_focused_node_scrolled_far_away_stays_laid_out;
 mod a_focused_text_input_asks_for_the_keyboard;
-mod a_for_each_gives_a_scroll_items_of_its_own;
 mod a_for_each_keeps_its_rows_between_the_children_beside_it;
 mod a_for_each_places_the_items_of_a_canvas;
 mod a_for_each_row_picks_and_changes_its_own_size;
@@ -100,6 +99,8 @@ mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it;
 mod a_justified_row_places_its_leftover_space;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
+mod a_layout_put_back_from_its_snapshot_keeps_the_tabs_where_they_were;
+mod a_light_overlay_occludes_only_its_content;
 mod a_list_in_a_scroll_lays_out_only_the_rows_near_the_view;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
 mod a_lone_child_fills_a_children_prop_as_a_run_of_one;
@@ -129,6 +130,7 @@ mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
 mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
 mod a_portal_shows_a_subtree_it_does_not_own;
+mod a_press_a_catcher_declines_focuses_the_catcher_beneath;
 mod a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once;
 mod a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released;
 mod a_quick_flick_on_the_simulated_trackpad_moves_the_cursor_without_clicking;
@@ -206,6 +208,7 @@ mod a_tree_row_decides_which_part_of_it_is_clickable;
 mod a_twelve_hour_time_field_types_the_afternoon_with_a_p;
 mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone;
+mod a_value_child_that_watches_its_size_panics_when_built;
 mod a_value_written_between_tags_takes_the_sizing_after_it;
 mod a_vertical_separator_rules_down_the_row_it_sits_in;
 mod a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row;
@@ -286,6 +289,7 @@ mod clicking_the_outer_tab_bar_takes_the_focus_out_of_a_group;
 mod clicking_the_padding_around_a_button_label_activates_it;
 mod clicking_the_scrollbar_track_pages_the_scroll_towards_the_click;
 mod clicking_the_start_of_a_text_input_puts_the_caret_before_the_text;
+mod closing_a_dock_tab_asks_its_owner_to_remove_it;
 mod compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end;
 mod copy_and_cut_export_only_selected_text_and_cut_can_be_undone;
 mod ctrl_a_selects_everything_so_typing_replaces_the_value;
@@ -568,8 +572,8 @@ use crate::base::text::TextNode;
 use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
 use crate::reactive::{
-    Canvas, CanvasItem, ClickCallback, ForEach, Frame, Func, List, NodeRef, Offset, Spacer, Text,
-    VirtualList, build, create_signal, with_document,
+    Canvas, CanvasItem, ClickCallback, ForEach, Frame, List, NodeRef, Offset, Spacer, Text,
+    VirtualList, build, clone, create_signal, with_document,
 };
 use crate::styled;
 use crate::styled::DocumentTheme;
@@ -1498,23 +1502,25 @@ pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
 pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let built = dock.clone();
-    let tabs: Vec<unstyled::TabId> = (1..=tabs)
-        .map(|index| unstyled::TabId::new(index as u64))
-        .collect();
     let document = build(move || {
-        let (state, set_state) = create_signal(unstyled::DockState::new(tabs));
+        let layout = unstyled::DockingLayout::new();
+        let (open, set_open) = create_signal((1..=tabs as u64).collect::<Vec<_>>());
         view! {
-            <styled::DockArea
-                @node_ref=&built
-                state={state}
-                title={Func::new(|tab: unstyled::TabId| format!("Tab {}", tab.value()))}
-                on_change={move |next: unstyled::DockState| set_state.set(next)}
-                on_close={move |_: unstyled::TabId| {}}
-            >
-                {move |tab: unstyled::TabId| view! {
-                    <Frame @test_id={format!("content.{}", tab.value())} />
-                }}
-            </styled::DockArea>
+            <styled::Docking @node_ref=&built layout>
+                <unstyled::DockPane id="tabs">
+                    <ForEach keys={open}>
+                        {move |id: u64| clone!(set_open -> view! {
+                            <unstyled::DockTab
+                                id
+                                title={format!("Tab {id}")}
+                                on_close={move || set_open.update(|open| open.retain(|other| *other != id))}
+                            >
+                                <Frame @test_id={format!("content.{id}")} />
+                            </unstyled::DockTab>
+                        })}
+                    </ForEach>
+                </unstyled::DockPane>
+            </styled::Docking>
         }
     });
     (document, dock.get())
@@ -1712,7 +1718,7 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
 }
 
 use crate::interact::WHEEL_LATCH_TIMEOUT;
-use crate::reactive::DynamicSegment;
+use crate::reactive::{DynamicSegment, ListChild};
 use crate::unstyled::Scroll;
 
 fn nested() -> Document {
@@ -1734,7 +1740,7 @@ fn nested() -> Document {
 }
 
 #[component]
-fn Rows(count: usize) -> DynamicSegment<NodeId> {
+fn Rows(count: usize) -> DynamicSegment<ListChild> {
     view! {
         <ForEach keys={indices(count)}>
             {|index: usize| view! {

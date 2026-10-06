@@ -10,17 +10,17 @@ use crate::text::{Body, IconSized};
 use crate::theme::{CARD_RADIUS, FONT_BODY, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    DockDragged, DockGripHandle, DockMode, DockPanelHandle, DockPreviewHandle, DockSplitterHandle,
-    DockStackHandle, DockState, DockTabHandle, DockWindowHandle, Entry, GroupId, MenuItem,
-    SPLITTER_THICKNESS, TabId, sidebar_size,
+    DockDragged, DockGripHandle, DockKey, DockMode, DockNode, DockPanelHandle, DockPreviewHandle,
+    DockSplitterHandle, DockStackHandle, DockTabHandle, DockWindowHandle, DockingLayout, Entry,
+    MenuItem, SPLITTER_THICKNESS, sidebar_size,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_MORE_VERT, ICON_TAB_GROUP};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Action, Callback, ClickCallback, DynamicSegment, ForEach, Frame, Func, List, ListChild, Memo,
-    Prop, ReadSignal, RenderFn, Show, Text, clone, create_memo, focus_ring,
+    Action, Children, ClickCallback, DynamicSegment, ForEach, Frame, List, ListChild, Memo, Prop,
+    ReadSignal, Show, Text, clone, create_memo, focus_ring,
 };
 use stack::DockStackBar;
 
@@ -39,65 +39,47 @@ pub const CHROME_BORDER: f32 = 2.0;
 const GROUP_GLYPH: f32 = 16.0;
 const GROUP_INSET: f32 = 6.0;
 pub const DOCK_INSET: f32 = 8.0;
+pub const WINDOW_CHROME: beui_core::geometry::Vec2 = beui_core::geometry::Vec2::new(
+    2.0 * CHROME_BORDER,
+    TAB_HEIGHT + 2.0 * WINDOW_BAR_PADDING + CHROME_BORDER,
+);
 const DROP_ALPHA: u8 = 64;
 const PREVIEW_ALPHA: u8 = 235;
 
 #[component]
-pub fn DockArea(
-    state: Prop<DockState>,
-    on_change: Callback<DockState>,
-    on_close: Callback<TabId>,
-    title: Func<TabId, String>,
-    group_title: Option<Func<GroupId, Option<String>>>,
-    icon: Option<Func<TabId, String>>,
-    closable: Option<Func<TabId, bool>>,
+pub fn Docking<K>(
+    layout: DockingLayout<K>,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
-    #[prop(default = None)] home: Prop<Option<TabId>>,
-    empty: Option<RenderFn<()>>,
-    #[prop(children)] content: RenderFn<TabId>,
-) -> NodeId {
+    #[prop(default = None)] home: Prop<Option<K>>,
+    #[prop(default = None)] focus: Prop<Option<K>>,
+    children: Children<DockNode<K>>,
+) -> NodeId
+where
+    K: DockKey,
+{
     let mode = create_memo(move || mode.get());
     let padding = create_memo(clone!(mode -> move || match mode.get() {
         DockMode::Tiled => DOCK_INSET,
         DockMode::Stacked => 0.0,
     }));
-    let closable = closable.unwrap_or_else(|| Func::new(|_| true));
-    let group_title = group_title.unwrap_or_else(|| Func::new(|_| None));
-    let icon = icon.unwrap_or_else(|| Func::new(|_| String::new()));
-    let empty = empty.unwrap_or_else(|| {
-        RenderFn::new(|()| {
-            view! {
-                <Frame />
-            }
-        })
-    });
     let theme = use_theme();
     let fill = create_memo(clone!(mode -> move || match mode.get() {
         DockMode::Tiled => Color32::TRANSPARENT,
         DockMode::Stacked => theme.background.get(),
     }));
-    let content = RenderFn::new(move |tab: TabId| {
-        let body = content.call(tab);
-        view! {
-            <Frame color={fill.clone()}>{body}</Frame>
-        }
-    });
     view! {
-        <unstyled::Dock
-            state
-            group_title
+        <unstyled::Docking
+            layout
             mode
             home
+            focus
             inset={padding}
             group_inset=GROUP_INSET
-            on_change={move |state: DockState| on_change.call(state)}
-            on_close={move |tab: TabId| on_close.call(tab)}
-            title
-            icon
-            closable
             menu={menu_style()}
-            content
-            empty={move || empty.call(())}
+            children
+            frame={move |body: NodeId| view! {
+                <Frame color={fill.clone()}>{body}</Frame>
+            }}
             stack={move |handle: DockStackHandle| view! {
                 <DockStackBar handle />
             }}

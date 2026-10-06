@@ -2,9 +2,9 @@ load("//buck/tools:defs.bzl", "worker_properties")
 load(":cross.bzl", "CROSS_PLATFORMS")
 load(":defs.bzl", "execution_platform", "execution_platforms")
 
-# Where every action runs: the build server's worker, Linux on x86_64 whatever
-# the machine that asked, in the image buck/tools/defs.bzl names. Nothing is
-# uploaded from here; the server caches what its worker ran.
+# Where every action runs: a Namespace worker, Linux on x86_64 whatever the
+# machine that asked, in the image buck/tools/defs.bzl names. Nothing is
+# uploaded from here; Namespace caches what its workers ran.
 execution_platform(
     name = "default",
     cpu_configuration = "prelude//cpu:x86_64",

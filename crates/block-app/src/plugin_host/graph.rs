@@ -5,6 +5,7 @@ use crate::be::{Node, Query};
 
 pub(crate) fn query_of(query: BlockQuery) -> Query {
     match query {
+        BlockQuery::All => Query::All,
         BlockQuery::Roots => Query::Roots,
         BlockQuery::Detached => Query::Detached,
         BlockQuery::Children(id) => Query::Children(Uuid::from_bytes(id)),
@@ -28,6 +29,36 @@ pub(crate) fn location_of(parent: be_graph::BlockParent) -> BlockLocation {
         be_graph::BlockParent::Root => BlockLocation::Root,
         be_graph::BlockParent::Detached => BlockLocation::Detached,
         be_graph::BlockParent::Block(id) => BlockLocation::Block(id.into_bytes()),
+    }
+}
+
+pub(crate) fn access_of(level: AccessLevel) -> be_graph::Access {
+    match level {
+        AccessLevel::None => be_graph::Access::None,
+        AccessLevel::KnowExists => be_graph::Access::KnowExists,
+        AccessLevel::View => be_graph::Access::View,
+        AccessLevel::Edit => be_graph::Access::Edit,
+    }
+}
+
+pub(crate) fn grants_of(
+    listed: Result<Vec<be_protocol::AccessEntry>, String>,
+) -> block_plugin_api::AccessListing {
+    match listed {
+        Ok(entries) => block_plugin_api::AccessListing::Listed(
+            entries
+                .into_iter()
+                .map(|entry| block_plugin_api::AccessGrant {
+                    account: entry.account.into_bytes(),
+                    email: entry.email,
+                    display_name: entry.display_name,
+                    administrator: matches!(entry.role, be_protocol::WorkspaceRole::Administrator),
+                    granted: entry.granted.map(level_of),
+                    effective: level_of(entry.effective),
+                })
+                .collect(),
+        ),
+        Err(error) => block_plugin_api::AccessListing::Failed(error),
     }
 }
 

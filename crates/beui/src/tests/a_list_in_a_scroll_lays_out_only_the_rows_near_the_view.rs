@@ -1,5 +1,4 @@
 use super::*;
-use crate::base::offset::OffsetNode;
 use crate::sight::CULLING_MARGIN;
 
 const ROWS: usize = 500;
@@ -7,7 +6,6 @@ const ROWS: usize = 500;
 #[test]
 fn a_list_in_a_scroll_lays_out_only_the_rows_near_the_view() {
     let mut document = Document::new();
-    let scroll = document.create_offset();
     let list = document.create_list(Direction::Vertical, 0.0);
     let rows: Vec<NodeOf<TextNode>> = (0..ROWS)
         .map(|index| document.create_text(format!("row {index}"), 14.0, Color32::WHITE))
@@ -15,11 +13,7 @@ fn a_list_in_a_scroll_lays_out_only_the_rows_near_the_view() {
     for row in &rows {
         document.append_child(list, row.id(), ItemSize::Intrinsic);
     }
-    document
-        .arena
-        .get_mut_as::<OffsetNode>(scroll)
-        .items
-        .push(list.id());
+    let scroll = document.create_offset(list.id());
     document.set_root(scroll.id());
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());

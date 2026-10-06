@@ -40,17 +40,16 @@ two parameters work on any page serving the bundle:
 `drive tree` prints the accessibility tree, one node per line, indented under its parent,
 in the same format as the native app's:
 
-    Dialog "Add block" at 320,108 size 640x585
-      ScrollView at 340,200 size 600x420
-        Button at 620,226 size 132x124
-          Label value="Text" at 673,325 size 26x15
-        Button at 340,524 size 132x124 partly offscreen
+    Dialog "Invite member" at 450,220 size 380x300
+      TextInput "Email address" at 470,300 size 340x36
+      Button at 470,460 size 116x36
+        Label value="Send invitation" at 482,470 size 92x15
 
 Coordinates are CSS pixels from the page's top left corner, the same ones `drive` takes,
 so the centre of a node is `x + width / 2, y + height / 2`. `offscreen` marks a node scrolled
 out of view, and `focused` the node with keyboard focus.
 
-As natively, the tree holds only what the host draws itself. The workspace's panes, its file
+As natively, the tree holds only what the host draws itself. The workspace's dock, its file
 tree and every block's editor are drawn by plugins, and for those you take a screenshot and
 read it:
 

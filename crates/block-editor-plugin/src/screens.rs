@@ -1,8 +1,8 @@
 use block_plugin_api::{
-    BlockTypeDescriptor, ChildStatus, DEFAULT_SURFACE_SIDE, EditorInstanceId, EditorMessage,
-    EditorRegion, Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec,
+    Catalog, ChildStatus, DEFAULT_SURFACE_SIDE, EditorInstanceId, EditorMessage, EditorRegion,
+    Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
-use block_ui::{BlockCatalog, BlockTypeEntry};
+use block_ui::{BlockCatalog, BlockTypeEntry, TemplateEntry};
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
@@ -26,7 +26,6 @@ pub(crate) struct Screens {
     layout: ScreenLayout,
     block_types: Rc<BlockCatalog>,
     surface: Option<SurfaceSpec>,
-    panes: bool,
     dirty: Arc<Mutex<HashSet<EditorInstanceId>>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     everything: bool,
@@ -60,7 +59,6 @@ impl Screens {
             layout: ScreenLayout::default(),
             block_types: Rc::new(BlockCatalog::default()),
             surface: None,
-            panes: false,
             dirty: Arc::default(),
             everything: true,
             reporting: HashSet::new(),
@@ -141,7 +139,6 @@ impl Screens {
         match message {
             Message::HelloAccepted(accepted) => {
                 self.surface = accepted.surface;
-                self.panes = accepted.panes;
             }
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::Editor(EditorMessage::Open {
@@ -155,9 +152,7 @@ impl Screens {
                 editable,
             }) => {
                 let block_types = Rc::clone(&self.block_types);
-                let panes = self.panes;
                 let session = self.open(*instance, Uuid::from_bytes(*block_type));
-                session.offer_panes(panes);
                 session.set_block_types(block_types);
                 session.set_view_block(view_block.map(Uuid::from_bytes));
                 session.set_client_id(Uuid::from_bytes(*client_id));
@@ -175,9 +170,7 @@ impl Screens {
                 client_id,
             }) => {
                 let block_types = Rc::clone(&self.block_types);
-                let panes = self.panes;
                 let session = self.open(*instance, Uuid::from_bytes(*block_type));
-                session.offer_panes(panes);
                 session.set_block_types(block_types);
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
@@ -195,9 +188,7 @@ impl Screens {
                 data,
             }) => {
                 let block_types = Rc::clone(&self.block_types);
-                let panes = self.panes;
                 let session = self.open(*instance, Uuid::from_bytes(*source_type));
-                session.offer_panes(panes);
                 session.set_block_types(block_types);
                 session.set_client_id(Uuid::from_bytes(*client_id));
                 session.set_account_id(Uuid::from_bytes(*account_id));
@@ -434,25 +425,37 @@ impl Screens {
                     );
                 }
             }
-            Message::Editor(EditorMessage::PanesArranged {
+            Message::Editor(EditorMessage::PickRequested {
                 instance,
-                arrangement,
-                tree,
-                detached,
-                focused,
+                pick,
+                filter,
+                parent,
             }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.arrange_panes(*arrangement, tree.clone(), detached.clone(), *focused);
+                if let Some(session) = self.sessions.get(instance) {
+                    session.pick_requested(crate::host::PickRequest {
+                        pick: *pick,
+                        filter: filter.clone(),
+                        parent: crate::graph::BlockParent::decode(*parent),
+                    });
                 }
             }
-            Message::Editor(EditorMessage::ClosePane { instance, pane }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.close_pane(*pane);
+            Message::Editor(EditorMessage::ShowDialog {
+                instance,
+                block_id,
+                dialog,
+            }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.show_dialog(Uuid::from_bytes(*block_id), *dialog);
                 }
             }
-            Message::Editor(EditorMessage::PaneMenuPick { instance, pane, id }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.pick_pane_menu(*pane, id.clone());
+            Message::Editor(EditorMessage::ShowPanel { instance, panel }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.show_panel(*panel);
+                }
+            }
+            Message::Editor(EditorMessage::Windows { instance, windows }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.set_windows(windows.clone());
                 }
             }
             Message::Editor(EditorMessage::MenuPick { instance, id }) => {
@@ -655,14 +658,17 @@ impl Screens {
     }
 }
 
-fn catalog(descriptors: &[BlockTypeDescriptor]) -> BlockCatalog {
-    BlockCatalog::new(descriptors.iter().map(|descriptor| {
-        let codepoint: &'static str = Box::leak(descriptor.icon_codepoint.clone().into_boxed_str());
+fn catalog(catalog: &Catalog) -> BlockCatalog {
+    let leak = |codepoint: &str| -> Option<&'static str> {
+        let codepoint: &'static str = Box::leak(codepoint.to_owned().into_boxed_str());
+        (!codepoint.is_empty()).then_some(codepoint)
+    };
+    BlockCatalog::new(catalog.types.iter().map(|descriptor| {
         (
             Uuid::from_bytes(descriptor.block_type),
             BlockTypeEntry {
                 display_name: descriptor.display_name.clone(),
-                icon: (!codepoint.is_empty()).then_some(codepoint),
+                icon: leak(&descriptor.icon_codepoint),
                 child_edits: block_ui::ChildEdits {
                     add: descriptor.children.add,
                     delete: descriptor.children.delete,
@@ -670,5 +676,19 @@ fn catalog(descriptors: &[BlockTypeDescriptor]) -> BlockCatalog {
                 },
             },
         )
+    }))
+    .with_templates(catalog.templates.iter().map(|template| TemplateEntry {
+        editor: Uuid::from_bytes(template.editor),
+        template: template.template.clone(),
+        block_type: Uuid::from_bytes(template.block_type),
+        name: template.name.clone(),
+        icon: leak(&template.icon_codepoint),
+        category: match template.category {
+            TemplateCategory::Important => block_ui::TemplateCategory::Important,
+            TemplateCategory::Regular => block_ui::TemplateCategory::Regular,
+            TemplateCategory::Debug => block_ui::TemplateCategory::Debug,
+            TemplateCategory::Template => block_ui::TemplateCategory::Template,
+        },
+        dialog: template.dialog,
     }))
 }

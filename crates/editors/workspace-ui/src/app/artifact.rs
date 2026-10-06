@@ -14,6 +14,7 @@ use block_editor_beui::beui::styled::{
 };
 use uuid::Uuid;
 
+use super::dialogs::OpenDialog;
 use super::panel::Info;
 use super::tab::TabItem;
 use super::workspace::Workspace;
@@ -185,9 +186,9 @@ fn block_command(
             return;
         };
         match command {
-            Command::Settings => workspace.host().edit_artifact(id),
+            Command::Settings => workspace.open_dialog(OpenDialog::ArtifactSettings(id)),
             Command::Regenerate => workspace.host().regenerate_artifact(id),
-            Command::Unlink => workspace.host().unlink_artifact(id),
+            Command::Unlink => workspace.open_dialog(OpenDialog::Unlink(id)),
         }
     }
 }

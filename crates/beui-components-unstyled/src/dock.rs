@@ -1,3 +1,4 @@
+mod docking;
 pub mod state;
 #[cfg(test)]
 mod tests;
@@ -40,6 +41,10 @@ use beui_view::reactive::{
     with_document,
 };
 
+pub use docking::{
+    DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow, Docking,
+    DockingLayout, DockingSnapshot,
+};
 pub use state::{
     DockDrop, DockLayout, DockSplitter, DockState, DockTree, DockTreeEntry, Entry, GroupId, LeafId,
     Side, SplitId, SurfaceId, TabId, TabPosition, Tree, layout_surface, layout_tree,
@@ -264,7 +269,7 @@ struct State {
     owner: Option<ScopeContext>,
     tab: RenderFn<DockTabHandle>,
     content: RenderFn<TabId>,
-    empty: RenderFn<()>,
+    empty: RenderFn<LeafId>,
     panel: RenderFn<DockPanelHandle>,
     splitter: RenderFn<DockSplitterHandle>,
     grip: RenderFn<DockGripHandle>,
@@ -446,20 +451,6 @@ impl State {
     }
 
     fn close_tab(&self, tab: TabId) {
-        self.edit(|state| {
-            state.remove(tab);
-        });
-        self.on_close.call(tab);
-    }
-
-    fn close_stacked(&self, tab: TabId) {
-        self.edit(|state| {
-            let shown = state.stacked_tab() == Some(tab);
-            state.remove(tab);
-            if let Some(next) = state.recent_tabs().first().copied().filter(|_| shown) {
-                state.show(next);
-            }
-        });
         self.on_close.call(tab);
     }
 
@@ -899,32 +890,65 @@ impl Grip {
     }
 }
 
+fn vacant_leaf(state: &DockState) -> LeafId {
+    state
+        .focused_leaf()
+        .unwrap_or_else(|| state.leaves(state.main())[0])
+}
+
+pub(crate) struct DockConfig {
+    pub(crate) state: Prop<DockState>,
+    pub(crate) on_change: Callback<DockState>,
+    pub(crate) on_close: Callback<TabId>,
+    pub(crate) title: Func<TabId, String>,
+    pub(crate) group_title: Func<GroupId, Option<String>>,
+    pub(crate) icon: Func<TabId, String>,
+    pub(crate) closable: Func<TabId, bool>,
+    pub(crate) menu: MenuStyle,
+    pub(crate) mode: Prop<DockMode>,
+    pub(crate) home: Prop<Option<TabId>>,
+    pub(crate) splitter_thickness: f32,
+    pub(crate) group_inset: f32,
+    pub(crate) inset: Prop<f32>,
+    pub(crate) tab: RenderFn<DockTabHandle>,
+    pub(crate) content: RenderFn<TabId>,
+    pub(crate) empty: RenderFn<LeafId>,
+    pub(crate) panel: Option<RenderFn<DockPanelHandle>>,
+    pub(crate) splitter: Option<RenderFn<DockSplitterHandle>>,
+    pub(crate) grip: Option<RenderFn<DockGripHandle>>,
+    pub(crate) window: Option<RenderFn<DockWindowHandle>>,
+    pub(crate) highlight: Option<RenderFn<()>>,
+    pub(crate) preview: Option<RenderFn<DockPreviewHandle>>,
+    pub(crate) stack: Option<RenderFn<DockStackHandle>>,
+}
+
 #[component]
-pub fn Dock(
-    state: Prop<DockState>,
-    on_change: Callback<DockState>,
-    on_close: Callback<TabId>,
-    title: Func<TabId, String>,
-    group_title: Option<Func<GroupId, Option<String>>>,
-    icon: Option<Func<TabId, String>>,
-    closable: Option<Func<TabId, bool>>,
-    #[prop(default = MenuStyle::default())] menu: MenuStyle,
-    #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
-    #[prop(default = None)] home: Prop<Option<TabId>>,
-    #[prop(default = SPLITTER_THICKNESS)] splitter_thickness: f32,
-    #[prop(default = 0.0)] group_inset: f32,
-    #[prop(default = 0.0)] inset: Prop<f32>,
-    tab: RenderFn<DockTabHandle>,
-    #[prop(children)] content: RenderFn<TabId>,
-    empty: Option<RenderFn<()>>,
-    panel: Option<RenderFn<DockPanelHandle>>,
-    splitter: Option<RenderFn<DockSplitterHandle>>,
-    grip: Option<RenderFn<DockGripHandle>>,
-    window: Option<RenderFn<DockWindowHandle>>,
-    highlight: Option<RenderFn<()>>,
-    preview: Option<RenderFn<DockPreviewHandle>>,
-    stack: Option<RenderFn<DockStackHandle>>,
-) -> NodeId {
+pub(crate) fn Dock(config: DockConfig) -> NodeId {
+    let DockConfig {
+        state,
+        on_change,
+        on_close,
+        title,
+        group_title,
+        icon,
+        closable,
+        menu,
+        mode,
+        home,
+        splitter_thickness,
+        group_inset,
+        inset,
+        tab,
+        content,
+        empty,
+        panel,
+        splitter,
+        grip,
+        window,
+        highlight,
+        preview,
+        stack,
+    } = config;
     let (current, set_current) = create_signal(state.peek());
     let (actions, set_actions) = create_signal(HashMap::new());
     let (menus, set_menu) = create_signal(DockMenus::new());
@@ -941,9 +965,9 @@ pub fn Dock(
         drag,
         set_drag,
         title,
-        group_title: group_title.unwrap_or_else(|| Func::new(|_| None)),
-        icon: icon.unwrap_or_else(|| Func::new(|_| String::new())),
-        closable: closable.unwrap_or_else(|| Func::new(|_| true)),
+        group_title,
+        icon,
+        closable,
         menu,
         home: create_memo(move || home.get()),
         actions,
@@ -958,13 +982,7 @@ pub fn Dock(
         bars: RefCell::default(),
         tab,
         content,
-        empty: empty.unwrap_or_else(|| {
-            RenderFn::new(|()| {
-                view! {
-                    <Frame />
-                }
-            })
-        }),
+        empty,
         panel: panel.unwrap_or_else(|| {
             RenderFn::new(|handle| {
                 view! {
@@ -1089,7 +1107,7 @@ fn DockStack(dock: Handle) -> NodeId {
                     <Portal node={bar} />
                 </Show>
                 <Show condition={vacant}>
-                    {empty.call(())} @sizing=ItemSize::Percent(100.0)
+                    {empty.call(state.with_untracked(vacant_leaf))} @sizing=ItemSize::Percent(100.0)
                 </Show>
                 <Show condition={occupied}>
                     <Portal node={panel.clone()} @sizing=ItemSize::Percent(100.0) />
@@ -1151,7 +1169,7 @@ fn stack_handle(dock: &Handle, shown: Memo<Option<TabId>>, away: Memo<bool>) -> 
             }
         }),
         show: Func::new(move |tab| show.show(tab)),
-        close: Func::new(move |tab| close.close_stacked(tab)),
+        close: Func::new(move |tab| close.close_tab(tab)),
     }
 }
 
@@ -1175,7 +1193,7 @@ fn DockTiles(dock: Handle) -> NodeId {
                         {move |surface: SurfaceId| {
                             let dock = panes.clone();
                             view! {
-                                <DockPane
+                                <DockTreeView
                                     dock
                                     tree={Tree::Surface(surface)}
                                     @sizing=ItemSize::Percent(100.0)
@@ -1263,7 +1281,7 @@ fn StackedWindow(handle: DockWindowHandle) -> NodeId {
 }
 
 #[component]
-fn DockPane(
+fn DockTreeView(
     dock: Handle,
     tree: Tree,
     #[prop(default = None)] hoisted: Prop<Option<LeafId>>,
@@ -1536,7 +1554,7 @@ fn DockPanelBody(dock: Handle, leaf: LeafId) -> NodeId {
                                 padding_vertical={inset}
                                 @sizing=ItemSize::Percent(100.0)
                             >
-                                <DockPane dock tree={Tree::Group(group)} />
+                                <DockTreeView dock tree={Tree::Group(group)} />
                             </Frame>
                         },
                         None => view! {
@@ -1563,7 +1581,7 @@ fn DockTabBody(dock: Handle, leaf: LeafId) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={vacant}>
-                {empty.call(())} @sizing=ItemSize::Percent(100.0)
+                {empty.call(leaf)} @sizing=ItemSize::Percent(100.0)
             </Show>
             <Show condition={occupied}>
                 <Portal node={panel.clone()} @sizing=ItemSize::Percent(100.0) />
@@ -2261,7 +2279,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                             }
                                         });
                                         let pane = view! {
-                                            <DockPane
+                                            <DockTreeView
                                                 dock={dock.clone()}
                                                 tree={Tree::Surface(surface)}
                                                 hoisted

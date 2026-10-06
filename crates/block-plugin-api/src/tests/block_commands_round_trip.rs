@@ -33,9 +33,6 @@ fn block_commands_round_trip() {
             action: ArtifactAction::Regenerate,
         },
         BlockCommand::Artifact {
-            action: ArtifactAction::Settings,
-        },
-        BlockCommand::Artifact {
             action: ArtifactAction::Unlink,
         },
         BlockCommand::SimulateAccess {
