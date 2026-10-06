@@ -1,11 +1,43 @@
 # The build server
 
-Every buck2 action runs on Namespace's remote execution
-(https://namespace.so/docs/bazel/execution), on a cluster that belongs to the
-repository's Namespace workspace: an executor (`reapih-…`) and the storage that
-holds the action cache and the CAS (`storageh-…`).
+Every buck2 action runs on a remote execution server. `BE3_BUILD_SERVER` picks
+which:
 
-## Waking it
+| `BE3_BUILD_SERVER` | Server | Key |
+|---|---|---|
+| `namespace` (the default, and CI's) | Namespace's remote execution | Namespace's token (below) |
+| `blocks.pfg.pw` | our own NativeLink server | `authorization: Bearer KEY` |
+| `buildserver.pfg.pw` | our own NativeLink server, 8 cores | `authorization: Bearer KEY` |
+| `buildbuddy` | BuildBuddy's `remote.buildbuddy.io` | `x-buildbuddy-api-key: KEY` |
+
+The servers share nothing: each has its own cache and its own key.
+`./scripts/buck` writes the one it picked into `.buckconfig.local`, with its
+name as `be3.build_server`; `worker_properties` (`buck/tools/defs.bzl`) reads
+that to pick the workers' image, since Namespace runs only its own copy of it.
+`nsc` is only downloaded for Namespace.
+
+A server other than Namespace takes its key from:
+
+1. `BE3_BUILD_SERVER_KEY` in the environment
+2. `.build-server-key.SERVER` at the root of the checkout
+3. `~/.config/be3/build-server-key.SERVER`
+
+where `SERVER` is the value of `BE3_BUILD_SERVER`. Without one, at a terminal,
+`./scripts/buck` asks for it and saves it to the last; Namespace's token is
+asked for and saved the same way, to `~/.config/be3/namespace-token.json`.
+
+In an agent's cloud session the proxy adds the key to requests for
+`blocks.pfg.pw` and `buildserver.pfg.pw`, and `BE3_BUILD_SERVER_KEY` is a
+placeholder; there is no key for BuildBuddy there.
+
+## Namespace
+
+Namespace's remote execution
+(https://namespace.so/docs/bazel/execution) runs on a cluster that belongs to
+the repository's Namespace workspace: an executor (`reapih-…`) and the storage
+that holds the action cache and the CAS (`storageh-…`).
+
+### Waking it
 
 Namespace shuts the cluster down when it has been idle for a while, and its
 hosts then answer 404. So no host is checked in: `./scripts/buck` runs the
@@ -22,7 +54,7 @@ key, or with other flags (such as `--static`), Namespace starts a new cluster
 beside the old one. The dashboard shows both, and the stale one should be
 destroyed, since its workers count against the workspace's 32 vCPU limit.
 
-## The token
+### The token
 
 `nsc` authenticates with a token from:
 
@@ -45,7 +77,7 @@ A token is revoked at https://cloud.namespace.so/user/sessions.
   `private-api.global.namespaceapis.com` through it, and buck2 reaches the
   cluster through `scripts/internal/re-relay` (guides/buck2.md).
 
-## The workers' image
+### The workers' image
 
 Actions run in the image named by `container-image` in `worker_properties`
 (`buck/tools/defs.bzl`), so an action sees the same system wherever it runs.
@@ -63,7 +95,7 @@ nsc base-image optimize --image_ref nscr.io/WORKSPACE/be3-worker@sha256:DIGEST
 `upload` prints the `nscr.io` reference with its digest, which is what
 `optimize` and `worker_properties` take. A new digest needs optimizing once.
 
-## How actions run
+### How actions run
 
 - **As root, in the image**, in a fresh directory, without per-action
   sandboxing: an action also sees the worker's own environment, among it
@@ -92,5 +124,5 @@ keytool -genkeypair -keystore ci.keystore -storepass android -alias androiddebug
 base64 -w0 ci.keystore
 ```
 
-The keystore is an input of the signing action, so it is in Namespace's CAS,
-where anyone with the token can read it.
+The keystore is an input of the signing action, so it is in the build server's CAS,
+where anyone with its key can read it.

@@ -7,6 +7,7 @@ shelley.db*
 /.buckconfig.local
 /rust-project.json
 /.namespace-token.json
+/.build-server-key.*
 /dist/
 __pycache__/
 /buck/android/ci-keystore.base64

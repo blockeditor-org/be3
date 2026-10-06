@@ -1,7 +1,8 @@
 # buck2
 
-buck2 builds, lints and tests the workspace, and every action runs on
-Namespace's remote execution (guides/build_server.md). Every command is a buck2 target started through
+buck2 builds, lints and tests the workspace, and every action runs on a
+remote execution server, Namespace's unless `BE3_BUILD_SERVER` picks another
+(guides/build_server.md). Every command is a buck2 target started through
 `./scripts/buck`. cargo builds nothing; `Cargo.toml` is still the one place a
 dependency is declared, and buck2 reads it through cargo's own plans.
 
@@ -46,12 +47,14 @@ these in front of the pinned buck2:
 - **buck2 itself.** The release pinned in `scripts/internal/common.sh` is
   installed into `target/tools/buck2-<version>/` the first time it is missing.
   A `buck2` on `PATH` is not used, since each buck2 carries its own prelude.
-- **The build server.** The pinned `nsc` is installed into
-  `target/tools/nsc-<version>/` the first time it is missing, wakes the remote
-  execution cluster, and names its hosts, which go into a generated
-  `.buckconfig.local` (guides/build_server.md says when it asks, and where its
-  token comes from).
-- **An HTTPS proxy.** buck2's remote execution client dials Namespace's hosts
+- **The build server.** `BE3_BUILD_SERVER` picks it, and its hosts and key go
+  into a generated `.buckconfig.local`, with the server's name as
+  `be3.build_server`, which picks the workers' image. For Namespace, the
+  default, the pinned `nsc` is installed into `target/tools/nsc-<version>/` the
+  first time it is missing, wakes the remote execution cluster, and names its
+  hosts (guides/build_server.md says when it asks, and where each server's key
+  comes from).
+- **An HTTPS proxy.** buck2's remote execution client dials the server's hosts
   directly and never reads `HTTPS_PROXY`. When it is set, `./scripts/buck` builds
   `scripts/internal/re-relay` with Go (1.24 or newer), leaves one running on
   `127.0.0.1:18980` for the executor and one on `127.0.0.1:18981` for the
@@ -78,13 +81,13 @@ It also lets `test` put tests on the workers (below).
 
 ## Layout
 
-- `.buckconfig`: cells, the execution platform, Namespace's hosts. The prelude is the
+- `.buckconfig`: cells and the execution platform. The prelude is the
   one bundled in the buck2 binary.
 - `BUCK.v2`: the `//:` commands, scripts in `buck/dev`. (`BUCK.v2` rather than
   `BUCK`, which a case-insensitive filesystem cannot hold beside `buck/`.)
 - `buck/tools`: every compiler and tool, downloaded and pinned by hash and size.
 - `buck/toolchains`: the toolchains built from them, per target platform.
-- `buck/platforms`: the execution platform (a Namespace worker) and every
+- `buck/platforms`: the execution platform (a build server's worker) and every
   target platform; `cross.bzl` lists the cross-compiled ones and the plans
   `crates.bzl` keys them by, and everything else that lists platforms reads it.
 - `buck/sysroot`: the Ubuntu 24.04 packages everything is compiled against.
@@ -265,7 +268,7 @@ extension ships: the toolchain's panics on this workspace.
   `buck/toolchains/BUCK`: otherwise the prelude sets `RUSTC_BOOTSTRAP=1`, and
   `cfg(target_feature = "atomics")` on `wasm32-wasip1-threads` then answers
   differently from cargo, which broke wgpu's `Send`/`Sync` checks.
-- **The token.** Namespace answers a call with a wrong or missing token
+- **The key.** A server answers a call with a wrong or missing key or token
   with `UNAUTHENTICATED`, which buck2 reports as failing to reach it.
 - **Downloads.** Every `http_archive` has `size_bytes` as well as `sha256`;
   without it buck2 sends a HEAD request per download on every new daemon.
