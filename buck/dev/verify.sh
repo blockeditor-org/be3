@@ -124,17 +124,7 @@ starlark() {
 # Once all of them pass, a painting none of them named belongs to a test that is
 # gone: it is deleted, or with --check it fails the run.
 plugin_tests() {
-    targets="$("$buck" uquery 'kind("^plugin_test_run$", //crates/...)' 2> /dev/null)" || {
-        echo "The plugin tests could not be listed."
-        return 1
-    }
-    outputs="$("$buck" build --keep-going --materializations all --show-full-output $targets)" || return 1
-    directories="$(echo "$outputs" | sed -n 's/^[^ ]* //p')"
-    if [ "$(echo "$targets" | grep -c .)" != "$(echo "$directories" | grep -c .)" ]; then
-        echo "Not every plugin test reported where its paintings are:"
-        echo "$outputs"
-        return 1
-    fi
+    directories="$("$buck" bxl --keep-going //buck/dev/workspace.bxl:plugin_tests)" || return 1
     changed="$(echo "$directories" | while IFS= read -r directory; do
         for painting in "$directory"/changed/*.paint; do
             [ -e "$painting" ] && echo "$painting"
@@ -231,14 +221,13 @@ fi
 # from the cache when nothing they read changed; buck2 test runs the rest: the
 # ones that stay local and the compile_fail cases.
 tests() {
-    runs="$("$buck" uquery 'kind("^test_run$", //crates/...)' 2> /dev/null)" &&
-        rest="$("$buck" uquery 'attrfilter(remote_execution, disabled, //crates/...)' 2> /dev/null)" || {
-        echo "The tests could not be listed."
+    stay_local="$("$buck" bxl //buck/dev/workspace.bxl:local_tests 2> /dev/null)" || {
+        echo "The tests that stay local could not be listed."
         return 1
     }
     status=0
-    "$buck" build --keep-going $runs || status=1
-    "$buck" test //compile_fail/... $rest || status=1
+    "$buck" bxl --keep-going //buck/dev/workspace.bxl:test_runs || status=1
+    "$buck" test //compile_fail/... $stay_local || status=1
     return $status
 }
 
