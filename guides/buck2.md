@@ -96,7 +96,8 @@ It also lets `test` put tests on the workers (below).
 - `buck/tools`: every compiler and tool, downloaded and pinned by hash and size.
 - `buck/toolchains`: the toolchains built from them, per target platform.
 - `buck/platforms`: the execution platform (a Namespace worker) and every
-  target platform; `cross.bzl` lists the cross-compiled ones.
+  target platform; `cross.bzl` lists the cross-compiled ones and the plans
+  `crates.bzl` keys them by, and everything else that lists platforms reads it.
 - `buck/sysroot`: the Ubuntu 24.04 packages everything is compiled against.
 - `buck/cargo`: the BXL that writes `crates.bzl` and the macros that read it:
   `defs.bzl` for workspace crates, `third_party.bzl` for the rest.

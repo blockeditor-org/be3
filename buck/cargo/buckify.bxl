@@ -1,3 +1,5 @@
+load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple", "plan_name")
+
 # Generates buck/cargo/crates.bzl (crates/buck-tools' generate, from cargo's
 # plans) on a worker and prints its directory; ./scripts/buck copies it into
 # place when its inputs change. Beside it is the Cargo.lock it was generated
@@ -70,6 +72,7 @@ def _impl(ctx):
             layout,
             cargo,
             nightly,
+            ["{}={}".format(plan_name(name), cross_triple(name)) for name in CROSS_PLATFORMS],
         ),
         category = "buckify",
     )

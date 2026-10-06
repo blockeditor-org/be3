@@ -1,3 +1,4 @@
+load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
 load("@root//buck/platforms:profile.bzl", "dev_only")
 load(":crates.bzl", "crates")
 
@@ -7,18 +8,7 @@ load(":crates.bzl", "crates")
 # to what the macro works out, and anything else goes to the rule as it is.
 # Where a crate's dependencies or features differ between platforms, the macro
 # writes the select(); these are the constraints each plan is selected by.
-_CONSTRAINTS = {
-    "android-arm64": "root//buck/platforms:android_arm64_setting",
-    "linux-arm64": "root//buck/platforms:linux_arm64_setting",
-    "linux-x86_64": "DEFAULT",
-    "macos-arm64": "root//buck/platforms:macos_arm64_setting",
-    "macos-x86_64": "root//buck/platforms:macos_x86_64_setting",
-    "wasi": "root//buck/platforms:wasi_setting",
-    "wasi-guest": "root//buck/platforms:wasi_guest_setting",
-    "wasm32": "prelude//os:none",
-    "windows-arm64": "root//buck/platforms:windows_arm64_setting",
-    "windows-x86_64": "root//buck/platforms:windows_x86_64_setting",
-}
+_CONSTRAINTS = PLAN_SETTINGS | {"linux-x86_64": "DEFAULT"}
 
 def _crate():
     package = native.package_name()

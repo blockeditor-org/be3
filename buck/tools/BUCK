@@ -1,4 +1,5 @@
 load("@toolchains//:defs.bzl", "script")
+load("//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple")
 load(":defs.bzl", "llvm_tree", "rust_sysroot")
 
 # The compilers and tools the build runs. A worker is a container with nothing
@@ -133,15 +134,17 @@ cross_rust_std = {
     "x86_64-pc-windows-msvc": ("81d123f834111ebeaf8b1eed0e93b0b66ea4bcf4cc1d3836d9a0314d4ea94a73", 23061408),
 }
 
+cross_targets = sorted([cross_triple(name) for name in CROSS_PLATFORMS])
+
 [
     http_archive(
         name = "rust-std-" + target,
-        sha256 = sha256,
-        size_bytes = size_bytes,
+        sha256 = cross_rust_std[target][0],
+        size_bytes = cross_rust_std[target][1],
         strip_prefix = "rust-std-{}-{}/rust-std-{}".format(rust_version, target, target),
         urls = ["https://static.rust-lang.org/dist/rust-std-{}-{}.tar.xz".format(rust_version, target)],
     )
-    for target, (sha256, size_bytes) in cross_rust_std.items()
+    for target in cross_targets
 ]
 
 [
@@ -149,7 +152,7 @@ cross_rust_std = {
         name = "rust-" + target,
         components = [":rustc-component", ":clippy-component", ":rust-std-" + target],
     )
-    for target in sorted(cross_rust_std)
+    for target in cross_targets
 ]
 
 # An Apple target's rustc is told where the SDK is, which it otherwise asks
@@ -165,7 +168,7 @@ cross_rust_std = {
         )
         for program in ["rustc", "rustdoc", "clippy-driver"]
     ]
-    for target in sorted(cross_rust_std)
+    for target in cross_targets
 ]
 
 # Apple's SDK: the headers and the .tbd stubs a macOS binary is compiled and

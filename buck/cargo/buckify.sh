@@ -4,13 +4,15 @@
 # crates.bzl generated from them by buck-tools, in OUT beside the Cargo.lock
 # they were planned with.
 #
-# Usage: buckify.sh OUT WORKSPACE PLACEHOLDERS TOOLCHAIN NIGHTLY
+# Usage: buckify.sh OUT WORKSPACE PLACEHOLDERS TOOLCHAIN NIGHTLY [PLAN=TRIPLE]...
+#   each PLAN=TRIPLE a cross-compiled platform (buck/platforms/cross.bzl)
 set -eu
 out="$(pwd)/$1"
 workspace="$2"
 layout="$(pwd)/$3"
 toolchain="$(cd "$4" && pwd)"
 nightly="$(cd "$5" && pwd)"
+shift 5
 scratch="$(mktemp -d)"
 mkdir -p "$out"
 cp -RL "$workspace/." "$scratch/workspace"
@@ -75,17 +77,16 @@ plan test --target x86_64-unknown-linux-gnu $host_packages --features block-app/
 plan build --target wasm32-wasip1-threads -p block-app -p beui-web-demo --lib --features block-app/full > "$scratch/wasi.json"
 plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin -p block-editor-beui -p beui-demo > "$scratch/wasi-guest.json"
 plan build --target wasm32-unknown-unknown $games -p block-gpu-shim > "$scratch/wasm32.json"
-plan test --target aarch64-linux-android $host_packages --features block-app/full > "$scratch/android-arm64.json"
-plan test --target aarch64-unknown-linux-gnu $host_packages --features block-app/full > "$scratch/linux-arm64.json"
-plan test --target aarch64-apple-darwin $host_packages --features block-app/full > "$scratch/macos-arm64.json"
-plan test --target x86_64-apple-darwin $host_packages --features block-app/full > "$scratch/macos-x86_64.json"
-plan test --target aarch64-pc-windows-msvc $host_packages --features block-app/full > "$scratch/windows-arm64.json"
-plan test --target x86_64-pc-windows-msvc $host_packages --features block-app/full > "$scratch/windows-x86_64.json"
+cross=""
+for platform in "$@"; do
+    name="${platform%%=*}"
+    plan test --target "${platform#*=}" $host_packages --features block-app/full > "$scratch/$name.json"
+    cross="$cross $name=$scratch/$name.json"
+done
 CARGO_TARGET_DIR="$scratch/target" PATH="$toolchain/bin:$PATH" \
     "$toolchain/bin/cargo" build --quiet --release --locked -p buck-tools
 "$scratch/target/release/buck-tools" generate "$scratch/metadata.json" Cargo.lock "$scratch/sizes" Cargo.toml \
     "linux-x86_64=$scratch/host.json" "wasi=$scratch/wasi.json" "wasi-guest=$scratch/wasi-guest.json" "wasm32=$scratch/wasm32.json" \
-    "android-arm64=$scratch/android-arm64.json" "linux-arm64=$scratch/linux-arm64.json" "macos-arm64=$scratch/macos-arm64.json" "macos-x86_64=$scratch/macos-x86_64.json" \
-    "windows-arm64=$scratch/windows-arm64.json" "windows-x86_64=$scratch/windows-x86_64.json" \
+    $cross \
     > "$out/crates.bzl"
 rm -rf "$scratch"

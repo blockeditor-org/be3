@@ -377,7 +377,7 @@ generated_rules_inputs() {
         printf '%s\n' "$buck2_version"
         find crates -type f | LC_ALL=C sort
         {
-            printf '%s\0' Cargo.toml Cargo.lock buck/cargo/BUCK buck/cargo/buckify.bxl buck/cargo/buckify.sh buck/tools/BUCK
+            printf '%s\0' Cargo.toml Cargo.lock buck/cargo/BUCK buck/cargo/buckify.bxl buck/cargo/buckify.sh buck/platforms/cross.bzl buck/tools/BUCK
             find crates -name Cargo.toml -print0
             find crates/buck-tools/src -type f -print0
         } | LC_ALL=C sort -z | xargs -0 cat
