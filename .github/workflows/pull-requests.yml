@@ -1,0 +1,27 @@
+name: Pull requests
+
+# ci.yml runs on a branch's pushes, as the branch has it, and finds the pull
+# request the branch is the head of when it runs. Opening one pushes nothing,
+# so this starts a run of the branch's ci.yml for it, which is the run that
+# gives it its paint previews and its Android build. A pull request from a
+# fork has no branch here to run.
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions: {}
+
+jobs:
+  ci:
+    name: start CI
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: write
+    steps:
+      - name: Run ci.yml on the branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: gh workflow run ci.yml --repo "$REPOSITORY" --ref "$BRANCH"
