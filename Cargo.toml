@@ -18,6 +18,7 @@ members = [
     "crates/beui",
     "crates/beui-adapter-android",
     "crates/beui-adapter-drm",
+    "crates/beui-adapter-plugin",
     "crates/beui-adapter-web",
     "crates/beui-font-browser",
     "crates/beui-renderer-dom",

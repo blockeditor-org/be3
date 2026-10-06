@@ -49,7 +49,7 @@ fn place(session: &mut EditorSession, height: u32) {
             },
         }],
     );
-    session.run(EditorRegion::Frame, 1);
+    session.run(EditorRegion::Frame, 1, 0);
 }
 
 fn sizes(session: &mut EditorSession) -> Vec<Size> {

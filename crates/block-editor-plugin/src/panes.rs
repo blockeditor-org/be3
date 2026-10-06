@@ -41,8 +41,12 @@ impl Panes {
                 continue;
             };
             let mut changed = fresh.contains(&placement.surface);
-            if dirty.contains(placement.instance) || repainting.contains(&placement.instance) {
-                let frame = session.run(placement.region, layout.generation);
+            if changed
+                || dirty.contains(placement.instance)
+                || repainting.contains(&placement.instance)
+            {
+                let age = block_gpu_guest::surface_age(placement.surface);
+                let frame = session.run(placement.region, layout.generation, age);
                 screens.ran(placement.instance);
                 changed |= frame.changed;
                 if let Some(after) = frame.repaint_after {

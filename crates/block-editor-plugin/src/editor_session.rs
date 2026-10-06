@@ -81,6 +81,7 @@ struct RegionState {
     occluders: Vec<Occluder>,
     laid_out: Size,
     reported_children: Option<(Size, Vec<ChildPlacement>, Vec<Occluder>)>,
+    age: u32,
 }
 
 impl EditorSession {
@@ -840,10 +841,15 @@ impl EditorSession {
     }
 
     fn context(&self, region: EditorRegion) -> Region {
+        let state = self.regions.get(&region);
         Region {
             region,
             rect: self.rect(region),
             scale_factor: self.scale_factor(region),
+            pixels: self
+                .placement(region)
+                .map_or([0, 0], |placement| [placement.width, placement.height]),
+            age: state.map_or(0, |state| state.age),
             spec: self
                 .regions
                 .get(&region)
@@ -852,8 +858,11 @@ impl EditorSession {
         }
     }
 
-    pub fn run(&mut self, region: EditorRegion, generation: u64) -> Frame {
+    pub fn run(&mut self, region: EditorRegion, generation: u64, age: u32) -> Frame {
         self.generation = generation;
+        if let Some(state) = self.regions.get_mut(&region) {
+            state.age = age;
+        }
         let context = self.context(region);
         let host = context.rect;
         let origin = host.min.to_vec2();

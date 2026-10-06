@@ -78,18 +78,16 @@ impl Screens {
             .then(|| Painted::new(&adapter, canvas, surface));
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("plugin screen layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
                 },
-            ],
+                count: None,
+            }],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("plugin screen pipeline layout"),
@@ -198,7 +196,9 @@ impl Screens {
                 label: Some("plugin screen"),
             });
         let frame = match target {
-            Target::Surface(painted) => self.draw(&mut encoder, &view, texture.format(), painted, size),
+            Target::Surface(painted) => {
+                self.draw(&mut encoder, &view, texture.format(), painted, size)
+            }
             Target::Copied { .. } => {
                 let mut atlas = self
                     .atlas
@@ -247,12 +247,10 @@ impl Screens {
         let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("plugin screen"),
             layout: &self.layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(view),
-                },
-            ],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(view),
+            }],
         });
         let pipeline = self.pipeline(format);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

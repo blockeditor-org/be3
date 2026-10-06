@@ -1,0 +1,21 @@
+[package]
+name = "beui-adapter-plugin"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-core = { path = "../beui-core" }
+beui-plugin-input = { path = "../beui-plugin-input" }
+block-editor-plugin = { path = "../block-editor-plugin" }
+block-plugin-api = { path = "../block-plugin-api" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
+wgpu = { version = "29", default-features = false }
+
+[dev-dependencies]
+beui = { path = "../beui", default-features = false }
+
+[lints]
+workspace = true

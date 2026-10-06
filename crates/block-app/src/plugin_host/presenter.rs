@@ -50,8 +50,12 @@ pub(super) trait SurfacePresenter {
         frame: &Self::Frame,
     ) -> Result<(), String>;
 
-    fn prepare(&mut self, queue: &wgpu::Queue, slot: u32, frame: &Self::Frame)
-    -> Result<(), String>;
+    fn prepare(
+        &mut self,
+        queue: &wgpu::Queue,
+        slot: u32,
+        frame: &Self::Frame,
+    ) -> Result<(), String>;
 
     fn paint(
         &self,

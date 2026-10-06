@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use block_plugin_api::{CursorIcon, EditorRegion, FrameChrome, FrameSpec, InputEvent};
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
+use block_plugin_api::{CursorIcon, EditorRegion, FrameChrome, FrameSpec, InputEvent};
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
 
@@ -62,6 +62,8 @@ pub struct Region {
     pub region: EditorRegion,
     pub rect: Rect,
     pub scale_factor: f32,
+    pub pixels: [u32; 2],
+    pub age: u32,
     pub spec: FrameSpec,
 }
 
@@ -113,4 +115,17 @@ impl PaintTarget<'_> {
             height: self.height,
         }]
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone)]
+pub struct SurfaceGpu {
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    pub format: wgpu::TextureFormat,
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn surface_gpu() -> Option<SurfaceGpu> {
+    crate::wasm::surface_gpu()
 }

@@ -1,7 +1,7 @@
 use super::*;
 use block_plugin_api::{
-    EditorRegion, HelloAccepted, InputBatch, ScreenRequest, ScreenSet, Size,
-    SurfaceFormat, SurfaceSpec, Theme, ViewportMetrics,
+    EditorRegion, HelloAccepted, InputBatch, ScreenRequest, ScreenSet, Size, SurfaceFormat,
+    SurfaceSpec, Theme, ViewportMetrics,
 };
 
 fn accept(session: &mut ClientSession) {

@@ -9,6 +9,7 @@ use crate::{panes::Panes, screens::Screens};
 
 thread_local! {
     static GPU: RefCell<Option<Gpu>> = const { RefCell::new(None) };
+    static FORMAT: Cell<Option<wgpu::TextureFormat>> = const { Cell::new(None) };
     static PRESENTS: Cell<u64> = const { Cell::new(0) };
 }
 
@@ -29,6 +30,15 @@ fn gpu() -> Result<Gpu, String> {
         .ok_or_else(|| "the plugin gpu is not ready".to_owned())
 }
 
+pub(crate) fn surface_gpu() -> Option<crate::SurfaceGpu> {
+    let Gpu { device, queue } = gpu().ok()?;
+    Some(crate::SurfaceGpu {
+        device,
+        queue,
+        format: FORMAT.get()?,
+    })
+}
+
 pub(crate) struct Surfaces {
     gpu: Gpu,
     format: wgpu::TextureFormat,
@@ -39,6 +49,7 @@ pub(crate) struct Surfaces {
 
 impl Surfaces {
     pub(crate) fn new(spec: SurfaceSpec) -> Result<Self, String> {
+        FORMAT.set(Some(format(spec.format)));
         Ok(Self {
             gpu: gpu()?,
             format: format(spec.format),

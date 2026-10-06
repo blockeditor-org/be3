@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
-    Hello, HelloAccepted, Modifiers, PluginIdentity, PointerButton,
-    SurfaceFormat, SurfaceSpec, SurfaceSupport, Theme, WheelUnit, encode_frame,
+    Hello, HelloAccepted, Modifiers, PluginIdentity, PointerButton, SurfaceFormat, SurfaceSpec,
+    SurfaceSupport, Theme, WheelUnit, encode_frame,
 };
 
 fn session() -> HostSession {

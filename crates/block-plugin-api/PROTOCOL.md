@@ -549,20 +549,22 @@ process can run. A request left unanswered for a second is asked again. A
 plugin the host is not drawing is asked for nothing.
 
 The host shows whatever the plugin has published by the time it finishes
-building its own frame. Which part of the surface each region takes is settled
-then as well, against the layout that arrived with the frame being shown, so a
+building its own frame. Which surface each region is drawn from is settled then
+as well, against the layout that arrived with the frame being shown, so a
 plugin that republishes its layout mid-frame is never drawn through the
 placements of the one before it.
 
-Every screen an instance is given is packed into one surface for the whole
-plugin runtime, in two dimensions rather than in a single column, since a
-frame-sized slot would otherwise run past the largest texture the device
-allows. Which part of the surface a screen takes is the layout the plugin
-publishes and the host samples.
+Every screen an instance is given is a surface of its own, the size the host
+asked for, so a screen that grows, shrinks or goes away leaves every other
+screen's surface as it was. Which surface a screen is drawn into is the layout
+the plugin publishes: a screen keeps its surface for as long as it is shown,
+and a surface whose screen is gone is released. A frame presents only the
+surfaces whose screens changed, and the damage it reports names the screen
+each rectangle falls on.
 
 A plugin never learns where its pixels live. It asks its host for a render
 target and draws into an opaque texture, which is the host's own under
 wasmtime and the worker's offscreen canvas in the browser; the frame it
-publishes names the generation of the layout it drew, and the host shows that
-texture until another frame arrives. No pixels and no native graphics
-resources cross the connection.
+publishes names the generation of the layout it drew, and the host shows each
+screen's texture until another frame presents it. No pixels and no native
+graphics resources cross the connection.

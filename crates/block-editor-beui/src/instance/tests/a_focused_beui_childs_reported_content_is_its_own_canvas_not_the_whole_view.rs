@@ -30,8 +30,8 @@ fn a_focused_beui_childs_reported_content_is_its_own_canvas_not_the_whole_view()
         TopBar::Shown,
     );
 
-    session.run(EditorRegion::Frame, 1);
-    session.run(EditorRegion::Frame, 2);
+    session.run(EditorRegion::Frame, 1, 0);
+    session.run(EditorRegion::Frame, 2, 0);
 
     let report = session
         .report(EditorRegion::Frame)

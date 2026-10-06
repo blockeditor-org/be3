@@ -53,7 +53,10 @@ impl HeadlessPlugin {
             let Some(session) = self.screens.session(placement.instance) else {
                 continue;
             };
-            frames.push((*placement, session.run(placement.region, layout.generation)));
+            frames.push((
+                *placement,
+                session.run(placement.region, layout.generation, 0),
+            ));
             self.screens.ran(placement.instance);
         }
         frames

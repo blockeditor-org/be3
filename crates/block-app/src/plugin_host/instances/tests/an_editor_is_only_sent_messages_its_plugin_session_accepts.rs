@@ -5,9 +5,7 @@ use be_block::counter::CounterContent;
 use std::time::Duration;
 
 use block_editor_plugin::session::{ClientSession, State};
-use block_plugin_api::{
-    HelloAccepted, PROTOCOL_VERSION, SurfaceFormat, SurfaceSpec, Theme,
-};
+use block_plugin_api::{HelloAccepted, PROTOCOL_VERSION, SurfaceFormat, SurfaceSpec, Theme};
 
 #[test]
 fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {

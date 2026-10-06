@@ -40,8 +40,8 @@ fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
     let mut session = session::<OverlaidApp>(BLOCK_TYPE);
     frame(&mut session, None, TopBar::Hidden);
 
-    session.run(EditorRegion::Frame, 1);
-    session.run(EditorRegion::Frame, 2);
+    session.run(EditorRegion::Frame, 1, 0);
+    session.run(EditorRegion::Frame, 2, 0);
 
     let report = session
         .report(EditorRegion::Frame)

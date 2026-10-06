@@ -8,7 +8,7 @@ use accesskit::TreeUpdate;
 
 use crate::app::accessibility_dump::AccessibilityDump;
 use crate::app::{App, SafeArea, Setup, next_batch, safe_rect};
-use crate::context::Context;
+use crate::context::{Context, FrameOutput};
 use crate::file_picker::FilePickRequest;
 use crate::geometry::Vec2;
 use crate::input::{CursorIcon, Event, ImeArea, RawInput};
@@ -99,6 +99,7 @@ pub struct Runner {
     events: Vec<Event>,
     accessibility: Option<AccessibilityDump>,
     shown: Shown,
+    output: Option<FrameOutput>,
     exited: bool,
 }
 
@@ -126,6 +127,7 @@ impl Runner {
             events: Vec::new(),
             accessibility,
             shown: Shown::default(),
+            output: None,
             exited: false,
         }
     }
@@ -160,6 +162,10 @@ impl Runner {
 
     pub fn has_events(&self) -> bool {
         !self.events.is_empty()
+    }
+
+    pub fn take_output(&mut self) -> Option<FrameOutput> {
+        self.output.take()
     }
 
     pub fn accessibility_text(&self) -> Option<&str> {
@@ -246,13 +252,15 @@ impl Runner {
         }
 
         let pending = renderers.prepare(&output, scale, self.app.clear_color());
-        Some(Frame {
+        let frame = Frame {
             pending,
             deferred: !self.events.is_empty(),
             repaint: output.repaint,
             repaint_after: output.repaint_after,
             close_requested: output.close_requested,
-        })
+        };
+        self.output = Some(output);
+        Some(frame)
     }
 
     pub fn present(&mut self) -> bool {

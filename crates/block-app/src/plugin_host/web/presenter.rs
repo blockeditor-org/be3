@@ -47,12 +47,7 @@ pub(crate) fn presenter(
 impl SurfacePresenter for Presenter {
     type Frame = ();
 
-    fn replace(
-        &mut self,
-        _device: &wgpu::Device,
-        _slot: u32,
-        _frame: &(),
-    ) -> Result<(), String> {
+    fn replace(&mut self, _device: &wgpu::Device, _slot: u32, _frame: &()) -> Result<(), String> {
         Ok(())
     }
 
