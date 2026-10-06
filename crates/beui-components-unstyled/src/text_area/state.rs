@@ -487,6 +487,36 @@ impl TextAreaState {
         self.0.core.borrow().find_status(&query, case_sensitive)
     }
 
+    pub fn find_summary(&self) -> String {
+        let query_empty = self.0.find.query.with(String::is_empty);
+        match (query_empty, self.find_status()) {
+            (true, FindStatus { total: 0, .. }) => String::new(),
+            (false, FindStatus { total: 0, .. }) => "No results".to_owned(),
+            (
+                _,
+                FindStatus {
+                    total,
+                    current: Some(current),
+                },
+            ) => format!("{}/{total}", current + 1),
+            (
+                _,
+                FindStatus {
+                    total,
+                    current: None,
+                },
+            ) => format!("0/{total}"),
+        }
+    }
+
+    pub fn find_has_matches(&self) -> bool {
+        self.find_status().total > 0
+    }
+
+    pub fn find_has_current(&self) -> bool {
+        self.find_status().current.is_some()
+    }
+
     pub fn set_find_query(&self, query: String) {
         self.0.find.set_query.set(query);
         self.sync_find();

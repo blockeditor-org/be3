@@ -1,6 +1,7 @@
 use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
+use crate::focus_ring::FocusRing;
 use crate::text_input::TextInput;
 use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
@@ -9,12 +10,11 @@ use beui_core::base::TextAlign;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Frame, NodeRef, Prop, Text, clone, create_memo, focus_ring, set_component_state,
+    Callback, Frame, NodeRef, Prop, Text, clone, create_memo, set_component_state,
 };
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 
 struct FaceText(NodeRef);
@@ -104,13 +104,7 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
         ButtonVariant::Secondary.fill(&theme, disabled.get(), hovered.get(), active.get())
     }));
     view! {
-        <Frame
-            outline={theme.accent.clone()}
-            outline_width=FOCUS_RING_WIDTH
-            radius=RADIUS
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
-        >
+        <FocusRing focused offset=FOCUS_RING_OFFSET>
             <Frame
                 height=HEIGHT
                 color={fill}
@@ -129,7 +123,7 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
                     clip=true
                 />
             </Frame>
-        </Frame>
+        </FocusRing>
     }
 }
 

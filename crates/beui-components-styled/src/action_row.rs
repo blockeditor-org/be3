@@ -1,12 +1,12 @@
 use beui_macros::{component, view};
 
 use crate::text::Icon;
-use crate::theme::{FONT_BODY, FONT_SMALL, RADIUS, use_theme};
+use crate::theme::{FOCUS_RING_WIDTH, FONT_BODY, FONT_SMALL, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Action, Align, ClickCallback, Direction, Frame, ItemSize, List, Prop, Show, Text,
-    action_disabled, action_glyph, action_label, clone, create_memo, focus_ring,
+    Action, Align, ClickCallback, Direction, Frame, ItemSize, List, Prop, ReadSignal, Show, Text,
+    clone, create_memo, focus_ring,
 };
 
 const ROW_HEIGHT: f32 = 52.0;
@@ -23,22 +23,26 @@ pub fn ActionRow(
     action: Option<Action>,
     on_click: ClickCallback,
 ) -> NodeId {
-    let label = action_label(action.as_ref(), label);
-    let glyph = action_glyph(action.as_ref(), glyph);
-    let disabled = action_disabled(action.as_ref(), disabled);
-    let disabled = create_memo(move || disabled.get());
-    let face = disabled.clone();
     view! {
         <unstyled::Button
+            label
+            glyph
+            action
             disabled
-            on_click={move || {
-                if let Some(action) = &action {
-                    action.run();
+            on_click={move || on_click.call()}
+            content={move |handle: unstyled::ButtonHandle| {
+                let unstyled::ButtonHandle {
+                    hovered,
+                    active,
+                    focused,
+                    disabled,
+                    label,
+                    glyph,
+                    ..
+                } = handle;
+                view! {
+                    <ActionRowFace hovered active focused label glyph detail disabled danger />
                 }
-                on_click.call();
-            }}
-            content={move |handle| view! {
-                <ActionRowFace handle label glyph detail disabled={face.clone()} danger />
             }}
         />
     }
@@ -46,18 +50,15 @@ pub fn ActionRow(
 
 #[component]
 pub(crate) fn ActionRowFace(
-    handle: unstyled::ButtonHandle,
+    hovered: ReadSignal<bool>,
+    active: ReadSignal<bool>,
+    focused: ReadSignal<bool>,
     label: Prop<String>,
     glyph: Prop<String>,
     detail: Prop<String>,
     disabled: Prop<bool>,
     danger: bool,
 ) -> NodeId {
-    let unstyled::ButtonHandle {
-        hovered,
-        active,
-        focused,
-    } = handle;
     let theme = use_theme();
     let off = create_memo(move || disabled.get());
     let fill = create_memo(clone!(theme off -> move || {
@@ -91,7 +92,7 @@ pub(crate) fn ActionRowFace(
             color={fill}
             radius=RADIUS
             outline={theme.accent.clone()}
-            outline_width=2.0
+            outline_width=FOCUS_RING_WIDTH
             outline_visible={focus_ring(focused)}
             padding_horizontal=PADDING_HORIZONTAL
         >

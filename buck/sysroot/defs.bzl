@@ -14,39 +14,14 @@ def _deb_lock_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output("packages.bzl")
     base = "https://snapshot.ubuntu.com/ubuntu/" + ctx.attrs.snapshot
     indexes = " ".join(["dists/{}/{}".format(suite, component) for suite in _suites for component in _components])
-    script = (
-        """
-set -eu
-out="$1"; resolver="$2"; base="$3"; shift 3
-scratch="$(mktemp -d)"
-for set in "$@"; do
-    architecture="$(echo "$set" | cut -d: -f2)"
-    directory="$scratch/$architecture"
-    [ -d "$directory" ] && continue
-    mkdir -p "$directory"
-    number=0
-    for index in """
-        + indexes
-        + """; do
-        curl --fail --silent --show-error --location --retry 5 \
-            --output "$directory/$number.xz" "$base/$index/binary-$architecture/Packages.xz"
-        xz --decompress "$directory/$number.xz"
-        number=$((number + 1))
-    done
-done
-"$resolver" resolve "$base" "$scratch" "$@" > "$out"
-rm -rf "$scratch"
-"""
-    )
     ctx.actions.run(
         cmd_args(
             "sh",
-            "-c",
-            script,
-            "--",
+            ctx.attrs._script,
             out.as_output(),
             ctx.attrs._resolver[RunInfo],
             base,
+            indexes,
             ["{}:{}:{}".format(name, architecture, ",".join(packages)) for name, (architecture, packages) in ctx.attrs.sets.items()],
         ),
         category = "deb_lock",
@@ -58,6 +33,7 @@ deb_lock = rule(
         "sets": attrs.dict(attrs.string(), attrs.tuple(attrs.string(), attrs.list(attrs.string()))),
         "snapshot": attrs.string(),
         "_resolver": attrs.default_only(attrs.exec_dep(default = "root//crates/buck-tools:buck-tools-bin", providers = [RunInfo])),
+        "_script": attrs.default_only(attrs.source(default = "root//buck/sysroot:deb_lock.sh")),
     },
     impl = _deb_lock_impl,
 )
@@ -69,54 +45,11 @@ deb_lock = rule(
 # pointing at something left behind is removed.
 def _deb_sysroot_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output("sysroot", dir = True)
-    script = """
-set -eu
-out="$1"
-shift
-unpacked="$(mktemp -d)"
-for package; do dpkg-deb -x "$package" "$unpacked"; done
-for directory in lib lib64; do
-    if [ -d "$unpacked/$directory" ] && [ ! -L "$unpacked/$directory" ]; then
-        mkdir -p "$unpacked/usr/$directory"
-        cp -a "$unpacked/$directory/." "$unpacked/usr/$directory/"
-    fi
-done
-mkdir -p "$out/usr/lib"
-for kept in usr/include usr/lib64 usr/lib/gcc usr/lib/pkgconfig usr/share/pkgconfig \
-    usr/lib/x86_64-linux-gnu usr/lib/aarch64-linux-gnu; do
-    if [ -d "$unpacked/$kept" ]; then
-        mkdir -p "$out/$(dirname "$kept")"
-        cp -a "$unpacked/$kept" "$out/$kept"
-    fi
-done
-# The dynamic loader is directly in usr/lib on arm64, where glibc's libc.so
-# linker script looks for it; amd64's is in usr/lib64, which is kept whole.
-for loader in "$unpacked"/usr/lib/ld-linux-*.so*; do
-    if [ -e "$loader" ]; then cp -a "$loader" "$out/usr/lib/"; fi
-done
-rm -rf "$unpacked"
-cd "$out"
-ln -s usr/lib lib
-if [ -d usr/lib64 ]; then ln -s usr/lib64 lib64; fi
-find . -type l | while IFS= read -r link; do
-    target="$(readlink "$link")"
-    case "$target" in
-        /*)
-            directory="$(dirname "$link")"
-            up="$(printf '%s' "${directory#./}" | sed -e 's|[^/][^/]*|..|g')"
-            ln -sfn "$up${target}" "$link"
-            ;;
-    esac
-done
-find . -xtype l -delete
-find . -name '*\\*' -exec rm -rf {} +
-"""
+    command = cmd_args("sh", ctx.attrs._script, out.as_output())
     if ctx.attrs.keep_xkb:
-        script = script.replace("usr/lib/aarch64-linux-gnu; do", "usr/lib/aarch64-linux-gnu usr/share/X11/xkb; do")
-    ctx.actions.run(
-        cmd_args("sh", "-c", script, "--", out.as_output(), ctx.attrs.packages),
-        category = "deb_sysroot",
-    )
+        command.add("--keep-xkb")
+    command.add(ctx.attrs.packages)
+    ctx.actions.run(command, category = "deb_sysroot")
     return [DefaultInfo(default_output = out)]
 
 # keep_xkb also keeps the XKB keymaps, which nothing compiles against but a
@@ -125,6 +58,7 @@ deb_sysroot = rule(
     attrs = {
         "keep_xkb": attrs.bool(default = False),
         "packages": attrs.list(attrs.source()),
+        "_script": attrs.default_only(attrs.source(default = "root//buck/sysroot:deb_sysroot.sh")),
     },
     impl = _deb_sysroot_impl,
 )

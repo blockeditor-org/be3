@@ -22,6 +22,7 @@ use smithay::wayland::drm_syncobj::{
     DrmSyncobjCachedState, DrmSyncobjHandler, DrmSyncobjState, supports_syncobj_eventfd,
 };
 
+use crate::decoration::{Decorations, server_side};
 use crate::server::{Waiter, readable};
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
@@ -29,7 +30,6 @@ use smithay::delegate_output;
 use smithay::delegate_seat;
 use smithay::delegate_shm;
 use smithay::delegate_viewporter;
-use smithay::delegate_xdg_decoration;
 use smithay::delegate_xdg_shell;
 use smithay::desktop::{
     PopupKind, PopupManager, Window, WindowSurfaceType, find_popup_root_surface,
@@ -40,7 +40,6 @@ use smithay::input::pointer::{
 };
 use smithay::input::{Seat, SeatHandler, SeatState};
 use smithay::output::{Mode, Output, PhysicalProperties, Scale, Subpixel};
-use smithay::reexports::wayland_protocols::xdg::decoration::zv1::server::zxdg_toplevel_decoration_v1::Mode as DecorationMode;
 use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
 use smithay::reexports::wayland_server::backend::{ClientData, ClientId, DisconnectReason};
 use smithay::reexports::wayland_server::protocol::wl_buffer::WlBuffer;
@@ -59,7 +58,6 @@ use smithay::wayland::selection::SelectionHandler;
 use smithay::wayland::selection::data_device::{
     ClientDndGrabHandler, DataDeviceHandler, DataDeviceState, ServerDndGrabHandler,
 };
-use smithay::wayland::shell::xdg::decoration::{XdgDecorationHandler, XdgDecorationState};
 use smithay::wayland::shell::xdg::{
     PopupSurface, PositionerState, ToplevelSurface, XdgShellHandler, XdgShellState,
     XdgToplevelSurfaceData,
@@ -113,6 +111,7 @@ pub struct State {
     dmabuf_formats: Vec<Format>,
     dmabuf_check: Option<DmabufCheck>,
     syncobj: Option<DrmSyncobjState>,
+    decorations: Decorations,
     start: Instant,
     compositor: CompositorState,
     xdg_shell: XdgShellState,
@@ -139,7 +138,7 @@ impl State {
         let xdg_shell = XdgShellState::new::<Self>(handle);
         let shm = ShmState::new::<Self>(handle, Vec::new());
         let data_device = DataDeviceState::new::<Self>(handle);
-        XdgDecorationState::new::<Self>(handle);
+        let decorations = Decorations::new(handle);
         CursorShapeManagerState::new::<Self>(handle);
         ViewporterState::new::<Self>(handle);
         OutputManagerState::new_with_xdg_output::<Self>(handle);
@@ -165,6 +164,7 @@ impl State {
             dmabuf_formats: Vec::new(),
             dmabuf_check: None,
             syncobj: None,
+            decorations,
             handle: handle.clone(),
             start: Instant::now(),
             compositor,
@@ -187,6 +187,10 @@ impl State {
         };
         state.set_output(state.size, state.scale);
         state
+    }
+
+    pub fn decorations(&self) -> &Decorations {
+        &self.decorations
     }
 
     pub fn waiter(&self) -> &Waiter {
@@ -800,9 +804,7 @@ impl XdgShellHandler for State {
     }
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
-        surface.with_pending_state(|state| {
-            state.decoration_mode = Some(DecorationMode::ServerSide);
-        });
+        server_side(&surface);
         self.opened(surface);
     }
 
@@ -922,25 +924,6 @@ fn parent_offset(parent: &WlSurface, root: &WlSurface) -> Point<i32, Logical> {
     }
 }
 
-impl XdgDecorationHandler for State {
-    fn new_decoration(&mut self, toplevel: ToplevelSurface) {
-        toplevel.with_pending_state(|state| {
-            state.decoration_mode = Some(DecorationMode::ServerSide);
-        });
-        if toplevel.is_initial_configure_sent() {
-            toplevel.send_pending_configure();
-        }
-    }
-
-    fn request_mode(&mut self, toplevel: ToplevelSurface, _mode: DecorationMode) {
-        self.new_decoration(toplevel);
-    }
-
-    fn unset_mode(&mut self, toplevel: ToplevelSurface) {
-        self.new_decoration(toplevel);
-    }
-}
-
 impl SeatHandler for State {
     type KeyboardFocus = WlSurface;
     type PointerFocus = WlSurface;
@@ -998,7 +981,6 @@ delegate_shm!(State);
 delegate_seat!(State);
 delegate_data_device!(State);
 delegate_output!(State);
-delegate_xdg_decoration!(State);
 delegate_cursor_shape!(State);
 delegate_viewporter!(State);
 delegate_dmabuf!(State);

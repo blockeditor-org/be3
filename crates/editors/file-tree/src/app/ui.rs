@@ -510,6 +510,7 @@ fn AddChildFace(handle: ButtonHandle) -> NodeId {
         hovered,
         active,
         focused,
+        ..
     } = handle;
     let theme = use_theme();
     let color = create_memo(clone!(theme hovered active -> move || {

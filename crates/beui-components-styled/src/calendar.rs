@@ -1,14 +1,13 @@
-use accesskit::{Node, Role};
+use accesskit::Node;
 use beui_macros::{component, view};
 
 use crate::button::{ButtonFace, ButtonVariant};
+use crate::focus_ring::FocusRing;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::theme::{FONT_BODY, FONT_SMALL, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, Weekday};
-use beui_components_unstyled::{
-    CalendarDayHandle, CalendarHeaderHandle, CalendarMode, CalendarMonthHandle, CalendarYearHandle,
-};
+use beui_components_unstyled::{CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
 use beui_core::base::{Align, Direction, Justify, TextAlign};
 use beui_core::color::Color32;
 use beui_core::icons::{
@@ -16,8 +15,7 @@ use beui_core::icons::{
 };
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, ClickCallback, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, Text, clone,
-    create_memo, focus_ring,
+    Callback, ClickCallback, Frame, ItemSize, List, Memo, Prop, Show, Text, clone, create_memo,
 };
 
 pub const CALENDAR_WIDTH: f32 = 7.0 * DAY_SIZE + 6.0 * SPACING;
@@ -26,7 +24,6 @@ const MONTH_HEIGHT: f32 = 56.0;
 const YEAR_HEIGHT: f32 = 44.0;
 const WEEKDAY_HEIGHT: f32 = 24.0;
 const SPACING: f32 = 2.0;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 1.0;
 const TODAY_RING_WIDTH: f32 = 1.0;
 
@@ -60,14 +57,8 @@ pub fn Calendar(
                 weekday={|weekday: Weekday| view! {
                     <WeekdayLabel weekday />
                 }}
-                day={|handle: CalendarDayHandle| view! {
-                    <DayFace handle />
-                }}
-                month={|handle: CalendarMonthHandle| view! {
-                    <MonthFace handle />
-                }}
-                year={|handle: CalendarYearHandle| view! {
-                    <YearFace handle />
+                cell={|handle: CalendarCellHandle| view! {
+                    <CellFace handle />
                 }}
             />
         </Frame>
@@ -79,26 +70,22 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
     let CalendarHeaderHandle {
         month_label,
         year_label,
-        mode,
         previous,
         next,
         show_months,
         show_years,
         can_previous,
         can_next,
+        previous_label,
+        next_label,
+        months_open,
+        years_open,
+        month_toggle,
+        year_toggle,
         ..
     } = handle;
-    let unit = create_memo(clone!(mode -> move || match mode.get() {
-        CalendarMode::Days => "month",
-        CalendarMode::Months => "year",
-        CalendarMode::Years => "years",
-    }));
-    let previous_label = create_memo(clone!(unit -> move || format!("Previous {}", unit.get())));
-    let next_label = create_memo(move || format!("Next {}", unit.get()));
     let no_previous = create_memo(move || !can_previous.get());
     let no_next = create_memo(move || !can_next.get());
-    let months_open = create_memo(clone!(mode -> move || mode.get() == CalendarMode::Months));
-    let years_open = create_memo(clone!(mode -> move || mode.get() == CalendarMode::Years));
     let month_shown = create_memo(clone!(years_open -> move || !years_open.get()));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
@@ -117,10 +104,10 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
                 spacing=0.0
             >
                 <Show condition={month_shown}>
-                    {move || clone!(month_label months_open show_months -> view! {
+                    {move || clone!(month_label months_open month_toggle show_months -> view! {
                         <HeaderToggle
                             label={month_label}
-                            choose="choose a month"
+                            accessibility={month_toggle}
                             open={months_open}
                             on_click={move || show_months.call(())}
                         />
@@ -128,7 +115,7 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
                 </Show>
                 <HeaderToggle
                     label={year_label}
-                    choose="choose a year"
+                    accessibility={year_toggle}
                     open={years_open}
                     on_click={move || show_years.call(())}
                 />
@@ -148,35 +135,24 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
 #[component]
 fn HeaderToggle(
     label: Memo<String>,
-    choose: &'static str,
+    accessibility: Memo<Node>,
     open: Memo<bool>,
     on_click: ClickCallback,
 ) -> NodeId {
-    let accessibility = create_memo(clone!(label open -> move || {
-        let mut node = Node::new(Role::Button);
-        node.set_label(match open.get() {
-            true => format!("{}, back to the days", label.get()),
-            false => format!("{}, {choose}", label.get()),
-        });
-        node.set_expanded(open.get());
-        node
-    }));
     let glyph = create_memo(move || match open.get() {
         true => ICON_ARROW_DROP_UP.to_owned(),
         false => ICON_ARROW_DROP_DOWN.to_owned(),
     });
     view! {
         <unstyled::Button
+            label
             accessibility
             on_click={move || on_click.call()}
             content={move |button: unstyled::ButtonHandle| view! {
                 <ButtonFace
                     handle={button}
                     variant=ButtonVariant::Ghost
-                    label={label.clone()}
-                    glyph=String::new()
                     trailing_glyph={glyph.clone()}
-                    disabled=false
                 />
             }}
         />
@@ -200,117 +176,33 @@ fn WeekdayLabel(weekday: Weekday) -> NodeId {
 }
 
 #[component]
-fn DayFace(handle: CalendarDayHandle) -> NodeId {
-    let CalendarDayHandle {
-        date,
+fn CellFace(handle: CalendarCellHandle) -> NodeId {
+    let CalendarCellHandle {
+        kind,
+        label,
         selected,
-        today,
+        marked,
         outside,
         disabled,
         hovered,
         active,
         focused,
     } = handle;
-    let number = create_memo(move || date.get().day.to_string());
-    view! {
-        <CellFace
-            text={number}
-            height=DAY_SIZE
-            selected
-            marked={today}
-            quiet={outside}
-            disabled
-            hovered
-            active
-            focused
-        />
-    }
-}
-
-#[component]
-fn MonthFace(handle: CalendarMonthHandle) -> NodeId {
-    let CalendarMonthHandle {
-        month,
-        selected,
-        current,
-        disabled,
-        hovered,
-        active,
-        focused,
-    } = handle;
-    let name = create_memo(move || month.get().month_name()[..3].to_owned());
-    let quiet = create_memo(|| false);
-    view! {
-        <CellFace
-            text={name}
-            height=MONTH_HEIGHT
-            selected
-            marked={current}
-            quiet
-            disabled
-            hovered
-            active
-            focused
-        />
-    }
-}
-
-#[component]
-fn YearFace(handle: CalendarYearHandle) -> NodeId {
-    let CalendarYearHandle {
-        year,
-        selected,
-        current,
-        disabled,
-        hovered,
-        active,
-        focused,
-    } = handle;
-    let name = create_memo(move || year.get().to_string());
-    let quiet = create_memo(|| false);
-    view! {
-        <CellFace
-            text={name}
-            height=YEAR_HEIGHT
-            selected
-            marked={current}
-            quiet
-            disabled
-            hovered
-            active
-            focused
-        />
-    }
-}
-
-#[component]
-fn CellFace(
-    text: Memo<String>,
-    height: f32,
-    selected: Memo<bool>,
-    marked: Memo<bool>,
-    quiet: Memo<bool>,
-    disabled: Memo<bool>,
-    hovered: ReadSignal<bool>,
-    active: ReadSignal<bool>,
-    focused: ReadSignal<bool>,
-) -> NodeId {
+    let height = match kind {
+        CalendarMode::Days => DAY_SIZE,
+        CalendarMode::Months => MONTH_HEIGHT,
+        CalendarMode::Years => YEAR_HEIGHT,
+    };
     let theme = use_theme();
     let fill = create_memo(clone!(theme selected disabled -> move || {
         cell_fill(&theme, selected.get(), disabled.get(), hovered.get(), active.get())
     }));
     let ink = create_memo(clone!(theme selected disabled -> move || {
-        cell_ink(&theme, selected.get(), disabled.get(), quiet.get())
+        cell_ink(&theme, selected.get(), disabled.get(), outside.get())
     }));
     let ring = create_memo(clone!(selected -> move || marked.get() && !selected.get()));
     view! {
-        <Frame
-            outline={theme.accent.clone()}
-            outline_width=FOCUS_RING_WIDTH
-            radius={RADIUS + 2}
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
-        >
+        <FocusRing focused radius={RADIUS + 2} offset=FOCUS_RING_OFFSET>
             <Frame
                 height
                 color={fill}
@@ -320,14 +212,14 @@ fn CellFace(
                 radius=RADIUS
             >
                 <Text
-                    string={text}
+                    string={label}
                     font_size=FONT_BODY
                     color={ink}
                     align=TextAlign::Center
                     vertical_align=TextAlign::Center
                 />
             </Frame>
-        </Frame>
+        </FocusRing>
     }
 }
 
