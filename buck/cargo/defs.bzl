@@ -85,26 +85,69 @@ def cargo_library(name = None, extra_deps = [], env = {}, **kwargs):
 # The library's own tests, which are #[cfg(test)] modules in its sources, with
 # the dev-dependencies added. A proc macro's tests need proc_macro named, since
 # rust_test has no attribute for it.
+#
+# A test whose env names LD_LIBRARY_PATH is a library_path_test around the
+# test harness, built as a binary, since Namespace's workers replace an
+# action's LD_LIBRARY_PATH with their own.
 def cargo_test(name = "test", extra_deps = [], env = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     rustc_flags = _rustc_flags(crate, kwargs)
     if library["proc_macro"]:
         rustc_flags = rustc_flags + ["--extern", "proc_macro"]
-    native.rust_test(
-        name = name,
+    common = dict(
         crate = library["crate"],
         crate_root = library["crate_root"],
         deps = _per_platform(crate, lambda entry: entry["deps"] + entry["test_deps"], extra_deps),
         edition = crate["edition"],
-        env = _env(crate, library["crate"], env),
         features = _per_platform(crate, lambda entry: entry["test_features"]),
-        rustc_flags = rustc_flags,
         srcs = _srcs(kwargs),
-        **kwargs,
     )
+    if "LD_LIBRARY_PATH" in env:
+        compile_env = {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"}
+        native.rust_binary(
+            name = name + "-harness",
+            env = _env(crate, library["crate"], compile_env),
+            rustc_flags = rustc_flags + ["--test"],
+            target_compatible_with = kwargs.get("target_compatible_with", []),
+            **common,
+        )
+        library_path_test(name = name, env = _env(crate, library["crate"], env), harness = ":" + name + "-harness", **kwargs)
+    else:
+        native.rust_test(name = name, env = _env(crate, library["crate"], env), rustc_flags = rustc_flags, **(common | kwargs))
     if kwargs.get("remote_execution") != "disabled":
         test_run(name = name + "_run", test = ":" + name)
+
+# A Rust test harness run with its LD_LIBRARY_PATH carried as
+# BE3_LD_LIBRARY_PATH and put back by the shell that starts it, so it survives
+# a worker that sets its own.
+_restore_library_path = 'LD_LIBRARY_PATH="$BE3_LD_LIBRARY_PATH" && export LD_LIBRARY_PATH && exec "$@"'
+
+def _library_path_test_impl(ctx: AnalysisContext) -> list[Provider]:
+    env = {key: value for key, value in ctx.attrs.env.items() if key != "LD_LIBRARY_PATH"}
+    env["BE3_LD_LIBRARY_PATH"] = ctx.attrs.env["LD_LIBRARY_PATH"]
+    command = cmd_args("sh", "-c", _restore_library_path, "sh", ctx.attrs.harness[RunInfo])
+    return [
+        DefaultInfo(default_outputs = ctx.attrs.harness[DefaultInfo].default_outputs),
+        RunInfo(args = command),
+        ExternalRunnerTestInfo(
+            command = [command],
+            env = env,
+            labels = ctx.attrs.labels,
+            run_from_project_root = True,
+            type = "rust",
+            use_project_relative_paths = True,
+        ),
+    ]
+
+library_path_test = rule(
+    attrs = {
+        "env": attrs.dict(key = attrs.string(), value = attrs.arg()),
+        "harness": attrs.dep(providers = [RunInfo]),
+        "labels": attrs.list(attrs.string(), default = []),
+    },
+    impl = _library_path_test_impl,
+)
 
 # A test as an action, which is how //:verify runs it: buck2 runs a test again
 # every time, where an action whose binary and inputs have not changed comes

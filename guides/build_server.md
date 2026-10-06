@@ -30,7 +30,7 @@ The token is the bearer in `ns.buckconfig`'s `http_headers`. `ns.buckconfig` als
 names the hosts, if the cluster ever moves. A token is revoked at
 https://cloud.namespace.so/user/sessions.
 
-- **CI:** it reads the token from the repository secret `BE3_BUILD_SERVER_KEY`.
+- **CI:** it reads the token from the repository secret `BE3_NAMESPACE_TOKEN`.
 - **A call without the token:** Namespace refuses it with `UNAUTHENTICATED`.
 - **A proxy can supply it.** It adds `x-nsc-ingress-auth: Bearer TOKEN` to
   requests for `*.iad4.namespaced.app`, and `BE3_BUILD_SERVER_KEY` can be any
@@ -54,6 +54,18 @@ nsc base-image optimize --image_ref nscr.io/WORKSPACE/be3-worker@sha256:DIGEST
 
 `upload` prints the `nscr.io` reference with its digest, which is what
 `optimize` and `worker_properties` take. A new digest needs optimizing once.
+
+## How actions run
+
+- **As root, in the image**, in a fresh directory, without per-action
+  sandboxing: an action also sees the worker's own environment, among it
+  `NSC_TOKEN_FILE`.
+- **`LD_LIBRARY_PATH` is the worker's.** The worker replaces the one an action
+  asks for. A test that needs its own (the ones that draw through lavapipe)
+  carries it as `BE3_LD_LIBRARY_PATH`, and the shell that starts the test puts
+  it back: `library_path_test` in `buck/cargo/defs.bzl`, which `cargo_test`
+  makes for a test whose `env` names `LD_LIBRARY_PATH`, and `plugin_test_run`
+  in `buck/wasm/defs.bzl`.
 
 ## CI's Android keystore
 

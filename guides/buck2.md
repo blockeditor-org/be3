@@ -150,7 +150,10 @@ sysroot.
 
 Most tests run on the workers, including beui-renderer-wgpu's, be-dmabuf's, be-wayland's and
 beui-adapter-drm's, which draw
-through lavapipe from `buck/sysroot:amd64-test`. buck2 runs a test again every
+through lavapipe from `buck/sysroot:amd64-test`; a test whose `env` names
+`LD_LIBRARY_PATH` is built as a harness binary and run through
+`library_path_test`, since the workers replace that variable
+(guides/build_server.md). buck2 runs a test again every
 time, so `cargo_test` also makes `:test_run`, an action that runs the test on a
 worker and passes when it does, which is cached like any other; `//:verify`
 builds those instead. Two kinds are different:

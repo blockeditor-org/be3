@@ -271,7 +271,8 @@ wasi_test = rule(
 # painting, writing the ones that changed or are new to changed/ and naming the
 # ones they compared in used/; //:verify copies changed/ into snapshots/, or
 # under --check fails on it. They draw through lavapipe, as the renderer's tests
-# do.
+# do, with LD_LIBRARY_PATH carried as BE3_LD_LIBRARY_PATH for the same reason
+# (library_path_test in buck/cargo/defs.bzl).
 def _plugin_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
     module = ctx.attrs.module[DefaultInfo].default_outputs[0]
     paintings = ctx.actions.declare_output("paintings", dir = True, has_content_based_path = False)
@@ -280,7 +281,7 @@ def _plugin_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
         cmd_args(
             "sh",
             "-c",
-            'mkdir -p "$1/used" "$1/changed" && USED_PAINTINGS="$1/used" CHANGED_PAINTINGS="$1/changed" && export USED_PAINTINGS CHANGED_PAINTINGS && shift && exec "$@"',
+            'mkdir -p "$1/used" "$1/changed" && USED_PAINTINGS="$1/used" CHANGED_PAINTINGS="$1/changed" LD_LIBRARY_PATH="$BE3_LD_LIBRARY_PATH" && export USED_PAINTINGS CHANGED_PAINTINGS LD_LIBRARY_PATH && shift && exec "$@"',
             "sh",
             paintings.as_output(),
             ctx.attrs.runner[RunInfo],
@@ -289,8 +290,8 @@ def _plugin_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
         ),
         category = "plugin_test",
         env = {
+            "BE3_LD_LIBRARY_PATH": cmd_args(sysroot, format = "{}/usr/lib/x86_64-linux-gnu"),
             "CARGO_MANIFEST_DIR": cmd_args(ctx.attrs.manifest, parent = 1),
-            "LD_LIBRARY_PATH": cmd_args(sysroot, format = "{}/usr/lib/x86_64-linux-gnu"),
             "UPDATE_SNAPSHOTS": "1",
             "VK_ICD_FILENAMES": ctx.attrs._lavapipe,
         },

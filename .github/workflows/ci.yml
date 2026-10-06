@@ -26,7 +26,7 @@ env:
   # The token for Namespace's remote execution (guides/build_server.md), which
   # runs every buck2 action. A pull request from a fork sees an empty value,
   # and ./scripts/buck says so rather than building.
-  BE3_BUILD_SERVER_KEY: ${{ secrets.BE3_BUILD_SERVER_KEY }}
+  BE3_BUILD_SERVER_KEY: ${{ secrets.BE3_NAMESPACE_TOKEN }}
 
 # One job does the work: ci is ./scripts/buck run //:ci, which verifies, builds
 # the Android app and launcher, and on a pull request renders the paint
