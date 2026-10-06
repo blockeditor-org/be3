@@ -10,6 +10,7 @@ mod a_copy_in_a_region_reaches_the_host;
 mod a_key_carries_the_modifiers_held_before_it;
 mod a_pointer_lands_where_the_region_is_scrolled_to;
 mod a_region_lays_out_over_its_whole_rect_not_just_what_shows;
+mod losing_focus_ends_an_emulated_touch;
 
 fn region(rect: Rect, pixels: [u32; 2]) -> Region {
     Region {

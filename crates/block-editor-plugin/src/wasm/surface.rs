@@ -100,6 +100,11 @@ impl Surfaces {
         let repaint = ran.repaint;
         let mut presented = None;
         if !ran.painting.is_empty() {
+            let painted: Vec<u32> = ran
+                .painting
+                .iter()
+                .map(|placement| placement.surface)
+                .collect();
             let damage = self.panes.paint(
                 &self.gpu.device,
                 &self.gpu.queue,
@@ -107,8 +112,8 @@ impl Surfaces {
                 screens,
                 ran.painting,
             )?;
-            for placement in &self.layout.screens {
-                self.fresh.remove(&placement.surface);
+            for surface in painted {
+                self.fresh.remove(&surface);
             }
             let sequence = PRESENTS.with(|presents| {
                 presents.set(presents.get() + 1);

@@ -138,7 +138,9 @@ impl Input {
                 events.push(Event::PointerMotion(vec2(*x, *y) * ratio));
             }
             InputEvent::Focus(false) => {
-                self.emulated_touch = false;
+                if std::mem::take(&mut self.emulated_touch) {
+                    events.push(self.touch(TouchPhase::Cancel));
+                }
                 events.push(Event::Focus(false));
             }
             InputEvent::Ime(ime) => events.push(Event::Ime(beui_plugin_input::beui_ime(ime))),

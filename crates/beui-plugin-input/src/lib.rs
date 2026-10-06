@@ -329,7 +329,9 @@ pub fn beui_button(button: PointerButton) -> Option<beui::PointerButton> {
         PointerButton::Primary => Some(beui::PointerButton::Primary),
         PointerButton::Secondary => Some(beui::PointerButton::Secondary),
         PointerButton::Middle => Some(beui::PointerButton::Middle),
-        PointerButton::Back | PointerButton::Forward | PointerButton::Other(_) => None,
+        PointerButton::Back => Some(beui::PointerButton::Back),
+        PointerButton::Forward => Some(beui::PointerButton::Forward),
+        PointerButton::Other(_) => None,
     }
 }
 
