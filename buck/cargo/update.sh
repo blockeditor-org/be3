@@ -10,7 +10,12 @@
 set -eu
 check=false
 [ "${1:-}" = --check ] && check=true
-generated="$(./scripts/buck bxl //buck/cargo/buckify.bxl:main | tail -n 1)"
+output="$(./scripts/buck bxl //buck/cargo/buckify.bxl:main)"
+generated="$(printf '%s\n' "$output" | tail -n 1)"
+if [ ! -d "$generated" ]; then
+    echo "buckify.bxl did not print the directory it generated into."
+    exit 1
+fi
 stale=''
 for pair in "crates.bzl buck/cargo/crates.bzl" "Cargo.lock Cargo.lock"; do
     from="$generated/${pair% *}" to="${pair#* }"
