@@ -79,7 +79,8 @@ struct Output {
 }
 
 struct Host {
-    start: Instant,
+    started: Option<Instant>,
+    now: Duration,
     pass: u64,
     pixels_per_point: f32,
     screen_scale: f32,
@@ -96,7 +97,8 @@ struct Host {
 impl Default for Host {
     fn default() -> Self {
         Self {
-            start: Instant::now(),
+            started: None,
+            now: Duration::ZERO,
             pass: 0,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
@@ -117,6 +119,7 @@ fn with<R>(act: impl FnOnce(&mut Host) -> R) -> R {
 }
 
 struct Frame {
+    now: Option<Instant>,
     events: Vec<Event>,
     pointer: Option<Pos2>,
     pressed: bool,
@@ -131,6 +134,7 @@ struct Frame {
 impl Default for Frame {
     fn default() -> Self {
         Self {
+            now: None,
             events: Vec::new(),
             pointer: None,
             pressed: false,
@@ -160,6 +164,7 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
         deliver(pick);
     }
     let mut frame = context.screen_input(|input| Frame {
+        now: Some(context.now()),
         events: input.events.clone(),
         pointer: input.pointer.pos,
         pressed: input.pointer.primary_pressed || input.touch.started(),
@@ -179,6 +184,10 @@ fn start(frame: Frame) {
     with(|host| {
         host.dark = frame.dark;
         host.pass += 1;
+        if let Some(now) = frame.now {
+            let started = *host.started.get_or_insert(now);
+            host.now = now.saturating_duration_since(started);
+        }
         host.pixels_per_point = frame.pixels_per_point;
         host.screen_scale = frame.screen_scale;
         host.output = Output::default();
@@ -233,12 +242,12 @@ pub(crate) fn pass() -> u64 {
     with(|host| host.pass)
 }
 
-pub(crate) fn now() -> f64 {
-    with(|host| host.start.elapsed().as_secs_f64())
+pub(crate) fn now() -> Duration {
+    with(|host| host.now)
 }
 
 pub(crate) fn milliseconds() -> u64 {
-    (now() * 1000.0) as u64
+    now().as_millis() as u64
 }
 
 pub(crate) fn pixels_per_point() -> f32 {
