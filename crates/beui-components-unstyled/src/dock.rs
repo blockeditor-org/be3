@@ -254,6 +254,7 @@ struct State {
     icon: Func<TabId, String>,
     closable: Func<TabId, bool>,
     menu: MenuStyle,
+    desktop: bool,
     home: Memo<Option<TabId>>,
     actions: ReadSignal<HashMap<TabId, NodeId>>,
     set_actions: WriteSignal<HashMap<TabId, NodeId>>,
@@ -905,6 +906,7 @@ pub(crate) struct DockConfig {
     pub(crate) icon: Func<TabId, String>,
     pub(crate) closable: Func<TabId, bool>,
     pub(crate) menu: MenuStyle,
+    pub(crate) desktop: bool,
     pub(crate) mode: Prop<DockMode>,
     pub(crate) home: Prop<Option<TabId>>,
     pub(crate) splitter_thickness: f32,
@@ -933,6 +935,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         icon,
         closable,
         menu,
+        desktop,
         mode,
         home,
         splitter_thickness,
@@ -969,6 +972,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         icon,
         closable,
         menu,
+        desktop,
         home: create_memo(move || home.get()),
         actions,
         set_actions,
@@ -1424,6 +1428,10 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
     }));
     let sidebar_width =
         create_memo(clone!(state -> move || state.with(|state| state.sidebar_width(leaf))));
+    let bare_area = dock.desktop && !nested && !floating;
+    let shape = create_memo(clone!(vertical contents -> move || {
+        (vertical.get(), bare_area && contents.with(Vec::is_empty))
+    }));
     let closed = dock.clone();
     let close = ClickCallback::new(move || closed.close_leaf(leaf));
     let menu = dock.leaf_menu(Some(leaf));
@@ -1444,8 +1452,13 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
             }}
         >
             <List spacing=0.0>
-                <Dynamic value={vertical}>
-                    {move |vertical: bool| {
+                <Dynamic value={shape}>
+                    {move |(vertical, bare): (bool, bool)| {
+                        if bare {
+                            return view! {
+                                <Frame @sizing=ItemSize::Percent(100.0) />
+                            };
+                        }
                         let dock = built.clone();
                         let bar = match hoisted {
                             true => None,

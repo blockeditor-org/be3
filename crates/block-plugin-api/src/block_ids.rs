@@ -43,6 +43,7 @@ impl Message {
             | Self::HelloAccepted(_)
             | Self::HelloRejected(_)
             | Self::Theme(_)
+            | Self::UtcOffset(_)
             | Self::Fonts(_)
             | Self::MissingCharacters(_)
             | Self::Screens(_)

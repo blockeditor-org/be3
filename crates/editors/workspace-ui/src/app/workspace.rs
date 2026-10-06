@@ -6,17 +6,17 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_WEB_ASSET};
 use block_editor_beui::beui::reactive::{
-    Align, ForEach, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Spacer, WriteSignal, batch,
-    clone, component, create_effect, create_memo, create_signal, untrack, view,
+    Align, ForEach, Frame, ItemSize, List, Memo, NodeRef, ReadSignal, Show, Spacer, WriteSignal,
+    batch, clone, component, create_effect, create_memo, create_signal, untrack, view,
 };
 use block_editor_beui::beui::styled::{Caption, Docking, Heading, use_theme};
 use block_editor_beui::beui::unstyled::{
-    Container, DockEntry, DockMode, DockNode, DockPane, DockSplit, DockTab, DockWindow,
-    DockingLayout, TabId, narrower_than,
+    Container, DockEntry, DockGroup, DockMode, DockNode, DockPane, DockSplit, DockTab, DockWindow,
+    DockingLayout, TabId, container_size, narrower_than,
 };
+use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
     AccessLevel, BlockFilter, BlockPick, ChildBlock, ChildBlockHandle, ChildMode, ChildState,
@@ -26,6 +26,7 @@ use block_editor_beui::{
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
 
+use super::desktop::{DesktopBar, workspace_window};
 use super::dialogs::OpenDialog;
 use super::dialogs::WorkspaceDialogs;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
@@ -156,12 +157,6 @@ impl Workspace {
             shows.get();
             if let Some(workspace) = showing.upgrade() {
                 untrack(|| workspace.show_requested());
-            }
-        });
-        let restoring = Rc::downgrade(&workspace);
-        create_effect(move || {
-            if let Some(workspace) = restoring.upgrade() {
-                workspace.restore();
             }
         });
         let saving = Rc::downgrade(&workspace);
@@ -436,6 +431,13 @@ impl Workspace {
 
     pub(crate) fn view_of(&self, tab: TabId) -> Option<Uuid> {
         self.views.with(|views| views.get(&tab).copied())
+    }
+
+    fn desktop(&self) -> Option<bool> {
+        match self.editor.view_content() {
+            Some(view) => view.read(|held| held.root().desktop),
+            None => Some(false),
+        }
     }
 
     fn create_view(&self, editor: Uuid, content: Option<Uuid>) -> Option<Uuid> {
@@ -923,26 +925,50 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
     }));
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
-    let layout = workspace.layout.clone();
     let failure = workspace.error.clone();
     let failed = create_memo(clone!(failure -> move || failure.get().is_some()));
     let reason = create_memo(clone!(failure -> move || failure.get().unwrap_or_default()));
-    let listed = workspace.tabs.clone();
-    let block_tabs = create_memo(move || {
-        let mut tabs: Vec<TabId> = listed.with(|tabs| tabs.keys().copied().collect());
-        tabs.sort();
-        tabs
-    });
-    let windows = workspace.windows.clone();
-    let top_windows = create_memo(clone!(windows -> move || {
-        windows.with(|windows| {
-            windows
-                .iter()
-                .filter(|window| window.parent.is_none())
-                .map(|window| window.id)
-                .collect::<Vec<_>>()
-        })
+    let deciding = Rc::clone(&workspace);
+    let session = create_memo(move || deciding.desktop());
+    let measured = container_size();
+    let known = create_memo(clone!(session -> move || {
+        let area = measured.as_ref().map_or(Vec2::ZERO, |size| size.get());
+        session.get().is_some() && area.x > 0.0 && area.y > 0.0
     }));
+    let desktop = create_memo(move || session.get() == Some(true));
+    let docked_as = desktop.clone();
+    let bar_shown = desktop.clone();
+    let docked = Rc::clone(&workspace);
+    let bar = Rc::clone(&workspace);
+    let pickers = Rc::clone(&workspace);
+    let shell_dialogs = Rc::clone(&workspace);
+    let theme = use_theme();
+    view! {
+        <Frame @node_ref={&surface} color={theme.background.clone()}>
+            <List spacing=0.0>
+                <Failure failed={failed} reason={reason} />
+                <Show condition={known}>
+                    <WorkspaceDock
+                        @sizing=ItemSize::Percent(100.0)
+                        workspace={Rc::clone(&docked)}
+                        mode={mode.clone()}
+                        desktop={docked_as.get_untracked()}
+                    />
+                </Show>
+                <Show condition={bar_shown}>
+                    <DesktopBar workspace={Rc::clone(&bar)} />
+                </Show>
+                <PickerDialogs workspace={pickers} />
+                <WorkspaceDialogs workspace={shell_dialogs} />
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn WorkspaceDock(workspace: Rc<Workspace>, mode: Memo<DockMode>, desktop: bool) -> NodeId {
+    let layout = workspace.layout.clone();
+    let windows = workspace.windows.clone();
     let dialog_windows = create_memo(move || {
         windows.with(|windows| {
             windows
@@ -953,58 +979,99 @@ fn WorkspaceBody(workspace: Rc<Workspace>) -> NodeId {
         })
     });
     let panels = workspace.panels.clone();
+    let split = Rc::clone(&workspace);
+    let floating = Rc::clone(&workspace);
+    let hosted = Rc::clone(&workspace);
+    let dialogs = Rc::clone(&workspace);
+    let restoring = Rc::downgrade(&workspace);
+    let dock = view! {
+        <Docking layout mode home=FILES desktop>
+            <Show condition={!desktop}>
+                <WorkspaceSplit workspace={Rc::clone(&split)} />
+            </Show>
+            <Show condition={desktop}>
+                <WorkspaceWindow workspace={Rc::clone(&floating)} />
+            </Show>
+            <ForEach keys={panels}>
+                {move |panel: HostPanel| view! {
+                    <PanelWindow workspace={Rc::clone(&hosted)} panel />
+                }}
+            </ForEach>
+            <ForEach keys={dialog_windows}>
+                {move |window: HostWindowId| view! {
+                    <DialogWindow workspace={Rc::clone(&dialogs)} window />
+                }}
+            </ForEach>
+        </Docking>
+    };
+    create_effect(move || {
+        if let Some(workspace) = restoring.upgrade() {
+            workspace.restore();
+        }
+    });
+    dock
+}
+
+#[component]
+fn WorkspaceWindow(workspace: Rc<Workspace>) -> DockNode<TabId> {
+    let area = container_size().map_or(Vec2::ZERO, |size| size.get_untracked());
+    view! {
+        <DockWindow id="workspace.window" rect={workspace_window(area)}>
+            <DockPane id="workspace.window">
+                <DockGroup id="workspace.group" title="Workspace">
+                    <WorkspaceSplit workspace />
+                </DockGroup>
+            </DockPane>
+        </DockWindow>
+    }
+}
+
+#[component]
+fn WorkspaceSplit(workspace: Rc<Workspace>) -> DockNode<TabId> {
+    let listed = workspace.tabs.clone();
+    let block_tabs = create_memo(move || {
+        let mut tabs: Vec<TabId> = listed.with(|tabs| tabs.keys().copied().collect());
+        tabs.sort();
+        tabs
+    });
+    let windows = workspace.windows.clone();
+    let top_windows = create_memo(move || {
+        windows.with(|windows| {
+            windows
+                .iter()
+                .filter(|window| window.parent.is_none())
+                .map(|window| window.id)
+                .collect::<Vec<_>>()
+        })
+    });
     let files = Rc::clone(&workspace);
     let blocks = Rc::clone(&workspace);
     let programs = Rc::clone(&workspace);
-    let hosted = Rc::clone(&workspace);
-    let dialogs = Rc::clone(&workspace);
-    let pickers = Rc::clone(&workspace);
-    let shell_dialogs = Rc::clone(&workspace);
-    let theme = use_theme();
     view! {
-        <Frame @node_ref={&surface} color={theme.background.clone()}>
-            <List spacing=0.0>
-                <Failure failed={failed} reason={reason} />
-                <Docking @sizing=ItemSize::Percent(100.0) layout mode home=FILES>
-                    <DockSplit id="workspace" fraction=FILES_SHARE>
-                        <DockPane id="files">
-                            <DockTab id=FILES title="Files" icon=ICON_FOLDER>
-                                <FilesPanel workspace={Rc::clone(&files)} />
-                            </DockTab>
-                        </DockPane>
-                        <DockPane
-                            id="editors"
-                            empty={move || view! {
-                                <EmptyPanel />
-                            }}
-                        >
-                            <ForEach keys={block_tabs}>
-                                {move |tab: TabId| view! {
-                                    <BlockTab workspace={Rc::clone(&blocks)} tab />
-                                }}
-                            </ForEach>
-                            <ForEach keys={top_windows}>
-                                {move |window: HostWindowId| view! {
-                                    <WindowTab workspace={Rc::clone(&programs)} window />
-                                }}
-                            </ForEach>
-                        </DockPane>
-                    </DockSplit>
-                    <ForEach keys={panels}>
-                        {move |panel: HostPanel| view! {
-                            <PanelWindow workspace={Rc::clone(&hosted)} panel />
-                        }}
-                    </ForEach>
-                    <ForEach keys={dialog_windows}>
-                        {move |window: HostWindowId| view! {
-                            <DialogWindow workspace={Rc::clone(&dialogs)} window />
-                        }}
-                    </ForEach>
-                </Docking>
-                <PickerDialogs workspace={pickers} />
-                <WorkspaceDialogs workspace={shell_dialogs} />
-            </List>
-        </Frame>
+        <DockSplit id="workspace" fraction=FILES_SHARE>
+            <DockPane id="files">
+                <DockTab id=FILES title="Files" icon=ICON_FOLDER>
+                    <FilesPanel workspace={Rc::clone(&files)} />
+                </DockTab>
+            </DockPane>
+            <DockPane
+                id="editors"
+                empty={move || view! {
+                    <EmptyPanel />
+                }}
+            >
+                <ForEach keys={block_tabs}>
+                    {move |tab: TabId| view! {
+                        <BlockTab workspace={Rc::clone(&blocks)} tab />
+                    }}
+                </ForEach>
+                <ForEach keys={top_windows}>
+                    {move |window: HostWindowId| view! {
+                        <WindowTab workspace={Rc::clone(&programs)} window />
+                    }}
+                </ForEach>
+            </DockPane>
+        </DockSplit>
     }
 }
 

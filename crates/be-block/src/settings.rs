@@ -8,6 +8,16 @@ use crate::{ChildChange, Root, WORKSPACE_EDITOR};
 pub enum ActivationCondition {
     Fallback,
     Client(Uuid),
+    Desktop(Uuid),
+}
+
+impl ActivationCondition {
+    pub fn session(client: Uuid, desktop: bool) -> Self {
+        match desktop {
+            true => Self::Desktop(client),
+            false => Self::Client(client),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
@@ -33,9 +43,12 @@ impl Settings {
             .into()
     }
 
-    pub fn profile(&self, client: Uuid) -> Option<Uuid> {
+    pub fn profile(&self, client: Uuid, desktop: bool) -> Option<Uuid> {
         self.entries
-            .get(&(WORKSPACE_EDITOR, ActivationCondition::Client(client)))
+            .get(&(
+                WORKSPACE_EDITOR,
+                ActivationCondition::session(client, desktop),
+            ))
             .copied()
             .filter(|profile| self.profiles.contains_key(profile))
     }
@@ -44,16 +57,16 @@ impl Settings {
         self.profiles.keys().copied().collect()
     }
 
-    pub fn add_profile(client: Uuid, profile: Uuid) -> Edit {
+    pub fn add_profile(client: Uuid, desktop: bool, profile: Uuid) -> Edit {
         std::iter::once(Self::PROFILES.put(ObjectId::ROOT, &profile, Some(&())))
-            .chain(Self::use_profile(client, profile).0)
+            .chain(Self::use_profile(client, desktop, profile).0)
             .collect()
     }
 
-    pub fn use_profile(client: Uuid, profile: Uuid) -> Edit {
+    pub fn use_profile(client: Uuid, desktop: bool, profile: Uuid) -> Edit {
         Self::set_entry(
             WORKSPACE_EDITOR,
-            ActivationCondition::Client(client),
+            ActivationCondition::session(client, desktop),
             profile,
         )
     }

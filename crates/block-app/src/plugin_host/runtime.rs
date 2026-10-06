@@ -136,6 +136,7 @@ pub(super) struct Runtime {
     requested_at: Option<f64>,
     animated: u64,
     theme: Theme,
+    utc_offset: Option<i32>,
     fonts_sent: bool,
     fallbacks: super::fonts::Fallbacks,
     presents: Presents,
@@ -201,6 +202,7 @@ impl Runtime {
             requested_at: None,
             animated: 0,
             theme: theme(),
+            utc_offset: None,
             fonts_sent: false,
             fallbacks: super::fonts::Fallbacks::new(),
             presents: Presents::default(),
@@ -228,6 +230,7 @@ impl Runtime {
         self.paint_at = None;
         self.requested_at = None;
         self.theme = theme();
+        self.utc_offset = None;
         self.fonts_sent = false;
         self.fallbacks = super::fonts::Fallbacks::new();
         self.presents = Presents::default();
@@ -251,6 +254,11 @@ impl Runtime {
         if self.theme != theme {
             self.theme = theme;
             messages.push(Message::Theme(theme));
+        }
+        let utc_offset = crate::platform::utc_offset();
+        if *self.session.state() == SessionState::Running && self.utc_offset != Some(utc_offset) {
+            self.utc_offset = Some(utc_offset);
+            messages.push(Message::UtcOffset(utc_offset));
         }
         self.update(messages);
     }

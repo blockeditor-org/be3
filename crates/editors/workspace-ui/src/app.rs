@@ -1,6 +1,7 @@
 mod access;
 mod artifact;
 mod block_data;
+mod desktop;
 mod dialogs;
 mod host_panel;
 mod linked;

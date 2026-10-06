@@ -52,6 +52,7 @@ pub fn Docking<K>(
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
     #[prop(default = None)] home: Prop<Option<K>>,
     #[prop(default = None)] focus: Prop<Option<K>>,
+    #[prop(default = false)] desktop: bool,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -73,6 +74,7 @@ where
             mode
             home
             focus
+            desktop
             inset={padding}
             group_inset=GROUP_INSET
             menu={menu_style()}

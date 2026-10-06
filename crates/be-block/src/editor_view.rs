@@ -9,6 +9,7 @@ pub struct EditorView {
     pub editor: Uuid,
     pub content: Option<Uuid>,
     pub state: LatestMap<String, ViewState>,
+    pub desktop: bool,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -44,11 +45,19 @@ impl EditorView {
             editor,
             content,
             state: LatestMap::default(),
+            desktop: false,
         }
     }
 
     pub fn document(editor: Uuid, content: Option<Uuid>) -> EditorViewContent {
         Document::new(&Self::new(editor, content))
+    }
+
+    pub fn session_document(editor: Uuid, desktop: bool) -> EditorViewContent {
+        Document::new(&Self {
+            desktop,
+            ..Self::new(editor, None)
+        })
     }
 
     pub fn state(&self, key: &str) -> Option<&ViewState> {

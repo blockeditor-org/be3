@@ -1606,6 +1606,7 @@ pub enum Message {
     HelloAccepted(HelloAccepted),
     HelloRejected(ProtocolError),
     Theme(Theme),
+    UtcOffset(i32),
     Fonts(Fonts),
     MissingCharacters(Vec<char>),
     Screens(ScreenSet),
@@ -1654,6 +1655,7 @@ impl Message {
             Self::HelloAccepted(_)
             | Self::HelloRejected(_)
             | Self::Theme(_)
+            | Self::UtcOffset(_)
             | Self::Fonts(_)
             | Self::Screens(_)
             | Self::Input(_)

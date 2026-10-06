@@ -28,6 +28,7 @@ pub(crate) fn device_name() -> &'static str {
 
 #[derive(Default)]
 pub(crate) struct RootSettings {
+    desktop: bool,
     block: Option<Uuid>,
     created_profile: Option<Uuid>,
     chosen_profile: Option<Uuid>,
@@ -35,6 +36,17 @@ pub(crate) struct RootSettings {
 }
 
 impl RootSettings {
+    pub(crate) fn new(desktop: bool) -> Self {
+        Self {
+            desktop,
+            ..Self::default()
+        }
+    }
+
+    fn session_document(&self) -> Vec<u8> {
+        EditorView::session_document(WORKSPACE_EDITOR, self.desktop).encode()
+    }
+
     pub(crate) fn find(&mut self) -> Option<Uuid> {
         if self.block.is_none() {
             let account = be::account()?;
@@ -87,7 +99,9 @@ impl RootSettings {
         let Some(settings) = self.block.and_then(|block| self.decoded(block)) else {
             return Vec::new();
         };
-        let current = self.chosen_profile.or(settings.profile(client));
+        let current = self
+            .chosen_profile
+            .or(settings.profile(client, self.desktop));
         let mut profiles: Vec<(Uuid, String, bool)> = settings
             .profiles()
             .into_iter()
@@ -109,7 +123,11 @@ impl RootSettings {
         be::operate_from(
             settings_block,
             be::next_origin(),
-            SettingsContent::encode_operation(&Settings::use_profile(client, profile)),
+            SettingsContent::encode_operation(&Settings::use_profile(
+                client,
+                self.desktop,
+                profile,
+            )),
         );
         self.chosen_profile = Some(profile);
     }
@@ -127,12 +145,16 @@ impl RootSettings {
             EditorViewContent::CONTENT_TYPE,
             BlockParent::Block(settings_block),
             BlockMetadata::named(format!("Profile {}", count + 1)),
-            Some(EditorView::document(WORKSPACE_EDITOR, None).encode()),
+            Some(self.session_document()),
         );
         be::operate_from(
             settings_block,
             be::next_origin(),
-            SettingsContent::encode_operation(&Settings::add_profile(client, profile)),
+            SettingsContent::encode_operation(&Settings::add_profile(
+                client,
+                self.desktop,
+                profile,
+            )),
         );
         self.chosen_profile = Some(profile);
     }
@@ -141,12 +163,12 @@ impl RootSettings {
         let settings_block = self.ensure()?;
         let settings = self.decoded(settings_block)?;
         if let Some(chosen) = self.chosen_profile {
-            if settings.profile(client) != Some(chosen) {
+            if settings.profile(client, self.desktop) != Some(chosen) {
                 return Some(chosen);
             }
             self.chosen_profile = None;
         }
-        if let Some(profile) = settings.profile(client) {
+        if let Some(profile) = settings.profile(client, self.desktop) {
             self.created_profile = None;
             return Some(profile);
         }
@@ -158,13 +180,20 @@ impl RootSettings {
             profile,
             EditorViewContent::CONTENT_TYPE,
             BlockParent::Block(settings_block),
-            BlockMetadata::named(device_name()),
-            Some(EditorView::document(WORKSPACE_EDITOR, None).encode()),
+            BlockMetadata::named(match self.desktop {
+                true => "Desktop",
+                false => device_name(),
+            }),
+            Some(self.session_document()),
         );
         be::operate_from(
             settings_block,
             be::next_origin(),
-            SettingsContent::encode_operation(&Settings::add_profile(client, profile)),
+            SettingsContent::encode_operation(&Settings::add_profile(
+                client,
+                self.desktop,
+                profile,
+            )),
         );
         self.created_profile = Some(profile);
         Some(profile)

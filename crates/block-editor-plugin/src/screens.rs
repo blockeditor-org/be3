@@ -141,6 +141,7 @@ impl Screens {
                 self.surface = accepted.surface;
             }
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
+            Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
             Message::Editor(EditorMessage::Open {
                 instance,
                 block_id,

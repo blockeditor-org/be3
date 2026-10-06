@@ -71,6 +71,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
             app.open_dev_workspace(None);
         } else if argument == "--session" && cfg!(target_os = "linux") {
             session = true;
+            app.run_as_desktop();
         } else if let Some(path) = argument.strip_prefix("--accessibility-tree=") {
             options.accessibility_dump = Some(PathBuf::from(path));
         } else {
@@ -286,6 +287,7 @@ struct BlockApp {
     server_url: String,
     account: Account,
     root_settings: RootSettings,
+    desktop: bool,
     choosing_profile: bool,
     shell: Option<Uuid>,
     windows_sent: Option<(Uuid, u64)>,
@@ -467,6 +469,7 @@ impl BlockApp {
             server_url,
             account,
             root_settings: RootSettings::default(),
+            desktop: false,
             choosing_profile: false,
             shell: None,
             windows_sent: None,
@@ -500,6 +503,12 @@ impl BlockApp {
             keys: keys::KeyState::default(),
             workspace_key: None,
         })
+    }
+
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    fn run_as_desktop(&mut self) {
+        self.desktop = true;
+        self.root_settings = RootSettings::new(true);
     }
 
     #[cfg(not(target_os = "android"))]
@@ -873,7 +882,7 @@ impl BlockApp {
         self.dynamic_artifact_errors.clear();
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
-        self.root_settings = RootSettings::default();
+        self.root_settings = RootSettings::new(self.desktop);
         self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;
@@ -987,7 +996,7 @@ impl BlockApp {
         self.workspace_error = None;
         self.reauth = None;
         self.invite_open = false;
-        self.root_settings = RootSettings::default();
+        self.root_settings = RootSettings::new(self.desktop);
         self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;

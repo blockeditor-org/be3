@@ -689,8 +689,12 @@ can index into `refs`.
 
 A profile is an `EditorView` of the workspace editor. Each account has its own
 settings block (the top-level `Settings` block it authored); its `profiles` lists
-every profile, and `Settings::profile(client)` is the one this client uses. The
-host opens the shell on that profile, creating one named after the device when
+every profile, and `Settings::profile(client, desktop)` is the one this client
+uses. A client run as the desktop (`block-app --session`) keeps a profile of its
+own apart from the one it uses as an app, and creates it with the `EditorView`'s
+`desktop` set, which has workspace-ui float the files and the open tabs as one
+tab of a window and add a bar along the bottom with the time and the app menu.
+The host opens the shell on that profile, creating one named after the device when
 the client has none, and reopens the shell when it changes. The workspace keeps
 its dock layout and recents in the profile's state; every tab, and the file tree,
 is an `EditorView` child of the profile that the layout references, and closing
