@@ -407,16 +407,17 @@ write_if_changed() {
 # .buckconfig.local. The cluster shuts down when it has had nothing to do for a
 # while, so its hosts are asked of nsc rather than kept in .buckconfig:
 # `nsc reapi setup buck2` starts the cluster if it is down and names its
-# executor, its storage and the header that authenticates to them. That answer
-# is kept in target/namespace/ and asked again when the executor stops
-# answering, when it is more than three hours old, or when the token changes.
+# executor, its storage and the header that authenticates to them. It is
+# always asked with the same arguments and the same --key: Namespace starts a
+# new cluster beside the old one when either differs. That answer is kept in
+# target/namespace/ and asked again when the executor stops answering, when it
+# is more than three hours old, or when the token changes.
 #
 # nsc authenticates with Namespace's token: BE3_NAMESPACE_TOKEN from the
 # environment, which is what CI and agents' sessions set, or else
 # .namespace-token.json at the root of the checkout, which git ignores, or
 # ~/.config/be3/namespace-token.json. Either holds what
-# `nsc reapi create-token` writes, or the bare token. With none of them, nsc
-# uses the person's own `nsc login`.
+# `nsc reapi create-token` writes, or the bare token.
 #
 # buck2's remote execution client never reads HTTPS_PROXY. Where the machine's
 # way out is an HTTPS proxy, buck2 is pointed at scripts/internal/re-relay
@@ -432,12 +433,13 @@ write_if_changed() {
 re_relay_engine_address='127.0.0.1:18980'
 re_relay_storage_address='127.0.0.1:18981'
 namespace_directory="$repository/target/namespace"
+namespace_cluster_key='buildserver'
 
 # Whether to look at the executor even when nsc was asked moments ago: after a
 # command failed with an infrastructure error, the cluster may have gone.
 namespace_recheck=false
 
-# The token file nsc is given, or nothing for the person's own login.
+# The token file nsc is given, or nothing when there is none.
 namespace_token_file() {
     local saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/namespace-token.json"
     if [[ -n "${BE3_NAMESPACE_TOKEN:-}" ]]; then
@@ -495,9 +497,14 @@ refresh_namespace_cluster() {
     fi
     mkdir -p "$namespace_directory"
     token="$(namespace_token_file)"
-    if [[ -n "$token" ]]; then
-        token_hash="$(sha256_of "$token")"
+    if [[ -z "$token" ]]; then
+        echo 'buck2 runs every build on Namespace, and there is no token for it. Set' >&2
+        echo 'BE3_NAMESPACE_TOKEN, or write the token to .namespace-token.json at the root' >&2
+        echo 'of the checkout or to ~/.config/be3/namespace-token.json.' >&2
+        echo 'guides/build_server.md says how to make one.' >&2
+        exit 1
     fi
+    token_hash="$(sha256_of "$token")"
     now="$(date +%s)"
     if [[ -f "$stamp" && -f "$namespace_directory/buck2.buckconfig" ]] &&
         [[ "$(sed -n 2p "$stamp")" == "$token_hash" ]]; then
@@ -511,19 +518,13 @@ refresh_namespace_cluster() {
     fi
 
     echo 'Waking the remote execution cluster with nsc...' >&2
-    local arguments=(reapi setup buck2 --config "$(native_path "$namespace_directory/buck2.buckconfig.partial")")
-    if [[ -n "$token" ]]; then
-        arguments+=(--token "$(native_path "$token")")
-    else
-        arguments+=(--static)
-    fi
-    if ! (umask 077 && NS_DO_NOT_UPDATE=1 "$nsc" "${arguments[@]}" > "$namespace_directory/nsc.log" 2>&1); then
+    if ! (umask 077 && NS_DO_NOT_UPDATE=1 "$nsc" reapi setup buck2 \
+        --token "$(native_path "$token")" --key "$namespace_cluster_key" \
+        --config "$(native_path "$namespace_directory/buck2.buckconfig.partial")" \
+        > "$namespace_directory/nsc.log" 2>&1); then
         cat "$namespace_directory/nsc.log" >&2
         echo '' >&2
-        echo 'nsc could not set up the remote execution cluster. It needs a token: set' >&2
-        echo 'BE3_NAMESPACE_TOKEN, or write it to .namespace-token.json at the root of the' >&2
-        echo "checkout or to ~/.config/be3/namespace-token.json, or run $nsc login." >&2
-        echo 'guides/build_server.md has more.' >&2
+        echo 'nsc could not set up the remote execution cluster (guides/build_server.md).' >&2
         exit 1
     fi
     mv -f "$namespace_directory/buck2.buckconfig.partial" "$namespace_directory/buck2.buckconfig"

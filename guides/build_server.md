@@ -10,14 +10,17 @@ holds the action cache and the CAS (`storageh-…`).
 Namespace shuts the cluster down when it has been idle for a while, and its
 hosts then answer 404. So no host is checked in: `./scripts/buck` runs the
 pinned `nsc` (`scripts/internal/install-nsc.sh`), whose
-`nsc reapi setup buck2` starts the cluster if it is down and names its hosts and
-the `x-nsc-ingress-auth` header that authenticates to them. `./scripts/buck`
-keeps that answer in `target/namespace/`, writes it into `.buckconfig.local`,
-and asks again when the executor stops answering, when the answer is three
-hours old, or when the token changes. Running setup again for a cluster that
-is half shut down may start a second one; the dashboard shows both, and the
-stale one should be destroyed, since the workers count against the
-workspace's 32 vCPU limit.
+`nsc reapi setup buck2 --token FILE --key buildserver` starts the cluster if it
+is down and names its hosts and the `x-nsc-ingress-auth` header that
+authenticates to them. `./scripts/buck` keeps that answer in
+`target/namespace/`, writes it into `.buckconfig.local`, and asks again when
+the executor stops answering, when the answer is three hours old, or when the
+token changes.
+
+Setup must always be run with those arguments and that `--key`: without a
+key, or with other flags (such as `--static`), Namespace starts a new cluster
+beside the old one. The dashboard shows both, and the stale one should be
+destroyed, since its workers count against the workspace's 32 vCPU limit.
 
 ## The token
 
@@ -27,9 +30,8 @@ workspace's 32 vCPU limit.
 2. `.namespace-token.json` at the root of the checkout
 3. `~/.config/be3/namespace-token.json`
 
-With none of them it uses the person's own `nsc login`
-(`target/tools/nsc-<version>/nsc login`). Each holds what this writes, or the
-bare token in it, made with a Namespace login:
+Each holds what this writes, or the bare token in it, made with a Namespace
+login:
 
 ```
 nsc reapi create-token --no_expiry --token ns-token.json
