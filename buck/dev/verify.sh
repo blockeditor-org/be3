@@ -63,10 +63,11 @@ starlark_files() {
 
 # The executable bit is part of an action's inputs, and a Windows checkout has
 # none, so a file a build reads must not have one either, or Windows misses
-# every cache entry Linux wrote. Only the scripts people run by hand keep it.
+# every cache entry Linux wrote. Only the scripts people run by hand, and the
+# installers ./scripts/buck runs, keep it.
 file_modes() {
     executable="$(git ls-files -z | xargs -0 sh -c 'for file; do [ -f "$file" ] && [ -x "$file" ] && echo "$file"; done' sh \
-        | grep -v -e '^scripts/[^/]*$' -e '^scripts/internal/install-buck2.sh$')"
+        | grep -v -e '^scripts/[^/]*$' -e '^scripts/internal/install-buck2.sh$' -e '^scripts/internal/install-nsc.sh$')"
     [ -z "$executable" ] && return 0
     if ! $check; then
         echo "$executable" | while read -r file; do chmod -x "$file"; done
