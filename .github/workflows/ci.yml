@@ -1,42 +1,31 @@
 name: CI
 
 on:
-  # Every branch runs on its pushes, and a pull request's run is the run of its
-  # branch. A push runs this file as the branch has it, where a pull_request
-  # run would take it from GitHub's merge of the pull request into main: a
-  # pull request based on an older main would run main's steps, with main's
-  # secrets, over its own scripts, so every change to CI broke the pull
-  # requests that had not merged it yet. What is merged is still checked as it
-  # will land, by merge_group, so the merge queue's own branches are left to
-  # that. Opening a pull request pushes nothing, so pull-requests.yml starts a
-  # run of the branch for it. A pull request from a fork gets no run: its
-  # branch is not here to push to, and a fork's run would have no secrets to
-  # build with.
-  #
   # Running on main is what gives every other run a cache to restore from. A
   # GitHub Actions cache written on a branch can only be read back from that
-  # branch, so until something ran here, every entry these jobs wrote was one
-  # only the branch that wrote it could ever use.
+  # branch and from the runs of pull requests based on it, so until something
+  # ran here, every entry these jobs wrote was one only the branch that wrote
+  # it could ever use.
   push:
-    branches-ignore: ['gh-readonly-queue/**']
+    branches: [main]
+  pull_request:
   workflow_dispatch:
   merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # A superseded branch run is work on a commit nobody is waiting for any more.
-  # A run on main is not: it is the one that fills the caches, and a merge
-  # queue run is what a merge is waiting on, so neither is cancelled. Nor is
-  # the run pull-requests.yml starts, which is the same commit as the push run
-  # it would cancel, and waits for it instead.
-  cancel-in-progress: ${{ github.event_name == 'push' && github.ref != 'refs/heads/main' }}
+  # A superseded pull request run is work on a commit nobody is waiting for any
+  # more. A run on main is not: it is the one that fills the caches, and a merge
+  # queue run is what a merge is waiting on, so neither is cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 env:
   # The token for Namespace's remote execution (guides/build_server.md), which
-  # runs every buck2 action.
+  # runs every buck2 action. A pull request from a fork sees an empty value,
+  # and ./scripts/buck says so rather than building.
   BE3_BUILD_SERVER_KEY: ${{ secrets.BE3_NAMESPACE_TOKEN }}
 
 # One job does the work: ci is ./scripts/buck run //:ci, which verifies, builds
@@ -53,12 +42,12 @@ env:
 jobs:
   # ./scripts/buck run //:ci, the way a person runs it: the lint pass and the
   # tests on the build server, and the plugin tests here, since they read and
-  # write the accepted paintings in snapshots/. On a branch it fixes and
+  # write the accepted paintings in snapshots/. On a pull request it fixes and
   # accepts instead of only reporting, and anything that leaves the checkout
   # changed is uploaded as a patch for the autofix job to push, and fails this
-  # job. On main and in the merge queue nothing may be written: they are
-  # asking whether what is there is right, and a fix on either has nowhere to
-  # go.
+  # job. Everywhere else nothing may be written: main, the merge queue and a
+  # manual run are asking whether what is there is right, and a fix on any of
+  # them has nowhere to go.
   #
   # Accepting a painting that changed, or one that is new, is on purpose:
   # the commit that carries it is what a reviewer looks at in Paint review.
@@ -72,46 +61,28 @@ jobs:
   # before, after, and with what changed marked, for one comment on the pull
   # request that each run edits rather than adding to. The paintings compared
   # are the ones committed on the head, so a painting the autofix job accepts
-  # shows up in the run its commit starts. A branch with no open pull request
-  # has nowhere to comment, so it has no previews.
+  # shows up in the run its commit starts. A fork's run has no Namespace
+  # token to build with and no token to comment with, so it has no previews.
   ci:
     name: ci
     runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      pull-requests: read
     outputs:
       android: ${{ steps.outputs.outputs.android }}
       previews: ${{ steps.outputs.outputs.previews }}
-      fixes: ${{ steps.branch.outputs.fixes }}
-      pr: ${{ steps.branch.outputs.number }}
     steps:
-      # The whole history, since what a pull request changed in its paintings
-      # is measured from where it left its base rather than from wherever the
-      # base is now.
+      # A pull request is checked out at its head rather than at the merge
+      # GitHub makes of it, because what this job fixes is pushed back to that
+      # head and has to apply there. What is merged is checked again as it will
+      # land: GitHub's merge queue runs this workflow on the merge group's
+      # commit, which is the pull request on top of main as it will be. The
+      # whole history, since what a pull request changed in its paintings is
+      # measured from where it left its base rather than from wherever the base
+      # is now.
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-
-      # Whether this run may fix what it finds, which is any branch's, and the
-      # open pull request the branch is the head of, if it has one: its number
-      # names its comment and its Android build, and its base is what its
-      # paintings are measured from. The token is given to this step alone.
-      - name: Find the pull request
-        id: branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-          FIXES: ${{ github.event_name != 'merge_group' && github.ref != 'refs/heads/main' }}
-          REPOSITORY: ${{ github.repository }}
-          OWNER: ${{ github.repository_owner }}
-          BRANCH: ${{ github.ref_name }}
-        run: |
-          echo "fixes=$FIXES" >> "$GITHUB_OUTPUT"
-          if [ "$FIXES" = true ]; then
-            gh api --method GET "repos/$REPOSITORY/pulls" -f state=open -f head="$OWNER:$BRANCH" \
-              --jq '.[0] // empty | "number=\(.number)\nbase=\(.base.sha)"' >> "$GITHUB_OUTPUT"
-          fi
 
       # The workflows are linted before anything from the pull request has
       # run. Everything a job installs before it builds anything is trusted
@@ -156,9 +127,9 @@ jobs:
       - name: Run //:ci
         if: ${{ !cancelled() }}
         env:
-          CHECK: ${{ steps.branch.outputs.fixes != 'true' }}
-          PREVIEWS: ${{ steps.branch.outputs.number != '' }}
-          BASE: ${{ steps.branch.outputs.base }}
+          CHECK: ${{ github.event_name != 'pull_request' }}
+          PREVIEWS: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+          BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           set -- --android dist/android
           if [ "$CHECK" = true ]; then
@@ -213,7 +184,7 @@ jobs:
       # its removal.
       - name: Collect what verification changed
         id: collect
-        if: ${{ !cancelled() && steps.branch.outputs.fixes == 'true' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         run: |
           rm -f buck/android/ci-keystore.base64
           git add --all
@@ -234,19 +205,19 @@ jobs:
           path: ${{ runner.temp }}/autofix/autofix.patch
           retention-days: 1
 
-      # A branch whose fixes changed something is not the branch that passed:
-      # the one that passes is the commit the autofix job pushes, and CI runs
-      # again on that.
+      # A pull request whose fixes changed something is not the pull request
+      # that passed: the one that passes is the commit the autofix job pushes,
+      # and CI runs again on that.
       - name: Fail because verification changed the checkout
         if: ${{ !cancelled() && steps.collect.outputs.dirty == 'true' }}
         run: |
           echo '::error::Verification changed the checkout. The autofix job pushes the change to this branch when it can; otherwise run ./scripts/buck run //:verify and commit what it changes.'
           exit 1
 
-  # A branch's verification fixes what it can and accepts what the tests
+  # A pull request's verification fixes what it can and accepts what the tests
   # paint, and if that changed anything the ci job uploads the change as a
-  # patch and fails. This pushes it to the branch as one commit, and the CI
-  # run that commit starts is the one that can pass.
+  # patch and fails. This pushes it to the pull request's branch as one commit, and the CI run that commit starts is the
+  # one that can pass.
   #
   # It is the one job here that writes to the repository, so it is the one job
   # that runs nothing from the pull request: it applies patches, which are data
@@ -255,7 +226,9 @@ jobs:
   #
   # The push is made as a GitHub App rather than with GITHUB_TOKEN,
   # because a push made with GITHUB_TOKEN starts no workflow, and a fixed head
-  # nobody runs CI on is a branch that can never pass.
+  # nobody runs CI on is a pull request that can never pass. A fork's branch is
+  # not this repository's to push to, and a fork's run has no secrets to push
+  # with, so there the failure and its patches are the whole of the answer.
   #
   # The gate below waits for this but does not judge it. Whether the pull
   # request passes was decided by ci; this only decides whether its author
@@ -264,7 +237,8 @@ jobs:
     name: push autofixes
     if: >-
       !cancelled() &&
-      needs.ci.outputs.fixes == 'true' &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
       contains(needs.*.result, 'failure')
     needs: [ci]
     runs-on: ubuntu-24.04
@@ -304,6 +278,7 @@ jobs:
       - uses: actions/checkout@v7
         if: steps.patches.outputs.found == 'true'
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
 
       # A patch that will not apply stops the push rather than being pushed
@@ -323,7 +298,7 @@ jobs:
         env:
           TOKEN: ${{ steps.app-token.outputs.token }}
           APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
-          BRANCH: ${{ github.ref_name }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
           REPOSITORY: ${{ github.repository }}
         run: |
           author="$APP_SLUG[bot]"
@@ -386,7 +361,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          NUMBER: ${{ needs.ci.outputs.pr }}
+          NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           previews="$RUNNER_TEMP/previews"
@@ -418,7 +393,8 @@ jobs:
   # whatever its query string, so build.json is purged from it with the Bunny
   # API key once it is uploaded. The APKs it no longer names are deleted after
   # it. android-builds.yml deletes a closed pull request's slot.
-  # Only main and branches with an open pull request have one. As with the paint
+  # Only main and pull requests from this repository have one, since a fork's
+  # pull request has no keystore to sign it with. As with the paint
   # previews, the storage key is given to the upload step alone, and what the
   # artifacts hold is only data here.
   #
@@ -430,8 +406,9 @@ jobs:
     if: >-
       !cancelled() &&
       needs.ci.outputs.android == 'true' &&
-      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      needs.ci.outputs.pr != '')
+      (github.event_name == 'push' ||
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v8
@@ -443,8 +420,8 @@ jobs:
         env:
           BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
           BUNNY_API_KEY: ${{ secrets.BUNNY_API_KEY }}
-          SLOT: ${{ needs.ci.outputs.pr != '' && format('pr-{0}', needs.ci.outputs.pr) || 'main' }}
-          COMMIT: ${{ github.sha }}
+          SLOT: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'main' }}
+          COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           android="$RUNNER_TEMP/android"
