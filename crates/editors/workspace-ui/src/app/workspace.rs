@@ -990,7 +990,7 @@ fn WorkspaceDock(workspace: Rc<Workspace>, mode: Memo<DockMode>, desktop: bool) 
     let dialogs = Rc::clone(&workspace);
     let restoring = Rc::downgrade(&workspace);
     let dock = view! {
-        <Docking layout mode home=FILES desktop>
+        <Docking layout mode home=FILES>
             <Show condition={!desktop}>
                 <WorkspaceSplit workspace={Rc::clone(&split)} />
             </Show>
