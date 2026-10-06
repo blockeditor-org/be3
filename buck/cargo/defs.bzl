@@ -1,4 +1,4 @@
-load("@root//buck/platforms:cross.bzl", "PLAN_SETTINGS")
+load("@prelude//rust:cargo_package.bzl", "apply_platform_attrs", "get_reindeer_platform_names")
 load("@root//buck/platforms:profile.bzl", "dev_only")
 load(":crates.bzl", "crates")
 
@@ -7,8 +7,8 @@ load(":crates.bzl", "crates")
 # passes what Cargo.toml cannot say as arguments: extra_deps and env are added
 # to what the macro works out, and anything else goes to the rule as it is.
 # Where a crate's dependencies or features differ between platforms, the macro
-# writes the select(); these are the constraints each plan is selected by.
-_CONSTRAINTS = PLAN_SETTINGS | {"linux-x86_64": "DEFAULT"}
+# selects them by plan through the prelude's apply_platform_attrs, which the
+# third-party rules use too, from the map the root PACKAGE sets.
 
 def _crate():
     package = native.package_name()
@@ -17,12 +17,10 @@ def _crate():
     return crates[package]
 
 # One value per platform, as a select() when they differ and a plain list when
-# they do not. A crate cargo never builds for the host still needs a DEFAULT,
-# and gets the first platform it is built for.
+# they do not. A crate cargo never builds for a platform still needs a value
+# there, and gets the first platform it is built for's.
 def _per_platform(crate, pick, extra = []):
-    values = {}
-    for platform, entry in crate["platforms"].items():
-        values[_CONSTRAINTS[platform]] = sorted(pick(entry) + extra)
+    values = {platform: sorted(pick(entry) + extra) for platform, entry in crate["platforms"].items()}
     if not values:
         return sorted(extra)
     distinct = []
@@ -31,9 +29,9 @@ def _per_platform(crate, pick, extra = []):
             distinct.append(value)
     if len(distinct) == 1:
         return distinct[0]
-    if "DEFAULT" not in values:
-        values["DEFAULT"] = values[sorted(values.keys())[0]]
-    return select(values)
+    fallback = values[sorted(values)[0]]
+    per_plan = {platform: {"value": values.get(platform, fallback)} for platform in get_reindeer_platform_names()}
+    return apply_platform_attrs(per_plan, {})["value"]
 
 def _env(crate, crate_name, env):
     base = {
