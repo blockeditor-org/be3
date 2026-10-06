@@ -1,7 +1,7 @@
 # buck2
 
-buck2 builds, lints and tests the workspace, and every action runs on our
-build server (guides/build_server.md). Every command is a buck2 target started through
+buck2 builds, lints and tests the workspace, and every action runs on
+Namespace's remote execution (guides/build_server.md). Every command is a buck2 target started through
 `./scripts/buck`. cargo builds nothing; `Cargo.toml` is still the one place a
 dependency is declared, and buck2 reads it through cargo's own plans.
 
@@ -20,7 +20,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
-| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's, signed on the build server with CI's key) |
+| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's, signed on a worker with CI's key) |
 | `./scripts/buck run //crates/beui-demo:demo` | beui's demo in a window |
 | `./scripts/buck run //crates/beui:survey-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //crates/beui-web-demo:web-serve` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
@@ -45,27 +45,20 @@ these in front of the pinned buck2:
 - **buck2 itself.** The release pinned in `scripts/internal/common.sh` is
   installed into `target/tools/buck2-<version>/` the first time it is missing.
   A `buck2` on `PATH` is not used, since each buck2 carries its own prelude.
-- **The build server's key**: `BE3_BUILD_SERVER_KEY`, else `.build-server-key`
+- **Namespace's token**: `BE3_BUILD_SERVER_KEY`, else `.build-server-key`
   at the root (git ignores it), else `~/.config/be3/build-server-key`. With
   none, a person at a terminal is asked for it and it is saved to
   `~/.config/be3/build-server-key`; without a terminal it fails and says what
-  to set. After changing the key, restart the daemon with
+  to set. After changing the token, restart the daemon with
   `./scripts/buck killall`.
-- **The build server.** `.buckconfig` names one; `BE3_BUILD_SERVER`, else
-  `.build-server` at the root (git ignores it), picks another by host, and
-  its key files end in that host (guides/build_server.md). `./scripts/buck`
-  writes a `.buckconfig.local` naming it and restarts the daemon when the
-  server changes.
-- **An HTTPS proxy.** buck2's remote execution client dials the build server
+- **An HTTPS proxy.** buck2's remote execution client dials Namespace's hosts
   directly and never reads `HTTPS_PROXY`. When it is set, `./scripts/buck` builds
-  `scripts/internal/re-relay` with Go (1.24 or newer), leaves it running on
-  `127.0.0.1:18980`, and points buck2 at it in the same `.buckconfig.local`; the
-  relay sends each call on through the proxy, over HTTP/1.1 if that is all the
-  proxy speaks. Its errors go to `target/re-relay.log`. A `.buckconfig.local` a person wrote
-  is left alone, and the relay is not used then.
-- **CI's priority.** With `CI` set, the same `.buckconfig.local` sets
-  `be3.remote_execution_priority` to -1, so the server starts CI's actions
-  after any a person's build has queued (guides/build_server.md).
+  `scripts/internal/re-relay` with Go (1.24 or newer), leaves one running on
+  `127.0.0.1:18980` for the executor and one on `127.0.0.1:18981` for the
+  storage, and points buck2 at them in a `.buckconfig.local`; each relay sends
+  its calls on through the proxy, over HTTP/1.1 if that is all the proxy
+  speaks. Their errors go to `target/re-relay.log`. A `.buckconfig.local` a
+  person wrote is left alone, and the relays are not used then.
 - **The generated rules.** `buck/cargo/crates.bzl` is not checked in: every
   crate's dependencies, features and targets, first- and third-party, from
   cargo's plans, with each third-party crate's checksum and size.
@@ -96,13 +89,13 @@ It also lets `test` put tests on the workers (below).
 
 ## Layout
 
-- `.buckconfig`: cells, the execution platform, the build server. The prelude is the
+- `.buckconfig`: cells, the execution platform, Namespace's hosts. The prelude is the
   one bundled in the buck2 binary.
 - `BUCK.v2`: the `//:` commands, scripts in `buck/dev`. (`BUCK.v2` rather than
   `BUCK`, which a case-insensitive filesystem cannot hold beside `buck/`.)
 - `buck/tools`: every compiler and tool, downloaded and pinned by hash and size.
 - `buck/toolchains`: the toolchains built from them, per target platform.
-- `buck/platforms`: the execution platform (the build server's worker) and every
+- `buck/platforms`: the execution platform (a Namespace worker) and every
   target platform; `cross.bzl` lists the cross-compiled ones.
 - `buck/sysroot`: the Ubuntu 24.04 packages everything is compiled against.
 - `buck/cargo`: the BXL that writes `crates.bzl` and the macros that read it:
@@ -235,11 +228,10 @@ A native target depends on a wasm one through a transition in
   the app's own and beui's (`//crates/beui-adapter-android:android-java`), against the
   platform alone: the APK carries no libraries. `:android` signs it
   locally with `target/android-debug.keystore`, made on first use.
-  `:android-dist` signs on the build server with CI's keystore, the secret
-  `ANDROID_DEBUG_KEYSTORE_BASE64` it keeps (guides/build_server.md), with its
+  `:android-dist` signs on a worker with CI's keystore,
+  `buck/android/ci-keystore.base64` (guides/build_server.md), with its
   own application id and label (`com.be3.block.ci`, `Block (CI)`) so it
-  installs beside a local build. After changing the secret, bump
-  `key_version` in `crates/block-app/BUCK` and `crates/be-launcher/BUCK`.
+  installs beside a local build.
   The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).
 - `crates/be-launcher` is an APK too. It downloads and installs the APKs CI
@@ -270,7 +262,7 @@ extension ships: the toolchain's panics on this workspace.
   `buck/toolchains/BUCK`: otherwise the prelude sets `RUSTC_BOOTSTRAP=1`, and
   `cfg(target_feature = "atomics")` on `wasm32-wasip1-threads` then answers
   differently from cargo, which broke wgpu's `Send`/`Sync` checks.
-- **The key.** The build server answers a call with a wrong or missing key
+- **The token.** Namespace answers a call with a wrong or missing token
   with `UNAUTHENTICATED`, which buck2 reports as failing to reach it.
 - **Downloads.** Every `http_archive` has `size_bytes` as well as `sha256`;
   without it buck2 sends a HEAD request per download on every new daemon.

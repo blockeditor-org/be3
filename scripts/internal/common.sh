@@ -304,28 +304,20 @@ buck2_release_sha256() {
     echo "${!name}"
 }
 
-# Every action runs on our build server (guides/build_server.md), which turns
-# away a call without its key, so a build without the key has nowhere to run.
-# buck2 would say so only as a failed connection, well into the build. The key
-# is BE3_BUILD_SERVER_KEY from the environment, or else the first of two files
-# that holds it: .build-server-key at the root of the checkout, which git
+# Every action runs on Namespace (guides/build_server.md), which turns away a
+# call without this repository's token, so a build without it has nowhere to
+# run. buck2 would say so only as a failed connection, well into the build. The
+# token is BE3_BUILD_SERVER_KEY from the environment, or else the first of two
+# files that holds it: .build-server-key at the root of the checkout, which git
 # ignores, or ~/.config/be3/build-server-key. Either way it is exported, which
 # is how .buckconfig's $BE3_BUILD_SERVER_KEY reaches the daemon.
 #
-# Each server has a key of its own, so for a server other than .buckconfig's
-# both files have its host on the end of their names, and one machine can hold
-# every server's key and move between them.
-#
-# With none of them, a person at a terminal is asked for the key, and it is
+# With none of them, a person at a terminal is asked for the token, and it is
 # saved under ~/.config/be3 for every checkout. Anything else - a pipe, CI, an
 # agent's shell - has nobody to answer, so it is told what to set instead of
 # waiting for input that will not come.
 assert_build_server_key() {
-    local file key host name='build-server-key'
-    host="$(build_server_host)"
-    if [[ "$host" != "$(default_build_server_host)" ]]; then
-        name="build-server-key.$host"
-    fi
+    local file key name='build-server-key'
     local saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/$name"
     if [[ -z "${BE3_BUILD_SERVER_KEY:-}" ]]; then
         for file in "$repository/.$name" "$saved"; do
@@ -336,9 +328,9 @@ assert_build_server_key() {
         done
     fi
     if [[ -z "${BE3_BUILD_SERVER_KEY:-}" && -t 0 && -t 2 ]]; then
-        echo "buck2 runs every build on $host, and needs its key." >&2
-        echo 'Whoever runs the server has it (guides/build_server.md).' >&2
-        read -r -s -p 'Build server key: ' key
+        echo 'buck2 runs every build on Namespace, and needs its token.' >&2
+        echo 'guides/build_server.md says how to make one.' >&2
+        read -r -s -p 'Namespace token: ' key
         echo '' >&2
         key="$(printf '%s' "$key" | tr -d '[:space:]')"
         if [[ -n "$key" ]]; then
@@ -352,27 +344,16 @@ assert_build_server_key() {
         export BE3_BUILD_SERVER_KEY
         return 0
     fi
-    echo "buck2 runs every build on $host, and there is no key for it." >&2
-    echo "Set BE3_BUILD_SERVER_KEY, or write the key to .$name at the root" >&2
+    echo 'buck2 runs every build on Namespace, and there is no token for it.' >&2
+    echo "Set BE3_BUILD_SERVER_KEY, or write the token to .$name at the root" >&2
     echo "of the checkout or to ~/.config/be3/$name. Run ./scripts/buck" >&2
     echo 'from a terminal to be asked for it. guides/build_server.md has more.' >&2
     exit 1
 }
 
-# The build server's host, as .buckconfig names it.
-default_build_server_host() {
-    sed -n 's/^engine_address *= *\([^:]*\):.*/\1/p' "$repository/.buckconfig"
-}
-
-# The build server this checkout builds on: BE3_BUILD_SERVER from the
-# environment, or else the host .build-server at the root of the checkout
-# names, which git ignores, or else .buckconfig's.
+# A host .buckconfig's [buck2_re_client] names, by its key there.
 build_server_host() {
-    local host="${BE3_BUILD_SERVER:-}"
-    if [[ -z "$host" && -f "$repository/.build-server" ]]; then
-        host="$(tr -d '[:space:]' < "$repository/.build-server")"
-    fi
-    echo "${host:-$(default_build_server_host)}"
+    sed -n "s/^$1 *= *\([^:]*\):.*/\1/p" "$repository/.buckconfig"
 }
 
 # What buck2 reads the workspace's Cargo.toml files through -
@@ -436,29 +417,22 @@ write_if_changed() {
     fi
 }
 
-# .buckconfig names one build server, and buck2's remote execution client
-# dials it itself and never reads HTTPS_PROXY. .buckconfig.local is how buck2
-# is pointed anywhere else, and two things need that:
+# buck2's remote execution client dials the hosts .buckconfig names itself and
+# never reads HTTPS_PROXY. Where the machine's way out is an HTTPS proxy, it is
+# pointed through .buckconfig.local at scripts/internal/re-relay instead: a
+# relay on localhost for each host, built with Go and left running in the
+# background, that sends each call on to it through the proxy. The executor and
+# the storage are separate hosts, so there are two relays.
 #
-# - Another server was picked (build_server_host). Its host replaces
-#   .buckconfig's; the key and TLS settings there apply to it unchanged.
-# - The machine's way out is an HTTPS proxy, which buck2 alone cannot use.
-#   There it is pointed at scripts/internal/re-relay: a relay on localhost,
-#   built with Go and left running in the background, that sends each call on
-#   to the server through the proxy.
-# - The build is CI's. Its actions wait behind everyone else's in the server's
-#   queue (buck/platforms/BUCK), so a person's build is not stuck behind a pull
-#   request's. An action CI already queued is shared rather than queued again,
-#   and keeps CI's place; one already running is not stopped.
-#
-# With none of them, a .buckconfig.local this wrote is removed, since it would
+# Without a proxy, a .buckconfig.local this wrote is removed, since it would
 # point buck2 at the wrong place. A file a person wrote is left alone either
 # way. buck2 reads the remote execution settings when its daemon starts and
-# remembers which blobs it has uploaded to the server, so the daemon is
-# stopped whenever the file changes; the file names the server even when the
-# relay's address is all buck2 reads from it, so that a change of server
-# behind the relay is a change to the file too.
-re_relay_address='127.0.0.1:18980'
+# remembers which blobs it has uploaded, so the daemon is stopped whenever the
+# file changes; the file names the hosts even when the relays' addresses are
+# all buck2 reads from it, so that a change of host behind a relay is a change
+# to the file too.
+re_relay_engine_address='127.0.0.1:18980'
+re_relay_storage_address='127.0.0.1:18981'
 
 configure_build_server() {
     local buck2="$1"
@@ -468,12 +442,8 @@ configure_build_server() {
     if [[ -f "$path" ]] && head -1 "$path" | grep -q '@generated by ./scripts/'; then
         generated=true
     fi
-    local host proxy="${HTTPS_PROXY:-${https_proxy:-}}" priority=0
-    host="$(build_server_host)"
-    if [[ -n "${CI:-}" && "${CI:-}" != false ]]; then
-        priority=-1
-    fi
-    if [[ -z "$proxy" && "$host" == "$(default_build_server_host)" && $priority -eq 0 ]]; then
+    local proxy="${HTTPS_PROXY:-${https_proxy:-}}"
+    if [[ -z "$proxy" ]]; then
         if $generated; then
             rm "$path"
             "$buck2" kill > /dev/null 2>&1 || true
@@ -481,41 +451,38 @@ configure_build_server() {
         return 0
     fi
     if [[ -f "$path" ]] && ! $generated; then
-        echo ".buckconfig.local was written by hand, so buck2 is left to reach the build" >&2
-        echo "server it names, not $host${proxy:+ through scripts/internal/re-relay}." >&2
+        echo '.buckconfig.local was written by hand, so buck2 is left to reach the build' >&2
+        echo 'server it names, not through scripts/internal/re-relay.' >&2
         return 0
     fi
 
-    local address="$host:443" tls=true
-    if [[ -n "$proxy" ]]; then
-        assert_command go 'HTTPS_PROXY is set, and buck2 reaches the build server through it with scripts/internal/re-relay, which needs Go 1.24 or newer.'
-        local version relay
-        version="$(cat "$internal"/re-relay/* | cksum | cut -d ' ' -f 1)"
-        relay="$repository/target/tools/re-relay-$version/re-relay$(go env GOEXE)"
-        if [[ ! -x "$relay" ]]; then
-            mkdir -p "$(dirname "$relay")"
-            (cd "$internal/re-relay" && go build -trimpath -o "$relay.partial" .)
-            mv -f "$relay.partial" "$relay"
-        fi
-        "$relay" ensure -listen "$re_relay_address" -upstream "$host" \
-            -version "$version-$host" -log "$repository/target/re-relay.log"
-        address="$re_relay_address"
-        tls=false
+    local engine storage
+    engine="$(build_server_host engine_address)"
+    storage="$(build_server_host cas_address)"
+    assert_command go 'HTTPS_PROXY is set, and buck2 reaches the build server through it with scripts/internal/re-relay, which needs Go 1.24 or newer.'
+    local version relay
+    version="$(cat "$internal"/re-relay/* | cksum | cut -d ' ' -f 1)"
+    relay="$repository/target/tools/re-relay-$version/re-relay$(go env GOEXE)"
+    if [[ ! -x "$relay" ]]; then
+        mkdir -p "$(dirname "$relay")"
+        (cd "$internal/re-relay" && go build -trimpath -o "$relay.partial" .)
+        mv -f "$relay.partial" "$relay"
     fi
+    "$relay" ensure -listen "$re_relay_engine_address" -upstream "$engine" \
+        -version "$version-$engine" -log "$repository/target/re-relay.log"
+    "$relay" ensure -listen "$re_relay_storage_address" -upstream "$storage" \
+        -version "$version-$storage" -log "$repository/target/re-relay.log"
 
     local config="$repository/target/buckconfig.local.partial"
     {
         echo "$marker"
-        echo "# The build server: $host"
+        echo "# The executor: $engine"
+        echo "# The storage: $storage"
         echo '[buck2_re_client]'
-        echo "action_cache_address = $address"
-        echo "cas_address = $address"
-        echo "engine_address = $address"
-        echo "tls = $tls"
-        if [[ $priority -ne 0 ]]; then
-            echo '[be3]'
-            echo "remote_execution_priority = $priority"
-        fi
+        echo "action_cache_address = $re_relay_storage_address"
+        echo "cas_address = $re_relay_storage_address"
+        echo "engine_address = $re_relay_engine_address"
+        echo 'tls = false'
     } > "$config"
     if cmp -s "$config" "$path"; then
         rm "$config"

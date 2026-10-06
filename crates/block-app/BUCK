@@ -229,12 +229,11 @@ tool(
     ],
 )
 
-# What CI ships, signed on the build server with CI's keystore, so the runner downloads
+# What CI ships, signed on a worker with CI's keystore, so the runner downloads
 # only the APK: `./scripts/buck build :android-dist --out block-app.apk`.
 signed_apk(
     name = "android-dist",
     apk = ":apk-dist",
-    key_version = 2,
 )
 
 export_file(
