@@ -161,8 +161,7 @@ pub(crate) struct RuntimeStatus {
 pub(crate) struct SurfaceStatus {
     pub(crate) index: u32,
     pub(crate) generation: u64,
-    pub(crate) width: u32,
-    pub(crate) height: u32,
+    pub(crate) pixels: u64,
     pub(crate) placements: usize,
 }
 
@@ -191,7 +190,7 @@ pub(crate) struct ScreenStatus {
     pub(crate) pixels: [u32; 2],
     pub(crate) scale_factor: f32,
     pub(crate) used: Option<Vec2>,
-    pub(crate) placement: Option<[u32; 4]>,
+    pub(crate) placement: Option<[u32; 3]>,
     pub(crate) drawn: bool,
     pub(crate) children: usize,
     pub(crate) child_generation: u64,

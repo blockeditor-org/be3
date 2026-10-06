@@ -1,4 +1,4 @@
-use beui::{Event, Vec2};
+use beui::Event;
 use beui_plugin_input::{
     back_phase, pointer_button, protocol_key, protocol_modifiers, touch_phase,
 };
@@ -15,10 +15,10 @@ impl Input {
         self.held
     }
 
-    pub(crate) fn normalize(&mut self, events: Vec<Event>, origin: Vec2) -> Vec<InputEvent> {
+    pub(crate) fn normalize(&mut self, events: Vec<Event>) -> Vec<InputEvent> {
         let mut output = Vec::new();
         for event in events {
-            self.event(event, origin, &mut output);
+            self.event(event, &mut output);
         }
         output
     }
@@ -32,15 +32,12 @@ impl Input {
         }
     }
 
-    fn event(&mut self, event: Event, origin: Vec2, output: &mut Vec<InputEvent>) {
+    fn event(&mut self, event: Event, output: &mut Vec<InputEvent>) {
         match event {
-            Event::PointerMoved(position) => {
-                let position = position - origin;
-                output.push(InputEvent::PointerMoved {
-                    x: position.x,
-                    y: position.y,
-                });
-            }
+            Event::PointerMoved(position) => output.push(InputEvent::PointerMoved {
+                x: position.x,
+                y: position.y,
+            }),
             Event::PointerGone => output.push(InputEvent::PointerLeft),
             Event::PointerMotion(delta) => output.push(InputEvent::PointerMotion {
                 x: delta.x,
@@ -53,12 +50,11 @@ impl Input {
                 modifiers,
             } => {
                 self.modifiers(modifiers, output);
-                let position = pos - origin;
                 output.push(InputEvent::PointerButton {
                     button: pointer_button(button),
                     pressed,
-                    x: position.x,
-                    y: position.y,
+                    x: pos.x,
+                    y: pos.y,
                 });
             }
             Event::Scroll(delta) => {
@@ -75,17 +71,14 @@ impl Input {
                 phase,
                 pos,
                 force,
-            } => {
-                let position = pos - origin;
-                output.push(InputEvent::Touch {
-                    device: id.device,
-                    finger: id.finger,
-                    phase: touch_phase(phase),
-                    x: position.x,
-                    y: position.y,
-                    force,
-                });
-            }
+            } => output.push(InputEvent::Touch {
+                device: id.device,
+                finger: id.finger,
+                phase: touch_phase(phase),
+                x: pos.x,
+                y: pos.y,
+                force,
+            }),
             Event::Key {
                 key,
                 pressed,

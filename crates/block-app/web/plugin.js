@@ -202,8 +202,7 @@ export async function boot(shimUrl, moduleUrl, wake) {
     return {
         deliver: (frame) => shimModule.deliver(frame),
         collect: () => shimModule.collect(),
-        show: (id, canvas, x, y, width, height) =>
-            shimModule.show(id, canvas, x, y, width, height),
+        show: (id, canvas, surface) => shimModule.show(id, canvas, surface),
         forget: (id) => shimModule.forget(id),
         paint: () => shimModule.paint(),
         failure: () => shimModule.failure(),

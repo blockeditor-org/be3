@@ -2999,6 +2999,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-dmabuf:be-dmabuf",
+                    "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:smithay-0.7.0",
@@ -3013,6 +3014,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-dmabuf:be-dmabuf",
+                    "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:smithay-0.7.0",
@@ -3027,6 +3029,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-dmabuf:be-dmabuf",
+                    "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:smithay-0.7.0",
@@ -3041,6 +3044,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-dmabuf:be-dmabuf",
+                    "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:smithay-0.7.0",
@@ -3055,6 +3059,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-dmabuf:be-dmabuf",
+                    "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:smithay-0.7.0",
@@ -3069,6 +3074,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-dmabuf:be-dmabuf",
+                    "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:smithay-0.7.0",
@@ -3083,6 +3089,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-dmabuf:be-dmabuf",
+                    "//crates/beui-core:beui-core",
                     "//crates/beui:beui",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:smithay-0.7.0",
@@ -3091,6 +3098,141 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/beui-adapter-plugin": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_adapter_plugin",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-adapter-plugin",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-plugin-api:block-plugin-api",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui:beui",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-plugin-api:block-plugin-api",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui:beui",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-plugin-api:block-plugin-api",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui:beui",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-plugin-api:block-plugin-api",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui:beui",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-plugin-api:block-plugin-api",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui:beui",
+                ],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//third-party/rust:wgpu-29.0.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-plugin-api:block-plugin-api",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui:beui",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-plugin-api:block-plugin-api",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/beui:beui",
+                ],
                 "test_features": [],
             },
         },
@@ -5903,7 +6045,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/beui-adapter-plugin:beui-adapter-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -5920,7 +6062,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/beui-adapter-plugin:beui-adapter-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -5937,7 +6079,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/beui-adapter-plugin:beui-adapter-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -5954,7 +6096,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/beui-adapter-plugin:beui-adapter-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -5971,7 +6113,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/beui-adapter-plugin:beui-adapter-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -5988,7 +6130,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/beui-adapter-plugin:beui-adapter-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -6005,7 +6147,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/beui-adapter-plugin:beui-adapter-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -6022,7 +6164,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-block:be-block",
-                    "//crates/beui-plugin-input:beui-plugin-input",
+                    "//crates/beui-adapter-plugin:beui-adapter-plugin",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",

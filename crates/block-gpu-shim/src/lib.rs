@@ -10,8 +10,6 @@ use wasm_bindgen::{JsCast, prelude::*};
 
 use screens::Screens;
 
-const SCREENS_SURFACE: u32 = 0;
-
 thread_local! {
     static SHIM: RefCell<Option<Shim>> = const { RefCell::new(None) };
 }
@@ -65,11 +63,11 @@ pub async fn start() -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn show(id: u32, canvas: JsValue, x: u32, y: u32, width: u32, height: u32) {
+pub fn show(id: u32, canvas: JsValue, surface: u32) {
     with(
         |shim| {
             let canvas = canvas.dyn_into::<web_sys::OffscreenCanvas>().ok();
-            let shown = shim.screens.show(id, canvas, [x, y, width, height]);
+            let shown = shim.screens.show(id, canvas, surface);
             shim.fail(shown);
         },
         (),
@@ -85,10 +83,9 @@ pub fn forget(id: u32) {
 pub fn paint() {
     with(
         |shim| {
-            if shim.gpu.take_presented().contains(&SCREENS_SURFACE) {
-                shim.screens.presented();
-            }
-            let painted = shim.screens.paint(shim.gpu.surface(SCREENS_SURFACE));
+            shim.screens.presented(&shim.gpu.take_presented());
+            let gpu = &shim.gpu;
+            let painted = shim.screens.paint(|surface| gpu.surface(surface));
             shim.fail(painted);
         },
         (),

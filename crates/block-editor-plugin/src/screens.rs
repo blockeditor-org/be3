@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    Catalog, ChildStatus, DEFAULT_SURFACE_SIDE, EditorInstanceId, EditorMessage, EditorRegion,
-    Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
+    Catalog, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Message, ScreenId,
+    ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, TemplateEntry};
 use std::{
@@ -26,6 +26,7 @@ pub(crate) struct Screens {
     layout: ScreenLayout,
     block_types: Rc<BlockCatalog>,
     surface: Option<SurfaceSpec>,
+    next_surface: u32,
     dirty: Arc<Mutex<HashSet<EditorInstanceId>>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     everything: bool,
@@ -59,6 +60,7 @@ impl Screens {
             layout: ScreenLayout::default(),
             block_types: Rc::new(BlockCatalog::default()),
             surface: None,
+            next_surface: 0,
             dirty: Arc::default(),
             everything: true,
             reporting: HashSet::new(),
@@ -636,12 +638,18 @@ impl Screens {
     }
 
     fn relayout(&mut self) {
-        let generation = self.layout.generation;
-        let max_side = self
-            .surface
-            .map_or(DEFAULT_SURFACE_SIDE, |surface| surface.max_side);
-        self.layout = ScreenLayout::packed(&self.requests, max_side);
-        self.layout.generation = generation;
+        let previous = std::mem::take(&mut self.layout);
+        let next = &mut self.next_surface;
+        self.layout = ScreenLayout::placed(&self.requests, |screen| {
+            previous
+                .placement(screen)
+                .map(|placement| placement.surface)
+                .unwrap_or_else(|| {
+                    *next += 1;
+                    *next
+                })
+        });
+        self.layout.generation = previous.generation;
         let mut placements: HashMap<EditorInstanceId, Vec<_>> = HashMap::new();
         for placement in &self.layout.screens {
             placements

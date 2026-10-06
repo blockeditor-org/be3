@@ -1,4 +1,5 @@
 use super::*;
+use block_plugin_api::SurfaceRect;
 
 fn presented(sequence: u64, x: u32) -> PresentedFrame {
     PresentedFrame {
@@ -7,12 +8,15 @@ fn presented(sequence: u64, x: u32) -> PresentedFrame {
     }
 }
 
-fn rect(x: u32) -> SurfaceRect {
-    SurfaceRect {
-        x,
-        y: 0,
-        width: 1,
-        height: 1,
+fn rect(x: u32) -> ScreenDamage {
+    ScreenDamage {
+        screen: ScreenId(1),
+        rect: SurfaceRect {
+            x,
+            y: 0,
+            width: 1,
+            height: 1,
+        },
     }
 }
 

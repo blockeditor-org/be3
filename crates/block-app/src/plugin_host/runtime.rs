@@ -8,10 +8,10 @@ use std::{
 
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, DEFAULT_SURFACE_SIDE, EditorInstanceId, EditorMessage,
-    EditorRegion, FrameSpec, HostPanel, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest,
-    PresentedFrame, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat,
-    SurfaceRect, SurfaceSpec, Theme, ViewChange,
+    ArtifactDescription, BlockPick, EditorInstanceId, EditorMessage, EditorRegion, FrameSpec,
+    HostPanel, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest, PresentedFrame,
+    ScreenDamage, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat, SurfaceSpec,
+    Theme, ViewChange,
 };
 use uuid::Uuid;
 
@@ -38,7 +38,6 @@ pub(crate) const PACING: &str = "Frame pacing";
 const REMEMBERED_PRESENTS: usize = 16;
 const SURFACE: SurfaceSpec = SurfaceSpec {
     format: SurfaceFormat::Rgba8Unorm,
-    max_side: DEFAULT_SURFACE_SIDE,
 };
 
 thread_local! {
@@ -156,7 +155,7 @@ impl Presents {
         self.reported.push_back(presented);
     }
 
-    fn damage_through(&mut self, presents: u64) -> Option<Vec<SurfaceRect>> {
+    fn damage_through(&mut self, presents: u64) -> Option<Vec<ScreenDamage>> {
         let since = std::mem::replace(&mut self.shown, presents);
         let mut damage = Vec::new();
         let mut found = 0;
@@ -555,7 +554,7 @@ impl Runtime {
             placed: self
                 .layout
                 .placement(screen)
-                .map(|placement| [placement.x, placement.y, placement.width, placement.height]),
+                .map(|placement| [placement.surface, placement.width, placement.height]),
         }
     }
 
@@ -1195,8 +1194,12 @@ pub(crate) fn running() -> Vec<RuntimeStatus> {
                 surface: SurfaceStatus {
                     index: runtime.surface,
                     generation: runtime.layout.generation,
-                    width: runtime.layout.width,
-                    height: runtime.layout.height,
+                    pixels: runtime
+                        .layout
+                        .screens
+                        .iter()
+                        .map(|placement| u64::from(placement.width) * u64::from(placement.height))
+                        .sum(),
                     placements: runtime.layout.screens.len(),
                 },
                 pass: runtime.pass,
@@ -1591,13 +1594,13 @@ pub(crate) fn region_placed(
     plugin_id: &str,
     instance: EditorInstanceId,
     region: EditorRegion,
-) -> Option<[u32; 4]> {
+) -> Option<[u32; 3]> {
     with(plugin_id, |runtime| {
         let screen = runtime.instances.screen_id(instance, region)?;
         runtime
             .layout
             .placement(screen)
-            .map(|placement| [placement.x, placement.y, placement.width, placement.height])
+            .map(|placement| [placement.surface, placement.width, placement.height])
     })
     .flatten()
 }

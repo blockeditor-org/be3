@@ -55,6 +55,10 @@ pub fn present_surface(surface: u32) {
     unsafe { imports::surface_present(surface) };
 }
 
+pub fn release_surface(surface: u32) {
+    unsafe { imports::surface_release(surface) };
+}
+
 fn describe(texture: abi::Handle) -> Result<abi::TextureDescriptor, String> {
     let mut buffer = vec![0u8; 512];
     let needed = unsafe {

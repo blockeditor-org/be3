@@ -877,8 +877,22 @@ version = "0.1.0"
 dependencies = [
  "be-dmabuf",
  "beui",
+ "beui-core",
  "bytemuck",
  "smithay",
+ "wgpu",
+]
+
+[[package]]
+name = "beui-adapter-plugin"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "beui-core",
+ "beui-plugin-input",
+ "beui-renderer-wgpu",
+ "block-editor-plugin",
+ "block-plugin-api",
  "wgpu",
 ]
 
@@ -1232,7 +1246,7 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "beui",
- "beui-plugin-input",
+ "beui-adapter-plugin",
  "block-editor-plugin",
  "block-plugin-api",
  "block-ui",

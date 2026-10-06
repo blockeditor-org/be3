@@ -5,9 +5,7 @@ use be_block::counter::CounterContent;
 use std::time::Duration;
 
 use block_editor_plugin::session::{ClientSession, State};
-use block_plugin_api::{
-    DEFAULT_SURFACE_SIDE, HelloAccepted, PROTOCOL_VERSION, SurfaceFormat, SurfaceSpec, Theme,
-};
+use block_plugin_api::{HelloAccepted, PROTOCOL_VERSION, SurfaceFormat, SurfaceSpec, Theme};
 
 #[test]
 fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
@@ -22,7 +20,6 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
         host_name: "test host".into(),
         surface: Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
-            max_side: DEFAULT_SURFACE_SIDE,
         }),
         theme: Theme { dark: true },
     }));
