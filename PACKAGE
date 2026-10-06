@@ -1,7 +1,20 @@
+load("@prelude//cfg/modifier:cfg_constructor.bzl", "cfg_constructor_pre_constraint_analysis")
+load("@prelude//cfg/modifier:common.bzl", "MODIFIER_METADATA_KEY")
 load("@prelude//rust:cargo_package.bzl", "set_reindeer_platforms")
 load("//buck/platforms:cross.bzl", "PLAN_SETTINGS")
+load("//buck/platforms:modifiers.bzl", "cfg_constructor_named")
 
 # Which platform a configuration is, by the names buck/cargo/crates.bzl keys
 # cargo's plans by, which is how the third-party rules in third-party/rust pick
 # their features and dependencies.
 set_reindeer_platforms(select({"DEFAULT": None} | {setting: plan for plan, setting in PLAN_SETTINGS.items()}))
+
+# Configuration modifiers: `-m release` adds buck/constraints:release, cargo's
+# release profile, to whatever platform a command builds for.
+native.set_cfg_constructor(
+    aliases = struct(release = "root//buck/constraints:release"),
+    extra_data = struct(),
+    key = MODIFIER_METADATA_KEY,
+    stage0 = cfg_constructor_pre_constraint_analysis,
+    stage1 = cfg_constructor_named,
+)

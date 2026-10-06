@@ -29,10 +29,10 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
 
 `--target-platforms root//buck/platforms:<p>` builds for another platform, and
-`<p>_release` (say `linux_x86_64_release`) is the same platform with cargo's
-release profile. The profile is the `root//buck/constraints:release`
-constraint rather than a buckconfig value, so one build can hold both, and every
-transition keeps it. Every other build is cargo's dev profile, with
+`-m release` with cargo's release profile, on whichever platform it is. The
+profile is the `root//buck/constraints:release` constraint, added by a
+configuration modifier (the root `PACKAGE`) rather than a buckconfig value, so
+one build can hold both, and every transition keeps it. Every other build is cargo's dev profile, with
 `Cargo.toml`'s `[profile.dev.package]` overrides (the optimised cranelift and
 crypto crates), which `crates.bzl` carries as each crate's rustc flags. A
 release build takes `-c be3.commit=SHA`, the commit the app reports; a dev

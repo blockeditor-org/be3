@@ -177,8 +177,8 @@ pinned_rust_toolchain(
     nightly_features = False,
     # Cargo's dev profile on the host, and its plugin profile on wasm, since
     # cranelift is far slower at an unoptimised module; the opt level is also what
-    # tells build scripts OPT_LEVEL. buck/constraints:release, which the
-    # <name>_release platforms carry, is cargo's release profile.
+    # tells build scripts OPT_LEVEL. buck/constraints:release, which `-m release`
+    # adds, is cargo's release profile.
     rustc_flags = select({
         "DEFAULT": select({
             "DEFAULT": ["-Copt-level=0", "-Cdebuginfo=line-tables-only"],
