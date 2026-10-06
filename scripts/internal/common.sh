@@ -403,27 +403,39 @@ write_if_changed() {
     fi
 }
 
-# Where buck2 reaches the remote execution cluster, written into
-# .buckconfig.local. The cluster shuts down when it has had nothing to do for a
-# while, so its hosts are asked of nsc rather than kept in .buckconfig:
+# Where buck2 reaches the build server, written into .buckconfig.local.
+# BE3_BUILD_SERVER picks the server: namespace, which is the default and CI's,
+# or one of our own, blocks.pfg.pw and buildserver.pfg.pw, or buildbuddy. Each
+# has its own key and its own cache. The file also names the server under
+# [be3] build_server, since the workers' image is not the same on all of them
+# (buck/tools/defs.bzl).
+#
+# Namespace's cluster shuts down when it has had nothing to do for a while, so
+# its hosts are asked of nsc rather than kept anywhere:
 # `nsc reapi setup buck2` starts the cluster if it is down and names its
 # executor, its storage and the header that authenticates to them. It is
 # always asked with the same arguments and the same --key: Namespace starts a
 # new cluster beside the old one when either differs. That answer is kept in
 # target/namespace/ and asked again when the executor stops answering, when it
-# is more than three hours old, or when the token changes.
+# is more than three hours old, or when the token changes. nsc is only
+# downloaded for a build on Namespace.
 #
 # nsc authenticates with Namespace's token: BE3_NAMESPACE_TOKEN from the
 # environment, which is what CI and agents' sessions set, or else
 # .namespace-token.json at the root of the checkout, which git ignores, or
 # ~/.config/be3/namespace-token.json. Either holds what
-# `nsc reapi create-token` writes, or the bare token.
+# `nsc reapi create-token` writes, or the bare token. The other servers' keys
+# are BE3_BUILD_SERVER_KEY, or else .build-server-key.SERVER at the root of the
+# checkout or ~/.config/be3/build-server-key.SERVER. With none of them, a
+# person at a terminal is asked for it, and it is saved under ~/.config/be3 for
+# every checkout; anything else - a pipe, CI, an agent's shell - is told what
+# to set instead.
 #
 # buck2's remote execution client never reads HTTPS_PROXY. Where the machine's
 # way out is an HTTPS proxy, buck2 is pointed at scripts/internal/re-relay
 # instead: a relay on localhost for each host, built with Go and left running
-# in the background, that sends each call on through the proxy. The executor
-# and the storage are separate hosts, so there are two relays.
+# in the background, that sends each call on through the proxy. Namespace's
+# executor and storage are separate hosts, so there are two relays.
 #
 # A .buckconfig.local a person wrote is left alone. buck2 reads the remote
 # execution settings when its daemon starts and remembers which blobs it has
@@ -441,7 +453,7 @@ namespace_recheck=false
 
 # The token file nsc is given, or nothing when there is none.
 namespace_token_file() {
-    local saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/namespace-token.json"
+    local key saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/namespace-token.json"
     if [[ -n "${BE3_NAMESPACE_TOKEN:-}" ]]; then
         local file="$namespace_directory/token.json" token
         token="$(printf '%s' "$BE3_NAMESPACE_TOKEN" | tr -d '\r\n')"
@@ -457,7 +469,85 @@ namespace_token_file() {
         echo "$repository/.namespace-token.json"
     elif [[ -f "$saved" ]]; then
         echo "$saved"
+    elif key="$(ask_for_build_server_key 'Namespace' 'token' "$saved")" && [[ -n "$key" ]]; then
+        if [[ "$key" != '{'* ]]; then
+            (umask 077 && printf '{"bearer_token":"%s"}\n' "$key" > "$saved")
+        fi
+        echo "$saved"
     fi
+}
+
+# The server BE3_BUILD_SERVER names, namespace when it names none.
+build_server() {
+    local server="${BE3_BUILD_SERVER:-namespace}"
+    case "$server" in
+        namespace | blocks.pfg.pw | buildserver.pfg.pw | buildbuddy) echo "$server" ;;
+        *)
+            echo "BE3_BUILD_SERVER is $server, which is none of namespace, blocks.pfg.pw," >&2
+            echo 'buildserver.pfg.pw and buildbuddy.' >&2
+            return 1
+            ;;
+    esac
+}
+
+# Asks a person at a terminal for a server's key and saves it to the file
+# given, printing it. Without a terminal it prints nothing.
+ask_for_build_server_key() {
+    local server="$1" what="$2" saved="$3" key
+    [[ -t 0 && -t 2 ]] || return 0
+    echo "buck2 builds on $server, and needs its $what." >&2
+    echo 'guides/build_server.md says where to get one.' >&2
+    read -r -s -p "$server $what: " key
+    echo '' >&2
+    key="$(printf '%s' "$key" | tr -d '[:space:]')"
+    [[ -n "$key" ]] || return 0
+    mkdir -p "$(dirname "$saved")"
+    (umask 077 && printf '%s\n' "$key" > "$saved")
+    echo "Saved it to $saved." >&2
+    printf '%s\n' "$key"
+}
+
+# The key for one of the servers other than Namespace.
+build_server_key() {
+    local server="$1" name="build-server-key.$1" file key
+    local saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/$name"
+    if [[ -n "${BE3_BUILD_SERVER_KEY:-}" ]]; then
+        printf '%s\n' "$BE3_BUILD_SERVER_KEY"
+        return 0
+    fi
+    for file in "$repository/.$name" "$saved"; do
+        if [[ -f "$file" ]]; then
+            tr -d '[:space:]' < "$file"
+            echo ''
+            return 0
+        fi
+    done
+    key="$(ask_for_build_server_key "$server" 'key' "$saved")"
+    if [[ -n "$key" ]]; then
+        printf '%s\n' "$key"
+        return 0
+    fi
+    echo "buck2 builds on $server, and there is no key for it. Set" >&2
+    echo "BE3_BUILD_SERVER_KEY, or write the key to .$name at the root of the" >&2
+    echo "checkout or to ~/.config/be3/$name. Run ./scripts/buck from a terminal" >&2
+    echo 'to be asked for it. guides/build_server.md has more.' >&2
+    return 1
+}
+
+# The host and the header for one of the servers other than Namespace, which
+# serve the executor and the storage from the same host.
+static_build_server_host() {
+    case "$1" in
+        buildbuddy) echo 'remote.buildbuddy.io' ;;
+        *) echo "$1" ;;
+    esac
+}
+
+static_build_server_header() {
+    case "$1" in
+        buildbuddy) echo "x-buildbuddy-api-key:$2" ;;
+        *) echo "authorization:Bearer $2" ;;
+    esac
 }
 
 # A value from the configuration nsc wrote: a host without its scheme or port,
@@ -498,9 +588,10 @@ refresh_namespace_cluster() {
     mkdir -p "$namespace_directory"
     token="$(namespace_token_file)"
     if [[ -z "$token" ]]; then
-        echo 'buck2 runs every build on Namespace, and there is no token for it. Set' >&2
+        echo 'buck2 builds on Namespace, and there is no token for it. Set' >&2
         echo 'BE3_NAMESPACE_TOKEN, or write the token to .namespace-token.json at the root' >&2
-        echo 'of the checkout or to ~/.config/be3/namespace-token.json.' >&2
+        echo 'of the checkout or to ~/.config/be3/namespace-token.json, or run ./scripts/buck' >&2
+        echo 'from a terminal to be asked for it. BE3_BUILD_SERVER picks another server.' >&2
         echo 'guides/build_server.md says how to make one.' >&2
         exit 1
     fi
@@ -545,12 +636,19 @@ configure_build_server() {
         echo 'server it names.' >&2
         return 0
     fi
-    refresh_namespace_cluster
-
-    local engine storage header proxy="${HTTPS_PROXY:-${https_proxy:-}}"
-    engine="$(namespace_host engine_address)"
-    storage="$(namespace_host cas_address)"
-    header="$(namespace_header)"
+    local server engine storage header key proxy="${HTTPS_PROXY:-${https_proxy:-}}"
+    server="$(build_server)" || exit 1
+    if [[ "$server" == 'namespace' ]]; then
+        refresh_namespace_cluster
+        engine="$(namespace_host engine_address)"
+        storage="$(namespace_host cas_address)"
+        header="$(namespace_header)"
+    else
+        key="$(build_server_key "$server")" || exit 1
+        engine="$(static_build_server_host "$server")"
+        storage="$engine"
+        header="$(static_build_server_header "$server" "$key")"
+    fi
     local engine_address="$engine:443" storage_address="$storage:443" tls=true
     if [[ -n "$proxy" ]]; then
         assert_command go 'HTTPS_PROXY is set, and buck2 reaches the build server through it with scripts/internal/re-relay, which needs Go 1.24 or newer.'
@@ -584,6 +682,8 @@ configure_build_server() {
             echo "engine_address = $engine_address"
             echo "http_headers = $header"
             echo "tls = $tls"
+            echo '[be3]'
+            echo "build_server = $server"
         } > "$config"
     )
     if cmp -s "$config" "$path"; then
