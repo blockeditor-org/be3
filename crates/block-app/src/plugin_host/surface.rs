@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap};
 
-use block_plugin_api::SurfaceRect;
+use block_plugin_api::ScreenDamage;
 
 use crate::plugin_host::backend::ShownFrame;
 use crate::plugin_host::presenter::{RegionLayout, SurfacePresenter};
@@ -14,10 +14,16 @@ pub(super) fn gpu() -> Option<(wgpu::Device, wgpu::Queue)> {
 }
 
 pub(crate) struct SurfaceFrame {
+    pub(crate) textures: Vec<PresentedTexture>,
+    pub(crate) presents: u64,
+    pub(crate) damage: Option<Vec<ScreenDamage>>,
+}
+
+#[derive(Clone)]
+pub(crate) struct PresentedTexture {
+    pub(crate) surface: u32,
     pub(crate) texture: wgpu::Texture,
     pub(crate) generation: u64,
-    pub(crate) presents: u64,
-    pub(crate) damage: Option<Vec<SurfaceRect>>,
 }
 
 impl ShownFrame for SurfaceFrame {
@@ -25,11 +31,11 @@ impl ShownFrame for SurfaceFrame {
         self.presents
     }
 
-    fn damage(&self) -> Option<&[SurfaceRect]> {
+    fn damage(&self) -> Option<&[ScreenDamage]> {
         self.damage.as_deref()
     }
 
-    fn set_damage(&mut self, damage: Option<Vec<SurfaceRect>>) {
+    fn set_damage(&mut self, damage: Option<Vec<ScreenDamage>>) {
         self.damage = damage;
     }
 }
@@ -41,7 +47,7 @@ struct Target {
 
 pub(crate) struct Presenter {
     pipeline: BlitPipeline,
-    targets: HashMap<u32, [Option<Target>; 2]>,
+    targets: HashMap<(u32, u32), [Option<Target>; 2]>,
 }
 
 pub(crate) fn presenter(
@@ -65,37 +71,39 @@ impl SurfacePresenter for Presenter {
     fn replace(
         &mut self,
         device: &wgpu::Device,
-        surface: u32,
+        slot: u32,
         frame: &Self::Frame,
     ) -> Result<(), String> {
-        let [shown, other] = self.targets.entry(surface).or_default();
-        if shown
-            .as_ref()
-            .is_some_and(|target| target.generation == frame.generation)
-        {
-            return Ok(());
+        for presented in &frame.textures {
+            let [shown, other] = self.targets.entry((slot, presented.surface)).or_default();
+            if shown
+                .as_ref()
+                .is_some_and(|target| target.generation == presented.generation)
+            {
+                continue;
+            }
+            std::mem::swap(shown, other);
+            if shown
+                .as_ref()
+                .is_some_and(|target| target.generation == presented.generation)
+            {
+                continue;
+            }
+            let view = presented
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            *shown = Some(Target {
+                generation: presented.generation,
+                bind_group: self.pipeline.texture_group(device, &view),
+            });
         }
-        std::mem::swap(shown, other);
-        if shown
-            .as_ref()
-            .is_some_and(|target| target.generation == frame.generation)
-        {
-            return Ok(());
-        }
-        let view = frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        *shown = Some(Target {
-            generation: frame.generation,
-            bind_group: self.pipeline.texture_group(device, &view),
-        });
         Ok(())
     }
 
     fn prepare(
         &mut self,
         _queue: &wgpu::Queue,
-        _surface: u32,
+        _slot: u32,
         _frame: &Self::Frame,
     ) -> Result<(), String> {
         Ok(())
@@ -104,13 +112,14 @@ impl SurfacePresenter for Presenter {
     fn paint(
         &self,
         pass: &mut wgpu::RenderPass<'_>,
+        slot: u32,
         surface: u32,
         regions: &wgpu::BindGroup,
         offset: u32,
     ) {
         let Some(texture) = self
             .targets
-            .get(&surface)
+            .get(&(slot, surface))
             .and_then(|[shown, _]| shown.as_ref())
             .map(|target| &target.bind_group)
         else {
@@ -122,8 +131,13 @@ impl SurfacePresenter for Presenter {
         pass.draw(0..6, 0..1);
     }
 
-    fn release(&mut self, surface: u32) {
-        self.targets.remove(&surface);
+    fn retain(&mut self, slot: u32, surfaces: &[u32]) {
+        self.targets
+            .retain(|(held, surface), _| *held != slot || surfaces.contains(surface));
+    }
+
+    fn release(&mut self, slot: u32) {
+        self.targets.retain(|(held, _), _| *held != slot);
     }
 }
 

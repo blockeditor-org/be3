@@ -525,7 +525,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
 
     #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
-        let Some(state) = self.regions.get_mut(&target.placement.region) else {
+        let Some(state) = self.regions.get_mut(&target.region) else {
             return Vec::new();
         };
         let damage = state.take_repaint(target.age);
@@ -550,10 +550,8 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         }
         let renderer = self
             .renderers
-            .entry(target.placement.region)
+            .entry(target.region)
             .or_insert_with(|| beui::Renderer::new(target.device, target.format));
-        let (x, y, width, height) = target.scissor();
-        renderer.set_bounds(Some([x, y, width, height]));
         let screen = beui::vec2(target.width as f32, target.height as f32);
         let prepared = renderer.prepare(
             target.device,

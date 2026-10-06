@@ -6,8 +6,7 @@ fn surface_damage_reaches_the_pieces_of_the_screen_it_falls_on() {
         screen: ScreenId(1),
         instance: EditorInstanceId(1),
         region: EditorRegion::Frame,
-        x: 100,
-        y: 50,
+        surface: 1,
         width: 200,
         height: 100,
         scale_factor_millis: 1000,
@@ -16,8 +15,8 @@ fn surface_damage_reaches_the_pieces_of_the_screen_it_falls_on() {
     let left_half = Rect::from_min_max(Pos2::ZERO, pos2(0.5, 1.0));
     let right_half = Rect::from_min_max(pos2(0.5, 0.0), pos2(1.0, 1.0));
     let rect = SurfaceRect {
-        x: 150,
-        y: 75,
+        x: 50,
+        y: 25,
         width: 20,
         height: 10,
     };

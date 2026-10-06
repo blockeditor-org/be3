@@ -1,12 +1,11 @@
 use std::cell::{Cell, RefCell};
+use std::collections::HashSet;
 
 use block_plugin_api::{
     FrameReady, Message, PresentedFrame, ScreenLayout, SurfaceFormat, SurfaceSpec,
 };
 
 use crate::{panes::Panes, screens::Screens};
-
-const SCREENS_SURFACE: u32 = 0;
 
 thread_local! {
     static GPU: RefCell<Option<Gpu>> = const { RefCell::new(None) };
@@ -30,63 +29,76 @@ fn gpu() -> Result<Gpu, String> {
         .ok_or_else(|| "the plugin gpu is not ready".to_owned())
 }
 
-pub(crate) struct Surface {
+pub(crate) struct Surfaces {
     gpu: Gpu,
+    format: wgpu::TextureFormat,
     panes: Panes,
     layout: ScreenLayout,
-    generation: u64,
-    spec: SurfaceSpec,
+    fresh: HashSet<u32>,
 }
 
-impl Surface {
-    pub(crate) fn new(
-        layout: ScreenLayout,
-        generation: u64,
-        spec: SurfaceSpec,
-    ) -> Result<Self, String> {
-        let gpu = gpu()?;
-        configure(&layout, spec);
+impl Surfaces {
+    pub(crate) fn new(spec: SurfaceSpec) -> Result<Self, String> {
         Ok(Self {
-            panes: Panes::new(format(spec.format)),
-            gpu,
-            layout,
-            generation,
-            spec,
+            gpu: gpu()?,
+            format: format(spec.format),
+            panes: Panes::default(),
+            layout: ScreenLayout::default(),
+            fresh: HashSet::new(),
         })
-    }
-
-    pub(crate) fn resize(mut self, layout: ScreenLayout, generation: u64) -> Result<Self, String> {
-        configure(&layout, self.spec);
-        self.layout = layout;
-        self.generation = generation;
-        Ok(self)
     }
 
     pub(crate) fn layout(&self) -> &ScreenLayout {
         &self.layout
     }
 
+    pub(crate) fn place(&mut self, layout: ScreenLayout) {
+        for gone in &self.layout.screens {
+            if !layout
+                .screens
+                .iter()
+                .any(|placement| placement.surface == gone.surface)
+            {
+                block_gpu_guest::release_surface(gone.surface);
+                self.fresh.remove(&gone.surface);
+            }
+        }
+        for placement in &layout.screens {
+            let kept = self.layout.screens.iter().any(|previous| {
+                previous.surface == placement.surface
+                    && (previous.width, previous.height) == (placement.width, placement.height)
+            });
+            if !kept {
+                block_gpu_guest::configure_surface(
+                    placement.surface,
+                    placement.width,
+                    placement.height,
+                    self.format,
+                );
+                self.fresh.insert(placement.surface);
+            }
+        }
+        self.layout = layout;
+    }
+
     pub(crate) fn render(&mut self, screens: &mut Screens) -> Result<Vec<Message>, String> {
         if self.layout.is_empty() {
             return Ok(Vec::new());
         }
-        let ran = self.panes.run(&self.layout, screens);
+        let ran = self.panes.run(&self.layout, screens, &self.fresh);
         let repaint = ran.repaint;
         let mut presented = None;
-        if ran.changed {
-            let texture = block_gpu_guest::acquire_surface_texture(SCREENS_SURFACE)?;
-            let age = block_gpu_guest::surface_age(SCREENS_SURFACE);
-            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        if !ran.painting.is_empty() {
             let damage = self.panes.paint(
                 &self.gpu.device,
                 &self.gpu.queue,
-                &view,
-                &self.layout,
+                self.format,
                 screens,
-                ran,
-                age,
-            );
-            block_gpu_guest::present_surface(SCREENS_SURFACE);
+                ran.painting,
+            )?;
+            for placement in &self.layout.screens {
+                self.fresh.remove(&placement.surface);
+            }
             let sequence = PRESENTS.with(|presents| {
                 presents.set(presents.get() + 1);
                 presents.get()
@@ -94,26 +106,14 @@ impl Surface {
             presented = Some(PresentedFrame { sequence, damage });
         }
         Ok(vec![Message::FrameReady(FrameReady {
-            generation: self.generation,
+            generation: self.layout.generation,
             repaint_after_micros: repaint.map(|delay| delay.as_micros() as u64),
             presented,
         })])
     }
 }
 
-fn configure(layout: &ScreenLayout, spec: SurfaceSpec) {
-    if layout.is_empty() {
-        return;
-    }
-    block_gpu_guest::configure_surface(
-        SCREENS_SURFACE,
-        layout.width,
-        layout.height,
-        format(spec.format),
-    );
-}
-
-pub(crate) fn format(format: SurfaceFormat) -> wgpu::TextureFormat {
+fn format(format: SurfaceFormat) -> wgpu::TextureFormat {
     match format {
         SurfaceFormat::Rgba8Unorm => wgpu::TextureFormat::Rgba8Unorm,
         SurfaceFormat::Rgba8UnormSrgb => wgpu::TextureFormat::Rgba8UnormSrgb,

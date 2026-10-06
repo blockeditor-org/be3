@@ -1,41 +1,33 @@
-use block_plugin_api::EditorInstanceId;
-use block_plugin_api::{ScreenLayout, ScreenPlacement, SurfaceRect};
-use std::collections::{HashSet, VecDeque};
+use block_plugin_api::{EditorInstanceId, ScreenDamage, SurfaceRect};
+use block_plugin_api::{ScreenLayout, ScreenPlacement};
+use std::collections::HashSet;
 use std::time::Duration;
 
 use crate::plugin::PaintTarget;
 use crate::screens::{Dirty, Screens};
 
+#[derive(Default)]
 pub(crate) struct Panes {
     generation: Option<u64>,
-    format: wgpu::TextureFormat,
-    presented: VecDeque<u64>,
     repainting: HashSet<EditorInstanceId>,
 }
 
-const REMEMBERED_PRESENTS: usize = 4;
-
 pub(crate) struct Ran {
-    pub(crate) changed: bool,
     pub(crate) repaint: Option<Duration>,
-    placed: Vec<ScreenPlacement>,
+    pub(crate) painting: Vec<ScreenPlacement>,
 }
 
 impl Panes {
-    pub(crate) fn new(format: wgpu::TextureFormat) -> Self {
-        Self {
-            format,
-            generation: None,
-            presented: VecDeque::new(),
-            repainting: HashSet::new(),
-        }
-    }
-
-    pub(crate) fn run(&mut self, layout: &ScreenLayout, screens: &mut Screens) -> Ran {
+    pub(crate) fn run(
+        &mut self,
+        layout: &ScreenLayout,
+        screens: &mut Screens,
+        fresh: &HashSet<u32>,
+    ) -> Ran {
         let mut repaint = Duration::MAX;
-        let mut changed = self.generation != Some(layout.generation);
+        let moved = self.generation != Some(layout.generation);
         self.generation = Some(layout.generation);
-        let dirty = match changed {
+        let dirty = match moved {
             true => {
                 screens.take_dirty();
                 Dirty::Everything
@@ -43,27 +35,28 @@ impl Panes {
             false => screens.take_dirty(),
         };
         let repainting = std::mem::take(&mut self.repainting);
-        let mut placed: Vec<ScreenPlacement> = Vec::new();
+        let mut painting = Vec::new();
         for placement in &layout.screens {
             let Some(session) = screens.session(placement.instance) else {
                 continue;
             };
-            placed.push(*placement);
-            if !dirty.contains(placement.instance) && !repainting.contains(&placement.instance) {
-                continue;
+            let mut changed = fresh.contains(&placement.surface);
+            if dirty.contains(placement.instance) || repainting.contains(&placement.instance) {
+                let frame = session.run(placement.region, layout.generation);
+                screens.ran(placement.instance);
+                changed |= frame.changed;
+                if let Some(after) = frame.repaint_after {
+                    repaint = repaint.min(after);
+                    self.repainting.insert(placement.instance);
+                }
             }
-            let frame = session.run(placement.region, layout.generation);
-            screens.ran(placement.instance);
-            changed |= frame.changed;
-            if let Some(after) = frame.repaint_after {
-                repaint = repaint.min(after);
-                self.repainting.insert(placement.instance);
+            if changed {
+                painting.push(*placement);
             }
         }
         Ran {
-            changed,
             repaint: (repaint < Duration::MAX).then_some(repaint),
-            placed,
+            painting,
         }
     }
 
@@ -71,44 +64,43 @@ impl Panes {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        view: &wgpu::TextureView,
-        layout: &ScreenLayout,
+        format: wgpu::TextureFormat,
         screens: &mut Screens,
-        ran: Ran,
-        age: u32,
-    ) -> Vec<SurfaceRect> {
-        let kept = age > 0 && self.presented.get(age as usize - 1) == Some(&layout.generation);
-        let age = if kept { age } else { 0 };
-        if age == 0 {
-            clear(device, queue, view);
-        }
-        self.presented.push_front(layout.generation);
-        self.presented.truncate(REMEMBERED_PRESENTS);
+        painting: Vec<ScreenPlacement>,
+    ) -> Result<Vec<ScreenDamage>, String> {
         let mut damage = Vec::new();
-        for placement in ran.placed {
+        for placement in painting {
             let Some(session) = screens.session(placement.instance) else {
                 continue;
             };
-            damage.extend(session.paint(&PaintTarget {
+            let texture = block_gpu_guest::acquire_surface_texture(placement.surface)?;
+            let age = block_gpu_guest::surface_age(placement.surface);
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            if age == 0 {
+                clear(device, queue, &view);
+            }
+            let target = PaintTarget {
                 device,
                 queue,
-                view,
-                format: self.format,
-                width: layout.width,
-                height: layout.height,
-                placement,
+                view: &view,
+                format,
+                width: placement.width,
+                height: placement.height,
+                region: placement.region,
                 age,
+            };
+            let drawn = session.paint(&target);
+            block_gpu_guest::present_surface(placement.surface);
+            let drawn = match age {
+                0 => target.whole(),
+                _ => drawn,
+            };
+            damage.extend(drawn.into_iter().map(|rect: SurfaceRect| ScreenDamage {
+                screen: placement.screen,
+                rect,
             }));
         }
-        match age {
-            0 => vec![SurfaceRect {
-                x: 0,
-                y: 0,
-                width: layout.width,
-                height: layout.height,
-            }],
-            _ => damage,
-        }
+        Ok(damage)
     }
 }
 

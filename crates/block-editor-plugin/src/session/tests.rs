@@ -1,6 +1,6 @@
 use super::*;
 use block_plugin_api::{
-    DEFAULT_SURFACE_SIDE, EditorRegion, HelloAccepted, InputBatch, ScreenRequest, ScreenSet, Size,
+    EditorRegion, HelloAccepted, InputBatch, ScreenRequest, ScreenSet, Size,
     SurfaceFormat, SurfaceSpec, Theme, ViewportMetrics,
 };
 
@@ -10,7 +10,6 @@ fn accept(session: &mut ClientSession) {
         host_name: "test host".into(),
         surface: Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
-            max_side: DEFAULT_SURFACE_SIDE,
         }),
         theme: Theme { dark: true },
     }));

@@ -5,7 +5,7 @@ use std::{
 };
 
 use beui::{DrawAt, Pos2, Rect, Vec2, pos2, vec2};
-use block_plugin_api::{ScreenId, ScreenLayout, ScreenPlacement, SurfaceRect};
+use block_plugin_api::{ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, SurfaceRect};
 
 use super::backend::{Availability, Frame, ShownFrame};
 
@@ -46,26 +46,25 @@ pub(super) trait SurfacePresenter {
     fn replace(
         &mut self,
         device: &wgpu::Device,
-        surface: u32,
+        slot: u32,
         frame: &Self::Frame,
     ) -> Result<(), String>;
 
-    fn prepare(
-        &mut self,
-        queue: &wgpu::Queue,
-        surface: u32,
-        frame: &Self::Frame,
-    ) -> Result<(), String>;
+    fn prepare(&mut self, queue: &wgpu::Queue, slot: u32, frame: &Self::Frame)
+    -> Result<(), String>;
 
     fn paint(
         &self,
         pass: &mut wgpu::RenderPass<'_>,
+        slot: u32,
         surface: u32,
         regions: &wgpu::BindGroup,
         offset: u32,
     );
 
-    fn release(&mut self, surface: u32);
+    fn retain(&mut self, slot: u32, surfaces: &[u32]);
+
+    fn release(&mut self, slot: u32);
 }
 
 pub(super) const MAX_SURFACES: u32 = 8;
@@ -171,28 +170,12 @@ pub(super) struct Region {
 }
 
 impl Region {
-    pub(super) fn of(
-        layout: &ScreenLayout,
-        screen: ScreenId,
-        quad: Quad,
-        source: Rect,
-    ) -> Option<Self> {
-        if layout.is_empty() {
-            return None;
-        }
-        let placement = layout.placement(screen)?;
-        let width = layout.width as f32;
-        let height = layout.height as f32;
-        let left = placement.x as f32 + placement.width as f32 * source.min.x;
-        let top = placement.y as f32 + placement.height as f32 * source.min.y;
-        Some(Self {
-            offset: [left / width, top / height],
-            scale: [
-                placement.width as f32 * source.width() / width,
-                placement.height as f32 * source.height() / height,
-            ],
+    pub(super) fn of(quad: Quad, source: Rect) -> Self {
+        Self {
+            offset: [source.min.x, source.min.y],
+            scale: [source.width(), source.height()],
             quad,
-        })
+        }
     }
 
     fn values(&self, at: &DrawAt) -> [f32; 16] {
@@ -214,7 +197,7 @@ impl Region {
 pub(super) struct Shared {
     pub(super) layout: ScreenLayout,
     pub(super) frames: Vec<Frame>,
-    damage: Option<Vec<SurfaceRect>>,
+    damage: Option<Vec<ScreenDamage>>,
 }
 
 impl Shared {
@@ -224,7 +207,7 @@ impl Shared {
             return;
         };
         self.damage = match (self.frames.is_empty(), self.damage.take(), frame.damage()) {
-            (true, _, damage) => damage.map(<[SurfaceRect]>::to_vec),
+            (true, _, damage) => damage.map(<[ScreenDamage]>::to_vec),
             (false, Some(mut held), Some(damage)) => {
                 held.extend_from_slice(damage);
                 Some(held)
@@ -253,7 +236,7 @@ pub(crate) struct Blit {
     pub(super) source: Rect,
     pub(super) drawn: Option<(u32, u32)>,
     pub(super) requested: Option<(u32, u32)>,
-    pub(super) placed: Option<[u32; 4]>,
+    pub(super) placed: Option<[u32; 3]>,
 }
 
 impl PartialEq for Blit {
@@ -288,7 +271,8 @@ impl Blit {
         Some(
             damage
                 .iter()
-                .flat_map(|rect| damaged_pieces(*rect, *placement, pieces))
+                .filter(|damage| damage.screen == self.screen)
+                .flat_map(|damage| damaged_pieces(damage.rect, *placement, pieces))
                 .collect(),
         )
     }
@@ -336,13 +320,12 @@ pub(super) fn damaged_pieces(
     placement: ScreenPlacement,
     pieces: &[Piece],
 ) -> Vec<Rect> {
-    let (x, y) = (placement.x as f32, placement.y as f32);
     let (width, height) = (placement.width as f32, placement.height as f32);
     let changed = Rect::from_min_max(
-        pos2((rect.x as f32 - x) / width, (rect.y as f32 - y) / height),
+        pos2(rect.x as f32 / width, rect.y as f32 / height),
         pos2(
-            (rect.x as f32 + rect.width as f32 - x) / width,
-            (rect.y as f32 + rect.height as f32 - y) / height,
+            (rect.x as f32 + rect.width as f32) / width,
+            (rect.y as f32 + rect.height as f32) / height,
         ),
     );
     pieces
@@ -376,7 +359,7 @@ struct Regions {
 pub(crate) struct PluginDrawing {
     blits: RefCell<Vec<Blit>>,
     regions: RefCell<Option<Regions>>,
-    placed: RefCell<Vec<Option<u32>>>,
+    placed: RefCell<Vec<Option<(u32, u32)>>>,
 }
 
 impl PluginDrawing {
@@ -602,21 +585,29 @@ impl beui::Draw for PluginDrawing {
             let mut placed = self.placed.borrow_mut();
             placed.clear();
             for (index, blit) in blits.iter().enumerate() {
-                let (frames, region) = {
+                let (frames, region, surfaces) = {
                     let mut shared = blit.shared.borrow_mut();
                     let frames = shared.take_frames();
                     let region = shared.layout.placement(blit.screen).and_then(|placement| {
                         let size = (placement.width, placement.height);
+                        if blit.drawn.is_some_and(|drawn| drawn != size) {
+                            return None;
+                        }
                         let (quad, source) = match (blit.drawn, blit.requested) {
                             (None, Some(requested)) if requested != size => {
                                 unstretched(blit.quad, blit.source, requested, size)?
                             }
                             _ => (blit.quad, blit.source),
                         };
-                        Region::of(&shared.layout, blit.screen, quad, source)
-                            .filter(|_| blit.drawn.is_none_or(|drawn| drawn == size))
+                        Some((placement.surface, Region::of(quad, source)))
                     });
-                    (frames, region)
+                    let surfaces: Vec<u32> = shared
+                        .layout
+                        .screens
+                        .iter()
+                        .map(|placement| placement.surface)
+                        .collect();
+                    (frames, region, surfaces)
                 };
                 let mut failure = None;
                 for frame in &frames {
@@ -627,6 +618,9 @@ impl beui::Draw for PluginDrawing {
                         failure = Some(error);
                     }
                 }
+                if !frames.is_empty() {
+                    presenter.retain(blit.surface, &surfaces);
+                }
                 match failure {
                     Some(error) => blit.status.set(PresenterState::Failed(error)),
                     None if presenter.platform.is_some() => {
@@ -636,14 +630,14 @@ impl beui::Draw for PluginDrawing {
                         .status
                         .set(PresenterState::Unsupported(UNSUPPORTED.to_owned())),
                 }
-                placed.push(region.map(|region| {
+                placed.push(region.map(|(surface, region)| {
                     let offset = presenter.regions.stride * index as u32;
                     queue.write_buffer(
                         &regions.buffer,
                         u64::from(offset),
                         bytemuck::cast_slice(&region.values(&at)),
                     );
-                    offset
+                    (offset, surface)
                 }));
             }
         });
@@ -664,9 +658,9 @@ impl beui::Draw for PluginDrawing {
             };
             let placed = self.placed.borrow();
             let blits = self.blits.borrow();
-            for (blit, offset) in blits.iter().zip(placed.iter()) {
-                if let Some(offset) = offset {
-                    platform.paint(pass, blit.surface, &regions.group, *offset);
+            for (blit, placed) in blits.iter().zip(placed.iter()) {
+                if let Some((offset, surface)) = placed {
+                    platform.paint(pass, blit.surface, *surface, &regions.group, *offset);
                 }
             }
         });
@@ -698,36 +692,37 @@ pub(super) fn install(setup: &beui::Setup) -> Availability {
     availability
 }
 
-pub(super) fn release(surface: u32, status: &PresenterStatus) {
+pub(super) fn release(slot: u32, status: &PresenterStatus) {
     PRESENTER.with(|presenter| {
         if let Some(platform) = presenter
             .borrow_mut()
             .as_mut()
             .and_then(|presenter| presenter.platform.as_mut())
         {
-            platform.release(surface);
+            platform.release(slot);
         }
     });
     status.set(PresenterState::Released);
 }
 
 impl Presenter {
-    fn replace(
-        &mut self,
-        device: &wgpu::Device,
-        surface: u32,
-        frame: &Frame,
-    ) -> Result<(), String> {
+    fn replace(&mut self, device: &wgpu::Device, slot: u32, frame: &Frame) -> Result<(), String> {
         match &mut self.platform {
-            Some(presenter) => presenter.replace(device, surface, frame),
+            Some(presenter) => presenter.replace(device, slot, frame),
             None => Err(UNSUPPORTED.to_owned()),
         }
     }
 
-    fn prepare(&mut self, queue: &wgpu::Queue, surface: u32, frame: &Frame) -> Result<(), String> {
+    fn prepare(&mut self, queue: &wgpu::Queue, slot: u32, frame: &Frame) -> Result<(), String> {
         match &mut self.platform {
-            Some(presenter) => presenter.prepare(queue, surface, frame),
+            Some(presenter) => presenter.prepare(queue, slot, frame),
             None => Err(UNSUPPORTED.to_owned()),
+        }
+    }
+
+    fn retain(&mut self, slot: u32, surfaces: &[u32]) {
+        if let Some(presenter) = &mut self.platform {
+            presenter.retain(slot, surfaces);
         }
     }
 }

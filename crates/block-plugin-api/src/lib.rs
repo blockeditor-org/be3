@@ -20,7 +20,6 @@ pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_MESSAGES: usize = 256;
 pub const MAX_CHILDREN: usize = 256;
 pub const MAX_LISTED_BLOCKS: usize = 16 * 1024;
-pub const DEFAULT_SURFACE_SIDE: u32 = 8192;
 pub const REQUEST_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -103,8 +102,7 @@ pub struct ScreenPlacement {
     pub screen: ScreenId,
     pub instance: EditorInstanceId,
     pub region: EditorRegion,
-    pub x: u32,
-    pub y: u32,
+    pub surface: u32,
     pub width: u32,
     pub height: u32,
     pub scale_factor_millis: u32,
@@ -120,8 +118,6 @@ pub struct RegionSize {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScreenLayout {
     pub generation: u64,
-    pub width: u32,
-    pub height: u32,
     pub screens: Vec<ScreenPlacement>,
 }
 
@@ -132,59 +128,27 @@ impl ScreenPlacement {
 }
 
 impl ScreenLayout {
-    pub fn packed(screens: &[ScreenRequest], max_side: u32) -> Self {
-        let mut slots: Vec<&ScreenRequest> = screens
-            .iter()
-            .filter(|request| request.metrics.pixel_width > 0 && request.metrics.pixel_height > 0)
-            .collect();
-        slots.sort_by_key(|request| {
-            (
-                std::cmp::Reverse(request.metrics.pixel_height),
-                request.screen.0,
-            )
-        });
-        let widest = slots
-            .iter()
-            .map(|request| request.metrics.pixel_width)
-            .max()
-            .unwrap_or(0);
-        let area: u64 = slots
-            .iter()
-            .map(|request| {
-                u64::from(request.metrics.pixel_width) * u64::from(request.metrics.pixel_height)
-            })
-            .sum();
-        let shelf_width = widest
-            .max((area as f64).sqrt().ceil() as u32)
-            .min(max_side)
-            .max(widest);
-        let mut layout = Self::default();
-        let mut x = 0;
-        let mut shelf_top = 0;
-        let mut shelf_height = 0;
-        for request in slots {
-            let metrics = &request.metrics;
-            if x > 0 && x + metrics.pixel_width > shelf_width {
-                shelf_top += shelf_height;
-                shelf_height = 0;
-                x = 0;
-            }
-            layout.screens.push(ScreenPlacement {
-                screen: request.screen,
-                instance: request.instance,
-                region: request.region,
-                x,
-                y: shelf_top,
-                width: metrics.pixel_width,
-                height: metrics.pixel_height,
-                scale_factor_millis: (metrics.scale_factor * 1000.0).round().max(1.0) as u32,
-            });
-            x += metrics.pixel_width;
-            shelf_height = shelf_height.max(metrics.pixel_height);
-            layout.width = layout.width.max(x);
-            layout.height = layout.height.max(shelf_top + shelf_height);
+    pub fn placed(screens: &[ScreenRequest], surface: impl FnMut(ScreenId) -> u32) -> Self {
+        let mut surface = surface;
+        Self {
+            generation: 0,
+            screens: screens
+                .iter()
+                .filter(|request| {
+                    request.metrics.pixel_width > 0 && request.metrics.pixel_height > 0
+                })
+                .map(|request| ScreenPlacement {
+                    screen: request.screen,
+                    instance: request.instance,
+                    region: request.region,
+                    surface: surface(request.screen),
+                    width: request.metrics.pixel_width,
+                    height: request.metrics.pixel_height,
+                    scale_factor_millis: (request.metrics.scale_factor * 1000.0).round().max(1.0)
+                        as u32,
+                })
+                .collect(),
         }
-        layout
     }
 
     pub fn placement(&self, screen: ScreenId) -> Option<&ScreenPlacement> {
@@ -194,11 +158,11 @@ impl ScreenLayout {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.width == 0 || self.height == 0
+        self.screens.is_empty()
     }
 
     pub fn same_placements(&self, other: &Self) -> bool {
-        self.width == other.width && self.height == other.height && self.screens == other.screens
+        self.screens == other.screens
     }
 }
 
@@ -1834,7 +1798,6 @@ pub enum SurfaceSupport {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SurfaceSpec {
     pub format: SurfaceFormat,
-    pub max_side: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2235,7 +2198,13 @@ pub struct FrameReady {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PresentedFrame {
     pub sequence: u64,
-    pub damage: Vec<SurfaceRect>,
+    pub damage: Vec<ScreenDamage>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScreenDamage {
+    pub screen: ScreenId,
+    pub rect: SurfaceRect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

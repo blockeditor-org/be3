@@ -1748,7 +1748,7 @@ impl Instances {
                             .iter()
                             .find(|placement| placement.screen == screen.request.screen)
                             .map(|placement| {
-                                [placement.x, placement.y, placement.width, placement.height]
+                                [placement.surface, placement.width, placement.height]
                             });
                         super::ScreenStatus {
                             screen: screen.request.screen,

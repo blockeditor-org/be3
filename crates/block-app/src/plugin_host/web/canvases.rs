@@ -11,7 +11,7 @@ const LAYER: &str = "plugins";
 
 pub(in crate::plugin_host) struct Placement {
     screen: ScreenId,
-    rect: [u32; 4],
+    surface: u32,
     style: String,
 }
 
@@ -64,7 +64,7 @@ pub(in crate::plugin_host) fn placement(
     );
     Some(Placement {
         screen: blit.screen,
-        rect: [placement.x, placement.y, placement.width, placement.height],
+        surface: placement.surface,
         style,
     })
 }
@@ -88,7 +88,7 @@ pub(in crate::plugin_host) fn set_background(color: Color32) {
 struct Shown {
     id: u32,
     element: web_sys::HtmlCanvasElement,
-    rect: [u32; 4],
+    surface: u32,
     style: String,
 }
 
@@ -112,13 +112,13 @@ impl Canvases {
             *occurrence += 1;
             let mut shown = match self.shown.remove(&key) {
                 Some(mut shown) => {
-                    if shown.rect != placement.rect {
-                        shown.rect = placement.rect;
-                        result = result.and(adapter.show(shown.id, None, placement.rect));
+                    if shown.surface != placement.surface {
+                        shown.surface = placement.surface;
+                        result = result.and(adapter.show(shown.id, None, placement.surface));
                     }
                     shown
                 }
-                None => match create(adapter, placement.rect) {
+                None => match create(adapter, placement.surface) {
                     Ok(shown) => shown,
                     Err(error) => {
                         result = result.and(Err(error));
@@ -146,7 +146,7 @@ impl Canvases {
     }
 }
 
-fn create(adapter: &WebProtocolAdapter, rect: [u32; 4]) -> Result<Shown, String> {
+fn create(adapter: &WebProtocolAdapter, surface: u32) -> Result<Shown, String> {
     thread_local! {
         static NEXT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     }
@@ -169,14 +169,14 @@ fn create(adapter: &WebProtocolAdapter, rect: [u32; 4]) -> Result<Shown, String>
     let shown = Shown {
         id,
         element,
-        rect,
+        surface,
         style: String::new(),
     };
     let offscreen = shown
         .element
         .transfer_control_to_offscreen()
         .map_err(|_| "a plugin screen's canvas could not be handed to its worker".to_owned());
-    match offscreen.and_then(|offscreen| adapter.show(id, Some(&offscreen), rect)) {
+    match offscreen.and_then(|offscreen| adapter.show(id, Some(&offscreen), surface)) {
         Ok(()) => Ok(shown),
         Err(error) => {
             shown.element.remove();

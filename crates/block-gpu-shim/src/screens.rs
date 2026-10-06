@@ -26,7 +26,7 @@ pub(crate) struct Screens {
 }
 
 struct Shown {
-    rect: [u32; 4],
+    surface: u32,
     stale: bool,
     target: Target,
 }
@@ -45,7 +45,6 @@ struct Painted {
     formats: Vec<wgpu::TextureFormat>,
     alpha: wgpu::CompositeAlphaMode,
     configured: Option<wgpu::SurfaceConfiguration>,
-    source: wgpu::Buffer,
 }
 
 impl Screens {
@@ -76,7 +75,7 @@ impl Screens {
             .await
             .map_err(|error| error.to_string())?;
         let atlas = (adapter.get_info().backend == wgpu::Backend::Gl)
-            .then(|| Painted::new(&device, &adapter, canvas, surface));
+            .then(|| Painted::new(&adapter, canvas, surface));
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("plugin screen layout"),
             entries: &[
@@ -87,16 +86,6 @@ impl Screens {
                         sample_type: wgpu::TextureSampleType::Float { filterable: false },
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(SOURCE_BYTES),
                     },
                     count: None,
                 },
@@ -127,7 +116,7 @@ impl Screens {
         &mut self,
         id: u32,
         canvas: Option<OffscreenCanvas>,
-        rect: [u32; 4],
+        surface: u32,
     ) -> Result<(), String> {
         if let Some(canvas) = canvas {
             let target = match self.atlas {
@@ -147,13 +136,13 @@ impl Screens {
                         .instance
                         .create_surface(wgpu::SurfaceTarget::OffscreenCanvas(canvas.clone()))
                         .map_err(|error| error.to_string())?;
-                    Target::Surface(Painted::new(&self.device, &self.adapter, canvas, surface))
+                    Target::Surface(Painted::new(&self.adapter, canvas, surface))
                 }
             };
             self.shown.insert(
                 id,
                 Shown {
-                    rect,
+                    surface,
                     stale: true,
                     target,
                 },
@@ -161,9 +150,9 @@ impl Screens {
             return Ok(());
         }
         if let Some(shown) = self.shown.get_mut(&id)
-            && shown.rect != rect
+            && shown.surface != surface
         {
-            shown.rect = rect;
+            shown.surface = surface;
             shown.stale = true;
         }
         Ok(())
@@ -173,60 +162,61 @@ impl Screens {
         self.shown.remove(&id);
     }
 
-    pub(crate) fn presented(&mut self) {
+    pub(crate) fn presented(&mut self, surfaces: &[u32]) {
         for shown in self.shown.values_mut() {
-            shown.stale = true;
+            if surfaces.contains(&shown.surface) {
+                shown.stale = true;
+            }
         }
     }
 
-    pub(crate) fn paint(&mut self, surface: Option<(&wgpu::Texture, u64)>) -> Result<(), String> {
-        let Some((texture, _)) = surface else {
-            return Ok(());
-        };
-        if !self.shown.values().any(|shown| shown.stale) {
-            return Ok(());
-        }
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let size = [0, 0, texture.width(), texture.height()];
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("plugin screens"),
-            });
-        let mut presented = Vec::new();
-        if let Some(mut atlas) = self.atlas.take() {
-            let drawn = self.draw(&mut encoder, &view, texture.format(), &mut atlas, size);
-            self.atlas = Some(atlas);
-            presented.extend(drawn?);
-        }
+    pub(crate) fn paint<'a>(
+        &mut self,
+        surface: impl Fn(u32) -> Option<(&'a wgpu::Texture, u64)>,
+    ) -> Result<(), String> {
         let mut shown = std::mem::take(&mut self.shown);
         let mut result = Ok(());
         for screen in shown.values_mut().filter(|shown| shown.stale) {
-            let Target::Surface(painted) = &mut screen.target else {
+            let Some((texture, _)) = surface(screen.surface) else {
                 continue;
             };
-            let rect = clamp(screen.rect, size);
-            match self.draw(&mut encoder, &view, texture.format(), painted, rect) {
-                Ok(frame) => presented.extend(frame),
-                Err(error) => result = Err(error),
-            }
-        }
-        self.queue.submit(Some(encoder.finish()));
-        for frame in presented {
-            frame.present();
-        }
-        if let Some(atlas) = &self.atlas {
-            for screen in shown.values().filter(|shown| shown.stale) {
-                if let Target::Copied { canvas, context } = &screen.target {
-                    copy(&atlas.canvas, canvas, context, clamp(screen.rect, size))?;
-                }
-            }
-        }
-        for screen in shown.values_mut() {
             screen.stale = false;
+            if let Err(error) = self.show_texture(texture, &mut screen.target) {
+                result = Err(error);
+            }
         }
         self.shown = shown;
         result
+    }
+
+    fn show_texture(&mut self, texture: &wgpu::Texture, target: &mut Target) -> Result<(), String> {
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let size = [texture.width(), texture.height()];
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("plugin screen"),
+            });
+        let frame = match target {
+            Target::Surface(painted) => self.draw(&mut encoder, &view, texture.format(), painted, size),
+            Target::Copied { .. } => {
+                let mut atlas = self
+                    .atlas
+                    .take()
+                    .ok_or("a copied plugin screen has no atlas to copy from")?;
+                let drawn = self.draw(&mut encoder, &view, texture.format(), &mut atlas, size);
+                self.atlas = Some(atlas);
+                drawn
+            }
+        }?;
+        self.queue.submit(Some(encoder.finish()));
+        if let Some(frame) = frame {
+            frame.present();
+        }
+        if let (Target::Copied { canvas, context }, Some(atlas)) = (target, &self.atlas) {
+            copy(&atlas.canvas, canvas, context, size)?;
+        }
+        Ok(())
     }
 
     fn draw(
@@ -235,12 +225,12 @@ impl Screens {
         view: &wgpu::TextureView,
         source: wgpu::TextureFormat,
         painted: &mut Painted,
-        rect: [u32; 4],
+        size: [u32; 2],
     ) -> Result<Option<wgpu::SurfaceTexture>, String> {
-        if rect[2] == 0 || rect[3] == 0 {
+        if size[0] == 0 || size[1] == 0 {
             return Ok(None);
         }
-        let format = painted.configure(&self.device, source, [rect[2], rect[3]])?;
+        let format = painted.configure(&self.device, source, size)?;
         let frame = match painted.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame)
             | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
@@ -254,15 +244,6 @@ impl Screens {
             format: Some(format),
             ..Default::default()
         });
-        let origin = [rect[0] as f32, rect[1] as f32, 0.0, 0.0];
-        self.queue.write_buffer(
-            &painted.source,
-            0,
-            &origin
-                .iter()
-                .flat_map(|value| value.to_le_bytes())
-                .collect::<Vec<_>>(),
-        );
         let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("plugin screen"),
             layout: &self.layout,
@@ -270,10 +251,6 @@ impl Screens {
                 wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::TextureView(view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: painted.source.as_entire_binding(),
                 },
             ],
         });
@@ -336,11 +313,8 @@ impl Screens {
     }
 }
 
-const SOURCE_BYTES: u64 = 16;
-
 impl Painted {
     fn new(
-        device: &wgpu::Device,
         adapter: &wgpu::Adapter,
         canvas: OffscreenCanvas,
         surface: wgpu::Surface<'static>,
@@ -351,11 +325,10 @@ impl Painted {
                 .alpha_modes
                 .push(wgpu::CompositeAlphaMode::PreMultiplied);
         }
-        Self::with(device, canvas, surface, capabilities)
+        Self::with(canvas, surface, capabilities)
     }
 
     fn with(
-        device: &wgpu::Device,
         canvas: OffscreenCanvas,
         surface: wgpu::Surface<'static>,
         capabilities: wgpu::SurfaceCapabilities,
@@ -371,19 +344,12 @@ impl Painted {
                 .copied()
                 .unwrap_or(wgpu::CompositeAlphaMode::Auto),
         };
-        let source = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("plugin screen source"),
-            size: SOURCE_BYTES,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
         Self {
             canvas,
             surface,
             formats: capabilities.formats,
             alpha,
             configured: None,
-            source,
         }
     }
 
@@ -438,17 +404,11 @@ fn eight_bit(format: wgpu::TextureFormat) -> bool {
     )
 }
 
-fn clamp([x, y, width, height]: [u32; 4], [_, _, limit_x, limit_y]: [u32; 4]) -> [u32; 4] {
-    let x = x.min(limit_x);
-    let y = y.min(limit_y);
-    [x, y, width.min(limit_x - x), height.min(limit_y - y)]
-}
-
 fn copy(
     atlas: &OffscreenCanvas,
     canvas: &OffscreenCanvas,
     context: &JsValue,
-    [x, y, width, height]: [u32; 4],
+    [width, height]: [u32; 2],
 ) -> Result<(), String> {
     if canvas.width() != width || canvas.height() != height {
         canvas.set_width(width);
@@ -473,8 +433,8 @@ fn copy(
         "drawImage",
         &[
             JsValue::from(atlas.clone()),
-            number(x),
-            number(y),
+            number(0),
+            number(0),
             number(width),
             number(height),
             number(0),

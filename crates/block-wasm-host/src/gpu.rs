@@ -335,6 +335,15 @@ pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
     )?;
     wrap(
         linker,
+        "surface_release",
+        |mut caller: Caller<'_, State>, surface: u32| {
+            caller
+                .data_mut()
+                .with_gpu(|gpu| gpu.detach_surface(surface));
+        },
+    )?;
+    wrap(
+        linker,
         "texture_describe",
         |mut caller: Caller<'_, State>, texture: u32, pointer: u32, capacity: u32| -> u32 {
             let state = caller.data_mut();

@@ -827,18 +827,14 @@ impl EditorSession {
 
     fn rect(&self, region: EditorRegion) -> Rect {
         let state = self.regions.get(&region);
-        let (Some(placement), Some(metrics)) = (
+        let (Some(_), Some(metrics)) = (
             state.and_then(|state| state.placement.as_ref()),
             state.and_then(|state| state.metrics.as_ref()),
         ) else {
             return Rect::ZERO;
         };
-        let scale = placement.scale_factor();
         Rect::from_min_size(
-            pos2(
-                placement.x as f32 / scale - metrics.visible_x,
-                placement.y as f32 / scale - metrics.visible_y,
-            ),
+            pos2(-metrics.visible_x, -metrics.visible_y),
             vec2(metrics.logical_width, metrics.logical_height),
         )
     }

@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    DEFAULT_SURFACE_SIDE, Hello, HelloAccepted, Modifiers, PluginIdentity, PointerButton,
+    Hello, HelloAccepted, Modifiers, PluginIdentity, PointerButton,
     SurfaceFormat, SurfaceSpec, SurfaceSupport, Theme, WheelUnit, encode_frame,
 };
 
@@ -9,7 +9,6 @@ fn session() -> HostSession {
         "BE3",
         Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
-            max_side: DEFAULT_SURFACE_SIDE,
         }),
         Theme { dark: true },
     )

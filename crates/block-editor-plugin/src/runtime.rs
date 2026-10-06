@@ -4,7 +4,7 @@ use crate::{
     Waker,
     screens::Screens,
     session::{ClientSession, State},
-    wasm::Surface,
+    wasm::Surfaces,
 };
 
 pub(crate) struct Step {
@@ -15,7 +15,7 @@ pub(crate) struct Step {
 pub(crate) struct Runtime {
     session: ClientSession,
     screens: Screens,
-    surface: Option<Surface>,
+    surfaces: Option<Surfaces>,
     generation: u64,
     asked: bool,
 }
@@ -31,7 +31,7 @@ impl Runtime {
         Self {
             session: ClientSession::new(id, name, version),
             screens: Screens::new(apps, waker),
-            surface: None,
+            surfaces: None,
             generation: 0,
             asked: false,
         }
@@ -58,11 +58,11 @@ impl Runtime {
                 });
             }
         }
-        let replaced = self.replace_surface(&mut outbound)?;
-        if let Some(surface) = &mut self.surface {
+        let replaced = self.place_surfaces(&mut outbound)?;
+        if let Some(surfaces) = &mut self.surfaces {
             if draw || replaced {
                 self.asked = false;
-                outbound.extend(surface.render(&mut self.screens)?);
+                outbound.extend(surfaces.render(&mut self.screens)?);
             } else if changed && !self.asked {
                 self.asked = true;
                 outbound.push(Message::FrameNeeded);
@@ -75,38 +75,24 @@ impl Runtime {
         })
     }
 
-    fn replace_surface(&mut self, outbound: &mut Vec<Message>) -> Result<bool, String> {
+    fn place_surfaces(&mut self, outbound: &mut Vec<Message>) -> Result<bool, String> {
         let Some(spec) = self.screens.surface() else {
             return Ok(false);
         };
+        if self.surfaces.is_none() {
+            self.surfaces = Some(Surfaces::new(spec)?);
+        }
+        let surfaces = self.surfaces.as_mut().expect("the surfaces were just made");
         let layout = self.screens.layout().clone();
-        if layout.is_empty()
-            || self
-                .surface
-                .as_ref()
-                .is_some_and(|surface| surface.layout().same_placements(&layout))
-        {
+        if surfaces.layout().same_placements(&layout) {
             return Ok(false);
         }
         self.generation += 1;
         self.screens.set_generation(self.generation);
         let mut layout = layout;
         layout.generation = self.generation;
-        log(&format!(
-            "creating a surface {}x{} for {} screens",
-            layout.width,
-            layout.height,
-            layout.screens.len()
-        ));
-        self.surface = Some(match self.surface.take() {
-            Some(previous) => previous.resize(layout.clone(), self.generation)?,
-            None => Surface::new(layout.clone(), self.generation, spec)?,
-        });
+        surfaces.place(layout.clone());
         outbound.push(Message::Layout(layout));
         Ok(true)
     }
-}
-
-fn log(message: &str) {
-    eprintln!("{message}");
 }
