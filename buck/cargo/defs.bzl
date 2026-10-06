@@ -103,8 +103,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, **kwargs):
         library_path_test(name = name, env = _env(crate, library["crate"], env), harness = ":" + name + "-harness", **kwargs)
     else:
         native.rust_test(name = name, env = _env(crate, library["crate"], env), rustc_flags = rustc_flags, **(common | kwargs))
-    if kwargs.get("remote_execution") != "disabled":
-        test_run(name = name + "_run", test = ":" + name)
+    test_run(name = name + "_run", local_only = kwargs.get("remote_execution") == "disabled", test = ":" + name)
 
 # A Rust test harness run with its LD_LIBRARY_PATH carried as
 # BE3_LD_LIBRARY_PATH and put back by the shell that starts it, so it survives
@@ -137,10 +136,11 @@ library_path_test = rule(
     impl = _library_path_test_impl,
 )
 
-# A test as an action, which is how //:verify runs it: buck2 runs a test again
-# every time, where an action whose binary and inputs have not changed comes
-# from the cache. It runs the test's own command and environment on a worker,
-# and fails, with the test's output, when the test does.
+# A test as an action, which is how ./scripts/verify runs it: buck2 runs a test
+# again every time, where an action whose binary and inputs have not changed
+# comes from the cache. It runs the test's own command and environment on a
+# worker, or here for a test that must stay local, and fails, with the test's
+# output, when the test does.
 def _test_run_impl(ctx: AnalysisContext) -> list[Provider]:
     test = ctx.attrs.test[ExternalRunnerTestInfo]
     passed = ctx.actions.declare_output("passed")
@@ -154,12 +154,16 @@ def _test_run_impl(ctx: AnalysisContext) -> list[Provider]:
             test.command,
         ),
         category = "test_run",
-        env = test.env,
+        env = test.env or {},
+        local_only = ctx.attrs.local_only,
     )
     return [DefaultInfo(default_output = passed)]
 
 test_run = rule(
-    attrs = {"test": attrs.dep(providers = [ExternalRunnerTestInfo])},
+    attrs = {
+        "local_only": attrs.bool(default = False),
+        "test": attrs.dep(providers = [ExternalRunnerTestInfo]),
+    },
     impl = _test_run_impl,
 )
 

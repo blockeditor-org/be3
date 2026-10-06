@@ -28,7 +28,7 @@ env:
   # and ./scripts/buck says so rather than building.
   BE3_NAMESPACE_TOKEN: ${{ secrets.BE3_NAMESPACE_TOKEN }}
 
-# One job does the work: ci is ./scripts/buck run //:ci, which verifies, builds
+# One job does the work: ci is ./scripts/ci, which verifies, builds
 # the Android app and launcher, and on a pull request renders the paint
 # previews, and uploads what each of those produced. It runs the pull
 # request's code, so it holds no credentials beyond Namespace's token and the
@@ -40,9 +40,10 @@ env:
 # build server, so what a runner needs is buck2 and whatever runs here rather
 # than there.
 jobs:
-  # ./scripts/buck run //:ci, the way a person runs it: the lint pass and the
-  # tests on the build server, and the plugin tests here, since they read and
-  # write the accepted paintings in snapshots/. On a pull request it fixes and
+  # ./scripts/ci, the way a person runs it: one buck2 command builds the
+  # fixes and runs the lints, the tests and the plugin tests on the build
+  # server, and the script writes what they changed into the checkout, the
+  # accepted paintings in snapshots/ among them. On a pull request it fixes and
   # accepts instead of only reporting, and anything that leaves the checkout
   # changed is uploaded as a patch for the autofix job to push, and fails this
   # job. Everywhere else nothing may be written: main, the merge queue and a
@@ -102,15 +103,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: zizmor --config .github/zizmor.yml .github/workflows .github/actions
 
-      # A plugin test that paints through the gpu abi opens the software
-      # Vulkan device.
-      - name: Install system dependencies
-        if: ${{ !cancelled() }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libvulkan1 mesa-vulkan-drivers
-
       - uses: ./.github/actions/buck2
         if: ${{ !cancelled() }}
 
@@ -124,7 +116,7 @@ jobs:
             (umask 077 && printf '%s' "$ANDROID_CI_KEYSTORE_BASE64" > buck/android/ci-keystore.base64)
           fi
 
-      - name: Run //:ci
+      - name: Run ./scripts/ci
         if: ${{ !cancelled() }}
         env:
           CHECK: ${{ github.event_name != 'pull_request' }}
@@ -138,7 +130,7 @@ jobs:
           if [ "$PREVIEWS" = true ]; then
             set -- "$@" --previews "$BASE" "$RUNNER_TEMP/previews"
           fi
-          ./scripts/buck run //:ci -- "$@"
+          ./scripts/ci "$@"
 
       # What the jobs after this one take: each only when it was made whole.
       - name: Note what was made
@@ -211,7 +203,7 @@ jobs:
       - name: Fail because verification changed the checkout
         if: ${{ !cancelled() && steps.collect.outputs.dirty == 'true' }}
         run: |
-          echo '::error::Verification changed the checkout. The autofix job pushes the change to this branch when it can; otherwise run ./scripts/buck run //:verify and commit what it changes.'
+          echo '::error::Verification changed the checkout. The autofix job pushes the change to this branch when it can; otherwise run ./scripts/verify and commit what it changes.'
           exit 1
 
   # A pull request's verification fixes what it can and accepts what the tests
@@ -302,9 +294,9 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           author="$APP_SLUG[bot]"
-          message='style: apply the fixes from ./scripts/buck run //:verify'
+          message='style: apply the fixes from ./scripts/verify'
           if [ "$(git log -1 --format=%an)" = "$author" ] && [ "$(git log -1 --format=%s)" = "$message" ]; then
-            echo "::error::The head is already an autofix commit and verification still changed it. Run ./scripts/buck run //:verify and commit what it changes."
+            echo "::error::The head is already an autofix commit and verification still changed it. Run ./scripts/verify and commit what it changes."
             exit 1
           fi
 

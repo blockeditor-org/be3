@@ -2,7 +2,7 @@
 #
 # Brings buck/cargo/crates.bzl and Cargo.lock up to date with the Cargo.toml
 # files: buckify.bxl generates both on a worker from cargo's own plans, and
-# this copies them into the checkout. //:verify runs it; run it yourself after
+# this copies them into the checkout. ./scripts/verify does the same; run it yourself after
 # changing a manifest to build with the change before then. With --check it
 # writes nothing and fails if either file is out of date.
 #
@@ -30,6 +30,6 @@ for pair in "crates.bzl buck/cargo/crates.bzl" "Cargo.lock Cargo.lock"; do
     fi
 done
 if [ -n "$stale" ]; then
-    echo "Out of date with the Cargo.toml files:$stale; run ./scripts/buck run //:buckify, or //:verify without --check."
+    echo "Out of date with the Cargo.toml files:$stale; run ./scripts/buck run //:buckify, or ./scripts/verify without --check."
     exit 1
 fi

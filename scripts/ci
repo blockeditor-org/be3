@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#
+# What CI runs, in one buck2 command: everything ./scripts/verify does, and
+# with --android the Android app and launcher CI ships, signed, written into
+# DIR, and with --previews every painting that changed between BASE's merge
+# base and HEAD, as committed, drawn into OUT with the comment
+# crates/paint-snapshot's preview example writes. --check is ./scripts/verify's.
+#
+# Usage:
+#   ./scripts/ci [--check] [--android DIR] [--previews BASE OUT]
+
+set -euo pipefail
+
+usage() {
+    echo "Usage: ./scripts/ci [--check] [--android DIR] [--previews BASE OUT]" >&2
+    exit 1
+}
+arguments=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --check) arguments+=("$1"); shift ;;
+        --android) [[ $# -ge 2 ]] || usage; arguments+=("$1" "$2"); shift 2 ;;
+        --previews) [[ $# -ge 3 ]] || usage; arguments+=("$1" "$2" "$3"); shift 3 ;;
+        *) usage ;;
+    esac
+done
+exec bash "$(dirname "${BASH_SOURCE[0]}")/internal/verify.sh" ${arguments[@]+"${arguments[@]}"}

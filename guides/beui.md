@@ -36,7 +36,7 @@ registered against the node it builds, so that removing that node disposes
 exactly the effects the function created. A plain helper that
 builds nodes leaves its effects in the caller's scope, where they outlive the
 subtree they bind and panic with "node was removed" the next time one of their
-inputs changes. `./scripts/buck run //:verify` reports a function outside an
+inputs changes. `./scripts/verify` reports a function outside an
 `impl` that writes a `view!` and returns a node or a child value without the
 attribute. `#[component]` is also what makes the function usable as a tag,
 gives it `@test_id`, `@node_ref` and `@sizing`, and makes
@@ -138,7 +138,7 @@ a missing required prop and a prop written twice at the line that wrote the tag
 rather than from inside generated code, what routes `@test_id`, `@node_ref` and
 `@sizing` to the right place, what enforces a component's child arity, and what
 keeps render props unbuilt until the component calls them. Hand-written builder chains lose the
-diagnostics, are invisible to the `view!` formatter that `./scripts/buck run //:verify`
+diagnostics, are invisible to the `view!` formatter that `./scripts/verify`
 runs, and read nothing like the rest of the tree. The same applies to a
 component you want to pass around: hand over a `Render`/`RenderFn` closure that
 writes a `view!`, not a half-applied builder.
@@ -2081,10 +2081,10 @@ From the workspace root, use:
 
 ```text
 ./scripts/buck run //:check
-./scripts/buck run //:verify
+./scripts/verify
 ```
 
-`./scripts/buck run //:check` is the fast complete-workspace compile check. `./scripts/buck run //:verify`
+`./scripts/buck run //:check` is the fast complete-workspace compile check. `./scripts/verify`
 is the full check, and CI runs it on a pull request and pushes whatever it changes to
 the pull request's branch; it runs the workspace tests, lints, formatting, project structure checks, snapshot updates, and the formatter for
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command

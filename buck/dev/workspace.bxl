@@ -19,30 +19,3 @@ subtarget = bxl_main(
     cli_args = {"subtarget": cli_args.string()},
     impl = _impl,
 )
-
-# What //:verify runs (buck/dev/verify.sh), found by rule rather than by name.
-
-def _built(ctx: bxl.Context, kind: str) -> list:
-    targets = ctx.cquery().kind(kind, ctx.cquery().eval("//crates/..."))
-    return ctx.output.ensure_multiple([ctx.analysis(target).providers()[DefaultInfo].default_outputs[0] for target in targets])
-
-# Every test's :test_run action (buck/cargo/defs.bzl), built.
-def _test_runs_impl(ctx: bxl.Context):
-    _built(ctx, "^test_run$")
-
-test_runs = bxl_main(cli_args = {}, impl = _test_runs_impl)
-
-# The tests that stay local, which buck2 test runs: one label per line.
-def _local_tests_impl(ctx: bxl.Context):
-    for target in ctx.uquery().attrfilter("remote_execution", "disabled", ctx.uquery().eval("//crates/...")):
-        ctx.output.print(target.label)
-
-local_tests = bxl_main(cli_args = {}, impl = _local_tests_impl)
-
-# Every plugin test's :test_run action (buck/wasm/defs.bzl), built, and the
-# directory of paintings each wrote: one path per line.
-def _plugin_tests_impl(ctx: bxl.Context):
-    for path in _built(ctx, "^plugin_test_run$"):
-        ctx.output.print(path.abs_path())
-
-plugin_tests = bxl_main(cli_args = {}, impl = _plugin_tests_impl)

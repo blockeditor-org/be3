@@ -334,7 +334,7 @@ and deleting a database stops being a fix.
   - Check in bytes that the current code writes: a sealed text block, a
     folder, metadata, a commit, a snapshot tree, a server database, and an
     app-state database.
-  - The fixtures live under `snapshots/formats/`, and `//:verify` decodes
+  - The fixtures live under `snapshots/formats/`, and `./scripts/verify` decodes
     them.
   - A test fails if a frozen type's encoding of a known value changes.
   - This turns "keep text and folder working" from a promise into a check.
