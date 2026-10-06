@@ -135,6 +135,7 @@ struct Uniforms {
 
 struct Atlas {
     texture: wgpu::Texture,
+    texel: u32,
     view: wgpu::TextureView,
     entries: HashMap<GlyphId, [f32; 4]>,
     row_y: u32,
@@ -144,9 +145,9 @@ struct Atlas {
 }
 
 impl Atlas {
-    fn new(device: &wgpu::Device) -> Self {
+    fn new(device: &wgpu::Device, label: &str, format: wgpu::TextureFormat) -> Self {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("beui glyph atlas"),
+            label: Some(label),
             size: wgpu::Extent3d {
                 width: ATLAS_SIZE,
                 height: ATLAS_SIZE,
@@ -155,12 +156,13 @@ impl Atlas {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R8Unorm,
+            format,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         Self {
+            texel: format.block_copy_size(None).unwrap_or(1),
             texture,
             view,
             entries: HashMap::new(),
@@ -182,6 +184,10 @@ impl Atlas {
     fn insert(&mut self, queue: &wgpu::Queue, id: GlyphId, image: &GlyphImage) -> Option<[f32; 4]> {
         if let Some(uv) = self.entries.get(&id) {
             return Some(*uv);
+        }
+        let row = image.width * self.texel;
+        if image.pixels.len() < row as usize * image.height as usize {
+            return None;
         }
         let width = image.width + GLYPH_PADDING;
         let height = image.height + GLYPH_PADDING;
@@ -213,7 +219,7 @@ impl Atlas {
             &image.pixels,
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(image.width),
+                bytes_per_row: Some(row),
                 rows_per_image: Some(image.height),
             },
             wgpu::Extent3d {
@@ -338,6 +344,7 @@ pub struct Renderer {
     scissors: Option<Vec<[u32; 4]>>,
     origin: Vec2,
     atlas: Atlas,
+    colors: Atlas,
     pictures: HashMap<ImageId, Picture>,
     samplers: [wgpu::Sampler; 2],
     filter: Option<filter::Prepared>,
@@ -624,6 +631,16 @@ impl Renderer {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
             ],
         });
         let space_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -681,7 +698,8 @@ impl Renderer {
         let space_stride = (std::mem::size_of::<Space>() as u64).div_ceil(alignment) * alignment;
         let (space_buffer, space_group) = space_buffer(device, &space_layout, space_stride, SPACES);
         let list_buffer = vertex_buffer(device, "beui listed instances", LISTED);
-        let atlas = Atlas::new(device);
+        let atlas = Atlas::new(device, "beui glyph atlas", wgpu::TextureFormat::R8Unorm);
+        let colors = Atlas::new(device, "beui colour glyph atlas", rgba(format.is_srgb()));
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("beui smooth sampler"),
             mag_filter: wgpu::FilterMode::Linear,
@@ -700,6 +718,7 @@ impl Renderer {
             &uniform_buffer,
             &atlas.view,
             &sampler,
+            &colors.view,
         );
 
         Self {
@@ -732,6 +751,7 @@ impl Renderer {
             scissors: None,
             origin: Vec2::ZERO,
             atlas,
+            colors,
             pictures: HashMap::new(),
             samplers: [nearest, sampler],
             filter: None,
@@ -747,10 +767,7 @@ impl Renderer {
             picture.used = true;
             return;
         }
-        let format = match self.srgb {
-            true => wgpu::TextureFormat::Rgba8UnormSrgb,
-            false => wgpu::TextureFormat::Rgba8Unorm,
-        };
+        let format = rgba(self.srgb);
         let size = wgpu::Extent3d {
             width: image.width(),
             height: image.height(),
@@ -789,6 +806,7 @@ impl Renderer {
                 &self.uniform_buffer,
                 &view,
                 &self.samplers[0],
+                &self.colors.view,
             ),
             bind_group(
                 device,
@@ -796,6 +814,7 @@ impl Renderer {
                 &self.uniform_buffer,
                 &view,
                 &self.samplers[1],
+                &self.colors.view,
             ),
         ];
         self.pictures.insert(
@@ -897,8 +916,9 @@ impl Renderer {
         pixels_per_point: f32,
         repaint: Repaint,
     ) -> Repaint {
-        if self.atlas.full {
+        if self.atlas.full || self.colors.full {
             self.atlas.reset();
+            self.colors.reset();
             self.atlas_epoch += 1;
         }
         queue.write_buffer(
@@ -1415,13 +1435,17 @@ impl Renderer {
                 glyph,
                 turn: rotation,
             } => {
-                let uv = self.atlas.insert(queue, glyph.id, &glyph.image)?;
+                let (atlas, colored) = match glyph.image.color {
+                    true => (&mut self.colors, 1.0),
+                    false => (&mut self.atlas, 0.0),
+                };
+                let uv = atlas.insert(queue, glyph.id, &glyph.image)?;
                 plain(Instance {
                     rect,
                     clip,
                     uv,
                     color: self.encode(color),
-                    params: [0.0, 0.0, 1.0, 0.0],
+                    params: [0.0, 0.0, 1.0, colored],
                     turn: turn(rotation),
                 })
             }
@@ -1900,6 +1924,7 @@ fn bind_group(
     uniforms: &wgpu::Buffer,
     view: &wgpu::TextureView,
     sampler: &wgpu::Sampler,
+    colors: &wgpu::TextureView,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("beui bind group"),
@@ -1917,8 +1942,19 @@ fn bind_group(
                 binding: 2,
                 resource: wgpu::BindingResource::Sampler(sampler),
             },
+            wgpu::BindGroupEntry {
+                binding: 3,
+                resource: wgpu::BindingResource::TextureView(colors),
+            },
         ],
     })
+}
+
+fn rgba(srgb: bool) -> wgpu::TextureFormat {
+    match srgb {
+        true => wgpu::TextureFormat::Rgba8UnormSrgb,
+        false => wgpu::TextureFormat::Rgba8Unorm,
+    }
 }
 
 #[cfg(test)]

@@ -199,12 +199,13 @@ impl Tasks {
     }
 
     #[cfg(not(target_os = "android"))]
-    pub(crate) fn run(&self, script: &'static str, args: Vec<String>) {
+    pub(crate) fn run(&self, script: &str, args: Vec<String>) {
         let tasks = self.clone();
+        let script = script.to_owned();
         thread::spawn(move || {
             let description = format!("./scripts/{script} {}", args.join(" "));
             tasks.send(Event::Started(description.clone()));
-            let (summary, success) = match tasks.run_to_end(script, &args) {
+            let (summary, success) = match tasks.run_to_end(&script, &args) {
                 Ok((status, success)) => (format!("{description}: {status}"), success),
                 Err(error) => (format!("{description}: {error}"), false),
             };

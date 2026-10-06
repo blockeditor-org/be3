@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use beui_core::color::Color32;
 
 use crate::text::IconSized;
-use crate::theme::{FONT_HEADING, RADIUS, ThemeStore, use_theme};
+use crate::theme::{FOCUS_RING_WIDTH, FONT_HEADING, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::DisclosureHandle;
 use beui_core::base::TextAlign;
@@ -58,7 +58,7 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
         <Frame
             color={header_color}
             outline={theme.accent.clone()}
-            outline_width=2.0
+            outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=2.0
             outline_visible={focus_ring(focused)}

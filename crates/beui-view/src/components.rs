@@ -2,6 +2,7 @@ pub mod back;
 pub mod canvas;
 pub mod drawing;
 pub mod embed;
+pub mod fade;
 pub mod frame;
 pub mod grid;
 pub mod interactive;

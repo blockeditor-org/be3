@@ -41,19 +41,51 @@ pub struct BlockTypeEntry {
     pub child_edits: ChildEdits,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub enum TemplateCategory {
+    Important,
+    #[default]
+    Regular,
+    Debug,
+    Template,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TemplateEntry {
+    pub editor: Uuid,
+    pub template: String,
+    pub block_type: Uuid,
+    pub name: String,
+    pub icon: Option<&'static str>,
+    pub category: TemplateCategory,
+    pub dialog: bool,
+}
+
 #[derive(Default)]
 pub struct BlockCatalog {
     types: HashMap<Uuid, BlockTypeEntry>,
+    templates: Vec<TemplateEntry>,
 }
 
 impl BlockCatalog {
     pub fn new(types: impl IntoIterator<Item = (Uuid, BlockTypeEntry)>) -> Self {
         Self {
             types: types.into_iter().collect(),
+            templates: Vec::new(),
         }
     }
+
+    pub fn with_templates(mut self, templates: impl IntoIterator<Item = TemplateEntry>) -> Self {
+        self.templates = templates.into_iter().collect();
+        self
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (&Uuid, &BlockTypeEntry)> {
         self.types.iter()
+    }
+
+    pub fn templates(&self) -> &[TemplateEntry] {
+        &self.templates
     }
 }
 

@@ -1,8 +1,8 @@
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
 
 # The build's own tools: generate (crates.bzl, which buck/cargo/buckify.bxl
-# builds with cargo, since it runs before the rules exist), clippy and
-# rust-project (for //:verify and //:rust-project), compile-fail (the tests in
+# builds with cargo, since it runs before the rules exist), clippy (which
+# applies clippy's fixes in buck/dev/fix.sh), rust-project (for //:rust-project), compile-fail (the tests in
 # compile_fail/), resolve (the sysroot's lockfile) and apk.
 
 cargo_library()

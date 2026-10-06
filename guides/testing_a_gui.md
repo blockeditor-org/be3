@@ -1,6 +1,6 @@
 GUI tests run headless: no window, no input, no server. A test builds an editor, drives it the
 way a person would, and checks two things — what the block became, and what the editor
-painted. They are fast enough to belong in ./scripts/buck run //:verify: the handful that exist run in
+painted. They are fast enough to belong in ./scripts/verify: the handful that exist run in
 well under a second.
 
 A plugin's tests run where the plugin runs: compiled to wasm32-wasip1-threads and started by
@@ -153,12 +153,12 @@ as the last costs the triangles that draw it and nothing more. Keep recordings t
 frames that say something: every frame is compared, so a frame nobody looks at is one more
 way for the test to fail.
 
-- ./scripts/buck run //:verify accepts whatever the tests paint: it runs them with UPDATE_SNAPSHOTS=1, so
+- ./scripts/verify accepts whatever the tests paint: it runs them with UPDATE_SNAPSHOTS=1, so
   a new or changed painting is written into snapshots/ rather than failing the run. On a pull
   request CI does the same, and when that writes a painting it fails the run and pushes the
-  painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/buck run //:verify -- --check, which sets nothing,
+  painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/ci --check, which sets nothing,
   so a painting that was never committed fails there.
-- Once every plugin test passes, //:verify deletes each painting in snapshots/ that no test
+- Once every plugin test passes, ./scripts/verify deletes each painting in snapshots/ that no test
   compared, so renaming or removing a snapshot takes its old file with it; with --check it
   fails on them instead. A single editor's test run leaves the folder alone.
 - A changed painting is for a person to review, not for you. They review it in a Paint
@@ -187,9 +187,9 @@ block_ui_test::DocumentTest, which drives the document itself with only the font
 carries, never the system's. Its tests are compiled to wasm with plugin_tests like an
 editor's; crates/beui-demo paints every page of the demo that way.
 
-A snapshot never holds the glyph atlas. Each glyph carries its own coverage image, keyed by
-what is in it, so where a glyph happened to land in the atlas cannot reach the file: text an
-earlier frame drew - a temporary directory's name, a uuid, the time - repacks the atlas
+A snapshot never holds the glyph atlases. Each glyph carries its own image - coverage, or
+colour for an emoji from a colour font - keyed by what is in it, so where a glyph happened
+to land in an atlas cannot reach the file: text an earlier frame drew - a temporary directory's name, a uuid, the time - repacks the atlases
 without moving anything in the snapshot. Text that varies in the frame the test captures is
 of course a different painting, and still has to be kept out of it.
 
@@ -203,14 +203,17 @@ editor paints is comparable like anything else.
 
 5. Running them
 
-./scripts/buck run //:verify runs them, through buck2: ./scripts/buck run //:verify -- --plugin-tests is the plugin
+./scripts/verify runs them, through buck2: ./scripts/verify --plugin-tests is the plugin
 tests alone, and accepts what they paint. buck2 compiles each plugin's tests for
 wasm32-wasip1-threads against the WASI sysroot the web build uses, on the build server,
-and runs the module here through crates/plugin-test-runner, which is wasmtime with the
+and runs the module through crates/plugin-test-runner, which is wasmtime with the
 plugin's own imports linked: the gpu abi a plugin draws through, the threads a plugin
-spawns, and the repository itself, opened so that a test writes the painting it accepted
-into snapshots/. That last part is why a plugin test runs on this machine while the rest of
-the tests run on a worker. Do not build or test an editor package for the host by itself:
+spawns, and the repository itself. Under ./scripts/verify the run is an action on a worker,
+which reads the accepted paintings as its inputs and outputs the ones that changed;
+./scripts/verify then copies those into snapshots/, so a failure's output is in the
+build's log, not on this machine. ./scripts/buck test (below) runs the module here
+instead, writing what it accepts straight into snapshots/.
+Do not build or test an editor package for the host by itself:
 its tests only mean anything as the wasm guest it ships as, and a native run refuses to
 compare a painting rather than making one nothing would agree with.
 

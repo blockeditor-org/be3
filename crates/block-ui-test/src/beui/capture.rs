@@ -61,6 +61,22 @@ pub(crate) fn capture(
                 color,
                 glyph,
                 turn,
+            } if glyph.image.color => (
+                clip,
+                Content::Mesh(mesh(
+                    points(rect),
+                    [0.0, 0.0, 1.0, 1.0],
+                    texture(&mut textures, &glyph.image)?,
+                    [255, 255, 255, color.to_array()[3]],
+                    turn_of(turn),
+                )),
+            ),
+            Quad::Glyph {
+                rect,
+                clip,
+                color,
+                glyph,
+                turn,
             } => (
                 clip,
                 Content::Glyph(Glyph {
@@ -248,7 +264,16 @@ fn texture(
     image: &GlyphImage,
 ) -> Result<TextureKey, String> {
     let size = [image.width, image.height];
-    let pixels: Vec<[u8; 4]> = image.pixels.iter().map(|coverage| [*coverage; 4]).collect();
+    let pixels: Vec<[u8; 4]> = match image.color {
+        true => image
+            .pixels
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|pixel| [pixel[0], pixel[1], pixel[2], pixel[3]])
+            .collect(),
+        false => image.pixels.iter().map(|coverage| [*coverage; 4]).collect(),
+    };
     let key = paint_snapshot::fingerprint(size, &pixels);
     if let Entry::Vacant(entry) = textures.entry(key) {
         entry.insert(Texture::encode(size, &pixels)?);

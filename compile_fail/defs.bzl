@@ -1,4 +1,5 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
+load("//buck/cargo:defs.bzl", "test_run")
 
 # Code that must not compile, and the errors it must fail with. Each case marks
 # the line rustc should point at with `//~ ERROR <part of the message>`. The
@@ -34,7 +35,8 @@ _compile_fail_test = rule(
 )
 
 # The cases in <name>/, a crate whose root is <name>/lib.rs, checked against
-# deps; the test is <name>-test.
+# deps; the test is <name>-test, and <name>-test_run the action
+# ./scripts/verify runs it as.
 def compile_fail(name, deps):
     srcs = native.glob([name + "/**/*.rs"])
     native.rust_library(
@@ -49,4 +51,8 @@ def compile_fail(name, deps):
         name = name + "-test",
         cases = ":" + name,
         srcs = srcs,
+    )
+    test_run(
+        name = name + "-test_run",
+        test = ":" + name + "-test",
     )

@@ -36,26 +36,26 @@ registered against the node it builds, so that removing that node disposes
 exactly the effects the function created. A plain helper that
 builds nodes leaves its effects in the caller's scope, where they outlive the
 subtree they bind and panic with "node was removed" the next time one of their
-inputs changes. `./scripts/buck run //:verify` reports a function outside an
+inputs changes. `./scripts/verify` reports a function outside an
 `impl` that writes a `view!` and returns a node or a child value without the
 attribute. `#[component]` is also what makes the function usable as a tag,
 gives it `@test_id`, `@node_ref` and `@sizing`, and makes
 `component_state`, `component_accessibility`, `component_size`,
 `component_rect` and `component_placed` available inside it.
 
-A component that returns its own type implements `ChildValue` to name the node
-the scope hangs on, and `IntoChild` for the slot that takes it, as
+A component that returns its own type implements `ChildValue` to hand the
+scope to the node it hangs on, and `IntoChild` for the slot that takes it, as
 `beui-view`'s `components/canvas.rs` does for `CanvasItem`.
 
-A child needs no node at all. A `ChildValue` whose `anchor` is `None` keeps a
+A child needs no node at all. A `ChildValue` that is no node keeps a
 `ChildScope` field instead, which the component's scope is moved into, so
 dropping the value disposes exactly the effects that building it created and
 the owner tree does the rest. That is how an item made of data rather than
 nodes — a label, a key, a callback — can still be a component, with its own
 scope, context, memos and cleanups, and still be written as a tag. Such a
 component has nothing for `component_state`, `component_accessibility`,
-`component_size`, `component_rect` or `component_placed` to watch, so naming any of them in its body
-does not compile, and `@test_id` and `@node_ref` on its tag do not compile either,
+`component_size`, `component_rect` or `component_placed` to watch, so calling any of them in its body
+panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
 `unstyled::MenuItem` is one: a menu item is a label, a disabled flag and its
 own submenu items, so a menu is written as tags and each row follows
@@ -138,7 +138,7 @@ a missing required prop and a prop written twice at the line that wrote the tag
 rather than from inside generated code, what routes `@test_id`, `@node_ref` and
 `@sizing` to the right place, what enforces a component's child arity, and what
 keeps render props unbuilt until the component calls them. Hand-written builder chains lose the
-diagnostics, are invisible to the `view!` formatter that `./scripts/buck run //:verify`
+diagnostics, are invisible to the `view!` formatter that `./scripts/verify`
 runs, and read nothing like the rest of the tree. The same applies to a
 component you want to pass around: hand over a `Render`/`RenderFn` closure that
 writes a `view!`, not a half-applied builder.
@@ -216,10 +216,11 @@ direction:
 
 | Crate | Owns |
 | --- | --- |
+| `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
 | `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas, for the DOM renderer; no fonts in the module |
-| `beui-view` | `beui::reactive`: components, child slots, the `view!` integration and the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes |
+| `beui-view` | `beui::reactive`: `beui-tree` re-exported, with the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes; `beui_core::tree` is what makes a `NodeId` a child |
 | `beui-components-unstyled` | `beui::unstyled` and `beui::datetime` |
 | `beui-components-styled` | `beui::styled`: themes and styled controls |
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
@@ -272,6 +273,21 @@ Inside the family, crates name each other directly (`beui_core::document::Docume
 and the component crates declare `extern crate beui_view as beui;` so the
 `::beui::reactive` paths `#[component]` and `view!` expand to resolve there.
 
+`beui-tree` knows nothing of `Document`, layout or painting, so the same
+components and control flow can build any tree: a DOM, a 3D scene, a chat
+message with buttons. Such a tree gives its child type `ChildValue` (where a
+component's scope lives) and `SlotChild` (how a child is kept and discarded),
+and gives what keeps children `SlotHost` (appending, filling a slot a `Show` or
+`ForEach` holds, and owning their scopes) and `IntoSlotHost`, so a component
+can `children.mount(...)` into it. The macros need `::beui::reactive` to
+resolve: `beui-tree` names itself `beui` for its own tests, and a crate built on
+it does the same or re-exports `beui_tree::reactive` as a `reactive` module of
+a crate it calls `beui`. `@sizing`, `@test_id` and `@node_ref` expand to
+`beui::reactive::ListChild`, `with_test_id` and `with_node_ref`, which only
+`beui-view` has, and an untyped `Render`/`RenderFn` child or a `Child` prop is
+`beui::reactive::Child`, a `NodeId`. `beui-tree`'s tests build a small DOM this
+way.
+
 ## Component layers
 
 Beui separates mechanism, behavior, and appearance. The dependency direction is
@@ -297,7 +313,7 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `Grid`, `Text`,
   `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`, `Embed`,
-  `Portal`, `BackHandler`, `Shift` — and it stays small because most things are
+  `Portal`, `BackHandler`, `Shift`, `Fade` — and it stays small because most things are
   compositions of those. `unstyled::Picture` is one: a `Drawing` with a size.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
@@ -344,10 +360,14 @@ faces, and `Text` takes them as props.
 
 `unstyled::Button` shows the split. It is a focusable `Interactive`,
 and owns button semantics, disabled behavior, pointer and keyboard activation,
-and accessibility. Its content closure receives a `ButtonHandle` of reactive
-`hovered`, `active`, and `focused` state. `styled::Button` wraps it and uses
-that handle to choose fills and paint a focus outline, so every visual treatment
-sits on the same interaction behavior.
+and accessibility: it takes the `label`, `glyph`, `role` or `Action` and builds
+its own accessibility node from them. Its content closure receives a
+`ButtonHandle` of reactive `hovered`, `active`, `focused` and `disabled` state
+and the resolved `label`, `glyph` and `tooltip`. `styled::Button` wraps it and
+uses that handle to choose fills and paint a focus outline, so every visual
+treatment sits on the same interaction behavior. Handles of controls built on a
+button, like `MenuButtonHandle` and `PopoverTriggerHandle`, carry that
+`ButtonHandle` as `button` rather than copying its fields.
 
 Pure presentation components such as styled text and cards compose base
 components directly, because they have no interaction behavior to delegate.
@@ -415,10 +435,13 @@ surface — publishing the rectangle and the clip it was laid out in through the
 `EmbedSlot` it was given and cutting that rectangle out of the surface so what
 is behind shows through. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
-`Offset` keeps a run of items along a `direction` and lays them out from an
-offset; it answers no input at all, so nothing scrolls by putting one in a view
-(see [Scrolling](#scrolling)). With `fit` it measures as long as its items,
-so a box sized by what it holds can still scroll once it is squeezed. `Shift`
+`Offset` takes exactly one child, lays it out at its full length along a
+`direction` and shows it from an offset; a run of rows goes in a `List` inside
+it. It answers no input at all, so nothing scrolls by putting one in a view
+(see [Scrolling](#scrolling)). With `fit` it measures as long as its child,
+so a box sized by what it holds can still scroll once it is squeezed. Rows far
+outside its viewport are culled like any other node out of sight. `Fade` paints
+its one child faded out toward each edge over the widths its `edges` name. `Shift`
 lays its child out moved `by` a vector without moving the space it takes, and
 paints nothing while the child is off the screen, which is how a sheet slides in. `VirtualList` is an ordinary box that stands for
 one item per key, each of an estimated `item_size`, and builds only the ones its slice of
@@ -642,27 +665,30 @@ that has more content beyond it, over at most `length` points and only as far
 as the content has scrolled, so a scroll whose rows happen to end exactly at
 its edge still reads as scrollable. The styled layer's scrollbar style fades by
 `theme::SCROLL_FADE`, so `styled::Scroll` and every styled control that scrolls
-fade. The offset puts the fade on the entries of its items (`Painter::faded`,
-`Entry::fade`), the same way it puts its clip there: the wgpu renderer
-multiplies the alpha of everything in that space by it in the shader, and the
-DOM renderer masks the item's frame with a gradient. Shapes a node paints
-itself and custom `Drawing`s are not faded.
+fade. `unstyled::Scroll` works the widths out from the position its offset
+reports and wraps the offset in a base `Fade`, which puts them on the entry of
+its child (`Painter::faded`, `Entry::fade`) the same way a clip is put there:
+the wgpu renderer multiplies the alpha of everything in that space by it in the
+shader, and the DOM renderer masks the child's frame with a gradient. Shapes a
+node paints itself and custom `Drawing`s are not faded.
 
 Under both sits the base `Offset`, which is named for what
-it does rather than for what it is used for: it holds a run of items along a
-direction and lays them out from an offset, with no bar, no theme, and no input
-of their own. A wheel, a touch drag and the arrow keys are `unstyled::Scroll`'s,
-which wraps the offset in a focusable `Interactive` for the keys, the wheel and
-the drag, keeps the momentum an unfinished fling carries, and
-drives the offset from all three. So reach for `Offset` when something needs its
+it does rather than for what it is used for: it shows its one child along a
+direction from an offset, with no bar, no theme, no fade and no input of its
+own. A wheel, a touch drag and the arrow keys are `unstyled::Scroll`'s,
+which puts its children in a `List` inside the offset, wraps that in a
+focusable `Interactive` for the keys, the wheel and the drag, keeps the
+momentum an unfinished fling carries, and drives the offset from all three. So reach for `Offset` when something needs its
 content shifted under a viewport and nothing more, and for a `Scroll` whenever
 something needs to scroll.
 
 That offset is anchored to a node, not measured from the top of the content:
-the scroll remembers the item at the top of its viewport and the distance it
-starts above the edge, so a row further up growing or shrinking - a wrapping
-label, an image that finished loading - leaves what is being read exactly where
-it is.
+the scroll remembers the node at the top of its viewport and where it started,
+so a row further up growing or shrinking - a wrapping label, an image that
+finished loading - leaves what is being read exactly where it is. It finds that
+node by walking down from its child through the nodes that lay their children
+out in place (`Element::passes_scroll_anchor`: `List`, `Frame` and `Fade`),
+taking the first child that reaches past the top of the viewport each time.
 
 ### Slider scales
 
@@ -896,45 +922,76 @@ tree and the beui inspector both work this way. `styled::tree_row_node` and
 
 ### Docking and windows
 
-`styled::DockArea` is the workspace layout: panes split from one another, a tab
+`styled::Docking` is the workspace layout: panes split from one another, a tab
 bar on each pane, and tabs that can be dragged between panes or out into
-windows that float over the rest of the dock. `unstyled::Dock` underneath it
+windows that float over the rest of the dock. `unstyled::Docking` underneath it
 owns the tree, the dragging and the keyboard, and paints nothing; the demo in
 `crates/beui-demo` is laid out in one.
 
-The layout is a `DockState`, which the caller keeps in a signal and hands back
-when the dock reports a change, the way `PanZoom` takes its camera:
+The children describe the layout the dock starts with and the tabs that exist;
+a `DockingLayout<K>` holds where everything is now, and is what the caller saves
+and restores:
 
 ```rust
-let (layout, set_layout) = create_signal(DockState::new([TabId::new(1)]));
+let layout = DockingLayout::new();
 view! {
-    <DockArea
-        state={layout}
-        title={Func::new(move |tab: TabId| title_of(tab))}
-        closable={Func::new(|tab: TabId| tab != FILES)}
-        on_change={move |next: DockState| set_layout.set(next)}
-        on_close={move |tab: TabId| forget(tab)}
-    >
-        {move |tab: TabId| view! { <Panel tab /> }}
-    </DockArea>
+    <Docking layout home=Key::Files>
+        <DockSplit id="root" direction=Direction::Horizontal fraction=0.25>
+            <DockPane id="files">
+                <DockTab id=Key::Files title="Files"><FilesPanel /></DockTab>
+            </DockPane>
+            <DockPane id="editors" empty={move || view! { <Nothing /> }}>
+                <ForEach keys={open}>
+                    {move |key: Key| view! {
+                        <DockTab id=key title={title_of(key)} on_close={move || close(key)}>
+                            <Panel key />
+                        </DockTab>
+                    }}
+                </ForEach>
+            </DockPane>
+        </DockSplit>
+        <DockWindow id="inspector" rect={INSPECTOR}>
+            <DockPane id="inspector">…</DockPane>
+        </DockWindow>
+    </Docking>
 }
 ```
 
-A tab is a `TabId` the caller mints, so whatever the tab stands for - a block,
-a file, a tool - stays the caller's. The dock asks for a title, hands the
-`TabId` back to the `content` builder for the panel to show, and reports the
-tabs it removes through `on_close` so the caller can drop what it was holding.
-Because the state is a plain value, the caller opens, closes, splits and floats
-by writing it: `show`, `push`, `push_to_focused`, `split`, `remove`, `replace`
-and `drop_tab` are the whole vocabulary, and `find`, `all_tabs`, `focused_tab`
-and `surface_tabs` read it back.
-A pane can hold no tabs at all - the main surface emptied of its last tab, or
-one `split` with none - and shows the `empty` view the caller passes in its
-body instead of a panel; `empty_panes` finds them and `remove_empty_panes`
-gives their room back, which is how the workspace keeps an empty pane beside
-Files that says nothing is open rather than a tab that says so.
+`DockSplit` takes two children, `fraction` being the first one's share.
+`DockPane` holds `DockTab`s and `DockGroup`s (a tab holding a tree of its own,
+`pinned` to keep its tabs in it), names its starting `active` tab, and can start
+with its tabs in a sidebar (`vertical`, `sidebar_width`). `DockWindow` floats one
+tree at a `rect`. A tab's key is any `Clone + Eq + Hash` type; a key that is a
+`TabId` or a `u64` names the tab's `TabId` too, which is what the test ids of its
+close button and switcher row carry. Every container has an `id`, saved with the
+layout, so that a layout saved by older code still finds its panes.
 
-Tiled, `DockArea` keeps its panes inset from its own edges.
+The children are the full set of tabs: a tab the code no longer declares is
+closed, and a tab it starts declaring is placed. Closing is a request -
+`on_close` gives the tab its close button, and the tab goes when the caller
+stops declaring it, or stays, as the workspace keeps a program's window until
+the program quits. A tab that appears joins the pane it was declared in, after
+the tab declared before it, and is shown. If the user has closed that pane, it
+joins the declared tab nearest it that is still open, then a window the code
+declared it in, and failing both it floats in a window of its own. A pane with an
+`empty` view is never closed: emptied, it shows that view, and dragging its grip
+onto another pane moves its tabs and leaves it behind. A split follows the
+`fraction` in the code until the user moves it. A pane, split or window the
+code adds is placed beside its declared sibling when the saved layout lacks it.
+
+`DockingLayout::snapshot` is the `DockingSnapshot` to save, and `restore` puts
+one back; restore it in the same `batch` that declares its tabs, since a tab not
+declared when the dock reconciles is closed. `reset` goes back to the layout the
+children describe. The handle also shows a tab (`show`) and reads which is
+focused (`focused`, `shown` for a stacked dock). A tab that stops being declared
+for a moment - a `Show` around it that flips, a `ForEach` rebuilt from new keys -
+loses its place, so keep a tab's declaration in one stable place.
+
+The `DockState` the layout holds is a plain value underneath:
+`state()` reads it, and `find`, `all_tabs`, `focused_tab` and `surface_tabs`
+answer from it.
+
+Tiled, `Docking` keeps its panes inset from its own edges.
 `mode=DockMode::Stacked` draws the same state as one screen: the focused tab
 fills the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
 the state is kept, so switching back to `DockMode::Tiled` restores the layout.
@@ -952,9 +1009,9 @@ The menu is not tied to the stacked bar: a tiled pane offers the menu of the tab
 it shows behind a More button just before its close button, at the end of its
 tab bar or at the top of its sidebar, and so does a window. A menu is a list of
 actions rather than a node, so a dock that lays out tabs built somewhere else
-(the app's dock holding a plugin's panes) can draw it from rows it was sent,
-with actions made by `ActionBuilder::detached`, which runs without being
-registered for shortcuts or the palette, and pass the pick back.
+can draw it from rows it was sent, with actions made by
+`ActionBuilder::detached`, which runs without being registered for shortcuts or
+the palette, and pass the pick back.
 Each tab's panel is built once and moved between the two, so what it holds
 survives the switch. `recent_tabs` lists the tabs from the one shown last (the
 order is part of the state, so it is saved with the layout), and
@@ -1026,8 +1083,7 @@ tab cannot be dragged, popped or carried out of it with its pane. "Unpin from
 group" on a tab's menu (`set_tab_pinned`) lets it go, it may come back later,
 and "Pin to group" pins it again once it is back. A drag that the state would
 refuse (`admits`, `admits_leaf`) shows no drop marker, and letting go there
-does nothing. `unpin` makes the whole group an ordinary group again. The app keeps a plugin's panes in one (see
-guides/adding_a_plugin_editor.md). `tree` reads a surface's or a group's layout
+does nothing. `unpin` makes the whole group an ordinary group again. `tree` reads a surface's or a group's layout
 out as a `DockTree`, which names tabs but no leaf, split or group ids, so it can
 be compared, sent elsewhere and rebuilt: `from_tree` makes a state out of one
 and `set_tree` replaces a tree in place, moving in any of its tabs that were
@@ -1353,7 +1409,9 @@ focused field into what is left, through every scroll it sits in.
 `beui::run_with` takes `RunOptions` (title, app id, starting size) where
 `beui::run` takes only a title; both load wgpu, and
 `beui::run_with_renderers` takes the `beui::WindowRenderer`s to load instead
-(be-compositor's opens its device itself). The rest of
+(block-app's opens its device itself, to import Wayland clients' buffers), and
+`beui::run_on` runs on an adapter of the caller's choosing, such as
+`beui_adapter_drm::Drm`, which drives the displays and input devices itself. The rest of
 `App` is optional:
 
 - `setup(&Setup)` runs once, after the gpu exists and before the first frame.
@@ -1743,7 +1801,7 @@ creation flow, host connection, and current beui plugin capability limits.
 
 A template the manifest marks `"dialog": true` is made through `creation_view` instead, one
 more `#[component]` function that the framework builds a separate document of
-and shows in the host's creation dialog. It says what the dialog makes with
+and shows in the picker's creation dialog. It says what the dialog makes with
 `creation.on_create(...)` and answers `creation.set_ready(true)` once it has been
 filled in. Host services such as `BlockPicker` work there too, collected from
 `creation.on_reply(...)` when the host answers.
@@ -1805,17 +1863,18 @@ and report user changes through its callback; see `unstyled::Toggle` and
 
 Put a styled component in `crates/beui-components-styled/src/<name>.rs`, declare it in
 `lib.rs`, and re-export its public API there. An interactive styled component
-wraps the matching unstyled component, supplies its accessibility label when
-needed, and renders the unstyled handle with base visual primitives:
+wraps the matching unstyled component, passes its `label` on for the unstyled
+one to put in the accessibility tree, and renders the unstyled handle with base
+visual primitives:
 
 ```rust
 #[component]
 pub fn Checkbox(label: Prop<String>, checked: Prop<bool>, on_change: Callback<bool>) -> NodeId {
     view! {
-        <Toggle checked on_change={move |checked| on_change.call(checked)}>
+        <Toggle checked label on_change={move |checked| on_change.call(checked)}>
             {move |handle: ToggleHandle| {
                 view! {
-                    <CheckboxFace handle label />
+                    <CheckboxFace handle />
                 }
             }}
         </Toggle>
@@ -1824,7 +1883,8 @@ pub fn Checkbox(label: Prop<String>, checked: Prop<bool>, on_change: Callback<bo
 ```
 
 The face component derives colors and visibility with memos over
-`handle.checked`, `handle.hovered`, `handle.active`, and `handle.focused`, then
+`handle.checked`, `handle.hovered`, `handle.active`, and `handle.focused`, reads
+its text from `handle.label`, then
 composes `Frame` and `Text`. Keyboard and pointer handling stay in the unstyled
 control. `styled/checkbox.rs` is a short, complete example of the pair.
 
@@ -2032,10 +2092,10 @@ From the workspace root, use:
 
 ```text
 ./scripts/buck run //:check
-./scripts/buck run //:verify
+./scripts/verify
 ```
 
-`./scripts/buck run //:check` is the fast complete-workspace compile check. `./scripts/buck run //:verify`
+`./scripts/buck run //:check` is the fast complete-workspace compile check. `./scripts/verify`
 is the full check, and CI runs it on a pull request and pushes whatever it changes to
 the pull request's branch; it runs the workspace tests, lints, formatting, project structure checks, snapshot updates, and the formatter for
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command

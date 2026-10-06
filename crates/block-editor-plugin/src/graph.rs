@@ -43,6 +43,7 @@ impl BlockParent {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum BlockQuery {
+    All,
     Roots,
     Detached,
     Children(Uuid),
@@ -56,6 +57,7 @@ impl BlockQuery {
     pub fn encode(self) -> block_plugin_api::BlockQuery {
         use block_plugin_api::BlockQuery as Wire;
         match self {
+            Self::All => Wire::All,
             Self::Roots => Wire::Roots,
             Self::Detached => Wire::Detached,
             Self::Children(id) => Wire::Children(id.into_bytes()),
@@ -69,6 +71,7 @@ impl BlockQuery {
     pub fn decode(query: block_plugin_api::BlockQuery) -> Self {
         use block_plugin_api::BlockQuery as Wire;
         match query {
+            Wire::All => Self::All,
             Wire::Roots => Self::Roots,
             Wire::Detached => Self::Detached,
             Wire::Children(id) => Self::Children(Uuid::from_bytes(id)),

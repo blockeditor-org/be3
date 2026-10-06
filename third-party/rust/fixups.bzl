@@ -57,11 +57,16 @@ FIXUPS = {
     # android-assets - with the one wasmtime built for them, so it is this one
     # that has to know arm64.
     "cranelift-codegen": {"features": {"linux-x86_64": ["arm64"]}},
-    # The build script compiles the FreeType it vendors unless pkg-config finds
-    # one, and a plugin paints with the one it ships.
+    # The overlay's build script always compiles the FreeType the crate vendors,
+    # which a plugin paints with too, and compiles libpng and zlib beside it
+    # for FreeType to load the colour glyphs emoji fonts keep as PNG images.
     "freetype-sys": {
-        "build_script_env": {"FREETYPE2_NO_PKG_CONFIG": "1"},
+        "build_script_env": {
+            "LIBPNG_SOURCE": "$(location //third-party/libpng:source)",
+            "ZLIB_SOURCE": "$(location //third-party/zlib:source)",
+        },
         "deps": ["//third-party/system:stdc++"],
+        "overlay": {"build.rs": "overlays/freetype-sys/build.rs"},
     },
     "gdk-pixbuf-sys": _PKG_CONFIG,
     "gdk-sys": _PKG_CONFIG,

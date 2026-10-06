@@ -224,7 +224,7 @@ fn type_text(block: Uuid, at: u64, text: &str) {
 fn checkouts(shared: &Shared) -> Vec<Uuid> {
     shared
         .graph
-        .nodes()
+        .query(super::graph::Query::All)
         .into_iter()
         .filter(|node| node.content_type == be_block::CheckoutContent::CONTENT_TYPE)
         .map(|node| node.id)

@@ -139,7 +139,6 @@ fn hello_accepted() -> Message {
             max_side: block_plugin_api::DEFAULT_SURFACE_SIDE,
         }),
         theme: block_plugin_api::Theme { dark: true },
-        panes: false,
     })
 }
 

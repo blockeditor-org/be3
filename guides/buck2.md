@@ -1,8 +1,10 @@
 # buck2
 
-buck2 builds, lints and tests the workspace, and every action runs on our
-build server (guides/build_server.md). Every command is a buck2 target started through
-`./scripts/buck`. cargo builds nothing; `Cargo.toml` is still the one place a
+buck2 builds, lints and tests the workspace, and every action runs on a
+remote execution server, Namespace's unless `BE3_BUILD_SERVER` picks another
+(guides/build_server.md). Every command is a buck2 target started through
+`./scripts/buck`, except `./scripts/verify` and `./scripts/ci`, which are scripts so
+that each is one buck2 command. cargo builds nothing; `Cargo.toml` is still the one place a
 dependency is declared, and buck2 reads it through cargo's own plans.
 
 ## Commands
@@ -10,7 +12,8 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | Command | What it does |
 |---|---|
 | `./scripts/buck run //:check` | rustc's check pass over every first-party target, host and wasm |
-| `./scripts/buck run //:verify` | autofixes, lints, tests and plugin tests; `-- --check` writes nothing, `-- --lint`, `--tests`, `--plugin-tests` run one part |
+| `./scripts/verify` | autofixes, lints, tests and plugin tests; `--check` writes nothing, `--lint`, `--tests`, `--plugin-tests` run one part |
+| `./scripts/ci` | what CI runs: `./scripts/verify`, and `--android DIR` the signed APKs, `--previews BASE OUT` the paint previews |
 | `./scripts/buck test //crates/...` | the tests alone; outside CI it prints only the failures and the compiler's errors, and `BE3_VERBOSE=1` prints everything |
 | `./scripts/buck test //crates/editors/checklist:test` | one editor's tests; add `-- --env UPDATE_SNAPSHOTS=1` to accept its paintings |
 | `./scripts/buck test //crates/editors/checklist:test -- --test-arg adding` | only the tests whose names contain `adding`; `--test-arg` passes its value to the test binary, and a bare argument after `--` is an error |
@@ -20,18 +23,19 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web-serve` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
-| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's, signed on the build server with CI's key) |
+| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's, signed on a worker with CI's key) |
 | `./scripts/buck run //crates/beui-demo:demo` | beui's demo in a window |
 | `./scripts/buck run //crates/beui:survey-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //crates/beui-web-demo:web-serve` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
+| `./scripts/buck run //:buckify` | regenerates `buck/cargo/crates.bzl` and `Cargo.lock` from the manifests |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 | `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
 
 `--target-platforms root//buck/platforms:<p>` builds for another platform, and
-`<p>_release` (say `linux_x86_64_release`) is the same platform with cargo's
-release profile. The profile is the `root//buck/constraints:release`
-constraint rather than a buckconfig value, so one build can hold both, and every
-transition keeps it. Every other build is cargo's dev profile, with
+`-m release` with cargo's release profile, on whichever platform it is. The
+profile is the `root//buck/constraints:release` constraint, added by a
+configuration modifier (the root `PACKAGE`) rather than a buckconfig value, so
+one build can hold both, and every transition keeps it. Every other build is cargo's dev profile, with
 `Cargo.toml`'s `[profile.dev.package]` overrides (the optimised cranelift and
 crypto crates), which `crates.bzl` carries as each crate's rustc flags. A
 release build takes `-c be3.commit=SHA`, the commit the app reports; a dev
@@ -45,35 +49,21 @@ these in front of the pinned buck2:
 - **buck2 itself.** The release pinned in `scripts/internal/common.sh` is
   installed into `target/tools/buck2-<version>/` the first time it is missing.
   A `buck2` on `PATH` is not used, since each buck2 carries its own prelude.
-- **The build server's key**: `BE3_BUILD_SERVER_KEY`, else `.build-server-key`
-  at the root (git ignores it), else `~/.config/be3/build-server-key`. With
-  none, a person at a terminal is asked for it and it is saved to
-  `~/.config/be3/build-server-key`; without a terminal it fails and says what
-  to set. After changing the key, restart the daemon with
-  `./scripts/buck killall`.
-- **The build server.** `.buckconfig` names one; `BE3_BUILD_SERVER`, else
-  `.build-server` at the root (git ignores it), picks another by host, and
-  its key files end in that host (guides/build_server.md). `./scripts/buck`
-  writes a `.buckconfig.local` naming it and restarts the daemon when the
-  server changes.
-- **An HTTPS proxy.** buck2's remote execution client dials the build server
+- **The build server.** `BE3_BUILD_SERVER` picks it, and its hosts and key go
+  into a generated `.buckconfig.local`, with the server's name as
+  `be3.build_server`, which picks the workers' image. For Namespace, the
+  default, the pinned `nsc` is installed into `target/tools/nsc-<version>/` the
+  first time it is missing, wakes the remote execution cluster, and names its
+  hosts (guides/build_server.md says when it asks, and where each server's key
+  comes from).
+- **An HTTPS proxy.** buck2's remote execution client dials the server's hosts
   directly and never reads `HTTPS_PROXY`. When it is set, `./scripts/buck` builds
-  `scripts/internal/re-relay` with Go (1.24 or newer), leaves it running on
-  `127.0.0.1:18980`, and points buck2 at it in the same `.buckconfig.local`; the
-  relay sends each call on through the proxy, over HTTP/1.1 if that is all the
-  proxy speaks. Its errors go to `target/re-relay.log`. A `.buckconfig.local` a person wrote
-  is left alone, and the relay is not used then.
-- **The generated rules.** `buck/cargo/crates.bzl` is not checked in: every
-  crate's dependencies, features and targets, first- and third-party, from
-  cargo's plans, with each third-party crate's checksum and size.
-  `./scripts/buck` hashes its inputs and, when that changes, runs
-  `buck/cargo/buckify.bxl` on a worker and copies the result into place. The action is keyed on the manifests,
-  `Cargo.lock`, the paths cargo discovers targets at and `crates/buck-tools`,
-  which writes `crates.bzl`, so it is shared through the cache: a few seconds
-  on a fresh checkout, about a minute for the first person to change a
-  dependency. The action brings `Cargo.lock` up to date with the manifests
-  first, so a stale one still builds; `//:verify`'s lint writes the updated one
-  back, and fails under `--check`.
+  `scripts/internal/re-relay` with Go (1.24 or newer), leaves one running on
+  `127.0.0.1:18980` for the executor and one on `127.0.0.1:18981` for the
+  storage, and points buck2 at them in the same `.buckconfig.local`; each relay sends
+  its calls on through the proxy, over HTTP/1.1 if that is all the proxy
+  speaks. Their errors go to `target/re-relay.log`. A `.buckconfig.local` a
+  person wrote is left alone, and the relays are not used then.
 - **Platforms.** Everything is built for Linux x86_64 wherever it is asked for
   (`.buckconfig`'s default target platform), so a Mac or Windows machine shares
   CI's cache. `run` is the exception: on another machine it builds for that
@@ -81,7 +71,7 @@ these in front of the pinned buck2:
 - **File modes.** A file's executable bit is part of every action that reads
   it, and a Windows checkout has none, so no file a build reads may have one:
   Windows would miss every cache entry Linux wrote. Scripts are run with `sh`,
-  and `//:verify`'s lint clears the bit from anything outside `scripts/`.
+  and `./scripts/verify`'s lint clears the bit from anything outside `scripts/`.
 - **One retry.** buck2 exits with 2 for an infrastructure error, such as a
   connection to the build server resetting partway through a download, which buck2 does not retry itself.
   The wrapper runs such a command once more; the actions are cached by then.
@@ -93,17 +83,28 @@ It also lets `test` put tests on the workers (below).
 
 ## Layout
 
-- `.buckconfig`: cells, the execution platform, the build server. The prelude is the
+- `.buckconfig`: cells and the execution platform. The prelude is the
   one bundled in the buck2 binary.
 - `BUCK.v2`: the `//:` commands, scripts in `buck/dev`. (`BUCK.v2` rather than
   `BUCK`, which a case-insensitive filesystem cannot hold beside `buck/`.)
 - `buck/tools`: every compiler and tool, downloaded and pinned by hash and size.
 - `buck/toolchains`: the toolchains built from them, per target platform.
-- `buck/platforms`: the execution platform (the build server's worker) and every
-  target platform; `cross.bzl` lists the cross-compiled ones.
+- `buck/platforms`: the execution platform (a build server's worker) and every
+  target platform; `cross.bzl` lists the cross-compiled ones and the plans
+  `crates.bzl` keys them by, and everything else that lists platforms reads it.
 - `buck/sysroot`: the Ubuntu 24.04 packages everything is compiled against.
 - `buck/cargo`: the BXL that writes `crates.bzl` and the macros that read it:
   `defs.bzl` for workspace crates, `third_party.bzl` for the rest.
+  `crates.bzl` is generated and checked in, like a lockfile: every crate's
+  dependencies, features and targets, first- and third-party, from cargo's
+  plans, with each third-party crate's checksum and size.
+  `./scripts/buck run //:buckify` runs `buckify.bxl` on a worker and copies the
+  result into place, with `Cargo.lock` brought up to date with the manifests;
+  `./scripts/verify` builds the same action and copies it too, and under
+  `--check` fails if either is out of date; its build uses the checked-in
+  copies, so a stale one is fixed by the run after. The action is keyed on the manifests, `Cargo.lock`, the
+  paths cargo discovers targets at and `crates/buck-tools`, so it is shared
+  through the cache.
 - `crates/buck-tools`: the build's own helpers (the `crates.bzl` generator, the
   sysroot resolver, the APK packer, clippy's fixer and `//:rust-project`).
 - `buck/wasm`: editors, plugin tests and the rules that build wasm modules.
@@ -116,13 +117,14 @@ It also lets `test` put tests on the workers (below).
 
 ## Adding things
 
-**A dependency**: `cargo add` (or edit `Cargo.toml`). The next `./scripts/buck`
-regenerates the rules. A build script runs as it does under cargo, and the
-libraries it links or compiles reach the link; one that needs something from
-the build, such as a sysroot's pkg-config, gets it from a fixup.
+**A dependency**: `cargo add` (or edit `Cargo.toml`), then
+`./scripts/buck run //:buckify` to regenerate the rules. A build script runs
+as it does under cargo, and the libraries it links or compiles reach the link;
+one that needs something from the build, such as a sysroot's pkg-config, gets
+it from a fixup.
 
-**A crate**: add it to the workspace, and write a `BUCK` beside its
-`Cargo.toml`:
+**A crate**: add it to the workspace, write a `BUCK` beside its
+`Cargo.toml`, and run `./scripts/buck run //:buckify`:
 
 ```
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
@@ -152,23 +154,25 @@ sysroot.
 
 ## Tests
 
-Most tests run on the workers, including beui-renderer-wgpu's and be-compositor's, which draw
-through lavapipe from `buck/sysroot:amd64-test`. buck2 runs a test again every
+Most tests run on the workers, including beui-renderer-wgpu's, be-dmabuf's, be-wayland's and
+beui-adapter-drm's, which draw
+through lavapipe from `buck/sysroot:amd64-test`; a test whose `env` names
+`LD_LIBRARY_PATH` is built as a harness binary and run through
+`library_path_test`, since the workers replace that variable
+(guides/build_server.md). buck2 runs a test again every
 time, so `cargo_test` also makes `:test_run`, an action that runs the test on a
-worker and passes when it does, which is cached like any other; `//:verify`
-builds those instead. Two kinds are different:
+worker and passes when it does, which is cached like any other; `./scripts/verify`
+builds those instead. A test with `remote_execution = "disabled"` gets a
+`:test_run` that runs here. compile_fail's tests (below) have one too.
 
-- **Plugin tests** read and write the accepted paintings in `snapshots/`.
-  Each is the crate's tests compiled to wasm and run by `plugin-test-runner`,
-  the host `block-app` runs a plugin in, so they paint with the FreeType and
-  HarfBuzz the plugin ships. `buck2 test` runs a crate's `:test` here, writing
-  paintings straight into `snapshots/`; they are labelled `plugin`, which is
-  how `//:verify`'s `--tests` and `--plugin-tests` split. `//:verify` instead
-  builds each crate's `:test_run`, an action that runs them on a worker and is
-  cached like any other: it outputs the paintings that changed and the names
-  of the ones it compared, and `//:verify` copies the first into `snapshots/`
-  and deletes the paintings no test named.
-- `block-plugin-api`'s test that walks `crates/editors` stays local.
+**Plugin tests** read and write the accepted paintings in `snapshots/`. Each is the crate's tests compiled to wasm and run by `plugin-test-runner`,
+the host `block-app` runs a plugin in, so they paint with the FreeType and
+HarfBuzz the plugin ships. `buck2 test` runs a crate's `:test` here, writing
+paintings straight into `snapshots/`. `./scripts/verify` instead builds each
+crate's `:test_run`, an action that runs them on a worker and is cached like
+any other: it outputs the paintings that changed and the names of the ones it
+compared, and `./scripts/verify` copies the first into `snapshots/` and
+deletes the paintings no test named.
 
 `compile_fail/` holds code that must not compile: `compile_fail(name, deps)`
 in its `BUCK` makes `<name>/lib.rs` a crate and `:<name>-test`, which reads
@@ -231,11 +235,10 @@ A native target depends on a wasm one through a transition in
   the app's own and beui's (`//crates/beui-adapter-android:android-java`), against the
   platform alone: the APK carries no libraries. `:android` signs it
   locally with `target/android-debug.keystore`, made on first use.
-  `:android-dist` signs on the build server with CI's keystore, the secret
-  `ANDROID_DEBUG_KEYSTORE_BASE64` it keeps (guides/build_server.md), with its
+  `:android-dist` signs on a worker with CI's keystore,
+  `buck/android/ci-keystore.base64` (guides/build_server.md), with its
   own application id and label (`com.be3.block.ci`, `Block (CI)`) so it
-  installs beside a local build. After changing the secret, bump
-  `key_version` in `crates/block-app/BUCK` and `crates/be-launcher/BUCK`.
+  installs beside a local build.
   The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).
 - `crates/be-launcher` is an APK too. It downloads and installs the APKs CI
@@ -266,10 +269,17 @@ extension ships: the toolchain's panics on this workspace.
   `buck/toolchains/BUCK`: otherwise the prelude sets `RUSTC_BOOTSTRAP=1`, and
   `cfg(target_feature = "atomics")` on `wasm32-wasip1-threads` then answers
   differently from cargo, which broke wgpu's `Send`/`Sync` checks.
-- **The key.** The build server answers a call with a wrong or missing key
+- **The key.** A server answers a call with a wrong or missing key or token
   with `UNAUTHENTICATED`, which buck2 reports as failing to reach it.
 - **Downloads.** Every `http_archive` has `size_bytes` as well as `sha256`;
   without it buck2 sends a HEAD request per download on every new daemon.
-- **Clippy** runs through `buck/dev/workspace.bxl` over every target's
-  `[clippy.json]` in every configuration, including the wasm ones, which is why
-  wasm-only code is linted. `clippy.toml` is empty but must exist.
+- **`./scripts/verify`** is one `buck2 bxl` of `buck/dev/verify.bxl`, which
+  builds everything with `--keep-going` and prints what the script reads
+  after: the generated files, the paintings, and each crate's fixes. The
+  autofixes are actions (`buck/dev/fix.sh`), one a crate: clippy's
+  machine-applicable suggestions from every target's `[clippy.json]`, then
+  fix-rust-source, then rustfmt, on a copy of the crate's sources, output as
+  the files that changed. The script copies them into the checkout. A fix that
+  makes another possible shows up on the next run.
+- **Clippy** reads every target's `[clippy.json]` in the configurations
+  `//crates/...` resolves to. `clippy.toml` is empty but must exist.

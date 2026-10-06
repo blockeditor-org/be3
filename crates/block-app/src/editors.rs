@@ -66,44 +66,6 @@ pub fn editor_access_ceiling(id: Uuid) -> Access {
     }
 }
 
-pub struct EditorAccess<'a> {
-    active: Vec<Uuid>,
-    client_id: Uuid,
-    registry: &'a EditorRegistry,
-    editors: &'a mut HashMap<Uuid, PluginEditor>,
-}
-
-impl<'a> EditorAccess<'a> {
-    pub fn new(
-        active: Uuid,
-        client_id: Uuid,
-        registry: &'a EditorRegistry,
-        editors: &'a mut HashMap<Uuid, PluginEditor>,
-    ) -> Self {
-        Self {
-            active: vec![active],
-            client_id,
-            registry,
-            editors,
-        }
-    }
-
-    pub fn client_id(&self) -> Uuid {
-        self.client_id
-    }
-
-    pub fn registry(&self) -> &EditorRegistry {
-        self.registry
-    }
-
-    pub fn ensure(&mut self, id: Uuid, block_type: Uuid, view_block: Option<Uuid>) {
-        if !self.active.contains(&id) && !self.editors.contains_key(&id) {
-            self.editors
-                .insert(id, self.registry.open(id, block_type).viewed_by(view_block));
-        }
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SidebarDragSource {
     Root,
@@ -141,15 +103,16 @@ pub(super) enum ArtifactStatus {
     Failed(String),
 }
 
-pub(super) trait PendingCreation {
-    fn region(&self, editors: &EditorAccess<'_>) -> Option<HostedRegion>;
-    fn step(&mut self, editors: &mut EditorAccess<'_>) -> CreationStep;
+pub(crate) trait PendingCreation {
+    fn region(&self, registry: &EditorRegistry, client_id: Uuid) -> Option<HostedRegion>;
+    fn pick_source(&self) -> plugin::PickSource;
+    fn step(&mut self, registry: &EditorRegistry, client_id: Uuid) -> CreationStep;
     fn height(&self) -> Option<f32>;
     fn create(&mut self) -> Result<Option<Uuid>, String>;
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum CreationStep {
+pub(crate) enum CreationStep {
     Options(bool),
     Working,
 }
@@ -183,7 +146,7 @@ pub(crate) struct BlockTypeEntry {
 pub struct EditorRegistry {
     registrations: HashMap<Uuid, EditorRegistration>,
     templates: Vec<TemplateEntry>,
-    plugin_block_types: Arc<Vec<block_plugin_api::BlockTypeDescriptor>>,
+    plugin_block_types: Arc<block_plugin_api::Catalog>,
 }
 
 impl EditorRegistry {
@@ -200,8 +163,22 @@ impl EditorRegistry {
         for manifest in manifests {
             registry.register_plugin(manifest);
         }
-        registry.plugin_block_types =
-            Arc::new(plugin::block_type_descriptors(registry.block_types()));
+        registry.plugin_block_types = Arc::new(block_plugin_api::Catalog {
+            types: plugin::block_type_descriptors(registry.block_types()),
+            templates: registry
+                .templates
+                .iter()
+                .map(|entry| block_plugin_api::TemplateDescriptor {
+                    editor: entry.target.editor.into_bytes(),
+                    template: entry.target.template.to_owned(),
+                    block_type: entry.target.block_type.into_bytes(),
+                    name: entry.target.name.to_owned(),
+                    icon_codepoint: entry.icon.to_owned(),
+                    category: entry.category,
+                    dialog: entry.target.dialog,
+                })
+                .collect(),
+        });
         registry
     }
 
@@ -226,7 +203,7 @@ impl EditorRegistry {
         types
     }
 
-    pub(super) fn plugin_block_types(&self) -> &Arc<Vec<block_plugin_api::BlockTypeDescriptor>> {
+    pub(super) fn plugin_block_types(&self) -> &Arc<block_plugin_api::Catalog> {
         &self.plugin_block_types
     }
 
@@ -279,10 +256,6 @@ impl EditorRegistry {
         );
     }
 
-    pub(crate) fn templates(&self) -> &[TemplateEntry] {
-        &self.templates
-    }
-
     pub fn display_name(&self, block_type: Uuid) -> Option<&'static str> {
         self.registrations
             .get(&block_type)
@@ -321,7 +294,7 @@ impl EditorRegistry {
         }
     }
 
-    pub(super) fn create(
+    pub(crate) fn create(
         &self,
         editor: Uuid,
         template: &str,

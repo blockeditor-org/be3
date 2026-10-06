@@ -11,7 +11,7 @@ use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::painter::Painter;
 use crate::pixel_grid::PixelGrid;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList};
+use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::rich::{

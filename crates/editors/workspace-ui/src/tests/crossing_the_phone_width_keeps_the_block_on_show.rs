@@ -8,7 +8,7 @@ fn placement(fixture: &Fixture, id: Uuid) -> block_editor_beui::ChildPlacement {
         .children()
         .iter()
         .find(|placement| placement.content.block_id() == Some(id.into_bytes()))
-        .copied()
+        .cloned()
         .expect("the block is on show")
 }
 

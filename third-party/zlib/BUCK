@@ -1,0 +1,9 @@
+# zlib's source, for the libpng in third-party/libpng to inflate with.
+http_archive(
+    name = "source",
+    sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+    size_bytes = 1512791,
+    strip_prefix = "zlib-1.3.1",
+    urls = ["https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz"],
+    visibility = ["//third-party/rust:"],
+)

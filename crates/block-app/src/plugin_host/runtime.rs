@@ -9,9 +9,9 @@ use std::{
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockPick, DEFAULT_SURFACE_SIDE, EditorInstanceId, EditorMessage,
-    EditorRegion, FrameSpec, HostSession, MAX_QUEUED_MESSAGES, Message, PaneId, PaneLayout,
-    PaneTree, PluginManifest, PresentedFrame, ScreenId, ScreenLayout, ScreenRequest, SessionState,
-    SurfaceFormat, SurfaceRect, SurfaceSpec, Theme, ViewChange,
+    EditorRegion, FrameSpec, HostPanel, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest,
+    PresentedFrame, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat,
+    SurfaceRect, SurfaceSpec, Theme, ViewChange,
 };
 use uuid::Uuid;
 
@@ -656,6 +656,41 @@ pub(crate) fn take_block_pick(
     .flatten()
 }
 
+pub(crate) fn take_pick_answers(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<(u64, BlockPick)> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_pick_answers(instance)
+    })
+    .unwrap_or_default()
+}
+
+pub(crate) fn take_child_commits(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<super::ChildCommit> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_child_commits(instance)
+    })
+    .unwrap_or_default()
+}
+
+pub(crate) fn request_pick(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    pick: u64,
+    filter: block_plugin_api::BlockFilter,
+    parent: block_plugin_api::BlockLocation,
+) {
+    with(plugin_id, |runtime| {
+        let messages = runtime
+            .instances
+            .request_pick(instance, pick, filter, parent);
+        runtime.send(messages);
+    });
+}
+
 pub(crate) fn block_picked(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -853,6 +888,16 @@ pub(crate) fn take_focus_report(plugin_id: &str, instance: EditorInstanceId) -> 
     .flatten()
 }
 
+pub(crate) fn take_closed_windows(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<block_plugin_api::HostWindowId> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_closed_windows(instance)
+    })
+    .unwrap_or_default()
+}
+
 pub(crate) fn take_artifact_watch(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -861,53 +906,6 @@ pub(crate) fn take_artifact_watch(
         runtime.instances.take_artifact_watch(instance)
     })
     .flatten()
-}
-
-pub(crate) fn panes(plugin_id: &str, instance: EditorInstanceId) -> Option<PaneLayout> {
-    with(plugin_id, |runtime| runtime.instances.panes(instance)).flatten()
-}
-
-pub(crate) fn take_shown_panes(plugin_id: &str, instance: EditorInstanceId) -> Vec<PaneId> {
-    with(plugin_id, |runtime| {
-        runtime.instances.take_shown_panes(instance)
-    })
-    .unwrap_or_default()
-}
-
-pub(crate) fn arrange_panes(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    arrangement: u64,
-    tree: PaneTree,
-    detached: Vec<PaneId>,
-    focused: Option<PaneId>,
-) {
-    with(plugin_id, |runtime| {
-        let messages =
-            runtime
-                .instances
-                .arrange_panes(instance, arrangement, tree, detached, focused);
-        runtime.send(messages);
-    });
-}
-
-pub(crate) fn close_pane(plugin_id: &str, instance: EditorInstanceId, pane: PaneId) {
-    with(plugin_id, |runtime| {
-        let messages = runtime.instances.close_pane(instance, pane);
-        runtime.send(messages);
-    });
-}
-
-pub(crate) fn pane_menu_pick(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    pane: PaneId,
-    id: String,
-) {
-    with(plugin_id, |runtime| {
-        let messages = runtime.instances.pane_menu_pick(instance, pane, id);
-        runtime.send(messages);
-    });
 }
 
 pub(crate) fn menu(
@@ -933,6 +931,25 @@ pub(crate) fn take_child_menu_picks(
         runtime.instances.take_child_menu_picks(instance, children)
     })
     .unwrap_or_default()
+}
+
+pub(crate) fn show_dialog(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    block: Uuid,
+    dialog: block_plugin_api::ShellDialog,
+) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.show_dialog(instance, block, dialog);
+        runtime.send(messages);
+    });
+}
+
+pub(crate) fn show_panel(plugin_id: &str, instance: EditorInstanceId, panel: HostPanel) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.show_panel(instance, panel);
+        runtime.send(messages);
+    });
 }
 
 pub(crate) fn show_block(
@@ -1085,6 +1102,19 @@ pub(crate) fn presenting(plugin_id: &str, instance: EditorInstanceId) -> bool {
     with(plugin_id, |runtime| runtime.instances.presenting(instance)).unwrap_or_default()
 }
 
+pub(crate) fn set_windows(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    windows: Vec<block_plugin_api::HostWindow>,
+) {
+    with(plugin_id, |runtime| {
+        if runtime.instances.set_windows(instance, windows) {
+            mark(plugin_id);
+            host::request_repaint();
+        }
+    });
+}
+
 pub(crate) fn present(plugin_id: &str, instance: EditorInstanceId, presenting: bool) {
     with(plugin_id, |runtime| {
         if runtime.instances.set_presenting(instance, presenting) {
@@ -1180,7 +1210,7 @@ pub(crate) fn running() -> Vec<RuntimeStatus> {
 }
 
 fn session() -> HostSession {
-    HostSession::new(HOST_NAME, Some(SURFACE), theme()).offer_panes()
+    HostSession::new(HOST_NAME, Some(SURFACE), theme())
 }
 
 fn theme() -> Theme {
@@ -1206,7 +1236,7 @@ pub(crate) fn take_changed() -> Vec<String> {
 
 pub(crate) struct RegionSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<Vec<block_plugin_api::BlockTypeDescriptor>>,
+    pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
     pub(crate) client_id: Uuid,
     pub(crate) role: InstanceRole,
     pub(crate) instance: EditorInstanceId,

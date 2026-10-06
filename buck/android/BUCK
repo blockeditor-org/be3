@@ -49,3 +49,13 @@ export_file(
     name = "sign.sh",
     visibility = ["PUBLIC"],
 )
+
+# CI's keystore, which signs :android-dist on a worker so that each CI build
+# installs as an update over the last. ci.yml writes it here from the
+# repository secret ANDROID_CI_KEYSTORE_BASE64, and git ignores it; without
+# it, signing fails and says so.
+filegroup(
+    name = "ci-keystore",
+    srcs = glob(["ci-keystore.base64"]),
+    visibility = ["PUBLIC"],
+)

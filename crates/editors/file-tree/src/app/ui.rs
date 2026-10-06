@@ -3,7 +3,9 @@ use std::rc::Rc;
 
 use block_editor_beui::BlockParent;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_AUTO_AWESOME, ICON_CLOSE};
+use block_editor_beui::beui::icons::{
+    ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_AUTO_AWESOME, ICON_CLOSE,
+};
 use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, ItemSize, Justify, List, Memo, NodeRef, Prop, ReadSignal, Show,
     Spacer, WriteSignal, clone, component, create_effect, create_memo, create_signal, focus_ring,
@@ -89,6 +91,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         tree.show_orphans();
         tree.expand(editor.host().focused_block().via.iter().rev().copied());
     });
+    let app_menu = clone!(editor -> move || editor.host().show_app_menu(editor.block_id()));
     let add_root = clone!(picker editor -> move || {
         picker.open(
             &editor,
@@ -159,6 +162,12 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                         on_click={add_root}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <IconButton
+                        glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
+                        label="Account and settings"
+                        @test_id={"file-tree.desktop-app-menu"}
+                        on_click={app_menu}
+                    />
                 </Toolbar>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <List spacing=0.0>
@@ -501,6 +510,7 @@ fn AddChildFace(handle: ButtonHandle) -> NodeId {
         hovered,
         active,
         focused,
+        ..
     } = handle;
     let theme = use_theme();
     let color = create_memo(clone!(theme hovered active -> move || {

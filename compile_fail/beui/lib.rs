@@ -5,4 +5,3 @@ mod a_show_is_not_a_frame_child;
 mod a_show_needs_a_child;
 mod a_test_id_names_a_node;
 mod a_value_child_has_no_node_ref;
-mod a_value_child_watches_no_node;

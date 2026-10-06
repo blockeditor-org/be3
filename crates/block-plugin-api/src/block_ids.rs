@@ -29,7 +29,13 @@ impl Message {
                                 visit(placements.instance, BlockIdRole::Existing, view_block);
                             }
                         }
-                        ChildContent::WebView(_) => {}
+                        ChildContent::WebView(_)
+                        | ChildContent::Host(_)
+                        | ChildContent::Window(_)
+                        | ChildContent::Creation { .. } => {}
+                        ChildContent::ArtifactSettings { block_id } => {
+                            visit(placements.instance, BlockIdRole::Existing, block_id);
+                        }
                     }
                 }
             }
@@ -84,6 +90,9 @@ impl EditorMessage {
             | Self::OpenArtifact { block_id, .. }
             | Self::SetName { block_id, .. }
             | Self::VersionStatus { block_id, .. } => existing(block_id),
+            Self::ShowDialog { block_id, .. } | Self::SetAccess { block_id, .. } => {
+                existing(block_id);
+            }
             Self::OpenBlock { block_id, via, .. } | Self::ShowBlock { block_id, via, .. } => {
                 existing(block_id);
                 via.iter_mut().for_each(existing);
@@ -123,6 +132,18 @@ impl EditorMessage {
                     | BlockCommand::AppMenu => {}
                 }
             }
+            Self::PickRequested { filter, parent, .. } => {
+                filter.excluded.iter_mut().for_each(&mut existing);
+                if let Some(place) = &mut filter.place {
+                    location(place, &mut existing);
+                }
+                location(parent, &mut existing);
+            }
+            Self::CommitChild { parent, .. } => location(parent, &mut existing),
+            Self::PickAnswered { answer, .. } => match answer {
+                BlockPick::Chosen { block_id, .. } => existing(block_id),
+                BlockPick::Cancelled | BlockPick::Failed(_) => {}
+            },
             Self::Request { request, .. } => match request {
                 HostRequest::PickBlock(filter) => {
                     filter.excluded.iter_mut().for_each(&mut existing);
@@ -130,6 +151,7 @@ impl EditorMessage {
                         location(place, &mut existing);
                     }
                 }
+                HostRequest::ListAccess(block_id) => existing(block_id),
                 HostRequest::PickFile(_)
                 | HostRequest::SaveFile(_)
                 | HostRequest::PasteImage
@@ -145,7 +167,8 @@ impl EditorMessage {
                 | HostReply::ImagePasted(_)
                 | HostReply::Fetched(_)
                 | HostReply::DataListed(_)
-                | HostReply::DataRead(_) => {}
+                | HostReply::DataRead(_)
+                | HostReply::AccessListed(_) => {}
             },
             Self::CreationBlock { outcome, .. } => match outcome {
                 CreationOutcome::Created(block_id) => existing(block_id),
@@ -233,6 +256,9 @@ impl EditorMessage {
             | Self::AudioStatus { .. }
             | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
+            | Self::ShowPanel { .. }
+            | Self::Windows { .. }
+            | Self::CloseWindow { .. }
             | Self::WebViewEvent { .. }
             | Self::OpenCreation { .. }
             | Self::CreationReady { .. }
@@ -252,11 +278,6 @@ impl EditorMessage {
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
             | Self::Performance { .. }
-            | Self::Panes { .. }
-            | Self::ShowPane { .. }
-            | Self::PanesArranged { .. }
-            | Self::ClosePane { .. }
-            | Self::PaneMenuPick { .. }
             | Self::Menu { .. }
             | Self::MenuPick { .. }
             | Self::ChildMenuPick { .. } => {}
@@ -277,6 +298,6 @@ fn query(query: &mut BlockQuery, visit: &mut impl FnMut(&mut [u8; 16])) {
         | BlockQuery::Backrefs(block_id)
         | BlockQuery::Parents(block_id)
         | BlockQuery::Block(block_id) => visit(block_id),
-        BlockQuery::Roots | BlockQuery::Detached => {}
+        BlockQuery::All | BlockQuery::Roots | BlockQuery::Detached => {}
     }
 }

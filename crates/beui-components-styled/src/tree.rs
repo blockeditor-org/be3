@@ -1,7 +1,6 @@
 use std::hash::Hash;
 use std::rc::Rc;
 
-use accesskit::{Node as AccessNode, Role};
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
@@ -10,7 +9,9 @@ use crate::text::IconSized;
 use crate::theme::{FONT_SMALL, RADIUS, ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{ButtonHandle, Edge, TreeItem, TreeRevealHandle, TreeRowHandle};
+use beui_components_unstyled::{
+    ButtonHandle, Edge, TreeItem, TreeRevealHandle, TreeRowHandle, TreeToggleHandle,
+};
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::icons::{
@@ -19,7 +20,7 @@ use beui_core::icons::{
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Align, Callback, Direction, Frame, Func, ItemSize, List, Memo, NodeRef, Prop, ReadSignal,
-    RenderFn, Show, Spacer, clone, create_memo, focus_ring, set_component_state,
+    RenderFn, Spacer, clone, create_memo, focus_ring, set_component_state,
 };
 
 const INDENT: f32 = 12.0;
@@ -233,47 +234,31 @@ fn Chevron(
     toggle: Rc<dyn Fn()>,
     named: String,
 ) -> NodeId {
-    let expandable = create_memo(clone!(item -> move || item.get().expandable));
-    let glyph = create_memo(clone!(item -> move || marker(&item.get())));
-    let label = create_memo(clone!(item -> move || expansion_label(item.get().expanded)));
     view! {
         <Frame width=CHEVRON_WIDTH>
             <List spacing=0.0>
-                <Show condition={expandable}>
-                    {move || clone!(item toggle glyph marked label -> view! {
-                        <unstyled::Button
-                            @test_id={named.clone()}
-                            tab_stop=false
-                            press_focus=false
-                            accessibility={chevron_accessibility(item)}
-                            on_click={move || toggle()}
-                            content={move |button: ButtonHandle| view! {
-                                <ChevronFace
-                                    handle={button}
-                                    glyph={glyph}
-                                    marked={marked}
-                                    label={label}
-                                />
-                            }}
-                        />
-                    })}
-                </Show>
+                <unstyled::TreeToggle item toggle button_test_id=named>
+                    {move |handle: TreeToggleHandle| view! {
+                        <ChevronFace handle marked={marked.clone()} />
+                    }}
+                </unstyled::TreeToggle>
             </List>
         </Frame>
     }
 }
 
 #[component]
-fn ChevronFace(
-    handle: ButtonHandle,
-    glyph: Memo<String>,
-    marked: Memo<bool>,
-    label: Memo<String>,
-) -> NodeId {
-    let ButtonHandle {
-        hovered,
-        active,
-        focused,
+fn ChevronFace(handle: TreeToggleHandle, marked: Memo<bool>) -> NodeId {
+    let TreeToggleHandle {
+        button:
+            ButtonHandle {
+                hovered,
+                active,
+                focused,
+                label,
+                ..
+            },
+        expanded,
     } = handle;
     let theme = use_theme();
     let fill = create_memo(clone!(theme marked hovered active -> move || {
@@ -292,6 +277,10 @@ fn ChevronFace(
             false => theme.text_muted.get(),
         }
     }));
+    let glyph = create_memo(move || match expanded.get() {
+        true => ICON_KEYBOARD_ARROW_DOWN.to_owned(),
+        false => ICON_KEYBOARD_ARROW_RIGHT.to_owned(),
+    });
     view! {
         <Tooltip label={label}>
             <Frame
@@ -306,30 +295,6 @@ fn ChevronFace(
                 <IconSized glyph={glyph} font_size=FONT_SMALL color={color} />
             </Frame>
         </Tooltip>
-    }
-}
-
-fn chevron_accessibility(item: Memo<TreeItem>) -> Memo<AccessNode> {
-    create_memo(move || {
-        let mut node = AccessNode::new(Role::Button);
-        node.set_expanded(item.get().expanded);
-        node.set_label(expansion_label(item.get().expanded));
-        node
-    })
-}
-
-fn expansion_label(expanded: bool) -> String {
-    match expanded {
-        true => "Collapse".to_owned(),
-        false => "Expand".to_owned(),
-    }
-}
-
-fn marker(item: &TreeItem) -> String {
-    match (item.expandable, item.expanded) {
-        (false, _) => String::new(),
-        (true, true) => ICON_KEYBOARD_ARROW_DOWN.to_owned(),
-        (true, false) => ICON_KEYBOARD_ARROW_RIGHT.to_owned(),
     }
 }
 

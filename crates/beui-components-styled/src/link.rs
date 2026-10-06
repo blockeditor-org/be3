@@ -1,6 +1,7 @@
-use accesskit::{Node, Role};
+use accesskit::Role;
 use beui_macros::{component, view};
 
+use crate::focus_ring::FocusRing;
 use crate::text::Icon;
 use crate::theme::{FONT_BODY, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
@@ -8,11 +9,10 @@ use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, ClickCallback, Direction, Frame, List, Prop, Show, Text, clone, create_memo, focus_ring,
+    Align, ClickCallback, Direction, List, Prop, Show, Text, clone, create_memo,
 };
 
 const ICON_SPACING: f32 = 6.0;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 const FOCUS_RING_RADIUS: u8 = 4;
 
@@ -24,61 +24,47 @@ pub fn Link(
     #[prop(default = FONT_BODY)] font_size: Prop<f32>,
     on_click: ClickCallback,
 ) -> NodeId {
-    let text = create_memo(move || label.get());
-    let disabled = create_memo(move || disabled.get());
-    let accessibility = create_memo(clone!(text -> move || {
-        let mut node = Node::new(Role::Link);
-        node.set_label(text.get());
-        node
-    }));
     view! {
         <unstyled::Button
-            disabled={disabled.clone()}
-            accessibility
+            label
+            glyph
+            role=Role::Link
+            disabled
             on_click={move || on_click.call()}
             content={move |handle| view! {
-                <LinkFace handle label={text.clone()} glyph disabled font_size />
+                <LinkFace handle font_size />
             }}
         />
     }
 }
 
 #[component]
-fn LinkFace(
-    handle: unstyled::ButtonHandle,
-    label: Prop<String>,
-    glyph: Prop<String>,
-    disabled: Prop<bool>,
-    font_size: Prop<f32>,
-) -> NodeId {
+fn LinkFace(handle: unstyled::ButtonHandle, font_size: Prop<f32>) -> NodeId {
     let unstyled::ButtonHandle {
         hovered,
         active,
         focused,
+        disabled,
+        label,
+        glyph,
+        ..
     } = handle;
     let theme = use_theme();
     let color = create_memo(clone!(theme hovered active -> move || {
         text_color(&theme, disabled.get(), hovered.get(), active.get())
     }));
     let underlined = create_memo(clone!(hovered focused -> move || hovered.get() || focused.get()));
-    let glyph_text = create_memo(move || glyph.get());
-    let has_glyph = create_memo(clone!(glyph_text -> move || !glyph_text.get().is_empty()));
+    let has_glyph = create_memo(clone!(glyph -> move || !glyph.get().is_empty()));
     let icon_color = color.clone();
     let label_color = color;
     let size = create_memo(move || font_size.get());
     let icon_size = size.clone();
     view! {
-        <Frame
-            outline={theme.accent.clone()}
-            outline_width=FOCUS_RING_WIDTH
-            radius=FOCUS_RING_RADIUS
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
-        >
+        <FocusRing focused radius=FOCUS_RING_RADIUS offset=FOCUS_RING_OFFSET>
             <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
                 <Show condition={has_glyph}>
                     <Icon
-                        glyph={glyph_text.clone()}
+                        glyph={glyph.clone()}
                         text_size={icon_size.clone()}
                         color={icon_color.clone()}
                     />
@@ -91,7 +77,7 @@ fn LinkFace(
                     underline={underlined}
                 />
             </List>
-        </Frame>
+        </FocusRing>
     }
 }
 

@@ -13,7 +13,7 @@ fn head_of(shared: &Shared, repository: Uuid) -> Option<[u8; 32]> {
 fn repositories(shared: &Shared) -> Vec<Uuid> {
     shared
         .graph
-        .nodes()
+        .query(crate::be::Query::All)
         .into_iter()
         .filter(|node| node.content_type == be_block::RepositoryContent::CONTENT_TYPE)
         .map(|node| node.id)

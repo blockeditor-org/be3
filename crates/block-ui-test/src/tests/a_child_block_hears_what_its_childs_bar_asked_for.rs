@@ -40,7 +40,7 @@ fn a_child_block_hears_what_its_childs_bar_asked_for() {
     host.set_editable(true);
     let mut test = BeuiTest::<BarApp>::new(Editor::new(host, Uuid::new_v4()));
     test.run();
-    let placement = test.children()[0];
+    let placement = test.children()[0].clone();
     assert_eq!(placement.top_bar, TopBar::Phone);
 
     test.child_bar(placement.child, BarAction::Details);

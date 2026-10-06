@@ -28,8 +28,8 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
 use beui_view::reactive::{
-    Callback, Child, Frame, Memo, NodeRef, Prop, ReadSignal, Render, clone, create_effect,
-    create_memo, create_signal, set_component_state,
+    Callback, Child, ClickCallback, Frame, Memo, NodeRef, Prop, ReadSignal, Render, clone,
+    create_effect, create_memo, create_signal, set_component_state,
 };
 
 const FONT_SIZE: f32 = 14.0;
@@ -41,6 +41,8 @@ pub struct TextInputHandle {
     pub hovered: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
     pub disabled: Memo<bool>,
+    pub empty: Memo<bool>,
+    pub clear: ClickCallback,
 }
 
 #[derive(Clone)]
@@ -87,6 +89,7 @@ pub fn TextInput(
     #[prop(default = false)] select_on_focus: Prop<bool>,
     #[prop(children)] content: Option<Render<TextInputHandle>>,
     placeholder: Prop<String>,
+    #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = TextInputStyle::default())] style: TextInputStyle,
     on_change: Callback<String>,
     on_submit: Callback<String>,
@@ -109,7 +112,6 @@ pub fn TextInput(
     let state = plain_text(&initial);
     let (hovered, set_hovered) = create_signal(false);
     let (is_focused, set_focused) = create_signal(false);
-    let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
     let disabled = create_memo(move || disabled.get());
     let masked = create_memo(move || password.get());
     let (area, menu_node) = (NodeRef::new(), NodeRef::new());
@@ -125,6 +127,14 @@ pub fn TextInput(
         if text_of(&state) != value {
             state.execute(EditorCommand::ReplaceWholeFile(value.as_bytes()));
         }
+    }));
+    let edited = state.content();
+    let empty = create_memo(clone!(state -> move || {
+        edited.get();
+        text_of(&state).is_empty()
+    }));
+    let clear = ClickCallback::new(clone!(state -> move || {
+        state.execute(EditorCommand::ReplaceWholeFile(b""));
     }));
     let reported = Rc::new(RefCell::new(initial));
     let content_changed = state.content();
@@ -146,20 +156,19 @@ pub fn TextInput(
         syntax: SyntaxColors::uniform(color.get()),
         ..TextAreaColors::DEFAULT
     });
-    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::TextInput)));
+    let accessibility = crate::labelled_node(Role::TextInput, accessibility, label);
 
-    let no_menu = !menu.is_some();
-    let menu_off = create_memo(clone!(disabled -> move || no_menu || disabled.get()));
-    let open_menu = clone!(menu_off set_menu_at -> move |at: Pos2| {
-        if !menu_off.get_untracked() {
-            set_menu_at.set(Some(at));
+    let opener: Rc<RefCell<Option<Callback<Pos2>>>> = Rc::default();
+    let open_menu = clone!(opener -> move |at: Pos2| {
+        if let Some(open) = opener.borrow().clone() {
+            open.call(at);
         }
     });
     let submit_state = state.clone();
     let focus_state = state.clone();
     let menu_state = state.clone();
     let masked_menu = masked.clone();
-    let close_menu = set_menu_at.clone();
+    let menu_disabled = disabled.clone();
     let field_disabled = disabled.clone();
     let handle_focused = is_focused.clone();
     view! {
@@ -200,18 +209,21 @@ pub fn TextInput(
                         state={menu_state}
                         menu
                         masked={masked_menu}
-                        disabled={menu_off}
-                        open_at={menu_at}
-                        on_close={move || close_menu.set(None)}
+                        disabled={menu_disabled}
                     >
-                        {match content {
-                            Some(build) => build.call(TextInputHandle {
-                                field,
-                                hovered,
-                                focused: handle_focused,
-                                disabled: field_disabled,
-                            }),
-                            None => field,
+                        {move |open: Callback<Pos2>| {
+                            opener.replace(Some(open));
+                            match content {
+                                Some(build) => build.call(TextInputHandle {
+                                    field,
+                                    hovered,
+                                    focused: handle_focused,
+                                    disabled: field_disabled,
+                                    empty,
+                                    clear,
+                                }),
+                                None => field,
+                            }
                         }}
                     </TextContextMenu>
                 }

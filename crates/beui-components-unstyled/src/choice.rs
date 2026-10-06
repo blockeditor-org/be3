@@ -39,10 +39,6 @@ pub struct ChoiceOption {
 }
 
 impl ChildValue for ChoiceOption {
-    fn anchor(&self) -> Option<NodeId> {
-        None
-    }
-
     fn adopt_scope(&mut self, scope: Scope) {
         self.scope.adopt(scope);
     }

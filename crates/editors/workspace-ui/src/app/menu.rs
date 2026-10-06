@@ -6,6 +6,7 @@ use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{BlockInfo, BlockParent};
 use uuid::Uuid;
 
+use super::dialogs::OpenDialog;
 use super::tab::TabItem;
 use super::workspace::Workspace;
 
@@ -112,8 +113,8 @@ pub(crate) fn apply(
         ),
         Action::Picker => workspace.open_picker(reference.id),
         Action::SetParent(parent) => workspace.blocks().set_parent(reference.id, parent),
-        Action::Rename => workspace.host().rename_block(reference.id),
-        Action::Share => workspace.host().share_block(reference.id),
+        Action::Rename => workspace.open_dialog(OpenDialog::Rename(reference.id)),
+        Action::Share => workspace.open_dialog(OpenDialog::Share(reference.id)),
         Action::Unlink => {
             if let BlockParent::Block(container) = permissions.source {
                 workspace.host().unlink_block(reference.id, container);

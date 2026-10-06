@@ -1,8 +1,8 @@
 use super::*;
 use crate::reactive::{Action, create_memo};
-use crate::unstyled::{DockMode, DockState, TabId, dock_menu};
+use crate::unstyled::{DockMode, DockPane, DockTab, DockingLayout, dock_menu};
 
-const HOME: TabId = TabId::new(1);
+const HOME: u64 = 1;
 
 fn laid_out(harness: &Harness, test_id: &str) -> bool {
     harness
@@ -17,32 +17,30 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
     let renamed = Rc::new(Cell::new(0));
     let renaming = renamed.clone();
     let document = build(move || {
-        let mut layout = DockState::new([HOME, TabId::new(2)]);
-        layout.show(TabId::new(2));
-        let (state, set_state) = create_signal(layout);
+        let layout = DockingLayout::new();
         view! {
-            <styled::DockArea
-                state={state}
-                mode=DockMode::Stacked
-                home={Some(HOME)}
-                title={Func::new(|tab: TabId| format!("Tab {}", tab.value()))}
-                on_change={move |next: DockState| set_state.set(next)}
-                on_close={move |_: TabId| {}}
-            >
-                {move |tab: TabId| {
-                    if tab != HOME {
-                        let renaming = renaming.clone();
-                        let rename = Action::new("rename", "Rename", move || {
-                            renaming.set(renaming.get() + 1)
-                        })
-                        .detached();
-                        dock_menu(create_memo(move || vec![rename.clone()]));
-                    }
-                    view! {
-                        <Frame @test_id={format!("content.{}", tab.value())} />
-                    }
-                }}
-            </styled::DockArea>
+            <styled::Docking layout mode=DockMode::Stacked home=HOME focus=2u64>
+                <DockPane id="tabs">
+                    <DockTab id=HOME title="Tab 1">
+                        <Frame @test_id="content.1" />
+                    </DockTab>
+                    <DockTab
+                        id=2u64
+                        title="Tab 2"
+                        content={move || {
+                            let renaming = renaming.clone();
+                            let rename = Action::new("rename", "Rename", move || {
+                                renaming.set(renaming.get() + 1)
+                            })
+                            .detached();
+                            dock_menu(create_memo(move || vec![rename.clone()]));
+                            view! {
+                                <Frame @test_id="content.2" />
+                            }
+                        }}
+                    />
+                </DockPane>
+            </styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

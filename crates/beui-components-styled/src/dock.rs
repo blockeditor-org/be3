@@ -7,22 +7,22 @@ use crate::context_menu::menu_style;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::menu_button::IconMenuButton;
 use crate::text::{Body, IconSized};
-use crate::theme::{CARD_RADIUS, FONT_BODY, RADIUS, use_theme};
+use crate::theme::{CARD_RADIUS, FOCUS_RING_WIDTH, FONT_BODY, RADIUS, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    DockDragged, DockGripHandle, DockMode, DockPanelHandle, DockPreviewHandle, DockSplitterHandle,
-    DockStackHandle, DockState, DockTabHandle, DockWindowHandle, Entry, GroupId, MenuItem,
-    SPLITTER_THICKNESS, TabId, sidebar_size,
+    DockBarHandle, DockChromeHandle, DockDragged, DockGripHandle, DockKey, DockMode, DockNode,
+    DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockSwitcherHandle, DockTabHandle,
+    DockingLayout, Entry, MenuItem,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_CLOSE, ICON_DRAG_INDICATOR, ICON_MORE_VERT, ICON_TAB_GROUP};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Action, Callback, ClickCallback, DynamicSegment, ForEach, Frame, Func, List, ListChild, Memo,
-    Prop, ReadSignal, RenderFn, Show, Text, clone, create_memo, focus_ring,
+    Action, Children, ClickCallback, DynamicSegment, ForEach, Frame, List, ListChild, Memo, Prop,
+    ReadSignal, Show, Text, clone, create_memo, focus_ring,
 };
-use stack::DockStackBar;
+use stack::{DockStackBar, DockSwitcher};
 
 const TAB_PADDING_HORIZONTAL: f32 = 10.0;
 const TAB_HEIGHT: f32 = 33.0;
@@ -34,87 +34,71 @@ const GRIP_WIDTH: f32 = 22.0;
 const GRIP_PADDING: f32 = 3.0;
 const GRIP_GLYPH: f32 = 16.0;
 const PREVIEW_PADDING: f32 = 8.0;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 pub const CHROME_BORDER: f32 = 2.0;
 const GROUP_GLYPH: f32 = 16.0;
 const GROUP_INSET: f32 = 6.0;
 pub const DOCK_INSET: f32 = 8.0;
+pub const WINDOW_CHROME: beui_core::geometry::Vec2 = beui_core::geometry::Vec2::new(
+    2.0 * CHROME_BORDER,
+    TAB_HEIGHT + 2.0 * WINDOW_BAR_PADDING + CHROME_BORDER,
+);
 const DROP_ALPHA: u8 = 64;
 const PREVIEW_ALPHA: u8 = 235;
 
 #[component]
-pub fn DockArea(
-    state: Prop<DockState>,
-    on_change: Callback<DockState>,
-    on_close: Callback<TabId>,
-    title: Func<TabId, String>,
-    group_title: Option<Func<GroupId, Option<String>>>,
-    icon: Option<Func<TabId, String>>,
-    closable: Option<Func<TabId, bool>>,
+pub fn Docking<K>(
+    layout: DockingLayout<K>,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
-    #[prop(default = None)] home: Prop<Option<TabId>>,
-    empty: Option<RenderFn<()>>,
-    #[prop(children)] content: RenderFn<TabId>,
-) -> NodeId {
+    #[prop(default = None)] home: Prop<Option<K>>,
+    #[prop(default = None)] focus: Prop<Option<K>>,
+    children: Children<DockNode<K>>,
+) -> NodeId
+where
+    K: DockKey,
+{
     let mode = create_memo(move || mode.get());
     let padding = create_memo(clone!(mode -> move || match mode.get() {
         DockMode::Tiled => DOCK_INSET,
         DockMode::Stacked => 0.0,
     }));
-    let closable = closable.unwrap_or_else(|| Func::new(|_| true));
-    let group_title = group_title.unwrap_or_else(|| Func::new(|_| None));
-    let icon = icon.unwrap_or_else(|| Func::new(|_| String::new()));
-    let empty = empty.unwrap_or_else(|| {
-        RenderFn::new(|()| {
-            view! {
-                <Frame />
-            }
-        })
-    });
     let theme = use_theme();
     let fill = create_memo(clone!(mode -> move || match mode.get() {
         DockMode::Tiled => Color32::TRANSPARENT,
         DockMode::Stacked => theme.background.get(),
     }));
-    let content = RenderFn::new(move |tab: TabId| {
-        let body = content.call(tab);
-        view! {
-            <Frame color={fill.clone()}>{body}</Frame>
-        }
-    });
     view! {
-        <unstyled::Dock
-            state
-            group_title
+        <unstyled::Docking
+            layout
             mode
             home
+            focus
             inset={padding}
             group_inset=GROUP_INSET
-            on_change={move |state: DockState| on_change.call(state)}
-            on_close={move |tab: TabId| on_close.call(tab)}
-            title
-            icon
-            closable
             menu={menu_style()}
-            content
-            empty={move || empty.call(())}
+            children
+            frame={move |body: NodeId| view! {
+                <Frame color={fill.clone()}>{body}</Frame>
+            }}
             stack={move |handle: DockStackHandle| view! {
                 <DockStackBar handle />
+            }}
+            switcher={move |handle: DockSwitcherHandle| view! {
+                <DockSwitcher handle />
             }}
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
             }}
-            panel={move |handle: DockPanelHandle| view! {
-                <DockPanelFace handle />
+            chrome={move |handle: DockChromeHandle| view! {
+                <DockChromeFace handle />
+            }}
+            bar={move |handle: DockBarHandle| view! {
+                <DockBarFace handle />
             }}
             splitter={move |handle: DockSplitterHandle| view! {
                 <DockSplitterFace handle />
             }}
             grip={move |handle: DockGripHandle| view! {
                 <DockGrip handle />
-            }}
-            window={move |handle: DockWindowHandle| view! {
-                <DockWindowFace handle />
             }}
             highlight={move || view! {
                 <DockDropHighlight />
@@ -247,169 +231,70 @@ fn DockTabChrome(
 }
 
 #[component]
-fn DockPanelFace(handle: DockPanelHandle) -> NodeId {
-    let DockPanelHandle {
-        vertical,
+fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
+    let DockChromeHandle {
+        barred,
         focused,
-        sidebar_width,
-        sidebar_splitter,
-        grip,
-        bar,
-        closable,
-        menu,
-        close,
-        body,
+        content,
         ..
     } = handle;
-    let theme = use_theme();
-    view! {
-        <List spacing=0.0>
-            <Show condition={bar.is_some()}>
-                {move || clone!(close -> view! {
-                    <DockChrome
-                        vertical
-                        focused={focused.clone()}
-                        grip={grip.unwrap_or_else(|| unreachable!())}
-                        tabs={bar}
-                        sidebar_width={sidebar_width.clone()}
-                        sidebar_splitter
-                        title=String::new()
-                        menu={menu.clone()}
-                        closable={closable.clone()}
-                        close={move || close.call()}
-                        body
-                        @sizing=ItemSize::Percent(100.0)
-                    />
-                })}
-            </Show>
-            <Show condition={bar.is_none()}>
-                <Frame color={theme.background.clone()} @sizing=ItemSize::Percent(100.0)>
-                    {body}
-                </Frame>
-            </Show>
-        </List>
-    }
-}
-
-#[component]
-fn DockWindowFace(handle: DockWindowHandle) -> NodeId {
-    let DockWindowHandle {
-        vertical,
-        focused,
-        title,
-        sidebar_width,
-        sidebar_splitter,
-        grip,
-        tabs,
-        closable,
-        menu,
-        close,
-        pane,
-        ..
-    } = handle;
-    view! {
-        <DockChrome
-            vertical
-            focused
-            grip
-            tabs
-            sidebar_width
-            sidebar_splitter
-            title
-            menu
-            closable
-            close={move || close.call()}
-            body={pane}
-        />
-    }
-}
-
-#[component]
-fn DockChrome(
-    vertical: bool,
-    focused: Memo<bool>,
-    grip: NodeId,
-    #[prop(default = None)] tabs: Prop<Option<NodeId>>,
-    sidebar_width: Memo<f32>,
-    #[prop(default = None)] sidebar_splitter: Prop<Option<NodeId>>,
-    title: Prop<String>,
-    menu: Memo<Vec<Action>>,
-    closable: Memo<bool>,
-    close: ClickCallback,
-    body: NodeId,
-) -> NodeId {
-    let sidebar_splitter = sidebar_splitter.peek();
-    let sidebar = sidebar_size(vertical, sidebar_width);
     let theme = use_theme();
     let outline = create_memo(clone!(theme focused -> move || match focused.get() {
         true => theme.accent.get(),
         false => theme.border.get(),
     }));
-    let direction = match vertical {
-        true => Direction::Horizontal,
-        false => Direction::Vertical,
+    let border = match barred {
+        true => CHROME_BORDER,
+        false => 0.0,
     };
-    let tabs = tabs.peek();
-    let side_title = title.clone();
-    let side_menu = menu.clone();
-    let side_closable = closable.clone();
-    let side_close = close.clone();
     view! {
         <Frame
             color={theme.background.clone()}
             outline={outline}
             outline_width=CHROME_BORDER
-            outline_visible=true
-            radius=CARD_RADIUS
-            padding_horizontal=CHROME_BORDER
-            padding_vertical=CHROME_BORDER
+            outline_visible=barred
+            radius={if barred { CARD_RADIUS } else { 0 }}
+            padding_horizontal=border
+            padding_vertical=border
         >
-            <List direction spacing=0.0>
-                <Show condition={vertical}>
-                    {move || clone!(side_close -> view! {
-                        <DockSideBar
-                            grip
-                            tabs
-                            title={side_title.clone()}
-                            menu={side_menu.clone()}
-                            closable={side_closable.clone()}
-                            close={move || side_close.call()}
-                            @sizing={sidebar.clone()}
-                        />
-                    })}
-                </Show>
-                <Show condition={sidebar_splitter.is_some()}>
-                    {sidebar_splitter.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Fixed(SPLITTER_THICKNESS)
-                </Show>
-                <Show condition={!vertical}>
-                    {move || clone!(close -> view! {
-                        <DockTitleBar
-                            grip
-                            tabs
-                            title={title.clone()}
-                            menu={menu.clone()}
-                            closable={closable.clone()}
-                            close={move || close.call()}
-                        />
-                    })}
-                </Show>
-                {body} @sizing=ItemSize::Percent(100.0)
-            </List>
+            {content}
         </Frame>
+    }
+}
+
+#[component]
+fn DockBarFace(handle: DockBarHandle) -> NodeId {
+    let DockBarHandle {
+        vertical,
+        grip,
+        tabs,
+        title,
+        closable,
+        menu,
+        close,
+        ..
+    } = handle;
+    let close = move || close.call();
+    match vertical {
+        true => view! {
+            <DockSideBar grip tabs title menu closable close />
+        },
+        false => view! {
+            <DockTitleBar grip tabs title menu closable close />
+        },
     }
 }
 
 #[component]
 fn DockTitleBar(
     grip: NodeId,
-    #[prop(default = None)] tabs: Prop<Option<NodeId>>,
+    tabs: Option<NodeId>,
     title: Prop<String>,
     menu: Memo<Vec<Action>>,
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
-    let tabs = tabs.peek();
     let titled = tabs.is_none();
     view! {
         <Frame
@@ -419,9 +304,7 @@ fn DockTitleBar(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                 {grip}
-                <Show condition={!titled}>
-                    {tabs.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Percent(100.0)
-                </Show>
+                {tabs} @sizing=ItemSize::Percent(100.0)
                 <Show condition={titled}>
                     <Body content={title.clone()} @sizing=ItemSize::Percent(100.0) />
                 </Show>
@@ -435,14 +318,13 @@ fn DockTitleBar(
 #[component]
 fn DockSideBar(
     grip: NodeId,
-    #[prop(default = None)] tabs: Prop<Option<NodeId>>,
+    tabs: Option<NodeId>,
     title: Prop<String>,
     menu: Memo<Vec<Action>>,
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
-    let tabs = tabs.peek();
     let titled = tabs.is_none();
     view! {
         <Frame
@@ -463,9 +345,7 @@ fn DockSideBar(
                         <DockClose closable close={move || close.call()} />
                     </List>
                 </List>
-                <Show condition={!titled}>
-                    {tabs.unwrap_or_else(|| unreachable!())} @sizing=ItemSize::Percent(100.0)
-                </Show>
+                {tabs} @sizing=ItemSize::Percent(100.0)
                 <Show condition={titled}>
                     <Body content={title.clone()} />
                 </Show>

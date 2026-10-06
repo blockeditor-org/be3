@@ -10,19 +10,33 @@ use crate::app::WorkspaceUiApp;
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
 mod a_closed_tab_gives_up_its_view_block;
+mod a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick;
+mod a_host_panel_the_host_asks_for_is_placed_in_its_own_window;
 mod a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches;
+mod a_placing_pick_names_and_places_the_block_it_creates;
 mod a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them;
 mod a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown;
 mod a_shown_block_is_remembered_in_the_recents;
 mod a_shown_block_is_reported_as_focused;
+mod a_template_without_a_dialog_is_created_and_answers_the_pick;
+mod a_window_the_host_runs_gets_a_tab_until_its_program_closes_it;
+mod a_window_with_a_parent_floats_at_the_size_it_drew;
 mod an_open_menu_is_withheld_from_the_block_under_it;
+mod closing_a_window_tab_asks_its_program_to_close;
 mod closing_the_only_tab_leaves_the_blank_workspace;
+mod creating_from_a_dialog_commits_the_creation_at_once;
 mod crossing_the_phone_width_keeps_the_block_on_show;
+mod linking_a_block_in_the_picker_answers_the_pick;
+mod renaming_a_block_the_host_asks_about_saves_its_name;
+mod sharing_a_block_grants_the_people_added_and_lists_them_again;
+mod switching_from_a_block_to_a_host_panel_keeps_the_panel_on_show;
 mod the_back_gesture_on_a_phone_leaves_a_file_for_the_files;
 mod widening_the_phone_with_its_switcher_open_keeps_the_workspace;
 
 const MAX_TAB: u64 = 64;
 const SHOWN_TYPE: Uuid = Uuid::from_u128(0x7368_6f77_6e2d_7479_7065_2d74_6573_7431);
+const TEMPLATE_EDITOR: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d65_6469_746f_7231);
+const TEMPLATE_TYPE: Uuid = Uuid::from_u128(0x7465_6d70_6c61_7465_2d74_7970_6531_0000);
 
 struct Fixture {
     test: BeuiTest<WorkspaceUiApp>,
@@ -52,6 +66,20 @@ impl Fixture {
         document
             .root()
             .is_some_and(|root| text_within(document, root, words).is_some())
+    }
+
+    fn click_text(&mut self, words: &str) {
+        let document = self.test.document();
+        let node = document
+            .root()
+            .and_then(|root| text_within(document, root, words))
+            .unwrap_or_else(|| panic!("{words:?} is on screen"));
+        let center = document
+            .node_rect(node)
+            .expect("the text is laid out")
+            .center();
+        self.test.click_at(center);
+        self.settle();
     }
 
     fn open_tabs(&self) -> usize {
@@ -89,6 +117,37 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
         .children(id)
         .into_iter()
         .find_map(|child| text_within(document, child, words))
+}
+
+fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostWindow {
+    block_editor_beui::HostWindow {
+        id: block_editor_beui::HostWindowId(id),
+        title: title.to_owned(),
+        app_id: "test".to_owned(),
+        parent: parent.map(block_editor_beui::HostWindowId),
+        size: block_plugin_api::Size {
+            width: 320.0,
+            height: 200.0,
+        },
+    }
+}
+
+fn placed_windows(fixture: &Fixture) -> Vec<(u64, Rect)> {
+    fixture
+        .test
+        .children()
+        .iter()
+        .filter_map(|placement| match placement.content {
+            ChildContent::Window(window) => Some((
+                window.0,
+                Rect::from_min_size(
+                    block_editor_beui::pos2(placement.rect.x, placement.rect.y),
+                    block_editor_beui::vec2(placement.rect.width, placement.rect.height),
+                ),
+            )),
+            _ => None,
+        })
+        .collect()
 }
 
 fn editor() -> (Fixture, Uuid) {
@@ -144,5 +203,57 @@ fn profile(fixture: &Fixture) -> EditorView {
 
 fn show(fixture: &mut Fixture, id: Uuid, via: Option<Uuid>) {
     fixture.host.show_block(id, SHOWN_TYPE, via);
+    fixture.settle();
+}
+
+fn filter() -> block_editor_beui::BlockFilter {
+    block_editor_beui::BlockFilter {
+        name: "Block".to_owned(),
+        block_types: Vec::new(),
+        excluded: Vec::new(),
+        templates: false,
+        place: None,
+    }
+}
+
+fn catalog() -> block_editor_beui::Catalog {
+    block_editor_beui::Catalog {
+        types: Vec::new(),
+        templates: vec![block_editor_beui::TemplateDescriptor {
+            editor: TEMPLATE_EDITOR.into_bytes(),
+            template: "main".to_owned(),
+            block_type: TEMPLATE_TYPE.into_bytes(),
+            name: "Note".to_owned(),
+            icon_codepoint: String::new(),
+            category: block_editor_beui::TemplateCategory::Important,
+            dialog: false,
+        }],
+    }
+}
+
+fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationProgress) {
+    fixture
+        .test
+        .report_children(|placement| block_editor_beui::ChildStatus {
+            instance: block_editor_beui::EditorInstanceId(0),
+            region: block_editor_beui::EditorRegion::Frame,
+            child: placement.child,
+            available: true,
+            intrinsic: None,
+            aspect_ratio: None,
+            hovered: false,
+            active: false,
+            interaction: block_editor_beui::InteractionMode::Live,
+            capabilities: block_editor_beui::EditorCapabilities::default(),
+            resize: block_editor_beui::ResizeMode::None,
+            error: None,
+            menu: Vec::new(),
+            creation: matches!(
+                placement.content,
+                block_editor_beui::ChildContent::Creation { .. }
+            )
+            .then(|| progress.clone()),
+            settings: None,
+        });
     fixture.settle();
 }

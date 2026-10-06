@@ -17,7 +17,7 @@ See guides/buck2.md for detailed instructions
 ./scripts/buck run //crates/block-app:app
 
 # test app
-./scripts/buck run //:verify
+./scripts/verify
 
 # run for web
 ./scripts/buck run //crates/block-app:web-serve
