@@ -1,5 +1,5 @@
-# Configuration for zizmor, the workflow security linter the verify job in
-# ci.yml runs. What is set here is the project's pinning policy, written down
+# Configuration for zizmor, the workflow security linter ./scripts/buck run
+# //:ci runs. What is set here is the project's pinning policy, written down
 # somewhere a machine checks rather than only in a review comment.
 rules:
   # A third-party action must be pinned to a commit, because a tag is a mutable

@@ -102,6 +102,20 @@ genrule(
     visibility = ["PUBLIC"],
 )
 
+# zizmor, the workflow security linter //:ci runs over .github on this machine.
+http_archive(
+    name = "zizmor-release",
+    sha256 = "e65324f4430c2717591937edcec90ccbefaf14c174f8ec9415e03ca875b46e1a",
+    size_bytes = 9169512,
+    urls = ["https://github.com/zizmorcore/zizmor/releases/download/v1.30.1/zizmor-x86_64-unknown-linux-gnu.tar.gz"],
+)
+
+tool(
+    name = "zizmor",
+    command = ["$(location :zizmor-release)/zizmor"],
+    visibility = ["PUBLIC"],
+)
+
 # wasm-opt, which a release build runs over every plugin and game module
 # (buck/wasm/defs.bzl).
 binaryen_version = "133"

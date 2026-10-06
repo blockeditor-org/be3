@@ -28,11 +28,12 @@ env:
   # and ./scripts/buck says so rather than building.
   BE3_NAMESPACE_TOKEN: ${{ secrets.BE3_NAMESPACE_TOKEN }}
 
-# One job does the work: ci is ./scripts/buck run //:ci, which verifies, builds
-# the Android app and launcher, and on a pull request renders the paint
-# previews, and uploads what each of those produced. It runs the pull
-# request's code, so it holds no credentials beyond Namespace's token and the
-# Android keystore, both of which a build can already read.
+# One job does the work: ci is ./scripts/buck run //:ci, which lints the
+# workflows, verifies, builds the Android app and launcher, and on a pull
+# request renders the paint previews, and uploads what each of those produced.
+# It runs the pull request's code, so it holds no credentials beyond
+# Namespace's token and the Android keystore, both of which a build can
+# already read, and a GitHub token that can only read the repository.
 # The jobs after it each run nothing from the pull request and hold the one
 # credential they write with: autofix pushes the fixes, publish-paint-previews
 # comments with the previews, publish-android puts the Android build where the
@@ -84,24 +85,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # The workflows are linted before anything from the pull request has
-      # run. Everything a job installs before it builds anything is trusted
-      # completely, so the rules about how those are named - a commit for a
-      # third-party action, a tag only for GitHub's own, no expansion of an
-      # input into a shell script - are worth more as a check than as a
-      # convention. .github/zizmor.yml is where the policy is written.
-      - uses: taiki-e/install-action@94c31af3204a9f15ab40b35ad084410b905bbc73 # v2.87.17
-        with:
-          tool: zizmor@1.30.1
-
-      # The token is what lets zizmor check that each pinned commit is really in
-      # the repository it is attributed to, which is the half of pinning that
-      # reading the workflow cannot tell you. It is given to this step alone.
-      - name: Lint the workflows
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: zizmor --config .github/zizmor.yml .github/workflows .github/actions
-
       # A plugin test that paints through the gpu abi opens the software
       # Vulkan device.
       - name: Install system dependencies
@@ -124,9 +107,13 @@ jobs:
             (umask 077 && printf '%s' "$ANDROID_CI_KEYSTORE_BASE64" > buck/android/ci-keystore.base64)
           fi
 
+      # The token is what lets //:ci's zizmor check that each pinned commit is
+      # really in the repository it is attributed to, which is the half of
+      # pinning that reading the workflow cannot tell you. It can only read.
       - name: Run //:ci
         if: ${{ !cancelled() }}
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHECK: ${{ github.event_name != 'pull_request' }}
           PREVIEWS: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
           BASE: ${{ github.event.pull_request.base.sha }}
