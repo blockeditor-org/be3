@@ -876,6 +876,7 @@ version = "0.1.0"
 dependencies = [
  "be-dmabuf",
  "beui",
+ "beui-core",
  "bytemuck",
  "smithay",
  "wgpu",
