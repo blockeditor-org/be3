@@ -61,7 +61,7 @@ pub fn ColorPicker(
     on_change: Callback<Color32>,
     on_preview: Callback<Option<Color32>>,
 ) -> NodeId {
-    let picker = ColorPickerState::new(value, disabled, on_change, on_preview);
+    let picker: ColorPickerState = ColorPickerState::new(value, disabled, on_change, on_preview);
     let color = picker.color();
     let has_swatches = !swatches.is_empty();
     let (hue_picker, alpha_picker, swatch_picker) =
@@ -398,7 +398,7 @@ pub fn checkerboard(painter: &Painter, rect: Rect) {
     }
 }
 
-fn thumb(painter: &Painter, centre: Pos2, radius: f32, fill: Color32) {
+pub(crate) fn thumb(painter: &Painter, centre: Pos2, radius: f32, fill: Color32) {
     let outer = Rect::from_center_size(centre, Vec2::new(radius * 2.0, radius * 2.0));
     painter.rect_filled(outer, radius, Color32::WHITE);
     let inner = outer.shrink(2.0);

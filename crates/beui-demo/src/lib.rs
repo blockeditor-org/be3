@@ -21,12 +21,12 @@ use beui::styled::DocumentTheme;
 use beui::styled::theme::{CARD_RADIUS, FONT_SMALL, NARROW_WIDTH, RADIUS};
 use beui::styled::{
     Accordion, ActionRow, Body, Bordered, Button, ButtonVariant, Calendar, Caption, Card, Checkbox,
-    Chip, Code, ColorInput, ColorPicker, ContextMenu, DateTimeField, Dialog, Display, Docking,
-    FocusRing, Fullscreen, Heading, Icon, IconButton, IconButtonSize, IconSized, Link, ListRow,
-    Listbox, MenuButton, ModalSheet, NumberInput, Paragraph, Popover, Progress, RadioGroup,
-    ResponsiveTabs, Scroll, Select, SelectableText, Separator, Shortcut, Slider, Spinner,
-    SplitButton, Stack, Switch, Tabs, TextArea, TextInput, Theme, ThemeProvider, Title,
-    ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
+    Chip, Code, ColorInput, ColorPicker, ColorWheel, ContextMenu, DateTimeField, Dialog, Display,
+    Docking, FocusRing, Fullscreen, Heading, Icon, IconButton, IconButtonSize, IconSized, Link,
+    ListRow, Listbox, MenuButton, ModalSheet, NumberInput, OklchColorWheel, Paragraph, Popover,
+    Progress, RadioGroup, ResponsiveTabs, Scroll, Select, SelectableText, Separator, Shortcut,
+    Slider, Spinner, SplitButton, Stack, Switch, Tabs, TextArea, TextInput, Theme, ThemeProvider,
+    Title, ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
 };
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockMode, DockPane, DockSplit, DockTab, DockingLayout,
@@ -40,8 +40,9 @@ use beui_macros::{component, sample};
 use sample::{Sample, ScrollPage};
 use std::sync::Arc;
 use styled_pages::{
-    ButtonsPage, CanvasPage, ChoicesPage, DockingPage, EditorPage, InputsPage, LabelledSwitch,
-    LayoutPage, MenusPage, OverlaysPage, PickersPage, RowsPage, TextPage, ThemesPage, TreePage,
+    ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage, InputsPage,
+    LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage, RowsPage, TextPage,
+    ThemesPage, TreePage,
 };
 use text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
@@ -97,15 +98,17 @@ enum Page {
     ControlFlow,
     Interaction,
     Layering,
+    Colors,
 }
 
-const STYLED_PAGES: [Page; 14] = [
+const STYLED_PAGES: [Page; 15] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
     Page::Choices,
     Page::Pickers,
+    Page::Colors,
     Page::Menus,
     Page::Overlays,
     Page::Rows,
@@ -134,13 +137,14 @@ const BASE_PAGES: [Page; 6] = [
     Page::Layering,
 ];
 
-const PAGES: [Page; 26] = [
+const PAGES: [Page; 27] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
     Page::Choices,
     Page::Pickers,
+    Page::Colors,
     Page::Menus,
     Page::Overlays,
     Page::Rows,
@@ -180,6 +184,7 @@ impl Page {
             Page::Inputs => "Inputs",
             Page::Choices => "Choices",
             Page::Pickers => "Pickers",
+            Page::Colors => "Colors",
             Page::Menus => "Menus",
             Page::Overlays => "Overlays",
             Page::Rows => "Rows",
@@ -211,6 +216,7 @@ impl Page {
             Page::Inputs => ICON_TOGGLE_ON,
             Page::Choices => ICON_RADIO_BUTTON_CHECKED,
             Page::Pickers => ICON_CALENDAR_MONTH,
+            Page::Colors => ICON_PALETTE,
             Page::Menus => ICON_MENU,
             Page::Overlays => ICON_LAYERS,
             Page::Rows => ICON_LIST,
@@ -241,7 +247,8 @@ impl Page {
             Page::Buttons => "Buttons, icon buttons, tooltips",
             Page::Inputs => "Fields, switches, sliders, progress",
             Page::Choices => "Radio groups, listboxes, tabs",
-            Page::Pickers => "Dates, times and colors",
+            Page::Pickers => "Dates and times",
+            Page::Colors => "Color inputs, pickers and wheels",
             Page::Menus => "Context, menu and split buttons",
             Page::Overlays => "Popovers, dialogs, sheets",
             Page::Rows => "Virtual lists of thousands of rows",
@@ -427,6 +434,9 @@ fn DemoShell() -> NodeId {
                                                 },
                                                 Page::Pickers => view! {
                                                     <PickersPage />
+                                                },
+                                                Page::Colors => view! {
+                                                    <ColorsPage />
                                                 },
                                                 Page::Menus => view! {
                                                     <MenusPage />

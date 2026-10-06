@@ -7,6 +7,7 @@ pub mod calendar;
 pub mod choice;
 pub mod color_area;
 pub mod color_picker;
+pub mod color_wheel;
 pub mod command_palette;
 pub mod container;
 pub mod context_menu;
@@ -56,8 +57,12 @@ pub use calendar::{
 pub use choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle, choice_selected};
 pub use color_area::{ColorArea, ColorAreaHandle, color_area_value};
 pub use color_picker::{
-    AlphaSlider, ColorPickerArea, ColorPickerState, HexText, HueSlider, SwatchHandle, Swatches,
-    alpha_image, hue_image, plane_image, texel_centres,
+    AlphaSlider, ColorModel, ColorPickerArea, ColorPickerState, HexText, HueSlider, SwatchHandle,
+    Swatches, alpha_image, hue_image, plane_image, texel_centres,
+};
+pub use color_wheel::{
+    ColorWheel, ColorWheelHandle, OKLCH_TIP_CHROMA, OklchTriangle, WheelGeometry, WheelPoint,
+    color_wheel_value,
 };
 pub use command_palette::{
     CommandPalette, CommandRowHandle, command_palette_highlighted, command_palette_row,

@@ -7,7 +7,7 @@ use crate::choice::{Choice, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
 use crate::color_area::{ColorArea, ColorAreaHandle};
 use crate::slider::{Slider, SliderHandle};
 use beui_core::base::Direction;
-use beui_core::color::{Color32, Hsva, format_hex, parse_hex};
+use beui_core::color::{Color32, Hsva, Oklch, format_hex, parse_hex};
 use beui_core::geometry::{Rect, pos2};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
@@ -20,10 +20,35 @@ const HUE_TEXELS: u32 = 96;
 const PLANE_TEXELS: u32 = 32;
 const STRIP_TEXELS: u32 = 16;
 
+pub trait ColorModel: Copy + PartialEq + Default + 'static {
+    fn from_color_keeping(color: Color32, previous: Self) -> Self;
+    fn to_color(self) -> Color32;
+}
+
+impl ColorModel for Hsva {
+    fn from_color_keeping(color: Color32, previous: Self) -> Self {
+        Hsva::from_color_keeping(color, previous)
+    }
+
+    fn to_color(self) -> Color32 {
+        Hsva::to_color(self)
+    }
+}
+
+impl ColorModel for Oklch {
+    fn from_color_keeping(color: Color32, previous: Self) -> Self {
+        Oklch::from_color_keeping(color, previous)
+    }
+
+    fn to_color(self) -> Color32 {
+        Oklch::to_color(self)
+    }
+}
+
 #[derive(Clone)]
-pub struct ColorPickerState {
-    color: ReadSignal<Hsva>,
-    set_color: WriteSignal<Hsva>,
+pub struct ColorPickerState<Model: ColorModel = Hsva> {
+    color: ReadSignal<Model>,
+    set_color: WriteSignal<Model>,
     reported: ReadSignal<Color32>,
     set_reported: WriteSignal<Color32>,
     dragging: ReadSignal<bool>,
@@ -33,22 +58,22 @@ pub struct ColorPickerState {
     on_preview: Callback<Option<Color32>>,
 }
 
-impl ColorPickerState {
+impl<Model: ColorModel> ColorPickerState<Model> {
     pub fn new(
         value: Prop<Color32>,
         disabled: Prop<bool>,
         on_change: Callback<Color32>,
         on_preview: Callback<Option<Color32>>,
     ) -> Self {
-        let initial = value.peek();
-        let (color, set_color) = create_signal(Hsva::from_color(initial));
-        let (reported, set_reported) = create_signal(initial);
+        let first = value.peek();
+        let (color, set_color) = create_signal(Model::from_color_keeping(first, Model::default()));
+        let (reported, set_reported) = create_signal(first);
         let (dragging, set_dragging) = create_signal(false);
         create_effect(clone!(color set_color set_reported -> move || {
             let next = value.get();
             set_reported.set(next);
             let held = color.get_untracked();
-            set_color.set(Hsva::from_color_keeping(next, held));
+            set_color.set(Model::from_color_keeping(next, held));
         }));
         Self {
             color,
@@ -63,7 +88,7 @@ impl ColorPickerState {
         }
     }
 
-    pub fn color(&self) -> ReadSignal<Hsva> {
+    pub fn color(&self) -> ReadSignal<Model> {
         self.color.clone()
     }
 
@@ -76,7 +101,7 @@ impl ColorPickerState {
         self.disabled.clone()
     }
 
-    pub fn apply(&self, next: Hsva) {
+    pub fn apply(&self, next: Model) {
         if self.disabled.get_untracked() {
             return;
         }
@@ -99,9 +124,18 @@ impl ColorPickerState {
 
     pub fn pick(&self, color: Color32) {
         let held = self.color.get_untracked();
-        self.apply(Hsva::from_color_keeping(color, held));
+        self.apply(Model::from_color_keeping(color, held));
     }
 
+    fn report(&self, color: Color32) {
+        if color != self.reported.get_untracked() {
+            self.set_reported.set(color);
+            self.on_change.call(color);
+        }
+    }
+}
+
+impl ColorPickerState<Hsva> {
     pub fn set_hue(&self, hue: f32) {
         let held = self.color.get_untracked();
         self.apply(Hsva::new(
@@ -189,13 +223,6 @@ impl ColorPickerState {
             node.set_value(format!("{}%", (color.get().alpha * 100.0).round()));
             node
         })
-    }
-
-    fn report(&self, color: Color32) {
-        if color != self.reported.get_untracked() {
-            self.set_reported.set(color);
-            self.on_change.call(color);
-        }
     }
 }
 

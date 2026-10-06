@@ -1185,7 +1185,7 @@ fn underlined_style() -> TextInputStyle {
 #[component]
 fn HueAndHex() -> NodeId {
     let (color, set_color) = create_signal(Color32::from_rgb(0x30, 0xA4, 0x6C));
-    let picker = ColorPickerState::new(
+    let picker: ColorPickerState = ColorPickerState::new(
         color.into_prop(),
         Prop::Static(false),
         Callback::new(move |color: Color32| set_color.set(color)),
