@@ -362,10 +362,14 @@ faces, and `Text` takes them as props.
 
 `unstyled::Button` shows the split. It is a focusable `Interactive`,
 and owns button semantics, disabled behavior, pointer and keyboard activation,
-and accessibility. Its content closure receives a `ButtonHandle` of reactive
-`hovered`, `active`, and `focused` state. `styled::Button` wraps it and uses
-that handle to choose fills and paint a focus outline, so every visual treatment
-sits on the same interaction behavior.
+and accessibility: it takes the `label`, `glyph`, `role` or `Action` and builds
+its own accessibility node from them. Its content closure receives a
+`ButtonHandle` of reactive `hovered`, `active`, `focused` and `disabled` state
+and the resolved `label`, `glyph` and `tooltip`. `styled::Button` wraps it and
+uses that handle to choose fills and paint a focus outline, so every visual
+treatment sits on the same interaction behavior. Handles of controls built on a
+button, like `MenuButtonHandle` and `PopoverTriggerHandle`, carry that
+`ButtonHandle` as `button` rather than copying its fields.
 
 Pure presentation components such as styled text and cards compose base
 components directly, because they have no interaction behavior to delegate.
@@ -1848,17 +1852,18 @@ and report user changes through its callback; see `unstyled::Toggle` and
 
 Put a styled component in `crates/beui-components-styled/src/<name>.rs`, declare it in
 `lib.rs`, and re-export its public API there. An interactive styled component
-wraps the matching unstyled component, supplies its accessibility label when
-needed, and renders the unstyled handle with base visual primitives:
+wraps the matching unstyled component, passes its `label` on for the unstyled
+one to put in the accessibility tree, and renders the unstyled handle with base
+visual primitives:
 
 ```rust
 #[component]
 pub fn Checkbox(label: Prop<String>, checked: Prop<bool>, on_change: Callback<bool>) -> NodeId {
     view! {
-        <Toggle checked on_change={move |checked| on_change.call(checked)}>
+        <Toggle checked label on_change={move |checked| on_change.call(checked)}>
             {move |handle: ToggleHandle| {
                 view! {
-                    <CheckboxFace handle label />
+                    <CheckboxFace handle />
                 }
             }}
         </Toggle>
@@ -1867,7 +1872,8 @@ pub fn Checkbox(label: Prop<String>, checked: Prop<bool>, on_change: Callback<bo
 ```
 
 The face component derives colors and visibility with memos over
-`handle.checked`, `handle.hovered`, `handle.active`, and `handle.focused`, then
+`handle.checked`, `handle.hovered`, `handle.active`, and `handle.focused`, reads
+its text from `handle.label`, then
 composes `Frame` and `Text`. Keyboard and pointer handling stay in the unstyled
 control. `styled/checkbox.rs` is a short, complete example of the pair.
 

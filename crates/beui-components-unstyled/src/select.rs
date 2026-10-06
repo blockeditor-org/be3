@@ -75,6 +75,7 @@ type Handle = Rc<State>;
 pub fn Select(
     options: Children<ChoiceOption>,
     selected: Prop<Option<usize>>,
+    #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<Option<usize>>,
     search_placeholder: Prop<String>,
@@ -134,7 +135,7 @@ pub fn Select(
             }
         })
     });
-    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ComboBox)));
+    let accessibility = crate::labelled_node(Role::ComboBox, accessibility, label);
     let trigger_accessibility = create_memo(clone!(state -> move || {
         let mut node = accessibility.get();
         if let Some(label) = state

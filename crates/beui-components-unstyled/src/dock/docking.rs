@@ -17,8 +17,8 @@ use serde::{Deserialize, Serialize};
 
 use super::state::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
 use super::{
-    Dock, DockConfig, DockGripHandle, DockMode, DockPanelHandle, DockPreviewHandle,
-    DockSplitterHandle, DockStackHandle, DockState, DockTabHandle, DockWindowHandle, GroupId,
+    Dock, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle, DockMode, DockPreviewHandle,
+    DockSplitterHandle, DockStackHandle, DockState, DockSwitcherHandle, DockTabHandle, GroupId,
     LeafId, SIDEBAR_WIDTH, SPLITTER_THICKNESS, TabId,
 };
 use crate::context_menu::MenuStyle;
@@ -588,13 +588,14 @@ pub fn Docking<K>(
     #[prop(default = 0.0)] inset: Prop<f32>,
     tab: RenderFn<DockTabHandle>,
     frame: Option<RenderFn<NodeId>>,
-    panel: Option<RenderFn<DockPanelHandle>>,
+    chrome: Option<RenderFn<DockChromeHandle>>,
+    bar: Option<RenderFn<DockBarHandle>>,
     splitter: Option<RenderFn<DockSplitterHandle>>,
     grip: Option<RenderFn<DockGripHandle>>,
-    window: Option<RenderFn<DockWindowHandle>>,
     highlight: Option<RenderFn<()>>,
     preview: Option<RenderFn<DockPreviewHandle>>,
     stack: Option<RenderFn<DockStackHandle>>,
+    switcher: Option<RenderFn<DockSwitcherHandle>>,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -708,13 +709,14 @@ where
                 tab,
                 content,
                 empty,
-                panel,
+                chrome,
+                bar,
                 splitter,
                 grip,
-                window,
                 highlight,
                 preview,
                 stack,
+                switcher,
             }}
         />
     }

@@ -1,9 +1,9 @@
 #!/bin/sh
 #
-# What `./scripts/buck run //:verify` runs: Cargo.lock, fix-rust-source,
-# rustfmt, starlark_fmt and clippy (--lint), the tests (--tests), and the
-# plugin tests (--plugin-tests), which run here because they read and write
-# snapshots/. Naming none runs all three, as CI does through //:ci.
+# What `./scripts/buck run //:verify` runs: the generated rules and Cargo.lock
+# (always), fix-rust-source, rustfmt, starlark_fmt and clippy (--lint), the
+# tests (--tests), and the plugin tests (--plugin-tests), which run here
+# because they read and write snapshots/. Naming none runs all three, as CI does through //:ci.
 # Every tool writes its fixes and the plugin tests accept new paintings, unless
 # --check, which writes nothing and fails on anything that would change.
 # Locally it prints only what failed, cut down by scripts/internal/quiet.awk;
@@ -63,10 +63,11 @@ starlark_files() {
 
 # The executable bit is part of an action's inputs, and a Windows checkout has
 # none, so a file a build reads must not have one either, or Windows misses
-# every cache entry Linux wrote. Only the scripts people run by hand keep it.
+# every cache entry Linux wrote. Only the scripts people run by hand, and the
+# installers ./scripts/buck runs, keep it.
 file_modes() {
     executable="$(git ls-files -z | xargs -0 sh -c 'for file; do [ -f "$file" ] && [ -x "$file" ] && echo "$file"; done' sh \
-        | grep -v -e '^scripts/[^/]*$' -e '^scripts/internal/install-buck2.sh$')"
+        | grep -v -e '^scripts/[^/]*$' -e '^scripts/internal/install-buck2.sh$' -e '^scripts/internal/install-nsc.sh$')"
     [ -z "$executable" ] && return 0
     if ! $check; then
         echo "$executable" | while read -r file; do chmod -x "$file"; done
@@ -74,21 +75,6 @@ file_modes() {
     fi
     echo "These files are executable; run //:verify without --check:"
     echo "$executable" | sed 's/^/  /'
-    return 1
-}
-
-# ./scripts/buck generates the rules from Cargo.lock brought up to date with the
-# manifests, and leaves that lockfile in target/, so a stale Cargo.lock builds
-# fine and only changes under cargo or rust-analyzer. It is copied over the
-# checked-in one here.
-cargo_lock() {
-    cmp -s target/Cargo.lock Cargo.lock && return 0
-    if ! $check; then
-        cp target/Cargo.lock Cargo.lock
-        return 0
-    fi
-    echo "Cargo.lock is not up to date with the manifests; run //:verify without --check:"
-    diff -u Cargo.lock target/Cargo.lock | head -n 40
     return 1
 }
 
@@ -124,17 +110,7 @@ starlark() {
 # Once all of them pass, a painting none of them named belongs to a test that is
 # gone: it is deleted, or with --check it fails the run.
 plugin_tests() {
-    targets="$("$buck" uquery 'kind("^plugin_test_run$", //crates/...)' 2> /dev/null)" || {
-        echo "The plugin tests could not be listed."
-        return 1
-    }
-    outputs="$("$buck" build --keep-going --materializations all --show-full-output $targets)" || return 1
-    directories="$(echo "$outputs" | sed -n 's/^[^ ]* //p')"
-    if [ "$(echo "$targets" | grep -c .)" != "$(echo "$directories" | grep -c .)" ]; then
-        echo "Not every plugin test reported where its paintings are:"
-        echo "$outputs"
-        return 1
-    fi
+    directories="$("$buck" bxl --keep-going //buck/dev/workspace.bxl:plugin_tests)" || return 1
     changed="$(echo "$directories" | while IFS= read -r directory; do
         for painting in "$directory"/changed/*.paint; do
             [ -e "$painting" ] && echo "$painting"
@@ -201,6 +177,14 @@ tools_missing() {
     return 1
 }
 
+# The generated rules and Cargo.lock come first, since everything after builds
+# with them (buck/cargo/update.sh).
+if $check; then
+    step "crates.bzl and Cargo.lock" sh buck/cargo/update.sh --check
+else
+    step "crates.bzl and Cargo.lock" sh buck/cargo/update.sh
+fi
+
 # When the build server's connection resets a download, ./scripts/buck builds
 # again and buck2 can answer that everything is built while some of the files
 # it lost are not on disk, because its materializer state says they are.
@@ -215,7 +199,6 @@ if $lint; then
     fi
 
     step "file modes" file_modes
-    step Cargo.lock cargo_lock
     step rustfmt rustfmt
     if $check; then
         step fix-rust-source "$fix_rust_source" --check
@@ -231,14 +214,13 @@ fi
 # from the cache when nothing they read changed; buck2 test runs the rest: the
 # ones that stay local and the compile_fail cases.
 tests() {
-    runs="$("$buck" uquery 'kind("^test_run$", //crates/...)' 2> /dev/null)" &&
-        rest="$("$buck" uquery 'attrfilter(remote_execution, disabled, //crates/...)' 2> /dev/null)" || {
-        echo "The tests could not be listed."
+    stay_local="$("$buck" bxl //buck/dev/workspace.bxl:local_tests 2> /dev/null)" || {
+        echo "The tests that stay local could not be listed."
         return 1
     }
     status=0
-    "$buck" build --keep-going $runs || status=1
-    "$buck" test //compile_fail/... $rest || status=1
+    "$buck" bxl --keep-going //buck/dev/workspace.bxl:test_runs || status=1
+    "$buck" test //compile_fail/... $stay_local || status=1
     return $status
 }
 

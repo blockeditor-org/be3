@@ -50,8 +50,7 @@ impl MenuStyle {
 pub fn ContextMenu(
     children: Child,
     items: Children<MenuItem>,
-    row: Option<RenderFn<MenuRowHandle>>,
-    panel: Option<RenderFn<Child>>,
+    #[prop(default = MenuStyle::default())] menu: MenuStyle,
     #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,
@@ -59,14 +58,7 @@ pub fn ContextMenu(
     on_close: ClickCallback,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
-    let row = row.unwrap_or_else(|| {
-        RenderFn::new(|_| {
-            view! {
-                <List spacing=0.0 />
-            }
-        })
-    });
-    let panel = panel.unwrap_or_else(|| RenderFn::new(|content| content));
+    let (row, panel) = menu.parts();
     let (open, set_open) = create_signal(false);
     let (focusing, set_focusing) = create_signal(true);
     let active = create_memo(clone!(open focusing -> move || open.get() && focusing.get()));

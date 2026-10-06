@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # buck2, run against our build server, on Linux, macOS or Git Bash on Windows.
-# Before starting it, this installs the pinned buck2 if it is missing, finds the
-# build server's key (asking for it at a terminal), points buck2 at the build
-# server this checkout picked, and regenerates the crates'
-# rules if their inputs changed (scripts/internal/common.sh). Arguments go to
+# Before starting it, this installs the pinned buck2 if it is missing, and
+# points buck2 at the build server BE3_BUILD_SERVER picks (Namespace, whose
+# cluster it wakes with nsc, unless it names another)
+# (scripts/internal/common.sh). Arguments go to
 # buck2 unchanged, except that tests may run on the workers, on anything but
 # Linux x86_64 `run` builds for this machine unless it names
 # --target-platforms, and a command that fails with an infrastructure error is
@@ -24,22 +24,23 @@ buck2="$(buck2_path)"
 if [[ ! -x "$buck2" ]]; then
     "$internal/install-buck2.sh" >&2
 fi
-assert_build_server_key
 mkdir -p "$repository/target"
 configure_build_server "$buck2"
-ensure_generated_rules "$buck2"
 
 command="${1:-}"
 
 # buck2 exits with 2 for an infrastructure error and with other statuses for a
 # build that is wrong. A connection to the build server sometimes resets
-# partway through a download, which buck2 does not retry itself; the second
-# attempt finds the actions cached.
+# partway through a download, which buck2 does not retry itself, and
+# Namespace's cluster may have shut down since nsc was last asked; the second
+# attempt wakes it if it has, and finds the actions cached.
 retrying() {
     local status=0
     "$@" || status=$?
     if [[ $status -eq 2 ]]; then
         echo 'buck2 failed with an infrastructure error; trying once more.' >&2
+        namespace_recheck=true
+        configure_build_server "$buck2"
         status=0
         "$@" || status=$?
     fi

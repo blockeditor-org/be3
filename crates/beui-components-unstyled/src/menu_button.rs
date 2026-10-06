@@ -1,7 +1,8 @@
-use accesskit::{Node, Role};
+use accesskit::{HasPopup, Node, Role};
 use beui_macros::{component, view};
 
 use crate as unstyled;
+use crate::context_menu::MenuStyle;
 use crate::menu::{MenuItem, MenuList, MenuRowHandle};
 use beui_core::base::overlay::Placement;
 use beui_core::input::PointerPress;
@@ -15,9 +16,7 @@ use beui_view::reactive::{
 #[derive(Clone)]
 pub struct MenuButtonHandle {
     pub open: ReadSignal<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
+    pub button: unstyled::ButtonHandle,
 }
 
 pub struct MenuSheetHandle {
@@ -36,17 +35,23 @@ pub struct MenuSheet {
 pub fn MenuButton(
     items: Children<MenuItem>,
     trigger: Render<MenuButtonHandle>,
-    row: Option<RenderFn<MenuRowHandle>>,
-    panel: Option<RenderFn<Child>>,
+    #[prop(default = MenuStyle::default())] menu: MenuStyle,
     sheet: Option<MenuSheet>,
+    #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     accessibility: Option<Prop<Node>>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
-    let row = row.expect("a menu button needs a `row` builder");
-    let panel = panel.expect("a menu button needs a `panel` builder");
+    let (row, panel) = menu.parts();
     let (open, set_open) = create_signal(false);
+    let accessibility = create_memo(clone!(open -> move || {
+        let mut node = accessibility.get();
+        node.set_has_popup(HasPopup::Menu);
+        node.set_expanded(open.get());
+        node
+    }));
     let (touched, set_touched) = create_signal(false);
     let sheeted = sheet.is_some();
     let dropped = create_memo(clone!(open touched -> move || {
@@ -64,6 +69,8 @@ pub fn MenuButton(
         <List spacing=0.0>
             <unstyled::Button
                 @node_ref=&button
+                label
+                glyph
                 disabled={disabled}
                 accessibility={accessibility}
                 on_press={move |press: PointerPress| set_touched.set(press.touch)}
@@ -71,9 +78,7 @@ pub fn MenuButton(
                 content={Render::new(clone!(open -> move |handle: unstyled::ButtonHandle| {
                     trigger.call(MenuButtonHandle {
                         open: open.clone(),
-                        hovered: handle.hovered,
-                        active: handle.active,
-                        focused: handle.focused,
+                        button: handle,
                     })
                 }))}
             />

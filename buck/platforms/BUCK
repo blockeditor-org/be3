@@ -2,20 +2,15 @@ load("//buck/tools:defs.bzl", "worker_properties")
 load(":cross.bzl", "CROSS_PLATFORMS")
 load(":defs.bzl", "execution_platform", "execution_platforms")
 
-# Where every action runs: the build server's worker, Linux on x86_64 whatever
-# the machine that asked, in the image buck/tools/defs.bzl names. Nothing is
-# uploaded from here; the server caches what its worker ran.
-#
-# be3.remote_execution_priority is where its actions wait in the server's
-# queue: NativeLink starts the highest first, and 0 is everyone's unless
-# ./scripts/buck lowers it for CI (scripts/internal/common.sh). It is not part
-# of an action's key, so CI's results and a person's are the same cache entries.
+# Where every action runs: a worker of the build server ./scripts/buck picked,
+# Linux on x86_64 whatever the machine that asked, in the image
+# buck/tools/defs.bzl names. Nothing is uploaded from here; the server caches
+# what its workers ran.
 execution_platform(
     name = "default",
     cpu_configuration = "prelude//cpu:x86_64",
     os_configuration = "prelude//os:linux",
-    remote_execution_priority = int(read_root_config("be3", "remote_execution_priority", "0")),
-    remote_execution_properties = worker_properties,
+    remote_execution_properties = worker_properties(),
     visibility = ["PUBLIC"],
 )
 
@@ -32,6 +27,15 @@ execution_platforms(
 # builds for the machine instead.
 platform(
     name = "linux_x86_64",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[x86_64]",
+        "prelude//os/constraints:os[linux]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "linux_x86_64_setting",
     constraint_values = [
         "prelude//cpu/constraints:cpu[x86_64]",
         "prelude//os/constraints:os[linux]",
@@ -63,10 +67,7 @@ platform(
     visibility = ["PUBLIC"],
 )
 
-# What buck/cargo/defs.bzl tells the two wasi plans apart by. The guest's is
-# the app's with one more constraint, so a configuration that matches it is
-# matched by the app's as well, and select() takes the guest's as the more
-# specific of the two.
+# What the two wasi plans are told apart by (cross.bzl's PLAN_SETTINGS).
 config_setting(
     name = "wasi_setting",
     constraint_values = [
@@ -88,6 +89,15 @@ config_setting(
 
 platform(
     name = "wasm32",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[wasm32]",
+        "prelude//os/constraints:os[none]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "wasm32_setting",
     constraint_values = [
         "prelude//cpu/constraints:cpu[wasm32]",
         "prelude//os/constraints:os[none]",
@@ -117,16 +127,4 @@ platform(
         ),
     ]
     for name, (cpu, os, _) in CROSS_PLATFORMS.items()
-]
-
-# Every native platform again with buck/constraints:release, which is Cargo's
-# release profile: `--target-platforms root//buck/platforms:<name>_release`.
-[
-    platform(
-        name = name + "_release",
-        constraint_values = ["root//buck/constraints:release"],
-        deps = [":" + name],
-        visibility = ["PUBLIC"],
-    )
-    for name in ["linux_x86_64"] + CROSS_PLATFORMS.keys()
 ]

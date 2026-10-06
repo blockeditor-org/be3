@@ -267,7 +267,34 @@ pub(crate) fn ButtonsPage() -> NodeId {
             <Sample title="Tooltips" code={vec![HoverTooltip::SOURCE]}>
                 <HoverTooltip />
             </Sample>
+            <Sample title="Focus ring" code={vec![FocusedTile::SOURCE]}>
+                <FocusedTile />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn FocusedTile() -> NodeId {
+    let (opened, set_opened) = create_signal("Tab to the tile, then press Enter".to_owned());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=0.0>
+                <beui::unstyled::Button
+                    label="Open the album"
+                    on_click={move || set_opened.set("Opened the album".to_owned())}
+                    content={move |handle: beui::unstyled::ButtonHandle| view! {
+                        <FocusRing focused={handle.focused} radius={CARD_RADIUS + 3} offset=3.0>
+                            <Card>
+                                <Body content={handle.label} />
+                            </Card>
+                        </FocusRing>
+                    }}
+                />
+            </List>
+            <Caption content={opened} />
+        </List>
     }
 }
 
