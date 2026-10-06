@@ -205,6 +205,10 @@ llvm_packages = {
     for package, (sha256, size_bytes) in llvm_packages.items()
 ]
 
+export_file(
+    name = "llvm_tree.sh",
+)
+
 llvm_tree(
     name = "llvm",
     packages = [":{}.deb".format(package) for package in sorted(llvm_packages)],
