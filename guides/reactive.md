@@ -394,8 +394,9 @@ fn Badge(
 ```
 
 An `Option<T>` prop takes a plain `T`, and also an `Option<T>`, so a wrapper
-hands its own optional prop straight on with `action={action}`; a primitive `T`
-such as `f32` takes only the plain value, so a numeric literal keeps its type.
+hands its own optional prop straight on with `action={action}`. Two kinds of `T`
+take only the plain value: a primitive such as `f32`, so a numeric literal keeps
+its type, and `String`, which takes anything that is `Into<String>`.
 
 `Option<Prop<T>>` settles at build time: the tag either wrote the attribute or
 it did not, and a signal behind it can only ever hand over another `T`. A prop
