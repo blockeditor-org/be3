@@ -1,5 +1,5 @@
 load("@toolchains//:defs.bzl", "script")
-load(":defs.bzl", "llvm_tree", "rust_sysroot", "tool")
+load(":defs.bzl", "llvm_tree", "rust_sysroot")
 
 # The compilers and tools the build runs. A worker is a container with nothing
 # of this project's in it (defs.bzl), so everything is downloaded here, pinned
@@ -70,9 +70,9 @@ rust_sysroot(
     visibility = ["PUBLIC"],
 )
 
-tool(
+command_alias(
     name = "rustfmt",
-    command = ["$(location :rustfmt-sysroot)/bin/rustfmt"],
+    args = ["$(location :rustfmt-sysroot)/bin/rustfmt"],
     visibility = ["PUBLIC"],
 )
 
@@ -114,9 +114,9 @@ http_archive(
     urls = ["https://github.com/WebAssembly/binaryen/releases/download/version_{0}/binaryen-version_{0}-x86_64-linux.tar.gz".format(binaryen_version)],
 )
 
-tool(
+command_alias(
     name = "wasm-opt",
-    command = ["$(location :binaryen)/bin/wasm-opt"],
+    args = ["$(location :binaryen)/bin/wasm-opt"],
     visibility = ["PUBLIC"],
 )
 
@@ -157,9 +157,9 @@ cross_rust_std = {
 # in a command line is relative to wherever the action runs.
 [
     [
-        tool(
+        command_alias(
             name = "{}-{}".format(program, target),
-            command = (["sh", "-c", 'SDKROOT="$PWD/$0" exec "$@"', "$(location :macos-sdk)"] if "apple" in target else [])
+            args = (["sh", "-c", 'SDKROOT="$PWD/$0" exec "$@"', "$(location :macos-sdk)"] if "apple" in target else [])
             + ["$(location :rust-{})/bin/{}".format(target, program)],
             visibility = ["PUBLIC"],
         )
@@ -212,53 +212,53 @@ llvm_tree(
 )
 
 # What buck/toolchains/BUCK names.
-tool(
+command_alias(
     name = "rustc",
-    command = ["$(location :rust)/bin/rustc"],
+    args = ["$(location :rust)/bin/rustc"],
     visibility = ["PUBLIC"],
 )
 
-tool(
+command_alias(
     name = "rustdoc",
-    command = ["$(location :rust)/bin/rustdoc"],
+    args = ["$(location :rust)/bin/rustdoc"],
     visibility = ["PUBLIC"],
 )
 
-tool(
+command_alias(
     name = "clippy-driver",
-    command = ["$(location :rust)/bin/clippy-driver"],
+    args = ["$(location :rust)/bin/clippy-driver"],
     visibility = ["PUBLIC"],
 )
 
-tool(
+command_alias(
     name = "cc",
-    command = ["$(location :llvm)/bin/clang"],
+    args = ["$(location :llvm)/bin/clang"],
     visibility = ["PUBLIC"],
 )
 
-tool(
+command_alias(
     name = "cxx",
-    command = ["$(location :llvm)/bin/clang++"],
+    args = ["$(location :llvm)/bin/clang++"],
     visibility = ["PUBLIC"],
 )
 
 # llvm-ar under the name that makes it take lib.exe's flags, which is how cc-rs
 # and the prelude archive for an MSVC target.
-tool(
+command_alias(
     name = "lib",
-    command = ["$(location :llvm)/bin/llvm-lib"],
+    args = ["$(location :llvm)/bin/llvm-lib"],
     visibility = ["PUBLIC"],
 )
 
-tool(
+command_alias(
     name = "lld-link",
-    command = ["$(location :llvm)/bin/lld-link"],
+    args = ["$(location :llvm)/bin/lld-link"],
     visibility = ["PUBLIC"],
 )
 
-tool(
+command_alias(
     name = "ar",
-    command = ["$(location :llvm)/bin/llvm-ar"],
+    args = ["$(location :llvm)/bin/llvm-ar"],
     visibility = ["PUBLIC"],
 )
 
@@ -334,9 +334,9 @@ clang_targets = {
 
 [
     [
-        tool(
+        command_alias(
             name = "{}-{}".format(program, name),
-            command = (["$(exe :msvc-cxx.sh)"] if program == "cxx" and name.startswith("windows") else [])
+            args = (["$(exe :msvc-cxx.sh)"] if program == "cxx" and name.startswith("windows") else [])
             + [
                 "$(location :llvm)/bin/" + driver,
                 "--target=" + target,
@@ -353,27 +353,27 @@ script(
     src = "msvc-cxx",
 )
 
-tool(
+command_alias(
     name = "wasm-cc",
-    command = [
+    args = [
         "$(location :llvm)/bin/clang",
         "--target=wasm32-wasip1-threads",
     ],
     visibility = ["PUBLIC"],
 )
 
-tool(
+command_alias(
     name = "wasm-cxx",
-    command = [
+    args = [
         "$(location :llvm)/bin/clang++",
         "--target=wasm32-wasip1-threads",
     ],
     visibility = ["PUBLIC"],
 )
 
-tool(
+command_alias(
     name = "wasm-ld",
-    command = [
+    args = [
         "$(exe :wasm-ld.sh)",
         "$(location :rust)/lib/rustlib/{}/bin/rust-lld".format(rust_host),
     ],

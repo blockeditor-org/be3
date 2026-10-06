@@ -1,6 +1,5 @@
 load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
-load("@root//buck/tools:defs.bzl", "tool")
 
 # On Android the launcher is this library, loaded by LauncherActivity under
 # cargo's name for it.
@@ -37,9 +36,9 @@ cargo_binary(name = "launcher")
 ]
 
 # `./scripts/buck run //crates/be-launcher:android -- --install`
-tool(
+command_alias(
     name = "android",
-    command = [
+    args = [
         "sh",
         "$(location //buck/android:sign.sh)",
         "$(location //buck/android:jdk)",

@@ -67,17 +67,3 @@ llvm_tree = rule(
     attrs = {"packages": attrs.list(attrs.source())},
     impl = _llvm_tree_impl,
 )
-
-# A command made of artifacts and arguments, as a tool a toolchain can name.
-# Its location macros are what put the directories above into every action
-# that runs it, which is how a worker comes to have the compiler at all.
-def _tool_impl(ctx: AnalysisContext) -> list[Provider]:
-    return [
-        DefaultInfo(),
-        RunInfo(args = cmd_args(ctx.attrs.command)),
-    ]
-
-tool = rule(
-    attrs = {"command": attrs.list(attrs.arg())},
-    impl = _tool_impl,
-)
