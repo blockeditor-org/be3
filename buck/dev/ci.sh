@@ -1,13 +1,13 @@
 #!/bin/sh
 #
-# What CI runs, as one command: the workflows linted, the sysroot lockfile
-# re-resolved, //:verify, the Android app and launcher CI ships, and the paint
-# previews of what a pull request changed. Each part runs whether or not the
-# one before it passed, and the command fails at the end if any did. --check is
-# //:verify's: nothing is written, and a lockfile that is out of date fails.
-# --android writes the two signed APKs into DIR. --previews renders every
-# painting that changed between BASE's merge base and HEAD, as committed, into
-# OUT, with the comment crates/paint-snapshot's preview example writes.
+# What CI runs, as one command: the sysroot lockfile re-resolved, //:verify,
+# the Android app and launcher CI ships, and the paint previews of what a pull
+# request changed. Each part runs whether or not the one before it passed, and
+# the command fails at the end if any did. --check is //:verify's: nothing is
+# written, and a lockfile that is out of date fails. --android writes the two
+# signed APKs into DIR. --previews renders every painting that changed between
+# BASE's merge base and HEAD, as committed, into OUT, with the comment
+# crates/paint-snapshot's preview example writes.
 #
 # Usage:
 #   ./scripts/buck run //:ci -- [--check] [--android DIR] [--previews BASE OUT]
@@ -60,17 +60,9 @@ lock_sysroot() {
     fi
 }
 
-# zizmor, with .github/zizmor.yml's policy. With GH_TOKEN set it also checks
-# that each pinned commit is really in the repository it is attributed to;
-# without it, only what reading the workflows can tell.
-lint_workflows() {
-    "$buck" run //buck/tools:zizmor -- --config .github/zizmor.yml .github/workflows .github/actions
-}
-
 if [ -n "$previews" ]; then
     step 'Rendering the paint previews' render_previews
 fi
-step 'Linting the workflows' lint_workflows
 step 'Re-resolving the sysroot lockfile' lock_sysroot
 if $check; then
     step 'Verifying' "$buck" run //:verify -- --check

@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # What `./scripts/buck run //:verify` runs: Cargo.lock, fix-rust-source,
-# rustfmt, starlark_fmt and clippy (--lint), the tests (--tests), and the
+# rustfmt, starlark_fmt, clippy and zizmor (--lint), the tests (--tests), and the
 # plugin tests (--plugin-tests), which run here because they read and write
 # snapshots/. Naming none runs all three, as CI does through //:ci.
 # Every tool writes its fixes and the plugin tests accept new paintings, unless
@@ -181,7 +181,7 @@ plugin_tests() {
 
 build_tools() {
     tools="$("$buck" build --show-full-output //buck/tools:rustfmt-sysroot //buck/tools:starlark_fmt \
-        //crates/fix-rust-source:fix-rust-source-bin //crates/buck-tools:buck-tools-bin 2> "$step_log")" || {
+        //buck/tools:zizmor-release //crates/fix-rust-source:fix-rust-source-bin //crates/buck-tools:buck-tools-bin 2> "$step_log")" || {
         echo "Building the lint tools failed:"
         if $verbose; then cat "$step_log"; else awk -f "$quiet_filter" < "$step_log"; fi
         exit 1
@@ -189,6 +189,7 @@ build_tools() {
     $verbose && cat "$step_log" >&2
     rustfmt="$(path root//buck/tools:rustfmt-sysroot)/bin/rustfmt"
     starlark_fmt="$(path root//buck/tools:starlark_fmt)"
+    zizmor="$(path root//buck/tools:zizmor-release)/zizmor"
     fix_rust_source="$(path root//crates/fix-rust-source:fix-rust-source-bin)"
     buck_tools="$(path root//crates/buck-tools:buck-tools-bin)"
 }
@@ -196,10 +197,18 @@ build_tools() {
 path() { echo "$tools" | awk -v target="$1" '$1 == target { print $2 }'; }
 
 tools_missing() {
-    for tool in "$rustfmt" "$starlark_fmt" "$fix_rust_source" "$buck_tools"; do
+    for tool in "$rustfmt" "$starlark_fmt" "$zizmor" "$fix_rust_source" "$buck_tools"; do
         [ -x "$tool" ] || return 0
     done
     return 1
+}
+
+# The workflow security linter, with .github/zizmor.yml's policy. With
+# GH_TOKEN set it also checks that each pinned commit is really in the
+# repository it is attributed to; without it, only what reading the workflows
+# can tell. It has no fixes to write without that token, so it only reports.
+zizmor() {
+    "$zizmor" --config .github/zizmor.yml .github/workflows .github/actions
 }
 
 # When the build server's connection resets a download, ./scripts/buck builds
@@ -226,6 +235,7 @@ if $lint; then
         step clippy "$buck_tools" clippy "$buck" --fix
     fi
     step starlark_fmt starlark
+    step zizmor zizmor
 fi
 
 # Most tests run as their :test_run actions (buck/cargo/defs.bzl), which come

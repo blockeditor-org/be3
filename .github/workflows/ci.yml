@@ -28,12 +28,12 @@ env:
   # and ./scripts/buck says so rather than building.
   BE3_NAMESPACE_TOKEN: ${{ secrets.BE3_NAMESPACE_TOKEN }}
 
-# One job does the work: ci is ./scripts/buck run //:ci, which lints the
-# workflows, verifies, builds the Android app and launcher, and on a pull
-# request renders the paint previews, and uploads what each of those produced.
-# It runs the pull request's code, so it holds no credentials beyond
-# Namespace's token and the Android keystore, both of which a build can
-# already read, and a GitHub token that can only read the repository.
+# One job does the work: ci is ./scripts/buck run //:ci, which verifies, builds
+# the Android app and launcher, and on a pull request renders the paint
+# previews, and uploads what each of those produced. It runs the pull
+# request's code, so it holds no credentials beyond Namespace's token and the
+# Android keystore, both of which a build can already read, and a GitHub token
+# that can only read the repository.
 # The jobs after it each run nothing from the pull request and hold the one
 # credential they write with: autofix pushes the fixes, publish-paint-previews
 # comments with the previews, publish-android puts the Android build where the
@@ -107,7 +107,7 @@ jobs:
             (umask 077 && printf '%s' "$ANDROID_CI_KEYSTORE_BASE64" > buck/android/ci-keystore.base64)
           fi
 
-      # The token is what lets //:ci's zizmor check that each pinned commit is
+      # The token is what lets //:verify's zizmor check that each pinned commit is
       # really in the repository it is attributed to, which is the half of
       # pinning that reading the workflow cannot tell you. It can only read.
       - name: Run //:ci
