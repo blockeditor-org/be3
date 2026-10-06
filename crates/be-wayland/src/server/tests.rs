@@ -1,12 +1,14 @@
 mod a_committed_buffer_becomes_a_layer_of_its_window;
 mod a_dmabuf_commit_waits_until_its_buffer_is_readable;
+mod a_kde_decoration_starts_server_side_and_acknowledges_requests;
 mod a_popup_is_drawn_where_the_pointer_finds_it;
 mod a_title_reaches_the_ui;
+mod an_xdg_decoration_is_configured_server_side;
+mod asking_for_client_side_xdg_decorations_is_answered_server_side;
 mod configure_sends_the_panel_size;
 mod destroying_a_toplevel_closes_its_window;
 mod frame_callbacks_wait_for_send_frames;
 mod keys_reach_the_focused_window;
 mod the_pointer_enters_the_surface_under_it;
-
 use crate::state::ServerEvent;
 use crate::test_client::*;
