@@ -2,40 +2,46 @@
 
 Every buck2 action runs on Namespace's remote execution
 (https://namespace.so/docs/bazel/execution), on a cluster that belongs to the
-repository's Namespace workspace. `.buckconfig` names its two hosts: the
-executor (`reapih-…`) and the storage that holds the action cache and the CAS
-(`storageh-…`). Only callers with the token can use them.
+repository's Namespace workspace: an executor (`reapih-…`) and the storage that
+holds the action cache and the CAS (`storageh-…`).
+
+## Waking it
+
+Namespace shuts the cluster down when it has been idle for a while, and its
+hosts then answer 404. So no host is checked in: `./scripts/buck` runs the
+pinned `nsc` (`scripts/internal/install-nsc.sh`), whose
+`nsc reapi setup buck2` starts the cluster if it is down and names its hosts and
+the `x-nsc-ingress-auth` header that authenticates to them. `./scripts/buck`
+keeps that answer in `target/namespace/`, writes it into `.buckconfig.local`,
+and asks again when the executor stops answering, when the answer is three
+hours old, or when the token changes. Running setup again for a cluster that
+is half shut down may start a second one; the dashboard shows both, and the
+stale one should be destroyed, since the workers count against the
+workspace's 32 vCPU limit.
 
 ## The token
 
-Each call carries `x-nsc-ingress-auth: Bearer TOKEN`; `.buckconfig` sends
-`$BE3_BUILD_SERVER_KEY` as the token. `./scripts/buck` looks for it in this
-order:
+`nsc` authenticates with a token from:
 
-1. `BE3_BUILD_SERVER_KEY` in the environment
-2. `.build-server-key` at the root of the checkout
-3. `~/.config/be3/build-server-key`
+1. `BE3_NAMESPACE_TOKEN` in the environment
+2. `.namespace-token.json` at the root of the checkout
+3. `~/.config/be3/namespace-token.json`
 
-With none of them, it asks for the token at a terminal and saves it to the
-last.
-
-Making one takes a Namespace login (`nsc login`):
+With none of them it uses the person's own `nsc login`
+(`target/tools/nsc-<version>/nsc login`). Each holds what this writes, or the
+bare token in it, made with a Namespace login:
 
 ```
 nsc reapi create-token --no_expiry --token ns-token.json
-nsc reapi setup buck2 --token ns-token.json --config ns.buckconfig
 ```
 
-The token is the bearer in `ns.buckconfig`'s `http_headers`. `ns.buckconfig` also
-names the hosts, if the cluster ever moves. A token is revoked at
-https://cloud.namespace.so/user/sessions.
+A token is revoked at https://cloud.namespace.so/user/sessions.
 
-- **CI:** it reads the token from the repository secret `BE3_NAMESPACE_TOKEN`.
-- **A call without the token:** Namespace refuses it with `UNAUTHENTICATED`.
-- **A proxy can supply it.** It adds `x-nsc-ingress-auth: Bearer TOKEN` to
-  requests for `*.iad4.namespaced.app`, and `BE3_BUILD_SERVER_KEY` can be any
-  placeholder, such as `proxy-injected`. When `HTTPS_PROXY` is set, buck2
-  reaches the hosts through `scripts/internal/re-relay` (guides/buck2.md).
+- **CI:** `BE3_NAMESPACE_TOKEN` is the repository secret of that name.
+- **An agent's cloud session:** `BE3_NAMESPACE_TOKEN` is set in the
+  environment's variables. When `HTTPS_PROXY` is set, `nsc` reaches
+  `private-api.global.namespaceapis.com` through it, and buck2 reaches the
+  cluster through `scripts/internal/re-relay` (guides/buck2.md).
 
 ## The workers' image
 
