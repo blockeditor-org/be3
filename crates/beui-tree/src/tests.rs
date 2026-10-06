@@ -9,7 +9,16 @@ use crate::reactive::{
 mod a_mock_dom_follows_its_signals_through_show_and_for_each;
 mod a_mock_dom_row_that_leaves_disposes_the_effects_it_built;
 
+thread_local! {
+    static NEXT_ID: Cell<usize> = const { Cell::new(0) };
+}
+
+fn fresh_ids() {
+    NEXT_ID.with(|next| next.set(0));
+}
+
 struct DomElement {
+    id: usize,
     tag: &'static str,
     text: RefCell<String>,
     children: RefCell<ChildList<DomNode>>,
@@ -21,7 +30,9 @@ struct DomNode(Rc<DomElement>);
 
 impl DomNode {
     fn new(tag: &'static str) -> Self {
+        let id = NEXT_ID.with(|next| next.replace(next.get() + 1));
         Self(Rc::new(DomElement {
+            id,
             tag,
             text: RefCell::new(String::new()),
             children: RefCell::new(ChildList::default()),
@@ -31,8 +42,8 @@ impl DomNode {
 
     fn html(&self) -> String {
         let children: String = self.0.children.borrow().iter().map(DomNode::html).collect();
-        let tag = self.0.tag;
-        format!("<{tag}>{}{children}</{tag}>", self.0.text.borrow())
+        let (id, tag) = (self.0.id, self.0.tag);
+        format!("<{tag} id={id}>{}{children}</{tag}>", self.0.text.borrow())
     }
 
     fn release(&self) {

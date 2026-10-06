@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_mock_dom_row_that_leaves_disposes_the_effects_it_built() {
+    fresh_ids();
     let scope = Scope::new();
     let texts = Rc::new(Cell::new(0));
     let cleanups = Rc::new(Cell::new(0));
@@ -26,11 +27,14 @@ fn a_mock_dom_row_that_leaves_disposes_the_effects_it_built() {
             </Element>
         }
     });
-    assert_eq!(list.html(), "<ul><li>1!</li><li>2!</li></ul>");
+    assert_eq!(
+        list.html(),
+        "<ul id=0><li id=1>1!</li><li id=2>2!</li></ul>"
+    );
     assert_eq!(texts.get(), 2);
 
     set_items.set(vec![2]);
-    assert_eq!(list.html(), "<ul><li>2!</li></ul>");
+    assert_eq!(list.html(), "<ul id=0><li id=2>2!</li></ul>");
     assert_eq!(
         cleanups.get(),
         1,
@@ -38,7 +42,7 @@ fn a_mock_dom_row_that_leaves_disposes_the_effects_it_built() {
     );
 
     set_suffix.set("?".to_string());
-    assert_eq!(list.html(), "<ul><li>2?</li></ul>");
+    assert_eq!(list.html(), "<ul id=0><li id=2>2?</li></ul>");
     assert_eq!(
         texts.get(),
         3,

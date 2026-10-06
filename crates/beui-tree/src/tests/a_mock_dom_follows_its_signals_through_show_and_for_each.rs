@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn a_mock_dom_follows_its_signals_through_show_and_for_each() {
+    fresh_ids();
     let scope = Scope::new();
     let (title, set_title) = create_signal("Groceries".to_string());
     let (items, set_items) = create_signal(vec!["milk".to_string(), "eggs".to_string()]);
@@ -29,21 +30,28 @@ fn a_mock_dom_follows_its_signals_through_show_and_for_each() {
 
     assert_eq!(
         page.html(),
-        "<div><h1>Groceries</h1><ul><li>milk</li><li>eggs</li></ul></div>"
+        "<div id=2><h1 id=0>Groceries</h1><ul id=1><li id=3>milk</li><li id=4>eggs</li></ul></div>"
     );
 
     set_items.set(vec!["eggs".to_string(), "bread".to_string()]);
     assert_eq!(
         page.html(),
-        "<div><h1>Groceries</h1><ul><li>eggs</li><li>bread</li></ul></div>",
-        "a keyed list follows its keys in a tree that is no beui document"
+        "<div id=2><h1 id=0>Groceries</h1><ul id=1><li id=4>eggs</li><li id=5>bread</li></ul></div>",
+        "a key that stays keeps the element built for it, and only a new key builds one"
     );
 
     set_items.set(Vec::new());
     set_title.set("Pantry".to_string());
     assert_eq!(
         page.html(),
-        "<div><h1>Pantry</h1><p>nothing to buy</p><ul></ul></div>",
-        "a `Show` fills its place among its siblings when its condition turns true"
+        "<div id=2><h1 id=0>Pantry</h1><p id=6>nothing to buy</p><ul id=1></ul></div>",
+        "a changed text updates its element in place, and a `Show` fills its place among its siblings"
+    );
+
+    set_items.set(vec!["eggs".to_string()]);
+    assert_eq!(
+        page.html(),
+        "<div id=2><h1 id=0>Pantry</h1><ul id=1><li id=7>eggs</li></ul></div>",
+        "a key that left and came back is built again, and nothing else is"
     );
 }
