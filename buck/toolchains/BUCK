@@ -229,7 +229,7 @@ remote_test_execution_toolchain(
     default_profile = "remote",
     profiles = {
         "remote": {
-            "capabilities": worker_properties,
+            "capabilities": worker_properties(),
             "use_case": "buck2-default",
         },
     },
