@@ -2,12 +2,12 @@
 #
 # What CI runs, as one command: the workflows linted, the sysroot lockfile
 # re-resolved, //:verify, the Android app and launcher CI ships, and the paint
-# previews of what a pull request changed. Each part runs whether or not the one before it passed, and
-# the command fails at the end if any did. --check is //:verify's: nothing is
-# written, and a lockfile that is out of date fails. --android writes the two
-# signed APKs into DIR. --previews renders every painting that changed between
-# BASE's merge base and HEAD, as committed, into OUT, with the comment
-# crates/paint-snapshot's preview example writes.
+# previews of what a pull request changed. Each part runs whether or not the
+# one before it passed, and the command fails at the end if any did. --check is
+# //:verify's: nothing is written, and a lockfile that is out of date fails.
+# --android writes the two signed APKs into DIR. --previews renders every
+# painting that changed between BASE's merge base and HEAD, as committed, into
+# OUT, with the comment crates/paint-snapshot's preview example writes.
 #
 # Usage:
 #   ./scripts/buck run //:ci -- [--check] [--android DIR] [--previews BASE OUT]
