@@ -14,10 +14,7 @@ use beui_view::reactive::{
 
 pub struct PopoverTriggerHandle {
     pub open: ReadSignal<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
-    pub disabled: Memo<bool>,
+    pub button: ButtonHandle,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -45,6 +42,7 @@ pub fn Popover(
     #[prop(children)] content: Render<PopoverHandle>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] open: Prop<bool>,
     anchor: Option<NodeRef>,
     #[prop(default = PopoverPlacement::Below)] placement: PopoverPlacement,
@@ -113,7 +111,7 @@ pub fn Popover(
         open: open.clone(),
         close,
     };
-    let trigger_disabled = disabled.clone();
+    let trigger_label = label.clone();
     let trigger_open = open.clone();
     let toggle = clone!(set_open disabled -> move || {
         if !disabled.get_untracked() {
@@ -124,6 +122,8 @@ pub fn Popover(
         <List spacing=0.0>
             <unstyled::Button
                 @node_ref=&trigger_ref
+                label={trigger_label}
+                glyph
                 disabled={disabled}
                 focused={refocus}
                 accessibility={trigger_accessibility}
@@ -136,10 +136,7 @@ pub fn Popover(
                 content={move |button: ButtonHandle| {
                     trigger.call(PopoverTriggerHandle {
                         open: trigger_open,
-                        hovered: button.hovered,
-                        active: button.active,
-                        focused: button.focused,
-                        disabled: trigger_disabled,
+                        button,
                     })
                 }}
             />
