@@ -49,9 +49,9 @@ sqlite_materializer_state = true
 # $BE3_BUILD_SERVER_KEY is expanded from the daemon's environment, so a new
 # token needs ./scripts/buck killall.
 [buck2_re_client]
-action_cache_address = storageh-t4d7coesk4t4e.iad4.namespaced.app:443
-cas_address = storageh-t4d7coesk4t4e.iad4.namespaced.app:443
-engine_address = reapih-1qerp51pgtrac.iad4.namespaced.app:443
+action_cache_address = storageh-850u4k8p4ignk.iad4.namespaced.app:443
+cas_address = storageh-850u4k8p4ignk.iad4.namespaced.app:443
+engine_address = reapih-p5cvniii97l8a.iad4.namespaced.app:443
 http_headers = x-nsc-ingress-auth:Bearer $BE3_BUILD_SERVER_KEY
 tls = true
 
