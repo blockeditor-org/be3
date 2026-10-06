@@ -16,7 +16,6 @@ def _execution_platform_impl(ctx: AnalysisContext) -> list[Provider]:
         executor_config = CommandExecutorConfig(
             allow_cache_uploads = False,
             local_enabled = True,
-            priority = ctx.attrs.remote_execution_priority,
             remote_cache_enabled = True,
             remote_enabled = True,
             remote_execution_properties = ctx.attrs.remote_execution_properties,
@@ -41,7 +40,6 @@ execution_platform = rule(
         "constraints": attrs.list(attrs.dep(providers = [ConstraintValueInfo]), default = []),
         "cpu_configuration": attrs.dep(providers = [ConfigurationInfo]),
         "os_configuration": attrs.dep(providers = [ConfigurationInfo]),
-        "remote_execution_priority": attrs.int(default = 0),
         "remote_execution_properties": attrs.dict(key = attrs.string(), value = attrs.string()),
     },
     impl = _execution_platform_impl,

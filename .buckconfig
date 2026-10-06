@@ -41,18 +41,18 @@ digest_algorithms = SHA256
 defer_write_actions = true
 sqlite_materializer_state = true
 
-# Our build server's executor, action cache and CAS (guides/build_server.md);
-# a new server is a new host here, and ./scripts/buck points buck2 at another
-# one for a checkout that picks it. A mistake here
-# looks like a refused or empty cache rather than an error: the address is a
-# bare host:port (buck2 rejects grpcs:// and https://), http_headers uses a
-# colon, and there is no instance name. $BE3_BUILD_SERVER_KEY is expanded from
-# the daemon's environment, so a new key needs ./scripts/buck killall.
+# Namespace's remote execution cluster for this repository
+# (guides/build_server.md): the executor on one host, the action cache and CAS
+# on the other. A mistake here looks like a refused or empty cache rather than
+# an error: the address is a bare host:port (buck2 rejects grpcs:// and
+# https://), http_headers uses a colon, and there is no instance name.
+# $BE3_BUILD_SERVER_KEY is expanded from the daemon's environment, so a new
+# token needs ./scripts/buck killall.
 [buck2_re_client]
-action_cache_address = blocks.pfg.pw:443
-cas_address = blocks.pfg.pw:443
-engine_address = blocks.pfg.pw:443
-http_headers = authorization:Bearer $BE3_BUILD_SERVER_KEY
+action_cache_address = storageh-t4d7coesk4t4e.iad4.namespaced.app:443
+cas_address = storageh-t4d7coesk4t4e.iad4.namespaced.app:443
+engine_address = reapih-1qerp51pgtrac.iad4.namespaced.app:443
+http_headers = x-nsc-ingress-auth:Bearer $BE3_BUILD_SERVER_KEY
 tls = true
 
 # What buck2 does not watch or read as part of the workspace: git's own

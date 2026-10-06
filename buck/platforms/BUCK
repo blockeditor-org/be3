@@ -2,19 +2,13 @@ load("//buck/tools:defs.bzl", "worker_properties")
 load(":cross.bzl", "CROSS_PLATFORMS")
 load(":defs.bzl", "execution_platform", "execution_platforms")
 
-# Where every action runs: the build server's worker, Linux on x86_64 whatever
-# the machine that asked, in the image buck/tools/defs.bzl names. Nothing is
-# uploaded from here; the server caches what its worker ran.
-#
-# be3.remote_execution_priority is where its actions wait in the server's
-# queue: NativeLink starts the highest first, and 0 is everyone's unless
-# ./scripts/buck lowers it for CI (scripts/internal/common.sh). It is not part
-# of an action's key, so CI's results and a person's are the same cache entries.
+# Where every action runs: a Namespace worker, Linux on x86_64 whatever the
+# machine that asked, in the image buck/tools/defs.bzl names. Nothing is
+# uploaded from here; Namespace caches what its workers ran.
 execution_platform(
     name = "default",
     cpu_configuration = "prelude//cpu:x86_64",
     os_configuration = "prelude//os:linux",
-    remote_execution_priority = int(read_root_config("be3", "remote_execution_priority", "0")),
     remote_execution_properties = worker_properties,
     visibility = ["PUBLIC"],
 )

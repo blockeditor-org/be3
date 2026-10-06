@@ -54,5 +54,4 @@ tool(
 signed_apk(
     name = "android-dist",
     apk = ":apk-dist",
-    key_version = 2,
 )
