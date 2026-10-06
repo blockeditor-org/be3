@@ -103,15 +103,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: zizmor --config .github/zizmor.yml .github/workflows .github/actions
 
-      # A plugin test that paints through the gpu abi opens the software
-      # Vulkan device.
-      - name: Install system dependencies
-        if: ${{ !cancelled() }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libvulkan1 mesa-vulkan-drivers
-
       - uses: ./.github/actions/buck2
         if: ${{ !cancelled() }}
 
