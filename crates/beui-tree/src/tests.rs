@@ -2,12 +2,14 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use crate::reactive::{
-    ChildList, ChildValue, Children, ForEach, IntoSlotHost, Prop, Scope, Show, SlotChild, SlotHost,
-    SlotId, component, create_effect, create_memo, create_signal, on_cleanup, view,
+    ChildList, ChildValue, Children, ForEach, IntoSlotHost, Prop, Scope, Show, ShowKeepAlive,
+    SlotChild, SlotHost, SlotId, component, create_effect, create_memo, create_signal, on_cleanup,
+    view,
 };
 
 mod a_mock_dom_follows_its_signals_through_show_and_for_each;
 mod a_mock_dom_row_that_leaves_disposes_the_effects_it_built;
+mod a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back;
 
 thread_local! {
     static NEXT_ID: Cell<usize> = const { Cell::new(0) };
