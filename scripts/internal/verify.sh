@@ -74,9 +74,12 @@ update() {
         failed=true
         return 0
     fi
-    mkdir -p "$(dirname "$to")"
-    cp "$from" "$to.partial" && mv -f "$to.partial" "$to"
-    echo "Updated $to"
+    if mkdir -p "$(dirname "$to")" && cp "$from" "$to.partial" && mv -f "$to.partial" "$to"; then
+        echo "Updated $to"
+    else
+        echo "Could not update $to"
+        failed=true
+    fi
 }
 
 # The executable bit is part of an action's inputs, and a Windows checkout has
@@ -122,18 +125,33 @@ if $lint; then
         failed=true
     elif [[ -n "$changed$deleted" ]]; then
         echo "Fixed:"
-        echo "$fixes" | while IFS= read -r fix; do
-            (cd "$fix/changed" && find . -type f | sed 's|^\./||') | while IFS= read -r path; do
-                mkdir -p "$(dirname "$path")"
-                cp "$fix/changed/$path" "$path"
-                echo "  $path"
+        echo "$fixes" | {
+            status=0
+            while IFS= read -r fix; do
+                while IFS= read -r path; do
+                    if mkdir -p "$(dirname "$path")" && cp "$fix/changed/$path" "$path"; then
+                        echo "  $path"
+                    else
+                        echo "  $path could not be written"
+                        status=1
+                    fi
+                done < <(cd "$fix/changed" && find . -type f | sed 's|^\./||')
             done
-        done
-        echo "$deleted" | while IFS= read -r path; do
-            [[ -n "$path" ]] || continue
-            rm -f "$path"
-            echo "  $path (deleted)"
-        done
+            exit $status
+        } || failed=true
+        echo "$deleted" | {
+            status=0
+            while IFS= read -r path; do
+                [[ -n "$path" ]] || continue
+                if rm -f "$path"; then
+                    echo "  $path (deleted)"
+                else
+                    echo "  $path could not be deleted"
+                    status=1
+                fi
+            done
+            exit $status
+        } || failed=true
     fi
     findings="$(echo "$fixes" | while IFS= read -r fix; do
         [[ -n "$fix" ]] && ls "$fix/findings"
@@ -172,10 +190,14 @@ if $plugin_tests; then
         failed=true
     elif [[ -n "$changed" ]]; then
         echo "Accepting the paintings that changed:"
-        echo "$changed" | while IFS= read -r painting; do
-            echo "  snapshots/$(basename "$painting"): $(cat "$painting.why")"
-            cp "$painting" snapshots/
-        done
+        echo "$changed" | {
+            status=0
+            while IFS= read -r painting; do
+                echo "  snapshots/$(basename "$painting"): $(cat "$painting.why")"
+                cp "$painting" snapshots/ || status=1
+            done
+            exit $status
+        } || failed=true
     fi
     if [[ "$expected" -gt 0 && "$(echo "$directories" | grep -c .)" -eq "$expected" ]]; then
         used="$(echo "$directories" | while IFS= read -r directory; do ls "$directory/used"; done)"
@@ -189,7 +211,11 @@ if $plugin_tests; then
         elif [[ -n "$unused" ]]; then
             echo "Deleting the paintings no test compared:"
             echo "$unused" | sed 's/^/  /'
-            echo "$unused" | while IFS= read -r painting; do rm "$painting"; done
+            echo "$unused" | {
+                status=0
+                while IFS= read -r painting; do rm "$painting" || status=1; done
+                exit $status
+            } || failed=true
         fi
     fi
 fi
@@ -199,7 +225,7 @@ if [[ -n "$android" ]]; then
     for apk in block-app.apk be-launcher.apk; do
         path="$(built "$apk")"
         if [[ -n "$path" ]]; then
-            cp "$path" "$android/$apk"
+            cp "$path" "$android/$apk" || failed=true
         else
             failed=true
         fi

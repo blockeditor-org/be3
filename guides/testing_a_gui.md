@@ -206,11 +206,14 @@ editor paints is comparable like anything else.
 ./scripts/verify runs them, through buck2: ./scripts/verify --plugin-tests is the plugin
 tests alone, and accepts what they paint. buck2 compiles each plugin's tests for
 wasm32-wasip1-threads against the WASI sysroot the web build uses, on the build server,
-and runs the module here through crates/plugin-test-runner, which is wasmtime with the
+and runs the module through crates/plugin-test-runner, which is wasmtime with the
 plugin's own imports linked: the gpu abi a plugin draws through, the threads a plugin
-spawns, and the repository itself, opened so that a test writes the painting it accepted
-into snapshots/. That last part is why a plugin test runs on this machine while the rest of
-the tests run on a worker. Do not build or test an editor package for the host by itself:
+spawns, and the repository itself. Under ./scripts/verify the run is an action on a worker,
+which reads the accepted paintings as its inputs and outputs the ones that changed;
+./scripts/verify then copies those into snapshots/, so a failure's output is in the
+build's log, not on this machine. ./scripts/buck test (below) runs the module here
+instead, writing what it accepts straight into snapshots/.
+Do not build or test an editor package for the host by itself:
 its tests only mean anything as the wasm guest it ships as, and a native run refuses to
 compare a painting rather than making one nothing would agree with.
 
