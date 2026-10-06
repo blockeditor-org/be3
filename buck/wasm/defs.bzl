@@ -232,7 +232,8 @@ _plugin_test_attrs = {
 }
 
 wasi_test = rule(
-    attrs = _plugin_test_attrs | {
+    attrs = _plugin_test_attrs
+    | {
         "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
         "labels": attrs.list(attrs.string(), default = []),
         "runner": attrs.dep(providers = [RunInfo]),
@@ -275,7 +276,8 @@ def _plugin_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
     return [DefaultInfo(default_output = paintings)]
 
 plugin_test_run = rule(
-    attrs = _plugin_test_attrs | {
+    attrs = _plugin_test_attrs
+    | {
         "runner": attrs.exec_dep(providers = [RunInfo]),
         "_inputs": attrs.dep(default = "root//:plugin_test_inputs"),
         "_lavapipe": attrs.source(default = "root//buck/sysroot:lavapipe_icd.json"),
