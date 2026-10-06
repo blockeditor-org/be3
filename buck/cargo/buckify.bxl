@@ -1,8 +1,8 @@
 load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple", "plan_name")
 
 # Generates buck/cargo/crates.bzl (crates/buck-tools' generate, from cargo's
-# plans) on a worker and prints its directory; //:buckify (update.sh) copies it
-# into place. Beside it is the Cargo.lock it was generated from.
+# plans) on a worker and prints its directory; //:buckify (update.sh) and
+# ./scripts/verify copy it into place. Beside it is the Cargo.lock it was generated from.
 #
 # The action's inputs are the manifests, Cargo.lock and buck-tools' sources,
 # plus empty files at the paths cargo discovers targets at
@@ -40,8 +40,8 @@ def _output(ctx, target: str):
     configured = ctx.configured_targets(target)
     return ctx.analysis(configured).providers()[DefaultInfo].default_outputs[0]
 
-def _impl(ctx):
-    actions = ctx.bxl_actions().actions
+# The action, for ./scripts/verify to build alongside everything else.
+def generate(ctx, actions):
 
     real = ["Cargo.toml", "Cargo.lock"]
     files = _files(ctx, "crates")
@@ -75,6 +75,9 @@ def _impl(ctx):
         ),
         category = "buckify",
     )
-    ctx.output.print(ctx.output.ensure(out).abs_path())
+    return out
+
+def _impl(ctx):
+    ctx.output.print(ctx.output.ensure(generate(ctx, ctx.bxl_actions().actions)).abs_path())
 
 main = bxl_main(cli_args = {}, impl = _impl)

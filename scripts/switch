@@ -1,11 +1,11 @@
 #!/bin/sh
 
 usage() {
-  echo "Usage: $0 <branch> [buck args...]"
+  echo "Usage: $0 <branch> [script args...]"
   echo
   echo "Fetches from origin and checks out origin/<branch> in detached HEAD state."
-  echo "Any arguments after <branch> are passed to ./scripts/buck once the checkout succeeds,"
-  echo "e.g. $0 somebranch run //crates/beui:dock-example"
+  echo "Any arguments after <branch> name a script in scripts/ and its arguments, run once"
+  echo "the checkout succeeds, e.g. $0 somebranch buck run //crates/beui:dock-example"
 }
 
 case "${1:-}" in
@@ -26,5 +26,7 @@ git fetch &&
   git -c advice.detachedHead=false checkout "origin/$BRANCHNAME" || exit $?
 
 if [ "$#" -gt 0 ]; then
-  exec "$(dirname "$0")/buck" "$@"
+  script="$1"
+  shift
+  exec bash "$(dirname "$0")/$script" "$@"
 fi

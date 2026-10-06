@@ -21,33 +21,13 @@ plugin_test_inputs(
 )
 
 # The commands a person runs, started from the root once buck2 has built what
-# each names.
+# each names. ./scripts/verify and ./scripts/ci are scripts rather than targets,
+# so that each is one buck2 command.
 #
-#   ./scripts/buck run //:verify [-- --check] [--lint] [--tests] [--plugin-tests]
-#   ./scripts/buck run //:ci [-- --check] [--android DIR] [--previews BASE OUT]
 #   ./scripts/buck run //:check
 #   ./scripts/buck run //:buckify [-- --check]
 #   ./scripts/buck run //:lock-sysroot
 #   ./scripts/buck run //:rust-project
-
-# The lint pass's tools are not named here: verify.sh builds them when it lints,
-# so a run of the tests alone never fetches them.
-command_alias(
-    name = "verify",
-    args = [
-        "sh",
-        "$(location //buck/dev:verify.sh)",
-    ],
-)
-
-# Everything CI runs, in the one command its job runs: buck/dev/ci.sh.
-command_alias(
-    name = "ci",
-    args = [
-        "sh",
-        "$(location //buck/dev:ci.sh)",
-    ],
-)
 
 # rustc's check pass over every first-party target in every configuration.
 command_alias(

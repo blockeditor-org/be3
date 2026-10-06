@@ -100,26 +100,6 @@ if [[ "$command" == 'run' ]]; then
             --emit-shell | --command-args-file | --command-args-file=*) prebuild=false ;;
         esac
     done
-    # //:verify prints only what failed unless it runs in CI, so its own build
-    # is quiet too, and says something only when it fails.
-    quiet=false
-    if [[ -z "${CI:-}" || "${CI:-}" == false ]]; then
-        for argument in "$@"; do
-            case "$argument" in
-                --) break ;;
-                //:verify | root//:verify) quiet=$prebuild ;;
-            esac
-        done
-    fi
-    if $quiet; then
-        shift
-        log="$repository/target/verify-build.log"
-        if ! retrying "$buck2" run --command-args-file "$repository/target/run-command-args" "$@" > "$log" 2>&1; then
-            awk -f "$internal/quiet.awk" < "$log" >&2
-            exit 1
-        fi
-        exec "$buck2" run --console none "$@"
-    fi
     if $prebuild; then
         shift
         retrying "$buck2" run --command-args-file "$repository/target/run-command-args" "$@"

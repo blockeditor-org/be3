@@ -32,7 +32,7 @@ export CARGO_HOME="$scratch/cargo-home"
 
 # Cargo.lock as the cargo a developer runs would leave it: brought up to date
 # with the manifests, changing nothing it does not have to. Everything below
-# reads it, and //:verify's lint writes it back to the checkout.
+# reads it, and ./scripts/verify's lint writes it back to the checkout.
 PATH="$toolchain/bin:$PATH" "$toolchain/bin/cargo" metadata --format-version 1 --quiet > /dev/null
 cp Cargo.lock "$out/Cargo.lock"
 

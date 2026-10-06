@@ -54,7 +54,7 @@ rust_sysroot(
     components = [":rustc-component", ":clippy-component"] + [":rust-std-" + target for target in sorted(rust_std)],
 )
 
-# rustfmt, for ./scripts/buck run //:verify to run on this machine: the formatter and the
+# rustfmt, for ./scripts/verify's fixes (buck/dev/fix.sh): the formatter and the
 # rustc libraries it loads, in a sysroot of their own so that the compiler's is
 # unchanged by it.
 http_archive(

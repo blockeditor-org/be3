@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+#
+# The full check, in one buck2 command: the autofixes, the lints, the tests and
+# the plugin tests, built and run on the build server; then the fixes, the
+# generated files and the paintings that changed are written into the checkout
+# (scripts/internal/verify.sh). --check writes nothing and fails on anything
+# that would change. --lint, --tests and --plugin-tests run one part each;
+# naming none runs all three.
+#
+# Usage:
+#   ./scripts/verify [--check] [--lint] [--tests] [--plugin-tests] [--verbose]
+
+set -euo pipefail
+
+for argument in "$@"; do
+    case "$argument" in
+        --check | --lint | --tests | --plugin-tests | --verbose) ;;
+        *) echo "Usage: ./scripts/verify [--check] [--lint] [--tests] [--plugin-tests] [--verbose]" >&2; exit 1 ;;
+    esac
+done
+exec bash "$(dirname "${BASH_SOURCE[0]}")/internal/verify.sh" "$@"
