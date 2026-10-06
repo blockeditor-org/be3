@@ -54,7 +54,7 @@ Dependencies are discovered on each execution. Conditional branches unsubscribe
 from inputs they no longer read. `untrack(|| ...)` disables subscription for its
 closure while preserving the current cleanup scope. Memo computations must be
 pure: writing a signal inside a memo panics, including inside `untrack`, and
-`./scripts/buck run //:verify` reports a `set`, `update` or `set_unconditionally`
+`./scripts/verify` reports a `set`, `update` or `set_unconditionally`
 written inside a `create_memo` closure outside tests.
 
 `with` holds a shared borrow for the closure; `update` holds a mutable borrow.

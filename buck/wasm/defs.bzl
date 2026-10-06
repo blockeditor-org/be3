@@ -215,8 +215,8 @@ def _wasi_test_impl(ctx: AnalysisContext) -> list[Provider]:
         ExternalRunnerTestInfo(
             command = [command],
             env = env,
-            # What ./scripts/buck run //:verify tells the plugin tests apart by: they run
-            # here and accept paintings, and the rest run on a worker.
+            # They run here and accept paintings, where the rest run on a
+            # worker.
             labels = ctx.attrs.labels + ["plugin"],
             run_from_project_root = True,
             type = "rust",
@@ -224,7 +224,7 @@ def _wasi_test_impl(ctx: AnalysisContext) -> list[Provider]:
         ),
     ) + [DefaultInfo(default_output = module)]
 
-# What a plugin test runs, for buck2 test and for //:verify alike.
+# What a plugin test runs, for buck2 test and for ./scripts/verify alike.
 _plugin_test_attrs = {
     "manifest": attrs.source(),
     "module": attrs.transition_dep(cfg = wasi_transition),
@@ -242,11 +242,11 @@ wasi_test = rule(
     impl = _wasi_test_impl,
 )
 
-# The plugin tests as an action, which is how //:verify runs them: on a worker,
+# The plugin tests as an action, which is how ./scripts/verify runs them: on a worker,
 # and answered from the cache when nothing they read has changed, which a test
 # never is. They read the accepted paintings from snapshots/ and accept every
 # painting, writing the ones that changed or are new to changed/ and naming the
-# ones they compared in used/; //:verify copies changed/ into snapshots/, or
+# ones they compared in used/; ./scripts/verify copies changed/ into snapshots/, or
 # under --check fails on it. They draw through lavapipe, as the renderer's tests
 # do, with LD_LIBRARY_PATH carried as BE3_LD_LIBRARY_PATH for the same reason
 # (library_path_test in buck/cargo/defs.bzl).

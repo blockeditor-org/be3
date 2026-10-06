@@ -1,6 +1,6 @@
 GUI tests run headless: no window, no input, no server. A test builds an editor, drives it the
 way a person would, and checks two things — what the block became, and what the editor
-painted. They are fast enough to belong in ./scripts/buck run //:verify: the handful that exist run in
+painted. They are fast enough to belong in ./scripts/verify: the handful that exist run in
 well under a second.
 
 A plugin's tests run where the plugin runs: compiled to wasm32-wasip1-threads and started by
@@ -153,12 +153,12 @@ as the last costs the triangles that draw it and nothing more. Keep recordings t
 frames that say something: every frame is compared, so a frame nobody looks at is one more
 way for the test to fail.
 
-- ./scripts/buck run //:verify accepts whatever the tests paint: it runs them with UPDATE_SNAPSHOTS=1, so
+- ./scripts/verify accepts whatever the tests paint: it runs them with UPDATE_SNAPSHOTS=1, so
   a new or changed painting is written into snapshots/ rather than failing the run. On a pull
   request CI does the same, and when that writes a painting it fails the run and pushes the
-  painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/buck run //:verify -- --check, which sets nothing,
+  painting to the pull request's branch as a commit. Everywhere else CI runs ./scripts/ci --check, which sets nothing,
   so a painting that was never committed fails there.
-- Once every plugin test passes, //:verify deletes each painting in snapshots/ that no test
+- Once every plugin test passes, ./scripts/verify deletes each painting in snapshots/ that no test
   compared, so renaming or removing a snapshot takes its old file with it; with --check it
   fails on them instead. A single editor's test run leaves the folder alone.
 - A changed painting is for a person to review, not for you. They review it in a Paint
@@ -203,7 +203,7 @@ editor paints is comparable like anything else.
 
 5. Running them
 
-./scripts/buck run //:verify runs them, through buck2: ./scripts/buck run //:verify -- --plugin-tests is the plugin
+./scripts/verify runs them, through buck2: ./scripts/verify --plugin-tests is the plugin
 tests alone, and accepts what they paint. buck2 compiles each plugin's tests for
 wasm32-wasip1-threads against the WASI sysroot the web build uses, on the build server,
 and runs the module here through crates/plugin-test-runner, which is wasmtime with the
