@@ -125,8 +125,6 @@ jobs:
             (umask 077 && printf '%s' "$ANDROID_CI_KEYSTORE_BASE64" > buck/android/ci-keystore.base64)
           fi
 
-      # A pull request whose head is from before ./scripts/ci still has
-      # //:ci, which took the same arguments.
       - name: Run ./scripts/ci
         if: ${{ !cancelled() }}
         env:
@@ -141,11 +139,7 @@ jobs:
           if [ "$PREVIEWS" = true ]; then
             set -- "$@" --previews "$BASE" "$RUNNER_TEMP/previews"
           fi
-          if [ -f scripts/ci ]; then
-            ./scripts/ci "$@"
-          else
-            ./scripts/buck run //:ci -- "$@"
-          fi
+          ./scripts/ci "$@"
 
       # What the jobs after this one take: each only when it was made whole.
       - name: Note what was made
