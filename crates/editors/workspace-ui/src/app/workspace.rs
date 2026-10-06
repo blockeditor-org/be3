@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::profile::RECENTS;
+use block_editor_beui::be_block::profile::{RECENTS, SESSION, Session};
 use block_editor_beui::be_block::{
     BlockContent, EditorView, EditorViewContent, FILES_EDITOR, Recents, ViewState,
 };
@@ -435,7 +435,12 @@ impl Workspace {
 
     fn desktop(&self) -> Option<bool> {
         match self.editor.view_content() {
-            Some(view) => view.read(|held| held.root().desktop),
+            Some(view) => view.read(|held| {
+                held.root()
+                    .state(SESSION)
+                    .and_then(ViewState::value::<Session>)
+                    .is_some_and(|session| session.desktop)
+            }),
             None => Some(false),
         }
     }

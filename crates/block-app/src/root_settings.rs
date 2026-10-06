@@ -1,7 +1,8 @@
+use be_block::profile::{SESSION, Session};
 use be_block::settings::Settings;
 use be_block::{
     BlockContent, BlockMetadata, EditorView, EditorViewContent, LiveEdit, Root, SettingsContent,
-    WORKSPACE_EDITOR,
+    ViewState, WORKSPACE_EDITOR,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;
@@ -44,7 +45,15 @@ impl RootSettings {
     }
 
     fn session_document(&self) -> Vec<u8> {
-        EditorView::session_document(WORKSPACE_EDITOR, self.desktop).encode()
+        let mut profile = EditorView::document(WORKSPACE_EDITOR, None);
+        if self.desktop {
+            let session = ViewState::new(&Session { desktop: true }, Vec::new());
+            let edit = profile
+                .root()
+                .set_state(SESSION, Some(&session), 0, Uuid::nil());
+            profile.apply(&edit);
+        }
+        profile.encode()
     }
 
     pub(crate) fn find(&mut self) -> Option<Uuid> {

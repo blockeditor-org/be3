@@ -5,6 +5,7 @@ pub const WORKSPACE_EDITOR: Uuid = Uuid::from_u128(0x776f_726b_7370_6163_652d_75
 pub const FILES_EDITOR: Uuid = Uuid::from_u128(0x6669_6c65_2d74_7265_652d_626c_6f63_6b01);
 pub const VIEW_EDITORS: [Uuid; 2] = [WORKSPACE_EDITOR, FILES_EDITOR];
 pub const RECENTS: &str = "recents";
+pub const SESSION: &str = "session";
 pub const MAX_RECENT: usize = 20;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -40,4 +41,9 @@ impl Recents {
             )
         })
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Session {
+    pub desktop: bool,
 }

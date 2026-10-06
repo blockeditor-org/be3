@@ -1,3 +1,4 @@
+use block_editor_beui::be_block::profile::{SESSION, Session};
 use block_editor_beui::be_block::{EditorView, EditorViewContent, ViewState, WORKSPACE_EDITOR};
 
 use block_editor_beui::beui::{Document, NodeId, Rect, Vec2};
@@ -187,7 +188,12 @@ fn profiled_sized(size: Option<Vec2>, layout: Option<ViewState>) -> (Fixture, Uu
 }
 
 fn desktop(layout: Option<ViewState>) -> (Fixture, Uuid) {
-    let mut profile = EditorView::session_document(WORKSPACE_EDITOR, true);
+    let mut profile = EditorView::document(WORKSPACE_EDITOR, None);
+    let session = ViewState::new(&Session { desktop: true }, Vec::new());
+    let edit = profile
+        .root()
+        .set_state(SESSION, Some(&session), 1, Uuid::nil());
+    profile.apply(&edit);
     if let Some(layout) = layout {
         let edit = profile
             .root()
