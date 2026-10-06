@@ -72,9 +72,17 @@ nsc base-image optimize --image_ref nscr.io/WORKSPACE/be3-worker@sha256:DIGEST
 `:android-dist` (`signed_apk` in `buck/android/defs.bzl`) signs CI's APKs on a
 worker with `buck/android/ci-keystore.base64`, a base64 keystore that git
 ignores. ci.yml writes it from the repository secret
-`ANDROID_DEBUG_KEYSTORE_BASE64` before it builds. Every CI build is signed with
+`ANDROID_CI_KEYSTORE_BASE64` before it builds. Every CI build is signed with
 the same keystore so that each one installs as an update over the last; a new
 keystore means every device must uninstall the CI app and launcher once.
+To make a new one, signed the way `_sign` expects (store password
+`android`), and copy it for the secret:
+
+```sh
+keytool -genkeypair -keystore ci.keystore -storepass android -alias androiddebugkey \
+    -keypass android -dname 'CN=Android Debug,O=Android,C=US' -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 ci.keystore
+```
 
 The keystore is an input of the signing action, so it is in Namespace's CAS,
 where anyone with the token can read it.
