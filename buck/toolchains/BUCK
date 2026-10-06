@@ -103,45 +103,31 @@ cxx_tools_info_toolchain(
     ]
 ]
 
+_wasi_flags = [
+    "--target=wasm32-wasip1-threads",
+    "--sysroot=$(location root//third-party/wasi:sysroot)",
+    "-isystem",
+    "$(location root//third-party/wasi:sysroot)/include/c++/v1",
+    "-pthread",
+    "-mllvm",
+    "-wasm-enable-sjlj",
+    "-mllvm",
+    "-wasm-use-legacy-eh=false",
+    "-fno-exceptions",
+    "-fno-rtti",
+    "-DHB_NO_MT",
+    "-msimd128",
+    "-O2",
+    "-w",
+]
+
 # Two of them, because only one of the wasm platforms has C in it. A plugin's
 # freetype and harfbuzz are compiled against the WASI sysroot; a game module is
 # pure Rust on a target that has no libc to compile against at all.
 cxx_tools_info_toolchain(
     name = "wasi_cxx",
-    c_flags = [
-        "--target=wasm32-wasip1-threads",
-        "--sysroot=$(location root//third-party/wasi:sysroot)",
-        "-isystem",
-        "$(location root//third-party/wasi:sysroot)/include/c++/v1",
-        "-pthread",
-        "-mllvm",
-        "-wasm-enable-sjlj",
-        "-mllvm",
-        "-wasm-use-legacy-eh=false",
-        "-fno-exceptions",
-        "-fno-rtti",
-        "-DHB_NO_MT",
-        "-msimd128",
-        "-O2",
-        "-w",
-    ],
-    cxx_flags = [
-        "--target=wasm32-wasip1-threads",
-        "--sysroot=$(location root//third-party/wasi:sysroot)",
-        "-isystem",
-        "$(location root//third-party/wasi:sysroot)/include/c++/v1",
-        "-pthread",
-        "-mllvm",
-        "-wasm-enable-sjlj",
-        "-mllvm",
-        "-wasm-use-legacy-eh=false",
-        "-fno-exceptions",
-        "-fno-rtti",
-        "-DHB_NO_MT",
-        "-msimd128",
-        "-O2",
-        "-w",
-    ],
+    c_flags = _wasi_flags,
+    cxx_flags = _wasi_flags,
     cxx_tools_info = ":wasm_cxx_tools",
     visibility = ["PUBLIC"],
 )
