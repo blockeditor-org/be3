@@ -4,7 +4,7 @@ load("@root//buck/platforms:profile.bzl", "dev_only")
 load(":crates.bzl", "third_party")
 
 # The rules for every third-party crate a workspace crate depends on, from
-# crates.bzl, which ./scripts/buck generates from cargo's own plans: one
+# crates.bzl, which //:buckify generates from cargo's own plans: one
 # download of the crate, its library, and its build script with the action that
 # runs it, named <name>-<version>. Features and dependencies are cargo's for
 # each platform, keyed by the platform names the root PACKAGE maps a

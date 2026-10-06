@@ -342,60 +342,6 @@ nsc_path() {
     echo "$repository/target/tools/nsc-$nsc_version/nsc$(buck2_binary_suffix)"
 }
 
-# What buck2 reads the workspace's Cargo.toml files through -
-# buck/cargo/crates.bzl, from which buck/cargo's macros write the rules for
-# every workspace and third-party crate - is generated rather than checked in.
-# buck/cargo/buckify.bxl makes it on a worker from the manifests, Cargo.lock
-# and the layout of crates/, so everyone on the same Cargo.lock shares one cache
-# entry: about two seconds on a fresh checkout, and a minute or so the first
-# time anyone builds a new dependency.
-#
-# What decides whether to run it is a hash of those same inputs, kept beside
-# the files; most runs only compare it. The files are written only when they
-# change, so buck2 does not re-read them for nothing. target/Cargo.lock is the
-# lockfile they were generated from, brought up to date with the manifests,
-# which //:verify's lint copies over a stale Cargo.lock.
-generated_rules=('buck/cargo/crates.bzl' 'target/Cargo.lock')
-
-generated_rules_inputs() {
-    (
-        cd "$repository"
-        printf '%s\n' "$buck2_version"
-        find crates -type f | LC_ALL=C sort
-        {
-            printf '%s\0' Cargo.toml Cargo.lock buck/cargo/BUCK buck/cargo/buckify.bxl buck/tools/BUCK
-            find crates -name Cargo.toml -print0
-            find crates/buck-tools/src -type f -print0
-        } | LC_ALL=C sort -z | xargs -0 cat
-    ) | sha256sum | cut -d ' ' -f 1
-}
-
-ensure_generated_rules() {
-    local buck2="$1" stamp="$repository/target/generated-rules.sha256" fingerprint path generated
-    fingerprint="$(generated_rules_inputs)"
-    local current=true
-    for path in "${generated_rules[@]}"; do
-        [[ -f "$repository/$path" ]] || current=false
-    done
-    if $current && [[ "$(cat "$stamp" 2> /dev/null)" == "$fingerprint" ]]; then
-        return 0
-    fi
-    echo 'Generating the rules for the workspace'"'"'s crates...' >&2
-    if generated="$("$buck2" bxl //buck/cargo/buckify.bxl:main 2> "$repository/target/generated-rules.log")"; then
-        generated="$(printf '%s\n' "$generated" | tail -n 1)"
-    else
-        generated=''
-    fi
-    if [[ -z "$generated" || ! -f "$generated/crates.bzl" || ! -f "$generated/Cargo.lock" ]]; then
-        cat "$repository/target/generated-rules.log" >&2
-        echo 'Generating the rules for the workspace'"'"'s crates failed.' >&2
-        exit 1
-    fi
-    write_if_changed "$generated/crates.bzl" "$repository/buck/cargo/crates.bzl"
-    write_if_changed "$generated/Cargo.lock" "$repository/target/Cargo.lock"
-    printf '%s\n' "$fingerprint" > "$stamp"
-}
-
 write_if_changed() {
     if ! cmp -s "$1" "$2"; then
         cp "$1" "$2.partial"
@@ -461,9 +407,9 @@ namespace_token_file() {
         if [[ "$token" != '{'* ]]; then
             token="{\"bearer_token\":\"$token\"}"
         fi
-        (umask 077 && printf '%s\n' "$token" > "$file.partial")
-        write_if_changed "$file.partial" "$file"
-        rm -f "$file.partial"
+        (umask 077 && printf '%s\n' "$token" > "$file.new")
+        write_if_changed "$file.new" "$file"
+        rm -f "$file.new"
         echo "$file"
     elif [[ -f "$repository/.namespace-token.json" ]]; then
         echo "$repository/.namespace-token.json"

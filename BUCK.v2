@@ -2,7 +2,6 @@
 # way, because a filesystem that ignores case - Windows', and macOS's by
 # default - cannot hold a file named BUCK beside the buck/ directory.
 
-load("//buck/tools:defs.bzl", "tool")
 load("//buck/wasm:defs.bzl", "plugin_test_inputs")
 
 # clippy.toml reaches the rust toolchain as a file, so it needs a target.
@@ -27,49 +26,58 @@ plugin_test_inputs(
 #   ./scripts/buck run //:verify [-- --check] [--lint] [--tests] [--plugin-tests]
 #   ./scripts/buck run //:ci [-- --check] [--android DIR] [--previews BASE OUT]
 #   ./scripts/buck run //:check
+#   ./scripts/buck run //:buckify [-- --check]
 #   ./scripts/buck run //:lock-sysroot
 #   ./scripts/buck run //:rust-project
 
 # The lint pass's tools are not named here: verify.sh builds them when it lints,
 # so a run of the tests alone never fetches them.
-tool(
+command_alias(
     name = "verify",
-    command = [
+    args = [
         "sh",
         "$(location //buck/dev:verify.sh)",
     ],
 )
 
 # Everything CI runs, in the one command its job runs: buck/dev/ci.sh.
-tool(
+command_alias(
     name = "ci",
-    command = [
+    args = [
         "sh",
         "$(location //buck/dev:ci.sh)",
     ],
 )
 
 # rustc's check pass over every first-party target in every configuration.
-tool(
+command_alias(
     name = "check",
-    command = [
+    args = [
         "sh",
         "-c",
         "exec ./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget check > /dev/null",
     ],
 )
 
-tool(
+command_alias(
+    name = "buckify",
+    args = [
+        "sh",
+        "$(location //buck/cargo:update.sh)",
+    ],
+)
+
+command_alias(
     name = "lock-sysroot",
-    command = [
+    args = [
         "sh",
         "$(location //buck/sysroot:lock.sh)",
     ],
 )
 
-tool(
+command_alias(
     name = "rust-project",
-    command = [
+    args = [
         "$(exe //crates/buck-tools:buck-tools-bin)",
         "rust-project",
         "$(location //buck/cargo:rust-project)",

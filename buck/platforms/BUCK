@@ -34,6 +34,15 @@ platform(
     visibility = ["PUBLIC"],
 )
 
+config_setting(
+    name = "linux_x86_64_setting",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[x86_64]",
+        "prelude//os/constraints:os[linux]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
 # Target platforms for WebAssembly. The constraints are the ones
 # prelude//rust:cargo_package.bzl maps to its platform names, "wasi" and
 # "wasm32", which are what buck/cargo's plans are keyed by.
@@ -58,10 +67,7 @@ platform(
     visibility = ["PUBLIC"],
 )
 
-# What buck/cargo/defs.bzl tells the two wasi plans apart by. The guest's is
-# the app's with one more constraint, so a configuration that matches it is
-# matched by the app's as well, and select() takes the guest's as the more
-# specific of the two.
+# What the two wasi plans are told apart by (cross.bzl's PLAN_SETTINGS).
 config_setting(
     name = "wasi_setting",
     constraint_values = [
@@ -83,6 +89,15 @@ config_setting(
 
 platform(
     name = "wasm32",
+    constraint_values = [
+        "prelude//cpu/constraints:cpu[wasm32]",
+        "prelude//os/constraints:os[none]",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "wasm32_setting",
     constraint_values = [
         "prelude//cpu/constraints:cpu[wasm32]",
         "prelude//os/constraints:os[none]",
@@ -112,16 +127,4 @@ platform(
         ),
     ]
     for name, (cpu, os, _) in CROSS_PLATFORMS.items()
-]
-
-# Every native platform again with buck/constraints:release, which is Cargo's
-# release profile: `--target-platforms root//buck/platforms:<name>_release`.
-[
-    platform(
-        name = name + "_release",
-        constraint_values = ["root//buck/constraints:release"],
-        deps = [":" + name],
-        visibility = ["PUBLIC"],
-    )
-    for name in ["linux_x86_64"] + CROSS_PLATFORMS.keys()
 ]

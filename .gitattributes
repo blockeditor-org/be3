@@ -4,3 +4,8 @@
 # against an LF checkout of Ghostty, so a CRLF copy fails to apply.
 * text=auto eol=lf
 
+
+# Generated lockfiles, which a diff on GitHub collapses: //:buckify writes the
+# first and //:lock-sysroot the second.
+buck/cargo/crates.bzl linguist-generated=true
+buck/sysroot/packages.bzl linguist-generated=true

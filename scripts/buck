@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # buck2, run against our build server, on Linux, macOS or Git Bash on Windows.
-# Before starting it, this installs the pinned buck2 if it is missing, points
-# buck2 at the build server BE3_BUILD_SERVER picks (Namespace, whose cluster it
-# wakes with nsc, unless it names another), and regenerates
-# the crates' rules if their inputs changed (scripts/internal/common.sh). Arguments go to
+# Before starting it, this installs the pinned buck2 if it is missing, and
+# points buck2 at the build server BE3_BUILD_SERVER picks (Namespace, whose
+# cluster it wakes with nsc, unless it names another)
+# (scripts/internal/common.sh). Arguments go to
 # buck2 unchanged, except that tests may run on the workers, on anything but
 # Linux x86_64 `run` builds for this machine unless it names
 # --target-platforms, and a command that fails with an infrastructure error is
@@ -26,7 +26,6 @@ if [[ ! -x "$buck2" ]]; then
 fi
 mkdir -p "$repository/target"
 configure_build_server "$buck2"
-ensure_generated_rules "$buck2"
 
 command="${1:-}"
 

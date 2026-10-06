@@ -25,14 +25,15 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck run //crates/beui-demo:demo` | beui's demo in a window |
 | `./scripts/buck run //crates/beui:survey-example` | a crate example; every example is `<name>-example` |
 | `./scripts/buck run //crates/beui-web-demo:web-serve` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
+| `./scripts/buck run //:buckify` | regenerates `buck/cargo/crates.bzl` and `Cargo.lock` from the manifests |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 | `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
 
 `--target-platforms root//buck/platforms:<p>` builds for another platform, and
-`<p>_release` (say `linux_x86_64_release`) is the same platform with cargo's
-release profile. The profile is the `root//buck/constraints:release`
-constraint rather than a buckconfig value, so one build can hold both, and every
-transition keeps it. Every other build is cargo's dev profile, with
+`-m release` with cargo's release profile, on whichever platform it is. The
+profile is the `root//buck/constraints:release` constraint, added by a
+configuration modifier (the root `PACKAGE`) rather than a buckconfig value, so
+one build can hold both, and every transition keeps it. Every other build is cargo's dev profile, with
 `Cargo.toml`'s `[profile.dev.package]` overrides (the optimised cranelift and
 crypto crates), which `crates.bzl` carries as each crate's rustc flags. A
 release build takes `-c be3.commit=SHA`, the commit the app reports; a dev
@@ -61,17 +62,6 @@ these in front of the pinned buck2:
   its calls on through the proxy, over HTTP/1.1 if that is all the proxy
   speaks. Their errors go to `target/re-relay.log`. A `.buckconfig.local` a
   person wrote is left alone, and the relays are not used then.
-- **The generated rules.** `buck/cargo/crates.bzl` is not checked in: every
-  crate's dependencies, features and targets, first- and third-party, from
-  cargo's plans, with each third-party crate's checksum and size.
-  `./scripts/buck` hashes its inputs and, when that changes, runs
-  `buck/cargo/buckify.bxl` on a worker and copies the result into place. The action is keyed on the manifests,
-  `Cargo.lock`, the paths cargo discovers targets at and `crates/buck-tools`,
-  which writes `crates.bzl`, so it is shared through the cache: a few seconds
-  on a fresh checkout, about a minute for the first person to change a
-  dependency. The action brings `Cargo.lock` up to date with the manifests
-  first, so a stale one still builds; `//:verify`'s lint writes the updated one
-  back, and fails under `--check`.
 - **Platforms.** Everything is built for Linux x86_64 wherever it is asked for
   (`.buckconfig`'s default target platform), so a Mac or Windows machine shares
   CI's cache. `run` is the exception: on another machine it builds for that
@@ -98,10 +88,20 @@ It also lets `test` put tests on the workers (below).
 - `buck/tools`: every compiler and tool, downloaded and pinned by hash and size.
 - `buck/toolchains`: the toolchains built from them, per target platform.
 - `buck/platforms`: the execution platform (a build server's worker) and every
-  target platform; `cross.bzl` lists the cross-compiled ones.
+  target platform; `cross.bzl` lists the cross-compiled ones and the plans
+  `crates.bzl` keys them by, and everything else that lists platforms reads it.
 - `buck/sysroot`: the Ubuntu 24.04 packages everything is compiled against.
 - `buck/cargo`: the BXL that writes `crates.bzl` and the macros that read it:
   `defs.bzl` for workspace crates, `third_party.bzl` for the rest.
+  `crates.bzl` is generated and checked in, like a lockfile: every crate's
+  dependencies, features and targets, first- and third-party, from cargo's
+  plans, with each third-party crate's checksum and size.
+  `./scripts/buck run //:buckify` runs `buckify.bxl` on a worker and copies the
+  result into place, with `Cargo.lock` brought up to date with the manifests;
+  `//:verify` does the same first thing, and under `--check` fails if either
+  is out of date. The action is keyed on the manifests, `Cargo.lock`, the
+  paths cargo discovers targets at and `crates/buck-tools`, so it is shared
+  through the cache.
 - `crates/buck-tools`: the build's own helpers (the `crates.bzl` generator, the
   sysroot resolver, the APK packer, clippy's fixer and `//:rust-project`).
 - `buck/wasm`: editors, plugin tests and the rules that build wasm modules.
@@ -114,13 +114,14 @@ It also lets `test` put tests on the workers (below).
 
 ## Adding things
 
-**A dependency**: `cargo add` (or edit `Cargo.toml`). The next `./scripts/buck`
-regenerates the rules. A build script runs as it does under cargo, and the
-libraries it links or compiles reach the link; one that needs something from
-the build, such as a sysroot's pkg-config, gets it from a fixup.
+**A dependency**: `cargo add` (or edit `Cargo.toml`), then
+`./scripts/buck run //:buckify` to regenerate the rules. A build script runs
+as it does under cargo, and the libraries it links or compiles reach the link;
+one that needs something from the build, such as a sysroot's pkg-config, gets
+it from a fixup.
 
-**A crate**: add it to the workspace, and write a `BUCK` beside its
-`Cargo.toml`:
+**A crate**: add it to the workspace, write a `BUCK` beside its
+`Cargo.toml`, and run `./scripts/buck run //:buckify`:
 
 ```
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")

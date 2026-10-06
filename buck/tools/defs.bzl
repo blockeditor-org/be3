@@ -45,44 +45,16 @@ rust_sysroot = rule(
 # name decides how it behaves.
 def _llvm_tree_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output("llvm", dir = True)
-    script = """
-set -eu
-out="$1"
-shift
-packages="$(mktemp -d)"
-for package; do dpkg-deb -x "$package" "$packages"; done
-mkdir -p "$out/bin" "$out/lib"
-cp -P "$packages"/usr/lib/llvm-20/bin/clang "$packages"/usr/lib/llvm-20/bin/clang++ \
-    "$packages"/usr/lib/llvm-20/bin/lld "$packages"/usr/lib/llvm-20/bin/ld.lld \
-    "$packages"/usr/lib/llvm-20/bin/ld64.lld "$packages"/usr/lib/llvm-20/bin/lld-link \
-    "$packages"/usr/lib/llvm-20/bin/llvm-ar "$packages"/usr/lib/llvm-20/bin/llvm-lib "$out/bin/"
-cp "$packages"/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1 \
-    "$packages"/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1 "$out/lib/"
-cp "$packages"/usr/lib/x86_64-linux-gnu/libclang-20.so.20 "$out/lib/libclang.so"
-cp -R "$packages"/usr/lib/llvm-20/lib/clang "$out/lib/"
-rm -rf "$packages"
-"""
     ctx.actions.run(
-        cmd_args("sh", "-c", script, "--", out.as_output(), ctx.attrs.packages),
+        cmd_args("sh", ctx.attrs._script, out.as_output(), ctx.attrs.packages),
         category = "llvm_tree",
     )
     return [DefaultInfo(default_output = out)]
 
 llvm_tree = rule(
-    attrs = {"packages": attrs.list(attrs.source())},
+    attrs = {
+        "packages": attrs.list(attrs.source()),
+        "_script": attrs.default_only(attrs.source(default = "root//buck/tools:llvm_tree.sh")),
+    },
     impl = _llvm_tree_impl,
-)
-
-# A command made of artifacts and arguments, as a tool a toolchain can name.
-# Its location macros are what put the directories above into every action
-# that runs it, which is how a worker comes to have the compiler at all.
-def _tool_impl(ctx: AnalysisContext) -> list[Provider]:
-    return [
-        DefaultInfo(),
-        RunInfo(args = cmd_args(ctx.attrs.command)),
-    ]
-
-tool = rule(
-    attrs = {"command": attrs.list(attrs.arg())},
-    impl = _tool_impl,
 )

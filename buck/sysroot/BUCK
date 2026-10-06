@@ -107,3 +107,13 @@ export_file(
     name = "lock.sh",
     visibility = ["PUBLIC"],
 )
+
+export_file(
+    name = "deb_lock.sh",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "deb_sysroot.sh",
+    visibility = ["PUBLIC"],
+)
