@@ -26,6 +26,7 @@ plugin_test_inputs(
 #   ./scripts/buck run //:verify [-- --check] [--lint] [--tests] [--plugin-tests]
 #   ./scripts/buck run //:ci [-- --check] [--android DIR] [--previews BASE OUT]
 #   ./scripts/buck run //:check
+#   ./scripts/buck run //:buckify [-- --check]
 #   ./scripts/buck run //:lock-sysroot
 #   ./scripts/buck run //:rust-project
 
@@ -55,6 +56,14 @@ command_alias(
         "sh",
         "-c",
         "exec ./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget check > /dev/null",
+    ],
+)
+
+command_alias(
+    name = "buckify",
+    args = [
+        "sh",
+        "$(location //buck/cargo:update.sh)",
     ],
 )
 

@@ -1,9 +1,8 @@
 load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple", "plan_name")
 
 # Generates buck/cargo/crates.bzl (crates/buck-tools' generate, from cargo's
-# plans) on a worker and prints its directory; ./scripts/buck copies it into
-# place when its inputs change. Beside it is the Cargo.lock it was generated
-# from.
+# plans) on a worker and prints its directory; //:buckify (update.sh) copies it
+# into place. Beside it is the Cargo.lock it was generated from.
 #
 # The action's inputs are the manifests, Cargo.lock and buck-tools' sources,
 # plus empty files at the paths cargo discovers targets at

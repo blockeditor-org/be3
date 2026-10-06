@@ -3,7 +3,7 @@ load("@root//buck/platforms:profile.bzl", "dev_only")
 load(":crates.bzl", "crates")
 
 # The rules for a workspace crate, filled in from its Cargo.toml through
-# crates.bzl, which ./scripts/buck generates from cargo's own plans. A BUCK file
+# crates.bzl, which //:buckify generates from cargo's own plans. A BUCK file
 # passes what Cargo.toml cannot say as arguments: extra_deps and env are added
 # to what the macro works out, and anything else goes to the rule as it is.
 # Where a crate's dependencies or features differ between platforms, the macro
@@ -13,7 +13,7 @@ load(":crates.bzl", "crates")
 def _crate():
     package = native.package_name()
     if package not in crates:
-        fail("{} is not a workspace member cargo knows about; run ./scripts/buck, which regenerates buck/cargo/crates.bzl".format(package))
+        fail("{} is not a workspace member cargo knows about; run ./scripts/buck run //:buckify, which regenerates buck/cargo/crates.bzl".format(package))
     return crates[package]
 
 # One value per platform, as a select() when they differ and a plain list when
@@ -197,7 +197,7 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
     crate = _crate()
     examples = {entry["name"]: entry for entry in crate["examples"]}
     if example not in examples:
-        fail("{} has no example {}; run ./scripts/buck, which regenerates buck/cargo/crates.bzl".format(crate["name"], example))
+        fail("{} has no example {}; run ./scripts/buck run //:buckify, which regenerates buck/cargo/crates.bzl".format(crate["name"], example))
     crate_name = example.replace("-", "_")
     own = []
     if crate["library"] != None:

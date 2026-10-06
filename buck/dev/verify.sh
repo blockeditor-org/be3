@@ -1,9 +1,9 @@
 #!/bin/sh
 #
-# What `./scripts/buck run //:verify` runs: Cargo.lock, fix-rust-source,
-# rustfmt, starlark_fmt and clippy (--lint), the tests (--tests), and the
-# plugin tests (--plugin-tests), which run here because they read and write
-# snapshots/. Naming none runs all three, as CI does through //:ci.
+# What `./scripts/buck run //:verify` runs: the generated rules and Cargo.lock
+# (always), fix-rust-source, rustfmt, starlark_fmt and clippy (--lint), the
+# tests (--tests), and the plugin tests (--plugin-tests), which run here
+# because they read and write snapshots/. Naming none runs all three, as CI does through //:ci.
 # Every tool writes its fixes and the plugin tests accept new paintings, unless
 # --check, which writes nothing and fails on anything that would change.
 # Locally it prints only what failed, cut down by scripts/internal/quiet.awk;
@@ -74,21 +74,6 @@ file_modes() {
     fi
     echo "These files are executable; run //:verify without --check:"
     echo "$executable" | sed 's/^/  /'
-    return 1
-}
-
-# ./scripts/buck generates the rules from Cargo.lock brought up to date with the
-# manifests, and leaves that lockfile in target/, so a stale Cargo.lock builds
-# fine and only changes under cargo or rust-analyzer. It is copied over the
-# checked-in one here.
-cargo_lock() {
-    cmp -s target/Cargo.lock Cargo.lock && return 0
-    if ! $check; then
-        cp target/Cargo.lock Cargo.lock
-        return 0
-    fi
-    echo "Cargo.lock is not up to date with the manifests; run //:verify without --check:"
-    diff -u Cargo.lock target/Cargo.lock | head -n 40
     return 1
 }
 
@@ -191,6 +176,14 @@ tools_missing() {
     return 1
 }
 
+# The generated rules and Cargo.lock come first, since everything after builds
+# with them (buck/cargo/update.sh).
+if $check; then
+    step "crates.bzl and Cargo.lock" sh buck/cargo/update.sh --check
+else
+    step "crates.bzl and Cargo.lock" sh buck/cargo/update.sh
+fi
+
 # When the build server's connection resets a download, ./scripts/buck builds
 # again and buck2 can answer that everything is built while some of the files
 # it lost are not on disk, because its materializer state says they are.
@@ -205,7 +198,6 @@ if $lint; then
     fi
 
     step "file modes" file_modes
-    step Cargo.lock cargo_lock
     step rustfmt rustfmt
     if $check; then
         step fix-rust-source "$fix_rust_source" --check
