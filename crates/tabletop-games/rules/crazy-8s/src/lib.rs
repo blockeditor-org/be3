@@ -1,9 +1,9 @@
 use std::convert::Infallible;
 
-use game_api::board::{Board, CardTable, Pile, PilePlace, Spread, Sprite};
+use game_api::board::{Board, Pile, card_table};
 use game_api::cards::deck;
 use game_api::cards::{Card, Rank, SUITS, Suit};
-use game_api::table::{DISCARD_PILE, DRAW_PILE, Table};
+use game_api::table::{DISCARD_PILE, DRAW_PILE, Table, face_down};
 use game_api::{Choose, GameHelper, GameScreen, Move, Scene, Spot};
 use uuid::Uuid;
 
@@ -49,10 +49,10 @@ fn crazy_8s(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
             whose_turn,
             &your_turn,
             WAITING,
-            |player| seen.board(player).into(),
+            |player| seen.board(player),
             |choose| {
                 let choose = &mut |offered: Move| choose(offered.column(column));
-                let hand = table.hand().to_vec();
+                let hand = table.hand();
                 if play_a_card(&mut table, &mut suit_to_match, &hand, choose) {
                     return;
                 }
@@ -82,7 +82,7 @@ fn crazy_8s(helper: GameHelper<'_>) -> Result<Infallible, GameScreen> {
                 whose_turn,
                 &you_drew,
                 WAITING,
-                |player| seen.board(player).into(),
+                |player| seen.board(player),
                 |choose| {
                     let choose = &mut |offered: Move| choose(offered.column(column));
                     if play_a_card(&mut table, &mut suit_to_match, &[card], choose) {
@@ -145,27 +145,19 @@ fn seat_of(players: &[Uuid], player: Uuid) -> usize {
 }
 
 fn seating(joined: &[Uuid], viewer: Uuid) -> Board {
-    let mut piles = vec![Pile {
-        label: "Deck".to_owned(),
-        place: PilePlace::Deck,
-        spread: Spread::Stacked,
-        cards: vec![Sprite::CardBack; deck().len()],
-    }];
-    for (seat, player) in joined.iter().enumerate() {
-        piles.push(Pile {
-            label: match *player == viewer {
+    let seated = joined
+        .iter()
+        .enumerate()
+        .map(|(seat, player)| {
+            let label = match *player == viewer {
                 true => "You".to_owned(),
                 false => format!("P{}", seat + 1),
-            },
-            place: match *player == viewer {
-                true => PilePlace::Hand,
-                false => PilePlace::Opponent,
-            },
-            spread: Spread::Fanned,
-            cards: Vec::new(),
-        });
-    }
-    CardTable { piles }.into()
+            };
+            Pile::fanned(seat as u32 + 2, label, Vec::new())
+        })
+        .collect();
+    let deck = Pile::stacked(DRAW_PILE, "Deck", face_down(deck().len()));
+    card_table(vec![seated, vec![deck]])
 }
 
 fn can_be_played(card: Card, face_up: Card, suit_to_match: Suit) -> bool {

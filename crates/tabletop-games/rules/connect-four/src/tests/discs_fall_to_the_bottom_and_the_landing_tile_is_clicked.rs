@@ -1,4 +1,4 @@
-use game_api::board::{Board, Sprite};
+use game_api::board::Sprite;
 use game_api::{Gesture, Spot};
 use uuid::Uuid;
 
@@ -11,12 +11,14 @@ fn discs_fall_to_the_bottom_and_the_landing_tile_is_clicked() {
     let actions = vec![play(&[], red, 3)];
 
     let screen = show(&actions, yellow);
-    let Board::Grid(grid) = &*screen.board else {
-        panic!("connect four is played on a grid");
-    };
-    assert_eq!((grid.columns, grid.rows), (7, 6));
-    assert_eq!(grid.tile(3, 5).layers, [Sprite::piece("disc", 0)]);
-    assert!(grid.tile(3, 4).layers.is_empty());
+    let board = &screen.board;
+    assert_eq!(
+        board.sprites_at(Spot::tile(3, 5)),
+        [Sprite::Cell, Sprite::piece("disc", 0)]
+    );
+    assert_eq!(board.sprites_at(Spot::tile(3, 4)), [Sprite::Cell]);
+    assert_eq!(board.sprites_at(Spot::tile(6, 0)), [Sprite::Cell]);
+    assert!(board.sprites_at(Spot::tile(7, 0)).is_empty());
 
     assert_eq!(
         screen.actions[3].gesture,
