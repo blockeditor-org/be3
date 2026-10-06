@@ -7,7 +7,7 @@ use std::time::Instant;
 use accesskit::Node;
 
 use crate::accessibility::{self, AccessibilityTree};
-use crate::base::child_list::{ChildHost, SlotId};
+use crate::base::child_list::{ChildHost, NodeChildren, SlotId};
 use crate::base::fade::FadeNode;
 use crate::base::frame::Sides;
 use crate::context::{Context, Moved};

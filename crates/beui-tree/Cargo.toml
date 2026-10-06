@@ -1,13 +1,11 @@
 [package]
-name = "beui-view"
+name = "beui-tree"
+description = "Beui's components, view! and control flow, independent of what the tree is made of"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
 
 [dependencies]
-accesskit = "0.24.1"
-beui-core = { path = "../beui-core" }
-beui-tree = { path = "../beui-tree" }
 beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
 

@@ -3,8 +3,8 @@
 `crates/reactive` provides a dependency-free, single-threaded reactive graph. It
 is intended for retained UI bindings: create a node once, then use an effect to
 update its properties when the values it reads change. `beui::reactive` (in
-`crates/beui-view/src/reactive.rs`) is the adapter that connects it to beui's
-`Document`; see "beui integration" below.
+`crates/beui-tree` and `crates/beui-view/src/reactive.rs`) is the adapter that
+connects it to beui's components and `Document`; see "beui integration" below.
 
 ## Example
 

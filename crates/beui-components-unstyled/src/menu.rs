@@ -36,10 +36,6 @@ pub struct MenuItem {
 }
 
 impl ChildValue for MenuItem {
-    fn anchor(&self) -> Option<NodeId> {
-        None
-    }
-
     fn adopt_scope(&mut self, scope: Scope) {
         self.scope.adopt(scope);
     }

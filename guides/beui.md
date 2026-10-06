@@ -43,19 +43,19 @@ gives it `@test_id`, `@node_ref` and `@sizing`, and makes
 `component_state`, `component_accessibility`, `component_size`,
 `component_rect` and `component_placed` available inside it.
 
-A component that returns its own type implements `ChildValue` to name the node
-the scope hangs on, and `IntoChild` for the slot that takes it, as
+A component that returns its own type implements `ChildValue` to hand the
+scope to the node it hangs on, and `IntoChild` for the slot that takes it, as
 `beui-view`'s `components/canvas.rs` does for `CanvasItem`.
 
-A child needs no node at all. A `ChildValue` whose `anchor` is `None` keeps a
+A child needs no node at all. A `ChildValue` that is no node keeps a
 `ChildScope` field instead, which the component's scope is moved into, so
 dropping the value disposes exactly the effects that building it created and
 the owner tree does the rest. That is how an item made of data rather than
 nodes — a label, a key, a callback — can still be a component, with its own
 scope, context, memos and cleanups, and still be written as a tag. Such a
 component has nothing for `component_state`, `component_accessibility`,
-`component_size`, `component_rect` or `component_placed` to watch, so naming any of them in its body
-does not compile, and `@test_id` and `@node_ref` on its tag do not compile either,
+`component_size`, `component_rect` or `component_placed` to watch, so calling any of them in its body
+panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
 `unstyled::MenuItem` is one: a menu item is a label, a disabled flag and its
 own submenu items, so a menu is written as tags and each row follows
@@ -216,10 +216,11 @@ direction:
 
 | Crate | Owns |
 | --- | --- |
+| `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
 | `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas, for the DOM renderer; no fonts in the module |
-| `beui-view` | `beui::reactive`: components, child slots, the `view!` integration and the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes |
+| `beui-view` | `beui::reactive`: `beui-tree` re-exported, with the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes; `beui_core::tree` is what makes a `NodeId` a child |
 | `beui-components-unstyled` | `beui::unstyled` and `beui::datetime` |
 | `beui-components-styled` | `beui::styled`: themes and styled controls |
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
@@ -271,6 +272,21 @@ hooks the higher crates fill in:
 Inside the family, crates name each other directly (`beui_core::document::Document`),
 and the component crates declare `extern crate beui_view as beui;` so the
 `::beui::reactive` paths `#[component]` and `view!` expand to resolve there.
+
+`beui-tree` knows nothing of `Document`, layout or painting, so the same
+components and control flow can build any tree: a DOM, a 3D scene, a chat
+message with buttons. Such a tree gives its child type `ChildValue` (where a
+component's scope lives) and `SlotChild` (how a child is kept and discarded),
+and gives what keeps children `SlotHost` (appending, filling a slot a `Show` or
+`ForEach` holds, and owning their scopes) and `IntoSlotHost`, so a component
+can `children.mount(...)` into it. The macros need `::beui::reactive` to
+resolve: `beui-tree` names itself `beui` for its own tests, and a crate built on
+it does the same or re-exports `beui_tree::reactive` as a `reactive` module of
+a crate it calls `beui`. `@sizing`, `@test_id` and `@node_ref` expand to
+`beui::reactive::ListChild`, `with_test_id` and `with_node_ref`, which only
+`beui-view` has, and an untyped `Render`/`RenderFn` child or a `Child` prop is
+`beui::reactive::Child`, a `NodeId`. `beui-tree`'s tests build a small DOM this
+way.
 
 ## Component layers
 
