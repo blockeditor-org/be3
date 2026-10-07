@@ -15,18 +15,18 @@ const CHUNK: usize = 64;
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Pos {
     pub client: u64,
-    pub offset: u32,
+    pub offset: u64,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct Span {
     pub client: u64,
-    pub start: u32,
-    pub len: u32,
+    pub start: u64,
+    pub len: u64,
 }
 
 impl Span {
-    fn end(self) -> u32 {
+    fn end(self) -> u64 {
         self.start + self.len
     }
 
@@ -43,7 +43,7 @@ pub enum SeqOp<T> {
     Insert {
         after: Option<Pos>,
         client: u64,
-        start: u32,
+        start: u64,
         items: Vec<T>,
     },
     Delete {
@@ -55,7 +55,7 @@ pub enum SeqOp<T> {
     Replace {
         spans: Vec<Span>,
         client: u64,
-        start: u32,
+        start: u64,
         items: Vec<T>,
     },
     Swap {
@@ -79,8 +79,8 @@ pub struct Splice {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 struct Fragment {
     client: u64,
-    start: u32,
-    len: u32,
+    start: u64,
+    len: u64,
     visible: bool,
 }
 
@@ -92,7 +92,7 @@ impl Fragment {
         }
     }
 
-    fn end(self) -> u32 {
+    fn end(self) -> u64 {
         self.start + self.len
     }
 
@@ -139,7 +139,7 @@ impl<T: Clone> Sequence<T> {
             len => vec![Fragment {
                 client: LOADED,
                 start: 0,
-                len: len as u32,
+                len: len as u64,
                 visible: true,
             }],
         };
@@ -218,10 +218,11 @@ impl<T> Sequence<T> {
     }
 
     pub(crate) fn from_state(state: State<T>) -> Result<Self, Malformed> {
-        let mut seen: BTreeMap<u64, Vec<(u32, u32)>> = BTreeMap::new();
+        let mut seen: BTreeMap<u64, Vec<(u64, u64)>> = BTreeMap::new();
         for fragment in &state.fragments {
-            let held = state.buffers.get(&fragment.client).map_or(0, Vec::len);
-            if fragment.len == 0 || fragment.end() as usize > held {
+            let held = state.buffers.get(&fragment.client).map_or(0, Vec::len) as u64;
+            let end = fragment.start.checked_add(fragment.len).ok_or(Malformed)?;
+            if fragment.len == 0 || end > held {
                 return Err(Malformed);
             }
             seen.entry(fragment.client)
@@ -264,8 +265,8 @@ impl<T> Sequence<T> {
         whole && fragments.next().is_none() && self.buffers.keys().all(|client| *client == LOADED)
     }
 
-    pub fn next_offset(&self, client: u64) -> u32 {
-        self.buffers.get(&client).map_or(0, Vec::len) as u32
+    pub fn next_offset(&self, client: u64) -> u64 {
+        self.buffers.get(&client).map_or(0, Vec::len) as u64
     }
 
     pub fn slices(&self) -> impl Iterator<Item = &[T]> {
@@ -283,7 +284,7 @@ impl<T> Sequence<T> {
         let fragment = self.chunks[ci].fragments[fi];
         Some(Pos {
             client: fragment.client,
-            offset: fragment.start + inner as u32,
+            offset: fragment.start + inner as u64,
         })
     }
 
@@ -301,7 +302,7 @@ impl<T> Sequence<T> {
             return spans;
         };
         let mut remaining = range.end.saturating_sub(range.start);
-        let mut skip = inner as u32;
+        let mut skip = inner as u64;
         for fragment in self.fragments_from(ci, fi) {
             if remaining == 0 {
                 break;
@@ -310,7 +311,7 @@ impl<T> Sequence<T> {
                 continue;
             }
             let start = fragment.start + skip;
-            let len = (fragment.len - skip).min(remaining as u32);
+            let len = (fragment.len - skip).min(remaining as u64);
             skip = 0;
             remaining -= len as usize;
             push_span(
@@ -390,7 +391,7 @@ impl<T> Sequence<T> {
                 let spans = vec![Span {
                     client: *client,
                     start: *start,
-                    len: items.len() as u32,
+                    len: items.len() as u64,
                 }];
                 (
                     SeqOp::Delete {
@@ -428,7 +429,7 @@ impl<T> Sequence<T> {
                     len => vec![Span {
                         client: *client,
                         start: *start,
-                        len: len as u32,
+                        len: len as u64,
                     }],
                 };
                 (
@@ -500,7 +501,7 @@ impl<T> Sequence<T> {
         Some(splices)
     }
 
-    fn can_insert(&self, after: Option<Pos>, client: u64, start: u32) -> bool {
+    fn can_insert(&self, after: Option<Pos>, client: u64, start: u64) -> bool {
         start == self.next_offset(client)
             && after.is_none_or(|anchor| self.locate(anchor).is_some())
     }
@@ -509,7 +510,7 @@ impl<T> Sequence<T> {
         &mut self,
         after: Option<Pos>,
         client: u64,
-        start: u32,
+        start: u64,
         items: &[T],
         splices: &mut Vec<Splice>,
     ) -> Option<()>
@@ -526,7 +527,7 @@ impl<T> Sequence<T> {
         let fragment = Fragment {
             client,
             start,
-            len: items.len() as u32,
+            len: items.len() as u64,
             visible: true,
         };
         let at = self.place(after, vec![fragment])?;
@@ -638,7 +639,7 @@ impl<T> Sequence<T> {
         self.predecessor(first) != after
     }
 
-    fn global(&self, pos: Pos) -> Option<(usize, usize, u32)> {
+    fn global(&self, pos: Pos) -> Option<(usize, usize, u64)> {
         let (ci, fi) = self.locate(pos)?;
         Some((ci, fi, pos.offset - self.chunks[ci].fragments[fi].start))
     }
@@ -691,7 +692,8 @@ impl<T> Sequence<T> {
     }
 
     fn walk(&self, span: Span) -> Option<Vec<(Fragment, Span)>> {
-        if span.len == 0 || span.end() > self.next_offset(span.client) {
+        let end = span.start.checked_add(span.len)?;
+        if span.len == 0 || end > self.next_offset(span.client) {
             return None;
         }
         let mut pieces = Vec::new();

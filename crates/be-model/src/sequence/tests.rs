@@ -10,6 +10,7 @@ mod an_insert_with_the_wrong_start_or_an_unknown_anchor_is_refused;
 mod bytes_that_are_not_utf8_are_kept_as_they_are;
 mod inserts_after_the_same_element_put_the_later_one_first;
 mod loaded_items_read_back_as_one_fragment;
+mod operations_with_numbers_out_of_range_change_nothing;
 mod random_edits_match_a_reference_and_keep_the_index_consistent;
 mod session_state_round_trips_positions_and_tombstones;
 mod splices_report_visible_coordinates;
@@ -85,7 +86,7 @@ fn order(sequence: &Sequence<u8>) -> Vec<(Pos, u8, bool)> {
                     (
                         Pos {
                             client: fragment.client,
-                            offset: fragment.start + at as u32,
+                            offset: fragment.start + at as u64,
                         },
                         *item,
                         fragment.visible,
@@ -98,7 +99,7 @@ fn order(sequence: &Sequence<u8>) -> Vec<(Pos, u8, bool)> {
 
 struct Reference {
     order: Vec<(Pos, u8, bool)>,
-    next: BTreeMap<u64, u32>,
+    next: BTreeMap<u64, u64>,
     indices: HashMap<Pos, usize>,
 }
 
@@ -112,20 +113,20 @@ impl Reference {
                     (
                         Pos {
                             client: LOADED,
-                            offset: at as u32,
+                            offset: at as u64,
                         },
                         item,
                         true,
                     )
                 })
                 .collect(),
-            next: BTreeMap::from([(LOADED, text.len() as u32)]),
+            next: BTreeMap::from([(LOADED, text.len() as u64)]),
             indices: (0..text.len())
                 .map(|at| {
                     (
                         Pos {
                             client: LOADED,
-                            offset: at as u32,
+                            offset: at as u64,
                         },
                         at,
                     )
@@ -181,7 +182,7 @@ impl Reference {
         changed
     }
 
-    fn add(&mut self, after: Option<Pos>, client: u64, start: u32, items: &[u8]) -> bool {
+    fn add(&mut self, after: Option<Pos>, client: u64, start: u64, items: &[u8]) -> bool {
         let next = self.next.get(&client).copied().unwrap_or(0);
         if items.is_empty() || start != next {
             return false;
@@ -197,14 +198,14 @@ impl Reference {
             (
                 Pos {
                     client,
-                    offset: start + at as u32,
+                    offset: start + at as u64,
                 },
                 *item,
                 true,
             )
         });
         self.order.splice(index..index, added);
-        self.next.insert(client, next + items.len() as u32);
+        self.next.insert(client, next + items.len() as u64);
         self.reindex();
         true
     }

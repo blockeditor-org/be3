@@ -83,7 +83,11 @@ highlighter get exact ranges instead of diffing the document.
 
 Undo stays client-local and conditional. An insert's undo deletes its span, a
 delete's undo undeletes what it hid, a replace's undo swaps back, a move's undo
-moves the range back after the element that preceded it. A burst of inserts (or
+moves the range back after the element that preceded it. Undoing a move is not
+conditional: it moves the range back even if someone moved it since, and redo
+moves it to where the move put it. Lists' `MoveIf` refuses instead today; they
+take the sequence's behaviour when they move onto it, and
+`undoing_a_move_leaves_a_card_someone_else_moved_since` changes. A burst of inserts (or
 of deletes) into one field undoes as one step. History is capped at 200 steps
 and 8 hours. Revision history is the way back past that.
 
@@ -185,12 +189,20 @@ Done (in `be-model`, not used by any block yet):
   and carried in `Document::session_state`. Objects inserted with a text field,
   and documents produced by a merge, start from fresh positions so every peer
   agrees on them.
+- Positions are `u64` and every number an operation brings is checked, so a
+  malformed operation or session state changes nothing instead of panicking or
+  wrapping. Adopting session state whose text differs from the document is
+  refused as malformed rather than silently changing the text.
 
 Still to do:
 
 - `List` on `Sequence<ObjectId>`: moves inside a list keep positions, a move
   between lists is a delete plus an insert carrying the same `ObjectId`, and the
   removal records become tombstones. Range moves of several items come with it.
+  The list wrapper keeps a map from `ObjectId` to its live position (a
+  delete and reinsert leaves the same id once as a tombstone and once live),
+  and splits `Change::Insert` into a sequence insert of the top-level ids plus
+  the object table.
 - Session ids in the protocol (who mints them: the server's registry or the
   owner), refusal of other sessions' operations, the diff3 fallback, and the new
   restart triggers.
@@ -202,6 +214,12 @@ Still to do:
   dropping its own undo, `AnchorTable` and whole-document diff. Beui's own text
   inputs use text-editor-core too, so the sequence may need to move into a small
   crate both can depend on.
-- Splices reported through `Touched` (or beside it) to editors.
+- Splices reported through `Touched` (or beside it) to editors: `Tree::apply`
+  drops what `Sequence::apply` returns today.
+- A replace inserts after the last element of its last span as listed; it
+  should insert after whichever replaced element is last in the document now,
+  in case a move reordered them.
+- Reading a `Text` through `root()` or a field projection copies all its
+  bytes; the editor reads slices through `Document::text`.
 - The three reprojection fixes above.
 - The worker's undo history capped at 8 hours as well as 200 steps.

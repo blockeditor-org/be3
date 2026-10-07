@@ -65,7 +65,11 @@ impl Tree {
         };
         let mut adopted = Vec::new();
         for (place, state) in texts {
-            adopted.push((place, Sequence::from_state(state)?));
+            let sequence = Sequence::from_state(state)?;
+            match self.value(place.object, place.field) {
+                Some(Value::Text(held)) if *held == sequence => adopted.push((place, sequence)),
+                _ => return Err(Malformed),
+            }
         }
         self.gone = gone;
         self.refresh_texts();
