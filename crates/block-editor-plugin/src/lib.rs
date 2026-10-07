@@ -9,6 +9,7 @@ pub mod fonts;
 mod graph;
 pub mod headless;
 mod host;
+mod motion;
 #[cfg(target_arch = "wasm32")]
 mod panes;
 mod plugin;
@@ -26,8 +27,8 @@ pub use block_plugin_api::{
     ChildPlacement, ChildStatus, ClipboardImage, ConflictSide, CreationProgress, CursorIcon,
     DataListing, EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, FileSave,
     FrameChrome, FrameSpec, HostPanel, HostReply, HostRequest, HostWindow, HostWindowId,
-    InputEvent, InteractionMode, Key, MenuEntry, Modifiers, Occluder, PointerButton, ResizeMode,
-    ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect, TemplateCategory,
+    InputEvent, InteractionMode, Key, MenuEntry, Modifiers, Motion, Occluder, PointerButton,
+    ResizeMode, ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect, TemplateCategory,
     TemplateDescriptor, TopBar, TouchPhase, VersionBranch, VersionChange, VersionChangeKind,
     VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand, WebViewEvent,
     WebViewId, WheelUnit,
@@ -44,6 +45,7 @@ pub use host::{
     PerformanceReporter, PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent,
     ShowRequest, ShownPresence, Waker,
 };
+pub use motion::motion;
 pub use plugin::{Frame, Ime, Instance, Plugin, Region};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};

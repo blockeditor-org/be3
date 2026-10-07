@@ -18,6 +18,7 @@ use beui_core::flash;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::input::{CursorIcon, Event, Key as InputKey};
 use beui_core::interact::Keys;
+use beui_core::motion::Motion;
 use beui_core::painter::Painter;
 
 use crate::screen_reader::{Command, ScreenReader};
@@ -73,7 +74,7 @@ pub struct State {
     pub picking: Cell<bool>,
     pub touch_emulation: Cell<bool>,
     pub mouse_simulation: Cell<bool>,
-    pub rubber_banding: Cell<bool>,
+    pub motion: Cell<Motion>,
     pub flash_changes: Cell<bool>,
     pub flash_damage: Cell<bool>,
     pub simulated_pixels_per_point: Cell<Option<f32>>,
@@ -105,7 +106,7 @@ impl State {
             picking: Cell::new(false),
             touch_emulation: Cell::new(ctx.touch_emulation()),
             mouse_simulation: Cell::new(ctx.mouse_simulation()),
-            rubber_banding: Cell::new(true),
+            motion: Cell::new(ctx.motion()),
             flash_changes: Cell::new(false),
             flash_damage: Cell::new(false),
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
@@ -620,7 +621,7 @@ impl Inspector {
         }
         ctx.set_touch_emulation(self.state.touch_emulation.get());
         crate::mouse_simulation::simulate(ctx, self.state.mouse_simulation.get());
-        target.set_rubber_banding(self.state.rubber_banding.get());
+        ctx.set_motion(self.state.motion.get());
         ctx.set_accessibility_active(self.state.accessibility.get());
         target.track_changes(self.state.flash_changes.get());
         target.track_damage(self.state.flash_damage.get());

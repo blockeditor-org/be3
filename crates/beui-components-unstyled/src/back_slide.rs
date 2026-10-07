@@ -11,7 +11,7 @@ use beui_view::reactive::{
     create_effect, create_signal, create_timer, on_cleanup, untrack, with_document,
 };
 
-use super::rubber_band::MAX_ANIMATION_STEP;
+use super::rubber_band::{animation_step, motion};
 
 pub const BACK_DRAG_SHARE: f32 = 0.3;
 const RETURN_SECONDS: f32 = 0.25;
@@ -99,7 +99,7 @@ impl Slide {
                 self.place(0.0);
             }
             BackGesture::Progressed(progress) => {
-                if phase == Phase::Dragging {
+                if phase == Phase::Dragging && motion().follows_gestures() {
                     self.place(progress * BACK_DRAG_SHARE);
                 }
             }
@@ -128,7 +128,7 @@ impl Slide {
 
     fn gone(&self) {
         self.on_back.call();
-        match self.enters {
+        match self.enters && motion().animates() {
             true => {
                 self.state.borrow_mut().direction *= -1.0;
                 self.start(Phase::Entering { elapsed: 0.0 });
@@ -142,10 +142,7 @@ impl Slide {
         let now = beui_core::timer::now();
         let (phase, elapsed) = {
             let mut state = self.state.borrow_mut();
-            let elapsed = now
-                .duration_since(state.stepped)
-                .as_secs_f32()
-                .min(MAX_ANIMATION_STEP);
+            let elapsed = animation_step(now.duration_since(state.stepped).as_secs_f32());
             state.stepped = now;
             (state.phase, elapsed)
         };

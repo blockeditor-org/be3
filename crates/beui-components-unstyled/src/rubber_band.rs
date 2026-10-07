@@ -5,6 +5,8 @@ use std::collections::VecDeque;
 use std::time::Instant;
 
 use beui_core::geometry::{Pos2, Vec2, vec2};
+use beui_core::motion::Motion;
+use beui_view::reactive::with_document;
 
 const RUBBER_BAND_FACTOR: f32 = 0.55;
 const SETTLED_DISTANCE: f32 = 0.25;
@@ -12,6 +14,7 @@ const VELOCITY_WINDOW: f32 = 0.08;
 const GLIDE_FRICTION: f32 = 9.0;
 pub const MINIMUM_VELOCITY: f32 = 5.0;
 pub const MAX_ANIMATION_STEP: f32 = 0.05;
+pub const FINISHED: f32 = 1.0e6;
 
 #[derive(Clone, Copy)]
 pub struct Spring {
@@ -28,6 +31,17 @@ pub const WINDOW_SPRING: Spring = Spring {
     stiffness: 400.0,
     damping: 38.0,
 };
+
+pub fn motion() -> Motion {
+    with_document(|document| document.motion())
+}
+
+pub fn animation_step(elapsed: f32) -> f32 {
+    match motion().animates() {
+        true => elapsed.min(MAX_ANIMATION_STEP),
+        false => FINISHED,
+    }
+}
 
 pub fn rubber_band(distance: f32, dimension: f32) -> f32 {
     if distance == 0.0 {
@@ -49,6 +63,11 @@ pub fn unband(overscroll: f32, dimension: f32) -> f32 {
 }
 
 pub fn spring_back(overscroll: &mut f32, velocity: &mut f32, elapsed: f32, spring: Spring) {
+    if elapsed >= FINISHED {
+        *overscroll = 0.0;
+        *velocity = 0.0;
+        return;
+    }
     let acceleration = -spring.stiffness * *overscroll - spring.damping * *velocity;
     *velocity += acceleration * elapsed;
     *overscroll += *velocity * elapsed;

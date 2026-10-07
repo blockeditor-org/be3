@@ -8,7 +8,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use beui::{Document, Event, FileFilter, FilePick, FilePickId, Key, PointerButton, Pos2, Waker};
+use beui::{
+    Document, Event, FileFilter, FilePick, FilePickId, Key, Motion, PointerButton, Pos2, Waker,
+};
 use uuid::Uuid;
 
 static WAKER: OnceLock<Waker> = OnceLock::new();
@@ -85,6 +87,7 @@ struct Host {
     pixels_per_point: f32,
     screen_scale: f32,
     dark: bool,
+    motion: Motion,
     input: Input,
     pointer: Option<Pos2>,
     drag: Option<DragPayload>,
@@ -103,6 +106,7 @@ impl Default for Host {
             pixels_per_point: 1.0,
             screen_scale: 1.0,
             dark: true,
+            motion: Motion::default(),
             input: Input::default(),
             pointer: None,
             drag: None,
@@ -127,6 +131,7 @@ struct Frame {
     down: bool,
     touch_position: Option<Pos2>,
     dark: bool,
+    motion: Motion,
     pixels_per_point: f32,
     screen_scale: f32,
 }
@@ -142,6 +147,7 @@ impl Default for Frame {
             down: false,
             touch_position: None,
             dark: true,
+            motion: Motion::default(),
             pixels_per_point: 1.0,
             screen_scale: 1.0,
         }
@@ -175,6 +181,7 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
     });
     let [red, green, blue, _] = document.theme().background.to_array();
     frame.dark = u32::from(red) + u32::from(green) + u32::from(blue) < 384;
+    frame.motion = context.motion();
     frame.screen_scale = context.screen_scale();
     frame.pixels_per_point = context.pixels_per_point() * frame.screen_scale;
     start(frame);
@@ -183,6 +190,7 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
 fn start(frame: Frame) {
     with(|host| {
         host.dark = frame.dark;
+        host.motion = frame.motion;
         host.pass += 1;
         if let Some(now) = frame.now {
             let started = *host.started.get_or_insert(now);
@@ -256,6 +264,10 @@ pub(crate) fn pixels_per_point() -> f32 {
 
 pub(crate) fn dark() -> bool {
     with(|host| host.dark)
+}
+
+pub(crate) fn motion() -> Motion {
+    with(|host| host.motion)
 }
 
 pub(crate) fn input<R>(read: impl FnOnce(&Input) -> R) -> R {

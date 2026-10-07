@@ -1,11 +1,12 @@
 use super::*;
+use crate::Motion;
 use crate::unstyled::dock_state;
 
 #[test]
 fn a_window_dragged_far_away_keeps_its_grip_in_the_dock() {
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
-    harness.document_mut().set_rubber_banding(false);
+    harness.context().set_motion(Motion::Instant);
     let window = floated_window(&mut harness, dock);
     let before = dock_state(harness.document(), dock)
         .window_rect(window)

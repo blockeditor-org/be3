@@ -24,7 +24,7 @@ use crate::Scroll;
 use crate::back_slide::BackSlide;
 use crate::context_menu::{ContextMenu, MenuStyle};
 use crate::menu::MenuItem;
-use crate::rubber_band::{Band, WINDOW_SPRING};
+use crate::rubber_band::{Band, WINDOW_SPRING, motion};
 use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 use beui_core::base::{Direction, ItemSize};
 use beui_core::document::Document;
@@ -2151,7 +2151,7 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
             let limit = |origin: Pos2| {
                 reachable_origin(Rect::from_min_size(origin, window.size()), bounds, reach)
             };
-            let banding = with_document(|document| document.rubber_banding());
+            let banding = motion().animates();
             let mut origin = window.min;
             if !band.step(beui_core::timer::now(), &mut origin, limit, banding) {
                 return None;
@@ -2225,6 +2225,9 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let moved = dock.clone();
     let (held, stretched, released) = (band.clone(), band.clone(), band);
     let set_stretch = set_overshoot;
+    let held_rect: Rc<Cell<Option<Rect>>> = Rc::default();
+    let dropped_rect = held_rect.clone();
+    let dropped = dock.clone();
     view! {
         <Overlay
             @node_ref=&overlay
@@ -2275,20 +2278,23 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                     Rect::from_min_size(start.min + (press.pos - from), start.size());
                                 let bounds = moved.rect.get_untracked().size();
                                 let origin = reachable_origin(placed, bounds, reach());
-                                let banding = with_document(|document| document.rubber_banding());
+                                let motion = motion();
                                 let mut band = stretched.borrow_mut();
-                                band.stretch(origin, placed.min - origin, bounds, banding, beui_core::timer::now());
+                                band.stretch(origin, placed.min - origin, bounds, motion.animates(), beui_core::timer::now());
                                 set_stretch.set(band.offset);
-                                moved.edit(|state| {
-                                    state.set_window_rect(
-                                        surface,
-                                        Rect::from_min_size(origin, start.size()),
-                                    );
-                                });
+                                let rect = Rect::from_min_size(origin, start.size());
+                                if !motion.follows_gestures() {
+                                    held_rect.set(Some(rect));
+                                    return;
+                                }
+                                moved.edit(|state| state.set_window_rect(surface, rect));
                             }}
                             on_active_change={move |active: bool| {
                                 if active {
                                     return;
+                                }
+                                if let Some(rect) = dropped_rect.take() {
+                                    dropped.edit(|state| state.set_window_rect(surface, rect));
                                 }
                                 released.borrow_mut().release(beui_core::timer::now());
                                 bounce.start(Duration::ZERO);

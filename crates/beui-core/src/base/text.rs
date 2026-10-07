@@ -300,7 +300,7 @@ impl TextNode {
                 crate::paint::paint(doc, painter, rects, *item);
             }
         }
-        let blinking = rich.carets.iter().any(|caret| caret.blink);
+        let blinking = doc.motion().animates() && rich.carets.iter().any(|caret| caret.blink);
         let shown = match blinking {
             true => {
                 let elapsed = painter

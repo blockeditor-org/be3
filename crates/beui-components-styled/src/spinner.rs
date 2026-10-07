@@ -7,13 +7,14 @@ use crate::theme::use_theme;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Direction, Frame, ItemSize, List, Prop, Spacer, clone, component_accessibility,
-    component_placed, create_effect, create_memo, create_signal, create_timer, now,
+    component_placed, create_effect, create_memo, create_signal, create_timer, now, with_document,
 };
 
 const HEIGHT: f32 = 4.0;
 const RADIUS: u8 = 2;
 const SEGMENT: f32 = 0.35;
 const PERIOD: f32 = 1.2;
+const STILL_PHASE: f32 = 0.5;
 const FRAME: Duration = Duration::from_millis(16);
 
 #[component]
@@ -39,16 +40,20 @@ pub fn Spinner(
         ItemSize::Percent((1.0 - phase.get()) * (1.0 - SEGMENT) * 100.0 + 0.001)
     });
     let placed = component_placed();
-    let ticking = create_timer(clone!(placed -> move || {
+    let motion = with_document(|document| document.watch_motion());
+    let ticking = create_timer(clone!(placed set_phase -> move || {
         if !placed.get_untracked() {
             return None;
         }
         set_phase.set((now().saturating_duration_since(started).as_secs_f32() / PERIOD).fract());
         Some(FRAME)
     }));
-    create_effect(move || match placed.get() {
+    create_effect(move || match placed.get() && motion.get().animates() {
         true => ticking.start(Duration::ZERO),
-        false => ticking.stop(),
+        false => {
+            ticking.stop();
+            set_phase.set(STILL_PHASE);
+        }
     });
     let width = create_memo(move || Some(width.get()));
     let theme = use_theme();

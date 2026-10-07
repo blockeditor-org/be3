@@ -7,7 +7,7 @@ use beui_macros::{component, view};
 
 use super::fling::Fling;
 use super::rubber_band::{
-    MAX_ANIMATION_STEP, MINIMUM_VELOCITY, SCROLL_SPRING, rubber_band, spring_back, unband,
+    MAX_ANIMATION_STEP, MINIMUM_VELOCITY, SCROLL_SPRING, motion, rubber_band, spring_back, unband,
 };
 use beui_core::base::Sides;
 use beui_core::base::offset::OffsetNode;
@@ -213,10 +213,6 @@ fn autoscroll_speed(distance: f32) -> f32 {
     distance.signum() * (beyond * AUTOSCROLL_GAIN + beyond * beyond * AUTOSCROLL_ACCELERATION)
 }
 
-fn rubber_banding() -> bool {
-    with_document(|document| document.rubber_banding())
-}
-
 #[derive(Clone)]
 struct Motion {
     node: Option<NodeOf<OffsetNode>>,
@@ -266,7 +262,7 @@ impl Motion {
         momentum.rest();
         let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
         self.publish(&momentum, offset);
-        if fling != 0.0 {
+        if fling != 0.0 && motion().animates() {
             self.take_steered();
             momentum.release(-fling);
             self.animate(&mut momentum);
@@ -283,14 +279,21 @@ impl Motion {
             self.take_steered();
             momentum.grab(&position);
         }
+        let motion = motion();
         let dragged = self.axis().main(gesture.delta);
         if dragged != 0.0 {
-            momentum.drag(&mut position, dragged, rubber_banding());
+            momentum.drag(&mut position, dragged, motion.animates());
+        } else if !motion.follows_gestures()
+            && let Some(held) = momentum.drag
+        {
+            position.offset = held.clamp(0.0, position.max_offset());
         }
-        if gesture.ended {
+        if gesture.ended && motion.animates() {
             momentum.release(-self.axis().main(gesture.velocity));
-        } else if gesture.cancelled {
+        } else if gesture.ended || gesture.cancelled {
             momentum.release(0.0);
+        } else if !motion.follows_gestures() {
+            return;
         }
         self.publish(&momentum, position.offset);
         self.animate(&mut momentum);
@@ -392,7 +395,7 @@ impl Motion {
             return None;
         }
         let mut position = self.placed()?;
-        momentum.animate(&mut position, elapsed, rubber_banding());
+        momentum.animate(&mut position, elapsed, motion().animates());
         self.publish(&momentum, position.offset);
         momentum.moving().then_some(Duration::ZERO)
     }

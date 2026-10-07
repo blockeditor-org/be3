@@ -200,7 +200,9 @@ mod a_time_list_moves_through_its_times_and_picks_one;
 mod a_timer_asks_for_frames_until_its_work_settles;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
 mod a_touch_beside_a_control_reaches_the_nearest_one;
+mod a_touch_drag_scrolls_only_once_released_with_gesture_motion_off;
 mod a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames;
+mod a_touch_fling_stops_where_the_finger_lifts_with_animations_off;
 mod a_touch_fling_that_ends_without_moving_keeps_its_momentum;
 mod a_touch_opens_a_menu_buttons_menu_as_a_sheet_and_a_click_as_a_dropdown;
 mod a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop;
@@ -494,6 +496,7 @@ mod text_widgets_sit_in_the_text_and_blocks_below_their_line;
 mod text_with_spans_wraps_places_inline_items_and_answers_where_indices_are;
 mod the_app_tab_shows_the_document_below_the_tab_bar;
 mod the_caret_of_a_focused_text_area_blinks_on_a_deadline;
+mod the_caret_of_a_focused_text_area_stays_shown_with_animations_off;
 mod the_caret_of_a_text_input_paints_two_points_wide;
 mod the_click_that_ends_autoscroll_presses_nothing;
 mod the_color_areas_thumb_shows_a_grab_cursor;
@@ -538,7 +541,7 @@ mod touch_dragging_across_a_text_input_does_not_select_its_text;
 mod touch_overscroll_bands_without_hovering_a_row;
 mod triple_clicking_selects_the_line_so_typing_replaces_the_value;
 mod turning_an_oklch_color_wheel_keeps_its_lightness;
-mod turning_off_rubber_banding_in_the_inspector_stops_a_scroll_at_its_end;
+mod turning_off_animations_in_the_inspector_stops_a_scroll_at_its_end;
 mod turning_on_the_screen_reader_reads_what_it_is_on;
 mod turning_the_accessibility_tree_off_in_the_inspector_stops_building_it;
 mod two_nodes_on_screen_with_one_test_id_are_an_error;
@@ -934,8 +937,8 @@ impl Harness {
         self.inspector_center("inspector.simulation.touch_emulation")
     }
 
-    pub(crate) fn rubber_band_toggle_center(&self) -> Pos2 {
-        self.inspector_center("inspector.simulation.rubber_banding")
+    pub(crate) fn animations_toggle_center(&self) -> Pos2 {
+        self.inspector_center("inspector.simulation.animations")
     }
 
     pub(crate) fn mouse_toggle_center(&self) -> Pos2 {

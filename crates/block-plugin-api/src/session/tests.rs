@@ -10,7 +10,10 @@ fn session() -> HostSession {
         Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
         }),
-        Theme { dark: true },
+        Theme {
+            dark: true,
+            ..Theme::default()
+        },
     )
 }
 

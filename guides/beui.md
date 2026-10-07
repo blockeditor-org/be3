@@ -827,6 +827,17 @@ which is what lets a scroll fling or a spinner stop costing frames. Start a
 timer from the event or effect that begins the motion rather than leaving one
 running.
 
+The context's `Motion` (`Context::set_motion`, mirrored into every document it
+shows as `document.motion()` and the signal `watch_motion()`) says how much may
+move. `Animated` is the default. `Instant` has no animations: a slide or snap
+goes straight to its end (`rubber_band::animation_step` returns an elapsed time
+that finishes any animation), and there is no fling, rubber-banding, caret blink
+or spinner motion. `Still`, for e-ink, also stops content from following a
+held gesture: a scroll drag, a window drag, a sheet pull or a back swipe only
+lands when it is released. An animation added to beui checks it. The host sends
+it to plugins in the protocol's `Theme`, and the plugin adapter applies it to
+the plugin's context. The inspector's Simulation tab sets it.
+
 `pixels_per_point()` is the document's scale as a signal, for layout that
 depends on it.
 

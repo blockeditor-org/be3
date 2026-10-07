@@ -19,6 +19,7 @@ use beui_core::context::RendererChoices;
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, MAX_BLUR};
 use beui_core::icons::ICON_CLOSE;
+use beui_core::motion::Motion;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, NodeRef, Prop, ReadSignal, Show,
@@ -466,7 +467,14 @@ fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>) -> NodeId {
         (state.clone(), state.clone(), state.clone(), state.clone());
     let reader_state = state.clone();
     let filter_state = state.clone();
-    let band_state = state.clone();
+    let (motion, set_motion) = create_signal(state.motion.get());
+    let choose_motion = Rc::new(clone!(state -> move |motion: Motion| {
+        state.motion.set(motion);
+        set_motion.set(motion);
+    }));
+    let still = choose_motion.clone();
+    let instant = create_memo(clone!(motion -> move || !motion.get().animates()));
+    let still_checked = create_memo(move || !motion.get().follows_gestures());
     let screen_state = state.clone();
     view! {
         <Scroll focus_color={Some(THEME.accent)}>
@@ -485,10 +493,22 @@ fn SimulationPanel(state: Rc<State>, responsive: Memo<bool>) -> NodeId {
                         on_change={move |enabled| mouse_state.mouse_simulation.set(enabled)}
                     />
                     <Checkbox
-                        @test_id={"inspector.simulation.rubber_banding"}
-                        label="Rubber-band scrolls and windows"
-                        checked={state.rubber_banding.get()}
-                        on_change={move |enabled| band_state.rubber_banding.set(enabled)}
+                        @test_id={"inspector.simulation.animations"}
+                        label="Disable animations"
+                        checked={instant}
+                        on_change={move |disabled: bool| choose_motion(match disabled {
+                            true => Motion::Instant,
+                            false => Motion::Animated,
+                        })}
+                    />
+                    <Checkbox
+                        @test_id={"inspector.simulation.gesture_motion"}
+                        label="Also hold still during gestures (e-ink)"
+                        checked={still_checked}
+                        on_change={move |disabled: bool| still(match disabled {
+                            true => Motion::Still,
+                            false => Motion::Instant,
+                        })}
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>
