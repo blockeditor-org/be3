@@ -99,6 +99,14 @@ pub struct TypeNull;
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeKwIfOptional {
     pub child: Box<Type>,
+    pub bind: Option<Box<KwIfBinding>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KwIfBinding {
+    pub name: String,
+    pub pos: TokenPosition,
+    pub ty: Type,
 }
 
 impl TypeKwIfOptional {
@@ -127,12 +135,48 @@ impl TypeKwIfOptional {
                 },
             },
         );
+
         let is_block = matches!(
             trim_ws(arg_in.ast).as_slice(),
             [SyntaxNode::Block(b)] if b.tag == BracketTag::Code
         );
-        if is_block {
-            analyze(env, Type::Void(TypeVoid), arg_in.pos, arg_in.ast, block)?;
+        let body_never = if is_block {
+            let saved = env.scope.bindings.clone();
+            if let Some(bind) = &self.bind {
+                let payload = block_append(
+                    block,
+                    AnalysisLine::KwBuiltin {
+                        pos: bind.pos.clone(),
+                        op: crate::kw::KwBuiltinOp::OptionalUnwrap,
+                        args: vec![optional.clone()],
+                    },
+                );
+                let payload = AnalysisResult {
+                    ty: (*self.child).clone(),
+                    value: RuntimeValue::Runtime(payload),
+                };
+                let payload = bind.ty.cast_into(env, block, payload, bind.pos.clone())?;
+                let mut bindings = saved.borrow().clone();
+                bindings.insert(
+                    bind.name.clone(),
+                    crate::compiler::Binding::Runtime {
+                        pos: bind.pos.clone(),
+                        runtime: payload,
+                    },
+                );
+                env.scope.bindings = Rc::new(std::cell::RefCell::new(bindings));
+            }
+            let body = analyze(env, Type::Void(TypeVoid), arg_in.pos, arg_in.ast, block);
+            env.scope.bindings = saved;
+            matches!(body?.ty, Type::Never(_))
+        } else if self.bind.is_some() {
+            return Err(throw_err(
+                env,
+                Some(arg_in.pos),
+                "std.kw.if (v := opt) takes a { ... } block",
+                None,
+                None,
+            ));
         } else {
             let body = analyze(
                 env,
@@ -158,7 +202,7 @@ impl TypeKwIfOptional {
                     args: vec![optional],
                 },
             );
-            crate::user_type::inline_call(
+            let body = crate::user_type::inline_call(
                 env,
                 &func,
                 vec![AnalysisResult {
@@ -171,10 +215,11 @@ impl TypeKwIfOptional {
                 },
                 block,
             )?;
-        }
+            matches!(body.ty, Type::Never(_))
+        };
         let end = block_append(block, AnalysisLine::RegionEnd { pos });
         Ok(AnalysisResult {
-            ty: Type::KwIfResult(KwIfResult),
+            ty: Type::KwIfResult(KwIfResult { body_never }),
             value: RuntimeValue::Runtime(end),
         })
     }
@@ -591,9 +636,14 @@ impl Type {
                     ComptimeValueKey::String { key }
                         if key == "else" && matches!(self, Type::KwIfResult(_)) =>
                     {
+                        let Type::KwIfResult(result) = self else {
+                            unreachable!("matched KwIfResult above")
+                        };
                         Ok(AnalysisResult {
                             ty: Type::KwIf(KwIf {
-                                region: KwIfRegion::Else,
+                                region: KwIfRegion::Else {
+                                    then_never: result.body_never,
+                                },
                             }),
                             value: obj.value,
                         })
@@ -1714,7 +1764,7 @@ pub struct KwBool;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum KwIfRegion {
     If,
-    Else,
+    Else { then_never: bool },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1733,7 +1783,7 @@ impl KwIf {
     ) -> Result<AnalysisResult, PositionedError> {
         let region = match self.region {
             KwIfRegion::If => Region::KwIf { cond: method.value },
-            KwIfRegion::Else => {
+            KwIfRegion::Else { .. } => {
                 let RuntimeValue::Runtime(if_end) = method.value else {
                     unreachable!(".else is only reachable from an if's result")
                 };
@@ -1747,15 +1797,20 @@ impl KwIf {
                 region,
             },
         );
-        analyze(env, Type::Void(TypeVoid), arg_in.pos, arg_in.ast, block)?;
+        let body = analyze(env, Type::Void(TypeVoid), arg_in.pos, arg_in.ast, block)?;
+        let body_never = matches!(body.ty, Type::Never(_));
         let end = block_append(block, AnalysisLine::RegionEnd { pos });
         Ok(match self.region {
             KwIfRegion::If => AnalysisResult {
-                ty: Type::KwIfResult(KwIfResult),
+                ty: Type::KwIfResult(KwIfResult { body_never }),
                 value: RuntimeValue::Runtime(end),
             },
-            KwIfRegion::Else => AnalysisResult {
-                ty: Type::Void(TypeVoid),
+            KwIfRegion::Else { then_never } => AnalysisResult {
+                ty: if then_never && body_never {
+                    Type::Never(TypeNever)
+                } else {
+                    Type::Void(TypeVoid)
+                },
                 value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
             },
         })
@@ -1763,7 +1818,9 @@ impl KwIf {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct KwIfResult;
+pub struct KwIfResult {
+    pub body_never: bool,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeLabel {

@@ -21,10 +21,11 @@ find :: (xs: std.kw.list(std.kw.string), target: std.kw.string) => std.Option(st
 }
 
 describe :: (index: std.Option(std.kw.int)) => std.kw.string: :out {
-  std.kw.if (index): (i) => {
+  std.kw.if (i := index) {
     out: "found at " + std.kw.string.from_int(i)
+  } .else {
+    out: "not found"
   }
-  -> "not found"
 }
 
 flag :: (value: std.Option(std.kw.bool)) => std.kw.string: :out {

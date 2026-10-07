@@ -3234,6 +3234,67 @@ fn builtin_kw_loop_call(
     })
 }
 
+fn kw_if_binding(
+    env: &mut Env,
+    arg_ast: &CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<Option<AnalysisResult>, PositionedError> {
+    let Some(items) = crate::ct::call_list_items(env, arg_ast)? else {
+        return Ok(None);
+    };
+    let [item] = items.as_slice() else {
+        return Ok(None);
+    };
+    let Some((lhs, op, rhs)) = read_binary2(env, &item.items, OpTag::Var)? else {
+        return Ok(None);
+    };
+    let mut targets = Vec::new();
+    let destructure = read_destructure(env, lhs.pos.clone(), &lhs.items, &mut targets)?;
+    let bind = match &destructure.extract {
+        DestructureExtract::SingleItem { target, pos } => Some(Box::new(crate::ct::KwIfBinding {
+            name: targets[*target].name.clone(),
+            pos: pos.clone(),
+            ty: destructure.ty.clone(),
+        })),
+        DestructureExtract::Discard { .. } => None,
+        other => {
+            return Err(throw_err(
+                env,
+                Some(destructure_extract_pos(other).clone()),
+                "std.kw.if (v := opt) binds a single name",
+                None,
+                None,
+            ));
+        }
+    };
+    let value = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        rhs.pos.clone(),
+        &rhs.items,
+        block,
+    )?;
+    let Type::Optional(optional) = value.ty else {
+        return Err(throw_err(
+            env,
+            Some(op.pos.clone()),
+            format!(
+                "std.kw.if (v := x) needs an optional, got {}",
+                value.ty.dump()
+            ),
+            None,
+            None,
+        ));
+    };
+    Ok(Some(AnalysisResult {
+        ty: Type::KwIfOptional(crate::ct::TypeKwIfOptional {
+            child: optional.child,
+            bind,
+        }),
+        value: value.value,
+    }))
+}
+
 fn builtin_kw_if_call(
     env: &mut Env,
     _slot: Type,
@@ -3242,11 +3303,15 @@ fn builtin_kw_if_call(
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
     env.require_target(TargetEnv::Build, pos.clone(), "std.kw.if")?;
+    if let Some(binding) = kw_if_binding(env, &arg_ast, block)? {
+        return Ok(binding);
+    }
     let bool_ty = Type::KwBool(crate::ct::KwBool);
     let cond = analyze(env, bool_ty.clone(), arg_ast.pos, arg_ast.ast, block)?;
     if let Type::Optional(optional) = cond.ty {
         return Ok(AnalysisResult {
             ty: Type::KwIfOptional(crate::ct::TypeKwIfOptional {
+                bind: None,
                 child: optional.child,
             }),
             value: cond.value,
