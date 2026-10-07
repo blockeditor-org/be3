@@ -276,9 +276,18 @@ pub struct KwMut {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeNever;
 
-fn is_mut_assign(ty: &Type, key: Symbol) -> bool {
-    matches!(ty, Type::KwMut(_))
-        && symbol_operator(key) == Some((OperatorKind::Lhs, "=".to_string()))
+fn mut_assign(ty: &Type, key: Symbol) -> Option<Option<String>> {
+    if !matches!(ty, Type::KwMut(_)) {
+        return None;
+    }
+    let (OperatorKind::Lhs, op) = symbol_operator(key)? else {
+        return None;
+    };
+    if op == "=" {
+        return Some(None);
+    }
+    let base = op.strip_suffix('=')?;
+    matches!(base, "+" | "-" | "*" | "/" | "%").then(|| Some(base.to_string()))
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -818,7 +827,7 @@ impl Type {
     }
 
     fn builtin_has_value_symbol(&self, key: Symbol) -> bool {
-        if is_mut_assign(self, key) {
+        if mut_assign(self, key).is_some() {
             return true;
         }
         if symbol_std_key(key) == Some(StdKey::Call) {
@@ -888,7 +897,56 @@ impl Type {
         if symbol_std_key(key) == Some(StdKey::Call) {
             return self.builtin_call(env, slot, pos, receiver, arg_in, block);
         }
-        if let (true, Type::KwMut(cell)) = (is_mut_assign(self, key), self) {
+        if let (Some(Some(base)), Type::KwMut(cell)) = (mut_assign(self, key), self) {
+            let inner = (*cell.inner).clone();
+            let current = block_append(
+                block,
+                AnalysisLine::MutGet {
+                    pos: pos.clone(),
+                    cell: receiver.value.clone(),
+                },
+            );
+            let current = AnalysisResult {
+                ty: inner.clone(),
+                value: RuntimeValue::Runtime(current),
+            };
+            let base_key = crate::std_keys::operator_symbol(OperatorKind::Lhs, &base);
+            if !inner.has_value_symbol(env, base_key)? {
+                return Err(throw_err(
+                    env,
+                    Some(pos),
+                    format!(
+                        "operator {base}= is not supported: {} has no std.operator.lhs(\"{base}\")",
+                        inner.dump()
+                    ),
+                    None,
+                    None,
+                ));
+            }
+            let value = inner.call_bound(
+                env,
+                inner.clone(),
+                base_key,
+                current,
+                pos.clone(),
+                arg_in,
+                block,
+            )?;
+            let value = inner.cast_into(env, block, value, pos.clone())?;
+            block_append(
+                block,
+                AnalysisLine::MutSet {
+                    pos,
+                    cell: receiver.value,
+                    value: value.value,
+                },
+            );
+            return Ok(AnalysisResult {
+                ty: Type::Void(TypeVoid),
+                value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+            });
+        }
+        if let (Some(None), Type::KwMut(cell)) = (mut_assign(self, key), self) {
             let value = analyze(env, (*cell.inner).clone(), arg_in.pos, arg_in.ast, block)?;
             let value = cell.inner.cast_into(env, block, value, pos.clone())?;
             block_append(

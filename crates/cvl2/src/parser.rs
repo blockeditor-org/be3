@@ -413,12 +413,44 @@ const CONFIG_GROUPS: &[(&str, &[ConfigSpec])] = &[
     ),
     (
         "equals",
-        &[ConfigSpec {
-            token: "=",
-            style: ConfigStyle::Join,
-            op_tag: Some(OpTag::Assign),
-            ..ConfigSpec::DEFAULT
-        }],
+        &[
+            ConfigSpec {
+                token: "=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Assign),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "+=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Assign),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "-=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Assign),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "*=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Assign),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "/=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Assign),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "%=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Assign),
+                ..ConfigSpec::DEFAULT
+            },
+        ],
     ),
     (
         "compare",

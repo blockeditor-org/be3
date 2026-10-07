@@ -184,6 +184,7 @@ mod import_file_builds_text_sample;
 mod import_file_builds_types_sample;
 mod import_file_c_rejects_kw_if;
 mod import_file_compare_operator_takes_rhs_type_from_lhs;
+mod import_file_compound_assignment;
 mod import_file_comptime_param_errors;
 mod import_file_datapack_names_calls_and_reports_lost_results;
 mod import_file_emit_errors;
