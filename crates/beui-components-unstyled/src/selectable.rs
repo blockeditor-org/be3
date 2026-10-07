@@ -11,7 +11,7 @@ use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{Key, KeyPress, PointerPress};
 use beui_core::node::{NodeId, NodeOf};
-use beui_core::rich::{CaretHandle, handle_center};
+use beui_core::rich::{CaretHandle, handle_center, toolbar_anchor};
 use beui_macros::{component, view};
 
 const HANDLE_HIT_RADIUS: f32 = 24.0;
@@ -21,6 +21,14 @@ const CARET_WIDTH: f32 = 2.0;
 struct Caret {
     text: NodeOf<TextNode>,
     index: usize,
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Debug)]
+enum Unit {
+    #[default]
+    Character,
+    Word,
+    Text,
 }
 
 #[derive(Clone, Copy)]
@@ -41,6 +49,8 @@ struct Inner {
     handle_color: Cell<Color32>,
     touch: Cell<bool>,
     grab: Cell<Option<Grab>>,
+    unit: Cell<Unit>,
+    origin: Cell<Option<(Caret, Caret)>>,
     painted: RefCell<Vec<NodeOf<TextNode>>>,
     handled: RefCell<Vec<NodeOf<TextNode>>>,
 }
@@ -77,6 +87,38 @@ impl SelectableState {
                 index: end,
             },
         ))
+    }
+
+    fn unit_at(&self, document: &Document, pos: Pos2, unit: Unit) -> Option<(Caret, Caret)> {
+        match unit {
+            Unit::Character => self.caret_at(document, pos).map(|caret| (caret, caret)),
+            Unit::Word => self.word_at(document, pos),
+            Unit::Text => {
+                let caret = self.caret_at(document, pos)?;
+                let end = document.text(caret.text).len();
+                Some((
+                    Caret {
+                        text: caret.text,
+                        index: 0,
+                    },
+                    Caret {
+                        text: caret.text,
+                        index: end,
+                    },
+                ))
+            }
+        }
+    }
+
+    fn toolbar_rect(&self, document: &Document) -> Option<Rect> {
+        let texts = self.texts(document);
+        let (start, end, ..) = self.ordered(&texts)?;
+        if start == end {
+            return None;
+        }
+        let first = document.text_caret_rect(start.text, start.index, CARET_WIDTH)?;
+        let last = document.text_caret_rect(end.text, end.index, CARET_WIDTH)?;
+        Some(toolbar_anchor(first.union(last)))
     }
 
     fn ordered(&self, texts: &[NodeOf<TextNode>]) -> Option<(Caret, Caret, usize, usize)> {
@@ -312,7 +354,17 @@ pub fn selectable_text(document: &Document, selectable: NodeId) -> String {
         .selected_text(document)
 }
 
-fn press(state: &SelectableState, focusable: &NodeRef, press: PointerPress) {
+fn precedes(texts: &[NodeOf<TextNode>], left: Caret, right: Caret) -> bool {
+    let at = |caret: Caret| texts.iter().position(|text| *text == caret.text);
+    (at(left), left.index) < (at(right), right.index)
+}
+
+fn press(
+    state: &SelectableState,
+    focusable: &NodeRef,
+    on_toolbar: &Callback<Option<Rect>>,
+    press: PointerPress,
+) {
     with_document(|document| {
         if press.touch {
             state.0.grab.set(None);
@@ -331,18 +383,35 @@ fn press(state: &SelectableState, focusable: &NodeRef, press: PointerPress) {
                 .text_caret_rect(moving.text, moving.index, CARET_WIDTH)
                 .map_or(Vec2::ZERO, |caret| press.pos - caret.min);
             state.0.grab.set(Some(Grab { fixed, offset }));
+            on_toolbar.call(None);
             return;
         }
         if let Some(target) = focusable.try_get() {
             document.focus_focusable(target);
         }
         state.0.touch.set(false);
-        let caret = state.caret_at(document, press.pos);
-        let anchor = match press.modifiers.shift {
-            true => state.0.anchor.get().or(caret),
-            false => caret,
+        on_toolbar.call(None);
+        if press.modifiers.shift {
+            let caret = state.caret_at(document, press.pos);
+            let anchor = state.0.anchor.get().or(caret);
+            state.0.unit.set(Unit::Character);
+            state.0.origin.set(anchor.map(|anchor| (anchor, anchor)));
+            state.select(document, anchor, caret);
+            return;
+        }
+        let unit = match press.clicks {
+            0 | 1 => Unit::Character,
+            2 => Unit::Word,
+            _ => Unit::Text,
         };
-        state.select(document, anchor, caret);
+        let origin = state.unit_at(document, press.pos, unit);
+        state.0.unit.set(unit);
+        state.0.origin.set(origin);
+        state.select(
+            document,
+            origin.map(|(start, _)| start),
+            origin.map(|(_, end)| end),
+        );
     });
 }
 
@@ -357,36 +426,50 @@ fn drag(state: &SelectableState, press: PointerPress) {
         if press.touch {
             return;
         }
-        let caret = state.caret_at(document, press.pos);
-        if caret.is_some() {
-            let anchor = state.0.anchor.get();
-            state.select(document, anchor, caret);
-        }
+        let (Some((start, end)), Some(reached)) = (
+            state.0.origin.get(),
+            state.unit_at(document, press.pos, state.0.unit.get()),
+        ) else {
+            return;
+        };
+        let texts = state.texts(document);
+        let (anchor, focus) = match precedes(&texts, reached.0, start) {
+            true => (end, reached.0),
+            false => (start, reached.1),
+        };
+        state.select(document, Some(anchor), Some(focus));
     });
 }
 
-fn tap(state: &SelectableState, on_menu: &Callback<Pos2>, press: PointerPress) {
+fn show_toolbar(state: &SelectableState, document: &Document, on_toolbar: &Callback<Option<Rect>>) {
+    on_toolbar.call(state.toolbar_rect(document));
+}
+
+fn tap(state: &SelectableState, on_toolbar: &Callback<Option<Rect>>, press: PointerPress) {
     if !press.touch {
         return;
     }
-    if state.0.grab.take().is_some() {
-        return;
-    }
     with_document(|document| {
+        if state.0.grab.take().is_some() {
+            show_toolbar(state, document, on_toolbar);
+            return;
+        }
         if press.clicks >= 2 {
             state.select_word(document, press.pos);
+            show_toolbar(state, document, on_toolbar);
             return;
         }
         if state.selected(document, press.pos) {
-            on_menu.call(press.pos);
+            show_toolbar(state, document, on_toolbar);
             return;
         }
         state.0.touch.set(false);
         state.select(document, None, None);
+        on_toolbar.call(None);
     });
 }
 
-fn long_press(state: &SelectableState, press: PointerPress) {
+fn long_press(state: &SelectableState, on_toolbar: &Callback<Option<Rect>>, press: PointerPress) {
     if !press.touch {
         return;
     }
@@ -394,6 +477,7 @@ fn long_press(state: &SelectableState, press: PointerPress) {
         if !state.selected(document, press.pos) {
             state.select_word(document, press.pos);
         }
+        show_toolbar(state, document, on_toolbar);
     });
 }
 
@@ -403,7 +487,7 @@ pub fn Selectable(
     #[prop(default = SelectableState::default())] state: SelectableState,
     #[prop(default = Color32::from_rgba_unmultiplied(80, 140, 255, 90))] color: Prop<Color32>,
     #[prop(default = Color32::from_rgb(80, 140, 255))] handle_color: Prop<Color32>,
-    on_menu: Callback<Pos2>,
+    on_toolbar: Callback<Option<Rect>>,
 ) -> NodeId {
     set_component_state(state.clone());
     state.0.region.fill(children);
@@ -423,6 +507,8 @@ pub fn Selectable(
     let (tapped, held, captured, released) =
         (state.clone(), state.clone(), state.clone(), state.clone());
     let focused = focusable.clone();
+    let (pressed_toolbar, held_toolbar, released_toolbar) =
+        (on_toolbar.clone(), on_toolbar.clone(), on_toolbar.clone());
     view! {
         <Interactive
             focusable=true
@@ -434,13 +520,13 @@ pub fn Selectable(
             capture_at={move |pos: Pos2| {
                 with_document(|document| captured.handle_at(document, pos).is_some())
             }}
-            on_press={move |event: PointerPress| press(&pressed, &focused, event)}
+            on_press={move |event: PointerPress| press(&pressed, &focused, &pressed_toolbar, event)}
             on_drag={move |event: PointerPress| drag(&dragged, event)}
-            on_click_at={move |event: PointerPress| tap(&tapped, &on_menu, event)}
-            on_secondary_press={move |event: PointerPress| long_press(&held, event)}
+            on_click_at={move |event: PointerPress| tap(&tapped, &on_toolbar, event)}
+            on_secondary_press={move |event: PointerPress| long_press(&held, &held_toolbar, event)}
             on_active_change={move |active: bool| {
-                if !active {
-                    released.0.grab.set(None);
+                if !active && released.0.grab.take().is_some() {
+                    with_document(|document| show_toolbar(&released, document, &released_toolbar));
                 }
             }}
         >

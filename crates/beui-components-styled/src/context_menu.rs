@@ -1,12 +1,13 @@
 use beui_macros::{component, view};
 
+use crate::button::{ButtonFace, ButtonVariant};
 use crate::text::IconSized;
 use crate::theme::{BORDER_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{MenuItem, MenuRowHandle, MenuStyle};
+use beui_components_unstyled::{ButtonHandle, MenuItem, MenuRowHandle, MenuStyle};
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
-use beui_core::geometry::Pos2;
+use beui_core::geometry::{Pos2, Rect};
 use beui_core::icons::ICON_CHEVRON_RIGHT;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
@@ -29,8 +30,11 @@ pub fn ContextMenu(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,
     #[prop(default = true)] open_at_focuses: bool,
+    #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
+    #[prop(default = true)] opens_on_hold: bool,
     on_close: ClickCallback,
     on_select: Callback<Vec<usize>>,
+    on_toolbar_close: ClickCallback,
 ) -> NodeId {
     view! {
         <unstyled::ContextMenu
@@ -40,8 +44,11 @@ pub fn ContextMenu(
             disabled={disabled}
             open_at={open_at}
             open_at_focuses
+            toolbar_at
+            opens_on_hold
             on_close={move || on_close.call()}
             on_select={move |path| on_select.call(path)}
+            on_toolbar_close={move || on_toolbar_close.call()}
         >
             {children}
         </unstyled::ContextMenu>
@@ -61,6 +68,45 @@ pub fn menu_style() -> MenuStyle {
             }
         },
     )
+    .with_toolbar(
+        |handle| {
+            view! {
+                <ToolbarButton handle />
+            }
+        },
+        |content| {
+            view! {
+                <ToolbarPanel>{content}</ToolbarPanel>
+            }
+        },
+    )
+}
+
+#[component]
+fn ToolbarButton(handle: ButtonHandle) -> NodeId {
+    let glyph = handle.glyph.clone();
+    let icon_only = create_memo(move || !glyph.get().is_empty());
+    view! {
+        <ButtonFace handle variant=ButtonVariant::Ghost icon_only />
+    }
+}
+
+#[component]
+fn ToolbarPanel(children: Child) -> NodeId {
+    let theme = use_theme();
+    view! {
+        <Frame
+            color={theme.surface_raised.clone()}
+            outline={theme.border.clone()}
+            outline_width=BORDER_WIDTH
+            radius=RADIUS
+            outline_visible=true
+            padding_horizontal=MENU_PADDING
+            padding_vertical=MENU_PADDING
+        >
+            {children}
+        </Frame>
+    }
 }
 
 #[component]

@@ -27,11 +27,11 @@ pub struct MenuRowHandle {
 }
 
 pub struct MenuItem {
-    label: Memo<String>,
-    glyph: Memo<String>,
-    disabled: Memo<bool>,
-    action: Option<Action>,
-    children: Run<MenuItem>,
+    pub(crate) label: Memo<String>,
+    pub(crate) glyph: Memo<String>,
+    pub(crate) disabled: Memo<bool>,
+    pub(crate) action: Option<Action>,
+    pub(crate) children: Run<MenuItem>,
     scope: ChildScope,
 }
 

@@ -69,7 +69,10 @@ pub use command_palette::{
     command_palette_search, command_palette_shown,
 };
 pub use container::{Container, ContainerSize, container_size, narrower_than, shorter_than};
-pub use context_menu::{ContextMenu, MenuStyle, context_menu_menu, context_menu_overlay};
+pub use context_menu::{
+    ContextMenu, MenuStyle, context_menu_menu, context_menu_more, context_menu_overlay,
+    context_menu_toolbar,
+};
 pub use date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts, date_time_field_text,
     date_time_field_value,
@@ -131,7 +134,7 @@ pub use text_input::text_input_handles;
 pub use text_input::{
     TextInput, TextInputHandle, TextInputStyle, text_input_caret, text_input_focused,
     text_input_index_at, text_input_menu_row, text_input_selection, text_input_shown,
-    text_input_text, text_input_value,
+    text_input_text, text_input_toolbar, text_input_value,
 };
 pub use text_menu::TextContextMenu;
 pub use time_list::{TimeList, TimeOptionHandle, grid_columns, time_list_selected};

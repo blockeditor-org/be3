@@ -9,7 +9,7 @@ use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
 use beui_core::color::Color32;
 use beui_core::document::Document;
-use beui_core::geometry::{Pos2, Vec2};
+use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::KeyPress;
 
 use crate::SyntaxColors;
@@ -19,6 +19,7 @@ use crate::TextAreaState;
 use crate::context_menu::MenuStyle;
 use crate::context_menu_menu;
 use crate::context_menu_overlay;
+use crate::context_menu_toolbar;
 use crate::menu_list_len;
 use crate::menu_list_row_button;
 use crate::text_area_index_at;
@@ -158,8 +159,8 @@ pub fn TextInput(
     });
     let accessibility = crate::labelled_node(Role::TextInput, accessibility, label);
 
-    let opener: Rc<RefCell<Option<Callback<Pos2>>>> = Rc::default();
-    let open_menu = clone!(opener -> move |at: Pos2| {
+    let opener: Rc<RefCell<Option<Callback<Option<Rect>>>>> = Rc::default();
+    let open_menu = clone!(opener -> move |at: Option<Rect>| {
         if let Some(open) = opener.borrow().clone() {
             open.call(at);
         }
@@ -185,7 +186,7 @@ pub fn TextInput(
             font_size
             padding=Vec2::ZERO
             accessibility
-            on_menu={open_menu}
+            on_toolbar={open_menu}
             on_key_override={move |press: KeyPress| on_key_override.call(press)}
             on_submit={move || on_submit.call(text_of(&submit_state))}
             on_focus_change={move |focused: bool| {
@@ -211,7 +212,7 @@ pub fn TextInput(
                         masked={masked_menu}
                         disabled={menu_disabled}
                     >
-                        {move |open: Callback<Pos2>| {
+                        {move |open: Callback<Option<Rect>>| {
                             opener.replace(Some(open));
                             match content {
                                 Some(build) => build.call(TextInputHandle {
@@ -305,6 +306,12 @@ pub fn text_input_menu_row(
     }
     let list = context_menu_menu(document, menu);
     (index < menu_list_len(document, list)).then(|| menu_list_row_button(document, list, index))
+}
+
+pub fn text_input_toolbar(document: &Document, input_node: NodeId) -> Option<NodeId> {
+    let menu = input(document, input_node).menu.try_get()?;
+    let toolbar = context_menu_toolbar(document, menu);
+    document.is_overlay_open(toolbar).then_some(toolbar)
 }
 
 pub fn text_input_handles(document: &Document, input_node: NodeId) -> Vec<Pos2> {

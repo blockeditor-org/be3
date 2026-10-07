@@ -3,7 +3,7 @@ use crate::reactive::view;
 use crate::styled::TextInput;
 
 #[test]
-fn tapping_inside_a_touch_selection_opens_a_menu_that_copies_it() {
+fn tapping_inside_a_touch_selection_shows_a_toolbar_that_copies_it() {
     let (document, [input]) = toolbar_of(|| {
         [view! {
             <TextInput value="Hello world" />
@@ -22,8 +22,13 @@ fn tapping_inside_a_touch_selection_opens_a_menu_that_copies_it() {
     harness.touch(TouchPhase::End, inside);
     harness.frame(Vec::new());
 
-    let copy = unstyled::text_input_menu_row(harness.document(), input, 0)
-        .expect("tapping the selection opens its menu");
+    let toolbar = unstyled::text_input_toolbar(harness.document(), input)
+        .expect("tapping the selection shows its toolbar");
+    assert!(
+        unstyled::text_input_menu_row(harness.document(), input, 0).is_none(),
+        "the toolbar stands in for the menu"
+    );
+    let copy = text_within(harness.document(), toolbar, "Copy").expect("the toolbar copies");
     let row = harness.center(copy);
     harness.touch(TouchPhase::Start, row);
     let output = harness.frame(vec![Event::Touch {

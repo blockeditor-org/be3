@@ -18,6 +18,7 @@ use crate::node::{ClickHandler, Element, InteractInput, NodeId, NodeOf, Rects};
 pub enum OverlayAnchor {
     Node(NodeRef),
     Point(Pos2),
+    Rect(Rect),
 }
 
 impl beui_tree::reactive::IntoProp<OverlayAnchor> for &NodeRef {
@@ -35,6 +36,7 @@ impl Default for OverlayAnchor {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Placement {
     At,
+    Above,
     Over(u16),
     Around,
     BelowStart,
@@ -126,6 +128,21 @@ fn resolve_rect(
     if placement == Placement::Around {
         return Rect::from_center_size(anchor_rect.center(), content_size);
     }
+    if placement == Placement::Above {
+        let right = (viewport.right() - content_size.x).max(viewport.left());
+        let bottom = (viewport.bottom() - content_size.y).max(viewport.top());
+        let y = match anchor_rect.top() - content_size.y >= viewport.top() {
+            true => anchor_rect.top() - content_size.y,
+            false => anchor_rect.bottom(),
+        };
+        let origin = pos2(
+            (anchor_rect.center().x - content_size.x / 2.0)
+                .min(right)
+                .max(viewport.left()),
+            y.min(bottom).max(viewport.top()),
+        );
+        return Rect::from_min_size(origin, content_size);
+    }
     if placement == Placement::Fill {
         return viewport;
     }
@@ -174,6 +191,7 @@ fn resolve_rect(
         Placement::BelowStart => pos2(anchor_rect.left(), anchor_rect.bottom()),
         Placement::RightStart => pos2(anchor_rect.right(), anchor_rect.top()),
         Placement::At
+        | Placement::Above
         | Placement::Over(_)
         | Placement::Around
         | Placement::Center
@@ -220,12 +238,13 @@ impl Element for OverlayNode {
         let content_size = crate::layout::measure(doc, painter, content, viewport.size());
         let anchored = match &self.anchor {
             OverlayAnchor::Node(node) => node.try_get().and_then(|id| out.get(&id)),
-            OverlayAnchor::Point(_) => None,
+            OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => None,
         };
         self.anchored = anchored;
         let anchor_rect = match &self.anchor {
             OverlayAnchor::Node(_) => anchored.unwrap_or(viewport),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
+            OverlayAnchor::Rect(rect) => *rect,
         };
         let rect = resolve_rect(viewport, anchor_rect, self.placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);

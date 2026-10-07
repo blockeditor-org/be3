@@ -11,7 +11,7 @@ use beui_components_unstyled::{
 };
 use beui_core::base::ItemSize;
 use beui_core::document::Document;
-use beui_core::geometry::Pos2;
+use beui_core::geometry::Rect;
 use beui_core::input::KeyPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
@@ -58,7 +58,7 @@ pub fn TextArea(
                 masked
                 child_size=ItemSize::Percent(100.0)
             >
-                {move |open_menu: Callback<Pos2>| view! {
+                {move |open_menu: Callback<Option<Rect>>| view! {
                     <unstyled::TextArea
                         @node_ref=&surface
                         state={state}
@@ -71,7 +71,7 @@ pub fn TextArea(
                         on_widget_press={move |widget: usize| on_widget_press.call(widget)}
                         on_key_override={move |press: KeyPress| on_key_override.call(press)}
                         on_focus_change={move |focused: bool| on_focus_change.call(focused)}
-                        on_menu={move |at: Pos2| open_menu.call(at)}
+                        on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
                         block={block}
                         selected_widget={selected_widget}
                         completer={match emoji {
