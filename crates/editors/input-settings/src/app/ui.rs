@@ -33,7 +33,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
     let speed = settings.field(ObjectId::ROOT, InputSettings::POINTER_SPEED);
     let speed = create_memo(move || speed.get().get());
     let tap = settings.field(ObjectId::ROOT, InputSettings::TAP_TO_CLICK);
-    let tap = create_memo(move || tap.get().0);
+    let tap = create_memo(move || tap.get().unwrap_or(false));
     let natural = settings.field(ObjectId::ROOT, InputSettings::NATURAL_SCROLL);
     let natural = create_memo(move || natural.get());
     let delay_shown = create_memo(clone!(delay -> move || format!("{} ms", delay.get())));

@@ -65,15 +65,6 @@ impl PointerSpeed {
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct TapToClick(pub bool);
-
-impl Default for TapToClick {
-    fn default() -> Self {
-        Self(true)
-    }
-}
-
 #[derive(Clone, Debug, Default, Deserialize, Model, PartialEq, Serialize)]
 pub struct InputSettings {
     pub keyboard_layout: String,
@@ -82,7 +73,7 @@ pub struct InputSettings {
     pub repeat_delay: RepeatDelay,
     pub repeat_rate: RepeatRate,
     pub pointer_speed: PointerSpeed,
-    pub tap_to_click: TapToClick,
+    pub tap_to_click: Option<bool>,
     pub natural_scroll: bool,
 }
 
@@ -125,7 +116,7 @@ impl InputSettings {
 
     pub fn set_tap_to_click(enabled: bool) -> Edit {
         Self::TAP_TO_CLICK
-            .set(ObjectId::ROOT, &TapToClick(enabled))
+            .set(ObjectId::ROOT, &Some(enabled))
             .into()
     }
 

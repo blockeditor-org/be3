@@ -37,7 +37,7 @@ fn seat(settings: &InputSettings) -> InputConfig {
         repeat_delay: Duration::from_millis(settings.repeat_delay.milliseconds().into()),
         repeat_interval: Duration::from_millis((1000 / rate).into()),
         pointer_speed: settings.pointer_speed.get().into(),
-        tap_to_click: settings.tap_to_click.0,
+        tap_to_click: settings.tap_to_click,
         natural_scroll: settings.natural_scroll,
     }
 }

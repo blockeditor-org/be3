@@ -12,7 +12,7 @@ pub struct InputConfig {
     pub repeat_delay: Duration,
     pub repeat_interval: Duration,
     pub pointer_speed: f64,
-    pub tap_to_click: bool,
+    pub tap_to_click: Option<bool>,
     pub natural_scroll: bool,
 }
 
@@ -25,7 +25,7 @@ impl Default for InputConfig {
             repeat_delay: Duration::from_millis(600),
             repeat_interval: Duration::from_millis(40),
             pointer_speed: 0.0,
-            tap_to_click: true,
+            tap_to_click: None,
             natural_scroll: false,
         }
     }

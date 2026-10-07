@@ -592,8 +592,10 @@ fn configure_device(device: &mut InputDevice, config: &InputConfig) {
     if device.config_accel_is_available() {
         let _ = device.config_accel_set_speed(config.pointer_speed);
     }
-    if device.config_tap_finger_count() > 0 {
-        let _ = device.config_tap_set_enabled(config.tap_to_click);
+    if let Some(tap) = config.tap_to_click
+        && device.config_tap_finger_count() > 0
+    {
+        let _ = device.config_tap_set_enabled(tap);
     }
     if device.config_scroll_has_natural_scroll() {
         let _ = device.config_scroll_set_natural_scroll_enabled(config.natural_scroll);
