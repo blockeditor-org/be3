@@ -1,0 +1,32 @@
+std :: #builtin.std
+kw :: std.kw
+raw :: #builtin.c
+
+int :: std.Type[
+  .statics .= [
+    std.type.repr .= raw.int
+    std.literal.number .= (n: kw.int) => std.type.wrap(int, raw.int_from_kw(n))
+    std.operator.slot("+") .= (a: int, b: int) => std.type.wrap(int, raw.binary("+")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.slot("-") .= (a: int, b: int) => std.type.wrap(int, raw.binary("-")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.slot("*") .= (a: int, b: int) => std.type.wrap(int, raw.binary("*")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.slot("/") .= (a: int, b: int) => std.type.wrap(int, raw.binary("/")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.slot("%") .= (a: int, b: int) => std.type.wrap(int, raw.binary("%")(std.type.unwrap(a), std.type.unwrap(b)))
+  ]
+  .methods .= [
+    std.operator.lhs("+") .= (a: int, b: int) => std.type.wrap(int, raw.binary("+")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.lhs("-") .= (a: int, b: int) => std.type.wrap(int, raw.binary("-")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.lhs("*") .= (a: int, b: int) => std.type.wrap(int, raw.binary("*")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.lhs("/") .= (a: int, b: int) => std.type.wrap(int, raw.binary("/")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.lhs("%") .= (a: int, b: int) => std.type.wrap(int, raw.binary("%")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.lhs("==") .= (a: int, b: int) => std.type.wrap(int, raw.binary("==")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.lhs("!=") .= (a: int, b: int) => std.type.wrap(int, raw.binary("!=")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.lhs("<") .= (a: int, b: int) => std.type.wrap(int, raw.binary("<")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.lhs("<=") .= (a: int, b: int) => std.type.wrap(int, raw.binary("<=")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.lhs(">") .= (a: int, b: int) => std.type.wrap(int, raw.binary(">")(std.type.unwrap(a), std.type.unwrap(b)))
+    std.operator.lhs(">=") .= (a: int, b: int) => std.type.wrap(int, raw.binary(">=")(std.type.unwrap(a), std.type.unwrap(b)))
+  ]
+]
+
+"int" .= int
+"if" .= raw.if
+"compile" .= raw.compile

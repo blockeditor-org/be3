@@ -1,8 +1,24 @@
+use std::cell::Cell;
+use std::collections::HashMap;
+
+pub const DEFAULT_STEP_LIMIT: usize = 10_000_000;
+const MAX_CALL_DEPTH: usize = 1000;
+
+thread_local! {
+    static CALL_DEPTH: Cell<usize> = const { Cell::new(0) };
+    static STEP_LIMIT: Cell<usize> = const { Cell::new(DEFAULT_STEP_LIMIT) };
+}
+
+pub fn set_step_limit(limit: usize) {
+    STEP_LIMIT.with(|l| l.set(limit));
+}
+
 use crate::compiler::{
-    AnalysisBlock, AnalysisLine, ComptimeFile, ComptimeValue, ComptimeValueBuildArtifact, Env,
-    NsFields, NsFieldsEntry, PositionedError, RuntimeValue, analyze_function, throw_consumed_err,
-    throw_err,
+    AnalysisBlock, AnalysisLine, ComptimeFile, ComptimeValue, ComptimeValueBuildArtifact,
+    ComptimeValueTuple, Env, NsFields, NsFieldsEntry, PositionedError, Region, RuntimeValue,
+    Symbol, analyze_function, throw_consumed_err, throw_err,
 };
+use crate::ct::fold_kw_binary;
 use crate::parser::{ErrorStyle, TokenPosition};
 
 #[cfg(test)]
@@ -22,11 +38,23 @@ pub enum ComptimeValueKind {
     Uint8Array,
     ExportList,
     CExportName,
-    McIdentifier,
-    McResult,
-    McNbtRef,
+    CInt,
+    OperatorName,
+    KwInt,
+    KwBool,
+    Tuple,
+    KwMut,
+    KwString,
+    KwList,
+    KwText,
+    Struct,
+    Enum,
     Error,
-    Mc,
+    Target,
+    ReflectValue,
+    ReflectConstant,
+    ReflectData,
+    KwMap,
 }
 
 impl ComptimeValueKind {
@@ -44,11 +72,23 @@ impl ComptimeValueKind {
             ComptimeValue::Uint8Array(_) => ComptimeValueKind::Uint8Array,
             ComptimeValue::ExportList(_) => ComptimeValueKind::ExportList,
             ComptimeValue::CExportName(_) => ComptimeValueKind::CExportName,
-            ComptimeValue::McIdentifier(_) => ComptimeValueKind::McIdentifier,
-            ComptimeValue::McResult(_) => ComptimeValueKind::McResult,
-            ComptimeValue::McNbtRef(_) => ComptimeValueKind::McNbtRef,
+            ComptimeValue::CInt(_) => ComptimeValueKind::CInt,
+            ComptimeValue::OperatorName(_) => ComptimeValueKind::OperatorName,
+            ComptimeValue::KwInt(_) => ComptimeValueKind::KwInt,
+            ComptimeValue::KwBool(_) => ComptimeValueKind::KwBool,
+            ComptimeValue::Tuple(_) => ComptimeValueKind::Tuple,
+            ComptimeValue::KwMut(_) => ComptimeValueKind::KwMut,
+            ComptimeValue::KwString(_) => ComptimeValueKind::KwString,
+            ComptimeValue::KwList(_) => ComptimeValueKind::KwList,
+            ComptimeValue::KwText(_) => ComptimeValueKind::KwText,
+            ComptimeValue::Struct(_) => ComptimeValueKind::Struct,
+            ComptimeValue::Enum(_) => ComptimeValueKind::Enum,
             ComptimeValue::Error(_) => ComptimeValueKind::Error,
-            ComptimeValue::Mc(_) => ComptimeValueKind::Mc,
+            ComptimeValue::Target(_) => ComptimeValueKind::Target,
+            ComptimeValue::ReflectValue(_) => ComptimeValueKind::ReflectValue,
+            ComptimeValue::ReflectConstant(_) => ComptimeValueKind::ReflectConstant,
+            ComptimeValue::ReflectData(_) => ComptimeValueKind::ReflectData,
+            ComptimeValue::KwMap(_) => ComptimeValueKind::KwMap,
         }
     }
 }
@@ -144,8 +184,40 @@ fn comptime_eval_with_args(
     args: Option<RuntimeValue>,
 ) -> Result<ComptimeValue, PositionedError> {
     let mut results: Vec<Option<ComptimeValue>> = block.lines.iter().map(|_| None).collect();
-
+    let mut region_end: Vec<Option<usize>> = vec![None; block.lines.len()];
+    let mut region_begin: Vec<Option<usize>> = vec![None; block.lines.len()];
+    let mut label_end: HashMap<Symbol, usize> = HashMap::new();
+    let mut open = Vec::new();
     for (i, instr) in block.lines.iter().enumerate() {
+        match instr {
+            AnalysisLine::RegionBegin { .. } | AnalysisLine::LabelBegin { .. } => open.push(i),
+            AnalysisLine::RegionEnd { .. } | AnalysisLine::LabelEnd { .. } => {
+                let begin = open.pop().expect("analysis closes every region it opens");
+                region_end[begin] = Some(i);
+                region_begin[i] = Some(begin);
+                if let AnalysisLine::LabelEnd { label, .. } = instr {
+                    label_end.insert(*label, i);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut i = 0;
+    let mut steps: usize = 0;
+    while i < block.lines.len() {
+        let instr = &block.lines[i];
+        let mut next = i + 1;
+        steps += 1;
+        if steps > STEP_LIMIT.with(|l| l.get()) {
+            return Err(throw_err(
+                env,
+                Some(crate::printers::analysis_line_pos(instr).clone()),
+                "compile-time evaluation took too many steps; is a std.kw.loop missing a break?",
+                None,
+                None,
+            ));
+        }
         match instr {
             AnalysisLine::ComptimeKvListInit { .. } => {
                 results[i] = Some(ComptimeValue::KvFields(NsFields {
@@ -221,13 +293,26 @@ fn comptime_eval_with_args(
                 let arg_val =
                     get_comptime_impl(env, None, arg.clone(), ipos.clone(), Some(&runtime))?;
                 let body = analyze_function(env, &method_val)?;
+                let depth = CALL_DEPTH.with(|d| d.get());
+                if depth >= MAX_CALL_DEPTH {
+                    return Err(throw_err(
+                        env,
+                        Some(ipos.clone()),
+                        "compile-time calls are nested too deeply",
+                        None,
+                        None,
+                    ));
+                }
+                CALL_DEPTH.with(|d| d.set(depth + 1));
                 let value = comptime_eval_with_args(
                     env,
                     &body.block,
                     body.value,
                     ipos.clone(),
                     Some(RuntimeValue::Comptime(arg_val)),
-                )?;
+                );
+                CALL_DEPTH.with(|d| d.set(depth));
+                let value = value?;
                 results[i] = Some(value);
             }
             AnalysisLine::Args { pos: ipos } => {
@@ -252,41 +337,294 @@ fn comptime_eval_with_args(
                     block,
                     results: &results,
                 };
-                let arg_val = get_comptime_impl(
+                let bytes = match get_comptime_impl(
                     env,
-                    Some(ComptimeValueKind::Uint8Array),
+                    None,
                     value.clone(),
                     ipos.clone(),
                     Some(&runtime),
-                )?;
-                let ComptimeValue::Uint8Array(arg_val) = arg_val else {
-                    unreachable!("get_comptime guarantees a matching kind")
+                )? {
+                    ComptimeValue::KwString(s) => s.to_owned_string().into_bytes(),
+                    ComptimeValue::KwText(t) => crate::kw::render_text(&t).into_bytes(),
+                    other => {
+                        let ComptimeValue::Uint8Array(bytes) = get_comptime_impl(
+                            env,
+                            Some(ComptimeValueKind::Uint8Array),
+                            RuntimeValue::Comptime(other),
+                            ipos.clone(),
+                            None,
+                        )?
+                        else {
+                            unreachable!("get_comptime guarantees a matching kind")
+                        };
+                        bytes.value
+                    }
                 };
                 results[i] = Some(ComptimeValue::BuildArtifact(
-                    ComptimeValueBuildArtifact::File(ComptimeFile {
-                        value: arg_val.value,
-                    }),
+                    ComptimeValueBuildArtifact::File(ComptimeFile { value: bytes }),
                 ));
             }
-            AnalysisLine::Break { pos: ipos, .. } => {
+            AnalysisLine::Tuple { pos: ipos, items } => {
+                let runtime = RuntimeData {
+                    block,
+                    results: &results,
+                };
+                let mut values = Vec::new();
+                for item in items {
+                    values.push(get_comptime_impl(
+                        env,
+                        None,
+                        item.clone(),
+                        ipos.clone(),
+                        Some(&runtime),
+                    )?);
+                }
+                results[i] = Some(ComptimeValue::Tuple(ComptimeValueTuple { items: values }));
+            }
+            AnalysisLine::TupleGet {
+                pos: ipos,
+                tuple,
+                index,
+            } => {
+                let runtime = RuntimeData {
+                    block,
+                    results: &results,
+                };
+                let tuple = get_comptime_impl(
+                    env,
+                    Some(ComptimeValueKind::Tuple),
+                    tuple.clone(),
+                    ipos.clone(),
+                    Some(&runtime),
+                )?;
+                let ComptimeValue::Tuple(tuple) = tuple else {
+                    unreachable!("get_comptime guarantees a matching kind")
+                };
+                results[i] = Some(tuple.items[*index].clone());
+            }
+            AnalysisLine::KwBinary {
+                pos: ipos,
+                op,
+                lhs,
+                rhs,
+            } => {
+                let runtime = RuntimeData {
+                    block,
+                    results: &results,
+                };
+                let lhs = get_comptime_impl(env, None, lhs.clone(), ipos.clone(), Some(&runtime))?;
+                let rhs = get_comptime_impl(env, None, rhs.clone(), ipos.clone(), Some(&runtime))?;
+                results[i] = Some(fold_kw_binary(env, ipos, *op, &lhs, &rhs)?);
+            }
+            AnalysisLine::RegionBegin { pos: ipos, region } => {
+                let end = region_end[i].expect("every region_begin has a region_end");
+                match region {
+                    Region::KwIf { cond } => {
+                        let runtime = RuntimeData {
+                            block,
+                            results: &results,
+                        };
+                        let taken = get_comptime_impl(
+                            env,
+                            Some(ComptimeValueKind::KwBool),
+                            cond.clone(),
+                            ipos.clone(),
+                            Some(&runtime),
+                        )?;
+                        let ComptimeValue::KwBool(taken) = taken else {
+                            unreachable!("get_comptime guarantees a matching kind")
+                        };
+                        results[end] = Some(ComptimeValue::KwBool(taken.clone()));
+                        if !taken.value {
+                            next = end + 1;
+                        }
+                    }
+                    Region::KwElse { if_end, .. } => {
+                        let if_taken = matches!(
+                            &results[if_end.0],
+                            Some(ComptimeValue::KwBool(taken)) if taken.value
+                        );
+                        if if_taken {
+                            results[end] = Some(ComptimeValue::KwBool(
+                                crate::compiler::ComptimeValueKwBool { value: true },
+                            ));
+                            next = end + 1;
+                        }
+                    }
+                    Region::KwLoop => {}
+                    Region::CIf { .. } => {
+                        return Err(throw_err(
+                            env,
+                            Some(ipos.clone()),
+                            "std.c.if can't run at compile time",
+                            None,
+                            None,
+                        ));
+                    }
+                }
+            }
+            AnalysisLine::RegionEnd { .. } => {
+                let begin = region_begin[i].expect("every region_end has a region_begin");
+                match &block.lines[begin] {
+                    AnalysisLine::RegionBegin {
+                        region: Region::KwLoop,
+                        ..
+                    } => next = begin + 1,
+                    AnalysisLine::RegionBegin {
+                        region: Region::KwElse { then, .. },
+                        ..
+                    } => {
+                        let taken = match then {
+                            crate::compiler::ElseThen::Always => true,
+                            crate::compiler::ElseThen::Known(taken) => *taken,
+                            crate::compiler::ElseThen::Line(line) => matches!(
+                                &results[line.0],
+                                Some(ComptimeValue::KwBool(taken)) if taken.value
+                            ),
+                        };
+                        results[i] = Some(ComptimeValue::KwBool(
+                            crate::compiler::ComptimeValueKwBool { value: taken },
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+            AnalysisLine::LabelBegin { .. } => {}
+            AnalysisLine::KwBuiltin {
+                pos: ipos,
+                op,
+                args,
+            } => {
+                let runtime = RuntimeData {
+                    block,
+                    results: &results,
+                };
+                let mut values = Vec::new();
+                for arg in args {
+                    values.push(get_comptime_impl(
+                        env,
+                        None,
+                        arg.clone(),
+                        ipos.clone(),
+                        Some(&runtime),
+                    )?);
+                }
+                results[i] = Some(crate::kw::eval(env, ipos, *op, values)?);
+            }
+            AnalysisLine::MutNew { pos: ipos, init } => {
+                let runtime = RuntimeData {
+                    block,
+                    results: &results,
+                };
+                let init =
+                    get_comptime_impl(env, None, init.clone(), ipos.clone(), Some(&runtime))?;
+                results[i] = Some(ComptimeValue::KwMut(crate::compiler::MutPlace::new(init)));
+            }
+            AnalysisLine::MutGet { pos: ipos, cell } => {
+                let runtime = RuntimeData {
+                    block,
+                    results: &results,
+                };
+                let ComptimeValue::KwMut(cell) = get_comptime_impl(
+                    env,
+                    Some(ComptimeValueKind::KwMut),
+                    cell.clone(),
+                    ipos.clone(),
+                    Some(&runtime),
+                )?
+                else {
+                    unreachable!("get_comptime guarantees a matching kind")
+                };
+                results[i] = Some(cell.get());
+            }
+            AnalysisLine::MutSet {
+                pos: ipos,
+                cell,
+                value,
+            } => {
+                let runtime = RuntimeData {
+                    block,
+                    results: &results,
+                };
+                let ComptimeValue::KwMut(cell) = get_comptime_impl(
+                    env,
+                    Some(ComptimeValueKind::KwMut),
+                    cell.clone(),
+                    ipos.clone(),
+                    Some(&runtime),
+                )?
+                else {
+                    unreachable!("get_comptime guarantees a matching kind")
+                };
+                let value =
+                    get_comptime_impl(env, None, value.clone(), ipos.clone(), Some(&runtime))?;
+                cell.set(value);
+            }
+            AnalysisLine::LabelEnd {
+                pos: ipos, value, ..
+            } => {
+                let runtime = RuntimeData {
+                    block,
+                    results: &results,
+                };
+                results[i] = Some(get_comptime_impl(
+                    env,
+                    None,
+                    value.clone(),
+                    ipos.clone(),
+                    Some(&runtime),
+                )?);
+            }
+            AnalysisLine::Break {
+                pos: ipos,
+                label,
+                value,
+            } => {
+                let Some(end) = label_end.get(label).copied() else {
+                    return Err(throw_err(
+                        env,
+                        Some(ipos.clone()),
+                        "break to a label that isn't open here",
+                        None,
+                        None,
+                    ));
+                };
+                let runtime = RuntimeData {
+                    block,
+                    results: &results,
+                };
+                results[end] = Some(get_comptime_impl(
+                    env,
+                    None,
+                    value.clone(),
+                    ipos.clone(),
+                    Some(&runtime),
+                )?);
+                next = end + 1;
+            }
+            AnalysisLine::CBinary { pos: ipos, .. } => {
                 return Err(throw_err(
                     env,
                     Some(ipos.clone()),
-                    "todo: comptime eval expr: break",
+                    "std.c.int operators can't run at compile time",
                     None,
                     None,
                 ));
             }
-            AnalysisLine::McExecRaw { pos: ipos, .. } => {
+            AnalysisLine::Emit { pos: ipos, .. } => {
                 return Err(throw_err(
                     env,
                     Some(ipos.clone()),
-                    "todo: comptime eval expr: mc:exec_raw",
+                    format!(
+                        "{} can't run at compile time",
+                        crate::printers::analysis_line_name(instr)
+                    ),
                     None,
                     None,
                 ));
             }
         }
+        i = next;
     }
 
     let runtime = RuntimeData {

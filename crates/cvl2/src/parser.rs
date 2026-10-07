@@ -22,6 +22,9 @@ pub enum OpTag {
     Pub,
     Var,
     Assign,
+    Compare,
+    Add,
+    Mul,
     None,
 }
 
@@ -32,6 +35,7 @@ pub enum BracketTag {
     Code,
     ColonCall,
     ArrowFn,
+    SymbolAccess,
     String,
     InlineComment,
     None,
@@ -44,6 +48,7 @@ pub enum RawTag {
     Void,
     String,
     Comment,
+    Spread,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,6 +114,7 @@ pub struct RawToken {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ErrToken {
     pub pos: TokenPosition,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -322,6 +328,13 @@ const CONFIG_GROUPS: &[(&str, &[ConfigSpec])] = &[
                 ..ConfigSpec::DEFAULT
             },
             ConfigSpec {
+                token: ".[",
+                style: ConfigStyle::Open,
+                close: Some("]"),
+                bracket_tag: Some(BracketTag::SymbolAccess),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
                 token: "\\(",
                 style: ConfigStyle::Open,
                 close: Some(")"),
@@ -401,12 +414,125 @@ const CONFIG_GROUPS: &[(&str, &[ConfigSpec])] = &[
     ),
     (
         "equals",
-        &[ConfigSpec {
-            token: "=",
-            style: ConfigStyle::Join,
-            op_tag: Some(OpTag::Assign),
-            ..ConfigSpec::DEFAULT
-        }],
+        &[
+            ConfigSpec {
+                token: "=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Assign),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "+=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Assign),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "-=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Assign),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "*=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Assign),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "/=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Assign),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "%=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Assign),
+                ..ConfigSpec::DEFAULT
+            },
+        ],
+    ),
+    (
+        "compare",
+        &[
+            ConfigSpec {
+                token: "==",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Compare),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "!=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Compare),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "<",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Compare),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "<=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Compare),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: ">",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Compare),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: ">=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Compare),
+                ..ConfigSpec::DEFAULT
+            },
+        ],
+    ),
+    (
+        "additive",
+        &[
+            ConfigSpec {
+                token: "+",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Add),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "-",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Add),
+                ..ConfigSpec::DEFAULT
+            },
+        ],
+    ),
+    (
+        "multiplicative",
+        &[
+            ConfigSpec {
+                token: "*",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Mul),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "/",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Mul),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "%",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Mul),
+                ..ConfigSpec::DEFAULT
+            },
+        ],
     ),
     (
         "string",
@@ -470,6 +596,15 @@ fn lookup_config(token: &str) -> Option<ConfigEntry> {
     config_map().get(token).copied()
 }
 
+pub fn is_overloadable_operator(token: &str) -> bool {
+    lookup_config(token).is_some_and(|cfg| {
+        matches!(
+            cfg.op_tag,
+            Some(OpTag::Compare | OpTag::Add | OpTag::Mul | OpTag::Assign)
+        )
+    })
+}
+
 fn set_mode_for_bracket_tag(tag: BracketTag) -> Option<TokenizerMode> {
     match tag {
         BracketTag::String => Some(TokenizerMode::InString),
@@ -482,6 +617,7 @@ fn raw_tag_for(token: &str) -> Option<RawTag> {
     match token {
         "->" => Some(RawTag::Return),
         "_" => Some(RawTag::Discard),
+        "..." => Some(RawTag::Spread),
         _ => None,
     }
 }
@@ -532,6 +668,7 @@ enum BuilderNode {
         items: NodeList,
     },
     Raw(RawToken),
+    Err(ErrToken),
 }
 
 fn freeze_list(list: &NodeList) -> Vec<SyntaxNode> {
@@ -574,6 +711,7 @@ fn freeze_node(node: BuilderNode) -> SyntaxNode {
             items: freeze_list(&items),
         })),
         BuilderNode::Raw(t) => SyntaxNode::Raw(t),
+        BuilderNode::Err(t) => SyntaxNode::Err(t),
     }
 }
 
@@ -684,8 +822,25 @@ pub fn tokenize(source: &mut Source) -> TokenizationResult {
                     };
                 } else if "()[]{},;\"'`".contains(first_char) {
                     current_token = first_char.to_string();
+                } else if first_char == '.' && matches!(source.peek(), Some('*' | '?')) {
+                    let access = source.take().expect("peeked above").to_string();
+                    current_syntax_nodes
+                        .borrow_mut()
+                        .push(BuilderNode::Identifier(IdentifierToken {
+                            pos: start,
+                            str: access,
+                            ident_tag: IdentifierTag::Access,
+                            ident_tag_raw: ".".to_string(),
+                        }));
+                    continue;
                 } else if OPERATOR_CHARS.contains(first_char) {
                     while source.peek().is_some_and(|c| OPERATOR_CHARS.contains(c)) {
+                        source.take();
+                    }
+                    if first_char == '.'
+                        && source.current_index == start.idx + 1
+                        && source.peek() == Some('[')
+                    {
                         source.take();
                     }
                     current_token = source.text_slice(start.idx, source.current_index);
@@ -994,6 +1149,12 @@ pub fn tokenize(source: &mut Source) -> TokenizationResult {
                         }],
                         trace: Vec::new(),
                     });
+                    current_syntax_nodes
+                        .borrow_mut()
+                        .push(BuilderNode::Err(ErrToken {
+                            pos: start.clone(),
+                            text: current_token.clone(),
+                        }));
                 }
             }
         }
@@ -1236,6 +1397,7 @@ fn bracket_highlight(tag: BracketTag) -> Option<&'static str> {
         BracketTag::List => Some(highlights::BRACKETS),
         BracketTag::Code => Some(highlights::BRACKETS),
         BracketTag::ArrowFn => Some(highlights::KEYWORD),
+        BracketTag::SymbolAccess => Some(highlights::BRACKETS),
         BracketTag::InlineComment => Some(highlights::BRACKETS),
         BracketTag::None => None,
     }
@@ -1248,6 +1410,7 @@ fn op_highlight(tag: OpTag) -> Option<&'static str> {
         OpTag::Assign => Some(highlights::KEYWORD),
         OpTag::Sep => Some(highlights::OPERATORS),
         OpTag::Var => Some(highlights::KEYWORD),
+        OpTag::Compare | OpTag::Add | OpTag::Mul => Some(highlights::OPERATORS),
         OpTag::None => None,
     }
 }
@@ -1256,6 +1419,7 @@ fn raw_highlight(tag: RawTag) -> Option<&'static str> {
     match tag {
         RawTag::Return => Some(highlights::KEYWORD),
         RawTag::Discard => Some(highlights::KEYWORD),
+        RawTag::Spread => Some(highlights::KEYWORD),
         RawTag::String => Some(highlights::STRING),
         RawTag::Comment => Some(highlights::COMMENT),
         RawTag::Void => None,
@@ -1435,7 +1599,7 @@ fn render_entity_pretty(
                 )
             }
         }
-        SyntaxNode::Err(_) => "%TODO<err>%".to_string(),
+        SyntaxNode::Err(t) => t.text.clone(),
     }
 }
 
@@ -1595,11 +1759,8 @@ pub fn pretty_print_errors(sources: &[&Source], errors: &[TokenizationError]) ->
     output
 }
 
-pub fn render_tokenized_output(
-    tokenization_result: &TokenizationResult,
-    source: &Source,
-) -> String {
-    let formatted_code = render_entity_pretty_list(
+pub fn render_formatted(tokenization_result: &TokenizationResult) -> String {
+    render_entity_pretty_list(
         &RenderConfig {
             indent: "  ".to_string(),
             reveal: false,
@@ -1609,8 +1770,11 @@ pub fn render_tokenized_output(
         0,
         0,
         true,
-    );
-    let ugly_code = render_entity_pretty_list(
+    )
+}
+
+pub fn render_brackets(tokenization_result: &TokenizationResult) -> String {
+    render_entity_pretty_list(
         &RenderConfig {
             indent: "  ".to_string(),
             reveal: true,
@@ -1620,12 +1784,9 @@ pub fn render_tokenized_output(
         0,
         0,
         true,
-    );
-    let adisp =
-        crate::printers::printers::AST_NODE.dump_list(&tokenization_result.result, usize::MAX);
-    let pretty_errors = pretty_print_errors(&[source], &tokenization_result.errors);
-
-    format!(
-        "// adisp:{adisp}\n\n// ugly\n{ugly_code}\n\n// formatted\n{formatted_code}\n\n// errors:\n{pretty_errors}"
     )
+}
+
+pub fn render_syntax_tree(tokenization_result: &TokenizationResult) -> String {
+    crate::printers::printers::AST_NODE.dump_list(&tokenization_result.result, usize::MAX)
 }

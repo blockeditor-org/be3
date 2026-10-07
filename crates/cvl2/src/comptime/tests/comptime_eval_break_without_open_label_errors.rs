@@ -1,13 +1,14 @@
 use super::*;
 
 #[test]
-fn comptime_eval_unhandled_break_line_errors() {
+fn comptime_eval_break_without_open_label_errors() {
     let validate = Symbol::new();
     let block = AnalysisBlock {
         offset: 0,
         validate,
         lines: vec![AnalysisLine::Break {
             pos: pos_at(0),
+            label: Symbol::new(),
             value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
         }],
     };
@@ -24,5 +25,8 @@ fn comptime_eval_unhandled_break_line_errors() {
     let PositionedError::Fresh(e) = err else {
         panic!("expected a fresh error");
     };
-    assert_eq!(e.entries[0].message, "todo: comptime eval expr: break");
+    assert_eq!(
+        e.entries[0].message,
+        "break to a label that isn't open here"
+    );
 }

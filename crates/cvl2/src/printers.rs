@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::compiler::{
     AnalysisBlock, AnalysisLine, ComptimeValue, ComptimeValueBuildArtifact, ComptimeValueKey,
-    Destructure, DestructureExtract, RuntimeValue, syntax_node_kind,
+    Destructure, DestructureExtract, Region, RuntimeValue, syntax_node_kind,
 };
 use crate::ct::Type;
 use crate::parser::{
@@ -223,6 +223,9 @@ fn op_tag_str(tag: OpTag) -> &'static str {
         OpTag::Pub => "pub",
         OpTag::Var => "var",
         OpTag::Assign => "assign",
+        OpTag::Compare => "compare",
+        OpTag::Add => "add",
+        OpTag::Mul => "mul",
         OpTag::None => "",
     }
 }
@@ -234,6 +237,7 @@ fn bracket_tag_str(tag: BracketTag) -> &'static str {
         BracketTag::Code => "code",
         BracketTag::ColonCall => "colon_call",
         BracketTag::ArrowFn => "arrow_fn",
+        BracketTag::SymbolAccess => "symbol_access",
         BracketTag::String => "string",
         BracketTag::InlineComment => "inline_comment",
         BracketTag::None => "",
@@ -254,6 +258,7 @@ fn raw_tag_str(tag: RawTag) -> &'static str {
     match tag {
         RawTag::Return => "return",
         RawTag::Discard => "discard",
+        RawTag::Spread => "spread",
         RawTag::Void => "void",
         RawTag::String => "string",
         RawTag::Comment => "comment",
@@ -273,7 +278,27 @@ fn syntax_node_pos(node: &SyntaxNode) -> &TokenPosition {
     }
 }
 
-fn analysis_line_tag(line: &AnalysisLine) -> &'static str {
+pub(crate) fn analysis_line_name(line: &AnalysisLine) -> String {
+    match line {
+        AnalysisLine::RegionBegin { region, .. } => match region {
+            Region::CIf { .. } => "std.c.if",
+            Region::KwIf { .. } => "std.kw.if",
+            Region::KwElse { .. } => ".else",
+            Region::KwLoop => "std.kw.loop",
+        }
+        .to_string(),
+        AnalysisLine::MutNew { .. } => "std.kw.mut".to_string(),
+        AnalysisLine::MutGet { .. } => "reading a std.kw.mut".to_string(),
+        AnalysisLine::MutSet { .. } => "assigning a std.kw.mut".to_string(),
+        AnalysisLine::KwBinary { op, .. } => format!("std.kw {}", op.as_str()),
+        AnalysisLine::KwBuiltin { op, .. } => format!("std.kw {}", op.name()),
+        AnalysisLine::CBinary { op, .. } => format!("std.c.int {}", op.as_str()),
+        AnalysisLine::Emit { data_ty, .. } => format!("std.emit of {}", data_ty.dump()),
+        other => analysis_line_tag(other).to_string(),
+    }
+}
+
+pub(crate) fn analysis_line_tag(line: &AnalysisLine) -> &'static str {
     match line {
         AnalysisLine::ComptimeKvListInit { .. } => "comptime:kv_list_init",
         AnalysisLine::ComptimeKvListAppend { .. } => "comptime:kv_list_append",
@@ -281,7 +306,24 @@ fn analysis_line_tag(line: &AnalysisLine) -> &'static str {
         AnalysisLine::Break { .. } => "break",
         AnalysisLine::Args { .. } => "args",
         AnalysisLine::ComptimeFileCreate { .. } => "comptime:file_create",
-        AnalysisLine::McExecRaw { .. } => "mc:exec_raw",
+        AnalysisLine::Emit { .. } => "emit",
+        AnalysisLine::Tuple { .. } => "tuple",
+        AnalysisLine::TupleGet { .. } => "tuple_get",
+        AnalysisLine::CBinary { .. } => "c:binary",
+        AnalysisLine::LabelBegin { .. } => "label_begin",
+        AnalysisLine::LabelEnd { .. } => "label_end",
+        AnalysisLine::KwBinary { .. } => "kw:binary",
+        AnalysisLine::RegionBegin { region, .. } => match region {
+            Region::CIf { .. } => "region_begin c:if",
+            Region::KwIf { .. } => "region_begin kw:if",
+            Region::KwElse { .. } => "region_begin kw:else",
+            Region::KwLoop => "region_begin kw:loop",
+        },
+        AnalysisLine::RegionEnd { .. } => "region_end",
+        AnalysisLine::MutNew { .. } => "kw:mut_new",
+        AnalysisLine::KwBuiltin { op, .. } => op.name(),
+        AnalysisLine::MutGet { .. } => "kw:mut_get",
+        AnalysisLine::MutSet { .. } => "kw:mut_set",
     }
 }
 
@@ -293,7 +335,19 @@ pub(crate) fn analysis_line_pos(line: &AnalysisLine) -> &TokenPosition {
         AnalysisLine::Break { pos, .. } => pos,
         AnalysisLine::Args { pos } => pos,
         AnalysisLine::ComptimeFileCreate { pos, .. } => pos,
-        AnalysisLine::McExecRaw { pos, .. } => pos,
+        AnalysisLine::Emit { pos, .. } => pos,
+        AnalysisLine::Tuple { pos, .. } => pos,
+        AnalysisLine::TupleGet { pos, .. } => pos,
+        AnalysisLine::CBinary { pos, .. } => pos,
+        AnalysisLine::LabelBegin { pos, .. } => pos,
+        AnalysisLine::LabelEnd { pos, .. } => pos,
+        AnalysisLine::KwBinary { pos, .. } => pos,
+        AnalysisLine::RegionBegin { pos, .. } => pos,
+        AnalysisLine::RegionEnd { pos } => pos,
+        AnalysisLine::MutNew { pos, .. } => pos,
+        AnalysisLine::KwBuiltin { pos, .. } => pos,
+        AnalysisLine::MutGet { pos, .. } => pos,
+        AnalysisLine::MutSet { pos, .. } => pos,
     }
 }
 
@@ -311,11 +365,23 @@ fn comptime_value_kind(value: &ComptimeValue) -> &'static str {
         ComptimeValue::Uint8Array(_) => "uint8array",
         ComptimeValue::ExportList(_) => "export_list",
         ComptimeValue::CExportName(_) => "c:export_name",
-        ComptimeValue::McIdentifier(_) => "mc:identifier",
-        ComptimeValue::McResult(_) => "mc:result",
-        ComptimeValue::McNbtRef(_) => "mc:nbt_ref",
+        ComptimeValue::CInt(_) => "c:int",
+        ComptimeValue::OperatorName(_) => "operator_name",
+        ComptimeValue::KwInt(_) => "kw:int",
+        ComptimeValue::KwBool(_) => "kw:bool",
+        ComptimeValue::Tuple(_) => "tuple",
+        ComptimeValue::KwMut(_) => "kw:mut",
+        ComptimeValue::KwString(_) => "kw:string",
+        ComptimeValue::KwList(_) => "kw:list",
+        ComptimeValue::KwText(_) => "kw:text",
+        ComptimeValue::Struct(_) => "struct",
+        ComptimeValue::Enum(_) => "enum",
         ComptimeValue::Error(_) => "error",
-        ComptimeValue::Mc(_) => "mc",
+        ComptimeValue::Target(_) => "target",
+        ComptimeValue::ReflectValue(_) => "reflect_value",
+        ComptimeValue::ReflectConstant(_) => "reflect_constant",
+        ComptimeValue::ReflectData(_) => "reflect_data",
+        ComptimeValue::KwMap(_) => "kw:map",
     }
 }
 
@@ -332,6 +398,7 @@ fn destructure_extract_kind(extract: &DestructureExtract) -> &'static str {
         DestructureExtract::List { .. } => "list",
         DestructureExtract::Map { .. } => "map",
         DestructureExtract::Discard { .. } => "discard",
+        DestructureExtract::Comptime { .. } => "comptime",
     }
 }
 
@@ -341,6 +408,7 @@ fn destructure_extract_pos(extract: &DestructureExtract) -> &TokenPosition {
         DestructureExtract::List { pos, .. } => pos,
         DestructureExtract::Map { pos, .. } => pos,
         DestructureExtract::Discard { pos } => pos,
+        DestructureExtract::Comptime { pos, .. } => pos,
     }
 }
 
@@ -389,14 +457,6 @@ fn print_block(adisp: &mut Adisp, block: &AnalysisBlock) {
             AnalysisLine::Args { pos } => {
                 adisp.put_src(pos);
             }
-            AnalysisLine::McExecRaw { pos, command } => {
-                adisp.put_src(pos);
-                adisp.with_indent(|adisp| {
-                    adisp.put_newline();
-                    adisp.put("command: ", None);
-                    adisp.put_inline(&printers::RUNTIME_VALUE, command);
-                });
-            }
             _ => {
                 adisp.put(" %%TODO%%", None);
                 adisp.put_src(analysis_line_pos(expr));
@@ -431,11 +491,6 @@ fn print_runtime_value(adisp: &mut Adisp, rtv: &RuntimeValue) {
         }
         RuntimeValue::Comptime(ComptimeValue::Void(_)) => {}
         RuntimeValue::Comptime(ComptimeValue::Fn(_)) => {}
-        RuntimeValue::Comptime(ComptimeValue::McIdentifier(mc)) => {
-            adisp.put(&format!(" {}", mc.namespace), Some(colors::CYAN));
-            adisp.put(":", None);
-            adisp.put(&mc.path, Some(colors::BLUE));
-        }
         _ => {
             adisp.put(" %%TODO%%", None);
         }
@@ -454,7 +509,8 @@ fn print_destructure(adisp: &mut Adisp, destructure: &Destructure) {
 fn print_destructure_extract(adisp: &mut Adisp, extract: &DestructureExtract) {
     adisp.put(destructure_extract_kind(extract), Some(colors::CYAN));
     match extract {
-        DestructureExtract::SingleItem { target, pos } => {
+        DestructureExtract::SingleItem { target, pos }
+        | DestructureExtract::Comptime { target, pos } => {
             adisp.put(&format!(" {target}"), Some(colors::GREEN));
             adisp.put_src(pos);
         }

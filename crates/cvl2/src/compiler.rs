@@ -6,14 +6,14 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::ct::{
-    CExportName, CallArg, CtAst, CtBuildArtifact, CtBuildArtifactNarrow, CtExportList, CtKey,
-    CtNamespace, CtType, McIdentifier, McNbtRef, McNbtRefNarrow, McResult, Type, TypeFn, TypeTuple,
-    TypeUnknown, TypeVoid,
+    CExportName, CInt, CallArg, CtAst, CtBuildArtifact, CtBuildArtifactNarrow, CtExportList, CtKey,
+    CtNamespace, CtType, OperatorName, Type, TypeBound, TypeFn, TypeLabel, TypeTuple, TypeUnknown,
+    TypeVoid,
 };
 use crate::parser::{
-    BracketTag, IdentifierTag, OpTag, OperatorSegmentToken, OperatorToken, RawTag, RawToken,
-    Source, SyntaxNode, TokenPosition, TokenizationError, TokenizationErrorEntry, TraceEntry,
-    tokenize,
+    BinaryExpressionToken, BlockToken, BracketTag, IdentifierTag, OpTag, OperatorSegmentToken,
+    OperatorToken, RawTag, RawToken, Source, SyntaxNode, TokenPosition, TokenizationError,
+    TokenizationErrorEntry, TraceEntry, tokenize,
 };
 use crate::printers::printers::AST_NODE;
 
@@ -79,7 +79,7 @@ pub fn empty_block() -> AnalysisBlock {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Symbol(u64);
 
 impl Symbol {
@@ -108,15 +108,14 @@ pub fn throw_consumed_err(_consumed: ConsumedErrorToken) -> PositionedError {
     PositionedError::Consumed
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TargetEnv {
     Build,
     C,
-    Mc,
-    Todo,
+    User(Symbol),
 }
 
-fn target_env_symbol() -> Symbol {
+pub fn target_env_symbol() -> Symbol {
     static TARGET_ENV_SYMBOL: OnceLock<Symbol> = OnceLock::new();
     *TARGET_ENV_SYMBOL.get_or_init(Symbol::new)
 }
@@ -140,6 +139,20 @@ impl ComptimeScopeMap {
             return Some(*v);
         }
         self.parent.as_ref().and_then(|p| p.get(key))
+    }
+
+    pub fn snapshot(&self) -> ComptimeSnapshot {
+        let mut values: HashMap<Symbol, TargetEnv> = HashMap::new();
+        let mut current = Some(self);
+        while let Some(map) = current {
+            for (key, value) in &map.changes {
+                values.entry(*key).or_insert(*value);
+            }
+            current = map.parent.as_deref();
+        }
+        let mut values: Vec<(Symbol, TargetEnv)> = values.into_iter().collect();
+        values.sort_by_key(|(key, _)| *key);
+        values
     }
 
     pub fn sub(self: &Rc<Self>, changes: HashMap<Symbol, TargetEnv>) -> Rc<Self> {
@@ -188,9 +201,11 @@ pub trait CacheKey {
     fn cache_ptr(&self) -> usize;
 }
 
+pub type ComptimeSnapshot = Vec<(Symbol, TargetEnv)>;
+
 pub struct PerComptimeScopeCache<K, V> {
-    entries: RefCell<HashMap<usize, V>>,
-    in_progress: RefCell<HashSet<usize>>,
+    entries: RefCell<HashMap<(usize, ComptimeSnapshot), V>>,
+    in_progress: RefCell<HashSet<(usize, ComptimeSnapshot)>>,
     _marker: PhantomData<K>,
 }
 
@@ -211,23 +226,30 @@ impl<K, V> PerComptimeScopeCache<K, V> {
 }
 
 impl<K: CacheKey, V: Clone> PerComptimeScopeCache<K, V> {
+    pub fn is_in_progress(&self, key: &K, comptime: &ComptimeScopeMap) -> bool {
+        self.in_progress
+            .borrow()
+            .contains(&(key.cache_ptr(), comptime.snapshot()))
+    }
+
     pub fn get_or_put(
         &self,
         key: &K,
+        comptime: &ComptimeScopeMap,
         env: &mut Env,
         cb: impl FnOnce(&mut Env) -> Result<V, PositionedError>,
     ) -> Result<V, PositionedError> {
-        let ptr = key.cache_ptr();
-        if let Some(v) = self.entries.borrow().get(&ptr) {
+        let key = (key.cache_ptr(), comptime.snapshot());
+        if let Some(v) = self.entries.borrow().get(&key) {
             return Ok(v.clone());
         }
-        if !self.in_progress.borrow_mut().insert(ptr) {
+        if !self.in_progress.borrow_mut().insert(key.clone()) {
             return Err(throw_err(env, None, "dependency loop", None, None));
         }
         match cb(env) {
             Ok(v) => {
-                self.in_progress.borrow_mut().remove(&ptr);
-                self.entries.borrow_mut().insert(ptr, v.clone());
+                self.in_progress.borrow_mut().remove(&key);
+                self.entries.borrow_mut().insert(key, v.clone());
                 Ok(v)
             }
             Err(e) => Err(e),
@@ -244,7 +266,7 @@ pub struct Env {
     pub builtin_cache: Rc<PerComptimeScopeCache<Rc<dyn Descriptor>, AnalysisResult>>,
 }
 
-fn with_scope<R>(
+pub fn with_scope<R>(
     env: &mut Env,
     scope: Scope,
     f: impl FnOnce(&mut Env) -> Result<R, PositionedError>,
@@ -255,7 +277,7 @@ fn with_scope<R>(
     result
 }
 
-fn with_target_env<R>(
+pub fn with_target_env<R>(
     env: &mut Env,
     target: TargetEnv,
     f: impl FnOnce(&mut Env) -> Result<R, PositionedError>,
@@ -279,6 +301,7 @@ pub struct ComptimeValueAst {
 #[derive(Debug)]
 struct ComptimeValueDeclarationInner {
     ast: ComptimeValueAst,
+    name: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -297,7 +320,14 @@ impl CacheKey for ComptimeValueDeclaration {
 }
 
 pub fn create_declaration(_env: &mut Env, ast: ComptimeValueAst) -> ComptimeValueDeclaration {
-    ComptimeValueDeclaration(Rc::new(ComptimeValueDeclarationInner { ast }))
+    ComptimeValueDeclaration(Rc::new(ComptimeValueDeclarationInner { ast, name: None }))
+}
+
+pub fn create_named_declaration(ast: ComptimeValueAst, name: &str) -> ComptimeValueDeclaration {
+    ComptimeValueDeclaration(Rc::new(ComptimeValueDeclarationInner {
+        ast,
+        name: Some(name.to_string()),
+    }))
 }
 
 pub fn get_declaration(
@@ -306,7 +336,8 @@ pub fn get_declaration(
 ) -> Result<ComptimeAnalysisResult, PositionedError> {
     let cache = env.decl_cache.clone();
     let key = decl.clone();
-    cache.get_or_put(&key, env, move |env| {
+    let comptime = decl.ast().scope.comptime.clone();
+    cache.get_or_put(&key, &comptime, env, move |env| {
         let scope = decl.ast().scope.clone();
         with_scope(env, scope, |env| {
             let mut block = empty_block();
@@ -319,6 +350,11 @@ pub fn get_declaration(
             )?;
             let evald =
                 crate::comptime::comptime_eval(env, &block, result.value, decl.ast().pos.clone())?;
+            if let (Some(name), ComptimeValue::Type(ComptimeValueType { ty: Type::User(t) })) =
+                (&decl.0.name, &evald)
+            {
+                t.set_name(name);
+            }
             Ok(ComptimeAnalysisResult {
                 ty: result.ty,
                 value: evald,
@@ -348,19 +384,118 @@ pub enum AnalysisLine {
     },
     Break {
         pos: TokenPosition,
+        label: Symbol,
         value: RuntimeValue,
     },
     Args {
         pos: TokenPosition,
     },
+    Tuple {
+        pos: TokenPosition,
+        items: Vec<RuntimeValue>,
+    },
+    TupleGet {
+        pos: TokenPosition,
+        tuple: RuntimeValue,
+        index: usize,
+    },
+    CBinary {
+        pos: TokenPosition,
+        op: crate::backend::c::CBinaryOp,
+        lhs: RuntimeValue,
+        rhs: RuntimeValue,
+    },
+    LabelBegin {
+        pos: TokenPosition,
+        label: Symbol,
+        ty: Type,
+    },
+    LabelEnd {
+        pos: TokenPosition,
+        label: Symbol,
+        value: RuntimeValue,
+    },
+    KwBinary {
+        pos: TokenPosition,
+        op: crate::backend::c::CBinaryOp,
+        lhs: RuntimeValue,
+        rhs: RuntimeValue,
+    },
+    RegionBegin {
+        pos: TokenPosition,
+        region: Region,
+    },
+    RegionEnd {
+        pos: TokenPosition,
+    },
+    MutNew {
+        pos: TokenPosition,
+        init: RuntimeValue,
+    },
+    KwBuiltin {
+        pos: TokenPosition,
+        op: crate::kw::KwBuiltinOp,
+        args: Vec<RuntimeValue>,
+    },
+    MutGet {
+        pos: TokenPosition,
+        cell: RuntimeValue,
+    },
+    MutSet {
+        pos: TokenPosition,
+        cell: RuntimeValue,
+        value: RuntimeValue,
+    },
     ComptimeFileCreate {
         pos: TokenPosition,
         value: RuntimeValue,
     },
-    McExecRaw {
+    Emit {
         pos: TokenPosition,
-        command: RuntimeValue,
+        data: ComptimeValue,
+        data_ty: Type,
+        operands: Vec<RuntimeValue>,
+        ty: Type,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ElseThen {
+    Always,
+    Line(BlockIdx),
+    Known(bool),
+}
+
+pub fn set_line_pos(line: &mut AnalysisLine, new_pos: TokenPosition) {
+    match line {
+        AnalysisLine::ComptimeKvListInit { pos }
+        | AnalysisLine::ComptimeKvListAppend { pos, .. }
+        | AnalysisLine::Call { pos, .. }
+        | AnalysisLine::Break { pos, .. }
+        | AnalysisLine::Args { pos }
+        | AnalysisLine::Tuple { pos, .. }
+        | AnalysisLine::TupleGet { pos, .. }
+        | AnalysisLine::CBinary { pos, .. }
+        | AnalysisLine::LabelBegin { pos, .. }
+        | AnalysisLine::LabelEnd { pos, .. }
+        | AnalysisLine::KwBinary { pos, .. }
+        | AnalysisLine::RegionBegin { pos, .. }
+        | AnalysisLine::RegionEnd { pos }
+        | AnalysisLine::MutNew { pos, .. }
+        | AnalysisLine::KwBuiltin { pos, .. }
+        | AnalysisLine::MutGet { pos, .. }
+        | AnalysisLine::MutSet { pos, .. }
+        | AnalysisLine::ComptimeFileCreate { pos, .. }
+        | AnalysisLine::Emit { pos, .. } => *pos = new_pos,
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Region {
+    CIf { cond: RuntimeValue },
+    KwIf { cond: RuntimeValue },
+    KwElse { if_end: BlockIdx, then: ElseThen },
+    KwLoop,
 }
 
 #[derive(Debug, Clone)]
@@ -416,7 +551,31 @@ pub trait ComptimeNamespace: std::fmt::Debug {
         field: Symbol,
         block: &mut AnalysisBlock,
     ) -> Result<Option<AnalysisResult>, PositionedError>;
-    fn call(&self) -> Option<BuiltinFn>;
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        _slot: Type,
+        pos: TokenPosition,
+        _arg: CallArg<'_>,
+        _block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        Err(throw_err(
+            env,
+            Some(pos),
+            "this namespace does not support call",
+            Some(vec![(Some(self.pos().clone()), "defined here".to_string())]),
+            None,
+        ))
+    }
+    fn try_get_string(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        field: &str,
+        block: &mut AnalysisBlock,
+    ) -> Result<Option<AnalysisResult>, PositionedError> {
+        self.get_string(env, pos, field, block).map(Some)
+    }
     fn pos(&self) -> &TokenPosition;
 }
 
@@ -488,19 +647,132 @@ pub struct ComptimeValueCExportName {
 }
 
 #[derive(Debug, Clone)]
-pub struct ComptimeValueMcIdentifier {
-    pub namespace: String,
-    pub path: String,
+pub struct ComptimeValueCInt {
+    pub value: i32,
 }
 
 #[derive(Debug, Clone)]
-pub struct ComptimeValueMcResult {
-    pub result: i32,
+pub struct ComptimeValueKwInt {
+    pub value: i64,
 }
 
 #[derive(Debug, Clone)]
-pub enum ComptimeValueMcNbtRef {
-    String(String),
+pub struct ComptimeValueKwString {
+    buf: Rc<RefCell<String>>,
+    len: usize,
+}
+
+impl ComptimeValueKwString {
+    pub fn new(value: String) -> Self {
+        let len = value.len();
+        ComptimeValueKwString {
+            buf: Rc::new(RefCell::new(value)),
+            len,
+        }
+    }
+
+    pub fn with_str<R>(&self, f: impl FnOnce(&str) -> R) -> R {
+        f(&self.buf.borrow()[..self.len])
+    }
+
+    pub fn to_owned_string(&self) -> String {
+        self.with_str(str::to_string)
+    }
+
+    pub fn concat(&self, other: &ComptimeValueKwString) -> ComptimeValueKwString {
+        let appended = other.with_str(|other| {
+            let mut buf = self.buf.borrow_mut();
+            if buf.len() != self.len {
+                return None;
+            }
+            buf.push_str(other);
+            Some(buf.len())
+        });
+        match appended {
+            Some(len) => ComptimeValueKwString {
+                buf: self.buf.clone(),
+                len,
+            },
+            None => {
+                let mut value = self.to_owned_string();
+                other.with_str(|other| value.push_str(other));
+                ComptimeValueKwString::new(value)
+            }
+        }
+    }
+}
+
+impl PartialEq for ComptimeValueKwString {
+    fn eq(&self, other: &Self) -> bool {
+        self.with_str(|a| other.with_str(|b| a == b))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ComptimeValueKwList {
+    buf: Rc<RefCell<Vec<ComptimeValue>>>,
+    len: usize,
+}
+
+impl ComptimeValueKwList {
+    pub fn new(items: Vec<ComptimeValue>) -> Self {
+        let len = items.len();
+        ComptimeValueKwList {
+            buf: Rc::new(RefCell::new(items)),
+            len,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    pub fn get(&self, index: usize) -> Option<ComptimeValue> {
+        (index < self.len).then(|| self.buf.borrow()[index].clone())
+    }
+
+    pub fn to_vec(&self) -> Vec<ComptimeValue> {
+        self.buf.borrow()[..self.len].to_vec()
+    }
+
+    pub fn push(&self, item: ComptimeValue) -> ComptimeValueKwList {
+        let mut buf = self.buf.borrow_mut();
+        if buf.len() == self.len {
+            buf.push(item);
+            return ComptimeValueKwList {
+                buf: self.buf.clone(),
+                len: self.len + 1,
+            };
+        }
+        let mut items = buf[..self.len].to_vec();
+        items.push(item);
+        ComptimeValueKwList::new(items)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ComptimeValueKwBool {
+    pub value: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComptimeValueEnum {
+    pub case: usize,
+    pub payload: Option<Box<ComptimeValue>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComptimeValueTuple {
+    pub items: Vec<ComptimeValue>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComptimeValueOperatorName {
+    pub value: String,
 }
 
 #[derive(Debug, Clone)]
@@ -520,11 +792,14 @@ pub struct ComptimeValueError {
     pub etok: ConsumedErrorToken,
 }
 
+type Specializations = RefCell<Vec<(Vec<ComptimeValue>, ComptimeValueFn)>>;
+
 #[derive(Debug)]
 struct ComptimeValueFnInner {
     args: Destructure,
     body: ComptimeValueAst,
     pos: TokenPosition,
+    specializations: Specializations,
 }
 
 #[derive(Debug, Clone)]
@@ -532,7 +807,28 @@ pub struct ComptimeValueFn(Rc<ComptimeValueFnInner>);
 
 impl ComptimeValueFn {
     pub fn new(args: Destructure, body: ComptimeValueAst, pos: TokenPosition) -> Self {
-        ComptimeValueFn(Rc::new(ComptimeValueFnInner { args, body, pos }))
+        ComptimeValueFn(Rc::new(ComptimeValueFnInner {
+            args,
+            body,
+            pos,
+            specializations: RefCell::new(Vec::new()),
+        }))
+    }
+
+    pub fn is_inline(&self) -> bool {
+        self.0
+            .args
+            .tags
+            .iter()
+            .any(|tag| matches!(tag, DestructureTag::Inline { .. }))
+    }
+
+    pub fn has_comptime_params(&self) -> bool {
+        matches!(
+            &self.0.args.extract,
+            DestructureExtract::List { items, .. }
+                if items.iter().any(|item| matches!(item, DestructureExtract::Comptime { .. }))
+        )
     }
 
     pub fn args(&self) -> &Destructure {
@@ -571,6 +867,7 @@ impl CacheKey for ComptimeValueFn {
 #[derive(Debug, Clone)]
 pub struct AnalyzedFn {
     pub block: AnalysisBlock,
+    pub ty: Type,
     pub value: RuntimeValue,
 }
 
@@ -588,11 +885,79 @@ pub enum ComptimeValue {
     Uint8Array(ComptimeValueUint8Array),
     ExportList(ComptimeValueExportList),
     CExportName(ComptimeValueCExportName),
-    McIdentifier(ComptimeValueMcIdentifier),
-    McResult(ComptimeValueMcResult),
-    McNbtRef(ComptimeValueMcNbtRef),
+    CInt(ComptimeValueCInt),
+    OperatorName(ComptimeValueOperatorName),
+    KwInt(ComptimeValueKwInt),
+    KwBool(ComptimeValueKwBool),
+    KwString(ComptimeValueKwString),
+    KwList(ComptimeValueKwList),
+    KwText(Rc<crate::kw::TextNode>),
+    Tuple(ComptimeValueTuple),
+    Struct(Vec<ComptimeValue>),
+    Enum(ComptimeValueEnum),
+    KwMut(MutPlace),
     Error(ComptimeValueError),
-    Mc(crate::backend::mc::ComptimeValueMc),
+    Target(ComptimeValueTarget),
+    ReflectValue(crate::reflect::ReflectValue),
+    ReflectConstant(Rc<ComptimeValue>),
+    ReflectData(Rc<(ComptimeValue, Type)>),
+    KwMap(Rc<Vec<(ComptimeValue, ComptimeValue)>>),
+}
+
+#[derive(Debug, Clone)]
+pub struct MutPlace {
+    pub root: Rc<RefCell<ComptimeValue>>,
+    pub path: Vec<usize>,
+}
+
+impl MutPlace {
+    pub fn new(value: ComptimeValue) -> Self {
+        MutPlace {
+            root: Rc::new(RefCell::new(value)),
+            path: Vec::new(),
+        }
+    }
+
+    pub fn field(&self, index: usize) -> Self {
+        let mut path = self.path.clone();
+        path.push(index);
+        MutPlace {
+            root: self.root.clone(),
+            path,
+        }
+    }
+
+    pub fn get(&self) -> ComptimeValue {
+        let mut value = self.root.borrow().clone();
+        for index in &self.path {
+            let ComptimeValue::Struct(fields) = value else {
+                unreachable!("a field cell's path only goes through structs")
+            };
+            value = fields[*index].clone();
+        }
+        value
+    }
+
+    pub fn set(&self, new: ComptimeValue) {
+        fn set_at(value: &mut ComptimeValue, path: &[usize], new: ComptimeValue) {
+            match path.split_first() {
+                None => *value = new,
+                Some((index, rest)) => {
+                    let ComptimeValue::Struct(fields) = value else {
+                        unreachable!("a field cell's path only goes through structs")
+                    };
+                    set_at(&mut fields[*index], rest, new);
+                }
+            }
+        }
+        set_at(&mut self.root.borrow_mut(), &self.path, new);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ComptimeValueTarget {
+    pub env: TargetEnv,
+    pub name: String,
 }
 
 #[derive(Debug, Clone)]
@@ -692,6 +1057,9 @@ fn op_tag_str(tag: OpTag) -> &'static str {
         OpTag::Pub => "pub",
         OpTag::Var => "var",
         OpTag::Assign => "assign",
+        OpTag::Compare => "compare",
+        OpTag::Add => "add",
+        OpTag::Mul => "mul",
         OpTag::None => "",
     }
 }
@@ -705,6 +1073,32 @@ pub fn trim_ws(src: &[SyntaxNode]) -> Vec<SyntaxNode> {
         })
         .cloned()
         .collect()
+}
+
+fn strip_return(items: &[SyntaxNode]) -> Option<(TokenPosition, Vec<SyntaxNode>)> {
+    let trimmed = trim_ws(items);
+    match trimmed.first()? {
+        SyntaxNode::Raw(r) if r.tag == RawTag::Return => {
+            Some((r.pos.clone(), trimmed[1..].to_vec()))
+        }
+        SyntaxNode::BinaryExpression(bin) if trimmed.len() == 1 => {
+            let first = bin
+                .items
+                .iter()
+                .position(|item| matches!(item, SyntaxNode::OperatorSegment(_)))?;
+            let SyntaxNode::OperatorSegment(seg) = &bin.items[first] else {
+                unreachable!("position matched an operator segment")
+            };
+            let (return_pos, rest) = strip_return(&seg.items)?;
+            let mut bin = bin.clone();
+            bin.items[first] = SyntaxNode::OperatorSegment(OperatorSegmentToken {
+                pos: seg.pos.clone(),
+                items: rest,
+            });
+            Some((return_pos, vec![SyntaxNode::BinaryExpression(bin)]))
+        }
+        _ => None,
+    }
 }
 
 pub type Binary2 = (OperatorSegmentToken, OperatorToken, OperatorSegmentToken);
@@ -804,6 +1198,9 @@ pub enum DestructureTag {
     CallConv {
         pos: TokenPosition,
     },
+    Inline {
+        pos: TokenPosition,
+    },
     Error {
         pos: TokenPosition,
         tok: ConsumedErrorToken,
@@ -835,6 +1232,10 @@ pub enum DestructureExtract {
     Discard {
         pos: TokenPosition,
     },
+    Comptime {
+        target: usize,
+        pos: TokenPosition,
+    },
 }
 
 fn destructure_extract_pos(extract: &DestructureExtract) -> &TokenPosition {
@@ -843,7 +1244,60 @@ fn destructure_extract_pos(extract: &DestructureExtract) -> &TokenPosition {
         DestructureExtract::List { pos, .. } => pos,
         DestructureExtract::Map { pos, .. } => pos,
         DestructureExtract::Discard { pos } => pos,
+        DestructureExtract::Comptime { pos, .. } => pos,
     }
+}
+
+fn read_comptime_param(
+    env: &mut Env,
+    arg: &OperatorSegmentToken,
+    targets: &mut Vec<DestructureTarget>,
+) -> Result<Option<(DestructureExtract, Type)>, PositionedError> {
+    let Some((lhs, _, rhs)) = read_binary2(env, &arg.items, OpTag::Def)? else {
+        return Ok(None);
+    };
+    let name = match trim_ws(&lhs.items).as_slice() {
+        [SyntaxNode::Identifier(id)] if id.ident_tag == IdentifierTag::Normal => id.clone(),
+        _ => {
+            return Err(throw_err(
+                env,
+                Some(lhs.pos.clone()),
+                "a compile-time parameter is a name, as in `name :: T`",
+                None,
+                None,
+            ));
+        }
+    };
+    let mut sub_block = empty_block();
+    let body = analyze(
+        env,
+        Type::CtType(CtType),
+        rhs.pos.clone(),
+        &rhs.items,
+        &mut sub_block,
+    )?;
+    let evaluated = crate::comptime::comptime_eval(env, &sub_block, body.value, rhs.pos.clone())?;
+    let ComptimeValue::Type(ty) = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::Type),
+        RuntimeValue::Comptime(evaluated),
+        rhs.pos.clone(),
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    let target = targets.len();
+    targets.push(DestructureTarget {
+        name: name.str.clone(),
+        pos: name.pos.clone(),
+    });
+    Ok(Some((
+        DestructureExtract::Comptime {
+            target,
+            pos: name.pos.clone(),
+        },
+        ty.ty,
+    )))
 }
 
 pub fn read_destructure(
@@ -855,7 +1309,7 @@ pub fn read_destructure(
     let trimmed = trim_ws(src);
     let is_builtin_tag = |itm: &&SyntaxNode| matches!(itm, SyntaxNode::Identifier(id) if id.ident_tag == IdentifierTag::Builtin);
     let raw_tags: Vec<SyntaxNode> = trimmed.iter().filter(is_builtin_tag).cloned().collect();
-    let lhs_items: Vec<SyntaxNode> = trimmed
+    let mut lhs_items: Vec<SyntaxNode> = trimmed
         .iter()
         .filter(|itm| !is_builtin_tag(itm))
         .cloned()
@@ -901,6 +1355,18 @@ pub fn read_destructure(
             ty = Some(got.ty);
         }
     }
+    if ty.is_some() {
+        lhs_items.pop();
+        if lhs_items.is_empty() {
+            return Err(throw_err(
+                env,
+                Some(pos),
+                "Expected a name before the type",
+                None,
+                None,
+            ));
+        }
+    }
 
     if lhs_items.len() > 1 {
         return Err(throw_err(
@@ -915,13 +1381,20 @@ pub fn read_destructure(
         ));
     }
 
-    let _processed_tags: Vec<DestructureTag> = raw_tags
+    let tags: Vec<DestructureTag> = raw_tags
         .into_iter()
         .map(|tag| {
             if let SyntaxNode::Identifier(id) = &tag
                 && id.str == "callconv_c"
             {
                 return DestructureTag::CallConv {
+                    pos: id.pos.clone(),
+                };
+            }
+            if let SyntaxNode::Identifier(id) = &tag
+                && id.str == "inline"
+            {
+                return DestructureTag::Inline {
                     pos: id.pos.clone(),
                 };
             }
@@ -950,7 +1423,7 @@ pub fn read_destructure(
                     pos: id.pos.clone(),
                 },
                 ty: ty.unwrap_or(Type::Unknown(TypeUnknown)),
-                tags: Vec::new(),
+                tags: tags.clone(),
                 targets: targets.clone(),
             })
         }
@@ -959,7 +1432,7 @@ pub fn read_destructure(
                 pos: id.pos.clone(),
             },
             ty: Type::Unknown(TypeUnknown),
-            tags: Vec::new(),
+            tags: tags.clone(),
             targets: targets.clone(),
         }),
         SyntaxNode::Block(b) if b.tag == BracketTag::List => {
@@ -968,6 +1441,11 @@ pub fn read_destructure(
             let mut types = Vec::new();
             for arg in &args {
                 if arg.items.is_empty() {
+                    continue;
+                }
+                if let Some((extract, ty)) = read_comptime_param(env, arg, targets)? {
+                    extracts.push(extract);
+                    types.push(ty);
                     continue;
                 }
                 let sub = read_destructure(env, arg.pos.clone(), &arg.items, targets)?;
@@ -989,7 +1467,7 @@ pub fn read_destructure(
                     pos: b.pos.clone(),
                 },
                 ty: Type::Tuple(TypeTuple { children: types }),
-                tags: Vec::new(),
+                tags: tags.clone(),
                 targets: targets.clone(),
             })
         }
@@ -1026,7 +1504,7 @@ fn analyze_destructure_inner(
     env: &mut Env,
     extract: &DestructureExtract,
     body: AnalysisResult,
-    _block: &mut AnalysisBlock,
+    block: &mut AnalysisBlock,
     targets: &mut [Option<AnalysisResult>],
 ) -> Result<(), PositionedError> {
     match extract {
@@ -1036,6 +1514,58 @@ fn analyze_destructure_inner(
             Ok(())
         }
         DestructureExtract::Discard { .. } => Ok(()),
+        DestructureExtract::Comptime { pos, .. } => Err(throw_err(
+            env,
+            Some(pos.clone()),
+            "a function with compile-time parameters can only be called, which gives them values",
+            None,
+            None,
+        )),
+        DestructureExtract::List { items, pos } => {
+            let Type::Tuple(tuple) = &body.ty else {
+                return Err(throw_err(
+                    env,
+                    Some(pos.clone()),
+                    format!("cannot destructure a list from {}", body.ty.dump()),
+                    None,
+                    None,
+                ));
+            };
+            if tuple.children.len() != items.len() {
+                return Err(throw_err(
+                    env,
+                    Some(pos.clone()),
+                    format!(
+                        "expected {} items to destructure, found {}",
+                        tuple.children.len(),
+                        items.len()
+                    ),
+                    None,
+                    None,
+                ));
+            }
+            for (index, (item, child)) in items.iter().zip(&tuple.children).enumerate() {
+                let idx = block_append(
+                    block,
+                    AnalysisLine::TupleGet {
+                        pos: destructure_extract_pos(item).clone(),
+                        tuple: body.value.clone(),
+                        index,
+                    },
+                );
+                analyze_destructure_inner(
+                    env,
+                    item,
+                    AnalysisResult {
+                        ty: child.clone(),
+                        value: RuntimeValue::Runtime(idx),
+                    },
+                    block,
+                    targets,
+                )?;
+            }
+            Ok(())
+        }
         _ => Err(throw_err(
             env,
             Some(destructure_extract_pos(extract).clone()),
@@ -1100,13 +1630,13 @@ fn read_container_line(
                 );
             } else {
                 let scope = env.scope.clone();
-                let decl = create_declaration(
-                    env,
+                let decl = create_named_declaration(
                     ComptimeValueAst {
                         ast: rhs.items.clone(),
                         pos: rhs.pos.clone(),
                         scope,
                     },
+                    &target.name,
                 );
                 env.scope.bindings.borrow_mut().insert(
                     target.name.clone(),
@@ -1213,27 +1743,39 @@ fn analyze_block_body(
                 }
                 env.scope.bindings = Rc::new(RefCell::new(new_bindings));
             } else {
-                let trimmed = trim_ws(&line.items);
-                if let Some(SyntaxNode::Raw(r)) = trimmed.first()
-                    && r.tag == RawTag::Return
-                {
-                    retloc = Some(r.pos.clone());
+                if let Some((return_pos, returned)) = strip_return(&line.items) {
+                    retloc = Some(return_pos);
                     ret = Some(analyze(
                         env,
                         slot.clone(),
                         line.pos.clone(),
-                        &trimmed[1..],
+                        &returned,
                         block,
                     )?);
                     continue;
                 }
-                analyze(
+                let result = analyze(
                     env,
                     Type::Void(TypeVoid),
                     line.pos.clone(),
                     &line.items,
                     block,
                 )?;
+                if let Type::Never(_) = result.ty {
+                    retloc = Some(line.pos.clone());
+                    ret = Some(result);
+                } else if let (
+                    Type::KwIfResult(r),
+                    RuntimeValue::Comptime(ComptimeValue::KwBool(b)),
+                ) = (&result.ty, &result.value)
+                    && r.body_never
+                    && b.value
+                {
+                    return Ok(AnalysisResult {
+                        ty: Type::Never(crate::ct::TypeNever),
+                        value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+                    });
+                }
             }
         }
     }
@@ -1266,6 +1808,19 @@ struct NamespaceImpl {
 }
 
 impl ComptimeNamespace for NamespaceImpl {
+    fn try_get_string(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        field: &str,
+        block: &mut AnalysisBlock,
+    ) -> Result<Option<AnalysisResult>, PositionedError> {
+        if !self.registered.contains_key(&NsKey::Str(field.to_string())) {
+            return Ok(None);
+        }
+        self.get_string(env, pos, field, block).map(Some)
+    }
+
     fn get_string(
         &self,
         env: &mut Env,
@@ -1273,14 +1828,16 @@ impl ComptimeNamespace for NamespaceImpl {
         field: &str,
         _block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
-        if self.registered.contains_key(&NsKey::Str(field.to_string())) {
-            return Err(throw_err(
-                env,
-                Some(pos),
-                "todo get registered field",
-                None,
-                None,
-            ));
+        match self.registered.get(&NsKey::Str(field.to_string())) {
+            Some(RegisteredEntry::Error { etok, .. }) => return Err(throw_consumed_err(*etok)),
+            Some(RegisteredEntry::Ok { decl, .. }) => {
+                let r = get_declaration(env, decl.clone())?;
+                return Ok(AnalysisResult {
+                    ty: r.ty,
+                    value: RuntimeValue::Comptime(r.value),
+                });
+            }
+            None => {}
         }
         Err(throw_err(
             env,
@@ -1312,10 +1869,6 @@ impl ComptimeNamespace for NamespaceImpl {
                 }))
             }
         }
-    }
-
-    fn call(&self) -> Option<BuiltinFn> {
-        None
     }
 
     fn pos(&self) -> &TokenPosition {
@@ -1438,6 +1991,26 @@ pub fn analyze_namespace(
     Ok(Rc::new(NamespaceImpl { pos, registered }))
 }
 
+thread_local! {
+    static POSTED_RETURNS: RefCell<HashMap<(usize, ComptimeSnapshot), Type>> =
+        RefCell::new(HashMap::new());
+}
+
+pub fn post_return(key: &(usize, ComptimeSnapshot), ty: Type) {
+    POSTED_RETURNS.with(|posted| {
+        posted.borrow_mut().entry(key.clone()).or_insert(ty);
+    });
+}
+
+pub fn posted_return(fn_value: &ComptimeValueFn, comptime: &ComptimeScopeMap) -> Option<Type> {
+    POSTED_RETURNS.with(|posted| {
+        posted
+            .borrow()
+            .get(&(fn_value.cache_ptr(), comptime.snapshot()))
+            .cloned()
+    })
+}
+
 pub fn analyze_function(
     env: &mut Env,
     fn_value: &ComptimeValueFn,
@@ -1447,23 +2020,49 @@ pub fn analyze_function(
         fn_value.body().scope.bindings.clone(),
     );
     let cache = env.fn_cache.clone();
-    let result = cache.get_or_put(fn_value, env, |env| {
+    let comptime = env.scope.comptime.clone();
+    let result = cache.get_or_put(fn_value, &comptime, env, |env| {
         let mut block = empty_block();
-        block_append(
+        let args_idx = block_append(
             &mut block,
             AnalysisLine::Args {
                 pos: destructure_extract_pos(&fn_value.args().extract).clone(),
             },
         );
+        let fn_bindings = env.scope.bindings.borrow().clone();
+        env.scope.bindings = Rc::new(RefCell::new(fn_bindings));
+        let args = fn_value.args();
+        let destructured = analyze_destructure(
+            env,
+            args,
+            AnalysisResult {
+                ty: args.ty.clone(),
+                value: RuntimeValue::Runtime(args_idx),
+            },
+            &mut block,
+        )?;
+        for (target, value) in args.targets.iter().zip(destructured) {
+            env.scope.bindings.borrow_mut().insert(
+                target.name.clone(),
+                Binding::Runtime {
+                    pos: target.pos.clone(),
+                    runtime: value,
+                },
+            );
+        }
+        let key = (fn_value.cache_ptr(), env.scope.comptime.snapshot());
         let result = analyze(
             env,
-            Type::Unknown(TypeUnknown),
+            Type::Infer(crate::ct::TypeInfer { key: key.clone() }),
             fn_value.pos().clone(),
             &fn_value.body().ast,
             &mut block,
-        )?;
+        );
+        POSTED_RETURNS.with(|p| p.borrow_mut().remove(&key));
+        let result = result?;
         Ok(AnalyzedFn {
             block,
+            ty: result.ty,
             value: result.value,
         })
     });
@@ -1492,6 +2091,10 @@ pub fn analyze(
         });
     }
     let ast = trim_ws(ast);
+
+    if ast.iter().any(|node| matches!(node, SyntaxNode::Err(_))) {
+        return Err(PositionedError::Consumed);
+    }
 
     if ast.is_empty() {
         return Err(throw_err(
@@ -1578,7 +2181,30 @@ pub fn analyze_sub(
                 ty: ret_ty,
                 value: RuntimeValue::Comptime(ComptimeValue::Fn(fn_value)),
             });
+        } else if b.tag == BracketTag::SymbolAccess {
+            let lhs = if index >= 1 {
+                analyze_sub(
+                    env,
+                    Type::Unknown(TypeUnknown),
+                    root_slot.clone(),
+                    ast,
+                    index - 1,
+                    block,
+                )?
+            } else {
+                AnalysisResult {
+                    ty: Type::CtType(CtType),
+                    value: RuntimeValue::Comptime(ComptimeValue::Type(ComptimeValueType {
+                        ty: root_slot.clone(),
+                    })),
+                }
+            };
+            let key = analyze(env, Type::CtKey(CtKey), b.pos.clone(), &b.items, block)?;
+            return analyze_access(env, slot, lhs, b.pos.clone(), key, block);
         } else if b.tag == BracketTag::ColonCall {
+            if index == 0 {
+                return analyze_label(env, slot, b, block);
+            }
             let lhs = analyze_sub(
                 env,
                 Type::Unknown(TypeUnknown),
@@ -1601,6 +2227,31 @@ pub fn analyze_sub(
         }
     }
 
+    if let SyntaxNode::Block(b) = expr
+        && matches!(b.tag, BracketTag::List | BracketTag::Code | BracketTag::Map)
+        && index > 0
+    {
+        let lhs = analyze_sub(
+            env,
+            Type::Unknown(TypeUnknown),
+            root_slot,
+            ast,
+            index - 1,
+            block,
+        )?;
+        return analyze_call(
+            env,
+            slot,
+            b.pos.clone(),
+            lhs,
+            CallArg {
+                pos: b.pos.clone(),
+                ast: std::slice::from_ref(expr),
+            },
+            block,
+        );
+    }
+
     if index == 0 {
         analyze_base(env, slot, expr, block)
     } else {
@@ -1616,6 +2267,253 @@ pub fn analyze_sub(
             None,
         ))
     }
+}
+
+fn assigns_to_discard(bin: &BinaryExpressionToken) -> bool {
+    let Some(SyntaxNode::OperatorSegment(lhs)) = bin.items.first() else {
+        return false;
+    };
+    matches!(
+        trim_ws(&lhs.items).as_slice(),
+        [SyntaxNode::Identifier(id)] if id.ident_tag == IdentifierTag::Discard
+    )
+}
+
+fn analyze_label(
+    env: &mut Env,
+    slot: Type,
+    b: &BlockToken,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let items = trim_ws(&b.items);
+    let Some(SyntaxNode::Identifier(label)) = items.first() else {
+        return Err(throw_err(
+            env,
+            Some(b.pos.clone()),
+            "expected a label name after ':'",
+            None,
+            None,
+        ));
+    };
+    if label.ident_tag != IdentifierTag::Normal {
+        return Err(throw_err(
+            env,
+            Some(label.pos.clone()),
+            "expected a label name after ':'",
+            None,
+            None,
+        ));
+    }
+    if items.len() < 2 {
+        return Err(throw_err(
+            env,
+            Some(label.pos.clone()),
+            "expected a body after the label",
+            None,
+            None,
+        ));
+    }
+    if let Type::Unknown(_) | Type::Infer(_) = slot {
+        return Err(throw_err(
+            env,
+            Some(label.pos.clone()),
+            "a labelled block needs a known result type",
+            None,
+            None,
+        ));
+    }
+    let symbol = Symbol::new();
+    block_append(
+        block,
+        AnalysisLine::LabelBegin {
+            pos: label.pos.clone(),
+            label: symbol,
+            ty: slot.clone(),
+        },
+    );
+    let saved_bindings = env.scope.bindings.clone();
+    let mut inner_bindings = saved_bindings.borrow().clone();
+    inner_bindings.insert(
+        label.str.clone(),
+        Binding::Runtime {
+            pos: label.pos.clone(),
+            runtime: AnalysisResult {
+                ty: Type::Label(TypeLabel {
+                    label: symbol,
+                    ty: Box::new(slot.clone()),
+                }),
+                value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+            },
+        },
+    );
+    env.scope.bindings = Rc::new(RefCell::new(inner_bindings));
+    let body = analyze(env, slot.clone(), b.pos.clone(), &items[1..], block);
+    env.scope.bindings = saved_bindings;
+    let body = slot.cast_into(env, block, body?, b.pos.clone())?;
+    let end = block_append(
+        block,
+        AnalysisLine::LabelEnd {
+            pos: b.pos.clone(),
+            label: symbol,
+            value: body.value,
+        },
+    );
+    Ok(AnalysisResult {
+        ty: slot,
+        value: RuntimeValue::Runtime(end),
+    })
+}
+
+fn analyze_binary_op(
+    env: &mut Env,
+    slot: Type,
+    bin: &BinaryExpressionToken,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    for item in &bin.items {
+        if !matches!(
+            item,
+            SyntaxNode::OperatorSegment(_) | SyntaxNode::Operator(_) | SyntaxNode::Whitespace(_)
+        ) {
+            return Err(throw_err(
+                env,
+                Some(syntax_node_pos(item).clone()),
+                format!(
+                    "unexpected {} in operator expression",
+                    syntax_node_kind(item)
+                ),
+                None,
+                None,
+            ));
+        }
+    }
+    let Some(op_index) = bin
+        .items
+        .iter()
+        .rposition(|item| matches!(item, SyntaxNode::Operator(_)))
+    else {
+        return Err(throw_err(
+            env,
+            Some(bin.pos.clone()),
+            "expected an operator",
+            None,
+            None,
+        ));
+    };
+    let SyntaxNode::Operator(op) = &bin.items[op_index] else {
+        unreachable!("rposition matched an operator")
+    };
+    let lhs_segments = bin.items[..op_index]
+        .iter()
+        .filter(|item| matches!(item, SyntaxNode::OperatorSegment(_)))
+        .count();
+    let (Some(SyntaxNode::OperatorSegment(lhs_first)), Some(SyntaxNode::OperatorSegment(rhs))) = (
+        bin.items.first(),
+        bin.items[op_index + 1..]
+            .iter()
+            .find(|item| matches!(item, SyntaxNode::OperatorSegment(_))),
+    ) else {
+        return Err(throw_err(
+            env,
+            Some(op.pos.clone()),
+            "expected an operand on each side of the operator",
+            None,
+            None,
+        ));
+    };
+    let lhs = if lhs_segments == 1 {
+        lhs_first.clone()
+    } else {
+        OperatorSegmentToken {
+            pos: lhs_first.pos.clone(),
+            items: vec![SyntaxNode::BinaryExpression(Box::new(
+                BinaryExpressionToken {
+                    pos: bin.pos.clone(),
+                    prec: bin.prec,
+                    tag: bin.tag,
+                    items: bin.items[..op_index].to_vec(),
+                },
+            ))],
+        }
+    };
+
+    let slot_key = crate::std_keys::operator_symbol(crate::std_keys::OperatorKind::Slot, &op.op);
+    if let Some(slot_op) = slot.type_symbol(env, slot_key)? {
+        let args = SyntaxNode::Block(Box::new(BlockToken {
+            pos: op.pos.clone(),
+            start: "(".to_string(),
+            end: ")".to_string(),
+            tag: BracketTag::List,
+            items: vec![SyntaxNode::BinaryExpression(Box::new(
+                BinaryExpressionToken {
+                    pos: op.pos.clone(),
+                    prec: 0,
+                    tag: OpTag::Sep,
+                    items: vec![
+                        SyntaxNode::OperatorSegment(lhs),
+                        SyntaxNode::Operator(OperatorToken {
+                            pos: op.pos.clone(),
+                            op: ",".to_string(),
+                            op_tag: OpTag::Sep,
+                        }),
+                        SyntaxNode::OperatorSegment(rhs.clone()),
+                    ],
+                },
+            ))],
+        }));
+        return analyze_call(
+            env,
+            slot,
+            op.pos.clone(),
+            slot_op,
+            CallArg {
+                pos: op.pos.clone(),
+                ast: std::slice::from_ref(&args),
+            },
+            block,
+        );
+    }
+
+    let lhs = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        lhs.pos.clone(),
+        &lhs.items,
+        block,
+    )?;
+    let lhs_key = crate::std_keys::operator_symbol(crate::std_keys::OperatorKind::Lhs, &op.op);
+    if !lhs.ty.has_value_symbol(env, lhs_key)? {
+        return Err(throw_err(
+            env,
+            Some(op.pos.clone()),
+            format!(
+                "operator {op} is not supported: {} has no std.operator.slot(\"{op}\") and {} has no std.operator.lhs(\"{op}\")",
+                slot.dump(),
+                lhs.ty.dump(),
+                op = op.op,
+            ),
+            None,
+            None,
+        ));
+    }
+    let bound = AnalysisResult {
+        ty: Type::Bound(TypeBound {
+            receiver: Box::new(lhs.ty),
+            key: lhs_key,
+        }),
+        value: lhs.value,
+    };
+    analyze_call(
+        env,
+        slot,
+        op.pos.clone(),
+        bound,
+        CallArg {
+            pos: rhs.pos.clone(),
+            ast: &rhs.items,
+        },
+        block,
+    )
 }
 
 pub fn analyze_call(
@@ -1704,15 +2602,38 @@ pub fn analyze_base(
                 }
             }
         }
-        SyntaxNode::Block(b) if b.tag == BracketTag::String => {
-            slot.clone().from_string(env, slot, b, block)
-        }
+        SyntaxNode::Block(b) if b.tag == BracketTag::String => crate::ct::analyze_literal(
+            env,
+            slot,
+            crate::std_keys::LiteralKind::String,
+            b.pos.clone(),
+            ast,
+            block,
+        ),
         SyntaxNode::Raw(r) if r.tag == RawTag::Void => Ok(AnalysisResult {
             ty: Type::Void(TypeVoid),
             value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
         }),
-        SyntaxNode::Block(b) if b.tag == BracketTag::Map => {
-            slot.clone().from_map(env, slot, b, block)
+        SyntaxNode::Block(b) if b.tag == BracketTag::Map => crate::ct::analyze_literal(
+            env,
+            slot,
+            crate::std_keys::LiteralKind::Map,
+            b.pos.clone(),
+            ast,
+            block,
+        ),
+        SyntaxNode::Block(b) if b.tag == BracketTag::List => crate::ct::analyze_literal(
+            env,
+            slot,
+            crate::std_keys::LiteralKind::List,
+            b.pos.clone(),
+            ast,
+            block,
+        ),
+        SyntaxNode::BinaryExpression(be)
+            if matches!(be.tag, OpTag::Compare | OpTag::Add | OpTag::Mul) =>
+        {
+            analyze_binary_op(env, slot, be, block)
         }
         SyntaxNode::Block(b) if b.tag == BracketTag::Code => analyze_block(
             env,
@@ -1732,7 +2653,17 @@ pub fn analyze_base(
             },
         ),
         SyntaxNode::Identifier(id) if id.ident_tag == IdentifierTag::Number => {
-            slot.clone().from_number(env, slot, id, block)
+            crate::ct::analyze_literal(
+                env,
+                slot,
+                crate::std_keys::LiteralKind::Number,
+                id.pos.clone(),
+                ast,
+                block,
+            )
+        }
+        SyntaxNode::BinaryExpression(be) if be.tag == OpTag::Assign && !assigns_to_discard(be) => {
+            analyze_binary_op(env, slot, be, block)
         }
         SyntaxNode::BinaryExpression(be) if be.tag == OpTag::Assign => {
             let rbr = read_binary2(env, std::slice::from_ref(ast), OpTag::Assign)?;
@@ -1799,7 +2730,10 @@ fn descriptor_construct(
     let cache = env.builtin_cache.clone();
     let d2 = d.clone();
     let route2 = route.to_string();
-    cache.get_or_put(d, env, move |env| d2.construct_impl(env, &route2))
+    let comptime = ComptimeScopeMap::root(HashMap::new());
+    cache.get_or_put(d, &comptime, env, move |env| {
+        d2.construct_impl(env, &route2)
+    })
 }
 
 impl CacheKey for Rc<dyn Descriptor> {
@@ -1881,12 +2815,62 @@ impl ComptimeNamespace for BuiltinNamespaceImpl {
         Ok(None)
     }
 
-    fn call(&self) -> Option<BuiltinFn> {
-        self.call
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        slot: Type,
+        pos: TokenPosition,
+        arg: CallArg<'_>,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let Some(call) = self.call else {
+            return Err(throw_err(
+                env,
+                Some(pos),
+                format!("namespace {} does not support call", self.route),
+                Some(vec![(Some(self.pos.clone()), "defined here".to_string())]),
+                None,
+            ));
+        };
+        call(env, slot, pos, arg, block)
     }
 
     fn pos(&self) -> &TokenPosition {
         &self.pos
+    }
+}
+
+#[derive(Debug)]
+struct PreludeDescriptor(fn() -> crate::user_type::LazyPrelude);
+
+impl Descriptor for PreludeDescriptor {
+    fn construct_impl(
+        &self,
+        _env: &mut Env,
+        _route: &str,
+    ) -> Result<AnalysisResult, PositionedError> {
+        Ok(AnalysisResult {
+            ty: Type::CtNamespace(CtNamespace),
+            value: RuntimeValue::Comptime(ComptimeValue::Namespace(Rc::new((self.0)()))),
+        })
+    }
+}
+
+#[derive(Debug)]
+struct ReflectPreludeDescriptor;
+
+impl Descriptor for ReflectPreludeDescriptor {
+    fn construct_impl(
+        &self,
+        _env: &mut Env,
+        _route: &str,
+    ) -> Result<AnalysisResult, PositionedError> {
+        Ok(AnalysisResult {
+            ty: Type::CtNamespace(CtNamespace),
+            value: RuntimeValue::Comptime(ComptimeValue::Namespace(
+                crate::user_type::LazyPrelude::reflect(),
+            )),
+        })
     }
 }
 
@@ -1905,6 +2889,23 @@ impl Descriptor for CustomDescriptor {
 
 fn d_raw(result: AnalysisResult) -> Rc<dyn Descriptor> {
     Rc::new(CustomDescriptor(result))
+}
+
+fn d_type(ty: Type) -> Rc<dyn Descriptor> {
+    d_raw(AnalysisResult {
+        ty: Type::CtType(CtType),
+        value: RuntimeValue::Comptime(ComptimeValue::Type(ComptimeValueType { ty })),
+    })
+}
+
+fn d_std_key(key: crate::std_keys::StdKey) -> Rc<dyn Descriptor> {
+    d_raw(AnalysisResult {
+        ty: Type::CtKey(CtKey),
+        value: RuntimeValue::Comptime(ComptimeValue::Key(ComptimeValueKey::Symbol {
+            key: crate::std_keys::std_key(key),
+            child: Type::Unknown(TypeUnknown),
+        })),
+    })
 }
 
 fn d_ns(entries: Vec<(&str, Rc<dyn Descriptor>)>, call: Option<BuiltinFn>) -> Rc<dyn Descriptor> {
@@ -1942,163 +2943,873 @@ fn build_symbol_value() -> ComptimeValueKey {
     }
 }
 
-fn builtin_mc_run_command_call(
+fn builtin_operator_key(
     env: &mut Env,
-    _slot: Type,
-    pos: TokenPosition,
+    kind: crate::std_keys::OperatorKind,
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
-    let arg = analyze(
+    let pos = arg_ast.pos.clone();
+    let name = analyze(
         env,
-        Type::McNbtRef(McNbtRef {
-            narrow: Some(McNbtRefNarrow::String),
-        }),
+        Type::OperatorName(OperatorName),
         arg_ast.pos,
         arg_ast.ast,
         block,
     )?;
-    let res = block_append(
-        block,
-        AnalysisLine::McExecRaw {
-            pos,
-            command: arg.value,
-        },
-    );
+    let name = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::OperatorName),
+        name.value,
+        pos,
+    )?;
+    let ComptimeValue::OperatorName(name) = name else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
     Ok(AnalysisResult {
-        ty: Type::McResult(McResult { narrow: None }),
-        value: RuntimeValue::Runtime(res),
+        ty: Type::CtKey(CtKey),
+        value: RuntimeValue::Comptime(ComptimeValue::Key(ComptimeValueKey::Symbol {
+            key: crate::std_keys::operator_symbol(kind, &name.value),
+            child: Type::Unknown(TypeUnknown),
+        })),
     })
 }
 
-fn builtin_mc_datapack_compile_call(
+fn builtin_operator_slot_call(
+    env: &mut Env,
+    _slot: Type,
+    _pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    builtin_operator_key(env, crate::std_keys::OperatorKind::Slot, arg_ast, block)
+}
+
+fn builtin_operator_lhs_call(
+    env: &mut Env,
+    _slot: Type,
+    _pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    builtin_operator_key(env, crate::std_keys::OperatorKind::Lhs, arg_ast, block)
+}
+
+pub(crate) fn builtin_list_args<'a>(
+    env: &mut Env,
+    pos: &TokenPosition,
+    arg_ast: &CallArg<'a>,
+    what: &str,
+    count: usize,
+) -> Result<Vec<OperatorSegmentToken>, PositionedError> {
+    match crate::ct::call_list_items(env, arg_ast)? {
+        Some(items) if items.len() == count => Ok(items),
+        _ => Err(throw_err(
+            env,
+            Some(pos.clone()),
+            format!("{what} takes {count} arguments in parentheses"),
+            None,
+            None,
+        )),
+    }
+}
+
+fn builtin_type_wrap_call(
     env: &mut Env,
     _slot: Type,
     pos: TokenPosition,
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
-    with_target_env(env, TargetEnv::Mc, |env| {
-        let arg_res = analyze(
+    let items = builtin_list_args(env, &pos, &arg_ast, "std.type.wrap", 2)?;
+    let ty = analyze(
+        env,
+        Type::CtType(CtType),
+        items[0].pos.clone(),
+        &items[0].items,
+        block,
+    )?;
+    let ComptimeValue::Type(ty) = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::Type),
+        ty.value,
+        items[0].pos.clone(),
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    let Type::User(user) = &ty.ty else {
+        return Err(throw_err(
             env,
-            Type::CtExportList(CtExportList {
-                key: Box::new(Type::McIdentifier(McIdentifier { category: None })),
-            }),
-            arg_ast.pos,
-            arg_ast.ast,
+            Some(items[0].pos.clone()),
+            format!("std.type.wrap needs a std.Type, got {}", ty.ty.dump()),
+            None,
+            None,
+        ));
+    };
+    let repr = user.repr(env, &pos)?;
+    let value = analyze(
+        env,
+        repr.clone(),
+        items[1].pos.clone(),
+        &items[1].items,
+        block,
+    )?;
+    let value = repr.cast_into(env, block, value, items[1].pos.clone())?;
+    Ok(AnalysisResult {
+        ty: ty.ty,
+        value: value.value,
+    })
+}
+
+fn builtin_type_unwrap_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let value = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        arg_ast.pos,
+        arg_ast.ast,
+        block,
+    )?;
+    let Type::User(user) = &value.ty else {
+        return Err(throw_err(
+            env,
+            Some(pos),
+            format!(
+                "std.type.unwrap needs a value of a std.Type, got {}",
+                value.ty.dump()
+            ),
+            None,
+            None,
+        ));
+    };
+    Ok(AnalysisResult {
+        ty: user.repr(env, &pos)?,
+        value: value.value,
+    })
+}
+
+fn builtin_c_binary_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let name = analyze(
+        env,
+        Type::OperatorName(OperatorName),
+        arg_ast.pos,
+        arg_ast.ast,
+        block,
+    )?;
+    let ComptimeValue::OperatorName(name) = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::OperatorName),
+        name.value,
+        pos.clone(),
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    let Some(op) = crate::backend::c::CBinaryOp::from_token(&name.value) else {
+        return Err(throw_err(
+            env,
+            Some(pos),
+            format!("C has no operator {}", name.value),
+            None,
+            None,
+        ));
+    };
+    Ok(crate::ct::slot_operator_value(Type::CInt(CInt), op))
+}
+
+fn builtin_c_int_from_kw_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let kw_int = Type::KwInt(crate::ct::KwInt);
+    let value = analyze(env, kw_int.clone(), arg_ast.pos, arg_ast.ast, block)?;
+    let value = kw_int.cast_into(env, block, value, pos.clone())?;
+    let ComptimeValue::KwInt(value) = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::KwInt),
+        value.value,
+        pos.clone(),
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    let Ok(value) = i32::try_from(value.value) else {
+        return Err(throw_err(
+            env,
+            Some(pos),
+            format!("{} does not fit in a C int", value.value),
+            None,
+            None,
+        ));
+    };
+    Ok(AnalysisResult {
+        ty: Type::CInt(CInt),
+        value: RuntimeValue::Comptime(ComptimeValue::CInt(ComptimeValueCInt { value })),
+    })
+}
+
+fn builtin_kw_map_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let items = builtin_list_args(env, &pos, &arg_ast, "std.kw.map", 2)?;
+    let mut types = Vec::new();
+    for item in &items {
+        let ty = analyze(
+            env,
+            Type::CtType(CtType),
+            item.pos.clone(),
+            &item.items,
             block,
         )?;
-        let arg_ct = crate::comptime::get_comptime(
+        let ComptimeValue::Type(ty) = crate::comptime::get_comptime(
             env,
-            Some(crate::comptime::ComptimeValueKind::ExportList),
-            arg_res.value,
-            pos.clone(),
-        )?;
-        let ComptimeValue::ExportList(arg_ct) = arg_ct else {
+            Some(crate::comptime::ComptimeValueKind::Type),
+            ty.value,
+            item.pos.clone(),
+        )?
+        else {
             unreachable!("get_comptime guarantees a matching kind")
         };
+        types.push(ty.ty);
+    }
+    let value = types.pop().expect("two arguments");
+    let key = types.pop().expect("two arguments");
+    Ok(AnalysisResult {
+        ty: Type::CtType(CtType),
+        value: RuntimeValue::Comptime(ComptimeValue::Type(ComptimeValueType {
+            ty: Type::KwMap(crate::ct::KwMap {
+                key: Box::new(key),
+                value: Box::new(value),
+            }),
+        })),
+    })
+}
 
-        let mut ctx = crate::backend::mc::McCodegenCtx {
-            fns: HashMap::new(),
-            fn_order: Vec::new(),
-            gid: 0,
-            internal_ns: "_0".to_string(),
-        };
+fn builtin_kw_list_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let elem = analyze(env, Type::CtType(CtType), arg_ast.pos, arg_ast.ast, block)?;
+    let ComptimeValue::Type(elem) = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::Type),
+        elem.value,
+        pos,
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    Ok(AnalysisResult {
+        ty: Type::CtType(CtType),
+        value: RuntimeValue::Comptime(ComptimeValue::Type(ComptimeValueType {
+            ty: Type::KwList(crate::ct::KwList {
+                elem: Box::new(elem.ty),
+            }),
+        })),
+    })
+}
 
-        for item in &arg_ct.exports {
-            let ident = crate::comptime::get_comptime(
-                env,
-                Some(crate::comptime::ComptimeValueKind::McIdentifier),
-                RuntimeValue::Comptime(item.key.clone()),
-                pos.clone(),
-            )?;
-            let ComptimeValue::McIdentifier(ident) = ident else {
-                unreachable!("get_comptime guarantees a matching kind")
-            };
-            let body = analyze(
-                env,
-                Type::Unknown(TypeUnknown),
-                item.value.pos.clone(),
-                &item.value.ast,
-                block,
-            )?;
-            if let Type::Fn(_) = &body.ty {
-                let content = crate::comptime::get_comptime(
-                    env,
-                    Some(crate::comptime::ComptimeValueKind::Fn),
-                    body.value,
-                    item.value.pos.clone(),
-                )?;
-                let ComptimeValue::Fn(content) = content else {
-                    unreachable!("get_comptime guarantees a matching kind")
-                };
-                if ctx.fns.contains_key(&content) {
-                    return Err(throw_err(
-                        env,
-                        Some(pos.clone()),
-                        "duplicate item",
-                        None,
-                        None,
-                    ));
-                }
-                ctx.fns.insert(content.clone(), ident);
-                ctx.fn_order.push(content);
-            } else {
-                return Err(throw_err(
-                    env,
-                    Some(pos.clone()),
-                    format!(
-                        "TODO mc body type: {}",
-                        crate::printers::printers::RUNTIME_VALUE.dump_list(
-                            &[
-                                RuntimeValue::Comptime(item.key.clone()),
-                                RuntimeValue::Comptime(ComptimeValue::Ast(item.value.clone())),
-                            ],
-                            crate::printers::UNLIMITED_DEPTH,
-                        )
-                    ),
-                    None,
-                    None,
-                ));
-            }
+fn builtin_declare_call(
+    env: &mut Env,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    kind: crate::user_type::DeclKind,
+    what: &str,
+) -> Result<AnalysisResult, PositionedError> {
+    let items = trim_ws(arg_ast.ast);
+    let [SyntaxNode::Block(map)] = items.as_slice() else {
+        return Err(throw_err(
+            env,
+            Some(pos),
+            format!("{what} takes a [ ... ] map"),
+            None,
+            None,
+        ));
+    };
+    if map.tag != BracketTag::Map {
+        return Err(throw_err(
+            env,
+            Some(pos),
+            format!("{what} takes a [ ... ] map"),
+            None,
+            None,
+        ));
+    }
+    Ok(crate::user_type::declare(env, map, kind))
+}
+
+fn builtin_struct_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    _block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    builtin_declare_call(
+        env,
+        pos,
+        arg_ast,
+        crate::user_type::DeclKind::Struct,
+        "std.Struct",
+    )
+}
+
+fn builtin_enum_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    _block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    builtin_declare_call(
+        env,
+        pos,
+        arg_ast,
+        crate::user_type::DeclKind::Enum,
+        "std.Enum",
+    )
+}
+
+fn builtin_option_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let child = analyze(env, Type::CtType(CtType), arg_ast.pos, arg_ast.ast, block)?;
+    let ComptimeValue::Type(child) = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::Type),
+        child.value,
+        pos,
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    Ok(AnalysisResult {
+        ty: Type::CtType(CtType),
+        value: RuntimeValue::Comptime(ComptimeValue::Type(ComptimeValueType {
+            ty: Type::Optional(crate::ct::TypeOptional {
+                child: Box::new(child.ty),
+            }),
+        })),
+    })
+}
+
+fn builtin_kw_mut_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let inner = analyze(env, Type::CtType(CtType), arg_ast.pos, arg_ast.ast, block)?;
+    let ComptimeValue::Type(inner) = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::Type),
+        inner.value,
+        pos,
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    Ok(AnalysisResult {
+        ty: Type::CtType(CtType),
+        value: RuntimeValue::Comptime(ComptimeValue::Type(ComptimeValueType {
+            ty: Type::KwMut(crate::ct::KwMut {
+                inner: Box::new(inner.ty),
+            }),
+        })),
+    })
+}
+
+#[derive(Debug)]
+pub struct KwMutNew {
+    pub inner: Type,
+    pub pos: TokenPosition,
+}
+
+impl ComptimeNamespace for KwMutNew {
+    fn get_string(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        field: &str,
+        _block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        Err(throw_err(
+            env,
+            Some(pos),
+            format!("std.kw.mut(T).new has no field: {field}"),
+            None,
+            None,
+        ))
+    }
+
+    fn get_symbol(
+        &self,
+        _env: &mut Env,
+        _pos: TokenPosition,
+        _keychild: Type,
+        _field: Symbol,
+        _block: &mut AnalysisBlock,
+    ) -> Result<Option<AnalysisResult>, PositionedError> {
+        Ok(None)
+    }
+
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        _slot: Type,
+        pos: TokenPosition,
+        arg: CallArg<'_>,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let init = analyze(env, self.inner.clone(), arg.pos.clone(), arg.ast, block)?;
+        let init = self.inner.cast_into(env, block, init, arg.pos)?;
+        let cell = block_append(
+            block,
+            AnalysisLine::MutNew {
+                pos,
+                init: init.value,
+            },
+        );
+        Ok(AnalysisResult {
+            ty: Type::KwMut(crate::ct::KwMut {
+                inner: Box::new(self.inner.clone()),
+            }),
+            value: RuntimeValue::Runtime(cell),
+        })
+    }
+
+    fn pos(&self) -> &TokenPosition {
+        &self.pos
+    }
+}
+
+fn builtin_kw_loop_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    block_append(
+        block,
+        AnalysisLine::RegionBegin {
+            pos: pos.clone(),
+            region: Region::KwLoop,
+        },
+    );
+    analyze(env, Type::Void(TypeVoid), arg_ast.pos, arg_ast.ast, block)?;
+    block_append(block, AnalysisLine::RegionEnd { pos });
+    Ok(AnalysisResult {
+        ty: Type::Never(crate::ct::TypeNever),
+        value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+    })
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KwForIter {
+    pub names: Vec<(String, TokenPosition)>,
+    pub item_types: Vec<Type>,
+    pub map: bool,
+}
+
+fn builtin_kw_for_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let usage = "std.kw.for takes (item := list) or ((key, value) := map)";
+    let Some(items) = crate::ct::call_list_items(env, &arg_ast)? else {
+        return Err(throw_err(env, Some(pos), usage, None, None));
+    };
+    let [item] = items.as_slice() else {
+        return Err(throw_err(env, Some(pos), usage, None, None));
+    };
+    let Some((lhs, _, rhs)) = read_binary2(env, &item.items, OpTag::Var)? else {
+        return Err(throw_err(env, Some(pos), usage, None, None));
+    };
+    let mut targets = Vec::new();
+    let destructure = read_destructure(env, lhs.pos.clone(), &lhs.items, &mut targets)?;
+    let iterable = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        rhs.pos.clone(),
+        &rhs.items,
+        block,
+    )?;
+    let name_of = |extract: &DestructureExtract| match extract {
+        DestructureExtract::SingleItem { target, pos } => {
+            Some((targets[*target].name.clone(), pos.clone()))
         }
-
-        let mut res_files: Vec<(String, ComptimeValueBuildArtifact)> = Vec::new();
-        let mut idx = 0;
-        while idx < ctx.fn_order.len() {
-            let content = ctx.fn_order[idx].clone();
-            idx += 1;
-            let ident = ctx
-                .fns
-                .get(&content)
-                .expect("registered in ctx.fns when added to fn_order")
-                .clone();
-            let compiled = analyze_function(env, &content)?;
-            let result = crate::backend::mc::codegen_mcfunction(
+        DestructureExtract::Discard { pos } => Some(("_".to_string(), pos.clone())),
+        _ => None,
+    };
+    let (names, item_types, map) = match (&iterable.ty, &destructure.extract) {
+        (Type::KwList(list), extract) if name_of(extract).is_some() => (
+            vec![name_of(extract).expect("checked above")],
+            vec![(*list.elem).clone()],
+            false,
+        ),
+        (Type::KwMap(map), DestructureExtract::List { items, .. }) if items.len() == 2 => {
+            let (Some(key), Some(value)) = (name_of(&items[0]), name_of(&items[1])) else {
+                return Err(throw_err(env, Some(lhs.pos.clone()), usage, None, None));
+            };
+            (
+                vec![key, value],
+                vec![(*map.key).clone(), (*map.value).clone()],
+                true,
+            )
+        }
+        (Type::KwList(_) | Type::KwMap(_), _) => {
+            return Err(throw_err(env, Some(lhs.pos.clone()), usage, None, None));
+        }
+        (other, _) => {
+            return Err(throw_err(
                 env,
-                &mut ctx,
-                &compiled.block,
-                compiled.value,
-            )?;
-            res_files.push((
+                Some(rhs.pos.clone()),
                 format!(
-                    "data/{}/functions/{}.mcfunction",
-                    ident.namespace, ident.path
+                    "std.kw.for needs a std.kw.list or std.kw.map, got {}",
+                    other.dump()
                 ),
-                ComptimeValueBuildArtifact::File(ComptimeFile {
-                    value: result.into_bytes(),
-                }),
+                None,
+                None,
             ));
         }
-
-        Ok(AnalysisResult {
-            ty: Type::CtBuildArtifact(CtBuildArtifact {
-                narrow: Some(CtBuildArtifactNarrow::Folder),
+    };
+    Ok(AnalysisResult {
+        ty: Type::KwFor(crate::ct::TypeKwFor {
+            iter: Box::new(KwForIter {
+                names,
+                item_types,
+                map,
             }),
-            value: RuntimeValue::Comptime(ComptimeValue::BuildArtifact(
-                ComptimeValueBuildArtifact::Folder(ComptimeFolder { value: res_files }),
-            )),
+        }),
+        value: iterable.value,
+    })
+}
+
+pub fn analyze_kw_for_body(
+    env: &mut Env,
+    iter: &KwForIter,
+    pos: TokenPosition,
+    iterable: RuntimeValue,
+    arg_in: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    use crate::kw::KwBuiltinOp;
+    let kw_int =
+        |value: i64| RuntimeValue::Comptime(ComptimeValue::KwInt(ComptimeValueKwInt { value }));
+    let int_ty = Type::KwInt(crate::ct::KwInt);
+    let list_of = |ty: &Type| {
+        Type::KwList(crate::ct::KwList {
+            elem: Box::new(ty.clone()),
         })
+    };
+    let lists = if iter.map {
+        vec![
+            crate::kw::emit(
+                env,
+                block,
+                pos.clone(),
+                KwBuiltinOp::MapKeys,
+                vec![iterable.clone()],
+                list_of(&iter.item_types[0]),
+            )?
+            .value,
+            crate::kw::emit(
+                env,
+                block,
+                pos.clone(),
+                KwBuiltinOp::MapValues,
+                vec![iterable],
+                list_of(&iter.item_types[1]),
+            )?
+            .value,
+        ]
+    } else {
+        vec![iterable]
+    };
+    let len = crate::kw::emit(
+        env,
+        block,
+        pos.clone(),
+        KwBuiltinOp::ListLen,
+        vec![lists[0].clone()],
+        int_ty.clone(),
+    )?
+    .value;
+    let done = Symbol::new();
+    block_append(
+        block,
+        AnalysisLine::LabelBegin {
+            pos: pos.clone(),
+            label: done,
+            ty: Type::Void(TypeVoid),
+        },
+    );
+    let counter = block_append(
+        block,
+        AnalysisLine::MutNew {
+            pos: pos.clone(),
+            init: kw_int(0),
+        },
+    );
+    block_append(
+        block,
+        AnalysisLine::RegionBegin {
+            pos: pos.clone(),
+            region: Region::KwLoop,
+        },
+    );
+    let index = block_append(
+        block,
+        AnalysisLine::MutGet {
+            pos: pos.clone(),
+            cell: RuntimeValue::Runtime(counter),
+        },
+    );
+    let finished = block_append(
+        block,
+        AnalysisLine::KwBinary {
+            pos: pos.clone(),
+            op: crate::backend::c::CBinaryOp::Ge,
+            lhs: RuntimeValue::Runtime(index),
+            rhs: len,
+        },
+    );
+    block_append(
+        block,
+        AnalysisLine::RegionBegin {
+            pos: pos.clone(),
+            region: Region::KwIf {
+                cond: RuntimeValue::Runtime(finished),
+            },
+        },
+    );
+    block_append(
+        block,
+        AnalysisLine::Break {
+            pos: pos.clone(),
+            label: done,
+            value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+        },
+    );
+    block_append(block, AnalysisLine::RegionEnd { pos: pos.clone() });
+    let next = block_append(
+        block,
+        AnalysisLine::KwBinary {
+            pos: pos.clone(),
+            op: crate::backend::c::CBinaryOp::Add,
+            lhs: RuntimeValue::Runtime(index),
+            rhs: kw_int(1),
+        },
+    );
+    block_append(
+        block,
+        AnalysisLine::MutSet {
+            pos: pos.clone(),
+            cell: RuntimeValue::Runtime(counter),
+            value: RuntimeValue::Runtime(next),
+        },
+    );
+    let saved = env.scope.bindings.clone();
+    let mut bindings = saved.borrow().clone();
+    for ((list, (name, name_pos)), ty) in lists.iter().zip(&iter.names).zip(&iter.item_types) {
+        let item = block_append(
+            block,
+            AnalysisLine::KwBuiltin {
+                pos: name_pos.clone(),
+                op: KwBuiltinOp::ListGet,
+                args: vec![list.clone(), RuntimeValue::Runtime(index)],
+            },
+        );
+        if name != "_" {
+            bindings.insert(
+                name.clone(),
+                Binding::Runtime {
+                    pos: name_pos.clone(),
+                    runtime: AnalysisResult {
+                        ty: ty.clone(),
+                        value: RuntimeValue::Runtime(item),
+                    },
+                },
+            );
+        }
+    }
+    env.scope.bindings = Rc::new(RefCell::new(bindings));
+    let body = analyze(
+        env,
+        Type::Void(TypeVoid),
+        arg_in.pos.clone(),
+        arg_in.ast,
+        block,
+    );
+    env.scope.bindings = saved;
+    Type::Void(TypeVoid).cast_into(env, block, body?, arg_in.pos)?;
+    block_append(block, AnalysisLine::RegionEnd { pos: pos.clone() });
+    block_append(
+        block,
+        AnalysisLine::LabelEnd {
+            pos,
+            label: done,
+            value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+        },
+    );
+    Ok(AnalysisResult {
+        ty: Type::Void(TypeVoid),
+        value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+    })
+}
+
+fn kw_if_binding(
+    env: &mut Env,
+    arg_ast: &CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<Option<AnalysisResult>, PositionedError> {
+    let Some(items) = crate::ct::call_list_items(env, arg_ast)? else {
+        return Ok(None);
+    };
+    let [item] = items.as_slice() else {
+        return Ok(None);
+    };
+    let Some((lhs, op, rhs)) = read_binary2(env, &item.items, OpTag::Var)? else {
+        return Ok(None);
+    };
+    let mut targets = Vec::new();
+    let destructure = read_destructure(env, lhs.pos.clone(), &lhs.items, &mut targets)?;
+    let bind = match &destructure.extract {
+        DestructureExtract::SingleItem { target, pos } => Some(Box::new(crate::ct::KwIfBinding {
+            name: targets[*target].name.clone(),
+            pos: pos.clone(),
+            ty: destructure.ty.clone(),
+        })),
+        DestructureExtract::Discard { .. } => None,
+        other => {
+            return Err(throw_err(
+                env,
+                Some(destructure_extract_pos(other).clone()),
+                "std.kw.if (v := opt) binds a single name",
+                None,
+                None,
+            ));
+        }
+    };
+    let value = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        rhs.pos.clone(),
+        &rhs.items,
+        block,
+    )?;
+    let Type::Optional(optional) = value.ty else {
+        return Err(throw_err(
+            env,
+            Some(op.pos.clone()),
+            format!(
+                "std.kw.if (v := x) needs an optional, got {}",
+                value.ty.dump()
+            ),
+            None,
+            None,
+        ));
+    };
+    Ok(Some(AnalysisResult {
+        ty: Type::KwIfOptional(crate::ct::TypeKwIfOptional {
+            any_body: false,
+            child: optional.child,
+            bind,
+        }),
+        value: value.value,
+    }))
+}
+
+fn builtin_kw_if_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    kw_if_condition(env, pos, arg_ast, block)
+}
+
+pub fn kw_if_condition(
+    env: &mut Env,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    if let Some(binding) = kw_if_binding(env, &arg_ast, block)? {
+        return Ok(binding);
+    }
+    let bool_ty = Type::KwBool(crate::ct::KwBool);
+    let cond = analyze(env, bool_ty.clone(), arg_ast.pos, arg_ast.ast, block)?;
+    if let Type::Optional(_) = cond.ty {
+        return Err(throw_err(
+            env,
+            Some(pos),
+            "std.kw.if needs a std.kw.bool; to test an optional, write (_ := opt) or opt != std.kw.null",
+            None,
+            None,
+        ));
+    }
+    let cond = bool_ty.cast_into(env, block, cond, pos)?;
+    Ok(AnalysisResult {
+        ty: Type::KwIf(crate::ct::KwIf {
+            region: crate::ct::KwIfRegion::If,
+        }),
+        value: cond.value,
+    })
+}
+
+fn builtin_c_if_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let int = Type::CInt(CInt);
+    let cond = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        arg_ast.pos,
+        arg_ast.ast,
+        block,
+    )?;
+    let cond = crate::user_type::unwrap_to(env, cond, &pos)?;
+    let cond = int.cast_into(env, block, cond, pos)?;
+    Ok(AnalysisResult {
+        ty: Type::CIf(crate::ct::CIf),
+        value: cond.value,
     })
 }
 
@@ -2128,21 +3839,65 @@ fn builtin_c_compile_call(
         let ComptimeValue::ExportList(arg_ct) = arg_ct else {
             unreachable!("get_comptime guarantees a matching kind")
         };
+
+        let mut ctx = crate::backend::c::CCodegenCtx::default();
         for entry in &arg_ct.exports {
-            let _kv = crate::comptime::get_comptime(
+            let name = crate::comptime::get_comptime(
                 env,
                 Some(crate::comptime::ComptimeValueKind::CExportName),
                 RuntimeValue::Comptime(entry.key.clone()),
                 entry.key_pos.clone(),
             )?;
+            let ComptimeValue::CExportName(name) = name else {
+                unreachable!("get_comptime guarantees a matching kind")
+            };
+            let body = analyze(
+                env,
+                Type::Unknown(TypeUnknown),
+                entry.value.pos.clone(),
+                &entry.value.ast,
+                block,
+            )?;
+            let Type::Fn(_) = &body.ty else {
+                return Err(throw_err(
+                    env,
+                    Some(entry.value.pos.clone()),
+                    format!("TODO export {} to C", body.ty.dump()),
+                    None,
+                    None,
+                ));
+            };
+            let content = crate::comptime::get_comptime(
+                env,
+                Some(crate::comptime::ComptimeValueKind::Fn),
+                body.value,
+                entry.value.pos.clone(),
+            )?;
+            let ComptimeValue::Fn(content) = content else {
+                unreachable!("get_comptime guarantees a matching kind")
+            };
+            if !ctx.export(content, name.value.as_str()) {
+                return Err(throw_err(
+                    env,
+                    Some(entry.key_pos.clone()),
+                    "duplicate export",
+                    None,
+                    None,
+                ));
+            }
         }
-        Err(throw_err(
-            env,
-            Some(pos),
-            "TODO call #builtin.std.c.compile",
-            None,
-            None,
-        ))
+
+        let source = crate::backend::c::codegen_c(env, &mut ctx)?;
+        Ok(AnalysisResult {
+            ty: Type::CtBuildArtifact(CtBuildArtifact {
+                narrow: Some(CtBuildArtifactNarrow::File),
+            }),
+            value: RuntimeValue::Comptime(ComptimeValue::BuildArtifact(
+                ComptimeValueBuildArtifact::File(ComptimeFile {
+                    value: source.into_bytes(),
+                }),
+            )),
+        })
     })
 }
 
@@ -2157,9 +3912,70 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                 }),
             ),
             (
+                "c",
+                d_ns(
+                    vec![
+                        ("compile", d_ns(vec![], Some(builtin_c_compile_call))),
+                        ("if", d_ns(vec![], Some(builtin_c_if_call))),
+                        ("binary", d_ns(vec![], Some(builtin_c_binary_call))),
+                        (
+                            "int_from_kw",
+                            d_ns(vec![], Some(builtin_c_int_from_kw_call)),
+                        ),
+                        (
+                            "int",
+                            d_raw(AnalysisResult {
+                                ty: Type::CtType(CtType),
+                                value: RuntimeValue::Comptime(ComptimeValue::Type(
+                                    ComptimeValueType {
+                                        ty: Type::CInt(CInt),
+                                    },
+                                )),
+                            }),
+                        ),
+                    ],
+                    None,
+                ),
+            ),
+            (
+                "reflect",
+                d_ns(
+                    vec![
+                        (
+                            "function",
+                            d_ns(vec![], Some(crate::reflect::builtin_reflect_function_call)),
+                        ),
+                        (
+                            "fail",
+                            d_ns(vec![], Some(crate::reflect::builtin_reflect_fail_call)),
+                        ),
+                        (
+                            "Value",
+                            d_type(Type::ReflectValue(crate::ct::TypeReflectValue)),
+                        ),
+                        (
+                            "Constant",
+                            d_type(Type::ReflectConstant(crate::ct::TypeReflectConstant)),
+                        ),
+                        (
+                            "Data",
+                            d_type(Type::ReflectData(crate::ct::TypeReflectData)),
+                        ),
+                        ("Fn", d_type(Type::ReflectFn(crate::ct::TypeReflectFn))),
+                    ],
+                    None,
+                ),
+            ),
+            (
                 "std",
                 d_ns(
                     vec![
+                        ("Target", d_type(Type::Target(crate::ct::TypeTarget))),
+                        (
+                            "emit",
+                            d_ns(vec![], Some(crate::reflect::builtin_emit_call)),
+                        ),
+                        ("reflect", Rc::new(ReflectPreludeDescriptor)),
                         (
                             "File",
                             d_raw(AnalysisResult {
@@ -2188,35 +4004,127 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                         ),
                         (
                             "mc",
+                            Rc::new(PreludeDescriptor(crate::user_type::LazyPrelude::mc)),
+                        ),
+                        (
+                            "kw",
                             d_ns(
                                 vec![
                                     (
-                                        "runCommand",
-                                        d_ns(vec![], Some(builtin_mc_run_command_call)),
-                                    ),
-                                    (
-                                        "Result",
+                                        "int",
                                         d_raw(AnalysisResult {
                                             ty: Type::CtType(CtType),
                                             value: RuntimeValue::Comptime(ComptimeValue::Type(
                                                 ComptimeValueType {
-                                                    ty: Type::McResult(McResult { narrow: None }),
+                                                    ty: Type::KwInt(crate::ct::KwInt),
                                                 },
                                             )),
                                         }),
                                     ),
                                     (
-                                        "Datapack",
+                                        "string",
+                                        d_raw(AnalysisResult {
+                                            ty: Type::CtType(CtType),
+                                            value: RuntimeValue::Comptime(ComptimeValue::Type(
+                                                ComptimeValueType {
+                                                    ty: Type::KwString(crate::ct::KwString),
+                                                },
+                                            )),
+                                        }),
+                                    ),
+                                    ("list", d_ns(vec![], Some(builtin_kw_list_call))),
+                                    ("map", d_ns(vec![], Some(builtin_kw_map_call))),
+                                    (
+                                        "text",
+                                        d_raw(AnalysisResult {
+                                            ty: Type::CtType(CtType),
+                                            value: RuntimeValue::Comptime(ComptimeValue::Type(
+                                                ComptimeValueType {
+                                                    ty: Type::KwText(crate::ct::KwText),
+                                                },
+                                            )),
+                                        }),
+                                    ),
+                                    (
+                                        "null",
+                                        d_raw(AnalysisResult {
+                                            ty: Type::Null(crate::ct::TypeNull),
+                                            value: RuntimeValue::Comptime(ComptimeValue::Optional(
+                                                ComptimeValueOptional { some: None },
+                                            )),
+                                        }),
+                                    ),
+                                    (
+                                        "bool",
+                                        d_raw(AnalysisResult {
+                                            ty: Type::CtType(CtType),
+                                            value: RuntimeValue::Comptime(ComptimeValue::Type(
+                                                ComptimeValueType {
+                                                    ty: Type::KwBool(crate::ct::KwBool),
+                                                },
+                                            )),
+                                        }),
+                                    ),
+                                    ("if", d_ns(vec![], Some(builtin_kw_if_call))),
+                                    (
+                                        "match",
                                         d_ns(
                                             vec![(
-                                                "compile",
-                                                d_ns(
-                                                    vec![],
-                                                    Some(builtin_mc_datapack_compile_call),
-                                                ),
+                                                "else",
+                                                d_std_key(crate::std_keys::StdKey::MatchElse),
                                             )],
-                                            None,
+                                            Some(crate::ct::builtin_kw_match_call),
                                         ),
+                                    ),
+                                    ("loop", d_ns(vec![], Some(builtin_kw_loop_call))),
+                                    ("for", d_ns(vec![], Some(builtin_kw_for_call))),
+                                    (
+                                        "range",
+                                        d_ns(vec![], Some(crate::kw::builtin_kw_range_call)),
+                                    ),
+                                    ("mut", d_ns(vec![], Some(builtin_kw_mut_call))),
+                                ],
+                                None,
+                            ),
+                        ),
+                        (
+                            "operator",
+                            d_ns(
+                                vec![
+                                    ("slot", d_ns(vec![], Some(builtin_operator_slot_call))),
+                                    ("lhs", d_ns(vec![], Some(builtin_operator_lhs_call))),
+                                    ("call", d_std_key(crate::std_keys::StdKey::Call)),
+                                ],
+                                None,
+                            ),
+                        ),
+                        (
+                            "literal",
+                            d_ns(
+                                vec![
+                                    (
+                                        "string",
+                                        d_std_key(crate::std_keys::StdKey::Literal(
+                                            crate::std_keys::LiteralKind::String,
+                                        )),
+                                    ),
+                                    (
+                                        "number",
+                                        d_std_key(crate::std_keys::StdKey::Literal(
+                                            crate::std_keys::LiteralKind::Number,
+                                        )),
+                                    ),
+                                    (
+                                        "list",
+                                        d_std_key(crate::std_keys::StdKey::Literal(
+                                            crate::std_keys::LiteralKind::List,
+                                        )),
+                                    ),
+                                    (
+                                        "map",
+                                        d_std_key(crate::std_keys::StdKey::Literal(
+                                            crate::std_keys::LiteralKind::Map,
+                                        )),
                                     ),
                                 ],
                                 None,
@@ -2224,8 +4132,72 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                         ),
                         (
                             "c",
+                            Rc::new(PreludeDescriptor(crate::user_type::LazyPrelude::c)),
+                        ),
+                        ("Option", d_ns(vec![], Some(builtin_option_call))),
+                        ("Struct", d_ns(vec![], Some(builtin_struct_call))),
+                        ("Enum", d_ns(vec![], Some(builtin_enum_call))),
+                        (
+                            "Type",
+                            d_raw(AnalysisResult {
+                                ty: Type::CtType(CtType),
+                                value: RuntimeValue::Comptime(ComptimeValue::Type(
+                                    ComptimeValueType {
+                                        ty: Type::CtType(CtType),
+                                    },
+                                )),
+                            }),
+                        ),
+                        (
+                            "type",
                             d_ns(
-                                vec![("compile", d_ns(vec![], Some(builtin_c_compile_call)))],
+                                vec![
+                                    ("wrap", d_ns(vec![], Some(builtin_type_wrap_call))),
+                                    ("unwrap", d_ns(vec![], Some(builtin_type_unwrap_call))),
+                                    ("repr", d_std_key(crate::std_keys::StdKey::Repr)),
+                                    (
+                                        "name",
+                                        d_raw(crate::kw::static_fn(
+                                            "std.type.name",
+                                            crate::kw::KwBuiltinOp::TypeName,
+                                            Type::CtType(CtType),
+                                            Type::KwString(crate::ct::KwString),
+                                        )),
+                                    ),
+                                    (
+                                        "base",
+                                        d_raw(crate::kw::static_fn(
+                                            "std.type.base",
+                                            crate::kw::KwBuiltinOp::TypeBase,
+                                            Type::CtType(CtType),
+                                            Type::CtType(CtType),
+                                        )),
+                                    ),
+                                    (
+                                        "fields",
+                                        d_std_key(crate::std_keys::StdKey::Section(
+                                            crate::std_keys::Section::Fields,
+                                        )),
+                                    ),
+                                    (
+                                        "cases",
+                                        d_std_key(crate::std_keys::StdKey::Section(
+                                            crate::std_keys::Section::Cases,
+                                        )),
+                                    ),
+                                    (
+                                        "statics",
+                                        d_std_key(crate::std_keys::StdKey::Section(
+                                            crate::std_keys::Section::Statics,
+                                        )),
+                                    ),
+                                    (
+                                        "methods",
+                                        d_std_key(crate::std_keys::StdKey::Section(
+                                            crate::std_keys::Section::Methods,
+                                        )),
+                                    ),
+                                ],
                                 None,
                             ),
                         ),
@@ -2309,7 +4281,38 @@ fn import_file_body(
     Ok(result)
 }
 
-pub fn import_file(filename: &str, contents: &str) -> Result<(), Vec<TokenizationError>> {
+const IMPORT_STACK_SIZE: usize = 1 << 30;
+
+pub fn import_file(
+    filename: &str,
+    contents: &str,
+) -> Result<ComptimeValueBuildArtifact, Vec<TokenizationError>> {
+    import_file_with_step_limit(filename, contents, crate::comptime::DEFAULT_STEP_LIMIT)
+}
+
+pub fn import_file_with_step_limit(
+    filename: &str,
+    contents: &str,
+    step_limit: usize,
+) -> Result<ComptimeValueBuildArtifact, Vec<TokenizationError>> {
+    let filename = filename.to_string();
+    let contents = contents.to_string();
+    std::thread::Builder::new()
+        .name("cvl2 import".to_string())
+        .stack_size(IMPORT_STACK_SIZE)
+        .spawn(move || {
+            crate::comptime::set_step_limit(step_limit);
+            import_file_on_this_thread(&filename, &contents)
+        })
+        .expect("spawning the import thread")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+}
+
+fn import_file_on_this_thread(
+    filename: &str,
+    contents: &str,
+) -> Result<ComptimeValueBuildArtifact, Vec<TokenizationError>> {
     let mut source = Source::new(filename, contents);
     let tokenized = tokenize(&mut source);
     let root_pos = TokenPosition {
@@ -2333,20 +4336,214 @@ pub fn import_file(filename: &str, contents: &str) -> Result<(), Vec<Tokenizatio
         builtin_cache: Rc::new(PerComptimeScopeCache::new()),
     };
 
-    match import_file_body(&mut env, filename, root_pos, &tokenized.result) {
-        Ok(result) => {
-            println!(
-                "got result{}",
-                crate::printers::printers::FOLDER_OR_FILE
-                    .dump(&result, crate::printers::UNLIMITED_DEPTH)
-            );
+    let result = import_file_body(&mut env, filename, root_pos, &tokenized.result);
+    match result {
+        Ok(artifact) if env.errors.is_empty() => Ok(artifact),
+        Ok(_) => Err(env.errors),
+        Err(e) => {
+            handle_err(&mut env, e);
+            Err(env.errors)
         }
-        Err(e) => handle_err(&mut env, e),
     }
+}
 
-    if env.errors.is_empty() {
-        Ok(())
-    } else {
-        Err(env.errors)
+fn renumber_extract(
+    extract: &DestructureExtract,
+    old: &[DestructureTarget],
+    new: &mut Vec<DestructureTarget>,
+) -> DestructureExtract {
+    match extract {
+        DestructureExtract::SingleItem { target, pos } => {
+            new.push(old[*target].clone());
+            DestructureExtract::SingleItem {
+                target: new.len() - 1,
+                pos: pos.clone(),
+            }
+        }
+        DestructureExtract::Comptime { target, pos } => {
+            new.push(old[*target].clone());
+            DestructureExtract::Comptime {
+                target: new.len() - 1,
+                pos: pos.clone(),
+            }
+        }
+        DestructureExtract::List { items, pos } => DestructureExtract::List {
+            items: items
+                .iter()
+                .map(|item| renumber_extract(item, old, new))
+                .collect(),
+            pos: pos.clone(),
+        },
+        DestructureExtract::Map { items, pos } => DestructureExtract::Map {
+            items: items
+                .iter()
+                .map(|(key, item)| (key.clone(), renumber_extract(item, old, new)))
+                .collect(),
+            pos: pos.clone(),
+        },
+        DestructureExtract::Discard { pos } => DestructureExtract::Discard { pos: pos.clone() },
     }
+}
+
+const MAX_SPECIALIZATIONS: usize = 256;
+
+pub fn specialize_call(
+    env: &mut Env,
+    callee: &ComptimeValueFn,
+    pos: &TokenPosition,
+    arg_in: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<(ComptimeValueFn, RuntimeValue), PositionedError> {
+    let args = callee.args();
+    let (
+        Type::Tuple(types),
+        DestructureExtract::List {
+            items: extracts,
+            pos: list_pos,
+        },
+    ) = (&args.ty, &args.extract)
+    else {
+        unreachable!("compile-time parameters only appear in a parameter list")
+    };
+    let items: Vec<OperatorSegmentToken> = match crate::ct::call_list_items(env, &arg_in)? {
+        Some(items) => items,
+        None if extracts.len() == 1 => vec![OperatorSegmentToken {
+            pos: arg_in.pos.clone(),
+            items: arg_in.ast.to_vec(),
+        }],
+        None => Vec::new(),
+    };
+    if items.len() != extracts.len() {
+        return Err(throw_err(
+            env,
+            Some(pos.clone()),
+            format!("expected {} arguments, got {}", extracts.len(), items.len()),
+            None,
+            None,
+        ));
+    }
+    let mut known = Vec::new();
+    let mut bindings = Vec::new();
+    let mut runtime_values = Vec::new();
+    let mut runtime_types = Vec::new();
+    let mut runtime_extracts = Vec::new();
+    for ((item, ty), extract) in items.iter().zip(&types.children).zip(extracts) {
+        let value = analyze(env, ty.clone(), item.pos.clone(), &item.items, block)?;
+        let value = ty.cast_into(env, block, value, item.pos.clone())?;
+        if let DestructureExtract::Comptime {
+            target,
+            pos: param_pos,
+        } = extract
+        {
+            let name = &args.targets[*target].name;
+            let RuntimeValue::Comptime(constant) = value.value else {
+                return Err(throw_err(
+                    env,
+                    Some(item.pos.clone()),
+                    format!("{name} must be known at compile time"),
+                    Some(vec![(Some(param_pos.clone()), "declared here".to_string())]),
+                    None,
+                ));
+            };
+            if !crate::kw::can_compare(&constant) {
+                return Err(throw_err(
+                    env,
+                    Some(item.pos.clone()),
+                    format!("a {} can't be a compile-time argument", value.ty.dump()),
+                    None,
+                    None,
+                ));
+            }
+            known.push(constant.clone());
+            bindings.push((
+                name.clone(),
+                Binding::Runtime {
+                    pos: param_pos.clone(),
+                    runtime: AnalysisResult {
+                        ty: value.ty,
+                        value: RuntimeValue::Comptime(constant),
+                    },
+                },
+            ));
+        } else {
+            runtime_values.push(value.value);
+            runtime_types.push(ty.clone());
+            runtime_extracts.push(extract);
+        }
+    }
+    let existing = callee
+        .0
+        .specializations
+        .borrow()
+        .iter()
+        .find(|(values, _)| {
+            values.len() == known.len()
+                && values
+                    .iter()
+                    .zip(&known)
+                    .all(|(a, b)| crate::kw::values_equal(a, b))
+        })
+        .map(|(_, special)| special.clone());
+    let special = match existing {
+        Some(special) => special,
+        None if callee.0.specializations.borrow().len() >= MAX_SPECIALIZATIONS => {
+            return Err(throw_err(
+                env,
+                Some(pos.clone()),
+                format!(
+                    "this function was copied for {MAX_SPECIALIZATIONS} sets of compile-time arguments; does a recursive call change one every time?"
+                ),
+                Some(vec![(
+                    Some(callee.pos().clone()),
+                    "function defined here".to_string(),
+                )]),
+                None,
+            ));
+        }
+        None => {
+            let mut targets = Vec::new();
+            let items = runtime_extracts
+                .into_iter()
+                .map(|extract| renumber_extract(extract, &args.targets, &mut targets))
+                .collect();
+            let mut scope_bindings = callee.body().scope.bindings.borrow().clone();
+            scope_bindings.extend(bindings);
+            let special = ComptimeValueFn::new(
+                Destructure {
+                    targets,
+                    extract: DestructureExtract::List {
+                        items,
+                        pos: list_pos.clone(),
+                    },
+                    ty: Type::Tuple(TypeTuple {
+                        children: runtime_types,
+                    }),
+                    tags: Vec::new(),
+                },
+                ComptimeValueAst {
+                    ast: callee.body().ast.clone(),
+                    pos: callee.body().pos.clone(),
+                    scope: Scope {
+                        comptime: callee.body().scope.comptime.clone(),
+                        bindings: Rc::new(RefCell::new(scope_bindings)),
+                    },
+                },
+                callee.pos().clone(),
+            );
+            callee
+                .0
+                .specializations
+                .borrow_mut()
+                .push((known, special.clone()));
+            special
+        }
+    };
+    let arg = block_append(
+        block,
+        AnalysisLine::Tuple {
+            pos: pos.clone(),
+            items: runtime_values,
+        },
+    );
+    Ok((special, RuntimeValue::Runtime(arg)))
 }
