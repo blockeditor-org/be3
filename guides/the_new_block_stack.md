@@ -687,19 +687,25 @@ blocks an entry points at; `references()` is `content` plus every entry's refs,
 and a deleted or replaced child is blanked or repointed in place, so the bytes
 can index into `refs`.
 
-A profile is an `EditorView` of the workspace editor. Each account has its own
-settings block (the top-level `Settings` block it authored); its `profiles` lists
-every profile, and `Settings::profile(client, desktop)` is the one this client
-uses. A client run as the desktop (`block-app --session`) keeps a profile of its
-own apart from the one it uses as an app, and creates it with
-`profile::Session { desktop: true }` in its `SESSION` state, which has
-workspace-ui float the files and the open tabs as one tab of a window and add a
-bar along the bottom with the time and the app menu.
-The host opens the shell on that profile, creating one named after the device when
-the client has none, and reopens the shell when it changes. The workspace keeps
-its dock layout and recents in the profile's state; every tab, and the file tree,
-is an `EditorView` child of the profile that the layout references, and closing
-a tab detaches its view.
+A profile, or session, is an `EditorView` of a shell editor: workspace-ui
+(`WORKSPACE_EDITOR`), or linux-desktop (`LINUX_DESKTOP_EDITOR`) for a client run
+as the desktop with `block-app --session`. Each account has its own settings
+block (the top-level `Settings` block it authored); its `profiles` lists every
+profile, and `Settings::profile(shell, client)` is the one this client uses for
+that shell, so the desktop and the app each keep their own. The host opens the
+shell on that profile, creating one named after the device when the client has
+none, and reopens the shell when it changes. A shell keeps its dock layout and
+recents in the profile's state; every tab, and the file tree, is an
+`EditorView` child of the profile that the layout references, and closing a tab
+detaches its view. A block whose type is one of `profile::VIEW_EDITORS` is its
+own view, so a workspace session opened on the desktop keeps its tabs in its own
+profile and closing it leaves that profile alone.
+
+Both shells are built from `crates/block-shell`, which holds the tabs, their
+views, the saved layout, picks, dialogs, host panels and program windows;
+workspace-ui lays them out as Files beside a pane of tabs, and linux-desktop
+floats every block in a window of its own over an empty main pane, with a bar
+along the bottom for the app menu, the sessions to open and the time.
 
 An editor learns its view block from `Open { view_block }`, which a parent sets
 with `ChildTarget::viewed_by(view)`. `editor.view_state(key)` and

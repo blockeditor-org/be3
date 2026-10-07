@@ -2,22 +2,12 @@ use be_model::{Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{ChildChange, Root, WORKSPACE_EDITOR};
+use crate::{ChildChange, Root};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub enum ActivationCondition {
     Fallback,
     Client(Uuid),
-    Desktop(Uuid),
-}
-
-impl ActivationCondition {
-    pub fn session(client: Uuid, desktop: bool) -> Self {
-        match desktop {
-            true => Self::Desktop(client),
-            false => Self::Client(client),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
@@ -43,12 +33,9 @@ impl Settings {
             .into()
     }
 
-    pub fn profile(&self, client: Uuid, desktop: bool) -> Option<Uuid> {
+    pub fn profile(&self, shell: Uuid, client: Uuid) -> Option<Uuid> {
         self.entries
-            .get(&(
-                WORKSPACE_EDITOR,
-                ActivationCondition::session(client, desktop),
-            ))
+            .get(&(shell, ActivationCondition::Client(client)))
             .copied()
             .filter(|profile| self.profiles.contains_key(profile))
     }
@@ -57,18 +44,14 @@ impl Settings {
         self.profiles.keys().copied().collect()
     }
 
-    pub fn add_profile(client: Uuid, desktop: bool, profile: Uuid) -> Edit {
+    pub fn add_profile(shell: Uuid, client: Uuid, profile: Uuid) -> Edit {
         std::iter::once(Self::PROFILES.put(ObjectId::ROOT, &profile, Some(&())))
-            .chain(Self::use_profile(client, desktop, profile).0)
+            .chain(Self::use_profile(shell, client, profile).0)
             .collect()
     }
 
-    pub fn use_profile(client: Uuid, desktop: bool, profile: Uuid) -> Edit {
-        Self::set_entry(
-            WORKSPACE_EDITOR,
-            ActivationCondition::session(client, desktop),
-            profile,
-        )
+    pub fn use_profile(shell: Uuid, client: Uuid, profile: Uuid) -> Edit {
+        Self::set_entry(shell, ActivationCondition::Client(client), profile)
     }
 }
 

@@ -114,8 +114,12 @@ pub(crate) fn PluginRegion(
     }));
     create_effect(clone!(revision plugin_id state -> move || {
         revision.get();
-        for action in plugin_host::take_region_actions(&plugin_id, instance) {
-            super::act(action);
+        let actions = plugin_host::take_region_actions(&plugin_id, instance);
+        if !actions.is_empty() {
+            let from = super::editors::editors().block_of(&plugin_id, instance);
+            for action in actions {
+                super::act(from, action);
+            }
         }
         let placed: Vec<(ChildId, Uuid)> = state.with_untracked(|view| {
             view.children

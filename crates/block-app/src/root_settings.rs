@@ -1,8 +1,10 @@
-use be_block::profile::{SESSION, Session};
+use std::cell::RefCell;
+use std::collections::HashMap;
+
 use be_block::settings::Settings;
 use be_block::{
-    BlockContent, BlockMetadata, EditorView, EditorViewContent, LiveEdit, Root, SettingsContent,
-    ViewState, WORKSPACE_EDITOR,
+    BlockContent, BlockMetadata, EditorView, EditorViewContent, LINUX_DESKTOP_EDITOR, LiveEdit,
+    Root, SettingsContent,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;
@@ -27,33 +29,59 @@ pub(crate) fn device_name() -> &'static str {
     }
 }
 
-#[derive(Default)]
 pub(crate) struct RootSettings {
-    desktop: bool,
+    shell: Uuid,
     block: Option<Uuid>,
     created_profile: Option<Uuid>,
     chosen_profile: Option<Uuid>,
-    decoded: std::cell::RefCell<Option<(u64, Settings)>>,
+    decoded: RefCell<Option<(u64, Settings)>>,
+    editors: RefCell<HashMap<Uuid, (u64, Uuid)>>,
 }
 
 impl RootSettings {
-    pub(crate) fn new(desktop: bool) -> Self {
+    pub(crate) fn new(shell: Uuid) -> Self {
         Self {
-            desktop,
-            ..Self::default()
+            shell,
+            block: None,
+            created_profile: None,
+            chosen_profile: None,
+            decoded: RefCell::default(),
+            editors: RefCell::default(),
         }
     }
 
+    pub(crate) fn shell(&self) -> Uuid {
+        self.shell
+    }
+
     fn session_document(&self) -> Vec<u8> {
-        let mut profile = EditorView::document(WORKSPACE_EDITOR, None);
-        if self.desktop {
-            let session = ViewState::new(&Session { desktop: true }, Vec::new());
-            let edit = profile
-                .root()
-                .set_state(SESSION, Some(&session), 0, Uuid::nil());
-            profile.apply(&edit);
+        EditorView::document(self.shell, None).encode()
+    }
+
+    fn profile_name(&self) -> &'static str {
+        match self.shell == LINUX_DESKTOP_EDITOR {
+            true => "Desktop",
+            false => device_name(),
         }
-        profile.encode()
+    }
+
+    fn editor_of(&self, profile: Uuid) -> Option<Uuid> {
+        be::hold(profile, EditorViewContent::CONTENT_TYPE);
+        let revision = be::content_revision(profile)?;
+        if let Some((held, editor)) = self.editors.borrow().get(&profile)
+            && *held == revision
+        {
+            return Some(*editor);
+        }
+        let content = be::content(profile)?;
+        let editor = EditorViewContent::decode(&content.bytes)
+            .ok()?
+            .root()
+            .editor;
+        self.editors
+            .borrow_mut()
+            .insert(profile, (revision, editor));
+        Some(editor)
     }
 
     pub(crate) fn find(&mut self) -> Option<Uuid> {
@@ -108,12 +136,11 @@ impl RootSettings {
         let Some(settings) = self.block.and_then(|block| self.decoded(block)) else {
             return Vec::new();
         };
-        let current = self
-            .chosen_profile
-            .or(settings.profile(client, self.desktop));
+        let current = self.chosen_profile.or(settings.profile(self.shell, client));
         let mut profiles: Vec<(Uuid, String, bool)> = settings
             .profiles()
             .into_iter()
+            .filter(|profile| self.editor_of(*profile) == Some(self.shell))
             .map(|profile| {
                 let name = be::node(profile)
                     .and_then(|node| node.metadata.name)
@@ -132,11 +159,7 @@ impl RootSettings {
         be::operate_from(
             settings_block,
             be::next_origin(),
-            SettingsContent::encode_operation(&Settings::use_profile(
-                client,
-                self.desktop,
-                profile,
-            )),
+            SettingsContent::encode_operation(&Settings::use_profile(self.shell, client, profile)),
         );
         self.chosen_profile = Some(profile);
     }
@@ -159,11 +182,7 @@ impl RootSettings {
         be::operate_from(
             settings_block,
             be::next_origin(),
-            SettingsContent::encode_operation(&Settings::add_profile(
-                client,
-                self.desktop,
-                profile,
-            )),
+            SettingsContent::encode_operation(&Settings::add_profile(self.shell, client, profile)),
         );
         self.chosen_profile = Some(profile);
     }
@@ -172,12 +191,12 @@ impl RootSettings {
         let settings_block = self.ensure()?;
         let settings = self.decoded(settings_block)?;
         if let Some(chosen) = self.chosen_profile {
-            if settings.profile(client, self.desktop) != Some(chosen) {
+            if settings.profile(self.shell, client) != Some(chosen) {
                 return Some(chosen);
             }
             self.chosen_profile = None;
         }
-        if let Some(profile) = settings.profile(client, self.desktop) {
+        if let Some(profile) = settings.profile(self.shell, client) {
             self.created_profile = None;
             return Some(profile);
         }
@@ -189,20 +208,13 @@ impl RootSettings {
             profile,
             EditorViewContent::CONTENT_TYPE,
             BlockParent::Block(settings_block),
-            BlockMetadata::named(match self.desktop {
-                true => "Desktop",
-                false => device_name(),
-            }),
+            BlockMetadata::named(self.profile_name()),
             Some(self.session_document()),
         );
         be::operate_from(
             settings_block,
             be::next_origin(),
-            SettingsContent::encode_operation(&Settings::add_profile(
-                client,
-                self.desktop,
-                profile,
-            )),
+            SettingsContent::encode_operation(&Settings::add_profile(self.shell, client, profile)),
         );
         self.created_profile = Some(profile);
         Some(profile)

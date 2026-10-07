@@ -50,7 +50,7 @@ pub(crate) enum PickAction {
 }
 
 pub(crate) enum PickOutcome {
-    Open(Pick),
+    Open(Box<Pick>),
     Answered(u64, BlockPick, Option<(Uuid, Uuid, Uuid)>),
 }
 
@@ -158,12 +158,12 @@ impl Pick {
                 return PickOutcome::Answered(self.pick, BlockPick::Cancelled, None);
             }
         }
-        PickOutcome::Open(self)
+        PickOutcome::Open(Box::new(self))
     }
 
     pub(crate) fn progressed(mut self, progress: &CreationProgress) -> PickOutcome {
         let Some(creating) = &self.creating else {
-            return PickOutcome::Open(self);
+            return PickOutcome::Open(Box::new(self));
         };
         match progress {
             CreationProgress::Created(block) => {
@@ -189,9 +189,11 @@ impl Pick {
             CreationProgress::Failed(error) => {
                 self.creating = None;
                 self.error = Some(error.clone());
-                PickOutcome::Open(self)
+                PickOutcome::Open(Box::new(self))
             }
-            CreationProgress::Options { .. } | CreationProgress::Working => PickOutcome::Open(self),
+            CreationProgress::Options { .. } | CreationProgress::Working => {
+                PickOutcome::Open(Box::new(self))
+            }
         }
     }
 }

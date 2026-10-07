@@ -12,12 +12,17 @@ mod performance;
 mod platform;
 mod plugin_host;
 mod root_settings;
+mod shell_route;
 mod surfaces;
 mod ui;
 mod wayland;
 
 use beui::styled::DocumentTheme;
-use std::{collections::HashMap, error::Error, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    rc::Rc,
+};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::{io, path::PathBuf};
@@ -29,7 +34,7 @@ use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
 use block_plugin_api::{
-    AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog,
+    AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog, ShellRequest,
 };
 use editors::{
     ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry, PluginEditor, SidebarDragSource,
@@ -287,12 +292,13 @@ struct BlockApp {
     server_url: String,
     account: Account,
     root_settings: RootSettings,
-    desktop: bool,
     choosing_profile: bool,
     shell: Option<Uuid>,
     windows_sent: Option<(Uuid, u64)>,
     forwarded_picks: HashMap<u64, (PickSource, u64)>,
     next_pick: u64,
+    focus_reports: HashMap<Uuid, editors::FocusReport>,
+    artifact_watches: HashMap<Uuid, Vec<Uuid>>,
     ui_settings: Option<Uuid>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
@@ -468,12 +474,13 @@ impl BlockApp {
             scheduled_workspace_list: false,
             server_url,
             account,
-            root_settings: RootSettings::default(),
-            desktop: false,
+            root_settings: RootSettings::new(WORKSPACE_EDITOR),
             choosing_profile: false,
             shell: None,
             windows_sent: None,
             forwarded_picks: HashMap::new(),
+            focus_reports: HashMap::new(),
+            artifact_watches: HashMap::new(),
             next_pick: 0,
             ui_settings: None,
             block_types: HashMap::new(),
@@ -507,8 +514,7 @@ impl BlockApp {
 
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     fn run_as_desktop(&mut self) {
-        self.desktop = true;
-        self.root_settings = RootSettings::new(true);
+        self.root_settings = RootSettings::new(be_block::LINUX_DESKTOP_EDITOR);
     }
 
     #[cfg(not(target_os = "android"))]
@@ -873,6 +879,8 @@ impl BlockApp {
 
     fn open_workspace(&mut self, workspace: Workspace) {
         self.cancel_forwarded_picks();
+        self.focus_reports.clear();
+        self.artifact_watches.clear();
         be::stop();
         self.block_types.clear();
         self.registry = Rc::new(EditorRegistry::new());
@@ -882,7 +890,7 @@ impl BlockApp {
         self.dynamic_artifact_errors.clear();
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
-        self.root_settings = RootSettings::new(self.desktop);
+        self.root_settings = RootSettings::new(self.root_settings.shell());
         self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;
@@ -971,6 +979,8 @@ impl BlockApp {
             ServerLocation::Remote(url) => url.clone(),
         };
         self.cancel_forwarded_picks();
+        self.focus_reports.clear();
+        self.artifact_watches.clear();
         be::stop();
         self.block_types.clear();
         self.registry = Rc::new(EditorRegistry::new());
@@ -996,7 +1006,7 @@ impl BlockApp {
         self.workspace_error = None;
         self.reauth = None;
         self.invite_open = false;
-        self.root_settings = RootSettings::new(self.desktop);
+        self.root_settings = RootSettings::new(self.root_settings.shell());
         self.choosing_profile = false;
         self.shell = None;
         self.ui_settings = None;
@@ -1242,7 +1252,12 @@ impl BlockApp {
             }
 
             self.set_block_parent(copy_id, BlockParent::Block(copy.container));
-            self.show_in_shell(copy_id, block_type, Some(copy.container));
+            self.show_block(
+                Some(copy.container),
+                copy_id,
+                block_type,
+                Some(copy.container),
+            );
         }
     }
 
@@ -1274,9 +1289,16 @@ impl BlockApp {
             }
             self.block_types.remove(&previous);
         }
-        self.block_types.insert(id, WORKSPACE_EDITOR);
+        let shell_editor = self.root_settings.shell();
+        self.block_types.insert(id, shell_editor);
         if !self.editors.with(|open| open.contains_key(&id)) {
-            let editor = self.registry.open(id, WORKSPACE_EDITOR).viewed_by(Some(id));
+            let editor = self.registry.open(id, shell_editor).viewed_by(Some(id));
+            if let Some(missing) = ShellRequest::ALL
+                .into_iter()
+                .find(|request| !editor.accepts(*request))
+            {
+                eprintln!("the shell editor does not accept {missing:?} requests");
+            }
             self.editors.with(|open| open.insert(id, editor));
             self.windows_sent = None;
         }
@@ -1284,9 +1306,18 @@ impl BlockApp {
         Some(id)
     }
 
-    fn show_dialog(&mut self, id: Uuid, dialog: ShellDialog) {
-        if let Some(shell) = self.shell {
-            self.with_editor(shell, |shell| shell.show_dialog(id, dialog));
+    fn handler_for(&self, from: Option<Uuid>, request: ShellRequest) -> Option<Uuid> {
+        Some(shell_route::handler(
+            from,
+            self.shell?,
+            |id| self.with_editor(id, |editor| editor.accepts(request)) == Some(true),
+            |id| self.editors.parent_of(id),
+        ))
+    }
+
+    fn show_dialog(&mut self, from: Option<Uuid>, id: Uuid, dialog: ShellDialog) {
+        if let Some(handler) = self.handler_for(from, ShellRequest::Dialog) {
+            self.with_editor(handler, |handler| handler.show_dialog(id, dialog));
         }
     }
 
@@ -1296,15 +1327,21 @@ impl BlockApp {
         }
     }
 
-    fn show_in_shell(&mut self, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
+    fn show_block(&mut self, from: Option<Uuid>, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
         self.block_types.insert(id, block_type);
-        if let Some(shell) = self.shell {
-            self.with_editor(shell, |shell| shell.show_block(id, block_type, via));
+        if let Some(handler) = self.handler_for(from, ShellRequest::ShowBlock) {
+            self.with_editor(handler, |handler| handler.show_block(id, block_type, via));
         }
     }
+
     fn close_editor(&mut self, id: Uuid) {
         if self.shell == Some(id) {
             return;
+        }
+        self.editors.forget_parent(id);
+        self.focus_reports.remove(&id);
+        if self.artifact_watches.remove(&id).is_some() {
+            self.watch_artifacts(self.watched());
         }
         self.editors
             .with_simulated(|simulated| simulated.remove(&id));
@@ -1355,26 +1392,46 @@ impl BlockApp {
             self.windows_sent = Some((shell, wayland::revision()));
             wayland::listed()
         });
-        let Some((focus, watch, closed)) = self.with_editor(shell, |editor| {
+        let Some(closed) = self.with_editor(shell, |editor| {
             if let Some(windows) = windows {
                 editor.set_windows(windows);
             }
-            (
-                editor.take_focus_report(),
-                editor.take_artifact_watch(),
-                editor.take_closed_windows(),
-            )
+            editor.take_closed_windows()
         }) else {
             return;
         };
         for window in closed {
             wayland::close(window);
         }
-        if let Some(focus) = focus {
+        let reports: Vec<(Uuid, Option<editors::FocusReport>, Option<Vec<Uuid>>)> =
+            self.editors.with(|open| {
+                open.values()
+                    .map(|editor| {
+                        (
+                            editor.id(),
+                            editor.take_focus_report(),
+                            editor.take_artifact_watch(),
+                        )
+                    })
+                    .collect()
+            });
+        let mut refocused = false;
+        let mut rewatched = false;
+        for (id, focus, watch) in reports {
+            if let Some(focus) = focus {
+                self.focus_reports.insert(id, focus);
+                refocused = true;
+            }
+            if let Some(watch) = watch {
+                self.artifact_watches.insert(id, watch);
+                rewatched = true;
+            }
+        }
+        if refocused && let Some(focus) = self.focus(shell) {
             plugin_host::set_focus(focus.block, focus.via);
         }
-        if let Some(watch) = watch {
-            self.watch_artifacts(watch);
+        if rewatched {
+            self.watch_artifacts(self.watched());
         }
         if host::key_pressed(beui::Key::Escape) {
             let presenting: Vec<Uuid> = self.editors.with(|open| {
@@ -1389,9 +1446,32 @@ impl BlockApp {
         }
         self.forward_block_picks(shell);
         self.editors.step_creations();
-        for action in compositor::take_actions() {
-            self.handle_editor_action(action);
+        for (from, action) in compositor::take_actions() {
+            self.handle_editor_action(from, action);
         }
+    }
+
+    fn focus(&self, shell: Uuid) -> Option<editors::FocusReport> {
+        let mut report = self.focus_reports.get(&shell)?;
+        let mut visited = HashSet::from([shell]);
+        while let Some((block, _)) = report.block
+            && visited.insert(block)
+            && let Some(inner) = self.focus_reports.get(&block)
+            && inner.block.is_some()
+        {
+            report = inner;
+        }
+        Some(editors::FocusReport {
+            block: report.block,
+            via: report.via.clone(),
+        })
+    }
+
+    fn watched(&self) -> Vec<Uuid> {
+        let mut watched: Vec<Uuid> = self.artifact_watches.values().flatten().copied().collect();
+        watched.sort_unstable();
+        watched.dedup();
+        watched
     }
 
     fn cancel_forwarded_picks(&mut self) {
@@ -1401,24 +1481,35 @@ impl BlockApp {
     }
 
     fn forward_block_picks(&mut self, shell: Uuid) {
-        let Some(shell_source) = self
-            .with_editor(shell, |editor| editor.pick_source())
-            .flatten()
-        else {
-            return;
-        };
-        for (pick, answer) in
-            crate::plugin_host::take_pick_answers(&shell_source.plugin_id, shell_source.instance)
-        {
-            if let Some((source, request_id)) = self.forwarded_picks.remove(&pick) {
-                source.answer(request_id, answer);
-            }
-        }
-        let editors: Vec<(Uuid, PickSource)> = self.editors.with(|open| {
+        let editors: Vec<(Uuid, PickSource, bool)> = self.editors.with(|open| {
             open.values()
-                .filter_map(|editor| Some((editor.id(), editor.pick_source()?)))
+                .filter_map(|editor| {
+                    Some((
+                        editor.id(),
+                        editor.pick_source()?,
+                        editor.accepts(ShellRequest::Pick),
+                    ))
+                })
                 .collect()
         });
+        for (_, picker, _) in editors.iter().filter(|(_, _, accepts)| *accepts) {
+            for (pick, answer) in
+                crate::plugin_host::take_pick_answers(&picker.plugin_id, picker.instance)
+            {
+                if let Some((source, request_id)) = self.forwarded_picks.remove(&pick) {
+                    source.answer(request_id, answer);
+                }
+            }
+        }
+        let pickers: HashMap<Uuid, PickSource> = editors
+            .iter()
+            .filter(|(_, _, accepts)| *accepts)
+            .map(|(id, picker, _)| (*id, picker.clone()))
+            .collect();
+        let editors: Vec<(Uuid, PickSource)> = editors
+            .into_iter()
+            .map(|(id, source, _)| (id, source))
+            .collect();
         for (id, source) in &editors {
             let (settings, commits): (Vec<_>, Vec<_>) =
                 crate::plugin_host::take_child_commits(&source.plugin_id, source.instance)
@@ -1449,11 +1540,16 @@ impl BlockApp {
                 };
                 self.next_pick += 1;
                 let pick = self.next_pick;
+                let handler = self.handler_for(block, ShellRequest::Pick).unwrap_or(shell);
+                let Some(picker) = pickers.get(&handler).or_else(|| pickers.get(&shell)) else {
+                    source.answer(request.request_id, block_plugin_api::BlockPick::Cancelled);
+                    continue;
+                };
                 self.forwarded_picks
                     .insert(pick, (source.clone(), request.request_id));
                 crate::plugin_host::request_pick(
-                    &shell_source.plugin_id,
-                    shell_source.instance,
+                    &picker.plugin_id,
+                    picker.instance,
                     pick,
                     filter,
                     parent,
@@ -1531,8 +1627,9 @@ impl BlockApp {
             }
             states.push(state);
         }
-        if let Some(shell) = self.shell {
-            self.with_editor(shell, |shell| shell.set_artifact_states(states));
+        let watchers: Vec<Uuid> = self.artifact_watches.keys().copied().collect();
+        for watcher in watchers {
+            self.with_editor(watcher, |editor| editor.set_artifact_states(states.clone()));
         }
         self.show_artifact_settings();
     }
@@ -1615,27 +1712,27 @@ impl BlockApp {
         self.forget_dynamic_artifact_dialogs(id);
     }
 
-    fn handle_editor_action(&mut self, action: EditorAction) {
+    fn handle_editor_action(&mut self, from: Option<Uuid>, action: EditorAction) {
         match action {
             EditorAction::OpenBlock {
                 id,
                 block_type,
                 via,
-            } => self.show_in_shell(id, block_type, via),
+            } => self.show_block(from, id, block_type, via),
             EditorAction::DragBlock { id, block_type } => {
                 host::start_drag(host::DragPayload {
                     block_id: id,
                     block_type,
                 });
             }
-            EditorAction::Command { id, command } => self.handle_block_command(id, command),
+            EditorAction::Command { id, command } => self.handle_block_command(from, id, command),
         }
     }
 
-    fn handle_block_command(&mut self, id: Uuid, command: BlockCommand) {
+    fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
         match command {
-            BlockCommand::Share => self.show_dialog(id, ShellDialog::Share),
-            BlockCommand::Rename => self.show_dialog(id, ShellDialog::Rename),
+            BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
+            BlockCommand::Rename => self.show_dialog(from, id, ShellDialog::Rename),
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}

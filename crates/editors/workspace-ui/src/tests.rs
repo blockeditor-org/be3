@@ -1,4 +1,3 @@
-use block_editor_beui::be_block::profile::{SESSION, Session};
 use block_editor_beui::be_block::{EditorView, EditorViewContent, ViewState, WORKSPACE_EDITOR};
 
 use block_editor_beui::beui::{Document, NodeId, Rect, Vec2};
@@ -11,8 +10,6 @@ use crate::app::WorkspaceUiApp;
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
 mod a_closed_tab_gives_up_its_view_block;
-mod a_desktop_session_floats_the_workspace_in_a_window_above_a_bar;
-mod a_desktop_session_reopens_its_tabs_in_its_window;
 mod a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick;
 mod a_host_panel_the_host_asks_for_is_placed_in_its_own_window;
 mod a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches;
@@ -24,7 +21,6 @@ mod a_shown_block_is_reported_as_focused;
 mod a_template_without_a_dialog_is_created_and_answers_the_pick;
 mod a_window_the_host_runs_gets_a_tab_until_its_program_closes_it;
 mod a_window_with_a_parent_floats_at_the_size_it_drew;
-mod an_app_profile_fills_the_screen_without_a_desktop_bar;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod closing_a_window_tab_asks_its_program_to_close;
 mod closing_the_only_tab_leaves_the_blank_workspace;
@@ -123,16 +119,6 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
         .find_map(|child| text_within(document, child, words))
 }
 
-fn text_under(document: &Document, id: NodeId) -> Option<String> {
-    if let Some(node) = document.arena.kind_of(id) {
-        return Some(document.text(node).to_owned());
-    }
-    document
-        .children(id)
-        .into_iter()
-        .find_map(|child| text_under(document, child))
-}
-
 fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostWindow {
     block_editor_beui::HostWindow {
         id: block_editor_beui::HostWindowId(id),
@@ -185,22 +171,6 @@ fn profiled_sized(size: Option<Vec2>, layout: Option<ViewState>) -> (Fixture, Uu
         profile.apply(&edit);
     }
     open_editor(size, Some(profile))
-}
-
-fn desktop(layout: Option<ViewState>) -> (Fixture, Uuid) {
-    let mut profile = EditorView::document(WORKSPACE_EDITOR, None);
-    let session = ViewState::new(&Session { desktop: true }, Vec::new());
-    let edit = profile
-        .root()
-        .set_state(SESSION, Some(&session), 1, Uuid::nil());
-    profile.apply(&edit);
-    if let Some(layout) = layout {
-        let edit = profile
-            .root()
-            .set_state("layout", Some(&layout), 1, Uuid::nil());
-        profile.apply(&edit);
-    }
-    open_editor(None, Some(profile))
 }
 
 fn open_editor(size: Option<Vec2>, profile: Option<EditorViewContent>) -> (Fixture, Uuid) {
