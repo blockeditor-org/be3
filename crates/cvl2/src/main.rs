@@ -57,7 +57,11 @@ fn main() -> ExitCode {
         }
         Err(errors) => {
             let source = Source::new(filename.as_str(), contents.as_str());
-            println!("{}", pretty_print_errors(&[&source], &errors));
+            let unreported: Vec<_> = errors
+                .into_iter()
+                .filter(|err| !tokenized.errors.contains(err))
+                .collect();
+            println!("{}", pretty_print_errors(&[&source], &unreported));
             ExitCode::FAILURE
         }
     }
