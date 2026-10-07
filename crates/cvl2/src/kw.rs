@@ -308,9 +308,33 @@ pub fn eval(
     })
 }
 
-fn values_equal(a: &ComptimeValue, b: &ComptimeValue) -> bool {
+pub fn can_compare(value: &ComptimeValue) -> bool {
+    use ComptimeValue as V;
+    match value {
+        V::Void(_)
+        | V::KwInt(_)
+        | V::KwBool(_)
+        | V::KwString(_)
+        | V::CInt(_)
+        | V::Fn(_)
+        | V::Type(_)
+        | V::Target(_)
+        | V::OperatorName(_) => true,
+        V::KwList(items) => items.to_vec().iter().all(can_compare),
+        V::Struct(items) => items.iter().all(can_compare),
+        V::Optional(optional) => optional.some.as_deref().is_none_or(can_compare),
+        V::Enum(value) => value.payload.as_deref().is_none_or(can_compare),
+        _ => false,
+    }
+}
+
+pub fn values_equal(a: &ComptimeValue, b: &ComptimeValue) -> bool {
     use ComptimeValue as V;
     match (a, b) {
+        (V::Fn(a), V::Fn(b)) => a == b,
+        (V::Type(a), V::Type(b)) => a.ty == b.ty,
+        (V::Target(a), V::Target(b)) => a.env == b.env,
+        (V::OperatorName(a), V::OperatorName(b)) => a.value == b.value,
         (V::Void(_), V::Void(_)) => true,
         (V::KwInt(a), V::KwInt(b)) => a.value == b.value,
         (V::KwBool(a), V::KwBool(b)) => a.value == b.value,

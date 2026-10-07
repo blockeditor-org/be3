@@ -782,11 +782,14 @@ pub struct ComptimeValueError {
     pub etok: ConsumedErrorToken,
 }
 
+type Specializations = RefCell<Vec<(Vec<ComptimeValue>, ComptimeValueFn)>>;
+
 #[derive(Debug)]
 struct ComptimeValueFnInner {
     args: Destructure,
     body: ComptimeValueAst,
     pos: TokenPosition,
+    specializations: Specializations,
 }
 
 #[derive(Debug, Clone)]
@@ -794,7 +797,20 @@ pub struct ComptimeValueFn(Rc<ComptimeValueFnInner>);
 
 impl ComptimeValueFn {
     pub fn new(args: Destructure, body: ComptimeValueAst, pos: TokenPosition) -> Self {
-        ComptimeValueFn(Rc::new(ComptimeValueFnInner { args, body, pos }))
+        ComptimeValueFn(Rc::new(ComptimeValueFnInner {
+            args,
+            body,
+            pos,
+            specializations: RefCell::new(Vec::new()),
+        }))
+    }
+
+    pub fn has_comptime_params(&self) -> bool {
+        matches!(
+            &self.0.args.extract,
+            DestructureExtract::List { items, .. }
+                if items.iter().any(|item| matches!(item, DestructureExtract::Comptime { .. }))
+        )
     }
 
     pub fn args(&self) -> &Destructure {
@@ -1148,6 +1164,10 @@ pub enum DestructureExtract {
     Discard {
         pos: TokenPosition,
     },
+    Comptime {
+        target: usize,
+        pos: TokenPosition,
+    },
 }
 
 fn destructure_extract_pos(extract: &DestructureExtract) -> &TokenPosition {
@@ -1156,7 +1176,60 @@ fn destructure_extract_pos(extract: &DestructureExtract) -> &TokenPosition {
         DestructureExtract::List { pos, .. } => pos,
         DestructureExtract::Map { pos, .. } => pos,
         DestructureExtract::Discard { pos } => pos,
+        DestructureExtract::Comptime { pos, .. } => pos,
     }
+}
+
+fn read_comptime_param(
+    env: &mut Env,
+    arg: &OperatorSegmentToken,
+    targets: &mut Vec<DestructureTarget>,
+) -> Result<Option<(DestructureExtract, Type)>, PositionedError> {
+    let Some((lhs, _, rhs)) = read_binary2(env, &arg.items, OpTag::Def)? else {
+        return Ok(None);
+    };
+    let name = match trim_ws(&lhs.items).as_slice() {
+        [SyntaxNode::Identifier(id)] if id.ident_tag == IdentifierTag::Normal => id.clone(),
+        _ => {
+            return Err(throw_err(
+                env,
+                Some(lhs.pos.clone()),
+                "a compile-time parameter is a name, as in `name :: T`",
+                None,
+                None,
+            ));
+        }
+    };
+    let mut sub_block = empty_block();
+    let body = analyze(
+        env,
+        Type::CtType(CtType),
+        rhs.pos.clone(),
+        &rhs.items,
+        &mut sub_block,
+    )?;
+    let evaluated = crate::comptime::comptime_eval(env, &sub_block, body.value, rhs.pos.clone())?;
+    let ComptimeValue::Type(ty) = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::Type),
+        RuntimeValue::Comptime(evaluated),
+        rhs.pos.clone(),
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    let target = targets.len();
+    targets.push(DestructureTarget {
+        name: name.str.clone(),
+        pos: name.pos.clone(),
+    });
+    Ok(Some((
+        DestructureExtract::Comptime {
+            target,
+            pos: name.pos.clone(),
+        },
+        ty.ty,
+    )))
 }
 
 pub fn read_destructure(
@@ -1295,6 +1368,11 @@ pub fn read_destructure(
                 if arg.items.is_empty() {
                     continue;
                 }
+                if let Some((extract, ty)) = read_comptime_param(env, arg, targets)? {
+                    extracts.push(extract);
+                    types.push(ty);
+                    continue;
+                }
                 let sub = read_destructure(env, arg.pos.clone(), &arg.items, targets)?;
                 extracts.push(sub.extract);
                 types.push(sub.ty);
@@ -1361,6 +1439,13 @@ fn analyze_destructure_inner(
             Ok(())
         }
         DestructureExtract::Discard { .. } => Ok(()),
+        DestructureExtract::Comptime { pos, .. } => Err(throw_err(
+            env,
+            Some(pos.clone()),
+            "a function with compile-time parameters can only be called, which gives them values",
+            None,
+            None,
+        )),
         DestructureExtract::List { items, pos } => {
             let Type::Tuple(tuple) = &body.ty else {
                 return Err(throw_err(
@@ -3983,4 +4068,205 @@ fn import_file_on_this_thread(
             Err(env.errors)
         }
     }
+}
+
+fn renumber_extract(
+    extract: &DestructureExtract,
+    old: &[DestructureTarget],
+    new: &mut Vec<DestructureTarget>,
+) -> DestructureExtract {
+    match extract {
+        DestructureExtract::SingleItem { target, pos } => {
+            new.push(old[*target].clone());
+            DestructureExtract::SingleItem {
+                target: new.len() - 1,
+                pos: pos.clone(),
+            }
+        }
+        DestructureExtract::Comptime { target, pos } => {
+            new.push(old[*target].clone());
+            DestructureExtract::Comptime {
+                target: new.len() - 1,
+                pos: pos.clone(),
+            }
+        }
+        DestructureExtract::List { items, pos } => DestructureExtract::List {
+            items: items
+                .iter()
+                .map(|item| renumber_extract(item, old, new))
+                .collect(),
+            pos: pos.clone(),
+        },
+        DestructureExtract::Map { items, pos } => DestructureExtract::Map {
+            items: items
+                .iter()
+                .map(|(key, item)| (key.clone(), renumber_extract(item, old, new)))
+                .collect(),
+            pos: pos.clone(),
+        },
+        DestructureExtract::Discard { pos } => DestructureExtract::Discard { pos: pos.clone() },
+    }
+}
+
+const MAX_SPECIALIZATIONS: usize = 256;
+
+pub fn specialize_call(
+    env: &mut Env,
+    callee: &ComptimeValueFn,
+    pos: &TokenPosition,
+    arg_in: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<(ComptimeValueFn, RuntimeValue), PositionedError> {
+    let args = callee.args();
+    let (
+        Type::Tuple(types),
+        DestructureExtract::List {
+            items: extracts,
+            pos: list_pos,
+        },
+    ) = (&args.ty, &args.extract)
+    else {
+        unreachable!("compile-time parameters only appear in a parameter list")
+    };
+    let items: Vec<OperatorSegmentToken> = match crate::ct::call_list_items(env, &arg_in)? {
+        Some(items) => items,
+        None if extracts.len() == 1 => vec![OperatorSegmentToken {
+            pos: arg_in.pos.clone(),
+            items: arg_in.ast.to_vec(),
+        }],
+        None => Vec::new(),
+    };
+    if items.len() != extracts.len() {
+        return Err(throw_err(
+            env,
+            Some(pos.clone()),
+            format!("expected {} arguments, got {}", extracts.len(), items.len()),
+            None,
+            None,
+        ));
+    }
+    let mut known = Vec::new();
+    let mut bindings = Vec::new();
+    let mut runtime_values = Vec::new();
+    let mut runtime_types = Vec::new();
+    let mut runtime_extracts = Vec::new();
+    for ((item, ty), extract) in items.iter().zip(&types.children).zip(extracts) {
+        let value = analyze(env, ty.clone(), item.pos.clone(), &item.items, block)?;
+        let value = ty.cast_into(env, block, value, item.pos.clone())?;
+        if let DestructureExtract::Comptime {
+            target,
+            pos: param_pos,
+        } = extract
+        {
+            let name = &args.targets[*target].name;
+            let RuntimeValue::Comptime(constant) = value.value else {
+                return Err(throw_err(
+                    env,
+                    Some(item.pos.clone()),
+                    format!("{name} must be known at compile time"),
+                    Some(vec![(Some(param_pos.clone()), "declared here".to_string())]),
+                    None,
+                ));
+            };
+            if !crate::kw::can_compare(&constant) {
+                return Err(throw_err(
+                    env,
+                    Some(item.pos.clone()),
+                    format!("a {} can't be a compile-time argument", value.ty.dump()),
+                    None,
+                    None,
+                ));
+            }
+            known.push(constant.clone());
+            bindings.push((
+                name.clone(),
+                Binding::Runtime {
+                    pos: param_pos.clone(),
+                    runtime: AnalysisResult {
+                        ty: value.ty,
+                        value: RuntimeValue::Comptime(constant),
+                    },
+                },
+            ));
+        } else {
+            runtime_values.push(value.value);
+            runtime_types.push(ty.clone());
+            runtime_extracts.push(extract);
+        }
+    }
+    let existing = callee
+        .0
+        .specializations
+        .borrow()
+        .iter()
+        .find(|(values, _)| {
+            values.len() == known.len()
+                && values
+                    .iter()
+                    .zip(&known)
+                    .all(|(a, b)| crate::kw::values_equal(a, b))
+        })
+        .map(|(_, special)| special.clone());
+    let special = match existing {
+        Some(special) => special,
+        None if callee.0.specializations.borrow().len() >= MAX_SPECIALIZATIONS => {
+            return Err(throw_err(
+                env,
+                Some(pos.clone()),
+                format!(
+                    "this function was copied for {MAX_SPECIALIZATIONS} sets of compile-time arguments; does a recursive call change one every time?"
+                ),
+                Some(vec![(
+                    Some(callee.pos().clone()),
+                    "function defined here".to_string(),
+                )]),
+                None,
+            ));
+        }
+        None => {
+            let mut targets = Vec::new();
+            let items = runtime_extracts
+                .into_iter()
+                .map(|extract| renumber_extract(extract, &args.targets, &mut targets))
+                .collect();
+            let mut scope_bindings = callee.body().scope.bindings.borrow().clone();
+            scope_bindings.extend(bindings);
+            let special = ComptimeValueFn::new(
+                Destructure {
+                    targets,
+                    extract: DestructureExtract::List {
+                        items,
+                        pos: list_pos.clone(),
+                    },
+                    ty: Type::Tuple(TypeTuple {
+                        children: runtime_types,
+                    }),
+                    tags: Vec::new(),
+                },
+                ComptimeValueAst {
+                    ast: callee.body().ast.clone(),
+                    pos: callee.body().pos.clone(),
+                    scope: Scope {
+                        comptime: callee.body().scope.comptime.clone(),
+                        bindings: Rc::new(RefCell::new(scope_bindings)),
+                    },
+                },
+                callee.pos().clone(),
+            );
+            callee
+                .0
+                .specializations
+                .borrow_mut()
+                .push((known, special.clone()));
+            special
+        }
+    };
+    let arg = block_append(
+        block,
+        AnalysisLine::Tuple {
+            pos: pos.clone(),
+            items: runtime_values,
+        },
+    );
+    Ok((special, RuntimeValue::Runtime(arg)))
 }

@@ -906,6 +906,42 @@ impl TypeFn {
         arg_in: CallArg,
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
+        if let RuntimeValue::Comptime(ComptimeValue::Fn(callee)) = &method.value
+            && callee.has_comptime_params()
+        {
+            let (special, arg) =
+                crate::compiler::specialize_call(env, callee, &pos, arg_in, block)?;
+            let ret = match &*self.ret {
+                Type::Unknown(_) => {
+                    match crate::compiler::posted_return(&special, &env.scope.comptime) {
+                        Some(ty) => ty,
+                        None if env.fn_cache.is_in_progress(&special, &env.scope.comptime) => {
+                            return Err(throw_err(
+                                env,
+                                Some(pos),
+                                "this call needs the function's return type before it is known; start the function's body with its type, as in `T: ...`",
+                                None,
+                                None,
+                            ));
+                        }
+                        None => analyze_function(env, &special)?.ty,
+                    }
+                }
+                ret => ret.clone(),
+            };
+            let idx = block_append(
+                block,
+                AnalysisLine::Call {
+                    pos,
+                    method: RuntimeValue::Comptime(ComptimeValue::Fn(special)),
+                    arg,
+                },
+            );
+            return Ok(AnalysisResult {
+                ty: ret,
+                value: RuntimeValue::Runtime(idx),
+            });
+        }
         let arg = analyze(env, (*self.arg).clone(), arg_in.pos, arg_in.ast, block)?;
         let ret = match &*self.ret {
             Type::Unknown(_) => {

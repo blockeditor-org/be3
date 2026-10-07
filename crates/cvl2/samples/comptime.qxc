@@ -1,0 +1,20 @@
+#builtin.build .= () => std.Folder: [
+  "lib.c" .= std.c.compile: [
+    "f" .= f
+  ]
+  "words.txt" .= std.File: repeat("ab", 3) + repeat("-", 2)
+]
+f :: (x: std.c.int) => std.c.int: scale(2, x) + scale(3, x) + scale(2, 1)
+scale :: (k :: std.kw.int, x: std.c.int) => std.c.int: x * std.c.int.[std.literal.number](k)
+repeat :: (s :: std.kw.string, n: std.kw.int) => std.kw.string: :done {
+  out := std.kw.mut(std.kw.string: "")
+  i := std.kw.mut(std.kw.int: 0)
+  std.kw.loop {
+    std.kw.if (i.* == n) {
+      done: out.*
+    }
+    out = out.* + s
+    i = i.* + 1
+  }
+}
+std :: #builtin.std

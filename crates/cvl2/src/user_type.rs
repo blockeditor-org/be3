@@ -800,6 +800,25 @@ pub fn inline_call(
                 );
             }
             DestructureExtract::Discard { .. } => {}
+            DestructureExtract::Comptime { target, pos } => {
+                let name = &targets[*target].name;
+                if let RuntimeValue::Runtime(_) = value.value {
+                    return Err(throw_err(
+                        env,
+                        Some(arg.pos.clone()),
+                        format!("{name} must be known at compile time"),
+                        Some(vec![(Some(pos.clone()), "declared here".to_string())]),
+                        None,
+                    ));
+                }
+                bindings.insert(
+                    name.clone(),
+                    Binding::Runtime {
+                        pos: pos.clone(),
+                        runtime: value,
+                    },
+                );
+            }
             _ => {
                 return Err(throw_err(
                     env,

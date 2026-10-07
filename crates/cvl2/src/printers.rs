@@ -403,6 +403,7 @@ fn destructure_extract_kind(extract: &DestructureExtract) -> &'static str {
         DestructureExtract::List { .. } => "list",
         DestructureExtract::Map { .. } => "map",
         DestructureExtract::Discard { .. } => "discard",
+        DestructureExtract::Comptime { .. } => "comptime",
     }
 }
 
@@ -412,6 +413,7 @@ fn destructure_extract_pos(extract: &DestructureExtract) -> &TokenPosition {
         DestructureExtract::List { pos, .. } => pos,
         DestructureExtract::Map { pos, .. } => pos,
         DestructureExtract::Discard { pos } => pos,
+        DestructureExtract::Comptime { pos, .. } => pos,
     }
 }
 
@@ -525,7 +527,8 @@ fn print_destructure(adisp: &mut Adisp, destructure: &Destructure) {
 fn print_destructure_extract(adisp: &mut Adisp, extract: &DestructureExtract) {
     adisp.put(destructure_extract_kind(extract), Some(colors::CYAN));
     match extract {
-        DestructureExtract::SingleItem { target, pos } => {
+        DestructureExtract::SingleItem { target, pos }
+        | DestructureExtract::Comptime { target, pos } => {
             adisp.put(&format!(" {target}"), Some(colors::GREEN));
             adisp.put_src(pos);
         }
