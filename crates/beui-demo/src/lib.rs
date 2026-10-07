@@ -13,9 +13,9 @@ use beui::icons::{
 };
 use beui::reactive::{
     Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, ClickCallback, ForEach,
-    Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer,
-    SpanStyle, Text, TextSpan, VirtualList, WriteSignal, batch, build, clone, create_memo,
-    create_selector, create_signal, focus_ring, provide_context, use_context, view, with_document,
+    Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer, Span,
+    Text, VirtualList, WriteSignal, batch, build, clone, create_memo, create_selector,
+    create_signal, focus_ring, provide_context, use_context, view, with_document,
 };
 use beui::styled::DocumentTheme;
 use beui::styled::theme::{CARD_RADIUS, FONT_SMALL, NARROW_WIDTH, RADIUS};

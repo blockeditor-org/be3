@@ -576,7 +576,9 @@ impl Document {
     }
 
     pub fn append_child_item<H: ChildHost>(&mut self, node: NodeOf<H>, item: H::Stored) {
-        self.arena.get_mut_as::<H>(node).children().push(item);
+        let host = self.arena.get_mut_as::<H>(node);
+        host.children().push(item);
+        host.children_changed();
     }
 
     pub fn node_kind(&self, id: NodeId) -> &'static str {

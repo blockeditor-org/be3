@@ -8,7 +8,7 @@ use text_editor_core::{
 use beui_core::color::Color32;
 use beui_core::font::{FontId, Galley, TextLayout, Wraps};
 use beui_core::geometry::Vec2;
-use beui_core::rich::{RichLayout, RichOptions, SpanKind, SpanStyle, TextSpan};
+use beui_core::rich::{Piece, RichLayout, RichOptions, SpanStyle};
 use beui_view::reactive::layout_text;
 
 use super::colors::TextAreaColors;
@@ -88,13 +88,28 @@ pub struct Segment {
     pub mapped: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum SpanKind {
+    Text,
+    Space(f32),
+    Inline(usize),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct RowSpan {
+    pub range: Range<usize>,
+    pub style: SpanStyle,
+    pub kind: SpanKind,
+    pub break_after: bool,
+}
+
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct Row {
     pub line: usize,
     pub start: usize,
     pub end: usize,
     pub display: String,
-    pub spans: Vec<TextSpan>,
+    pub spans: Vec<RowSpan>,
     pub segments: Vec<Segment>,
     pub inline: Vec<InlineItem>,
     pub line_height: f32,
@@ -176,8 +191,44 @@ impl Row {
             .map_or(0, |segment| segment.display.end)
     }
 
-    pub fn inline_sizes(&self) -> impl Fn(usize) -> Vec2 + '_ {
-        move |index| self.inline.get(index).map_or(Vec2::ZERO, |item| item.size)
+    pub fn pieces(&self) -> Vec<Piece<'_>> {
+        let mut flow = 0;
+        self.spans
+            .iter()
+            .map(|span| {
+                let size = match span.kind {
+                    SpanKind::Text => {
+                        return Piece::Text {
+                            text: self.display.get(span.range.clone()).unwrap_or_default(),
+                            style: span.style,
+                            break_after: span.break_after,
+                        };
+                    }
+                    SpanKind::Space(width) => Vec2::new(width, 0.0),
+                    SpanKind::Inline(index) => {
+                        self.inline.get(index).map_or(Vec2::ZERO, |item| item.size)
+                    }
+                };
+                flow += 1;
+                Piece::Inline {
+                    index: flow - 1,
+                    size,
+                }
+            })
+            .collect()
+    }
+
+    pub fn flow_inline(&self, flow: usize) -> Option<&InlineItem> {
+        let index = self
+            .spans
+            .iter()
+            .filter(|span| span.kind != SpanKind::Text)
+            .nth(flow)
+            .and_then(|span| match span.kind {
+                SpanKind::Inline(index) => Some(index),
+                _ => None,
+            })?;
+        self.inline.get(index)
     }
 }
 
@@ -317,7 +368,7 @@ impl Builder<'_> {
             {
                 last.range.end = display.end;
             }
-            _ => self.row.spans.push(TextSpan {
+            _ => self.row.spans.push(RowSpan {
                 range: display.clone(),
                 style,
                 kind,
@@ -621,16 +672,9 @@ pub fn rich_layout(
         padding,
         style: SpanStyle::new(FontId::proportional(body_size), Color32::WHITE),
     };
-    let sizes = row.inline_sizes();
     let mut shaper =
         |text: &str, font: FontId| galley(text, font).unwrap_or_else(|| empty_galley(font));
-    Some(RichLayout::new(
-        &row.display,
-        &row.spans,
-        &sizes,
-        options,
-        &mut shaper,
-    ))
+    Some(RichLayout::new(&row.pieces(), options, &mut shaper))
 }
 
 fn empty_galley(font: FontId) -> Galley {

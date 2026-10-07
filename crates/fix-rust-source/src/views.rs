@@ -45,6 +45,7 @@ struct ViewCall {
 enum Child {
     Element(Element),
     Expr(Range<usize>),
+    Literal(Range<usize>),
 }
 
 struct Element {
@@ -234,6 +235,11 @@ impl Parser<'_> {
         if self.at(0, "{") {
             return Some(Child::Expr(self.group()?));
         }
+        let token = self.tokens.get(self.index)?;
+        if token.kind == SyntaxKind::STRING {
+            self.index += 1;
+            return Some(Child::Literal(token.range.clone()));
+        }
         None
     }
 
@@ -324,6 +330,7 @@ impl Formatter<'_> {
         match child {
             Child::Element(element) => self.element_lines(element, indent, column),
             Child::Expr(range) => brace(self.expr_lines(range, indent, column + 1)),
+            Child::Literal(range) => vec![text(self.source, range.clone()).to_owned()],
         }
     }
 
@@ -389,6 +396,7 @@ impl Formatter<'_> {
         match child {
             Child::Element(element) => self.element_text(element),
             Child::Expr(range) => Some(format!("{{{}}}", self.expr_text(range)?)),
+            Child::Literal(range) => one_line(self.source, range.clone()).map(str::to_owned),
         }
     }
 

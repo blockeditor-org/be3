@@ -156,8 +156,8 @@ pub struct ListItem {
 }
 
 impl ChildItem for ListItem {
-    fn node(&self) -> NodeId {
-        self.child
+    fn node(&self) -> Option<NodeId> {
+        Some(self.child)
     }
 }
 
@@ -492,7 +492,7 @@ impl Element for ListNode {
         _focus_target: &mut Option<NodeId>,
         children: &mut Vec<NodeId>,
     ) {
-        children.extend(self.items.iter().map(ChildItem::node));
+        children.extend(self.items.iter().filter_map(ChildItem::node));
     }
 
     fn children(&self) -> Vec<NodeId> {

@@ -1,27 +1,24 @@
 use std::any::Any;
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, Ref, RefCell};
+use std::collections::HashMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use crate::color::Color32;
 use crate::font::TextAlign;
-use crate::font::{FontId, Galley, TextLayout};
+use crate::font::{FontFamily, FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::painter::Painter;
-use crate::pixel_grid::PixelGrid;
 
 use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
 use crate::rich::{
-    CaretHandle, RichLayout, RichOptions, SpanStyle, TextCaret, TextMark, TextSpan, handle_shape,
+    CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanStyle, TextCaret, TextMark,
+    handle_shape,
 };
 
-const UNDERLINE_OFFSET: f32 = 0.1;
-const UNDERLINE_THICKNESS: f32 = 0.07;
-const UNDERLINE_MINIMUM_THICKNESS: f32 = 1.0;
-const ELLIPSIS: &str = "\u{2026}";
 pub const DEFAULT_FONT_SIZE: f32 = 14.0;
 pub const CARET_BLINK: Duration = Duration::from_millis(530);
 const SPAN_UNDERLINE_OFFSET: f32 = 0.12;
@@ -29,41 +26,195 @@ const SPAN_STRIKE_OFFSET: f32 = 0.32;
 const SPAN_LINE_THICKNESS: f32 = 1.0 / 16.0;
 const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 
-#[derive(Clone)]
-struct Placed {
-    rect: Rect,
-    galley: Galley,
-    origin: Pos2,
-    rich: Option<Rc<RichLayout>>,
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct SpanContent {
+    pub text: String,
+    pub font: Option<FontId>,
+    pub color: Option<Color32>,
+    pub underline: Option<bool>,
+    pub strikethrough: Option<bool>,
+    pub break_after: bool,
 }
 
-struct Rich {
-    spans: Vec<TextSpan>,
-    padding: (f32, f32),
-    marks: Vec<TextMark>,
-    carets: Vec<TextCaret>,
-    since: Cell<Instant>,
-}
-
-impl Default for Rich {
-    fn default() -> Self {
+impl SpanContent {
+    pub fn new(text: impl Into<String>) -> Self {
         Self {
-            spans: Vec::new(),
-            padding: (0.0, 0.0),
-            marks: Vec::new(),
-            carets: Vec::new(),
-            since: Cell::new(Instant::now()),
+            text: text.into(),
+            ..Self::default()
+        }
+    }
+
+    fn style(&self, base: SpanStyle) -> SpanStyle {
+        SpanStyle {
+            font: self.font.unwrap_or(base.font),
+            color: self.color.unwrap_or(base.color),
+            underline: self.underline.unwrap_or(base.underline),
+            strikethrough: self.strikethrough.unwrap_or(base.strikethrough),
         }
     }
 }
 
-struct Shaped {
-    strut: Galley,
-    content: String,
-    spans: Vec<TextSpan>,
-    options: RichOptions,
-    sizes: Vec<Vec2>,
+struct SpanCell {
+    content: RefCell<SpanContent>,
+    generation: Cell<u64>,
+}
+
+#[derive(Clone)]
+pub struct SpanHandle(Rc<SpanCell>);
+
+impl SpanHandle {
+    pub fn new(content: SpanContent) -> Self {
+        Self(Rc::new(SpanCell {
+            content: RefCell::new(content),
+            generation: Cell::new(0),
+        }))
+    }
+
+    pub fn content(&self) -> Ref<'_, SpanContent> {
+        self.0.content.borrow()
+    }
+
+    fn generation(&self) -> u64 {
+        self.0.generation.get()
+    }
+}
+
+#[derive(Clone)]
+pub enum TextPart {
+    Span(SpanHandle),
+    Inline(NodeId),
+    Anchored(NodeId),
+}
+
+impl ChildItem for TextPart {
+    fn node(&self) -> Option<NodeId> {
+        match self {
+            TextPart::Span(_) => None,
+            TextPart::Inline(node) | TextPart::Anchored(node) => Some(*node),
+        }
+    }
+
+    fn same(&self, other: &Self) -> bool {
+        match (self, other) {
+            (TextPart::Span(left), TextPart::Span(right)) => Rc::ptr_eq(&left.0, &right.0),
+            _ => self.node().is_some() && self.node() == other.node(),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct Placed {
+    rect: Rect,
+    origin: Pos2,
     layout: Rc<RichLayout>,
+    spans: Vec<Option<SpanHandle>>,
+}
+
+#[derive(Clone)]
+enum Entry {
+    Span(SpanHandle, u64),
+    Inline(Vec2),
+}
+
+impl PartialEq for Entry {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Entry::Span(left, at), Entry::Span(right, other)) => {
+                Rc::ptr_eq(&left.0, &right.0) && at == other
+            }
+            (Entry::Inline(left), Entry::Inline(right)) => left == right,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct ShapeKey {
+    options: RichOptions,
+    line_height: Option<f32>,
+    scale: f32,
+    generation: u64,
+}
+
+struct Shaped {
+    key: ShapeKey,
+    entries: Vec<Entry>,
+    layout: Rc<RichLayout>,
+}
+
+impl Shaped {
+    fn reusable(&self, key: &ShapeKey, entries: &[Entry]) -> bool {
+        let wrap = key.options.wrap_width;
+        let laid = self.key.options.wrap_width;
+        let rewrapped = ShapeKey {
+            options: RichOptions {
+                wrap_width: wrap,
+                ..self.key.options
+            },
+            ..self.key
+        };
+        rewrapped == *key
+            && self.entries == entries
+            && (laid == wrap || self.layout.fits(wrap, laid))
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct FontKey {
+    size: u32,
+    family: FontFamily,
+    bold: bool,
+    italic: bool,
+}
+
+impl FontKey {
+    fn of(font: FontId) -> Self {
+        Self {
+            size: font.size.to_bits(),
+            family: font.family,
+            bold: font.bold,
+            italic: font.italic,
+        }
+    }
+}
+
+#[derive(Default)]
+struct Galleys {
+    key: Option<(f32, u64, Option<f32>)>,
+    held: HashMap<(String, FontKey), Galley>,
+}
+
+struct CachedShaper<'a> {
+    painter: &'a Painter,
+    line_height: Option<f32>,
+    held: &'a mut HashMap<(String, FontKey), Galley>,
+    fresh: HashMap<(String, FontKey), Galley>,
+    shapings: &'a Cell<u64>,
+}
+
+impl Shaper for CachedShaper<'_> {
+    fn galley(&mut self, text: &str, font: FontId) -> Galley {
+        let key = (text.to_owned(), FontKey::of(font));
+        if let Some(galley) = self.fresh.get(&key) {
+            return galley.clone();
+        }
+        let galley = match self.held.remove(&key) {
+            Some(galley) => galley,
+            None => {
+                self.shapings.set(self.shapings.get() + 1);
+                self.painter.layout_text(
+                    text,
+                    font,
+                    TextLayout {
+                        line_height: self.line_height,
+                        ..TextLayout::DEFAULT
+                    },
+                )
+            }
+        };
+        self.fresh.insert(key, galley.clone());
+        galley
+    }
 }
 
 pub struct TextItemNode {
@@ -72,6 +223,8 @@ pub struct TextItemNode {
 }
 
 pub struct TextNode {
+    string: SpanHandle,
+    parts: ChildList<TextPart>,
     content: String,
     font_size: f32,
     line_height: Option<f32>,
@@ -86,34 +239,50 @@ pub struct TextNode {
     clip: bool,
     underline: bool,
     ellipsis: bool,
+    padding: (f32, f32),
+    marks: Vec<TextMark>,
+    carets: Vec<TextCaret>,
+    since: Cell<Instant>,
     selection: Option<(Range<usize>, Color32)>,
     handles: Vec<(usize, CaretHandle, Color32)>,
-    rich: Option<Box<Rich>>,
-    items: ChildList<NodeId>,
     placed: Rc<RefCell<Option<Placed>>>,
     shaped: RefCell<Option<Shaped>>,
-    measured: RefCell<Option<(MeasuredKey, Galley)>>,
-}
-
-#[derive(Clone, Copy, PartialEq)]
-struct MeasuredKey {
-    font: FontId,
-    line_height: Option<f32>,
-    scale: f32,
-    generation: u64,
+    galleys: RefCell<Galleys>,
+    shapings: Cell<u64>,
 }
 
 impl ChildHost for TextNode {
-    type Stored = NodeId;
+    type Stored = TextPart;
 
-    fn children(&mut self) -> &mut ChildList<NodeId> {
-        &mut self.items
+    fn children(&mut self) -> &mut ChildList<TextPart> {
+        &mut self.parts
     }
+
+    fn children_changed(&mut self) {
+        self.refresh_content();
+    }
+}
+
+enum Flow<'a> {
+    Span(Ref<'a, SpanContent>),
+    Inline(usize, Vec2),
 }
 
 impl TextNode {
     pub fn accessible_text(&self) -> Option<&str> {
         if self.icon { None } else { Some(&self.content) }
+    }
+
+    fn refresh_content(&mut self) {
+        let mut content = self.string.content().text.clone();
+        for part in self.parts.iter() {
+            match part {
+                TextPart::Span(span) => content.push_str(&span.content().text),
+                TextPart::Inline(_) => content.push_str(OBJECT),
+                TextPart::Anchored(_) => {}
+            }
+        }
+        self.content = content;
     }
 
     fn font(&self) -> FontId {
@@ -130,90 +299,205 @@ impl TextNode {
     fn style(&self) -> SpanStyle {
         SpanStyle {
             font: self.font(),
-            color: self.color,
-            underline: self.underline,
+            color: Color32::TRANSPARENT,
+            underline: false,
             strikethrough: false,
         }
     }
 
-    fn inline_items(&self, doc: &Document) -> Vec<NodeId> {
-        self.items
+    fn inline_items(&self) -> Vec<NodeId> {
+        self.parts
             .iter()
-            .copied()
-            .filter(|item| {
-                doc.arena
-                    .get_as::<TextItemNode>(NodeOf::assumed(*item))
-                    .at
-                    .is_none()
+            .filter_map(|part| match part {
+                TextPart::Inline(node) => Some(*node),
+                _ => None,
             })
             .collect()
+    }
+
+    fn anchored_items(&self) -> Vec<NodeId> {
+        self.parts
+            .iter()
+            .filter_map(|part| match part {
+                TextPart::Anchored(node) => Some(*node),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn entries(&self, doc: &mut Document, painter: &Painter) -> Vec<Entry> {
+        let mut entries = vec![Entry::Span(self.string.clone(), self.string.generation())];
+        for part in self.parts.iter() {
+            match part {
+                TextPart::Span(span) => entries.push(Entry::Span(span.clone(), span.generation())),
+                TextPart::Inline(item) => entries.push(Entry::Inline(crate::layout::measure(
+                    doc,
+                    painter,
+                    *item,
+                    Vec2::splat(f32::INFINITY),
+                ))),
+                TextPart::Anchored(_) => {}
+            }
+        }
+        entries
+    }
+
+    fn wrap_width(&self, available_width: f32) -> f32 {
+        if self.wrap {
+            available_width.max(0.0)
+        } else {
+            f32::INFINITY
+        }
+    }
+
+    fn shaper<'a>(&'a self, painter: &'a Painter, galleys: &'a mut Galleys) -> CachedShaper<'a> {
+        let ctx = painter.ctx();
+        let key = (
+            ctx.pixels_per_point(),
+            ctx.font_generation(),
+            self.line_height,
+        );
+        if galleys.key != Some(key) {
+            galleys.key = Some(key);
+            galleys.held.clear();
+        }
+        CachedShaper {
+            painter,
+            line_height: self.line_height,
+            held: &mut galleys.held,
+            fresh: HashMap::new(),
+            shapings: &self.shapings,
+        }
     }
 
     fn rich_layout(
         &self,
         doc: &mut Document,
         painter: &Painter,
-        rich: &Rich,
         available_width: f32,
     ) -> Rc<RichLayout> {
-        let inline = self.inline_items(doc);
-        let sizes: Vec<Vec2> = inline
-            .iter()
-            .map(|item| crate::layout::measure(doc, painter, *item, Vec2::splat(f32::INFINITY)))
-            .collect();
-        let options = RichOptions {
-            wrap_width: self.wrap_width(available_width),
-            padding: rich.padding,
-            style: self.style(),
+        let entries = self.entries(doc, painter);
+        let ctx = painter.ctx();
+        let key = ShapeKey {
+            options: RichOptions {
+                wrap_width: self.wrap_width(available_width),
+                padding: self.padding,
+                style: self.style(),
+            },
+            line_height: self.line_height,
+            scale: ctx.pixels_per_point(),
+            generation: ctx.font_generation(),
         };
-        let strut = painter.layout_text("", options.style.font, TextLayout::DEFAULT);
-        if let Some(shaped) = self.shaped.borrow().as_ref()
-            && shaped.strut == strut
-            && shaped.options == options
-            && shaped.sizes == sizes
-            && shaped.content == self.content
-            && shaped.spans == rich.spans
+        let mut previous = self.shaped.borrow_mut().take();
+        if let Some(shaped) = &previous
+            && shaped.reusable(&key, &entries)
         {
-            return Rc::clone(&shaped.layout);
+            let layout = Rc::clone(&shaped.layout);
+            *self.shaped.borrow_mut() = previous;
+            return layout;
         }
-        let size_of = |index: usize| sizes.get(index).copied().unwrap_or(Vec2::ZERO);
-        let mut shaper =
-            |text: &str, font: FontId| painter.layout_text(text, font, TextLayout::DEFAULT);
-        let layout = Rc::new(RichLayout::new(
-            &self.content,
-            &rich.spans,
-            &size_of,
-            options,
-            &mut shaper,
-        ));
-        *self.shaped.borrow_mut() = Some(Shaped {
-            strut,
-            content: self.content.clone(),
-            spans: rich.spans.clone(),
-            options,
-            sizes,
+        let changed = previous
+            .as_ref()
+            .filter(|shaped| shaped.key == key)
+            .map(|shaped| {
+                let same = shaped
+                    .entries
+                    .iter()
+                    .zip(&entries)
+                    .take_while(|(old, new)| old == new)
+                    .count();
+                (Rc::clone(&shaped.layout), same)
+            });
+        let style = key.options.style;
+        let flow: Vec<Flow> = {
+            let mut inline = 0;
+            entries
+                .iter()
+                .map(|entry| match entry {
+                    Entry::Span(span, _) => Flow::Span(span.content()),
+                    Entry::Inline(size) => {
+                        inline += 1;
+                        Flow::Inline(inline - 1, *size)
+                    }
+                })
+                .collect()
+        };
+        let pieces: Vec<Piece> = flow
+            .iter()
+            .map(|flow| match flow {
+                Flow::Span(content) => Piece::Text {
+                    text: &content.text,
+                    style: content.style(style),
+                    break_after: content.break_after,
+                },
+                Flow::Inline(index, size) => Piece::Inline {
+                    index: *index,
+                    size: *size,
+                },
+            })
+            .collect();
+        let mut galleys = self.galleys.borrow_mut();
+        let mut shaper = self.shaper(painter, &mut galleys);
+        let layout = match changed {
+            Some((old, same)) => {
+                let at = pieces[..same.min(pieces.len())]
+                    .iter()
+                    .map(Piece::len)
+                    .sum();
+                old.resume(at, &pieces, key.options, &mut shaper)
+            }
+            None => RichLayout::new(&pieces, key.options, &mut shaper),
+        };
+        let fresh = std::mem::take(&mut shaper.fresh);
+        drop(shaper);
+        galleys.held = fresh;
+        drop(pieces);
+        drop(flow);
+        let layout = Rc::new(layout);
+        previous = Some(Shaped {
+            key,
+            entries,
             layout: Rc::clone(&layout),
         });
+        *self.shaped.borrow_mut() = previous;
         layout
     }
 
-    fn place_rich(
-        &self,
-        doc: &mut Document,
-        painter: &Painter,
-        rich: &Rich,
-        rect: Rect,
-        out: &Rects,
-    ) {
-        let layout = self.rich_layout(doc, painter, rich, rect.width());
-        let origin = painter.pixel_grid().snap_pos(rect.min);
-        let inline = self.inline_items(doc);
+    fn truncates(&self) -> bool {
+        self.ellipsis && !self.wrap && !self.icon
+    }
+
+    fn place(&self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
+        let mut layout = self.rich_layout(doc, painter, rect.width());
+        if self.truncates() && layout.size.x > rect.width() {
+            let mut galleys = self.galleys.borrow_mut();
+            let mut shaper = self.shaper(painter, &mut galleys);
+            let mut truncated = (*layout).clone();
+            truncated.truncate(rect.width(), &mut shaper);
+            let fresh = std::mem::take(&mut shaper.fresh);
+            drop(shaper);
+            galleys.held.extend(fresh);
+            layout = Rc::new(truncated);
+        }
+        if self.horizontal != TextAlign::Start {
+            let grid = painter.pixel_grid();
+            let mut aligned = (*layout).clone();
+            aligned.align(rect.width(), self.horizontal, |x| grid.snap(x));
+            layout = Rc::new(aligned);
+        }
+        let top = match self.vertical {
+            TextAlign::Start => rect.top(),
+            TextAlign::Center => rect.center().y - layout.size.y / 2.0,
+            TextAlign::End => rect.bottom() - layout.size.y,
+        };
+        let origin = painter.pixel_grid().snap_pos(pos2(rect.left(), top));
+        let inline = self.inline_items();
         for (index, placed) in layout.inline_rects() {
             if let Some(item) = inline.get(index) {
                 crate::layout::layout(doc, painter, *item, placed.translate(origin.to_vec2()), out);
             }
         }
-        for item in self.items.iter().copied() {
+        for item in self.anchored_items() {
             let Some(at) = doc.arena.get_as::<TextItemNode>(NodeOf::assumed(item)).at else {
                 continue;
             };
@@ -221,35 +505,42 @@ impl TextNode {
             let caret = layout.caret_rect(at, size.x);
             crate::layout::layout(doc, painter, item, caret.translate(origin.to_vec2()), out);
         }
+        let spans = self
+            .shaped
+            .borrow()
+            .iter()
+            .flat_map(|shaped| &shaped.entries)
+            .map(|entry| match entry {
+                Entry::Span(span, _) => Some(span.clone()),
+                Entry::Inline(_) => None,
+            })
+            .collect();
         *self.placed.borrow_mut() = Some(Placed {
             rect,
-            galley: painter.layout_text("", self.font(), TextLayout::DEFAULT),
             origin,
-            rich: Some(layout),
+            layout,
+            spans,
         });
     }
 
-    fn paint_rich(
-        &self,
-        doc: &Document,
-        painter: &Painter,
-        rects: &Rects,
-        rich: &Rich,
-        rect: Rect,
-    ) {
-        let Some(placed) = self
-            .placed
-            .borrow()
-            .clone()
-            .filter(|placed| placed.rect == rect)
-        else {
+    fn paint_layout(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
+        let Some(placed) = self.placed.borrow().clone() else {
             return;
         };
-        let Some(layout) = placed.rich else {
-            return;
+        let layout = placed.layout;
+        let origin = placed.origin.to_vec2() + (rect.min - placed.rect.min);
+        let paint_of = |piece: usize| match placed.spans.get(piece).and_then(Option::as_ref) {
+            Some(span) => {
+                let content = span.content();
+                (
+                    content.color.unwrap_or(self.color),
+                    content.underline.unwrap_or(self.underline),
+                    content.strikethrough.unwrap_or(false),
+                )
+            }
+            None => (self.color, self.underline, false),
         };
-        let origin = placed.origin.to_vec2();
-        for mark in &rich.marks {
+        for mark in &self.marks {
             for area in layout.selection_rects(mark.range.clone()) {
                 painter.rect_filled(
                     area.expand2(mark.outset).translate(origin),
@@ -268,45 +559,46 @@ impl TextNode {
                 let Some(galley) = &run.galley else {
                     continue;
                 };
-                let left = origin.x + run.x;
+                let left = origin.x + line.run_left(run);
+                let (color, underline, strikethrough) = paint_of(run.piece);
                 painter.galley(
                     pos2(left, origin.y + line.run_top(run)),
                     galley.clone(),
-                    run.style.color,
+                    color,
                 );
                 let size = run.style.font.size;
                 let thickness = (size * SPAN_LINE_THICKNESS).max(1.0);
                 let baseline = origin.y + line.top + line.baseline;
-                if run.style.underline {
+                if underline {
                     let y = baseline + (size * SPAN_UNDERLINE_OFFSET).max(1.0);
                     painter.rect_filled(
                         Rect::from_min_size(pos2(left, y), Vec2::new(run.width, thickness)),
                         0.0,
-                        run.style.color,
+                        color,
                     );
                 }
-                if run.style.strikethrough {
+                if strikethrough {
                     let y = baseline - size * SPAN_STRIKE_OFFSET;
                     painter.rect_filled(
                         Rect::from_min_size(pos2(left, y), Vec2::new(run.width, thickness)),
                         0.0,
-                        run.style.color,
+                        color,
                     );
                 }
             }
         }
-        for item in self.items.iter() {
-            if rects.contains_key(item) {
-                crate::paint::paint(doc, painter, rects, *item);
+        for item in self.parts.nodes() {
+            if rects.contains_key(&item) {
+                crate::paint::paint(doc, painter, rects, item);
             }
         }
-        let blinking = rich.carets.iter().any(|caret| caret.blink);
+        let blinking = self.carets.iter().any(|caret| caret.blink);
         let shown = match blinking {
             true => {
                 let elapsed = painter
                     .ctx()
                     .now()
-                    .saturating_duration_since(rich.since.get())
+                    .saturating_duration_since(self.since.get())
                     .as_nanos();
                 let interval = CARET_BLINK.as_nanos();
                 let remaining = interval - elapsed % interval;
@@ -317,7 +609,7 @@ impl TextNode {
             }
             false => true,
         };
-        for caret in &rich.carets {
+        for caret in &self.carets {
             if caret.blink && !shown {
                 continue;
             }
@@ -348,197 +640,29 @@ impl TextNode {
             }
         }
     }
-
-    fn wrap_width(&self, available_width: f32) -> f32 {
-        if self.wrap {
-            available_width.max(0.0)
-        } else {
-            f32::INFINITY
-        }
-    }
-
-    fn galley(&self, painter: &Painter, text: &str, available_width: f32) -> Galley {
-        painter.layout_text(
-            text,
-            self.font(),
-            TextLayout {
-                wrap_width: self.wrap_width(available_width),
-                line_height: self.line_height,
-                ..TextLayout::DEFAULT
-            },
-        )
-    }
-
-    fn content_galley(&self, painter: &Painter, available_width: f32) -> Galley {
-        let ctx = painter.ctx();
-        let key = MeasuredKey {
-            font: self.font(),
-            line_height: self.line_height,
-            scale: ctx.pixels_per_point(),
-            generation: ctx.font_generation(),
-        };
-        let wrap = self.wrap_width(available_width) * key.scale;
-        if let Some((known, galley)) = self.measured.borrow().as_ref()
-            && *known == key
-            && galley.wraps().contains(wrap)
-        {
-            return galley.clone();
-        }
-        let galley = self.galley(painter, &self.content, available_width);
-        *self.measured.borrow_mut() = Some((key, galley.clone()));
-        galley
-    }
-
-    fn truncates(&self) -> bool {
-        self.ellipsis && !self.wrap && !self.icon
-    }
-
-    fn fitted(&self, painter: &Painter, width: f32) -> Galley {
-        let galley = self.content_galley(painter, width);
-        if !self.truncates() || galley.size().x <= width {
-            return galley;
-        }
-        let ellipsis = self.galley(painter, ELLIPSIS, width).size().x;
-        let budget = width - ellipsis;
-        let kept = galley.lines().first().map_or(0, |line| {
-            line.cursors
-                .iter()
-                .filter(|(at, x)| *x <= budget && *at <= line.range.end)
-                .map(|(at, _)| *at)
-                .max()
-                .unwrap_or(0)
-        });
-        let kept = self.content.get(..kept).unwrap_or_default().trim_end();
-        self.galley(painter, &format!("{kept}{ELLIPSIS}"), width)
-    }
-
-    fn origin(&self, grid: PixelGrid, size: Vec2, rect: Rect) -> Pos2 {
-        let x = match self.horizontal {
-            TextAlign::Start => rect.left(),
-            TextAlign::Center => rect.center().x - size.x / 2.0,
-            TextAlign::End => rect.right() - size.x,
-        };
-        let y = match self.vertical {
-            TextAlign::Start => rect.top(),
-            TextAlign::Center => rect.center().y - size.y / 2.0,
-            TextAlign::End => rect.bottom() - size.y,
-        };
-        grid.snap_pos(pos2(x, y))
-    }
-
-    fn placed(&self, painter: &Painter, rect: Rect) -> Placed {
-        if let Some(placed) = self
-            .placed
-            .borrow()
-            .as_ref()
-            .filter(|placed| placed.rect == rect)
-        {
-            return placed.clone();
-        }
-        self.place(painter, rect)
-    }
-
-    fn place(&self, painter: &Painter, rect: Rect) -> Placed {
-        let galley = self.fitted(painter, rect.width());
-        let origin = self.origin(painter.pixel_grid(), galley.size(), rect);
-        let placed = Placed {
-            rect,
-            galley,
-            origin,
-            rich: None,
-        };
-        *self.placed.borrow_mut() = Some(placed.clone());
-        placed
-    }
-
-    fn underline_rects(&self, galley: &Galley, origin: Pos2) -> Vec<Rect> {
-        let thickness = (self.font_size * UNDERLINE_THICKNESS).max(UNDERLINE_MINIMUM_THICKNESS);
-        let top = galley.baseline() + self.font_size * UNDERLINE_OFFSET;
-        galley
-            .line_rects(origin)
-            .into_iter()
-            .map(|line| {
-                Rect::from_min_max(
-                    pos2(line.left(), line.top() + top),
-                    pos2(line.right(), line.top() + top + thickness),
-                )
-            })
-            .collect()
-    }
 }
 
 impl Element for TextNode {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
-        match &self.rich {
-            Some(rich) => self.rich_layout(doc, painter, rich, available.x).size,
-            None => {
-                let size = self.content_galley(painter, available.x).size();
-                match self.truncates() {
-                    true => Vec2::new(size.x.min(available.x.max(0.0)), size.y),
-                    false => size,
-                }
-            }
+        let size = self.rich_layout(doc, painter, available.x).size;
+        match self.truncates() {
+            true => Vec2::new(size.x.min(available.x.max(0.0)), size.y),
+            false => size,
         }
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
-        match &self.rich {
-            Some(rich) => {
-                let layout = self.rich_layout(doc, painter, rich, available.x);
-                layout.lines.first().map(|line| line.top + line.baseline)
-            }
-            None => {
-                let galley = self.content_galley(painter, available.x);
-                let top = galley.lines().first().map_or(0.0, |line| line.top);
-                Some(top + galley.baseline())
-            }
-        }
+        let layout = self.rich_layout(doc, painter, available.x);
+        layout.lines.first().map(|line| line.top + line.baseline)
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        match self.rich.take() {
-            Some(rich) => {
-                self.place_rich(doc, painter, &rich, rect, out);
-                self.rich = Some(rich);
-            }
-            None => {
-                self.place(painter, rect);
-            }
-        }
+        self.place(doc, painter, rect, out);
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
-        if let Some(rich) = &self.rich {
-            let clipped = painter.with_clip_rect(if self.clip { rect } else { Rect::EVERYTHING });
-            self.paint_rich(doc, &clipped, rects, rich, rect);
-            return;
-        }
         let clipped = painter.with_clip_rect(if self.clip { rect } else { Rect::EVERYTHING });
-        let placed = self.placed(&clipped, rect);
-        if let Some((range, color)) = &self.selection {
-            let end = range.end.min(placed.galley.text().len());
-            for selected in placed
-                .galley
-                .selection_rects(placed.origin, range.start.min(end)..end)
-            {
-                clipped.rect_filled(selected, 0.0, *color);
-            }
-        }
-        clipped.galley(placed.origin, placed.galley.clone(), self.color);
-        if !self.handles.is_empty() {
-            let top = painter.on_top();
-            for (index, handle, color) in &self.handles {
-                let caret = plain_caret_rect(&placed.galley, placed.origin, *index);
-                let (shape, corners, angle) = handle_shape(caret, *handle);
-                top.rotated(shape.center(), angle)
-                    .rect_filled(shape, corners, *color);
-            }
-        }
-        if self.underline {
-            for line in self.underline_rects(&placed.galley, placed.origin) {
-                clipped.rect_filled(line, 0.0, self.color);
-            }
-        }
+        self.paint_layout(doc, &clipped, rects, rect);
     }
 
     fn interact(
@@ -551,11 +675,11 @@ impl Element for TextNode {
         _focus_target: &mut Option<NodeId>,
         children: &mut Vec<NodeId>,
     ) {
-        children.extend(self.items.iter().map(ChildItem::node));
+        children.extend(self.parts.nodes());
     }
 
     fn children(&self) -> Vec<NodeId> {
-        self.items.nodes()
+        self.parts.nodes()
     }
 
     fn kind(&self) -> &'static str {
@@ -582,8 +706,11 @@ impl Document {
         font_size: f32,
         color: Color32,
     ) -> NodeOf<TextNode> {
+        let content = content.into();
         self.arena.insert(TextNode {
-            content: content.into(),
+            string: SpanHandle::new(SpanContent::new(content.clone())),
+            parts: ChildList::default(),
+            content,
             font_size,
             line_height: None,
             color,
@@ -597,22 +724,55 @@ impl Document {
             clip: false,
             underline: false,
             ellipsis: false,
+            padding: (0.0, 0.0),
+            marks: Vec::new(),
+            carets: Vec::new(),
+            since: Cell::new(Instant::now()),
             selection: None,
             handles: Vec::new(),
-            rich: None,
-            items: ChildList::default(),
             placed: Rc::new(RefCell::new(None)),
-            measured: RefCell::new(None),
             shaped: RefCell::new(None),
+            galleys: RefCell::new(Galleys::default()),
+            shapings: Cell::new(0),
         })
     }
 
     pub fn set_text(&mut self, id: NodeOf<TextNode>, content: impl Into<String>) {
-        let value = content.into();
-        if self.arena.get_as::<TextNode>(id).content != value {
-            let node = self.arena.get_mut_as::<TextNode>(id);
-            node.content = value;
-            node.measured.take();
+        let string = self.arena.get_as::<TextNode>(id).string.clone();
+        let text = content.into();
+        self.update_text_span(id, &string, |span| span.text = text);
+    }
+
+    pub fn update_text_span(
+        &mut self,
+        text: NodeOf<TextNode>,
+        span: &SpanHandle,
+        change: impl FnOnce(&mut SpanContent),
+    ) {
+        let mut content = span.content().clone();
+        change(&mut content);
+        if *span.content() == content {
+            return;
+        }
+        let moved = span.content().text != content.text;
+        let painted_only = SpanContent {
+            color: content.color,
+            underline: content.underline,
+            strikethrough: content.strikethrough,
+            ..span.content().clone()
+        } == content;
+        *span.0.content.borrow_mut() = content;
+        if self.arena.kind_of::<TextNode>(text.id()).is_none() {
+            return;
+        }
+        if painted_only {
+            self.arena.paint_mut_as::<TextNode>(text);
+            return;
+        }
+        span.0.generation.set(span.0.generation.get() + 1);
+        let node = self.arena.get_mut_as::<TextNode>(text);
+        if moved {
+            node.refresh_content();
         }
     }
 
@@ -620,6 +780,9 @@ impl Document {
         &self.arena.get_as::<TextNode>(id).content
     }
 
+    pub fn text_shapings(&self, id: NodeOf<TextNode>) -> u64 {
+        self.arena.get_as::<TextNode>(id).shapings.get()
+    }
     pub fn set_text_horizontal_align(&mut self, text: NodeOf<TextNode>, horizontal: TextAlign) {
         if self.arena.get_as::<TextNode>(text).horizontal != horizontal {
             self.arena.get_mut_as::<TextNode>(text).horizontal = horizontal;
@@ -797,82 +960,34 @@ impl Element for TextItemNode {
 }
 
 impl Document {
-    fn text_rich(&mut self, text: NodeOf<TextNode>) -> &mut Rich {
-        self.arena
-            .get_mut_as::<TextNode>(text)
-            .rich
-            .get_or_insert_with(Box::default)
-    }
-
-    pub fn set_text_spans(&mut self, text: NodeOf<TextNode>, spans: Vec<TextSpan>) {
-        let node = self.arena.get_as::<TextNode>(text);
-        if node.rich.as_ref().is_some_and(|rich| rich.spans == spans) {
-            return;
-        }
-        self.text_rich(text).spans = spans;
-    }
-
     pub fn set_text_line_padding(&mut self, text: NodeOf<TextNode>, padding: (f32, f32)) {
-        let node = self.arena.get_as::<TextNode>(text);
-        if node
-            .rich
-            .as_ref()
-            .is_some_and(|rich| rich.padding == padding)
-        {
-            return;
+        if self.arena.get_as::<TextNode>(text).padding != padding {
+            self.arena.get_mut_as::<TextNode>(text).padding = padding;
         }
-        self.text_rich(text).padding = padding;
     }
 
     pub fn set_text_marks(&mut self, text: NodeOf<TextNode>, marks: Vec<TextMark>) {
-        let node = self.arena.get_as::<TextNode>(text);
-        if node
-            .rich
-            .as_ref()
-            .map_or(marks.is_empty(), |rich| rich.marks == marks)
-        {
-            return;
+        if self.arena.get_as::<TextNode>(text).marks != marks {
+            self.arena.paint_mut_as::<TextNode>(text).marks = marks;
         }
-        self.arena
-            .paint_mut_as::<TextNode>(text)
-            .rich
-            .get_or_insert_with(Box::default)
-            .marks = marks;
     }
 
     pub fn set_text_carets(&mut self, text: NodeOf<TextNode>, carets: Vec<TextCaret>) {
-        let node = self.arena.get_as::<TextNode>(text);
-        if node
-            .rich
-            .as_ref()
-            .map_or(carets.is_empty(), |rich| rich.carets == carets)
-        {
+        if self.arena.get_as::<TextNode>(text).carets == carets {
             return;
         }
         let now = self.now();
-        let rich = self
-            .arena
-            .paint_mut_as::<TextNode>(text)
-            .rich
-            .get_or_insert_with(Box::default);
-        rich.carets = carets;
-        rich.since.set(now);
+        let node = self.arena.paint_mut_as::<TextNode>(text);
+        node.carets = carets;
+        node.since.set(now);
     }
 
     pub fn text_marks(&self, text: NodeOf<TextNode>) -> &[TextMark] {
-        self.arena
-            .get_as::<TextNode>(text)
-            .rich
-            .as_ref()
-            .map_or(&[], |rich| rich.marks.as_slice())
+        &self.arena.get_as::<TextNode>(text).marks
     }
 
     pub fn text_carets(&self, text: NodeOf<TextNode>) -> &[TextCaret] {
-        self.arena
-            .get_as::<TextNode>(text)
-            .rich
-            .as_ref()
-            .map_or(&[], |rich| rich.carets.as_slice())
+        &self.arena.get_as::<TextNode>(text).carets
     }
 
     pub fn text_geometry(&self, text: NodeOf<TextNode>) -> TextGeometry {
@@ -889,32 +1004,12 @@ impl Document {
         index: usize,
         width: f32,
     ) -> Option<Rect> {
-        if let Some(rect) = self.text_geometry(text).caret_rect(index, width) {
-            return Some(rect);
-        }
-        let rect = self.node_rect(text)?;
-        let node = self.arena.get_as::<TextNode>(text);
-        let placed = node.placed.borrow();
-        let placed = placed.as_ref()?;
-        let origin = rect.min + (placed.origin - placed.rect.min);
-        let caret = plain_caret_rect(&placed.galley, origin, index);
-        Some(Rect::from_min_size(
-            caret.min,
-            Vec2::new(width, caret.height()),
-        ))
+        self.text_geometry(text).caret_rect(index, width)
     }
 
     pub fn text_index_at(&self, text: NodeOf<TextNode>, pos: Pos2) -> Option<usize> {
-        if let Some(index) = self.text_geometry(text).index_at(pos) {
-            return Some(index);
-        }
-        let rect = self.node_rect(text)?;
-        let node = self.arena.get_as::<TextNode>(text);
-        let placed = node.placed.borrow();
-        let placed = placed.as_ref()?;
-        let origin = rect.min + (placed.origin - placed.rect.min);
-        let index = placed.galley.cursor_at(origin, pos);
-        Some(index.min(node.content.len()))
+        let index = self.text_geometry(text).index_at(pos)?;
+        Some(index.min(self.text(text).len()))
     }
 
     pub fn text_inline_at(&self, text: NodeOf<TextNode>, pos: Pos2) -> Option<usize> {
@@ -958,7 +1053,7 @@ impl TextGeometry {
         let placed = self.placed.borrow();
         let placed = placed.as_ref()?;
         let shift = rect.min - placed.rect.min + placed.origin.to_vec2();
-        Some((shift, placed.rich.clone()?))
+        Some((shift, Rc::clone(&placed.layout)))
     }
 
     pub fn rect(&self) -> Option<Rect> {
@@ -979,9 +1074,4 @@ impl TextGeometry {
         let (shift, layout) = self.placement()?;
         layout.inline_at(pos - shift)
     }
-}
-
-fn plain_caret_rect(galley: &Galley, origin: Pos2, index: usize) -> Rect {
-    let top = galley.cursor_pos(origin, index.min(galley.text().len()));
-    Rect::from_min_size(top, Vec2::new(0.0, galley.line_height()))
 }
