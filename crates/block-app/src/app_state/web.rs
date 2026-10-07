@@ -1,3 +1,4 @@
+use be_block::InputSettings;
 use uuid::Uuid;
 
 use super::{AppStateError, SavedAccount};
@@ -5,6 +6,7 @@ use super::{AppStateError, SavedAccount};
 const ACCOUNTS_KEY: &str = "block.accounts";
 const ACTIVE_KEY: &str = "block.active-account";
 const CLIENT_ID_KEY: &str = "block.client-id";
+const INPUT_SETTINGS_KEY: &str = "block.input-settings";
 const WORKSPACE_KEYS_KEY: &str = "block.workspace-keys";
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -178,6 +180,14 @@ impl AppStateStore {
         let id = Uuid::new_v4();
         self.write(CLIENT_ID_KEY, &id)?;
         Ok(id)
+    }
+
+    pub fn input_settings(&self) -> Result<Option<InputSettings>, AppStateError> {
+        self.read(INPUT_SETTINGS_KEY)
+    }
+
+    pub fn set_input_settings(&self, settings: &InputSettings) -> Result<(), AppStateError> {
+        self.write(INPUT_SETTINGS_KEY, settings)
     }
 
     fn read<T: serde::de::DeserializeOwned>(&self, key: &str) -> Result<Option<T>, AppStateError> {

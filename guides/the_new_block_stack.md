@@ -662,7 +662,12 @@ worker copies what the source's session shows, or its head when it is not open,
 into the copy's id before anything opens the copy.
 
 The app can read a block itself, not only through an editor: the zoom in
-`sync_ui_settings` comes from the UI settings block's content. `be::hold` opens a
+`sync_ui_settings` comes from the UI settings block's content, and
+`sync_input_settings` hands the input settings block (keymap, key repeat,
+pointer) to the `--session` seat through `beui_adapter_drm::InputControl` and to
+the nested Wayland clients' keyboard. Because the seat runs before anyone signs
+in, the app keeps a copy of the last input settings it applied in `app_state`
+and applies that at startup; the block stays the source of truth. `be::hold` opens a
 block for the app and keeps it open when the last editor showing it closes,
 because `be::close` leaves a held block alone. Nothing releases a held block
 before the stack stops, which is when the workspace changes.

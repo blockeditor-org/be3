@@ -29,7 +29,7 @@ use smithay::reexports::calloop::timer::{TimeoutAction, Timer};
 use smithay::reexports::calloop::{EventLoop, LoopHandle, LoopSignal, RegistrationToken};
 use smithay::reexports::drm;
 use smithay::reexports::drm::control::Device as ControlDevice;
-use smithay::reexports::input::Libinput;
+use smithay::reexports::input::{Device as InputDevice, Libinput};
 use smithay::reexports::rustix::fs::OFlags;
 use smithay::utils::DeviceFd;
 
@@ -37,13 +37,12 @@ use be_dmabuf::{adapter_for, open_device};
 
 use crate::displays::{DisplayRenderer, Displays};
 use crate::gpu::{Gpu, SoftwareCursor};
+use crate::input::{InputConfig, InputControl};
 use crate::keyboard::Keyboard;
 use crate::layout::{arrange, bounds, clamp, moved};
 use crate::output::{Output, connected};
 use crate::screen::FORMAT;
 
-const REPEAT_DELAY: Duration = Duration::from_millis(600);
-const REPEAT_RATE: Duration = Duration::from_millis(25);
 const WHEEL_STEP: f64 = 15.0;
 
 struct Session {
@@ -55,6 +54,9 @@ struct Session {
     gbm: GbmDevice<DrmDeviceFd>,
     node: u64,
     libinput: Libinput,
+    devices: Vec<InputDevice>,
+    input: InputConfig,
+    control: InputControl,
     runner: Runner,
     platform: Seat,
     displays: Rc<RefCell<Displays>>,
@@ -119,6 +121,8 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     )?;
     let (ping, pinged) = make_ping()?;
     handle.insert_source(pinged, |_, _, session| session.dirty = true)?;
+    let waker = Waker::new(move || ping.ping());
+    let control = InputControl::new(waker.clone());
 
     let lost = Arc::new(AtomicBool::new(false));
     let (device, queue) = open_gpu(node, &lost)?;
@@ -129,13 +133,16 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         scale(),
     )));
     let mut runner = Runner::new(launch);
+    let mut setup = Setup::new(waker);
+    setup.provide(control.clone());
     runner.start(
         vec![Loaded {
             renderer: Box::new(DisplayRenderer(Rc::clone(&displays))),
             fonts: None,
         }],
-        Setup::new(Waker::new(move || ping.ping())),
+        setup,
     )?;
+    let input = InputConfig::default();
     let platform = Seat {
         clipboard: None,
         locked: false,
@@ -150,11 +157,14 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         gbm,
         node,
         libinput,
+        devices: Vec::new(),
+        keyboard: Keyboard::new(&input).ok_or("the keymap could not be compiled")?,
+        input,
+        control,
         runner,
         platform,
         displays,
         dirty: true,
-        keyboard: Keyboard::new().ok_or("the keymap could not be compiled")?,
         repeat: None,
         wakeup: None,
         lost,
@@ -253,6 +263,9 @@ impl Session {
     fn idle(&mut self) {
         if self.lost.swap(false, Ordering::SeqCst) {
             self.recover();
+        }
+        if let Some(config) = self.control.take() {
+            self.configure(config);
         }
         if !self.active {
             return;
@@ -407,8 +420,35 @@ impl Session {
         self.displays.borrow().pointer
     }
 
+    fn configure(&mut self, config: InputConfig) {
+        if config == self.input {
+            return;
+        }
+        if !config.same_keymap(&self.input) {
+            match Keyboard::new(&config) {
+                Some(keyboard) => self.keyboard = keyboard,
+                None => eprintln!(
+                    "beui: the keymap {:?} ({:?}, {:?}) could not be compiled, so the last one stays",
+                    config.layout, config.variant, config.options
+                ),
+            }
+        }
+        self.stop_repeat();
+        self.input = config;
+        for device in &mut self.devices {
+            configure_device(device, &self.input);
+        }
+    }
+
     fn input(&mut self, event: InputEvent<LibinputInputBackend>) {
         match event {
+            InputEvent::DeviceAdded { mut device } => {
+                configure_device(&mut device, &self.input);
+                self.devices.push(device);
+            }
+            InputEvent::DeviceRemoved { device } => {
+                self.devices.retain(|known| *known != device);
+            }
             InputEvent::Keyboard { event } => {
                 let code = event.key_code().raw().saturating_sub(8);
                 self.key(code, event.state() == KeyState::Pressed);
@@ -526,14 +566,16 @@ impl Session {
 
     fn start_repeat(&mut self, code: u32, repeated: Vec<Event>) {
         self.stop_repeat();
-        let token =
-            self.handle
-                .insert_source(Timer::from_duration(REPEAT_DELAY), move |_, _, session| {
-                    for event in &repeated {
-                        session.push(event.clone());
-                    }
-                    TimeoutAction::ToDuration(REPEAT_RATE)
-                });
+        let interval = self.input.repeat_interval;
+        let token = self.handle.insert_source(
+            Timer::from_duration(self.input.repeat_delay),
+            move |_, _, session| {
+                for event in &repeated {
+                    session.push(event.clone());
+                }
+                TimeoutAction::ToDuration(interval)
+            },
+        );
         if let Ok(token) = token {
             self.repeat = Some((code, token));
         }
@@ -543,6 +585,18 @@ impl Session {
         if let Some((_, token)) = self.repeat.take() {
             self.handle.remove(token);
         }
+    }
+}
+
+fn configure_device(device: &mut InputDevice, config: &InputConfig) {
+    if device.config_accel_is_available() {
+        let _ = device.config_accel_set_speed(config.pointer_speed);
+    }
+    if device.config_tap_finger_count() > 0 {
+        let _ = device.config_tap_set_enabled(config.tap_to_click);
+    }
+    if device.config_scroll_has_natural_scroll() {
+        let _ = device.config_scroll_set_natural_scroll_enabled(config.natural_scroll);
     }
 }
 

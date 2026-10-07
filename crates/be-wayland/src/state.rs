@@ -132,6 +132,15 @@ pub struct State {
     keyboard_window: Option<WindowId>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct KeyboardConfig {
+    pub layout: String,
+    pub variant: String,
+    pub options: String,
+    pub repeat_delay: i32,
+    pub repeat_rate: i32,
+}
+
 impl State {
     pub fn new(handle: &DisplayHandle, waiter: Waiter) -> Self {
         let compositor = CompositorState::new::<Self>(handle);
@@ -608,6 +617,18 @@ impl State {
             .map(|toplevel| toplevel.wl_surface().clone());
         let keyboard = self.seat.get_keyboard().expect("the seat has a keyboard");
         keyboard.set_focus(self, surface, SERIAL_COUNTER.next_serial());
+    }
+
+    pub fn set_keyboard(&mut self, keyboard: &KeyboardConfig) -> bool {
+        let handle = self.seat.get_keyboard().expect("the seat has a keyboard");
+        handle.change_repeat_info(keyboard.repeat_rate, keyboard.repeat_delay);
+        let xkb = XkbConfig {
+            layout: &keyboard.layout,
+            variant: &keyboard.variant,
+            options: Some(keyboard.options.clone()).filter(|options| !options.is_empty()),
+            ..XkbConfig::default()
+        };
+        handle.set_xkb_config(self, xkb).is_ok()
     }
 
     pub fn key(&mut self, code: u32, pressed: bool) {

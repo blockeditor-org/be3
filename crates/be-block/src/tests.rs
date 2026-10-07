@@ -15,6 +15,7 @@ use crate::{
     },
     database_view::{DatabaseView, DatabaseViewContent},
     image::{ImageContent, ImageHeader},
+    input_settings::{InputSettings, InputSettingsContent},
     logic_game::LogicGameContent,
     logic_grid::{LogicGridContent, LogicGridOperation},
     text::{TextContent, TextLanguage, TextOp},
@@ -81,6 +82,7 @@ mod deleting_or_replacing_a_linked_block_rewrites_the_cells_that_link_it;
 mod entities_brought_forward_on_both_sides_merge_to_both_moves;
 mod enum_options_added_on_both_sides_merge_to_both;
 mod file_contents_check_what_they_hold_and_round_trip;
+mod input_settings_keep_their_values_in_bounds;
 mod inserts_at_one_place_from_two_peers_keep_each_peers_text_whole;
 mod items_added_by_two_peers_at_once_are_both_kept;
 mod logic_game_solutions_keep_their_order_per_challenge;

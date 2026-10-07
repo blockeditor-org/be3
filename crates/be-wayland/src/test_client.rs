@@ -34,6 +34,8 @@ pub(crate) struct Received {
     pub(crate) activated: bool,
     pub(crate) keyboard_entered: bool,
     pub(crate) keys: Vec<(u32, bool)>,
+    pub(crate) keymaps: usize,
+    pub(crate) repeat: Option<(i32, i32)>,
     pub(crate) pointer_entered: Option<(f64, f64)>,
     pub(crate) pointer_surface: Option<wl_surface::WlSurface>,
     pub(crate) buttons: Vec<(u32, bool)>,
@@ -403,6 +405,8 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Received {
             } => state
                 .keys
                 .push((key, pressed == wl_keyboard::KeyState::Pressed)),
+            wl_keyboard::Event::Keymap { .. } => state.keymaps += 1,
+            wl_keyboard::Event::RepeatInfo { rate, delay } => state.repeat = Some((rate, delay)),
             _ => {}
         }
     }

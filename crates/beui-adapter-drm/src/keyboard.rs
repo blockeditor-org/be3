@@ -1,6 +1,7 @@
 use beui::{Event, Modifiers};
 use smithay::input::keyboard::{keysyms, xkb};
 
+use super::input::InputConfig;
 use super::keys::{key, virtual_terminal};
 
 #[derive(Default, Debug, PartialEq)]
@@ -17,15 +18,15 @@ pub struct Keyboard {
 }
 
 impl Keyboard {
-    pub fn new() -> Option<Self> {
+    pub fn new(config: &InputConfig) -> Option<Self> {
         let context = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
         let keymap = xkb::Keymap::new_from_names(
             &context,
             "",
             "",
-            "",
-            "",
-            None,
+            &config.layout,
+            &config.variant,
+            Some(config.options.clone()).filter(|options| !options.is_empty()),
             xkb::KEYMAP_COMPILE_NO_FLAGS,
         )?;
         Some(Self {

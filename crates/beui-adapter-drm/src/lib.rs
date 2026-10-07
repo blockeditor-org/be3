@@ -1,6 +1,7 @@
 mod arrow;
 mod displays;
 mod gpu;
+mod input;
 mod keyboard;
 mod keys;
 mod layout;
@@ -9,6 +10,7 @@ mod runner;
 mod screen;
 
 pub use gpu::{CursorImage, SoftwareCursor};
+pub use input::{InputConfig, InputControl};
 pub use runner::run;
 
 use beui::{Adapter, Launch};

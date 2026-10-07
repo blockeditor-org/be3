@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use be_block::InputSettings;
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
@@ -233,6 +234,22 @@ impl AppStateStore {
         let id = Uuid::new_v4();
         self.set_setting("client_id", &id.to_string())?;
         Ok(id)
+    }
+
+    pub fn input_settings(&self) -> Result<Option<InputSettings>, AppStateError> {
+        let Some(text) = self.setting("input_settings")? else {
+            return Ok(None);
+        };
+        serde_json::from_str(&text).map(Some).map_err(|error| {
+            AppStateError::from(format!("stored input settings are unreadable: {error}"))
+        })
+    }
+
+    pub fn set_input_settings(&self, settings: &InputSettings) -> Result<(), AppStateError> {
+        let text = serde_json::to_string(settings).map_err(|error| {
+            AppStateError::from(format!("failed to encode the input settings: {error}"))
+        })?;
+        self.set_setting("input_settings", &text)
     }
 
     fn setting(&self, key: &str) -> Result<Option<String>, AppStateError> {
