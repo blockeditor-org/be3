@@ -1,0 +1,133 @@
+load("//buck/cargo/buckify.bxl", buckify = "generate")
+load(":workspace.bxl", "rust_targets")
+
+# Everything ./scripts/verify and ./scripts/ci build, in one buck2 command: the
+# generated rules and Cargo.lock, the sysroot's lockfile, the autofixes
+# (fix.sh) and every test, plugin test, and on request the Android builds and
+# the paint preview renderer. It prints what the scripts read afterwards,
+# "kind<TAB>path" a line; with --keep-going it prints them all even when some
+# fail to build, and the scripts read what was built.
+#
+#   ./scripts/buck bxl --keep-going //buck/dev/verify.bxl:main -- --lint true --tests true
+
+# Every file under directory, skipping what fix-rust-source skips: hidden
+# directories and target/.
+def _files(ctx, directory: str) -> list[str]:
+    found = []
+    for entry in ctx.fs.list(directory):
+        path = str(entry).removeprefix("root//")
+        name = path.split("/")[-1]
+        if ctx.fs.is_dir(path):
+            if not name.startswith(".") and name != "target":
+                found.extend(_files(ctx, path))
+        else:
+            found.append(path)
+    return found
+
+def _output(ctx, target: str) -> Artifact:
+    return ctx.analysis(ctx.configured_targets(target)).providers()[DefaultInfo].default_outputs[0]
+
+def _outputs(ctx, kind: str, universe: str) -> list[Artifact]:
+    targets = ctx.cquery().kind(kind, ctx.cquery().eval(universe))
+    return [ctx.analysis(target).providers()[DefaultInfo].default_outputs[0] for target in targets]
+
+# The package that owns a file: the deepest crate directory above it.
+def _owner(path: str, crate_dirs: list[str]) -> str:
+    owner = "crates"
+    for directory in crate_dirs:
+        if path.startswith(directory + "/") and len(directory) > len(owner):
+            owner = directory
+    return owner
+
+# One action a crate, so that a change to one crate leaves every other crate's
+# fixes in the cache. Each takes the clippy findings of the crate's targets, in
+# every configuration //:check builds.
+def _rust_fixes(ctx, actions) -> list[Artifact]:
+    files = _files(ctx, "crates")
+    crate_dirs = [path.removesuffix("/Cargo.toml") for path in files if path.endswith("/Cargo.toml")]
+    sources = {}
+    for path in files:
+        if path.endswith(".rs"):
+            sources.setdefault(_owner(path, crate_dirs), []).append(path)
+    clippy = {}
+    for target in rust_targets(ctx):
+        sub_targets = ctx.analysis(target).providers()[DefaultInfo].sub_targets
+        if "clippy.json" in sub_targets:
+            clippy.setdefault(target.label.package, []).append(sub_targets["clippy.json"][DefaultInfo].default_outputs[0])
+    buck_tools = _output(ctx, "root//crates/buck-tools:buck-tools-bin")
+    fix_rust_source = _output(ctx, "root//crates/fix-rust-source:fix-rust-source-bin")
+    rustfmt = _output(ctx, "root//buck/tools:rustfmt-sysroot")
+    script = ctx.fs.source("buck/dev/fix.sh")
+    fixes = []
+    for owner, paths in sorted(sources.items()):
+        copied = actions.copied_dir("fix/rust/{}/sources".format(owner), {path: ctx.fs.source(path) for path in paths})
+        out = actions.declare_output("fix/rust/{}/out".format(owner), dir = True)
+        actions.run(
+            cmd_args("sh", script, "rust", out.as_output(), copied, buck_tools, fix_rust_source, rustfmt, clippy.get(owner, [])),
+            category = "fix_rust",
+            identifier = owner,
+        )
+        fixes.append(out)
+    return fixes
+
+def _starlark_files(ctx) -> list[str]:
+    found = ["BUCK.v2", "PACKAGE"]
+    for directory in ["buck", "crates", "compile_fail", "third-party/system", "third-party/pdfium", "third-party/rust"]:
+        for path in _files(ctx, directory):
+            name = path.split("/")[-1]
+            if name in ["BUCK", "PACKAGE"] or name.endswith(".bzl") or name.endswith(".bxl"):
+                found.append(path)
+    return [path for path in sorted(found) if path not in ["buck/cargo/crates.bzl", "buck/sysroot/packages.bzl"]]
+
+def _starlark_fix(ctx, actions) -> Artifact:
+    copied = actions.copied_dir("fix/starlark/sources", {path: ctx.fs.source(path) for path in _starlark_files(ctx)})
+    out = actions.declare_output("fix/starlark/out", dir = True)
+    actions.run(
+        cmd_args(
+            "sh",
+            ctx.fs.source("buck/dev/fix.sh"),
+            "starlark",
+            out.as_output(),
+            copied,
+            _output(ctx, "root//buck/tools:starlark_fmt"),
+            ctx.fs.source("buck/starlark_fmt.json"),
+        ),
+        category = "fix_starlark",
+    )
+    return out
+
+def _impl(ctx: bxl.Context):
+    args = ctx.cli_args
+    actions = ctx.bxl_actions().actions
+    printed = [
+        ("buckify", buckify(ctx, actions)),
+        ("sysroot", _output(ctx, "root//buck/sysroot:lock")),
+    ]
+    built = []
+    if args.lint:
+        printed.extend([("fix", fix) for fix in _rust_fixes(ctx, actions)])
+        printed.append(("fix", _starlark_fix(ctx, actions)))
+    if args.tests:
+        built.extend(_outputs(ctx, "^test_run$", "//crates/... + //compile_fail/..."))
+    if args.plugin_tests:
+        printed.extend([("paintings", paintings) for paintings in _outputs(ctx, "^plugin_test_run$", "//crates/...")])
+    if args.android:
+        printed.append(("block-app.apk", _output(ctx, "root//crates/block-app:android-dist")))
+        printed.append(("be-launcher.apk", _output(ctx, "root//crates/be-launcher:android-dist")))
+    if args.previews:
+        printed.append(("previews", _output(ctx, "root//crates/paint-snapshot:preview-example")))
+    paths = ctx.output.ensure_multiple([artifact for _, artifact in printed])
+    ctx.output.ensure_multiple(built)
+    for (kind, _), path in zip(printed, paths):
+        ctx.output.print(kind, path.abs_path(), sep = "\t")
+
+main = bxl_main(
+    cli_args = {
+        "android": cli_args.bool(False),
+        "lint": cli_args.bool(False),
+        "plugin_tests": cli_args.bool(False),
+        "previews": cli_args.bool(False),
+        "tests": cli_args.bool(False),
+    },
+    impl = _impl,
+)

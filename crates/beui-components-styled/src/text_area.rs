@@ -3,11 +3,12 @@ pub mod find;
 
 use beui_macros::{component, view};
 
+use crate::checkbox::Checkbox;
 use crate::context_menu::menu_style;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    Completer, RemoteTextCursor, TextAreaColors, TextAreaState, TextWidget,
+    Completer, RemoteTextCursor, TextAreaColors, TextAreaState, TextCheckbox, TextWidget,
 };
 use beui_core::base::ItemSize;
 use beui_core::document::Document;
@@ -15,7 +16,7 @@ use beui_core::geometry::Pos2;
 use beui_core::input::KeyPress;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Frame, List, NodeRef, Prop, RenderFn, create_memo, create_signal, set_component_state,
+    Callback, Frame, List, NodeRef, Prop, RenderFn, create_memo, set_component_state,
 };
 use emoji::emoji_menu;
 
@@ -42,8 +43,6 @@ pub fn TextArea(
         caret: theme.accent.get(),
         ..TextAreaColors::DEFAULT
     });
-    let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
-    let close_menu = set_menu_at.clone();
     let masked = password.clone();
     let menu_state = state.clone();
     let surface = NodeRef::new();
@@ -58,34 +57,55 @@ pub fn TextArea(
                 state={menu_state}
                 menu={menu_style()}
                 masked
-                open_at={menu_at}
                 child_size=ItemSize::Percent(100.0)
-                on_close={move || close_menu.set(None)}
             >
-                <unstyled::TextArea
-                    @node_ref=&surface
-                    state={state}
-                    widgets
-                    colors
-                    remote_cursors
-                    drop_caret
-                    placeholder
-                    password
-                    on_widget_press={move |widget: usize| on_widget_press.call(widget)}
-                    on_key_override={move |press: KeyPress| on_key_override.call(press)}
-                    on_focus_change={move |focused: bool| on_focus_change.call(focused)}
-                    on_menu={move |at: Pos2| set_menu_at.set(Some(at))}
-                    block={block}
-                    selected_widget={selected_widget}
-                    completer={match emoji {
-                        true => unstyled::emoji_completer(),
-                        false => Completer::none(),
-                    }}
-                    completion_menu={emoji_menu()}
-                />
+                {move |open_menu: Callback<Pos2>| view! {
+                    <unstyled::TextArea
+                        @node_ref=&surface
+                        state={state}
+                        widgets
+                        colors
+                        remote_cursors
+                        drop_caret
+                        placeholder
+                        password
+                        on_widget_press={move |widget: usize| on_widget_press.call(widget)}
+                        on_key_override={move |press: KeyPress| on_key_override.call(press)}
+                        on_focus_change={move |focused: bool| on_focus_change.call(focused)}
+                        on_menu={move |at: Pos2| open_menu.call(at)}
+                        block={block}
+                        selected_widget={selected_widget}
+                        checkbox={inline_checkbox()}
+                        completer={match emoji {
+                            true => unstyled::emoji_completer(),
+                            false => Completer::none(),
+                        }}
+                        completion_menu={emoji_menu()}
+                    />
+                }}
             </unstyled::TextContextMenu>
         </List>
     }
+}
+
+fn inline_checkbox() -> RenderFn<TextCheckbox> {
+    RenderFn::new(|checkbox: TextCheckbox| {
+        let TextCheckbox {
+            checked,
+            disabled,
+            on_change,
+        } = checkbox;
+        view! {
+            <Checkbox
+                checked
+                disabled
+                capture_presses=true
+                tab_stop=false
+                press_focus=false
+                on_change={move |checked: bool| on_change.call(checked)}
+            />
+        }
+    })
 }
 
 fn blank_widget() -> RenderFn<usize> {

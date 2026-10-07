@@ -82,23 +82,20 @@ android_apk = rule(
 
 _sign = """
 set -eu
-jdk="$1" build_tools="$2" unsigned="$3" out="$4"
-if [ -z "${ANDROID_DEBUG_KEYSTORE_BASE64:-}" ]; then
-    echo 'The build server passed no ANDROID_DEBUG_KEYSTORE_BASE64: guides/build_server.md says how to give it one.' >&2
+jdk="$1" build_tools="$2" unsigned="$3" out="$4" keystore_dir="$5"
+if [ ! -f "$keystore_dir/ci-keystore.base64" ]; then
+    echo 'There is no buck/android/ci-keystore.base64 to sign with: guides/build_server.md says where it comes from.' >&2
     exit 1
 fi
 keystore="$(mktemp)"
-printf '%s' "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 -d > "$keystore"
+base64 -d < "$keystore_dir/ci-keystore.base64" > "$keystore"
 JAVA_HOME="$jdk" "$jdk/bin/java" -jar "$build_tools/lib/apksigner.jar" sign \
     --ks "$keystore" --ks-pass pass:android --in "$unsigned" --out "$out"
 rm -f "$keystore"
 """
 
-# An APK signed on the build server with the keystore it keeps as a secret,
-# which it passes to an action that names it in BE3_BUILD_SERVER_SECRETS
-# (guides/build_server.md). The secret is not part of the action's key, so
-# key_version is: bump it with the secret, or builds go on reusing APKs the old
-# key signed.
+# An APK signed on a worker with CI's keystore, buck/android:ci-keystore. The
+# keystore is an input like any other, so a new one signs afresh.
 def _signed_apk_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output(ctx.label.name + ".apk")
     ctx.actions.run(
@@ -111,19 +108,18 @@ def _signed_apk_impl(ctx: AnalysisContext) -> list[Provider]:
             ctx.attrs._build_tools,
             ctx.attrs.apk[DefaultInfo].default_outputs[0],
             out.as_output(),
-            "key-version-{}".format(ctx.attrs.key_version),
+            ctx.attrs._keystore[DefaultInfo].default_outputs[0],
         ),
         category = "apk_sign",
-        env = {"BE3_BUILD_SERVER_SECRETS": "ANDROID_DEBUG_KEYSTORE_BASE64"},
     )
     return [DefaultInfo(default_output = out)]
 
 signed_apk = rule(
     attrs = {
         "apk": attrs.dep(),
-        "key_version": attrs.int(),
         "_build_tools": attrs.default_only(attrs.source(default = "root//buck/android:build-tools")),
         "_jdk": attrs.default_only(attrs.source(default = "root//buck/android:jdk")),
+        "_keystore": attrs.default_only(attrs.dep(default = "root//buck/android:ci-keystore")),
     },
     cfg = android_transition,
     impl = _signed_apk_impl,

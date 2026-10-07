@@ -1,23 +1,30 @@
 use super::*;
+use crate::reactive::{Show, clone};
 
 #[test]
 fn a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open() {
     let document = build(move || {
-        let (state, set_state) = create_signal(unstyled::DockState::new([unstyled::TabId::new(1)]));
+        let layout = unstyled::DockingLayout::new();
+        let (open, set_open) = create_signal(true);
         view! {
-            <styled::DockArea
-                state={state}
-                title={Func::new(|tab: unstyled::TabId| format!("Tab {}", tab.value()))}
-                on_change={move |next: unstyled::DockState| set_state.set(next)}
-                on_close={move |_: unstyled::TabId| {}}
-                empty={move || view! {
-                    <Frame @test_id={"nothing_open"} />
-                }}
-            >
-                {move |tab: unstyled::TabId| view! {
-                    <Frame @test_id={format!("content.{}", tab.value())} />
-                }}
-            </styled::DockArea>
+            <styled::Docking layout>
+                <unstyled::DockPane
+                    id="tabs"
+                    empty={move || view! {
+                        <Frame @test_id={"nothing_open"} />
+                    }}
+                >
+                    <Show condition={open}>
+                        <unstyled::DockTab
+                            id=1u64
+                            title="Tab 1"
+                            on_close={clone!(set_open -> move || set_open.set(false))}
+                        >
+                            <Frame @test_id={"content.1"} />
+                        </unstyled::DockTab>
+                    </Show>
+                </unstyled::DockPane>
+            </styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

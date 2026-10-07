@@ -110,8 +110,13 @@ pollster = "0.4"
 pollster = "0.4"
 rfd = "0.15"
 
+# Linux runs the app as a Wayland compositor, and --session runs it on the
+# displays and input devices themselves rather than in a window.
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd = { version = "0.11", default-features = false, features = ["async-std"] }
+be-dmabuf = { path = "../be-dmabuf" }
+be-wayland = { path = "../be-wayland" }
+beui-adapter-drm = { path = "../beui-adapter-drm" }
 pollster = "0.4"
 
 [target.'cfg(all(unix, not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]

@@ -1,5 +1,9 @@
 use super::*;
 
 mod a_color_round_trips_through_hsv;
+mod a_color_round_trips_through_oklch;
+mod a_grey_keeps_its_oklch_hue;
 mod a_grey_keeps_the_hue_it_was_dragged_from;
+mod an_oklch_color_outside_srgb_is_clamped_to_its_most_colorful_neighbour;
 mod hex_accepts_the_short_and_long_forms_with_or_without_alpha;
+mod the_cusp_is_the_most_colorful_srgb_color_of_a_hue;

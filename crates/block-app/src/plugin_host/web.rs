@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use block_plugin_api::{Message, PluginManifest, ScreenLayout, SurfaceRect};
+use block_plugin_api::{Message, PluginManifest, ScreenDamage, ScreenLayout};
 
 mod adapter;
 mod canvases;
@@ -36,11 +36,11 @@ impl ShownFrame for () {
         0
     }
 
-    fn damage(&self) -> Option<&[SurfaceRect]> {
+    fn damage(&self) -> Option<&[ScreenDamage]> {
         None
     }
 
-    fn set_damage(&mut self, _damage: Option<Vec<SurfaceRect>>) {}
+    fn set_damage(&mut self, _damage: Option<Vec<ScreenDamage>>) {}
 }
 
 impl Backend for Web {

@@ -20,7 +20,7 @@ wanted = [
     "libasound2-dev",
     "libgtk-3-dev",
     "libwebkit2gtk-4.1-dev",
-    # be-compositor's session backend: displays through GBM, input through
+    # beui-adapter-drm, which block-app's --session runs on: displays through GBM, input through
     # libinput, a seat through libseat, and devices found through udev.
     "libgbm-dev",
     "libinput-dev",
@@ -105,5 +105,15 @@ export_file(
 
 export_file(
     name = "lock.sh",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "deb_lock.sh",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
+    name = "deb_sysroot.sh",
     visibility = ["PUBLIC"],
 )

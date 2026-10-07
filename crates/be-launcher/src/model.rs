@@ -37,30 +37,26 @@ pub(crate) struct Common {
 }
 
 #[cfg(not(target_os = "android"))]
-pub(crate) const COMMON: [Common; 6] = [
+pub(crate) const COMMON: [Common; 5] = [
     Common {
         title: "the app",
-        args: "run //crates/block-app:app",
+        args: "buck run //crates/block-app:app",
     },
     Common {
         title: "verify",
-        args: "run //:verify",
+        args: "verify",
     },
     Common {
         title: "the web app",
-        args: "run //crates/block-app:web-serve",
+        args: "buck run //crates/block-app:web-serve",
     },
     Common {
         title: "on Android",
-        args: "run //crates/block-app:android -- --install",
+        args: "buck run //crates/block-app:android -- --install",
     },
     Common {
         title: "beui's demo",
-        args: "run //crates/beui-demo:demo",
-    },
-    Common {
-        title: "be-compositor",
-        args: "run //crates/be-compositor:be-compositor-bin",
+        args: "buck run //crates/beui-demo:demo",
     },
 ];
 
@@ -396,6 +392,16 @@ impl Model {
     }
 
     #[cfg(not(target_os = "android"))]
+    fn run_script(&self, mut words: Vec<String>) {
+        if words.is_empty() || self.running.get_untracked() {
+            return;
+        }
+        let script = words.remove(0);
+        self.set_running.set(true);
+        self.tasks.run(&script, words);
+    }
+
+    #[cfg(not(target_os = "android"))]
     pub(crate) fn run_target(&self, target: &Target, action: Action) {
         self.run(vec![action.verb().to_owned(), target.label.clone()]);
     }
@@ -430,7 +436,7 @@ impl Model {
             }
             _ => {
                 if let Some(common) = COMMON.get(common) {
-                    self.run(words(common.args));
+                    self.run_script(words(common.args));
                 }
             }
         }

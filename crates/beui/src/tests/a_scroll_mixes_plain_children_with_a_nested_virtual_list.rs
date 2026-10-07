@@ -16,28 +16,30 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <Frame height=HEADER>
-                            <Spacer />
-                        </Frame>
                         <List spacing=0.0>
-                            <VirtualList
-                                @node_ref=&list
-                                keys={indices(ROWS)}
-                                item_size=VIRTUAL_ITEM_HEIGHT
-                            >
-                                {move |index: usize| {
-                                    sink.borrow_mut().push(index);
-                                    view! {
-                                        <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                            <Spacer />
-                                        </Frame>
-                                    }
-                                }}
-                            </VirtualList>
+                            <Frame height=HEADER>
+                                <Spacer />
+                            </Frame>
+                            <List spacing=0.0>
+                                <VirtualList
+                                    @node_ref=&list
+                                    keys={indices(ROWS)}
+                                    item_size=VIRTUAL_ITEM_HEIGHT
+                                >
+                                    {move |index: usize| {
+                                        sink.borrow_mut().push(index);
+                                        view! {
+                                            <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                                <Spacer />
+                                            </Frame>
+                                        }
+                                    }}
+                                </VirtualList>
+                            </List>
+                            <Frame height=FOOTER>
+                                <Spacer />
+                            </Frame>
                         </List>
-                        <Frame height=FOOTER>
-                            <Spacer />
-                        </Frame>
                     </Offset>
                 </List>
             }

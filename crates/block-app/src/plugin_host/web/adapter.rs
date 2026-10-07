@@ -59,7 +59,7 @@ function step() {
 }
 
 function show(data) {
-    plugin.show(data.id, data.canvas, data.x, data.y, data.width, data.height);
+    plugin.show(data.id, data.canvas, data.surface);
 }
 
 self.onmessage = async (event) => {
@@ -167,15 +167,12 @@ impl WebProtocolAdapter {
         &self,
         id: u32,
         canvas: Option<&web_sys::OffscreenCanvas>,
-        [x, y, width, height]: [u32; 4],
+        surface: u32,
     ) -> Result<(), String> {
         let message = js_sys::Object::new();
         set(&message, "kind", &"show".into());
         set(&message, "id", &id.into());
-        set(&message, "x", &x.into());
-        set(&message, "y", &y.into());
-        set(&message, "width", &width.into());
-        set(&message, "height", &height.into());
+        set(&message, "surface", &surface.into());
         let posted = match canvas {
             Some(canvas) => {
                 set(&message, "canvas", canvas);

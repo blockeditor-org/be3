@@ -2,9 +2,9 @@ use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameChrome, FrameReport, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
-    MenuEntry, Message, Occluder, PaneId, PaneLayout, PaneTree, RegionSize, ScreenPlacement,
-    ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent, WebViewId,
+    FrameChrome, FrameReport, HostPanel, HostReply, ImeArea, InputEvent, MAX_CHILDREN,
+    MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
+    Size, ViewChange, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -17,7 +17,7 @@ use uuid::Uuid;
 #[cfg(target_arch = "wasm32")]
 use crate::plugin::PaintTarget;
 use crate::plugin::{Frame, Instance, Region};
-use crate::{EditorHost, PaneEvent, Waker, host::BlockDrag};
+use crate::{EditorHost, Waker, host::BlockDrag};
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
 
@@ -35,7 +35,6 @@ pub struct EditorSession {
     artifact: Option<ArtifactState>,
     replacements: Vec<(u64, bool)>,
     generation: u64,
-    sent_panes: Option<PaneLayout>,
     sent_menu: Vec<MenuEntry>,
 }
 
@@ -82,6 +81,7 @@ struct RegionState {
     occluders: Vec<Occluder>,
     laid_out: Size,
     reported_children: Option<(Size, Vec<ChildPlacement>, Vec<Occluder>)>,
+    age: u32,
 }
 
 impl EditorSession {
@@ -105,59 +105,12 @@ impl EditorSession {
             artifact: None,
             replacements: Vec::new(),
             generation: 0,
-            sent_panes: None,
             sent_menu: Vec::new(),
         }
     }
 
-    pub fn offer_panes(&self, offered: bool) {
-        self.host.offer_panes(offered);
-    }
-
-    pub fn arrange_panes(
-        &mut self,
-        arrangement: u64,
-        tree: PaneTree,
-        detached: Vec<PaneId>,
-        focused: Option<PaneId>,
-    ) {
-        self.host.push_pane_event(
-            arrangement,
-            PaneEvent::Arranged {
-                tree,
-                detached,
-                focused,
-            },
-        );
-    }
-
-    pub fn close_pane(&mut self, pane: PaneId) {
-        self.host.push_pane_event(0, PaneEvent::Closed(pane));
-    }
-
-    pub fn pick_pane_menu(&mut self, pane: PaneId, id: String) {
-        self.host.push_pane_event(0, PaneEvent::MenuPick(pane, id));
-    }
-
     pub fn pick_menu(&self, id: String) {
         self.host.push_menu_pick(id);
-    }
-
-    fn pane_messages(&mut self) -> Vec<Message> {
-        let instance = self.instance;
-        let mut messages = Vec::new();
-        let layout = self.host.pane_layout().map(|layout| PaneLayout {
-            arrangement: self.host.taken_arrangement(),
-            ..layout
-        });
-        if self.sent_panes != layout {
-            self.sent_panes = layout.clone();
-            messages.push(Message::Editor(EditorMessage::Panes { instance, layout }));
-        }
-        for pane in self.host.take_shown_panes() {
-            messages.push(Message::Editor(EditorMessage::ShowPane { instance, pane }));
-        }
-        messages
     }
 
     pub(crate) fn set_block_types(&self, catalog: Rc<BlockCatalog>) {
@@ -229,6 +182,22 @@ impl EditorSession {
 
     pub(crate) fn set_focused_block(&self, focused: crate::host::FocusedBlock) {
         self.host.set_focused_block(focused);
+    }
+
+    pub(crate) fn show_dialog(&self, block_id: Uuid, dialog: block_plugin_api::ShellDialog) {
+        self.host.show_dialog(block_id, dialog);
+    }
+
+    pub(crate) fn pick_requested(&self, request: crate::host::PickRequest) {
+        self.host.request_pick(request);
+    }
+
+    pub(crate) fn show_panel(&self, panel: HostPanel) {
+        self.host.show_panel(panel);
+    }
+
+    pub(crate) fn set_windows(&self, windows: Vec<block_plugin_api::HostWindow>) {
+        self.host.set_windows(windows);
     }
 
     pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
@@ -360,7 +329,7 @@ impl EditorSession {
     }
 
     pub fn outbound(&mut self) -> Vec<Message> {
-        let mut messages = self.pane_messages();
+        let mut messages = Vec::new();
         let sizes = self.region_sizes();
         if !sizes.is_empty() {
             messages.push(Message::RegionSizes(sizes));
@@ -609,6 +578,35 @@ impl EditorSession {
                 request,
             }));
         }
+        for (pick, answer) in self.host.take_pick_answers() {
+            messages.push(Message::Editor(EditorMessage::PickAnswered {
+                instance,
+                pick,
+                answer,
+            }));
+        }
+        for window in self.host.take_closed_windows() {
+            messages.push(Message::Editor(EditorMessage::CloseWindow {
+                instance,
+                window,
+            }));
+        }
+        for (block_id, account, access) in self.host.take_access_changes() {
+            messages.push(Message::Editor(EditorMessage::SetAccess {
+                instance,
+                block_id: block_id.into_bytes(),
+                account: account.into_bytes(),
+                access,
+            }));
+        }
+        for commit in self.host.take_child_commits() {
+            messages.push(Message::Editor(EditorMessage::CommitChild {
+                instance,
+                child: commit.child,
+                parent: commit.parent.encode(),
+                name: commit.name,
+            }));
+        }
         for (block_id, command) in self.host.take_audio_commands() {
             messages.push(Message::Editor(EditorMessage::PlayAudio {
                 instance,
@@ -830,27 +828,28 @@ impl EditorSession {
 
     fn rect(&self, region: EditorRegion) -> Rect {
         let state = self.regions.get(&region);
-        let (Some(placement), Some(metrics)) = (
+        let (Some(_), Some(metrics)) = (
             state.and_then(|state| state.placement.as_ref()),
             state.and_then(|state| state.metrics.as_ref()),
         ) else {
             return Rect::ZERO;
         };
-        let scale = placement.scale_factor();
         Rect::from_min_size(
-            pos2(
-                placement.x as f32 / scale - metrics.visible_x,
-                placement.y as f32 / scale - metrics.visible_y,
-            ),
+            pos2(-metrics.visible_x, -metrics.visible_y),
             vec2(metrics.logical_width, metrics.logical_height),
         )
     }
 
     fn context(&self, region: EditorRegion) -> Region {
+        let state = self.regions.get(&region);
         Region {
             region,
             rect: self.rect(region),
             scale_factor: self.scale_factor(region),
+            pixels: self
+                .placement(region)
+                .map_or([0, 0], |placement| [placement.width, placement.height]),
+            age: state.map_or(0, |state| state.age),
             spec: self
                 .regions
                 .get(&region)
@@ -859,8 +858,11 @@ impl EditorSession {
         }
     }
 
-    pub fn run(&mut self, region: EditorRegion, generation: u64) -> Frame {
+    pub fn run(&mut self, region: EditorRegion, generation: u64, age: u32) -> Frame {
         self.generation = generation;
+        if let Some(state) = self.regions.get_mut(&region) {
+            state.age = age;
+        }
         let context = self.context(region);
         let host = context.rect;
         let origin = host.min.to_vec2();
@@ -931,7 +933,7 @@ impl EditorSession {
                 text: ime.text.clone(),
                 keyboard: ime.keyboard,
             });
-            let reports = matches!(region, EditorRegion::Frame | EditorRegion::Pane(_));
+            let reports = matches!(region, EditorRegion::Frame);
             state.report = reports.then(|| FrameReport {
                 screen,
                 content: reported(reported_content),

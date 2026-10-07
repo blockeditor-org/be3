@@ -7,6 +7,10 @@ use beui_core::base::Direction;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use serde::{Deserialize, Serialize};
 
+mod spec;
+
+pub use spec::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
+
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct TabId(u64);
 
@@ -123,6 +127,22 @@ struct Leaf {
     active: usize,
     vertical: bool,
     sidebar: f32,
+    key: Option<String>,
+    keep: bool,
+}
+
+impl Leaf {
+    fn new(id: LeafId, entries: Vec<Entry>) -> Self {
+        Self {
+            id,
+            entries,
+            active: 0,
+            vertical: false,
+            sidebar: SIDEBAR_WIDTH,
+            key: None,
+            keep: false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -133,6 +153,8 @@ struct Split {
     fraction: f32,
     first: Box<Node>,
     second: Box<Node>,
+    key: Option<String>,
+    adjusted: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -208,13 +230,7 @@ impl Node {
         let Some(slot) = self.slot_of(target) else {
             return false;
         };
-        let placeholder = Node::Leaf(Leaf {
-            id: target,
-            entries: Vec::new(),
-            active: 0,
-            vertical: false,
-            sidebar: SIDEBAR_WIDTH,
-        });
+        let placeholder = Node::Leaf(Leaf::new(target, Vec::new()));
         let existing = std::mem::replace(slot, placeholder);
         *slot = build(existing);
         true
@@ -235,20 +251,12 @@ impl Node {
         match self {
             Node::Leaf(leaf) => (leaf.id != id).then_some(Node::Leaf(leaf)),
             Node::Split(split) => {
-                let Split {
-                    id: split_id,
-                    direction,
-                    fraction,
-                    first,
-                    second,
-                } = split;
+                let Split { first, second, .. } = split;
                 match (first.without_leaf(id), second.without_leaf(id)) {
                     (Some(first), Some(second)) => Some(Node::Split(Split {
-                        id: split_id,
-                        direction,
-                        fraction,
                         first: Box::new(first),
                         second: Box::new(second),
+                        ..split
                     })),
                     (Some(node), None) | (None, Some(node)) => Some(node),
                     (None, None) => None,
@@ -264,6 +272,7 @@ struct Surface {
     root: Node,
     #[serde(with = "window")]
     window: Option<Rect>,
+    key: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -271,6 +280,7 @@ struct Group {
     id: GroupId,
     root: Node,
     pinned: bool,
+    key: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -465,6 +475,7 @@ pub struct DockState {
     focus: Option<LeafId>,
     recent: Vec<TabId>,
     next: u64,
+    seeded: bool,
     #[serde(skip)]
     lookup: Lookup,
 }
@@ -484,6 +495,7 @@ impl DockState {
             focus: None,
             recent: Vec::new(),
             next: 0,
+            seeded: false,
             lookup: Lookup::default(),
         };
         let leaf = state.new_leaf(tabs.into_iter().map(Entry::Tab).collect());
@@ -493,6 +505,7 @@ impl DockState {
             id,
             root: Node::Leaf(leaf),
             window: None,
+            key: None,
         });
         state.focus = Some(focus);
         state.remember_focus();
@@ -528,13 +541,7 @@ impl DockState {
     }
 
     fn new_leaf(&mut self, entries: Vec<Entry>) -> Leaf {
-        Leaf {
-            id: LeafId(self.mint()),
-            entries,
-            active: 0,
-            vertical: false,
-            sidebar: SIDEBAR_WIDTH,
-        }
+        Leaf::new(LeafId(self.mint()), entries)
     }
 
     fn surface(&self, id: SurfaceId) -> Option<&Surface> {
@@ -628,6 +635,7 @@ impl DockState {
             id,
             root: Node::Leaf(leaf),
             window: Some(rect),
+            key: None,
         });
         self.focus = Some(focus);
         id
@@ -734,6 +742,18 @@ impl DockState {
         if let Some(leaf) = self.leaf_mut(leaf) {
             leaf.vertical = vertical;
         }
+    }
+
+    pub fn is_kept(&self, leaf: LeafId) -> bool {
+        self.leaf(leaf).is_some_and(|leaf| leaf.keep)
+    }
+
+    pub fn pane_key(&self, leaf: LeafId) -> Option<&str> {
+        self.leaf(leaf).and_then(|leaf| leaf.key.as_deref())
+    }
+
+    pub fn group_key(&self, group: GroupId) -> Option<&str> {
+        self.group(group).and_then(|group| group.key.as_deref())
     }
 
     pub fn sidebar_width(&self, leaf: LeafId) -> f32 {
@@ -957,8 +977,21 @@ impl DockState {
         share: f32,
         entries: Vec<Entry>,
     ) -> Option<LeafId> {
-        let tree = self.tree_of(leaf)?;
         let added = self.new_leaf(entries);
+        let id = self.split_off(leaf, side, share, added, None)?;
+        self.focus(id);
+        Some(id)
+    }
+
+    fn split_off(
+        &mut self,
+        leaf: LeafId,
+        side: Side,
+        share: f32,
+        added: Leaf,
+        key: Option<String>,
+    ) -> Option<LeafId> {
+        let tree = self.tree_of(leaf)?;
         let id = added.id;
         let split = SplitId(self.mint());
         let share = share.clamp(MIN_FRACTION, 1.0 - MIN_FRACTION);
@@ -981,9 +1014,10 @@ impl DockState {
                 fraction,
                 first: Box::new(first),
                 second: Box::new(second),
+                key,
+                adjusted: false,
             })
         });
-        self.focus(id);
         Some(id)
     }
 
@@ -998,6 +1032,17 @@ impl DockState {
         true
     }
 
+    pub fn close(&mut self, tab: TabId) -> bool {
+        let shown = self.stacked_tab() == Some(tab);
+        if !self.remove(tab) {
+            return false;
+        }
+        if let Some(next) = self.recent_tabs().first().copied().filter(|_| shown) {
+            self.show(next);
+        }
+        true
+    }
+
     pub fn empty_panes(&self) -> Vec<LeafId> {
         self.surfaces
             .iter()
@@ -1009,7 +1054,7 @@ impl DockState {
     pub fn remove_empty_panes(&mut self) {
         let main = self.main();
         for leaf in self.empty_panes() {
-            if self.leaves(main) == [leaf] {
+            if self.leaves(main) == [leaf] || self.is_kept(leaf) {
                 continue;
             }
             self.prune(leaf);
@@ -1121,14 +1166,18 @@ impl DockState {
         let Some(moved) = self.leaf(leaf).cloned() else {
             return;
         };
-        if let [only] = moved.entries.as_slice() {
+        let relocates = matches!(target, DockDrop::Split { .. } | DockDrop::Window { .. });
+        if let [only] = moved.entries.as_slice()
+            && !(moved.keep && relocates)
+        {
             let only = *only;
             self.drop_entry(only, target);
             if let Some((landed, _)) = self.locate(only)
                 && landed != leaf
                 && self.entries(landed).len() == 1
             {
-                self.dress(landed, moved.vertical, moved.sidebar);
+                let gone = self.leaf(leaf).is_none();
+                self.dress(landed, &moved, gone);
             }
             return;
         }
@@ -1142,23 +1191,24 @@ impl DockState {
             return;
         }
         let shown = moved.entries.get(moved.active).copied();
+        let entries = moved.entries.clone();
         let landed = match target {
             DockDrop::Tab { leaf: onto, index } | DockDrop::Group { leaf: onto, index } => {
-                self.prune(leaf);
-                self.insert_entries(onto, index, moved.entries, shown)
+                self.vacate(leaf, moved.keep);
+                self.insert_entries(onto, index, entries, shown)
             }
             DockDrop::Pane { leaf: onto } => {
-                self.prune(leaf);
-                self.insert_entries(onto, usize::MAX, moved.entries, shown)
+                self.vacate(leaf, moved.keep);
+                self.insert_entries(onto, usize::MAX, entries, shown)
             }
             DockDrop::Split { leaf: onto, side } => {
                 self.prune(leaf);
                 let landed = match self.leaf(onto).is_some() {
-                    true => self.split_with(onto, side, 0.5, moved.entries),
-                    false => self.insert_entries(onto, usize::MAX, moved.entries, shown),
+                    true => self.split_with(onto, side, 0.5, entries),
+                    false => self.insert_entries(onto, usize::MAX, entries, shown),
                 };
                 if let Some(landed) = landed {
-                    self.dress(landed, moved.vertical, moved.sidebar);
+                    self.dress(landed, &moved, true);
                 }
                 landed
             }
@@ -1174,10 +1224,10 @@ impl DockState {
                 }
                 self.prune(leaf);
                 let surface =
-                    self.open_window_with(Rect::from_min_size(pos, FLOATING_SIZE), moved.entries);
+                    self.open_window_with(Rect::from_min_size(pos, FLOATING_SIZE), entries);
                 let landed = self.leaves(surface).first().copied();
                 if let Some(landed) = landed {
-                    self.dress(landed, moved.vertical, moved.sidebar);
+                    self.dress(landed, &moved, true);
                 }
                 landed
             }
@@ -1195,10 +1245,25 @@ impl DockState {
         self.settle_focus();
     }
 
-    fn dress(&mut self, leaf: LeafId, vertical: bool, sidebar: f32) {
+    fn dress(&mut self, leaf: LeafId, like: &Leaf, identity: bool) {
         if let Some(leaf) = self.leaf_mut(leaf) {
-            leaf.vertical = vertical;
-            leaf.sidebar = sidebar;
+            leaf.vertical = like.vertical;
+            leaf.sidebar = like.sidebar;
+            if identity {
+                leaf.key.clone_from(&like.key);
+                leaf.keep = like.keep;
+            }
+        }
+    }
+
+    fn vacate(&mut self, leaf: LeafId, keep: bool) {
+        if !keep {
+            self.prune(leaf);
+            return;
+        }
+        if let Some(leaf) = self.leaf_mut(leaf) {
+            leaf.entries.clear();
+            leaf.active = 0;
         }
     }
 
@@ -1317,6 +1382,7 @@ impl DockState {
                     id: group,
                     root: Node::Leaf(inner),
                     pinned: false,
+                    key: None,
                 });
                 if let Some(leaf) = self.leaf_mut(leaf) {
                     leaf.entries[index] = Entry::Group(group);
@@ -1337,7 +1403,7 @@ impl DockState {
         if leaf.active > index || leaf.active >= leaf.entries.len() {
             leaf.active = leaf.active.saturating_sub(1);
         }
-        if leaf.entries.is_empty() {
+        if leaf.entries.is_empty() && !leaf.keep {
             self.prune(leaf_id);
         }
         true
@@ -1352,13 +1418,7 @@ impl DockState {
         let Some(root) = self.root_mut(tree) else {
             return;
         };
-        let placeholder = Node::Leaf(Leaf {
-            id: replacement,
-            entries: Vec::new(),
-            active: 0,
-            vertical: false,
-            sidebar: SIDEBAR_WIDTH,
-        });
+        let placeholder = Node::Leaf(Leaf::new(replacement, Vec::new()));
         let taken = std::mem::replace(root, placeholder);
         match taken.without_leaf(leaf) {
             Some(rest) => *root = rest,
@@ -1411,7 +1471,7 @@ impl DockState {
                     None => {
                         leaf.entries.remove(index);
                         leaf.active = leaf.active.min(leaf.entries.len().saturating_sub(1));
-                        if leaf.entries.is_empty() {
+                        if leaf.entries.is_empty() && !leaf.keep {
                             self.prune(holder);
                         }
                     }
@@ -1573,6 +1633,7 @@ impl DockState {
             id: group,
             root,
             pinned: true,
+            key: None,
         });
         if let Some(target) = self.leaf_mut(leaf) {
             let index = index.min(target.entries.len());
@@ -1722,6 +1783,7 @@ impl DockState {
                                 id: group,
                                 root,
                                 pinned: false,
+                                key: None,
                             });
                             Entry::Group(group)
                         }
@@ -1747,6 +1809,8 @@ impl DockState {
                     fraction: fraction.clamp(MIN_FRACTION, 1.0 - MIN_FRACTION),
                     first: Box::new(first),
                     second: Box::new(second),
+                    key: None,
+                    adjusted: false,
                 })
             }
         }
@@ -1774,6 +1838,7 @@ impl DockState {
         {
             if let Some(found) = root.split_mut(split) {
                 found.fraction = fraction;
+                found.adjusted = true;
                 return;
             }
         }

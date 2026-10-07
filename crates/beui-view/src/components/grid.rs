@@ -1,10 +1,11 @@
 use crate::reactive::{
-    BuildsNode, Child, ChildSegment, ChildValue, Children, IntoChild, IntoSegment, NodeSlot, Prop,
-    Scope, SlotChild, create_effect, with_document,
+    BuildsNode, Child, ChildSegment, ChildValue, Children, ComponentContext, IntoChild,
+    IntoSegment, NodeSlot, Prop, Scope, SlotChild, create_effect, with_document,
 };
 use beui_core::base::grid::{GridItem, GridNode, Track};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
+use beui_core::tree::remove_stored_node;
 use beui_macros::component;
 
 pub struct GridCell {
@@ -19,12 +20,12 @@ impl BuildsNode for GridCell {
 }
 
 impl ChildValue for GridCell {
-    fn anchor(&self) -> Option<NodeId> {
-        Some(self.node)
-    }
-
     fn adopt_scope(&mut self, scope: Scope) {
         self.node.adopt_scope(scope);
+    }
+
+    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
+        self.node.finish_component(component, scope);
     }
 }
 
@@ -48,10 +49,25 @@ impl IntoSegment<GridCell> for NodeId {
 impl SlotChild for GridCell {
     type Stored = GridItem;
 
-    fn store(self, parent: Option<NodeId>) -> GridItem {
+    fn store(self) -> GridItem {
+        GridItem {
+            child: self.node,
+            span: self.span.peek(),
+        }
+    }
+
+    fn discard(stored: &GridItem) {
+        remove_stored_node(stored.child);
+    }
+}
+
+impl NodeSlot for GridCell {
+    type Host = GridNode;
+
+    fn store_in(self, parent: NodeId) -> GridItem {
         let GridCell { node, span } = self;
         let initial = span.peek();
-        if let (Some(parent), Prop::Dynamic(read)) = (parent, span) {
+        if let Prop::Dynamic(read) = span {
             create_effect(move || {
                 let span = read();
                 with_document(|document| {
@@ -66,14 +82,6 @@ impl SlotChild for GridCell {
             span: initial,
         }
     }
-
-    fn stored_node(stored: &GridItem) -> Option<NodeId> {
-        Some(stored.child)
-    }
-}
-
-impl NodeSlot for GridCell {
-    type Host = GridNode;
 }
 
 #[component]

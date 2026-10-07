@@ -67,7 +67,7 @@ packages+=(
 # carry theirs - but the GTK dialogs and the window manager the app runs under
 # still want one, and a machine with no font at all is a confusing one to debug.
 packages+=(fonts-dejavu-core fonts-dejavu-mono)
-# be-compositor's session backend loads GBM, libinput, libseat and udev.
+# beui-adapter-drm, which block-app's --session runs on, loads GBM, libinput, libseat and udev.
 packages+=(libgbm1 libinput10 libseat1 libudev1)
 # ./scripts/buck run //crates/block-app:smoke starts the app against a virtual
 # display.
@@ -99,7 +99,7 @@ step 'Installing buck2'
 
 end_step
 echo ''
-echo 'Setup finished. Every build runs on our build server, so put its key in'
-echo 'BE3_BUILD_SERVER_KEY or in ~/.config/be3/build-server-key - guides/build_server.md'
-echo 'says more - then check the workspace compiles with'
-echo './scripts/buck run //:check, and run ./scripts/buck run //:verify before committing.'
+echo 'Setup finished. The first time ./scripts/buck runs, it asks which build server'
+echo 'to build on and for its key - guides/build_server.md says more. Then check the'
+echo 'workspace compiles with'
+echo './scripts/buck run //:check, and run ./scripts/verify before committing.'

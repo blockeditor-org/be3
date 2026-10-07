@@ -145,7 +145,7 @@ pub trait Element: Any {
         false
     }
 
-    fn tracks_stale_children(&self) -> bool {
+    fn passes_scroll_anchor(&self) -> bool {
         false
     }
 
@@ -495,14 +495,6 @@ impl Rects {
 
 pub const ANCESTOR_LIMIT: usize = 4096;
 
-const STALE_CHILDREN_LIMIT: usize = 1024;
-
-#[derive(Default)]
-pub struct StaleChildren {
-    pub nodes: Vec<NodeId>,
-    pub overflowed: bool,
-}
-
 #[derive(Default)]
 pub struct Arena {
     nodes: Vec<Option<Box<dyn Element>>>,
@@ -510,8 +502,6 @@ pub struct Arena {
     parents: Vec<Option<NodeId>>,
     stale: Vec<bool>,
     unplaced: Vec<bool>,
-    tracks: Vec<bool>,
-    stale_children: NodeMap<StaleChildren>,
     free: Vec<u32>,
     released: Vec<u32>,
     boundaries: Vec<NodeId>,
@@ -519,7 +509,6 @@ pub struct Arena {
     live: usize,
     pub revision: u64,
     pub layout_revision: u64,
-    pub epoch: u64,
     changed: Vec<NodeId>,
     relaid: Vec<NodeId>,
     repaints: Vec<NodeId>,
@@ -536,7 +525,6 @@ impl Arena {
     }
 
     pub fn insert<T: Element>(&mut self, element: T) -> NodeOf<T> {
-        let tracks = element.tracks_stale_children();
         let id = match self.free.pop() {
             Some(index) => {
                 let slot = index as usize;
@@ -544,7 +532,6 @@ impl Arena {
                 self.parents[slot] = None;
                 self.stale[slot] = true;
                 self.unplaced[slot] = true;
-                self.tracks[slot] = tracks;
                 NodeId {
                     index,
                     generation: self.generations[slot],
@@ -557,7 +544,6 @@ impl Arena {
                 self.parents.push(None);
                 self.stale.push(true);
                 self.unplaced.push(true);
-                self.tracks.push(tracks);
                 NodeId {
                     index,
                     generation: 0,
@@ -669,9 +655,7 @@ impl Arena {
     pub fn invalidate(&mut self) {
         self.revision = self.revision.wrapping_add(1);
         self.layout_revision = self.layout_revision.wrapping_add(1);
-        self.epoch = self.epoch.wrapping_add(1);
         self.everything = true;
-        self.stale_children = NodeMap::default();
         self.stale.fill(true);
         self.unplaced.fill(true);
         self.boundaries.clear();
@@ -706,16 +690,10 @@ impl Arena {
         }
         self.marked = Some(id);
         let mut current = Some(id);
-        let mut child = None;
         for _ in 0..ANCESTOR_LIMIT {
             let Some((node, slot)) = current.and_then(|node| Some((node, self.slot(node)?))) else {
                 return;
             };
-            if let Some(child) = child
-                && self.tracks[slot]
-            {
-                self.note_stale_child(node, child);
-            }
             if node != id
                 && self.nodes[slot]
                     .as_deref()
@@ -727,26 +705,8 @@ impl Arena {
             }
             self.stale[slot] = true;
             self.unplaced[slot] = true;
-            child = Some(node);
             current = self.parents[slot];
         }
-    }
-
-    fn note_stale_child(&mut self, parent: NodeId, child: NodeId) {
-        let held = self.stale_children.get_or_default(parent);
-        if held.overflowed || held.nodes.last() == Some(&child) {
-            return;
-        }
-        if held.nodes.len() >= STALE_CHILDREN_LIMIT {
-            held.nodes = Vec::new();
-            held.overflowed = true;
-            return;
-        }
-        held.nodes.push(child);
-    }
-
-    pub fn take_stale_children(&mut self, id: NodeId) -> StaleChildren {
-        self.stale_children.remove(&id).unwrap_or_default()
     }
 
     pub fn take_boundaries(&mut self) -> Vec<NodeId> {
@@ -822,7 +782,6 @@ impl Arena {
         let Some(slot) = self.slot(id) else {
             return;
         };
-        self.stale_children.remove(&id);
         if self.nodes[slot].take().is_some() {
             self.live -= 1;
             self.released.push(id.index);

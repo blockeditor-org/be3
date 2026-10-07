@@ -17,10 +17,10 @@ use block_editor_beui::beui::reactive::{
 };
 use block_editor_beui::beui::styled::theme::{CARD_RADIUS, FONT_BODY, RADIUS};
 use block_editor_beui::beui::styled::{
-    ActionRow, Button, ButtonVariant, Caption, Heading, Icon, IconButton, IconSized, ListRow,
-    ModalSheet, Scroll, TextInput, Title, use_theme,
+    ActionRow, Button, ButtonVariant, Caption, Heading, Icon, IconButton, IconMenuButton,
+    IconSized, ListRow, Scroll, TextInput, Title, use_theme,
 };
-use block_editor_beui::beui::unstyled::{BackSlide, Edge, Floating};
+use block_editor_beui::beui::unstyled::{BackSlide, Edge, Floating, MenuItem};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{BlockParent, BlockQuery, ChildTarget, Editor, watch_block_label};
 use uuid::Uuid;
@@ -114,17 +114,15 @@ pub(crate) fn PhoneFiles(
 ) -> NodeId {
     let (level, set_level) = create_signal(Level::Root);
     let (query, set_query) = create_signal(String::new());
-    let (acting, set_acting) = create_signal(None::<Row>);
     let searching = create_memo(clone!(query -> move || !query.get().trim().is_empty()));
     let browsing = create_memo(clone!(searching -> move || !searching.get()));
     let at_root = create_memo(clone!(level browsing -> move || {
         browsing.get() && level.get() == Level::Root
     }));
     let nested = create_memo(clone!(level -> move || level.get() != Level::Root));
-    let can_create = create_memo(clone!(level browsing acting -> move || {
+    let can_create = create_memo(clone!(level browsing -> move || {
         browsing.get()
             && level.get() != Level::Deleted
-            && acting.get().is_none()
             && !covered.get()
     }));
     let page = NodeRef::new();
@@ -144,7 +142,14 @@ pub(crate) fn PhoneFiles(
     let menu = clone!(editor -> move || editor.host().show_app_menu(editor.block_id()));
     let rows_tree = Rc::clone(&tree);
     let rows_level = set_level.clone();
-    let rows_acting = set_acting.clone();
+    let rows_tools = RowTools {
+        editor: editor.clone(),
+        tree: Rc::clone(&tree),
+        picker: Rc::clone(&picker),
+        exporter,
+        inspect,
+        set_level: set_level.clone(),
+    };
     let recents_editor = editor.clone();
     let header_level = level.clone();
     let header_set = set_level.clone();
@@ -164,7 +169,7 @@ pub(crate) fn PhoneFiles(
                             <SearchSoon @sizing=ItemSize::Percent(100.0) />
                         </Show>
                         <Show condition={browsing}>
-                            {move || clone!(at_root level recents_editor rows_acting rows_editor rows_level rows_tree -> view! {
+                            {move || clone!(at_root level recents_editor rows_tools rows_editor rows_level rows_tree -> view! {
                                 <Scroll @sizing=ItemSize::Percent(100.0)>
                                     <Frame padding_horizontal=PADDING padding_vertical=PADDING>
                                         <List spacing=ROW_SPACING>
@@ -176,7 +181,7 @@ pub(crate) fn PhoneFiles(
                                                     let editor = rows_editor.clone();
                                                     let tree = Rc::clone(&rows_tree);
                                                     let set_level = rows_level.clone();
-                                                    let set_acting = rows_acting.clone();
+                                                    let tools = rows_tools.clone();
                                                     view! {
                                                         <LevelRows
                                                             @sizing=ItemSize::Intrinsic
@@ -184,7 +189,7 @@ pub(crate) fn PhoneFiles(
                                                             tree
                                                             level
                                                             set_level
-                                                            set_acting
+                                                            tools
                                                         />
                                                     }
                                                 }}
@@ -208,7 +213,6 @@ pub(crate) fn PhoneFiles(
                         />
                     </Frame>
                 </Floating>
-                <RowActions editor tree picker exporter inspect acting set_acting set_level />
             </List>
         </BackSlide>
     }
@@ -431,7 +435,7 @@ fn LevelRows(
     tree: Rc<FileTree>,
     level: Level,
     set_level: WriteSignal<Level>,
-    set_acting: WriteSignal<Option<Row>>,
+    tools: RowTools,
 ) -> NodeId {
     let listed = editor.watch_blocks(level.query());
     let describing = tree.clone();
@@ -518,9 +522,9 @@ fn LevelRows(
                     let editor = editor.clone();
                     let level = level.clone();
                     let set_level = set_level.clone();
-                    let set_acting = set_acting.clone();
+                    let tools = tools.clone();
                     view! {
-                        <PhoneRow editor row level set_level set_acting />
+                        <PhoneRow editor row level set_level tools />
                     }
                 }}
             </ForEach>
@@ -544,7 +548,7 @@ fn PhoneRow(
     row: Memo<Option<Row>>,
     level: Level,
     set_level: WriteSignal<Level>,
-    set_acting: WriteSignal<Option<Row>>,
+    tools: RowTools,
 ) -> NodeId {
     let theme = use_theme();
     let id = row
@@ -612,7 +616,6 @@ fn PhoneRow(
             None => host.open_block(id, shown.block_type),
         }
     });
-    let more = clone!(row -> move || set_acting.set(row.get_untracked()));
     let muted_icon = theme.text_muted.clone();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
@@ -654,44 +657,38 @@ fn PhoneRow(
                     on_click={entering.clone()}
                 />
             </Show>
-            <IconButton
-                @test_id={more_id}
-                glyph={ICON_MORE_VERT.to_owned()}
-                label="More actions"
-                on_click={more}
-            />
+            <RowMenu @test_id={more_id} tools row={row.clone()} />
         </List>
     }
 }
 
-#[component]
-fn RowActions(
+#[derive(Clone)]
+struct RowTools {
     editor: Editor,
     tree: Rc<FileTree>,
     picker: Rc<Picker>,
     exporter: Rc<Exporter>,
     inspect: WriteSignal<Option<Inspection>>,
-    acting: ReadSignal<Option<Row>>,
-    set_acting: WriteSignal<Option<Row>>,
     set_level: WriteSignal<Level>,
-) -> NodeId {
-    let open = create_memo(clone!(acting -> move || acting.get().is_some()));
-    let row = create_memo(clone!(acting -> move || acting.get()));
-    let adding = Rc::clone(&picker);
-    let chosen = Rc::new(menu_action(
-        editor.clone(),
+}
+
+#[component]
+fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
+    let RowTools {
+        editor,
         tree,
         picker,
         exporter,
         inspect,
-        row.clone(),
-    ));
+        set_level,
+    } = tools;
+    let adding = Rc::clone(&picker);
+    let chosen = menu_action(editor.clone(), tree, picker, exporter, inspect, row.clone());
     let add_editor = editor.clone();
-    let add_inside = clone!(row set_acting -> move || {
+    let add_inside = clone!(row -> move || {
         let Some(id) = row.get_untracked().and_then(|row| row.id) else {
             return;
         };
-        set_acting.set(None);
         adding.open_placed(&add_editor, Some(id), [id].into_iter().collect());
     });
     let off = |test: fn(&Row) -> bool| {
@@ -707,29 +704,17 @@ fn RowActions(
     let undeletable = off(|row| row.can_delete);
     let uninspectable = off(|row| row.inspection.is_some());
     let unexportable = off(|row| row.access.can_view() && exportable(row.block_type));
-    let name =
-        create_memo(clone!(row -> move || row.get().map(|row| row.label).unwrap_or_default()));
     let delete_label = create_memo(clone!(row -> move || {
         match row.get().is_some_and(|row| row.is_reference) {
             true => "Remove link".to_owned(),
             false => "Delete".to_owned(),
         }
     }));
-    let running = set_acting.clone();
-    let run = move |path: &'static [usize]| {
-        let chosen = Rc::clone(&chosen);
-        let set_acting = running.clone();
-        move || {
-            chosen(path.to_vec());
-            set_acting.set(None);
-        }
-    };
     let host = editor.host().clone();
-    let opening = clone!(row set_acting -> move || {
+    let opening = clone!(row -> move || {
         let Some(shown) = row.get_untracked() else {
             return;
         };
-        set_acting.set(None);
         if drills_in(&shown) {
             let Some(id) = shown.id else {
                 return;
@@ -749,80 +734,81 @@ fn RowActions(
             None => host.open_block(id, shown.block_type),
         }
     });
-    let closing = set_acting.clone();
     view! {
-        <ModalSheet open={open} fit=true on_close={move || closing.set(None)}>
-            <Frame padding_horizontal=PADDING padding_vertical=PADDING>
-                <List spacing=0.0>
-                    <Frame padding_horizontal=12.0 padding_vertical=PADDING>
-                        <Heading content={name} />
-                    </Frame>
-                    <ActionRow
-                        @test_id={"file-tree.actions.open"}
-                        label="Open"
-                        glyph={ICON_OPEN_IN_NEW.to_owned()}
-                        disabled={unviewable}
-                        on_click={opening}
-                    />
-                    <ActionRow
-                        @test_id={"file-tree.actions.add"}
-                        label="New file inside"
-                        glyph={ICON_NOTE_ADD.to_owned()}
-                        disabled={unaddable}
-                        on_click={add_inside}
-                    />
-                    <ActionRow
-                        @test_id={"file-tree.actions.rename"}
-                        label="Rename"
-                        glyph={ICON_DRIVE_FILE_RENAME_OUTLINE.to_owned()}
-                        disabled={uneditable}
-                        on_click={run(&[2])}
-                    />
-                    <ActionRow
-                        @test_id={"file-tree.actions.share"}
-                        label="Share"
-                        glyph={ICON_SHARE.to_owned()}
-                        disabled={unshareable}
-                        on_click={run(&[3])}
-                    />
-                    <ActionRow
-                        @test_id={"file-tree.actions.top"}
-                        label="Move to the top level"
-                        glyph={ICON_MOVE_UP.to_owned()}
-                        disabled={unmovable}
-                        on_click={run(&[1, 0])}
-                    />
-                    <ActionRow
-                        @test_id={"file-tree.actions.unlink"}
-                        label="Unlink"
-                        glyph={ICON_LINK_OFF.to_owned()}
-                        disabled={unlinkable}
-                        on_click={run(&[4])}
-                    />
-                    <ActionRow
-                        @test_id={"file-tree.actions.inspect"}
-                        label="Inspect"
-                        glyph={ICON_INFO.to_owned()}
-                        disabled={uninspectable}
-                        on_click={run(&[6])}
-                    />
-                    <ActionRow
-                        @test_id={"file-tree.actions.export"}
-                        label="Export"
-                        glyph={ICON_FILE_DOWNLOAD.to_owned()}
-                        disabled={unexportable}
-                        on_click={run(&[7])}
-                    />
-                    <ActionRow
-                        @test_id={"file-tree.actions.delete"}
-                        label={delete_label}
-                        glyph={ICON_DELETE.to_owned()}
-                        disabled={undeletable}
-                        danger=true
-                        on_click={run(&[5])}
-                    />
-                </List>
-            </Frame>
-        </ModalSheet>
+        <IconMenuButton
+            variant=ButtonVariant::Secondary
+            glyph={ICON_MORE_VERT.to_owned()}
+            label="More actions"
+            items={view! {
+                <MenuItem
+                    row_test_id={"file-tree.actions.open".to_owned()}
+                    label="Open"
+                    glyph={ICON_OPEN_IN_NEW.to_owned()}
+                    disabled={unviewable}
+                />
+                <MenuItem
+                    row_test_id={"file-tree.actions.add".to_owned()}
+                    label="New file inside"
+                    glyph={ICON_NOTE_ADD.to_owned()}
+                    disabled={unaddable}
+                />
+                <MenuItem
+                    row_test_id={"file-tree.actions.rename".to_owned()}
+                    label="Rename"
+                    glyph={ICON_DRIVE_FILE_RENAME_OUTLINE.to_owned()}
+                    disabled={uneditable}
+                />
+                <MenuItem
+                    row_test_id={"file-tree.actions.share".to_owned()}
+                    label="Share"
+                    glyph={ICON_SHARE.to_owned()}
+                    disabled={unshareable}
+                />
+                <MenuItem
+                    row_test_id={"file-tree.actions.top".to_owned()}
+                    label="Move to the top level"
+                    glyph={ICON_MOVE_UP.to_owned()}
+                    disabled={unmovable}
+                />
+                <MenuItem
+                    row_test_id={"file-tree.actions.unlink".to_owned()}
+                    label="Unlink"
+                    glyph={ICON_LINK_OFF.to_owned()}
+                    disabled={unlinkable}
+                />
+                <MenuItem
+                    row_test_id={"file-tree.actions.inspect".to_owned()}
+                    label="Inspect"
+                    glyph={ICON_INFO.to_owned()}
+                    disabled={uninspectable}
+                />
+                <MenuItem
+                    row_test_id={"file-tree.actions.export".to_owned()}
+                    label="Export"
+                    glyph={ICON_FILE_DOWNLOAD.to_owned()}
+                    disabled={unexportable}
+                />
+                <MenuItem
+                    row_test_id={"file-tree.actions.delete".to_owned()}
+                    label={delete_label}
+                    glyph={ICON_DELETE.to_owned()}
+                    disabled={undeletable}
+                    danger=true
+                    separated=true
+                />
+            }}
+            on_select={move |path: Vec<usize>| match path.as_slice() {
+                [0] => opening(),
+                [1] => add_inside(),
+                [2] => chosen(vec![2]),
+                [3] => chosen(vec![3]),
+                [4] => chosen(vec![1, 0]),
+                [5] => chosen(vec![4]),
+                [6] => chosen(vec![6]),
+                [7] => chosen(vec![7]),
+                [8] => chosen(vec![5]),
+                _ => {}
+            }}
+        />
     }
 }

@@ -4,34 +4,34 @@ use base_pages::{
 use beui::datetime::{Date, DateTime, HourCycle, Time};
 use beui::icons::{
     ICON_ACCOUNT_TREE, ICON_ALT_ROUTE, ICON_BUG_REPORT, ICON_CALENDAR_MONTH, ICON_CODE,
-    ICON_CONTENT_COPY, ICON_CONTRAST, ICON_CROP_SQUARE, ICON_DASHBOARD, ICON_DELETE,
-    ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT, ICON_FLIP_TO_FRONT, ICON_GRID_VIEW, ICON_INPUT,
-    ICON_LAYERS, ICON_LIST, ICON_MENU, ICON_MOUSE, ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE,
-    ICON_PLAY_ARROW, ICON_RADIO_BUTTON_CHECKED, ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR,
-    ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE,
-    ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_WIDGETS,
+    ICON_CONTENT_COPY, ICON_CONTENT_PASTE, ICON_CONTRAST, ICON_CROP_SQUARE, ICON_DASHBOARD,
+    ICON_DELETE, ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT, ICON_FLIP_TO_FRONT, ICON_GRID_VIEW,
+    ICON_INPUT, ICON_LAYERS, ICON_LINK, ICON_LIST, ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_NOTES,
+    ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW, ICON_RADIO_BUTTON_CHECKED, ICON_SHARE,
+    ICON_SMART_BUTTON, ICON_STAR, ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON,
+    ICON_TOUCH_APP, ICON_TUNE, ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_WIDGETS,
 };
 use beui::reactive::{
     Align, Callback, Canvas, CanvasItem, CanvasView, Child, Children, ClickCallback, ForEach,
     Frame, Func, Justify, List, ListChild, Memo, Prop, ReadSignal, Selector, Show, Spacer,
-    SpanStyle, Text, TextSpan, VirtualList, WriteSignal, build, clone, create_memo,
+    SpanStyle, Text, TextSpan, VirtualList, WriteSignal, batch, build, clone, create_memo,
     create_selector, create_signal, focus_ring, provide_context, use_context, view, with_document,
 };
 use beui::styled::DocumentTheme;
 use beui::styled::theme::{CARD_RADIUS, FONT_SMALL, NARROW_WIDTH, RADIUS};
 use beui::styled::{
     Accordion, ActionRow, Body, Bordered, Button, ButtonVariant, Calendar, Caption, Card, Checkbox,
-    Chip, Code, ColorInput, ColorPicker, ContextMenu, DateTimeField, Dialog, Display, DockArea,
-    Fullscreen, Heading, Icon, IconButton, IconButtonSize, IconSized, Link, ListRow, Listbox,
-    MenuButton, ModalSheet, NumberInput, Paragraph, Popover, Progress, RadioGroup, ResponsiveTabs,
-    Scroll, Select, SelectableText, Separator, Shortcut, Slider, Spinner, SplitButton, Stack,
-    Switch, Tabs, TextArea, TextInput, Theme, ThemeProvider, Title, ToggleButton, Tooltip, Tree,
-    TreeRowFace, use_theme,
+    Chip, Code, ColorInput, ColorPicker, ColorWheel, ContextMenu, DateTimeField, Dialog, Display,
+    Docking, FocusRing, Fullscreen, Heading, Icon, IconButton, IconButtonSize, IconSized, Link,
+    ListRow, Listbox, MenuButton, ModalSheet, NumberInput, OklchColorWheel, Paragraph, Popover,
+    Progress, RadioGroup, ResponsiveTabs, Scroll, Select, SelectableText, Separator, Shortcut,
+    Slider, Spinner, SplitButton, Stack, Switch, Tabs, TextArea, TextInput, Theme, ThemeProvider,
+    Title, ToggleButton, Tooltip, Tree, TreeRowFace, use_theme,
 };
 use beui::unstyled::{
-    ChoiceOption, Container, DateTimeParts, DockMode, DockState, MAX_SCALE, MIN_SCALE, PanZoom,
-    PanZoomHandle, PanZoomView, PopoverHandle, Side, SliderScale, SyntaxColors, TabId,
-    TextAreaState, TreeItem, dock_actions, narrower_than,
+    ChoiceOption, Container, DateTimeParts, DockMode, DockPane, DockSplit, DockTab, DockingLayout,
+    MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, PopoverHandle, SliderScale,
+    SyntaxColors, TabId, TextAreaState, TreeItem, dock_actions, narrower_than,
 };
 use beui::{
     Color32, Context, Direction, Document, FontId, ItemSize, NodeId, Rect, TextAlign, unstyled,
@@ -40,8 +40,9 @@ use beui_macros::{component, sample};
 use sample::{Sample, ScrollPage};
 use std::sync::Arc;
 use styled_pages::{
-    ButtonsPage, CanvasPage, ChoicesPage, DockingPage, EditorPage, InputsPage, LabelledSwitch,
-    LayoutPage, MenusPage, OverlaysPage, PickersPage, RowsPage, TextPage, ThemesPage, TreePage,
+    ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage, InputsPage,
+    LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage, RowsPage, TextPage,
+    ThemesPage, TreePage,
 };
 use text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
@@ -97,15 +98,17 @@ enum Page {
     ControlFlow,
     Interaction,
     Layering,
+    Colors,
 }
 
-const STYLED_PAGES: [Page; 14] = [
+const STYLED_PAGES: [Page; 15] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
     Page::Choices,
     Page::Pickers,
+    Page::Colors,
     Page::Menus,
     Page::Overlays,
     Page::Rows,
@@ -134,13 +137,14 @@ const BASE_PAGES: [Page; 6] = [
     Page::Layering,
 ];
 
-const PAGES: [Page; 26] = [
+const PAGES: [Page; 27] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
     Page::Inputs,
     Page::Choices,
     Page::Pickers,
+    Page::Colors,
     Page::Menus,
     Page::Overlays,
     Page::Rows,
@@ -180,6 +184,7 @@ impl Page {
             Page::Inputs => "Inputs",
             Page::Choices => "Choices",
             Page::Pickers => "Pickers",
+            Page::Colors => "Colors",
             Page::Menus => "Menus",
             Page::Overlays => "Overlays",
             Page::Rows => "Rows",
@@ -211,6 +216,7 @@ impl Page {
             Page::Inputs => ICON_TOGGLE_ON,
             Page::Choices => ICON_RADIO_BUTTON_CHECKED,
             Page::Pickers => ICON_CALENDAR_MONTH,
+            Page::Colors => ICON_PALETTE,
             Page::Menus => ICON_MENU,
             Page::Overlays => ICON_LAYERS,
             Page::Rows => ICON_LIST,
@@ -241,7 +247,8 @@ impl Page {
             Page::Buttons => "Buttons, icon buttons, tooltips",
             Page::Inputs => "Fields, switches, sliders, progress",
             Page::Choices => "Radio groups, listboxes, tabs",
-            Page::Pickers => "Dates, times and colors",
+            Page::Pickers => "Dates and times",
+            Page::Colors => "Color inputs, pickers and wheels",
             Page::Menus => "Context, menu and split buttons",
             Page::Overlays => "Popovers, dialogs, sheets",
             Page::Rows => "Virtual lists of thousands of rows",
@@ -310,79 +317,55 @@ impl beui::App for DemoApp {
     }
 }
 
-fn starting_state() -> DockState {
-    let mut state = DockState::new([CATALOG]);
-    let catalog = state.leaves(state.main())[0];
-    state.split(catalog, Side::Right, PAGE_SHARE, vec![Page::Docking.tab()]);
-    state
+#[derive(Clone)]
+struct Pages {
+    layout: DockingLayout<TabId>,
+    open: ReadSignal<Vec<Page>>,
+    set_open: WriteSignal<Vec<Page>>,
 }
 
-fn settled(mut state: DockState) -> DockState {
-    let open = state.all_tabs().into_iter().any(|tab| tab != CATALOG);
-    if open {
-        state.remove_empty_panes();
-        return state;
-    }
-    let catalog = state.find(CATALOG).map(|position| position.leaf);
-    let elsewhere = state
-        .leaves(state.main())
-        .into_iter()
-        .any(|leaf| Some(leaf) != catalog);
-    if let (false, Some(catalog)) = (elsewhere, catalog) {
-        state.split(catalog, Side::Right, PAGE_SHARE, Vec::new());
-    }
-    state
-}
-
-fn open(state: &mut DockState, tab: TabId) {
-    if state.contains(tab) {
-        state.show(tab);
-        return;
-    }
-    let catalog = state.find(CATALOG).map(|position| position.leaf);
-    let elsewhere = state
-        .surfaces()
-        .into_iter()
-        .flat_map(|surface| state.leaves(surface))
-        .find(|leaf| Some(*leaf) != catalog);
-    let target = state
-        .focused_leaf()
-        .filter(|leaf| Some(*leaf) != catalog)
-        .or(elsewhere);
-    match (target, catalog) {
-        (Some(leaf), _) => state.push(leaf, tab),
-        (None, Some(catalog)) => {
-            state.split(catalog, Side::Right, PAGE_SHARE, vec![tab]);
+impl Pages {
+    fn new() -> Self {
+        let (open, set_open) = create_signal(vec![Page::Docking]);
+        Self {
+            layout: DockingLayout::new(),
+            open,
+            set_open,
         }
-        (None, None) => state.push_to_focused(tab),
     }
-    state.show(tab);
-}
 
-fn active_page(state: &DockState) -> Option<Page> {
-    state
-        .recent_tabs()
-        .into_iter()
-        .filter(|tab| *tab != CATALOG)
-        .find(|tab| {
+    fn open(&self, page: Page) {
+        match self.open.with_untracked(|open| open.contains(&page)) {
+            true => self.layout.show(&page.tab()),
+            false => self.set_open.update(|open| open.push(page)),
+        }
+    }
+
+    fn close(&self, page: Page) {
+        self.set_open
+            .update(|open| open.retain(|other| *other != page));
+    }
+
+    fn reset(&self) {
+        batch(|| {
+            self.set_open.set(vec![Page::Docking]);
+            self.layout.reset();
+        });
+    }
+
+    fn active(&self) -> Option<Page> {
+        self.layout.state().with(|state| {
             state
-                .find(*tab)
-                .is_some_and(|position| state.active_tab(position.leaf) == Some(*tab))
+                .recent_tabs()
+                .into_iter()
+                .filter(|tab| *tab != CATALOG)
+                .find(|tab| {
+                    state
+                        .find(*tab)
+                        .is_some_and(|position| state.active_tab(position.leaf) == Some(*tab))
+                })
+                .and_then(Page::of)
         })
-        .and_then(Page::of)
-}
-
-fn tab_title(tab: TabId) -> String {
-    match Page::of(tab) {
-        Some(page) => page.title().to_owned(),
-        None => "Components".to_owned(),
-    }
-}
-
-fn tab_icon(tab: TabId) -> String {
-    match Page::of(tab) {
-        Some(page) => page.icon().to_owned(),
-        None => ICON_WIDGETS.to_owned(),
     }
 }
 
@@ -390,7 +373,7 @@ fn tab_icon(tab: TabId) -> String {
 #[component]
 fn DemoShell() -> NodeId {
     let theme = use_theme();
-    let (state, set_state) = create_signal(starting_state());
+    let pages = Pages::new();
     let (mobile, set_mobile) = create_signal(false);
     let narrow = narrower_than(NARROW_WIDTH);
     let mode = create_memo(clone!(mobile narrow -> move || {
@@ -399,135 +382,137 @@ fn DemoShell() -> NodeId {
             false => DockMode::Tiled,
         }
     }));
-    let catalog_state = set_state.clone();
-    let active = create_selector(clone!(state -> move || active_page(&state.get())));
-    let toolbar_state = set_state.clone();
+    let active = create_selector(clone!(pages -> move || pages.active()));
+    let layout = pages.layout.clone();
+    let open = pages.open.clone();
+    let catalog = pages.clone();
+    let toolbar = pages.clone();
     view! {
         <Frame color={theme.background.clone()}>
             <List spacing=0.0>
                 <Frame padding_horizontal=SHELL_PADDING padding_vertical=SHELL_PADDING>
-                    <DemoToolbar set_state=toolbar_state mobile set_mobile />
+                    <DemoToolbar pages=toolbar mobile set_mobile />
                 </Frame>
                 <Separator />
-                <DockArea
-                    @sizing=ItemSize::Percent(100.0)
-                    state={state}
-                    mode={mode}
-                    home={Some(CATALOG)}
-                    title={Func::new(tab_title)}
-                    icon={Func::new(tab_icon)}
-                    closable={Func::new(|tab: TabId| tab != CATALOG)}
-                    on_change={move |next: DockState| set_state.set(settled(next))}
-                    on_close={move |_: TabId| {}}
-                    empty={move || view! {
-                        <EmptyPanel />
-                    }}
-                >
-                    {move |tab: TabId| {
-                        let set_state = catalog_state.clone();
-                        let active = active.clone();
-                        match Page::of(tab) {
-                            None => view! {
-                                <CatalogPanel set_state active />
-                            },
-                            Some(page) => view! {
-                                <Container @test_id={format!("demo.page.{}", page.title())}>
-                                    {move |_| match page {
-                                        Page::Docking => view! {
-                                            <DockingPage />
-                                        },
-                                        Page::Text => view! {
-                                            <TextPage />
-                                        },
-                                        Page::Buttons => view! {
-                                            <ButtonsPage />
-                                        },
-                                        Page::Inputs => view! {
-                                            <InputsPage />
-                                        },
-                                        Page::Choices => view! {
-                                            <ChoicesPage />
-                                        },
-                                        Page::Pickers => view! {
-                                            <PickersPage />
-                                        },
-                                        Page::Menus => view! {
-                                            <MenusPage />
-                                        },
-                                        Page::Overlays => view! {
-                                            <OverlaysPage />
-                                        },
-                                        Page::Rows => view! {
-                                            <RowsPage />
-                                        },
-                                        Page::Tree => view! {
-                                            <TreePage />
-                                        },
-                                        Page::Layout => view! {
-                                            <LayoutPage />
-                                        },
-                                        Page::Editor => view! {
-                                            <EditorPage />
-                                        },
-                                        Page::Canvas => view! {
-                                            <CanvasPage />
-                                        },
-                                        Page::Themes => view! {
-                                            <ThemesPage />
-                                        },
-                                        Page::Pressing => view! {
-                                            <PressingPage />
-                                        },
-                                        Page::Values => view! {
-                                            <ValuesPage />
-                                        },
-                                        Page::Selecting => view! {
-                                            <SelectingPage />
-                                        },
-                                        Page::Popups => view! {
-                                            <PopupsPage />
-                                        },
-                                        Page::Dragging => view! {
-                                            <DraggingPage />
-                                        },
-                                        Page::Scrolling => view! {
-                                            <ScrollingPage />
-                                        },
-                                        Page::Frames => view! {
-                                            <FramesPage />
-                                        },
-                                        Page::TextNodes => view! {
-                                            <TextNodesPage />
-                                        },
-                                        Page::Lists => view! {
-                                            <ListsPage />
-                                        },
-                                        Page::ControlFlow => view! {
-                                            <ControlFlowPage />
-                                        },
-                                        Page::Interaction => view! {
-                                            <InteractionPage />
-                                        },
-                                        Page::Layering => view! {
-                                            <LayeringPage />
-                                        },
-                                    }}
-                                </Container>
-                            },
-                        }
-                    }}
-                </DockArea>
+                <Docking @sizing=ItemSize::Percent(100.0) layout mode home=CATALOG>
+                    <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
+                        <DockPane id="catalog">
+                            <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>
+                                <CatalogPanel pages={catalog.clone()} active={active.clone()} />
+                            </DockTab>
+                        </DockPane>
+                        <DockPane
+                            id="pages"
+                            empty={move || view! {
+                                <EmptyPanel />
+                            }}
+                        >
+                            <ForEach keys={open}>
+                                {move |page: Page| clone!(pages -> view! {
+                                    <DockTab
+                                        id={page.tab()}
+                                        title={page.title()}
+                                        icon={page.icon()}
+                                        on_close={move || pages.close(page)}
+                                    >
+                                        <Container @test_id={format!("demo.page.{}", page.title())}>
+                                            {move |_| match page {
+                                                Page::Docking => view! {
+                                                    <DockingPage />
+                                                },
+                                                Page::Text => view! {
+                                                    <TextPage />
+                                                },
+                                                Page::Buttons => view! {
+                                                    <ButtonsPage />
+                                                },
+                                                Page::Inputs => view! {
+                                                    <InputsPage />
+                                                },
+                                                Page::Choices => view! {
+                                                    <ChoicesPage />
+                                                },
+                                                Page::Pickers => view! {
+                                                    <PickersPage />
+                                                },
+                                                Page::Colors => view! {
+                                                    <ColorsPage />
+                                                },
+                                                Page::Menus => view! {
+                                                    <MenusPage />
+                                                },
+                                                Page::Overlays => view! {
+                                                    <OverlaysPage />
+                                                },
+                                                Page::Rows => view! {
+                                                    <RowsPage />
+                                                },
+                                                Page::Tree => view! {
+                                                    <TreePage />
+                                                },
+                                                Page::Layout => view! {
+                                                    <LayoutPage />
+                                                },
+                                                Page::Editor => view! {
+                                                    <EditorPage />
+                                                },
+                                                Page::Canvas => view! {
+                                                    <CanvasPage />
+                                                },
+                                                Page::Themes => view! {
+                                                    <ThemesPage />
+                                                },
+                                                Page::Pressing => view! {
+                                                    <PressingPage />
+                                                },
+                                                Page::Values => view! {
+                                                    <ValuesPage />
+                                                },
+                                                Page::Selecting => view! {
+                                                    <SelectingPage />
+                                                },
+                                                Page::Popups => view! {
+                                                    <PopupsPage />
+                                                },
+                                                Page::Dragging => view! {
+                                                    <DraggingPage />
+                                                },
+                                                Page::Scrolling => view! {
+                                                    <ScrollingPage />
+                                                },
+                                                Page::Frames => view! {
+                                                    <FramesPage />
+                                                },
+                                                Page::TextNodes => view! {
+                                                    <TextNodesPage />
+                                                },
+                                                Page::Lists => view! {
+                                                    <ListsPage />
+                                                },
+                                                Page::ControlFlow => view! {
+                                                    <ControlFlowPage />
+                                                },
+                                                Page::Interaction => view! {
+                                                    <InteractionPage />
+                                                },
+                                                Page::Layering => view! {
+                                                    <LayeringPage />
+                                                },
+                                            }}
+                                        </Container>
+                                    </DockTab>
+                                })}
+                            </ForEach>
+                        </DockPane>
+                    </DockSplit>
+                </Docking>
             </List>
         </Frame>
     }
 }
 
 #[component]
-fn DemoToolbar(
-    set_state: WriteSignal<DockState>,
-    mobile: ReadSignal<bool>,
-    set_mobile: WriteSignal<bool>,
-) -> NodeId {
+fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<bool>) -> NodeId {
     let (eink, set_eink) = create_signal(false);
     let narrow = narrower_than(NARROW_WIDTH);
     let wide = create_memo(clone!(narrow -> move || !narrow.get()));
@@ -568,16 +553,16 @@ fn DemoToolbar(
             <Button
                 label="Reset layout"
                 variant=ButtonVariant::Secondary
-                on_click={move || set_state.set(settled(starting_state()))}
+                on_click={move || pages.reset()}
             />
         </List>
     }
 }
 
 #[component]
-fn CatalogPanel(set_state: WriteSignal<DockState>, active: Selector<Option<Page>>) -> NodeId {
-    let unstyled_state = set_state.clone();
-    let base_state = set_state.clone();
+fn CatalogPanel(pages: Pages, active: Selector<Option<Page>>) -> NodeId {
+    let unstyled_pages = pages.clone();
+    let base_pages = pages.clone();
     view! {
         <Scroll>
             <Frame padding_horizontal=CATALOG_PADDING padding_vertical=CATALOG_PADDING>
@@ -585,22 +570,22 @@ fn CatalogPanel(set_state: WriteSignal<DockState>, active: Selector<Option<Page>
                     <CatalogGroup
                         title="Styled"
                         summary="Components painted with the theme"
-                        pages={STYLED_PAGES.to_vec()}
-                        set_state
+                        listed={STYLED_PAGES.to_vec()}
+                        pages
                         active={active.clone()}
                     />
                     <CatalogGroup
                         title="Unstyled"
                         summary="Behaviour only: you paint them"
-                        pages={UNSTYLED_PAGES.to_vec()}
-                        set_state=unstyled_state
+                        listed={UNSTYLED_PAGES.to_vec()}
+                        pages=unstyled_pages
                         active={active.clone()}
                     />
                     <CatalogGroup
                         title="Base"
                         summary="The nodes everything is built from"
-                        pages={BASE_PAGES.to_vec()}
-                        set_state=base_state
+                        listed={BASE_PAGES.to_vec()}
+                        pages=base_pages
                         active
                     />
                 </List>
@@ -613,8 +598,8 @@ fn CatalogPanel(set_state: WriteSignal<DockState>, active: Selector<Option<Page>
 fn CatalogGroup(
     title: &'static str,
     summary: &'static str,
-    pages: Vec<Page>,
-    set_state: WriteSignal<DockState>,
+    listed: Vec<Page>,
+    pages: Pages,
     active: Selector<Option<Page>>,
 ) -> NodeId {
     view! {
@@ -625,12 +610,12 @@ fn CatalogGroup(
                     <Caption content={summary} ellipsis=true />
                 </List>
             </Frame>
-            <ForEach keys={pages}>
+            <ForEach keys={listed}>
                 {move |page: Page| {
-                    let set_state = set_state.clone();
+                    let pages = pages.clone();
                     let selected = active.memo(Some(page));
                     view! {
-                        <CatalogRow page set_state selected />
+                        <CatalogRow page pages selected />
                     }
                 }}
             </ForEach>
@@ -639,17 +624,12 @@ fn CatalogGroup(
 }
 
 #[component]
-fn CatalogRow(page: Page, set_state: WriteSignal<DockState>, selected: Memo<bool>) -> NodeId {
+fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
     view! {
         <ListRow
             @test_id={format!("demo.catalog.{}", page.title())}
             selected
-            on_click={move || {
-                set_state.update(|state| {
-                    open(state, page.tab());
-                    *state = settled(state.clone());
-                });
-            }}
+            on_click={move || pages.open(page)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=CATALOG_SPACING>
                 <Icon glyph={page.icon()} />

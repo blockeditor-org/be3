@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::{ToTokens, format_ident, quote, quote_spanned};
+use quote::{format_ident, quote, quote_spanned};
 use syn::braced;
 use syn::parenthesized;
 use syn::parse::{Parse, ParseStream};
@@ -23,7 +23,9 @@ struct Prop {
     is_child: bool,
     is_optional_child: bool,
     callback_signature: Option<proc_macro2::TokenStream>,
+    optional_callback_signature: Option<proc_macro2::TokenStream>,
     is_click_callback: bool,
+    is_optional_click_callback: bool,
     default: Option<Expr>,
     is_children_slot: bool,
 }
@@ -269,6 +271,16 @@ fn named_setter(prop: &Prop) -> Setter {
         func_setter(ident, args, |build| quote! { Some(#build) })
     } else if let Some(args) = &prop.func_args {
         func_setter(ident, args, |build| build)
+    } else if prop.is_optional_click_callback {
+        plain(
+            quote! { value: impl ::core::ops::FnMut() + 'static },
+            quote! { Some(::beui::reactive::ClickCallback::new(value)) },
+        )
+    } else if let Some(signature) = &prop.optional_callback_signature {
+        plain(
+            quote! { value: impl #signature + 'static },
+            quote! { Some(::beui::reactive::Callback::new(value)) },
+        )
     } else if let Some(inner_ty) = &prop.optional_reactive_inner_ty {
         plain(
             quote! { value: impl ::beui::reactive::IntoProp<#inner_ty> },
@@ -280,8 +292,13 @@ fn named_setter(prop: &Prop) -> Setter {
                 quote! { value: impl Into<String> },
                 quote! { Some(value.into()) },
             )
-        } else {
+        } else if is_primitive_type(inner_ty) {
             plain(quote! { value: #inner_ty }, quote! { Some(value) })
+        } else {
+            plain(
+                quote! { value: impl Into<Option<#inner_ty>> },
+                quote! { value.into() },
+            )
         }
     } else if prop.is_click_callback {
         plain(
@@ -419,6 +436,19 @@ fn is_string_type(ty: &Type) -> bool {
     segment.ident == "String" && matches!(segment.arguments, PathArguments::None)
 }
 
+fn is_primitive_type(ty: &Type) -> bool {
+    const PRIMITIVES: [&str; 15] = [
+        "bool", "char", "f32", "f64", "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16",
+        "u32", "u64", "usize",
+    ];
+    let Type::Path(path) = ty else {
+        return false;
+    };
+    path.path
+        .get_ident()
+        .is_some_and(|ident| PRIMITIVES.iter().any(|primitive| ident == primitive))
+}
+
 fn is_named_type(ty: &Type, name: &str) -> bool {
     let Type::Path(path) = ty else {
         return false;
@@ -437,45 +467,6 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
         Ok(expanded) => expanded.into(),
         Err(error) => error.to_compile_error().into(),
     }
-}
-
-fn node_watcher(tokens: proc_macro2::TokenStream) -> Option<proc_macro2::Ident> {
-    const WATCHERS: [&str; 5] = [
-        "set_component_state",
-        "component_accessibility",
-        "component_size",
-        "component_rect",
-        "component_placed",
-    ];
-    tokens.into_iter().find_map(|token| match token {
-        proc_macro2::TokenTree::Ident(ident)
-            if WATCHERS.iter().any(|watcher| ident == *watcher) =>
-        {
-            Some(ident)
-        }
-        proc_macro2::TokenTree::Group(group) => node_watcher(group.stream()),
-        _ => None,
-    })
-}
-
-fn respanned(
-    tokens: proc_macro2::TokenStream,
-    span: proc_macro2::Span,
-) -> proc_macro2::TokenStream {
-    tokens
-        .into_iter()
-        .map(|mut token| {
-            if let proc_macro2::TokenTree::Group(group) = &token {
-                let mut inner =
-                    proc_macro2::Group::new(group.delimiter(), respanned(group.stream(), span));
-                inner.set_span(span);
-                token = proc_macro2::TokenTree::Group(inner);
-            } else {
-                token.set_span(span);
-            }
-            token
-        })
-        .collect()
 }
 
 fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
@@ -516,6 +507,14 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
                 .then(|| callback_signature(ty))
                 .transpose()?;
             let inner_ty = generic_inner(ty, "Option");
+            let is_optional_click_callback = inner_ty
+                .as_ref()
+                .is_some_and(|inner| is_named_type(inner, "ClickCallback"));
+            let optional_callback_signature = inner_ty
+                .as_ref()
+                .filter(|inner| is_named_type(inner, "Callback"))
+                .map(crate::callback_signature)
+                .transpose()?;
             let optional_reactive_inner_ty = inner_ty
                 .as_ref()
                 .and_then(|inner| generic_inner(inner, "Prop"));
@@ -541,7 +540,9 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
                 is_child,
                 is_optional_child,
                 callback_signature,
+                optional_callback_signature,
                 is_click_callback: is_named_type(ty, "ClickCallback"),
+                is_optional_click_callback,
                 default,
                 is_children_slot: children,
             })
@@ -677,7 +678,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let field_idents: Vec<Ident> = props
         .iter()
         .map(|prop| prop.ident.clone())
-        .chain([format_ident!("with_node")])
+        .chain([format_ident!("with_built")])
         .chain(phantom_field.is_some().then(|| phantom_ident.clone()))
         .collect();
 
@@ -888,18 +889,8 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         }
     };
 
-    let needs_node = node_watcher(block.to_token_stream()).map(|watcher| {
-        let output_ty = respanned(output_ty.clone(), watcher.span());
-        quote_spanned! {watcher.span()=>
-            fn __watches_its_node<T: ::beui::reactive::WatchedNode + ?::core::marker::Sized>() {}
-            __watches_its_node::<#output_ty>();
-        }
-    });
     let finish = quote! {
-        ::beui::reactive::component(#name, move || {
-            #needs_node
-            #block
-        })
+        ::beui::reactive::component(#name, move || #block)
     };
 
     Ok(quote! {
@@ -908,7 +899,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         #(#attrs)*
         #vis struct #builder_ident #decl_generics #where_clause {
             #(#fields,)*
-            with_node: ::std::vec::Vec<::std::boxed::Box<dyn ::core::ops::FnOnce(&#output_ty)>>,
+            with_built: ::std::vec::Vec<::std::boxed::Box<dyn ::core::ops::FnOnce(&#output_ty)>>,
             #phantom_field
         }
 
@@ -916,7 +907,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         #vis fn #component_ident #component_generics () -> #builder_default #where_clause {
             #builder_ident {
                 #(#init_fields,)*
-                with_node: ::std::vec::Vec::new(),
+                with_built: ::std::vec::Vec::new(),
                 #phantom_init
             }
         }
@@ -924,31 +915,16 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         impl #all_generics #builder_all #where_clause {
             #(#optional_methods)*
 
-            pub fn with_test_id(
-                mut self,
-                value: impl ::beui::reactive::IntoProp<String>,
-            ) -> Self
-            where
-                for<'built> #output_ty: ::beui::reactive::BuildsNode,
-            {
-                let test_id = ::beui::reactive::IntoProp::into_prop(value);
-                self.with_node.push(::std::boxed::Box::new(move |built: &#output_ty| {
-                    ::beui::reactive::bind_test_id(
-                        ::beui::reactive::BuildsNode::built_node(built),
-                        test_id,
-                    )
-                }));
-                self
-            }
+        }
 
-            pub fn with_node_ref(mut self, value: &::beui::reactive::NodeRef) -> Self
-            where
-                for<'built> #output_ty: ::beui::reactive::BuildsNode,
-            {
-                let node_ref = value.clone();
-                self.with_node.push(::std::boxed::Box::new(move |built: &#output_ty| {
-                    node_ref.fill(::beui::reactive::BuildsNode::built_node(built))
-                }));
+        impl #all_generics ::beui::reactive::ComponentBuilder for #builder_all #where_clause {
+            type Output = #output_ty;
+
+            fn with_built(
+                mut self,
+                bind: impl ::core::ops::FnOnce(&#output_ty) + 'static,
+            ) -> Self {
+                self.with_built.push(::std::boxed::Box::new(bind));
                 self
             }
         }
@@ -958,10 +934,10 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         impl #all_generics #builder_all #where_clause {
             #[track_caller]
             pub fn build(self) #output #build_where {
-                let with_node = self.with_node;
+                let with_built = self.with_built;
                 #(#field_lets)*
                 let node = #finish;
-                for bind in with_node {
+                for bind in with_built {
                     bind(&node);
                 }
                 node
@@ -1302,7 +1278,7 @@ fn expand_child_items(children: &[ViewChild]) -> Vec<proc_macro2::TokenStream> {
                 Some(sizing) => {
                     let value = &sizing.value;
                     quote_spanned! { sizing.span =>
-                        ::beui::reactive::into_segment(::beui::reactive::ListChild::new(#node, #value))
+                        ::beui::reactive::into_segment(::beui::reactive::with_sizing(#node, #value))
                     }
                 }
             }
@@ -1324,7 +1300,7 @@ fn expand_child_block(children: &[ViewChild]) -> proc_macro2::TokenStream {
         Some(sizing) => {
             let value = &sizing.value;
             quote_spanned! { sizing.span =>
-                ::beui::reactive::SingleChild(::beui::reactive::ListChild::new(#node, #value))
+                ::beui::reactive::SingleChild(::beui::reactive::with_sizing(#node, #value))
             }
         }
     }
@@ -1341,7 +1317,6 @@ fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
     let setters = node
         .props
         .iter()
-        .chain(node.specials.iter())
         .map(|prop| {
             let key = &prop.key;
             let value = &prop.value;
@@ -1351,9 +1326,17 @@ fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
 
     let tag = last.span();
     let build = format_ident!("build", span = tag);
+    let mut builder = quote_spanned! { tag => #component_path() #(#setters)* };
+    for special in &node.specials {
+        let key = &special.key;
+        let value = &special.value;
+        builder = quote_spanned! { key.span() =>
+            ::beui::reactive::#key(#builder, #value)
+        };
+    }
 
     match &node.children {
-        None => quote_spanned! { tag => #component_path() #(#setters)* .#build() },
+        None => quote_spanned! { tag => #builder .#build() },
         Some(children) => {
             if let [
                 ViewChild {
@@ -1363,14 +1346,14 @@ fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
             {
                 let children_render = format_ident!("children_render", span = tag);
                 return quote_spanned! { tag =>
-                    #component_path() #(#setters)* .#children_render(#closure) .#build()
+                    #builder .#children_render(#closure) .#build()
                 };
             }
             let items = expand_child_block(children);
             let block = quote_spanned! { tag => move || #items };
             let children_block = format_ident!("children_block", span = tag);
             quote_spanned! { tag =>
-                #component_path() #(#setters)* .#children_block(#block) .#build()
+                #builder .#children_block(#block) .#build()
             }
         }
     }
@@ -1401,7 +1384,7 @@ fn expand_view(view: &View) -> proc_macro2::TokenStream {
             Some(sizing) => {
                 let value = &sizing.value;
                 quote_spanned! { sizing.span =>
-                    ::beui::reactive::ListChild::new(#built, #value)
+                    ::beui::reactive::with_sizing(#built, #value)
                 }
             }
         };

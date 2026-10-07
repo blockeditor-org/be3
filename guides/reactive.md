@@ -3,8 +3,8 @@
 `crates/reactive` provides a dependency-free, single-threaded reactive graph. It
 is intended for retained UI bindings: create a node once, then use an effect to
 update its properties when the values it reads change. `beui::reactive` (in
-`crates/beui-view/src/reactive.rs`) is the adapter that connects it to beui's
-`Document`; see "beui integration" below.
+`crates/beui-tree` and `crates/beui-view/src/reactive.rs`) is the adapter that
+connects it to beui's components and `Document`; see "beui integration" below.
 
 ## Example
 
@@ -54,7 +54,7 @@ Dependencies are discovered on each execution. Conditional branches unsubscribe
 from inputs they no longer read. `untrack(|| ...)` disables subscription for its
 closure while preserving the current cleanup scope. Memo computations must be
 pure: writing a signal inside a memo panics, including inside `untrack`, and
-`./scripts/buck run //:verify` reports a `set`, `update` or `set_unconditionally`
+`./scripts/verify` reports a `set`, `update` or `set_unconditionally`
 written inside a `create_memo` closure outside tests.
 
 `with` holds a shared borrow for the closure; `update` holds a mutable borrow.
@@ -294,6 +294,19 @@ inside it, and the other document catches up the next time it is shown. A
 host driving several documents should give the others a frame when
 `zone_pending` says one of them is behind.
 
+## Pausing
+
+`Scope::detached().pausable()` (or `Scope::new().pausable()`, before anything
+is created in it) is a scope that can be paused. While `pause()` holds, an
+effect created under it that is woken waits instead of running, and
+`resume()` runs each one that waited once, with the values as they are by
+then. Memos are not paused, but they only compute when read, so a memo only
+paused effects read waits with them. An effect already woken when the scope
+pauses still runs, so the write that hides a subtree reaches it: an overlay
+inside closes rather than staying open. A scope inside a paused scope waits
+for it, whether or not it is paused itself. This is what keeps a hidden
+`ShowKeepAlive` child from doing work nobody can see.
+
 ## beui integration
 
 `beui::reactive` (re-exporting `create_signal`, `create_effect`, `create_memo`,
@@ -393,6 +406,11 @@ fn Badge(
 ) -> NodeId
 ```
 
+An `Option<T>` prop takes a plain `T`, and also an `Option<T>`, so a wrapper
+hands its own optional prop straight on with `action={action}`. Two kinds of `T`
+take only the plain value: a primitive such as `f32`, so a numeric literal keeps
+its type, and `String`, which takes anything that is `Into<String>`.
+
 `Option<Prop<T>>` settles at build time: the tag either wrote the attribute or
 it did not, and a signal behind it can only ever hand over another `T`. A prop
 that has to go back to "nothing" while it is alive — a `Frame` whose `width`
@@ -444,6 +462,9 @@ it takes exactly one and arrives as the `NodeId` itself, so wrappers use
 or more than one, does not compile. `Option<Child>` is the same for a wrapper
 whose child is optional, like `fill` or a `button` that takes `content` instead:
 none or one compiles and two do not, rather than the extras being dropped.
+Inside a list, `{child}` may also be an `Option<NodeId>`, with or without
+`@sizing`: `None` adds nothing. That is how a handle's optional part, such as a
+tab bar a pane may not have, is placed without a `Show` around an `unwrap`.
 A `Children` value cannot be handed to a `Child` or `Option<Child>` prop, since
 its arity is only known once it is built; a wrapper that forwards its children
 into a single-child slot declares that arity itself.

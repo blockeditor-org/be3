@@ -2,6 +2,7 @@ pub use be_block;
 pub use geometry;
 pub use reactive;
 
+mod clock;
 mod content;
 pub mod editor_session;
 pub mod fonts;
@@ -20,29 +21,32 @@ pub mod session;
 mod wasm;
 
 pub use block_plugin_api::{
-    AccessLevel, ArtifactAction, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockPick,
-    ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildStatus, ClipboardImage,
-    ConflictSide, CursorIcon, DataListing, EditorCapabilities, EditorInstanceId, EditorRegion,
-    FetchResult, FileSave, FrameChrome, FrameSpec, HostReply, HostRequest, InputEvent,
-    InteractionMode, Key, MenuEntry, Modifiers, Occluder, PointerButton, ResizeMode,
-    ScreenPlacement, SurfaceRect, TopBar, TouchPhase, VersionBranch, VersionChange,
-    VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand,
-    WebViewEvent, WebViewId, WheelUnit,
+    AccessGrant, AccessLevel, AccessListing, ArtifactAction, AudioStatus, BarAction, BlockCommand,
+    BlockFilter, BlockLocation, BlockPick, Catalog, ChildContent, ChildId, ChildLayer, ChildMode,
+    ChildPlacement, ChildStatus, ClipboardImage, ConflictSide, CreationProgress, CursorIcon,
+    DataListing, EditorCapabilities, EditorInstanceId, EditorRegion, FetchResult, FileSave,
+    FrameChrome, FrameSpec, HostPanel, HostReply, HostRequest, HostWindow, HostWindowId,
+    InputEvent, InteractionMode, Key, MenuEntry, Modifiers, Occluder, PointerButton, ResizeMode,
+    ScreenPlacement, SettingsProgress, ShellDialog, SurfaceRect, TemplateCategory,
+    TemplateDescriptor, TopBar, TouchPhase, VersionBranch, VersionChange, VersionChangeKind,
+    VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand, WebViewEvent,
+    WebViewId, WheelUnit,
 };
 pub use block_ui;
+pub use clock::{frame_time, utc_offset};
 pub use content::ContentProjection;
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, BlockPicker,
     ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HostContent,
-    ImagePaster, OpenRequest, PaneEvent, PastedImage, PeerPresence, PerformanceMeasurementGuard,
-    PerformanceReporter, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest,
-    ShownPresence, Waker,
+    ImagePaster, OpenRequest, PastedImage, PeerPresence, PerformanceMeasurementGuard,
+    PerformanceReporter, PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent,
+    ShowRequest, ShownPresence, Waker,
 };
-#[cfg(target_arch = "wasm32")]
-pub use plugin::PaintTarget;
 pub use plugin::{Frame, Ime, Instance, Plugin, Region};
+#[cfg(target_arch = "wasm32")]
+pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 #[cfg(target_arch = "wasm32")]
 pub use wgpu;
 

@@ -91,7 +91,7 @@ fn face_covering(library: ft::FT_Library, path: &Path, character: char) -> Optio
             let covers = ft::FT_Get_Char_Index(face, character as ft::FT_ULong) != 0;
             let faces = (*face).num_faces;
             ft::FT_Done_Face(face);
-            (faces, scalable && !color && covers)
+            (faces, (scalable || color) && covers)
         };
         if usable {
             return Some((path.to_path_buf(), index as u32));
@@ -286,7 +286,7 @@ mod fontconfig {
                     let mut color = 0;
                     get_bool(font, c"scalable".as_ptr(), 0, &mut scalable);
                     get_bool(font, c"color".as_ptr(), 0, &mut color);
-                    if scalable == 0 || color != 0 {
+                    if scalable == 0 && color == 0 {
                         continue;
                     }
                     let mut file = ptr::null_mut();

@@ -95,3 +95,8 @@ cargo_install(
     version = "0.2.122",
     visibility = ["PUBLIC"],
 )
+
+export_file(
+    name = "update.sh",
+    visibility = ["PUBLIC"],
+)

@@ -1,7 +1,6 @@
-pub mod panes;
-
 use block_plugin_api::{
-    BackEdge, BackPhase, ImeInput, ImeText, Key, Modifiers, PointerButton, TouchPhase,
+    BackEdge, BackPhase, CursorIcon, FilePick, ImeInput, ImeText, Key, Modifiers, PointerButton,
+    TouchPhase,
 };
 
 pub fn protocol_modifiers(modifiers: beui::Modifiers) -> Modifiers {
@@ -323,4 +322,54 @@ pub fn beui_ime_text(text: &ImeText) -> beui::ImeText {
 
 fn index(value: u64) -> usize {
     usize::try_from(value).unwrap_or(usize::MAX)
+}
+
+pub fn beui_button(button: PointerButton) -> Option<beui::PointerButton> {
+    match button {
+        PointerButton::Primary => Some(beui::PointerButton::Primary),
+        PointerButton::Secondary => Some(beui::PointerButton::Secondary),
+        PointerButton::Middle => Some(beui::PointerButton::Middle),
+        PointerButton::Back => Some(beui::PointerButton::Back),
+        PointerButton::Forward => Some(beui::PointerButton::Forward),
+        PointerButton::Other(_) => None,
+    }
+}
+
+pub fn beui_touch_phase(phase: TouchPhase) -> beui::TouchPhase {
+    match phase {
+        TouchPhase::Start => beui::TouchPhase::Start,
+        TouchPhase::Move => beui::TouchPhase::Move,
+        TouchPhase::End => beui::TouchPhase::End,
+        TouchPhase::Cancel => beui::TouchPhase::Cancel,
+    }
+}
+
+pub fn protocol_cursor(cursor: beui::CursorIcon) -> CursorIcon {
+    match cursor {
+        beui::CursorIcon::Default => CursorIcon::Default,
+        beui::CursorIcon::Crosshair => CursorIcon::Crosshair,
+        beui::CursorIcon::Grab => CursorIcon::Grab,
+        beui::CursorIcon::Grabbing => CursorIcon::Grabbing,
+        beui::CursorIcon::NotAllowed => CursorIcon::NotAllowed,
+        beui::CursorIcon::PointingHand => CursorIcon::Pointer,
+        beui::CursorIcon::ResizeHorizontal => CursorIcon::ResizeHorizontal,
+        beui::CursorIcon::ResizeVertical => CursorIcon::ResizeVertical,
+        beui::CursorIcon::ResizeNeSw => CursorIcon::ResizeNeSw,
+        beui::CursorIcon::ResizeNwSe => CursorIcon::ResizeNwSe,
+        beui::CursorIcon::Text => CursorIcon::Text,
+        beui::CursorIcon::Wait => CursorIcon::Wait,
+        beui::CursorIcon::None => CursorIcon::None,
+        beui::CursorIcon::Move => CursorIcon::Move,
+        beui::CursorIcon::Progress => CursorIcon::Progress,
+        beui::CursorIcon::Help => CursorIcon::Help,
+        beui::CursorIcon::Alias => CursorIcon::Pointer,
+    }
+}
+
+pub fn beui_file_pick(pick: FilePick) -> beui::FilePick {
+    match pick {
+        FilePick::Chosen { name, data } => Ok(Some(beui::PickedFile { name, data })),
+        FilePick::Cancelled => Ok(None),
+        FilePick::Failed(error) => Err(error),
+    }
 }

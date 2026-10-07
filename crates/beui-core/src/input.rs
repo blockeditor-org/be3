@@ -152,6 +152,12 @@ pub struct PointerPress {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
+pub struct PointerSample {
+    pub pos: Pos2,
+    pub touch: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ScrollGesture {
     pub delta: Vec2,
     pub fling: Vec2,
@@ -1046,6 +1052,10 @@ impl Pointer {
 
     pub fn interact_pos(&self) -> Option<Pos2> {
         self.pos
+    }
+
+    pub fn from_touch(&self) -> bool {
+        self.from_touch
     }
 
     pub fn primary_pressed(&self) -> bool {

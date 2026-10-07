@@ -21,7 +21,6 @@ fn a_character_is_asked_for_once_and_only_after_the_hosts_fonts_arrive() {
         version: PROTOCOL_VERSION,
         host_name: "test host".into(),
         surface: None,
-        panes: false,
         theme: Theme { dark: true },
     }));
 

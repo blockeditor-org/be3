@@ -9,11 +9,11 @@ use std::{
 use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
 use block_plugin_api::{
-    AccessLevel, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand, BlockPick,
-    ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect, ChildStatus,
-    ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave, HostReply,
-    HostRequest, MenuEntry, Occluder, PaneId, PaneLayout, PaneTree, PerformanceMeasurement, Size,
-    ViewChange, WebViewCommand, WebViewEvent, WebViewId,
+    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
+    BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement, ChildRect,
+    ChildStatus, ClipboardImage, DataListing, EditorRegion, FetchResult, FilePick, FileSave,
+    HostPanel, HostReply, HostRequest, HostWindow, HostWindowId, MenuEntry, Occluder,
+    PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -67,6 +67,20 @@ pub struct FileDrop {
 }
 
 pub type OpenRequest = (Uuid, Uuid, Option<Uuid>);
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ChildCommit {
+    pub(crate) child: ChildId,
+    pub(crate) parent: BlockParent,
+    pub(crate) name: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PickRequest {
+    pub pick: u64,
+    pub filter: BlockFilter,
+    pub parent: BlockParent,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ShowRequest {
@@ -229,10 +243,14 @@ struct Region {
     origin: Vec2,
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 enum Identity {
     Block([u8; 16]),
     WebView(WebViewId),
+    Host(HostPanel),
+    Window(HostWindowId),
+    Creation([u8; 16], String),
+    ArtifactSettings([u8; 16]),
 }
 
 impl Identity {
@@ -240,6 +258,12 @@ impl Identity {
         match content {
             ChildContent::Block { block_id, .. } => Self::Block(*block_id),
             ChildContent::WebView(web_view) => Self::WebView(*web_view),
+            ChildContent::Host(panel) => Self::Host(*panel),
+            ChildContent::Window(window) => Self::Window(*window),
+            ChildContent::Creation { editor, template } => {
+                Self::Creation(*editor, template.clone())
+            }
+            ChildContent::ArtifactSettings { block_id } => Self::ArtifactSettings(*block_id),
         }
     }
 }
@@ -259,7 +283,7 @@ struct Children {
 impl Children {
     fn identify(&mut self, region: EditorRegion, identity: Identity) -> ChildId {
         let ordinal = {
-            let ordinal = self.ordinals.entry(identity).or_default();
+            let ordinal = self.ordinals.entry(identity.clone()).or_default();
             let current = *ordinal;
             *ordinal += 1;
             current
@@ -270,7 +294,7 @@ impl Children {
             None => {
                 self.next += 1;
                 let child = ChildId(self.next);
-                self.identities.insert(key, child);
+                self.identities.insert(key.clone(), child);
                 child
             }
         };
@@ -319,10 +343,11 @@ pub enum Pushed {
     WebView,
     Shows,
     Version,
+    Windows,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::Replies,
         Self::Peers,
         Self::Histories,
@@ -333,17 +358,21 @@ impl Pushed {
         Self::WebView,
         Self::Shows,
         Self::Version,
+        Self::Windows,
     ];
 }
 
 #[derive(Clone, Default)]
 pub struct EditorHost {
     waker: Waker,
-    panes_offered: Rc<Cell<bool>>,
-    pane_layout: Rc<RefCell<Option<PaneLayout>>>,
-    pane_events: Rc<RefCell<Vec<(u64, PaneEvent)>>>,
-    taken_arrangement: Rc<Cell<u64>>,
-    shown_panes: Rc<RefCell<Vec<PaneId>>>,
+    shown_panels: Rc<RefCell<Vec<HostPanel>>>,
+    windows: Rc<RefCell<Vec<HostWindow>>>,
+    closed_windows: Rc<RefCell<Vec<HostWindowId>>>,
+    pick_requests: Rc<RefCell<Vec<PickRequest>>>,
+    dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
+    access_changes: Rc<RefCell<Vec<(Uuid, Uuid, AccessLevel)>>>,
+    pick_answers: Rc<RefCell<Vec<(u64, BlockPick)>>>,
+    child_commits: Rc<RefCell<Vec<ChildCommit>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
     changes: Rc<Cell<u64>>,
     opens: Rc<RefCell<Vec<OpenRequest>>>,
@@ -472,6 +501,76 @@ impl EditorHost {
         std::mem::take(&mut self.shows.borrow_mut())
     }
 
+    pub fn take_dialog_requests(&self) -> Vec<(Uuid, ShellDialog)> {
+        std::mem::take(&mut self.dialog_requests.borrow_mut())
+    }
+
+    pub fn show_dialog(&self, block_id: Uuid, dialog: ShellDialog) {
+        self.dialog_requests.borrow_mut().push((block_id, dialog));
+        self.push(Pushed::Shows);
+    }
+
+    pub fn take_pick_requests(&self) -> Vec<PickRequest> {
+        std::mem::take(&mut self.pick_requests.borrow_mut())
+    }
+
+    pub fn request_pick(&self, request: PickRequest) {
+        self.pick_requests.borrow_mut().push(request);
+        self.push(Pushed::Shows);
+    }
+
+    pub fn answer_pick(&self, pick: u64, answer: BlockPick) {
+        self.pick_answers.borrow_mut().push((pick, answer));
+        self.changed();
+    }
+
+    pub(crate) fn take_pick_answers(&self) -> Vec<(u64, BlockPick)> {
+        std::mem::take(&mut self.pick_answers.borrow_mut())
+    }
+
+    pub fn commit_child(&self, child: ChildId, parent: BlockParent, name: Option<String>) {
+        self.child_commits.borrow_mut().push(ChildCommit {
+            child,
+            parent,
+            name,
+        });
+        self.changed();
+    }
+
+    pub(crate) fn take_child_commits(&self) -> Vec<ChildCommit> {
+        std::mem::take(&mut self.child_commits.borrow_mut())
+    }
+
+    pub fn take_panel_requests(&self) -> Vec<HostPanel> {
+        std::mem::take(&mut self.shown_panels.borrow_mut())
+    }
+
+    pub fn show_panel(&self, panel: HostPanel) {
+        self.shown_panels.borrow_mut().push(panel);
+        self.push(Pushed::Shows);
+    }
+
+    pub fn windows(&self) -> Vec<HostWindow> {
+        self.windows.borrow().clone()
+    }
+
+    pub fn set_windows(&self, windows: Vec<HostWindow>) {
+        if *self.windows.borrow() == windows {
+            return;
+        }
+        *self.windows.borrow_mut() = windows;
+        self.push(Pushed::Windows);
+    }
+
+    pub fn close_window(&self, window: HostWindowId) {
+        self.closed_windows.borrow_mut().push(window);
+        self.changed();
+    }
+
+    pub(crate) fn take_closed_windows(&self) -> Vec<HostWindowId> {
+        std::mem::take(&mut self.closed_windows.borrow_mut())
+    }
+
     pub fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
         self.shows.borrow_mut().push(ShowRequest {
             block_id,
@@ -577,10 +676,6 @@ impl EditorHost {
 
     pub fn regenerate_artifact(&self, block_id: Uuid) {
         self.artifact_command(block_id, ArtifactAction::Regenerate);
-    }
-
-    pub fn edit_artifact(&self, block_id: Uuid) {
-        self.artifact_command(block_id, ArtifactAction::Settings);
     }
 
     pub fn unlink_artifact(&self, block_id: Uuid) {
@@ -1008,6 +1103,28 @@ impl EditorHost {
         self.ask(HostRequest::PickBlock(filter))
     }
 
+    pub fn list_access(&self, block_id: Uuid) -> u64 {
+        self.ask(HostRequest::ListAccess(block_id.into_bytes()))
+    }
+
+    pub fn take_access_listing(&self, request: u64) -> Option<AccessListing> {
+        match self.take_reply(request)? {
+            HostReply::AccessListed(listing) => Some(listing),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
+    pub fn set_access(&self, block_id: Uuid, account: Uuid, access: AccessLevel) {
+        self.access_changes
+            .borrow_mut()
+            .push((block_id, account, access));
+        self.changed();
+    }
+
+    pub(crate) fn take_access_changes(&self) -> Vec<(Uuid, Uuid, AccessLevel)> {
+        std::mem::take(&mut self.access_changes.borrow_mut())
+    }
+
     pub fn take_block_pick(&self, request: u64) -> Option<BlockPick> {
         match self.take_reply(request)? {
             HostReply::BlockPicked(pick) => Some(pick),
@@ -1324,52 +1441,6 @@ impl EditorHost {
         self.creation_changed.set(true);
     }
 
-    pub fn panes_offered(&self) -> bool {
-        self.panes_offered.get()
-    }
-
-    pub(crate) fn offer_panes(&self, offered: bool) {
-        self.panes_offered.set(offered);
-    }
-
-    pub fn set_pane_layout(&self, layout: Option<PaneLayout>) {
-        *self.pane_layout.borrow_mut() = layout;
-    }
-
-    pub(crate) fn pane_layout(&self) -> Option<PaneLayout> {
-        self.pane_layout.borrow().clone()
-    }
-
-    pub(crate) fn push_pane_event(&self, arrangement: u64, event: PaneEvent) {
-        self.pane_events.borrow_mut().push((arrangement, event));
-        self.waker.wake();
-    }
-
-    pub fn take_pane_events(&self) -> Vec<PaneEvent> {
-        let taken = std::mem::take(&mut *self.pane_events.borrow_mut());
-        taken
-            .into_iter()
-            .map(|(arrangement, event)| {
-                self.taken_arrangement
-                    .set(self.taken_arrangement.get().max(arrangement));
-                event
-            })
-            .collect()
-    }
-
-    pub(crate) fn taken_arrangement(&self) -> u64 {
-        self.taken_arrangement.get()
-    }
-
-    pub fn show_pane(&self, pane: PaneId) {
-        self.shown_panes.borrow_mut().push(pane);
-        self.waker.wake();
-    }
-
-    pub(crate) fn take_shown_panes(&self) -> Vec<PaneId> {
-        std::mem::take(&mut self.shown_panes.borrow_mut())
-    }
-
     pub fn take_opens(&self) -> Vec<OpenRequest> {
         std::mem::take(&mut self.opens.borrow_mut())
     }
@@ -1625,17 +1696,6 @@ impl ImagePaster {
         self.request = Some(host.paste_image());
         None
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum PaneEvent {
-    Arranged {
-        tree: PaneTree,
-        detached: Vec<PaneId>,
-        focused: Option<PaneId>,
-    },
-    Closed(PaneId),
-    MenuPick(PaneId, String),
 }
 
 pub enum PastedImage {

@@ -1,36 +1,47 @@
 use beui_macros::{component, view};
 
+use crate::focus_ring::FocusRing;
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 
-use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::theme::{BORDER_WIDTH, CHIP_RADIUS, FONT_BODY, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Align, Callback, Direction, Frame, ItemSize, List, Prop, Text, clone, create_memo, focus_ring,
+    Align, Callback, Direction, Frame, ItemSize, List, Prop, Show, Text, clone, create_memo,
 };
 
 const BOX_SIZE: f32 = 18.0;
 const MARK_SIZE: f32 = 10.0;
 const MARK_RADIUS: u8 = 2;
 const SPACING: f32 = 10.0;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 4.0;
 
 #[component]
 pub fn Checkbox(
-    label: Prop<String>,
+    #[prop(default = String::new())] label: Prop<String>,
     checked: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] capture_presses: Prop<bool>,
+    #[prop(default = true)] tab_stop: Prop<bool>,
+    #[prop(default = true)] press_focus: Prop<bool>,
     on_change: Callback<bool>,
 ) -> NodeId {
     view! {
-        <Toggle checked disabled on_change={move |checked| on_change.call(checked)}>
+        <Toggle
+            checked
+            label
+            disabled
+            capture_presses
+            tab_stop
+            press_focus
+            on_change={move |checked| on_change.call(checked)}
+        >
             {move |handle: ToggleHandle| {
                 view! {
-                    <CheckboxFace handle label />
+                    <CheckboxFace handle />
                 }
             }}
         </Toggle>
@@ -38,12 +49,13 @@ pub fn Checkbox(
 }
 
 #[component]
-fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
+fn CheckboxFace(handle: ToggleHandle) -> NodeId {
     let ToggleHandle {
         checked,
         hovered,
         focused,
         disabled,
+        label,
         ..
     } = handle;
     let theme = use_theme();
@@ -53,19 +65,14 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
     let border_visible = create_memo(clone!(checked -> move || !checked.get()));
     let box_border = theme.border.clone();
     let mark_color = theme.on_accent.clone();
+    let labeled = create_memo(clone!(label -> move || !label.get().is_empty()));
     let label_color = create_memo(clone!(theme disabled -> move || match disabled.get() {
         true => theme.text_muted.get(),
         false => theme.text.get(),
     }));
 
     view! {
-        <Frame
-            outline={theme.accent.clone()}
-            outline_width=FOCUS_RING_WIDTH
-            radius=RADIUS
-            outline_offset=FOCUS_RING_OFFSET
-            outline_visible={focus_ring(focused)}
-        >
+        <FocusRing focused offset=FOCUS_RING_OFFSET>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Frame
                     width=BOX_SIZE
@@ -86,15 +93,19 @@ fn CheckboxFace(handle: ToggleHandle, label: Prop<String>) -> NodeId {
                         radius=MARK_RADIUS
                     />
                 </Frame>
-                <Text
-                    @sizing=ItemSize::Percent(100.0)
-                    string={label}
-                    font_size=FONT_BODY
-                    color={label_color}
-                    align=TextAlign::Start
-                />
+                <Show condition={labeled}>
+                    {move || clone!(label label_color -> view! {
+                        <Text
+                            @sizing=ItemSize::Percent(100.0)
+                            string={label}
+                            font_size=FONT_BODY
+                            color={label_color}
+                            align=TextAlign::Start
+                        />
+                    })}
+                </Show>
             </List>
-        </Frame>
+        </FocusRing>
     }
 }
 

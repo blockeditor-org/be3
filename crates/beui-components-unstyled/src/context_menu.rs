@@ -1,15 +1,15 @@
 use beui_macros::{component, view};
 
-use crate::menu::{MenuItem, MenuList, MenuRowHandle};
-use beui_core::base::overlay::{OverlayAnchor, Placement};
+use crate::menu::MenuItem;
+use crate::menu_popup::{MenuPopup, MenuStyle};
+use beui_core::base::overlay::OverlayAnchor;
 use beui_core::document::Document;
 use beui_core::geometry::Pos2;
 use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
-use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Callback, Child, Children, ClickCallback, Interactive, ItemSize, List, NodeRef, Prop, RenderFn,
-    clone, create_effect, create_memo, create_signal, set_component_state,
+    Callback, Child, Children, ClickCallback, Interactive, ItemSize, List, NodeRef, Prop, clone,
+    create_effect, create_memo, create_signal, last_pointer, set_component_state,
 };
 
 struct State {
@@ -17,60 +17,23 @@ struct State {
     content: NodeRef,
 }
 
-#[derive(Clone, Default)]
-pub struct MenuStyle(Option<(RenderFn<MenuRowHandle>, RenderFn<Child>)>);
-
-impl MenuStyle {
-    pub fn new(
-        row: impl Fn(MenuRowHandle) -> NodeId + 'static,
-        panel: impl Fn(Child) -> NodeId + 'static,
-    ) -> Self {
-        Self(Some((RenderFn::new(row), RenderFn::new(panel))))
-    }
-
-    pub fn is_some(&self) -> bool {
-        self.0.is_some()
-    }
-
-    pub fn parts(self) -> (RenderFn<MenuRowHandle>, RenderFn<Child>) {
-        self.0.unwrap_or_else(|| {
-            (
-                RenderFn::new(|_| {
-                    view! {
-                        <List spacing=0.0 />
-                    }
-                }),
-                RenderFn::new(|content| content),
-            )
-        })
-    }
-}
-
 #[component]
 pub fn ContextMenu(
     children: Child,
     items: Children<MenuItem>,
-    row: Option<RenderFn<MenuRowHandle>>,
-    panel: Option<RenderFn<Child>>,
+    #[prop(default = MenuStyle::default())] menu: MenuStyle,
     #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,
     #[prop(default = true)] open_at_focuses: bool,
+    #[prop(default = false)] open_at_pointer: Prop<bool>,
+    #[prop(default = false)] selection: bool,
     on_close: ClickCallback,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
-    let row = row.unwrap_or_else(|| {
-        RenderFn::new(|_| {
-            view! {
-                <List spacing=0.0 />
-            }
-        })
-    });
-    let panel = panel.unwrap_or_else(|| RenderFn::new(|content| content));
     let (open, set_open) = create_signal(false);
+    let (touched, set_touched) = create_signal(false);
     let (focusing, set_focusing) = create_signal(true);
-    let active = create_memo(clone!(open focusing -> move || open.get() && focusing.get()));
-    let pressed_focusing = set_focusing.clone();
     let (position, set_position) = create_signal(Pos2::ZERO);
     let anchor = create_memo(move || OverlayAnchor::Point(position.get()));
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
@@ -79,59 +42,73 @@ pub fn ContextMenu(
         content: content.clone(),
     });
 
-    let dismiss = set_open.clone();
-    let close = set_open.clone();
-    let dismissed = on_close.clone();
-    let requested = set_open.clone();
-    let requested_position = set_position.clone();
+    let (requested, requested_touch, requested_position, requested_focusing) = (
+        set_open.clone(),
+        set_touched.clone(),
+        set_position.clone(),
+        set_focusing.clone(),
+    );
     create_effect(move || {
         let Some(at) = open_at.get() else {
             return;
         };
         requested_position.set(at);
-        set_focusing.set(open_at_focuses);
+        requested_touch.set(last_pointer().is_some_and(|pointer| pointer.touch));
+        requested_focusing.set(open_at_focuses);
         requested.set(true);
     });
-    let items = items.into_run();
+    let (pointed, pointed_touch, pointed_position, pointed_focusing) = (
+        set_open.clone(),
+        set_touched.clone(),
+        set_position.clone(),
+        set_focusing.clone(),
+    );
+    let mut pointer_opened = false;
+    create_effect(move || {
+        if !open_at_pointer.get() {
+            if std::mem::take(&mut pointer_opened) {
+                pointed.set(false);
+            }
+            return;
+        }
+        pointer_opened = true;
+        let pointer = last_pointer();
+        pointed_position.set(pointer.map_or(Pos2::ZERO, |pointer| pointer.pos));
+        pointed_touch.set(pointer.is_some_and(|pointer| pointer.touch));
+        pointed_focusing.set(true);
+        pointed.set(true);
+    });
+    let shown = create_memo(clone!(open -> move || open.get()));
+    let touched = create_memo(move || !selection && touched.get());
     view! {
         <Interactive
-            on_secondary_press={move |press: PointerPress| {
+            on_secondary_press={clone!(set_open -> move |press: PointerPress| {
                 if disabled.get() {
                     return;
                 }
                 set_position.set(press.pos);
-                pressed_focusing.set(true);
+                set_touched.set(press.touch);
+                set_focusing.set(true);
                 set_open.set(true);
-            }}
+            })}
         >
             <List spacing=0.0>
                 {children} @sizing={child_size}
-                <Overlay
-                    @node_ref=&overlay
+                <MenuPopup
+                    overlay
+                    content
+                    items={items.into_run()}
+                    menu
                     anchor
-                    placement=Placement::BelowStart
-                    traps_focus={focusing}
-                    open
+                    open={shown}
+                    touched
+                    focusing
                     on_dismiss={move || {
-                        dismiss.set(false);
-                        dismissed.call();
+                        set_open.set(false);
+                        on_close.call();
                     }}
-                >
-                    {panel.call(view! {
-                        <MenuList
-                            @node_ref=&content
-                            items={items}
-                            row
-                            panel={panel.clone()}
-                            active
-                            on_select={move |path: Vec<usize>| {
-                                on_select.call(path);
-                                close.set(false);
-                                on_close.call();
-                            }}
-                        />
-                    })}
-                </Overlay>
+                    on_select={move |path: Vec<usize>| on_select.call(path)}
+                />
             </List>
         </Interactive>
     }

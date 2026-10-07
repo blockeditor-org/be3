@@ -110,12 +110,10 @@ fn runtime_lines(runtime: &RuntimeStatus) -> Vec<Line> {
         LineStyle::Muted,
         1,
         format!(
-            "surface {} — {}x{} px, {}, {} placement(s), generation {}",
+            "slot {} — {} surface(s), {}, generation {}",
             surface.index,
-            surface.width,
-            surface.height,
-            bytes(u64::from(surface.width) * u64::from(surface.height) * 4),
             surface.placements,
+            bytes(surface.pixels * 4),
             surface.generation
         ),
     );
@@ -213,7 +211,7 @@ fn screen_line(lines: &mut Vec<Line>, screen: &ScreenStatus) {
             .unwrap_or_default(),
         screen
             .placement
-            .map(|[x, y, width, height]| format!(" · at {x},{y} {width}x{height} px"))
+            .map(|[surface, width, height]| format!(" · surface {surface} {width}x{height} px"))
             .unwrap_or_else(|| " · unplaced".to_owned()),
         if screen.drawn { "" } else { " · stale" },
         match screen.children {

@@ -2,12 +2,12 @@ use be_block::BlockContent as _;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::ImeArea as PluginImeArea;
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, BlockTypeDescriptor, ChildContent,
-    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon,
-    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
-    FrameReport, FrameSpec, HostReply, HostRequest, Message, Occluder, PaneId, PaneLayout,
-    PaneTree, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout,
-    ScreenRequest, ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
+    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
+    ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
+    EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
+    FrameSpec, HostPanel, HostReply, HostRequest, Message, Occluder, PerformanceMeasurement,
+    RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, Size,
+    ViewChange, WatchedContent, WebViewId,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -16,7 +16,8 @@ use std::{
 use uuid::Uuid;
 
 use super::{
-    BlockPickRequest, EditorBlock, HostChild, HostChildStatus, InstanceRole, MAX_LIVE_CHILDREN,
+    BlockPickRequest, ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole,
+    MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
     input::{BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
     pieces,
@@ -38,7 +39,7 @@ pub(super) struct Instances {
     next_screen: u64,
     announced: HashSet<ScreenId>,
     request_id: u64,
-    block_types: Option<Arc<Vec<BlockTypeDescriptor>>>,
+    block_types: Option<Arc<block_plugin_api::Catalog>>,
     sent_block_types: bool,
     network: Vec<String>,
     plugin_id: String,
@@ -109,6 +110,8 @@ struct Instance {
     audio: Option<AudioPlayer>,
     reported_size: Option<Vec2>,
     block_picks: Vec<BlockPickRequest>,
+    pick_answers: Vec<(u64, BlockPick)>,
+    child_commits: Vec<ChildCommit>,
     view: Option<EditorView>,
     reported_view: Option<EditorView>,
     view_changes: Vec<ViewChange>,
@@ -117,6 +120,9 @@ struct Instance {
     child_menu_picks: Vec<(ChildId, String)>,
     presenting: bool,
     reported_presenting: bool,
+    windows: Option<Vec<block_plugin_api::HostWindow>>,
+    reported_windows: Option<Vec<block_plugin_api::HostWindow>>,
+    closed_windows: Vec<block_plugin_api::HostWindowId>,
     grabbed: bool,
     web_views: HashMap<WebViewId, WebViewHost>,
     presence_visible: Option<bool>,
@@ -129,8 +135,6 @@ struct Instance {
     block_queries: Vec<block_plugin_api::BlockQuery>,
     sent_blocks: HashMap<block_plugin_api::BlockQuery, Vec<block_plugin_api::BlockInfo>>,
     blocks_seen: Option<u64>,
-    panes: Option<PaneLayout>,
-    shown_panes: Vec<PaneId>,
     version_sent: Option<u64>,
     stale: bool,
 }
@@ -280,6 +284,8 @@ impl Instance {
             audio: None,
             reported_size: None,
             block_picks: Vec::new(),
+            pick_answers: Vec::new(),
+            child_commits: Vec::new(),
             view: None,
             reported_view: None,
             view_changes: Vec::new(),
@@ -288,6 +294,9 @@ impl Instance {
             child_menu_picks: Vec::new(),
             presenting: false,
             reported_presenting: false,
+            windows: None,
+            reported_windows: None,
+            closed_windows: Vec::new(),
             grabbed: false,
             web_views: HashMap::new(),
             presence_visible: None,
@@ -299,8 +308,6 @@ impl Instance {
             block_queries: Vec::new(),
             sent_blocks: HashMap::new(),
             blocks_seen: None,
-            panes: None,
-            shown_panes: Vec::new(),
             version_sent: None,
             stale: true,
             content: match role {
@@ -645,7 +652,7 @@ impl Instances {
         region: EditorRegion,
         client_id: Uuid,
         role: InstanceRole,
-        block_types: &Arc<Vec<BlockTypeDescriptor>>,
+        block_types: &Arc<block_plugin_api::Catalog>,
         frame: Option<FrameSpec>,
         size: Vec2,
         visible: Rect,
@@ -702,7 +709,7 @@ impl Instances {
         region: EditorRegion,
         client_id: Uuid,
         role: InstanceRole,
-        block_types: &Arc<Vec<BlockTypeDescriptor>>,
+        block_types: &Arc<block_plugin_api::Catalog>,
     ) {
         self.report(
             instance,
@@ -926,6 +933,19 @@ impl Instances {
             .is_some_and(|entry| entry.presenting)
     }
 
+    pub(super) fn set_windows(
+        &mut self,
+        instance: EditorInstanceId,
+        windows: Vec<block_plugin_api::HostWindow>,
+    ) -> bool {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        let changed = entry.windows.as_ref() != Some(&windows);
+        entry.windows = Some(windows);
+        changed
+    }
+
     pub(super) fn set_presenting(&mut self, instance: EditorInstanceId, presenting: bool) -> bool {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return false;
@@ -1002,7 +1022,7 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         client_id: Uuid,
-        block_types: &Arc<Vec<BlockTypeDescriptor>>,
+        block_types: &Arc<block_plugin_api::Catalog>,
         role: InstanceRole,
     ) -> bool {
         self.connect(client_id);
@@ -1019,7 +1039,7 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         client_id: Uuid,
-        block_types: &Arc<Vec<BlockTypeDescriptor>>,
+        block_types: &Arc<block_plugin_api::Catalog>,
         source_type: Uuid,
         block: EditorBlock,
         data: &[u8],
@@ -1099,6 +1119,7 @@ impl Instances {
             entry.reported_editable = None;
             entry.reported_view = None;
             entry.reported_presenting = false;
+            entry.reported_windows = None;
             entry.stale = true;
         }
         self.epoch += 1;
@@ -1232,6 +1253,13 @@ impl Instances {
                 opened.push(Message::Editor(EditorMessage::PresentingChanged {
                     instance,
                     presenting: entry.presenting,
+                }));
+            }
+            if entry.windows.is_some() && entry.windows != entry.reported_windows {
+                entry.reported_windows = entry.windows.clone();
+                opened.push(Message::Editor(EditorMessage::Windows {
+                    instance,
+                    windows: entry.windows.clone().unwrap_or_default(),
                 }));
             }
             if entry.view != entry.reported_view {
@@ -1429,13 +1457,26 @@ impl Instances {
             }
         }
         for (index, child) in table.children.iter().enumerate() {
-            let ChildContent::Block {
-                block_id,
-                block_type,
-                view_block,
-            } = child.content
-            else {
-                continue;
+            let content = match &child.content {
+                ChildContent::Block {
+                    block_id,
+                    block_type,
+                    view_block,
+                } => super::HostContent::Block {
+                    block_id: Uuid::from_bytes(*block_id),
+                    block_type: Uuid::from_bytes(*block_type),
+                    view_block: view_block.map(Uuid::from_bytes),
+                },
+                ChildContent::Host(panel) => super::HostContent::Panel(*panel),
+                ChildContent::Window(window) => super::HostContent::Window(*window),
+                ChildContent::Creation { editor, template } => super::HostContent::Creation {
+                    editor: Uuid::from_bytes(*editor),
+                    template: template.clone(),
+                },
+                ChildContent::ArtifactSettings { block_id } => {
+                    super::HostContent::ArtifactSettings(Uuid::from_bytes(*block_id))
+                }
+                ChildContent::WebView(_) => continue,
             };
             if child.rect.is_empty() {
                 continue;
@@ -1459,17 +1500,18 @@ impl Instances {
             };
             let child_rect = host_rect(child.rect, origin, stretch);
             let child_clip = host_rect(child.clip, origin, stretch).intersect(clip);
+            let occluders: Vec<Rect> = table
+                .occluders
+                .iter()
+                .filter(|occluder| occluder.after as usize > index)
+                .map(|occluder| host_rect(occluder.rect, origin, stretch))
+                .collect();
             if matches!(mode, ChildMode::Active | ChildMode::Live) {
                 let interactive = child_rect.intersect(child_clip);
                 if interactive.is_positive() {
                     holes.holes.push(Hole {
                         rect: interactive,
-                        occluders: table
-                            .occluders
-                            .iter()
-                            .filter(|occluder| occluder.after as usize > index)
-                            .map(|occluder| host_rect(occluder.rect, origin, stretch))
-                            .collect(),
+                        occluders: occluders.clone(),
                     });
                 }
             }
@@ -1479,10 +1521,9 @@ impl Instances {
                     && !screen.frame_revoked.contains(&child.child),
                 own_frame: child.own_frame,
                 top_bar: child.top_bar,
-                block_id: Uuid::from_bytes(block_id),
-                block_type: Uuid::from_bytes(block_type),
-                view_block: view_block.map(Uuid::from_bytes),
+                content,
                 rect: child_rect,
+                occluders,
                 clip: child_clip,
                 layer: child.layer,
                 mode,
@@ -1610,6 +1651,8 @@ impl Instances {
                 resize: status.resize,
                 error: status.error,
                 menu: status.menu,
+                creation: status.creation,
+                settings: status.settings,
             };
             if screen.reported_statuses.get(&status.child) == Some(&status) {
                 continue;
@@ -1637,6 +1680,41 @@ impl Instances {
             true => None,
             false => Some(entry.block_picks.remove(0)),
         }
+    }
+
+    pub(super) fn take_pick_answers(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Vec<(u64, BlockPick)> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.pick_answers))
+            .unwrap_or_default()
+    }
+
+    pub(super) fn take_child_commits(&mut self, instance: EditorInstanceId) -> Vec<ChildCommit> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.child_commits))
+            .unwrap_or_default()
+    }
+
+    pub(super) fn request_pick(
+        &self,
+        instance: EditorInstanceId,
+        pick: u64,
+        filter: block_plugin_api::BlockFilter,
+        parent: block_plugin_api::BlockLocation,
+    ) -> Vec<Message> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Message::Editor(EditorMessage::PickRequested {
+            instance,
+            pick,
+            filter,
+            parent,
+        })]
     }
 
     pub(super) fn block_picked(
@@ -1670,7 +1748,7 @@ impl Instances {
                             .iter()
                             .find(|placement| placement.screen == screen.request.screen)
                             .map(|placement| {
-                                [placement.x, placement.y, placement.width, placement.height]
+                                [placement.surface, placement.width, placement.height]
                             });
                         super::ScreenStatus {
                             screen: screen.request.screen,
@@ -2146,24 +2224,15 @@ impl Instances {
             HostRequest::ReadData(path) => discovery::data(&self.plugin_id, &path, move |body| {
                 reply(HostReply::DataRead(fetch_result(body)));
             }),
-            HostRequest::PickBlock(filter) => {
-                entry.block_picks.push(BlockPickRequest {
-                    request_id,
-                    block_types: filter
-                        .block_types
-                        .into_iter()
-                        .map(Uuid::from_bytes)
-                        .collect(),
-                    excluded: filter.excluded.into_iter().map(Uuid::from_bytes).collect(),
-                    templates: filter.templates,
-                    place: filter.place.and_then(|place| match place {
-                        block_plugin_api::BlockLocation::Root => Some(be_graph::BlockParent::Root),
-                        block_plugin_api::BlockLocation::Block(id) => {
-                            Some(be_graph::BlockParent::Block(Uuid::from_bytes(id)))
-                        }
-                        block_plugin_api::BlockLocation::Detached => None,
-                    }),
+            HostRequest::ListAccess(block) => {
+                crate::be::list_access(Uuid::from_bytes(block), move |listed| {
+                    reply(HostReply::AccessListed(super::graph::grants_of(listed)));
                 });
+            }
+            HostRequest::PickBlock(filter) => {
+                entry
+                    .block_picks
+                    .push(BlockPickRequest { request_id, filter });
             }
         }
         true
@@ -2171,18 +2240,51 @@ impl Instances {
 
     pub(super) fn editor_message(&mut self, message: EditorMessage) -> bool {
         match message {
-            EditorMessage::Panes { instance, layout } => {
+            EditorMessage::PickAnswered {
+                instance,
+                pick,
+                answer,
+            } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry.panes = layout;
+                entry.pick_answers.push((pick, answer));
                 true
             }
-            EditorMessage::ShowPane { instance, pane } => {
+            EditorMessage::CloseWindow { instance, window } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry.shown_panes.push(pane);
+                entry.closed_windows.push(window);
+                true
+            }
+            EditorMessage::SetAccess {
+                block_id,
+                account,
+                access,
+                ..
+            } => {
+                crate::be::set_access(
+                    Uuid::from_bytes(block_id),
+                    Uuid::from_bytes(account),
+                    super::graph::access_of(access),
+                );
+                true
+            }
+            EditorMessage::CommitChild {
+                instance,
+                child,
+                parent,
+                name,
+            } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.child_commits.push(ChildCommit {
+                    child,
+                    parent: super::graph::parent_of(parent),
+                    name,
+                });
                 true
             }
             EditorMessage::OpenBlock {
@@ -2739,62 +2841,48 @@ impl Instances {
         }
     }
 
-    pub(super) fn panes(&self, instance: EditorInstanceId) -> Option<PaneLayout> {
-        self.entries.get(&instance)?.panes.clone()
-    }
-
-    pub(super) fn take_shown_panes(&mut self, instance: EditorInstanceId) -> Vec<PaneId> {
+    pub(super) fn take_closed_windows(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Vec<block_plugin_api::HostWindowId> {
         self.entries
             .get_mut(&instance)
-            .map(|entry| std::mem::take(&mut entry.shown_panes))
+            .map(|entry| std::mem::take(&mut entry.closed_windows))
             .unwrap_or_default()
-    }
-
-    pub(super) fn arrange_panes(
-        &mut self,
-        instance: EditorInstanceId,
-        arrangement: u64,
-        tree: PaneTree,
-        detached: Vec<PaneId>,
-        focused: Option<PaneId>,
-    ) -> Vec<Message> {
-        if !self.entries.contains_key(&instance) {
-            return Vec::new();
-        }
-        vec![Message::Editor(EditorMessage::PanesArranged {
-            instance,
-            arrangement,
-            tree,
-            detached,
-            focused,
-        })]
-    }
-
-    pub(super) fn close_pane(&mut self, instance: EditorInstanceId, pane: PaneId) -> Vec<Message> {
-        if !self.entries.contains_key(&instance) {
-            return Vec::new();
-        }
-        vec![Message::Editor(EditorMessage::ClosePane { instance, pane })]
-    }
-
-    pub(super) fn pane_menu_pick(
-        &mut self,
-        instance: EditorInstanceId,
-        pane: PaneId,
-        id: String,
-    ) -> Vec<Message> {
-        if !self.entries.contains_key(&instance) {
-            return Vec::new();
-        }
-        vec![Message::Editor(EditorMessage::PaneMenuPick {
-            instance,
-            pane,
-            id,
-        })]
     }
 
     pub(super) fn take_artifact_watch(&mut self, instance: EditorInstanceId) -> Option<Vec<Uuid>> {
         self.entries.get_mut(&instance)?.artifact_watch.take()
+    }
+
+    pub(super) fn show_dialog(
+        &mut self,
+        instance: EditorInstanceId,
+        block: Uuid,
+        dialog: block_plugin_api::ShellDialog,
+    ) -> Vec<Message> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Message::Editor(EditorMessage::ShowDialog {
+            instance,
+            block_id: block.into_bytes(),
+            dialog,
+        })]
+    }
+
+    pub(super) fn show_panel(
+        &mut self,
+        instance: EditorInstanceId,
+        panel: HostPanel,
+    ) -> Vec<Message> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Message::Editor(EditorMessage::ShowPanel {
+            instance,
+            panel,
+        })]
     }
 
     pub(super) fn show_block(

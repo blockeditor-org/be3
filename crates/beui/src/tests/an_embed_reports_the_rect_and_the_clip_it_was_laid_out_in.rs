@@ -1,5 +1,6 @@
 use super::*;
 use crate::reactive::{Embed, EmbedSlot, Frame, ItemSize, List, Offset, build, view};
+use crate::sight::CULLING_MARGIN;
 
 #[test]
 fn an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in() {
@@ -12,15 +13,18 @@ fn an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in() {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Fixed(120.0)>
-                    <Frame height=200.0>
-                        <Embed slot={first} />
-                    </Frame>
-                    <Frame height=200.0>
-                        <Embed slot={second} />
-                    </Frame>
-                    <Frame height=200.0>
-                        <Embed slot={EmbedSlot::new()} />
-                    </Frame>
+                    <List spacing=0.0>
+                        <Frame height=200.0>
+                            <Embed slot={first} />
+                        </Frame>
+                        <Frame height={CULLING_MARGIN} />
+                        <Frame height=200.0>
+                            <Embed slot={second} />
+                        </Frame>
+                        <Frame height=200.0>
+                            <Embed slot={EmbedSlot::new()} />
+                        </Frame>
+                    </List>
                 </Offset>
             </List>
         }

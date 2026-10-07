@@ -9,6 +9,7 @@ use super::fling::Fling;
 use super::rubber_band::{
     MAX_ANIMATION_STEP, MINIMUM_VELOCITY, SCROLL_SPRING, rubber_band, spring_back, unband,
 };
+use beui_core::base::Sides;
 use beui_core::base::offset::OffsetNode;
 use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 use beui_core::base::{Direction, ItemSize, ScrollPosition};
@@ -22,10 +23,10 @@ use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
 use beui_core::node::{NodeId, NodeOf};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{
-    Callback, Children, Frame, Interactive, List, ListChild, Memo, Offset, Prop, ReadSignal,
-    Render, RenderFn, ShowKeepAlive, Timer, clone, component_accessibility, create_memo,
-    create_signal, create_timer, focus_ring, on_cleanup, set_component_state, untrack,
-    with_document,
+    Callback, Children, Fade, Frame, Interactive, List, ListChild, Memo, NodeRef, Offset, Prop,
+    ReadSignal, Render, RenderFn, ShowKeepAlive, Timer, clone, component_accessibility,
+    create_effect, create_memo, create_signal, create_timer, focus_ring, on_cleanup,
+    set_component_state, untrack, with_document,
 };
 
 const FOCUS_RING_WIDTH: f32 = 2.0;
@@ -500,10 +501,17 @@ pub fn Scroll(
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     marker: Option<Render<Memo<Direction>>>,
     on_change: Callback<ScrollPosition>,
-    children: Children<NodeId>,
+    children: Children<ListChild>,
 ) -> NodeId {
     let content_direction = direction.clone();
+    let rows_direction = direction.clone();
     let fade = scrollbar.fade();
+    let (faded, set_faded) = create_signal(None::<ScrollPosition>);
+    let edges = create_memo(clone!(direction -> move || {
+        fade_edges(direction.get(), faded.get(), fade)
+    }));
+    let rows = NodeRef::new();
+    let revealed = rows.clone();
     let marker = marker.unwrap_or_else(|| {
         Render::new(|_| {
             view! {
@@ -511,7 +519,7 @@ pub fn Scroll(
             }
         })
     });
-    view! {
+    let scroll = view! {
         <Scrolling
             direction
             focus_color
@@ -521,18 +529,59 @@ pub fn Scroll(
         >
             {move |report: Callback<ScrollPosition>| {
                 view! {
-                    <Offset
-                        offset
-                        reveal
-                        direction={content_direction}
-                        fade
-                        on_change={move |position: ScrollPosition| report.call(position)}
-                    >
-                        {children}
-                    </Offset>
+                    <Fade edges>
+                        <Offset
+                            offset
+                            direction={content_direction}
+                            on_change={move |position: ScrollPosition| {
+                                set_faded.set(Some(position));
+                                report.call(position);
+                            }}
+                        >
+                            <List @node_ref=&rows direction={rows_direction} spacing=0.0>
+                                {children}
+                            </List>
+                        </Offset>
+                    </Fade>
                 }
             }}
         </Scrolling>
+    };
+    create_effect(move || {
+        let Some(index) = reveal.get() else {
+            return;
+        };
+        let rows = revealed.get();
+        with_document(|document| {
+            let row = document.arena.get(rows).children().get(index).copied();
+            if let Some(row) = row {
+                document.reveal_node(row);
+            }
+        });
+    });
+    scroll
+}
+
+fn fade_edges(direction: Direction, position: Option<ScrollPosition>, fade: f32) -> Sides {
+    let Some(position) = position.filter(|_| fade > 0.0) else {
+        return Sides::default();
+    };
+    let reach = fade.min(position.viewport / 2.0);
+    let before = position.offset.clamp(0.0, reach);
+    let after = (position.max_offset() - position.offset).clamp(0.0, reach);
+    match direction {
+        Direction::Horizontal => Sides {
+            left: before,
+            top: 0.0,
+            right: after,
+            bottom: 0.0,
+        },
+        Direction::Vertical => Sides {
+            left: 0.0,
+            top: before,
+            right: 0.0,
+            bottom: after,
+        },
     }
 }
 

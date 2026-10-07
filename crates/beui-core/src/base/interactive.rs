@@ -63,6 +63,14 @@ impl Default for InteractiveNode {
 }
 
 impl InteractiveNode {
+    fn declines(&self, input: &InteractInput, rect: Rect) -> bool {
+        !self.on_forward.is_empty()
+            && !self.forward_at.is_empty()
+            && input
+                .pointer_pos
+                .is_some_and(|pos| !self.forward_at.call(pos - rect.min.to_vec2()))
+    }
+
     pub fn new() -> Self {
         Self {
             child: None,
@@ -332,6 +340,7 @@ impl Element for InteractiveNode {
             && input.pointer_over(rect)
             && ((input.pressed_this_frame && !input.touch_started)
                 || (input.touch_ended && !input.touch_dragged && !input.touch_cancelled))
+            && !self.declines(input, rect)
         {
             *focus_target = match focus.press_focus {
                 true => Some(id),

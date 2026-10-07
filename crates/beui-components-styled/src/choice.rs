@@ -4,7 +4,7 @@ use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
-use crate::theme::{FONT_BODY, RADIUS, ThemeStore, use_theme};
+use crate::theme::{FOCUS_RING_WIDTH, FONT_BODY, RADIUS, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ChoiceOptionHandle;
 use beui_view::reactive::Memo;
@@ -44,7 +44,7 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
         <Frame
             color={fill_color}
             outline={theme.accent.clone()}
-            outline_width=2.0
+            outline_width=FOCUS_RING_WIDTH
             radius=RADIUS
             outline_offset=1.0
             outline_visible={focus_ring(focused)}

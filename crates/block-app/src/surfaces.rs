@@ -8,21 +8,15 @@ use beui::styled::{Button, ButtonVariant, Caption, Heading, Icon, Spinner, use_t
 use beui::{Align, Color32, NodeId, TextAlign};
 use block_plugin_api::{EditorInstanceId, EditorRegion, FrameSpec};
 
-use crate::compositor::{ChildView, PaneSurface, PluginRegion, RegionEditor, ShellSurface};
+use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
 use crate::host::{self, HostCommand, HostItem};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum SurfaceId {
-    Creation,
-    NestedCreation,
     ArtifactSettings,
 }
 
-const HOSTING: [SurfaceId; 3] = [
-    SurfaceId::Creation,
-    SurfaceId::NestedCreation,
-    SurfaceId::ArtifactSettings,
-];
+const HOSTING: [SurfaceId; 1] = [SurfaceId::ArtifactSettings];
 
 #[derive(Clone)]
 pub(crate) struct HostedRegion {
@@ -32,7 +26,7 @@ pub(crate) struct HostedRegion {
 }
 
 impl HostedRegion {
-    fn key(&self) -> (EditorInstanceId, EditorRegion) {
+    pub(crate) fn key(&self) -> (EditorInstanceId, EditorRegion) {
         (self.editor.instance, self.region)
     }
 }
@@ -47,14 +41,11 @@ impl PartialEq for HostedRegion {
 struct Hosted {
     region: ReadSignal<Option<HostedRegion>>,
     set_region: WriteSignal<Option<HostedRegion>>,
-    height: ReadSignal<Option<f32>>,
-    set_height: WriteSignal<Option<f32>>,
 }
 
 #[derive(Default)]
 struct Declared {
     regions: HashMap<SurfaceId, HostedRegion>,
-    heights: HashMap<SurfaceId, f32>,
 }
 
 thread_local! {
@@ -68,16 +59,7 @@ pub(crate) fn create_handles() {
         hosted.clear();
         for id in HOSTING {
             let (region, set_region) = create_signal(None);
-            let (height, set_height) = create_signal(None);
-            hosted.insert(
-                id,
-                Hosted {
-                    region,
-                    set_region,
-                    height,
-                    set_height,
-                },
-            );
+            hosted.insert(id, Hosted { region, set_region });
         }
     });
 }
@@ -102,20 +84,6 @@ pub(crate) fn host(id: SurfaceId, region: Option<HostedRegion>) {
     });
 }
 
-pub(crate) fn set_height(id: SurfaceId, height: Option<f32>) {
-    DECLARED.with(|declared| {
-        let mut declared = declared.borrow_mut();
-        match height {
-            Some(height) => declared.heights.insert(id, height),
-            None => declared.heights.remove(&id),
-        };
-    });
-}
-
-pub(crate) fn height(id: SurfaceId) -> ReadSignal<Option<f32>> {
-    hosted(id).height
-}
-
 pub(crate) fn apply() {
     let declared = DECLARED.with(|declared| std::mem::take(&mut *declared.borrow_mut()));
     for id in HOSTING {
@@ -123,10 +91,6 @@ pub(crate) fn apply() {
         let region = declared.regions.get(&id).cloned();
         if hosted.region.with_untracked(|held| *held != region) {
             hosted.set_region.set(region);
-        }
-        let height = declared.heights.get(&id).copied();
-        if hosted.height.get_untracked() != height {
-            hosted.set_height.set(height);
         }
     }
 }
@@ -137,16 +101,6 @@ pub(crate) fn MainSurface() -> NodeId {
     let shell = create_memo(move || shell.get());
     view! {
         <ShellSurface shell />
-    }
-}
-
-#[component]
-pub(crate) fn PluginPane(pane: u64) -> NodeId {
-    let pane = block_plugin_api::PaneId(pane);
-    let shell = crate::compositor::shell();
-    let shell = create_memo(move || shell.get());
-    view! {
-        <PaneSurface shell pane />
     }
 }
 

@@ -82,25 +82,53 @@ waits in `action`, the host can also ask it for any player's screen, which
 
 A game never draws anything. The screen it returns is a `Scene`: a sentence
 for the viewer and a `Board` (`game_api::board`) that says what is on the
-table, and the Game block's editor decides what that looks like - which is
-what lets a player pick their own skin for the pieces. There are two boards:
+table and where, and the Game block's editor decides what each thing looks
+like - which is what lets a player pick their own skin for the pieces.
 
-- `Grid` - columns and rows of `Tile`s, the top row first, each holding a
-  stack of `Sprite` layers painted bottom first. A layer is a `Square` (a
-  light or dark board square), a `Tint` over it (the last move, or a king in
-  danger), a `Piece` (a `kind` such as `"x"`, `"o"`, `"disc"`, `"knight"` or
-  `"man"`, and the `seat` it belongs to, which decides its colour), a
-  `Card` or a `CardBack`. A grid whose every tile starts with a `Square` is
-  drawn as one checkered board; any other grid as separate cells.
-- `CardTable` - a list of `Pile`s, each with a label, a `PilePlace` (the deck,
-  the discard pile, an extra pile, the viewer's own hand, or someone else's)
-  that says where on the table it goes, a `Spread` (stacked, showing its top
-  card, or fanned out) and its cards. `Table::board(viewer)` builds one for
-  the usual deck, discard pile and hands, with everyone else's hand face down.
+A `Board` is a table `width` by `height` in units of the game's own choosing,
+and the `Item`s on it, painted in order. Each item has an `Area` on the table
+(integers, in those units), a `Sprite`, an `ItemId`, and optionally the `Spot`
+a gesture names it by. The editor scales the whole table to fit, keeping its
+aspect ratio, so only proportions matter; the helpers below use a 64-unit
+tile and a 70 by 100 card. A sprite is a `Square` (a light or dark board
+square), a `Tint` over it (the last move, or a king in danger), a `Piece` (a
+`kind` such as `"x"`, `"o"`, `"disc"`, `"knight"` or `"man"`, and the `seat`
+it belongs to, which decides its colour), a `Card` or a `CardBack`, or the
+table's own furniture: a wooden `Frame` or a plain `Tray` under a board, a
+`Cell` (an empty place on a board of cells), a `Slot` (an empty place for a
+pile) and a `Label`. Every item on one spot is that spot: a click on any of
+them is a click on it, it is highlighted as the bottom item's kind (a square,
+a cell or a card), and a drag from it lifts its topmost piece or card.
+
+An `ItemId` names one thing for as long as the game shows it, so give a piece
+or a card the same id wherever it goes: when a new screen shows an id
+somewhere else, the editor slides it there rather than making it disappear in
+one place and appear in another. `ItemId::new(group, index)` keeps a game's
+kinds of thing apart; the two highest groups belong to the helpers below, so a
+game numbers its own from 0.
+
+The board's `hand` is the viewer's own cards, which are not on the table at
+all: the editor shows them in a bar under the board, at a fixed size however
+far the board is zoomed, and fans them to fit its width. Each `HandCard` has an
+id and a spot like an item, so a card played from the hand flies onto the
+table.
+
+Two helpers place the usual tables:
+
+- `Squares::checkered(columns, rows)` and `Squares::cells(columns, rows)` lay
+  out a board of tiles, the top row first. `board(tile)` makes the table with
+  its frame or tray and one item per tile from `tile(column, row)` (a
+  `Square` or a `Cell`), each under its `Spot::Tile`, and `place` puts another
+  sprite on a tile, under the same spot.
+- `card_table(rows)` lays `Pile`s out in rows, centred, each with its label,
+  its slot (`Spot::Pile`) and its cards, stacked on the slot or fanned
+  (`Spot::Card`). `Table::board(viewer)` builds one for the usual deck,
+  discard pile and everyone else's hands face down, with the viewer's own
+  hand in `hand`, and gives every card of the deal an id of its own.
 
 A move may carry a gesture, which is how a player makes it on the board
 rather than with a button: `.click(spot)` is a click on one `Spot` (a tile, a
-pile, or one card in a pile), and `.drag(from, to)` is dragging one spot onto
+pile, or one card in a pile or a hand), and `.drag(from, to)` is dragging one spot onto
 another - or clicking the first and then the second. The editor highlights
 every spot a move can start from, and once one is picked up, every spot it
 can land on. Two moves may share a gesture - playing an eight onto the
@@ -115,8 +143,7 @@ When the game ends, the screen from `game_over` is the result: its
 description, with a `Scene::score` such as `1-0` or `½-½`, closes the move
 table and shows in a banner over the board until it is closed.
 
-The editor lays the board out in a world of its own and draws it on a
-pan-and-zoom canvas, so a Game block plays the same in a tab of its own as
+The editor draws the table in a world of its own on a pan-and-zoom canvas, so a Game block plays the same in a tab of its own as
 inside an infinite canvas. Players can mark it up the way they would a chess
 board online - arrows and circles drawn with a right-drag, or with a second
 finger while one is held down - and none of that reaches the game.
@@ -198,7 +225,9 @@ describe most pieces in a line; `chess` and `checkers` hold the rest. A game
 is then a `Rules` - the board's size, the setup, each side's `Army` (its
 name, colour, and whether it must capture when it can) and how moves are
 written - and `play(helper, &RULES)` runs all of it: seating, turns, check,
-the endings, resigning, and the history in the game's notation. Chess,
+the endings, resigning, and the history in the game's notation. Each man keeps the
+id of the square it was set up on wherever it moves, which is its `ItemId`,
+so a move slides the piece and a promotion keeps it. Chess,
 Checkers and Chess vs Checkers are three `Rules` over the same pieces, so a
 new variant is a new setup, and a new kind of piece is one `Piece`.
 

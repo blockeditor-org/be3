@@ -70,7 +70,7 @@ pub use pdf::{PdfContent, PdfHeader};
 pub use pixel_art::{PixelArtContent, PixelArtDocument};
 pub use pixel_ray_tracer::PixelRayTracerContent;
 pub use presentation::{Presentation, PresentationContent};
-pub use profile::{FILES_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR};
+pub use profile::{FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR};
 pub use settings::{Settings, SettingsContent};
 pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,

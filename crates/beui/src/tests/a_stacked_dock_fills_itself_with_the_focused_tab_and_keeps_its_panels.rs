@@ -1,27 +1,30 @@
 use super::*;
 use crate::reactive::with_reactive_scope;
-use crate::unstyled::{DockMode, DockState, Side, TabId};
+use crate::unstyled::{DockMode, DockPane, DockSplit, DockTab, DockingLayout};
 
 #[test]
 fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
     let (mode, set_mode) = create_signal(DockMode::Stacked);
     let document = build(move || {
-        let mut layout = DockState::new([TabId::new(1), TabId::new(2)]);
-        let leaf = layout.leaves(layout.main())[0];
-        layout.split(leaf, Side::Right, 0.5, vec![TabId::new(3)]);
-        let (state, set_state) = create_signal(layout);
+        let layout = DockingLayout::new();
         view! {
-            <styled::DockArea
-                state={state}
-                mode={mode}
-                title={Func::new(|tab: TabId| format!("Tab {}", tab.value()))}
-                on_change={move |next: DockState| set_state.set(next)}
-                on_close={move |_: TabId| {}}
-            >
-                {move |tab: TabId| view! {
-                    <Frame @test_id={format!("content.{}", tab.value())} />
-                }}
-            </styled::DockArea>
+            <styled::Docking layout mode={mode} focus=3u64>
+                <DockSplit id="split">
+                    <DockPane id="left">
+                        <DockTab id=1u64 title="Tab 1">
+                            <Frame @test_id="content.1" />
+                        </DockTab>
+                        <DockTab id=2u64 title="Tab 2">
+                            <Frame @test_id="content.2" />
+                        </DockTab>
+                    </DockPane>
+                    <DockPane id="right">
+                        <DockTab id=3u64 title="Tab 3" on_close={|| {}}>
+                            <Frame @test_id="content.3" />
+                        </DockTab>
+                    </DockPane>
+                </DockSplit>
+            </styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

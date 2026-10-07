@@ -1,30 +1,21 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-#[cfg(target_arch = "wasm32")]
-use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use std::time::Duration;
 
-use beui::reactive::provide_context;
-use beui::unstyled::{DockState, DockTabMenu, TabId, Tree, dock_menu_items};
-use beui_plugin_input::panes::{dock_tree, pane_of, pane_tree, tab_of};
+use beui_adapter_plugin::PluginSurface;
 use block_editor_plugin::{
-    Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Ime, Instance, PaneEvent,
-    Region,
+    Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Instance, Region,
 };
 #[cfg(target_arch = "wasm32")]
-use block_editor_plugin::{PaintTarget, SurfaceRect, wgpu};
-use block_plugin_api::{CursorIcon, FilePick, InputEvent, PointerButton, WheelUnit};
-use block_plugin_api::{EMPTY_PANE, PaneId, PaneInfo, PaneLayout};
+use block_editor_plugin::{PaintTarget, SurfaceRect};
+use block_plugin_api::InputEvent;
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar};
 use crate::editor::BeuiScale;
 use crate::{Artifacts, BeuiApp, Creation, Editor};
-
-const WHEEL_LINE: f32 = 40.0;
-const WHEEL_PAGE: f32 = 400.0;
 
 pub struct BeuiPlugin<A: BeuiApp>(PhantomData<A>);
 
@@ -37,122 +28,65 @@ impl<A: BeuiApp> block_editor_plugin::Plugin for BeuiPlugin<A> {
 pub(crate) struct BeuiInstance<A: BeuiApp> {
     host: EditorHost,
     scale: Rc<Cell<BeuiScale>>,
-    regions: HashMap<EditorRegion, BeuiRegion>,
+    surfaces: HashMap<EditorRegion, PluginSurface>,
     views: Views<A>,
-    panes: HashMap<PaneId, beui::Document>,
-    detached: Vec<TabId>,
-    #[cfg(target_arch = "wasm32")]
-    renderers: HashMap<EditorRegion, beui::Renderer>,
+    lent: Rc<RefCell<Option<Lent<A>>>>,
 }
 
-struct BeuiRegion {
-    context: beui::Context,
-    events: Vec<beui::Event>,
-    modifiers: beui::Modifiers,
-    pointer: beui::Pos2,
-    emulated_touch: bool,
-    chrome: Option<BeuiFrame>,
-    output: Option<beui::FrameOutput>,
-    frame: beui::Rect,
-    look: Option<(Option<beui::Filter>, f32)>,
-    pending: Option<Damage>,
-    file_picks: Vec<(u64, beui::FilePickId)>,
-    #[cfg(target_arch = "wasm32")]
-    history: VecDeque<Option<Damage>>,
+struct Lent<A: BeuiApp> {
+    views: Views<A>,
+    region: Region,
+    picks: Vec<String>,
+    settings: Option<Vec<u8>>,
+    shown: Shown,
 }
 
-#[cfg(target_arch = "wasm32")]
-const REMEMBERED_PAINTS: usize = 4;
-
-#[derive(Clone, Copy)]
-enum Damage {
-    Region(beui::Region),
-    Everything,
+#[derive(Default)]
+struct Shown {
+    content: Option<beui::Rect>,
+    painted: Vec<beui::Rect>,
+    floating: Vec<beui::Rect>,
+    exit: bool,
 }
 
-impl Damage {
-    fn union(self, other: Option<Self>) -> Self {
-        match (self, other) {
-            (Self::Region(region), Some(Self::Region(added))) => Self::Region(region.union(added)),
-            (damage, None) => damage,
-            _ => Self::Everything,
-        }
-    }
+struct RegionApp<A: BeuiApp> {
+    region: EditorRegion,
+    lent: Rc<RefCell<Option<Lent<A>>>>,
 }
 
-impl BeuiRegion {
-    fn note_output(&mut self, output: &beui::FrameOutput, frame: beui::Rect) {
-        let look = (output.filter(), output.pixels_per_point());
-        let moved = self.frame != frame || self.look != Some(look);
-        self.frame = frame;
-        self.look = Some(look);
-        let damage = match output.damaged() {
-            _ if moved => Damage::Everything,
-            Some(region) => Damage::Region(region),
-            None if output.changed => Damage::Everything,
-            None => return,
+impl<A: BeuiApp> beui::App for RegionApp<A> {
+    fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
+        let mut lent = self.lent.borrow_mut();
+        let Some(lent) = lent.as_mut() else {
+            return;
         };
-        self.pending = Some(damage.union(self.pending));
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn take_repaint(&mut self, age: u32) -> Option<Damage> {
-        let painted = self.pending.take();
-        let history = age
-            .checked_sub(1)
-            .map(|older| older as usize)
-            .filter(|older| *older <= self.history.len());
-        let repaint = match history {
-            Some(older) => self
-                .history
-                .iter()
-                .take(older)
-                .fold(painted, |repaint, damage| match (repaint, damage) {
-                    (None, damage) => *damage,
-                    (Some(repaint), damage) => Some(repaint.union(*damage)),
-                }),
-            None => Some(Damage::Everything),
-        };
-        self.history.push_front(painted);
-        self.history.truncate(REMEMBERED_PAINTS);
-        repaint
-    }
-}
-
-impl BeuiRegion {
-    fn new() -> Self {
-        Self {
-            context: crate::fonts::context(),
-            events: Vec::new(),
-            modifiers: beui::Modifiers::NONE,
-            pointer: beui::Pos2::ZERO,
-            emulated_touch: false,
-            chrome: None,
-            output: None,
-            frame: beui::Rect::NOTHING,
-            look: None,
-            pending: None,
-            file_picks: Vec::new(),
-            #[cfg(target_arch = "wasm32")]
-            history: VecDeque::new(),
+        let Lent {
+            views,
+            region,
+            picks,
+            settings,
+            shown,
+        } = lent;
+        match self.region {
+            EditorRegion::Frame if views.creating => shown.content = views.creation(context, rect),
+            EditorRegion::Frame => views.frame(context, rect, region, picks, shown),
+            EditorRegion::Preview => views.preview(context, rect),
+            EditorRegion::ArtifactSettings => {
+                if let Some(draft) = settings {
+                    views.artifact_settings(context, rect, draft);
+                }
+            }
         }
     }
 
-    fn emulate_touch(&mut self, phase: beui::TouchPhase) {
-        self.events.push(beui::Event::Touch {
-            id: beui::TouchId {
-                device: 0,
-                finger: 0,
-            },
-            phase,
-            pos: self.pointer,
-            force: None,
-        });
+    fn clear_color(&self) -> beui::Color32 {
+        beui::Color32::TRANSPARENT
     }
 }
 
 struct Views<A: BeuiApp> {
     creating: bool,
+    chrome: Option<BeuiFrame>,
     editor: Option<Editor>,
     preview: Option<Editor>,
     preview_document: Option<beui::Document>,
@@ -216,6 +150,80 @@ impl<A: BeuiApp> Views<A> {
     }
 }
 
+impl<A: BeuiApp> Views<A> {
+    fn empty() -> Self {
+        Self {
+            creating: false,
+            chrome: None,
+            editor: None,
+            preview: None,
+            preview_document: None,
+            creation: None,
+            dialog: None,
+            artifacts: None,
+            settings: None,
+            view: None,
+            app: PhantomData,
+        }
+    }
+
+    fn frame(
+        &mut self,
+        context: &beui::Context,
+        rect: beui::Rect,
+        region: &Region,
+        picks: &[String],
+        shown: &mut Shown,
+    ) {
+        let spec = &region.spec;
+        let chrome = self
+            .chrome
+            .as_mut()
+            .expect("the frame chrome is built before its region runs");
+        let set_bar = chrome.set_bar();
+        let bar = FrameBar {
+            shown: region.chrome_drawn() && (spec.top_bar.shown() || spec.content.is_some()),
+            closable: spec.content.is_some(),
+            on_phone: spec.top_bar.phone(),
+        };
+        let menu = chrome.menu();
+        let editor = self.editor.clone();
+        beui::reactive::with_reactive_scope(chrome.document_mut(), || {
+            set_bar.set(bar);
+            for id in picks {
+                beui_frame::run_menu_pick(&menu, id);
+            }
+            if let Some(editor) = &editor {
+                editor.begin_frame();
+            }
+        });
+        chrome.document_mut().show(context, rect);
+        if let Some(editor) = &editor {
+            editor.end_frame(chrome.document());
+        }
+        shown.content = chrome.document().node_rect(chrome.content());
+        shown.exit = chrome.exit().get() || beui_frame::escaped(context);
+        shown.painted = vec![rect];
+        shown.floating = chrome.document().overlay_rects();
+    }
+
+    fn build_chrome(&mut self) {
+        if self.creating || self.chrome.is_some() {
+            return;
+        }
+        let editor = self
+            .editor
+            .clone()
+            .expect("connect is called before the view is built");
+        let built = editor.clone();
+        let view = self.view.take();
+        self.chrome = Some(BeuiFrame::build(&editor, move || match view {
+            Some(view) => view(),
+            None => A::view(built),
+        }));
+    }
+}
+
 impl<A: BeuiApp> BeuiInstance<A> {
     pub(crate) fn adopting(adopted: crate::headless::Adopted) -> Self {
         let mut instance = Self::new(adopted.host());
@@ -238,192 +246,54 @@ impl<A: BeuiApp> BeuiInstance<A> {
 
     pub(crate) fn document(&self, region: EditorRegion) -> Option<&beui::Document> {
         match (region, self.views.creating) {
-            (EditorRegion::Frame, false) => self
-                .regions
-                .get(&region)
-                .and_then(|state| state.chrome.as_ref())
-                .map(BeuiFrame::document),
+            (EditorRegion::Frame, false) => self.views.chrome.as_ref().map(BeuiFrame::document),
             (EditorRegion::Frame, true) => self.views.dialog.as_ref(),
             (EditorRegion::Preview, _) => self.views.preview_document.as_ref(),
             (EditorRegion::ArtifactSettings, _) => self.views.settings.as_ref(),
-            (EditorRegion::Pane(pane), _) => self.panes.get(&pane),
         }
     }
 
     pub(crate) fn chrome_mut(&mut self) -> Option<&mut BeuiFrame> {
-        self.regions
-            .get_mut(&EditorRegion::Frame)
-            .and_then(|state| state.chrome.as_mut())
+        self.views.chrome.as_mut()
     }
 
     pub(crate) fn take_output(&mut self, region: EditorRegion) -> Option<beui::FrameOutput> {
-        self.regions.get_mut(&region)?.output.take()
+        self.surfaces.get_mut(&region)?.take_output()
     }
 
     fn new(host: EditorHost) -> Self {
         Self {
             host,
             scale: Rc::default(),
-            regions: HashMap::new(),
-            views: Views {
-                creating: false,
-                editor: None,
-                preview: None,
-                preview_document: None,
-                creation: None,
-                dialog: None,
-                artifacts: None,
-                settings: None,
-                view: None,
-                app: PhantomData,
-            },
-            panes: HashMap::new(),
-            detached: Vec::new(),
-            #[cfg(target_arch = "wasm32")]
-            renderers: HashMap::new(),
+            surfaces: HashMap::new(),
+            views: Views::empty(),
+            lent: Rc::default(),
         }
     }
 
-    fn dock(&self) -> Option<Rc<crate::editor_dock::DockLink>> {
-        self.views.editor.as_ref().and_then(Editor::dock)
-    }
-
-    fn pane_actions(&mut self) -> Vec<PaneAction> {
-        let mut actions = Vec::new();
-        for event in self.host.take_pane_events() {
-            match event {
-                PaneEvent::Arranged {
-                    tree,
-                    detached,
-                    focused,
-                } => {
-                    let Some(layout) = dock_tree(&tree) else {
-                        continue;
-                    };
-                    let mut next = DockState::from_tree(&layout);
-                    if let Some(focused) = focused {
-                        next.show(tab_of(focused));
-                    }
-                    self.detached = detached.into_iter().map(tab_of).collect();
-                    actions.push(PaneAction::Change(next));
-                }
-                PaneEvent::Closed(pane) => {
-                    let tab = tab_of(pane);
-                    self.detached.retain(|detached| *detached != tab);
-                    actions.push(PaneAction::Close(tab));
-                }
-                PaneEvent::MenuPick(pane, id) => {
-                    actions.push(PaneAction::MenuPick(tab_of(pane), id));
-                }
-            }
-        }
-        actions
-    }
-
-    fn pane_tabs(&self) -> Vec<TabId> {
-        let Some(link) = self.dock() else {
-            return Vec::new();
-        };
-        let mut tabs = link.state.with_untracked(DockState::all_tabs);
-        for tab in &self.detached {
-            if !tabs.contains(tab) {
-                tabs.push(*tab);
-            }
-        }
-        tabs
-    }
-
-    fn publish_panes(&mut self) {
-        let Some(link) = self.dock() else {
-            self.detached.clear();
-            self.host.set_pane_layout(None);
-            self.retain_panes(&[]);
-            return;
-        };
-        let tabs = self.pane_tabs();
-        let state = link.state.get_untracked();
-        let tree = state.tree(Tree::Surface(state.main())).unwrap_or_default();
-        let panes = beui::reactive::untrack(|| {
-            tabs.iter()
-                .map(|tab| PaneInfo {
-                    pane: pane_of(*tab),
-                    title: link.title.call(*tab),
-                    icon: link.icon.call(*tab),
-                    closable: link.closable.call(*tab),
-                    menu: beui_frame::menu_entries(&dock_menu_items(&link.menus, Some(*tab))),
-                })
-                .collect()
-        });
-        self.host.set_pane_layout(Some(PaneLayout {
-            panes,
-            tree: pane_tree(&tree),
-            arrangement: 0,
-            home: link.home.get_untracked().map(pane_of),
-            empty: true,
-        }));
-        let mut kept = tabs;
-        kept.push(tab_of(EMPTY_PANE));
-        self.retain_panes(&kept);
-    }
-
-    fn retain_panes(&mut self, tabs: &[TabId]) {
-        let gone: Vec<PaneId> = self
-            .panes
-            .keys()
-            .filter(|pane| !tabs.contains(&tab_of(**pane)))
-            .copied()
-            .collect();
-        for pane in gone {
-            if let Some(mut document) = self.panes.remove(&pane) {
-                document.dispose();
-            }
-            self.regions.remove(&EditorRegion::Pane(pane));
-        }
-    }
-
-    fn ensure_pane(&mut self, pane: PaneId) {
-        if self.panes.contains_key(&pane) {
-            return;
-        }
-        let Some(link) = self.dock() else {
-            return;
-        };
-        if pane == EMPTY_PANE {
-            let empty = link.empty.clone();
-            self.panes
-                .insert(pane, beui::reactive::build(move || empty.call(())));
-            return;
-        }
-        let tab = tab_of(pane);
-        if !self.pane_tabs().contains(&tab) {
-            return;
-        }
-        let content = link.content.clone();
-        let set_menu = link.set_menu.clone();
-        let document = beui::reactive::build(move || {
-            provide_context(DockTabMenu { tab, set_menu });
-            content.call(tab)
-        });
-        self.panes.insert(pane, document);
+    fn surface(&mut self, region: EditorRegion) -> &mut PluginSurface {
+        let host = &self.host;
+        let lent = &self.lent;
+        self.surfaces.entry(region).or_insert_with(|| {
+            PluginSurface::launch(
+                host.clone(),
+                crate::fonts::context(),
+                RegionApp::<A> {
+                    region,
+                    lent: Rc::clone(lent),
+                },
+            )
+        })
     }
 
     fn zones_pending(&self) -> bool {
         let frame = self
-            .regions
-            .get(&EditorRegion::Frame)
-            .and_then(|region| region.chrome.as_ref())
+            .views
+            .chrome
+            .as_ref()
             .map(|chrome| chrome.document().zone());
-        frame
-            .into_iter()
-            .chain(self.panes.values().map(beui::Document::zone))
-            .any(beui::reactive::zone_pending)
+        frame.into_iter().any(beui::reactive::zone_pending)
     }
-}
-
-enum PaneAction {
-    Change(DockState),
-    Close(TabId),
-    MenuPick(TabId, String),
 }
 
 impl<A: BeuiApp> Instance for BeuiInstance<A> {
@@ -517,11 +387,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         let Some(editor) = self.views.editor.clone() else {
             return false;
         };
-        let document = self
-            .regions
-            .get_mut(&EditorRegion::Frame)
-            .and_then(|region| region.chrome.as_mut())
-            .map(BeuiFrame::document_mut);
+        let document = self.views.chrome.as_mut().map(BeuiFrame::document_mut);
         match document {
             Some(document) => {
                 beui::reactive::with_reactive_scope(document, || editor.replace_child(old, new))
@@ -531,457 +397,71 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     }
 
     fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame {
-        let actions = match region.region {
-            EditorRegion::Frame => self.pane_actions(),
-            _ => Vec::new(),
-        };
-        let link = self.dock();
-        if let EditorRegion::Pane(pane) = region.region {
-            self.ensure_pane(pane);
-        }
-        let mut pane_document = match region.region {
-            EditorRegion::Pane(pane) => self.panes.remove(&pane),
-            _ => None,
-        };
         let picks = match region.region {
             EditorRegion::Frame => self.host.take_menu_picks(),
             _ => Vec::new(),
         };
-        let state = self
-            .regions
-            .entry(region.region)
-            .or_insert_with(BeuiRegion::new);
-        state.context.set_pixels_per_point(region.scale_factor);
-        let pixels_per_point = state.context.pixels_per_point();
-        let ratio = region.scale_factor / pixels_per_point;
-        self.scale.set(BeuiScale {
+        if region.region == EditorRegion::Frame {
+            self.views.build_chrome();
+        }
+        let scale = Rc::clone(&self.scale);
+        let surface = self.surface(region.region);
+        let ratio = surface.ratio(region);
+        scale.set(BeuiScale {
             ratio,
-            pixels_per_point,
+            pixels_per_point: surface.context().pixels_per_point(),
         });
-        let events = std::mem::take(&mut state.events);
-        let context = state.context.clone();
-        let host = &self.host;
-        state.file_picks.retain(|(request, id)| {
-            let Some(pick) = host.take_pick(*request) else {
-                return true;
-            };
-            context.file_picked(*id, picked(pick));
-            false
+        let views = std::mem::replace(&mut self.views, Views::empty());
+        let mut draft = settings;
+        *self.lent.borrow_mut() = Some(Lent {
+            views,
+            region: region.clone(),
+            picks,
+            settings: draft.as_deref_mut().map(std::mem::take),
+            shown: Shown::default(),
         });
-        let frame = region.rect.scaled(ratio);
-        let spec = &region.spec;
-        let drawn = region.chrome_drawn();
-        let views = &mut self.views;
-        if region.region == EditorRegion::Frame && !views.creating && state.chrome.is_none() {
-            let editor = views
-                .editor
-                .clone()
-                .expect("connect is called before the view is built");
-            let built = editor.clone();
-            let view = views.view.take();
-            state.chrome = Some(BeuiFrame::build(&editor, move || match view {
-                Some(view) => view(),
-                None => A::view(built),
-            }));
+        let surface = self
+            .surfaces
+            .get_mut(&region.region)
+            .expect("the region's surface was just launched");
+        let mut frame = surface.update(region);
+        let lent = self
+            .lent
+            .borrow_mut()
+            .take()
+            .expect("the region gives back what it was lent");
+        self.views = lent.views;
+        if let (Some(draft), Some(edited)) = (draft, lent.settings) {
+            *draft = edited;
         }
-        let mut exit = false;
-        let mut content = None;
-        let mut painted = Vec::new();
-        let mut floating = Vec::new();
-        let mut output = context.run(beui::RawInput { events }, |context| match region.region {
-            EditorRegion::Frame if views.creating => content = views.creation(context, frame),
-            EditorRegion::Frame => {
-                let chrome = state
-                    .chrome
-                    .as_mut()
-                    .expect("the frame chrome was just built");
-                let set_bar = chrome.set_bar();
-                let bar = FrameBar {
-                    shown: drawn && (spec.top_bar.shown() || spec.content.is_some()),
-                    closable: spec.content.is_some(),
-                    on_phone: spec.top_bar.phone(),
-                };
-                let menu = chrome.menu();
-                let editor = views.editor.clone();
-                beui::reactive::with_reactive_scope(chrome.document_mut(), || {
-                    set_bar.set(bar);
-                    for id in &picks {
-                        beui_frame::run_menu_pick(&menu, id);
-                    }
-                    if let Some(link) = &link {
-                        for action in actions {
-                            match action {
-                                PaneAction::Change(next) => link.on_change.call(next),
-                                PaneAction::Close(tab) => {
-                                    let mut next = link.state.get_untracked();
-                                    if next.remove(tab) {
-                                        link.on_change.call(next);
-                                    }
-                                    link.on_close.call(tab);
-                                }
-                                PaneAction::MenuPick(tab, id) => {
-                                    let picked = beui::reactive::untrack(|| {
-                                        dock_menu_items(&link.menus, Some(tab))
-                                    })
-                                    .into_iter()
-                                    .find(|action| action.id() == id);
-                                    if let Some(action) = picked {
-                                        beui::reactive::untrack(|| action.run());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if let Some(editor) = &editor {
-                        editor.begin_frame();
-                    }
-                });
-                chrome.document_mut().show(context, frame);
-                if let Some(editor) = &editor {
-                    editor.end_frame(chrome.document());
-                }
-                content = chrome.document().node_rect(chrome.content());
-                exit = chrome.exit().get() || beui_frame::escaped(context);
-                painted = vec![frame];
-                floating = chrome.document().overlay_rects();
-            }
-            EditorRegion::Preview => views.preview(context, frame),
-            EditorRegion::ArtifactSettings => {
-                if let Some(draft) = settings {
-                    views.artifact_settings(context, frame, draft);
-                }
-            }
-            EditorRegion::Pane(_) => {
-                if let Some(document) = pane_document.as_mut() {
-                    document.show(context, frame);
-                    if let Some(editor) = &views.editor {
-                        editor.end_frame(document);
-                    }
-                    floating = document.overlay_rects();
-                }
-            }
-        });
-        if let (EditorRegion::Pane(pane), Some(document)) = (region.region, pane_document) {
-            self.panes.insert(pane, document);
-        }
-        if exit {
+        let shown = lent.shown;
+        if shown.exit {
             self.host.leave_frame();
         }
-        if let Some(text) = &output.copied_text {
-            self.host.copy_text(text.clone());
-        }
-        if output.paste_requested {
-            self.host.request_paste();
-        }
-        for request in std::mem::take(&mut output.file_picks) {
-            let asked = self.host.pick_file(block_plugin_api::FileFilter {
-                name: request.filter.name,
-                extensions: request.filter.extensions,
-                mime_types: request.filter.mime_types,
-            });
-            state.file_picks.push((asked, request.id));
-        }
-        let unscale = ratio.recip();
-        let mut result = Frame {
-            changed: output.changed,
-            repaint_after: (output.repaint_after < Duration::MAX).then_some(output.repaint_after),
-            cursor: match context.touch_emulation() {
-                true => CursorIcon::Crosshair,
-                false => beui_cursor(output.cursor_icon),
-            },
-            content: content.map(|rect| rect.scaled(unscale)),
-            painted: painted.iter().map(|rect| rect.scaled(unscale)).collect(),
-            floating: floating.iter().map(|rect| rect.scaled(unscale)).collect(),
-            ime: output.ime.as_ref().map(|area| Ime {
-                rect: area.rect.scaled(unscale),
-                cursor: area.cursor.scaled(unscale),
-                text: area.text.as_ref().map(beui_plugin_input::protocol_ime_text),
-                keyboard: area.keyboard,
-            }),
-            handles_back: output.handles_back,
-        };
-        state.note_output(&output, frame);
-        state.output = Some(output);
-        let locked = self
-            .regions
-            .values()
-            .any(|region| region.context.pointer_locked());
+        let to_region = |rect: beui::Rect| surface.to_region(region, rect);
+        frame.content = shown.content.map(to_region);
+        frame.painted = shown.painted.into_iter().map(to_region).collect();
+        frame.floating = shown.floating.into_iter().map(to_region).collect();
+        let locked = self.surfaces.values().any(PluginSurface::pointer_locked);
         self.host.grab_cursor(locked);
-        if region.region == EditorRegion::Frame {
-            self.publish_panes();
-        }
         if self.zones_pending() {
-            result.repaint_after = Some(Duration::ZERO);
+            frame.repaint_after = Some(Duration::ZERO);
         }
-        result
+        frame
     }
 
     #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
-        let Some(state) = self.regions.get_mut(&target.placement.region) else {
-            return Vec::new();
-        };
-        let damage = state.take_repaint(target.age);
-        let (Some(output), Some(damage)) = (state.output.as_ref(), damage) else {
-            return Vec::new();
-        };
-        let repaint = match (target.age, damage) {
-            (0, _) => beui::Repaint::Everything,
-            (_, Damage::Everything) => beui::Repaint::Region {
-                region: beui::Region::from(state.frame),
-                background: beui::Color32::TRANSPARENT,
-            },
-            (_, Damage::Region(region)) => beui::Repaint::Region {
-                region: region.clipped(state.frame),
-                background: beui::Color32::TRANSPARENT,
-            },
-        };
-        if let beui::Repaint::Region { region, .. } = repaint
-            && region.is_empty()
-        {
-            return Vec::new();
-        }
-        let renderer = self
-            .renderers
-            .entry(target.placement.region)
-            .or_insert_with(|| beui::Renderer::new(target.device, target.format));
-        let (x, y, width, height) = target.scissor();
-        renderer.set_bounds(Some([x, y, width, height]));
-        let screen = beui::vec2(target.width as f32, target.height as f32);
-        let prepared = renderer.prepare(
-            target.device,
-            target.queue,
-            output,
-            screen,
-            output.pixels_per_point(),
-            repaint,
-        );
-        if matches!(repaint, beui::Repaint::Region { .. })
-            && matches!(prepared, beui::Repaint::Everything)
-        {
-            renderer.prepare(
-                target.device,
-                target.queue,
-                output,
-                screen,
-                output.pixels_per_point(),
-                beui::Repaint::Region {
-                    region: beui::Region::from(state.frame),
-                    background: beui::Color32::TRANSPARENT,
-                },
-            );
-        }
-        let mut encoder = target
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-        renderer.render(
-            target.device,
-            target.queue,
-            &mut encoder,
-            target.view,
-            (target.width, target.height),
-            wgpu::LoadOp::Load,
-        );
-        target.queue.submit([encoder.finish()]);
-        match renderer.scissors() {
-            Some(scissors) => scissors
-                .iter()
-                .map(|[x, y, width, height]| SurfaceRect {
-                    x: *x,
-                    y: *y,
-                    width: *width,
-                    height: *height,
-                })
-                .collect(),
-            None => target.whole(),
+        match self.surfaces.get_mut(&target.region) {
+            Some(surface) => surface.paint(target),
+            None => Vec::new(),
         }
     }
 
     fn input(&mut self, region: &Region, event: &InputEvent) {
-        let scale_factor = region.scale_factor;
-        let origin = region.rect.min.to_vec2();
-        let state = self
-            .regions
-            .entry(region.region)
-            .or_insert_with(BeuiRegion::new);
-        let ratio = state
-            .context
-            .simulated_pixels_per_point()
-            .map_or(1.0, |simulated| scale_factor / simulated);
-        let at = |x: f32, y: f32| beui::pos2((x + origin.x) * ratio, (y + origin.y) * ratio);
-        let emulating = state.context.touch_emulation();
-        if !emulating && state.emulated_touch {
-            state.emulated_touch = false;
-            state.emulate_touch(beui::TouchPhase::Cancel);
-        }
-        match event {
-            InputEvent::PointerMoved { x, y } => {
-                state.pointer = at(*x, *y);
-                if !emulating {
-                    state.events.push(beui::Event::PointerMoved(state.pointer));
-                } else if state.emulated_touch {
-                    state.emulate_touch(beui::TouchPhase::Move);
-                }
-            }
-            InputEvent::PointerLeft if !emulating => state.events.push(beui::Event::PointerGone),
-            InputEvent::PointerLeft => {}
-            InputEvent::PointerButton {
-                button: PointerButton::Primary,
-                pressed,
-                x,
-                y,
-            } if emulating => {
-                state.pointer = at(*x, *y);
-                if *pressed != state.emulated_touch {
-                    state.emulated_touch = *pressed;
-                    state.emulate_touch(if *pressed {
-                        beui::TouchPhase::Start
-                    } else {
-                        beui::TouchPhase::End
-                    });
-                }
-            }
-            InputEvent::PointerButton { .. } if emulating => {}
-            InputEvent::PointerButton {
-                button,
-                pressed,
-                x,
-                y,
-            } => {
-                let Some(button) = beui_button(*button) else {
-                    return;
-                };
-                state.pointer = at(*x, *y);
-                state.events.push(beui::Event::PointerButton {
-                    pos: state.pointer,
-                    button,
-                    pressed: *pressed,
-                    modifiers: state.modifiers,
-                });
-            }
-            InputEvent::Wheel { x, y, unit } => {
-                let scale = match unit {
-                    WheelUnit::Pixels => 1.0,
-                    WheelUnit::Lines => WHEEL_LINE,
-                    WheelUnit::Pages => WHEEL_PAGE,
-                };
-                state
-                    .events
-                    .push(beui::Event::Scroll(beui::vec2(x * scale, y * scale)));
-            }
-            InputEvent::Touch {
-                device,
-                finger,
-                phase,
-                x,
-                y,
-                force,
-            } => state.events.push(beui::Event::Touch {
-                id: beui::TouchId {
-                    device: *device,
-                    finger: *finger,
-                },
-                phase: beui_touch_phase(*phase),
-                pos: at(*x, *y),
-                force: *force,
-            }),
-            InputEvent::Key {
-                key,
-                pressed,
-                repeat,
-            } => {
-                let Some(key) = beui_plugin_input::beui_key(*key) else {
-                    return;
-                };
-                state.events.push(beui::Event::Key {
-                    key,
-                    pressed: *pressed,
-                    repeat: *repeat,
-                    modifiers: state.modifiers,
-                });
-            }
-            InputEvent::Text(text) | InputEvent::Paste(text) => {
-                state.events.push(beui::Event::Text(text.clone()));
-            }
-            InputEvent::Modifiers(modifiers) => {
-                state.modifiers = beui::Modifiers {
-                    alt: modifiers.alt,
-                    ctrl: modifiers.control || modifiers.command,
-                    shift: modifiers.shift,
-                };
-                state.events.push(beui::Event::Modifiers(state.modifiers));
-            }
-            InputEvent::WheelEnded => state.events.push(beui::Event::ScrollEnded),
-            InputEvent::Zoom { factor } => {
-                state.events.push(beui::Event::Zoom(*factor));
-            }
-            InputEvent::PointerMotion { x, y } => {
-                state
-                    .events
-                    .push(beui::Event::PointerMotion(beui::vec2(*x, *y) * ratio));
-            }
-            InputEvent::Focus(false) => {
-                state.emulated_touch = false;
-                state.events.push(beui::Event::Focus(false));
-            }
-            InputEvent::Ime(ime) => state
-                .events
-                .push(beui::Event::Ime(beui_plugin_input::beui_ime(ime))),
-            InputEvent::Focus(_) => {}
-            InputEvent::Back(phase) => state
-                .events
-                .push(beui::Event::Back(beui_plugin_input::beui_back(*phase))),
-        }
-    }
-}
-
-fn beui_button(button: PointerButton) -> Option<beui::PointerButton> {
-    match button {
-        PointerButton::Primary => Some(beui::PointerButton::Primary),
-        PointerButton::Secondary => Some(beui::PointerButton::Secondary),
-        PointerButton::Middle => Some(beui::PointerButton::Middle),
-        PointerButton::Back | PointerButton::Forward | PointerButton::Other(_) => None,
-    }
-}
-
-fn beui_touch_phase(phase: block_plugin_api::TouchPhase) -> beui::TouchPhase {
-    match phase {
-        block_plugin_api::TouchPhase::Start => beui::TouchPhase::Start,
-        block_plugin_api::TouchPhase::Move => beui::TouchPhase::Move,
-        block_plugin_api::TouchPhase::End => beui::TouchPhase::End,
-        block_plugin_api::TouchPhase::Cancel => beui::TouchPhase::Cancel,
-    }
-}
-
-fn beui_cursor(cursor: beui::CursorIcon) -> CursorIcon {
-    match cursor {
-        beui::CursorIcon::Default => CursorIcon::Default,
-        beui::CursorIcon::Crosshair => CursorIcon::Crosshair,
-        beui::CursorIcon::Grab => CursorIcon::Grab,
-        beui::CursorIcon::Grabbing => CursorIcon::Grabbing,
-        beui::CursorIcon::NotAllowed => CursorIcon::NotAllowed,
-        beui::CursorIcon::PointingHand => CursorIcon::Pointer,
-        beui::CursorIcon::ResizeHorizontal => CursorIcon::ResizeHorizontal,
-        beui::CursorIcon::ResizeVertical => CursorIcon::ResizeVertical,
-        beui::CursorIcon::ResizeNeSw => CursorIcon::ResizeNeSw,
-        beui::CursorIcon::ResizeNwSe => CursorIcon::ResizeNwSe,
-        beui::CursorIcon::Text => CursorIcon::Text,
-        beui::CursorIcon::Wait => CursorIcon::Wait,
-        beui::CursorIcon::None => CursorIcon::None,
-        beui::CursorIcon::Move => CursorIcon::Move,
-        beui::CursorIcon::Progress => CursorIcon::Progress,
-        beui::CursorIcon::Help => CursorIcon::Help,
-        beui::CursorIcon::Alias => CursorIcon::Pointer,
+        self.surface(region.region).input(region, event);
     }
 }
 
 #[cfg(test)]
 mod tests;
-
-fn picked(pick: FilePick) -> beui::FilePick {
-    match pick {
-        FilePick::Chosen { name, data } => Ok(Some(beui::PickedFile { name, data })),
-        FilePick::Cancelled => Ok(None),
-        FilePick::Failed(error) => Err(error),
-    }
-}

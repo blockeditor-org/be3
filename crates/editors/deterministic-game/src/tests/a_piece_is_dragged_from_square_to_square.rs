@@ -14,5 +14,6 @@ fn a_piece_is_dragged_from_square_to_square() {
     assert_eq!(played.len(), 1);
     assert_eq!(played[0].actor, ACCOUNT);
     assert_eq!(editor.label("game.history.0.0"), "e4");
+    editor.settle();
     editor.snapshot("a_piece_is_dragged_from_square_to_square");
 }

@@ -196,17 +196,17 @@ dropped into another. The drag ends with the pointer, and is not answered.
 An editor instance may ask the host to act on one of the blocks it draws: to
 share or rename it, to replace an occurrence of it inside a named container
 with a copy of its own, to take it out of where it is listed, to move it from
-there into another block, or to place it under one. These are the host's own
-dialogs and structural edits, which an instance cannot draw or make for
-itself, and each names where the block is listed - the root, the blocks with
+there into another block, or to place it under one. These are structural edits
+an instance cannot make for itself, and the ask to share or rename, which the
+host passes to the instance that draws the window to show its own dialog for;
+each names where the block is listed - the root, the blocks with
 no parent, or a container - and whether it is listed there as a reference
 rather than as a child, since that decides whether the block's own parent
 moves with it. None of them is answered.
 
-The same request carries four more the instance that owns the window needs,
+The same request carries three more the instance that owns the window needs,
 for blocks it is showing rather than drawing: to rebuild a block's dynamic
-artifact, to open the host's settings dialog for it, or to unlink it from the
-source it was generated from; to hold a block to no more access than a named
+artifact or to unlink it from the source it was generated from; to hold a block to no more access than a named
 level, which is what shows a block as an account with less access would see
 it; to reveal one client's presence cursor, which only the editor of that
 block can scroll to; and to close a block's editor, which is what a tab
@@ -219,7 +219,18 @@ type that generated it, what its settings currently produce, why they cannot
 be read, and whether it is being rebuilt. Only the plugin that made an
 artifact can describe it, so the host keeps that instance open for as long as
 a block is named and answers on its behalf. Naming a block again leaves it
-where it is; leaving one out closes the instance describing it.
+where it is; leaving one out closes the instance describing it. That instance
+also shows a block's artifact settings: an instance places a child showing
+them, whose status says whether the copy being edited differs from the stored
+settings and summarises what it would produce, and committing that child
+stores the copy.
+
+The instance that draws the window may ask the host who can open a block,
+answered once with every member of the workspace - their account, email, name,
+whether they administer the workspace, the access granted to them on that
+block if any and the access they end up with - or with why it could not be
+listed, and may grant a member a level of access to a block. A grant is not
+answered; the instance lists the block again to see it.
 
 An editor instance may ask the host to choose a file for it, which only the
 host can do on every platform the app runs on. The request carries the filter
@@ -270,13 +281,14 @@ data, and for one file by that path, answered with its bytes or with why they
 could not be read. A plugin reaches only its own data; a path that is not a
 plain relative path is refused as an ordinary failure.
 
-An editor instance may ask the host for a web view, which is a window of the
+An editor instance may ask the host for web views, each a window of the
 operating system's own laid over the app rather than anything a plugin could
-draw: it opens one at a URL, says each frame where inside its own screen it
-goes and whether it is shown at all, and asks it to navigate, reload or hand
-the keyboard back to the app. The host maps that rectangle through the
-placement it last drew the instance's screen at, hides the view while the
-instance is not being drawn, and closes it with the instance. It reports back
+draw. The instance names each view it opens with an identifier of its own,
+opens it at a URL, asks it to navigate, reload or hand the keyboard back to
+the app, and shows it by placing it as a child, like a block; a view no child
+places is hidden. The host maps the child's rectangle through the placement it
+last drew the instance's screen at, hides the view while the instance is not
+being drawn, and closes it with the instance. It reports back
 what the page does - a navigation started or finished, a history entry pushed
 or replaced, a title, a history traversal the page asked for, a window it
 wanted to open, the address the view is now at - and why anything it was asked
@@ -374,7 +386,9 @@ An editor instance may embed other blocks' editors inside one of its screens.
 Once per frame the instance publishes, for that screen, the frame generation
 it drew, an ordered list of the children it placed and the occluder rectangles
 declared between them, all in the screen's own logical coordinates. A child
-carries its own identifier, the block and block type it shows, the rectangle
+carries its own identifier, what it shows - a block and its block type, one
+of the instance's web views, a panel the host draws itself, or a window of a
+program the host runs - the rectangle
 and clip it was placed at, the corner radius of the hole cut for it, whether
 it composites below or above the instance's own pixels, and whether the host
 should draw it as a preview, a passive editor, an active one, or a live one.
@@ -419,24 +433,23 @@ which of them was pressed, and the host hands that to the instance that placed
 the child, which decides what going back, switching file or showing the file's
 details means.
 
-A host that can lay out an instance's tabs in its own dock says so in the
-accepted handshake. An instance may then describe its tabs as panes: each
-pane's title and whether it can be closed, and a flat tree of the splits, tab
-bars and groups they sit in. The host draws each pane on a screen of its own,
-in the pane's region, and keeps them together as a group in its dock. When the
-user rearranges or closes a pane there, the host sends the new arrangement or
-the close back, numbering each arrangement; the instance stamps a layout with
-the last arrangement it has applied, so the host ignores one sent before it.
-The layout also names the pane back leads to when the host stacks its dock on
-a phone, and whether the instance draws a pane for an empty spot in the group,
-which the host places in the pane region of `EMPTY_PANE`. A pane may ask for a
-More button, which the host draws in its own bar and whose press it sends
-back. An instance that stops describing panes sends no layout, and the host
-shows its frame region in their place again.
+The panels the host draws itself - its debugging panels - are placed by the
+instance that draws the window, never by the host: the host asks that
+instance to show one, and draws it wherever a child places it.
+
+The windows of the programs the host runs - on Linux it is a Wayland
+compositor - are placed the same way. The host tells the instance that draws
+the window every window it has whenever that changes: its title, its program's
+id, the window it belongs to if it is a dialog, and the size it drew itself at.
+The instance shows a window by placing it as a child, and the host draws the
+program's surfaces there, tells the program the size it was placed at, and
+gives it the input that lands on it. A window the instance does not place is
+not drawn. The instance asks the host to close a window, and the window stays
+listed until its program closes it.
 
 A block pick may name a place for what it makes: the top level or a block. The
-host then asks for a name and lets the user choose the place as well, and
-creates the block there under that name; its answer says so, and the plugin
+picker then asks for a name and lets the user choose the place as well, and
+the block is created there under that name; the answer says so, and the plugin
 only opens what it was given. A block chosen from the ones that already exist
 is never placed by the host, and the plugin places it as it would without a
 place.
@@ -491,6 +504,16 @@ creation dialog asks the same way, which is how an editor whose block cannot be
 made until it references another one gets that block before its own exists; the
 host opens the picker over the dialog it is already showing.
 
+The host does not draw the picker itself. It forwards each pick to the
+instance that draws the window, which is told the pick, its filter and the
+block that asked, and answers it once; the host passes that answer back to the
+instance that asked. That instance makes new blocks by placing a child that
+shows a template being made, named by its editor and template from the
+catalog the host sends with the block types. The child's status reports the
+creation's progress - its options, whether they are ready, then the block it
+made or why it failed - and the instance asks the host to make it, under a
+parent and with a name, by committing the child.
+
 An editor instance may ask the host to present it: to give it the whole window
 and show nothing else of the app, which is what a slideshow or a video played
 back full screen wants. The host owns the answer and reports the state it
@@ -526,20 +549,22 @@ process can run. A request left unanswered for a second is asked again. A
 plugin the host is not drawing is asked for nothing.
 
 The host shows whatever the plugin has published by the time it finishes
-building its own frame. Which part of the surface each region takes is settled
-then as well, against the layout that arrived with the frame being shown, so a
+building its own frame. Which surface each region is drawn from is settled then
+as well, against the layout that arrived with the frame being shown, so a
 plugin that republishes its layout mid-frame is never drawn through the
 placements of the one before it.
 
-Every screen an instance is given is packed into one surface for the whole
-plugin runtime, in two dimensions rather than in a single column, since a
-frame-sized slot would otherwise run past the largest texture the device
-allows. Which part of the surface a screen takes is the layout the plugin
-publishes and the host samples.
+Every screen an instance is given is a surface of its own, the size the host
+asked for, so a screen that grows, shrinks or goes away leaves every other
+screen's surface as it was. Which surface a screen is drawn into is the layout
+the plugin publishes: a screen keeps its surface for as long as it is shown,
+and a surface whose screen is gone is released. A frame presents only the
+surfaces whose screens changed, and the damage it reports names the screen
+each rectangle falls on.
 
 A plugin never learns where its pixels live. It asks its host for a render
 target and draws into an opaque texture, which is the host's own under
 wasmtime and the worker's offscreen canvas in the browser; the frame it
-publishes names the generation of the layout it drew, and the host shows that
-texture until another frame arrives. No pixels and no native graphics
-resources cross the connection.
+publishes names the generation of the layout it drew, and the host shows each
+screen's texture until another frame presents it. No pixels and no native
+graphics resources cross the connection.

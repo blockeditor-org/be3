@@ -1,9 +1,6 @@
 @group(0) @binding(0)
 var surface: texture_2d<f32>;
 
-@group(0) @binding(1)
-var<uniform> origin: vec4<f32>;
-
 @vertex
 fn screen_vertex(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {
     let x = f32((index << 1u) & 2u);
@@ -13,5 +10,5 @@ fn screen_vertex(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f
 
 @fragment
 fn screen_fragment(@builtin(position) position: vec4<f32>) -> @location(0) vec4<f32> {
-    return textureLoad(surface, vec2<i32>(position.xy + origin.xy), 0);
+    return textureLoad(surface, vec2<i32>(position.xy), 0);
 }
