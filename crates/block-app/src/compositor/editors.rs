@@ -1,7 +1,7 @@
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, HashMap},
-    rc::Rc,
+    rc::{Rc, Weak},
 };
 
 use be_graph::Access;
@@ -58,15 +58,17 @@ struct CreationChild {
 pub(crate) struct Editors(Rc<State>);
 
 thread_local! {
-    static EDITORS: RefCell<Option<Editors>> = const { RefCell::new(None) };
+    static EDITORS: RefCell<Weak<State>> = const { RefCell::new(Weak::new()) };
 }
 
 pub(crate) fn editors() -> Editors {
     EDITORS.with(|editors| {
-        editors
-            .borrow()
-            .clone()
-            .expect("the editors are installed before the document is built")
+        Editors(
+            editors
+                .borrow()
+                .upgrade()
+                .expect("the editors are installed before the document is built"),
+        )
     })
 }
 
@@ -83,7 +85,7 @@ impl Editors {
             settings_shown: RefCell::new(HashMap::new()),
             settings_status: RefCell::new(None),
         }));
-        EDITORS.with(|held| *held.borrow_mut() = Some(editors.clone()));
+        EDITORS.with(|held| *held.borrow_mut() = Rc::downgrade(&editors.0));
         editors
     }
 
@@ -1542,3 +1544,6 @@ pub(super) fn provide_reports(reports: ChildReports) {
 pub(super) fn statuses(reports: &ChildReports) -> Vec<HostChildStatus> {
     reports.statuses.borrow().values().cloned().collect()
 }
+
+#[cfg(test)]
+mod tests;
