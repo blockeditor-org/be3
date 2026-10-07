@@ -63,10 +63,15 @@ pub fn ContextMenu(
         set_position.clone(),
         set_focusing.clone(),
     );
+    let mut pointer_opened = false;
     create_effect(move || {
         if !open_at_pointer.get() {
+            if std::mem::take(&mut pointer_opened) {
+                pointed.set(false);
+            }
             return;
         }
+        pointer_opened = true;
         let pointer = last_pointer();
         pointed_position.set(pointer.map_or(Pos2::ZERO, |pointer| pointer.pos));
         pointed_touch.set(pointer.is_some_and(|pointer| pointer.touch));

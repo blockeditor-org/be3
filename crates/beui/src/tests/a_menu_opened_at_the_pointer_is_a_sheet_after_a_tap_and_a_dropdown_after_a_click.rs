@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Frame, Interactive, view};
+use crate::reactive::{Frame, Interactive, view, with_reactive_scope};
 use crate::styled::ContextMenu;
 use crate::unstyled::MenuItem;
 
@@ -14,10 +14,12 @@ fn sheet_shown(harness: &Harness) -> bool {
 #[test]
 fn a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_click() {
     let (menu, target) = (NodeRef::new(), NodeRef::new());
+    let setter = Rc::new(RefCell::new(None));
     let document = crate::reactive::build({
-        let (menu, target) = (menu.clone(), target.clone());
+        let (menu, target, setter) = (menu.clone(), target.clone(), setter.clone());
         move || {
             let (open, set_open) = create_signal(false);
+            *setter.borrow_mut() = Some(set_open.clone());
             let closing = set_open.clone();
             view! {
                 <List spacing=0.0>
@@ -72,4 +74,12 @@ fn a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_cl
     harness.settle();
     assert!(sheet_shown(&harness), "a tap opens the menu as a sheet");
     assert!(!harness.document().is_overlay_open(overlay));
+
+    let set_open = setter.borrow().clone().expect("the menu was built");
+    with_reactive_scope(harness.document_mut(), || set_open.set(false));
+    harness.settle();
+    assert!(
+        !sheet_shown(&harness),
+        "clearing open_at_pointer closes the menu"
+    );
 }
