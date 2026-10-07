@@ -319,7 +319,6 @@ struct BlockApp {
     run_program_open: bool,
     app_menu_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
-    scheduled_account_switch: Option<Account>,
     allow_close: bool,
     #[cfg(not(target_arch = "wasm32"))]
     data_dir: PathBuf,
@@ -365,7 +364,6 @@ struct ReauthState {
 
 #[derive(Clone)]
 enum PendingDestructiveAction {
-    Switch(Account),
     ChooseWorkspace,
     Close,
 }
@@ -499,7 +497,6 @@ impl BlockApp {
             run_program_open: false,
             app_menu_open: false,
             pending_destructive_action: None,
-            scheduled_account_switch: None,
             allow_close: false,
             #[cfg(not(target_arch = "wasm32"))]
             data_dir: PathBuf::new(),
@@ -964,17 +961,6 @@ impl BlockApp {
         self.poll_workspace_request();
     }
 
-    fn request_account_switch(&mut self, account: Account) {
-        if account == self.account {
-            return;
-        }
-        if be::status().unsealed == 0 {
-            self.scheduled_account_switch = Some(account);
-        } else {
-            self.pending_destructive_action = Some(PendingDestructiveAction::Switch(account));
-        }
-    }
-
     fn switch_account(&mut self, account: Account) {
         let server_url = match &account.server {
             ServerLocation::Local => self.local_server_url.clone(),
@@ -997,7 +983,6 @@ impl BlockApp {
         self.run_program_open = false;
         self.app_menu_open = false;
         self.pending_destructive_action = None;
-        self.scheduled_account_switch = None;
         self.allow_close = false;
         self.workspace = None;
         self.workspaces.clear();
@@ -1037,9 +1022,6 @@ impl BlockApp {
             return;
         };
         match action {
-            PendingDestructiveAction::Switch(account) => {
-                self.scheduled_account_switch = Some(account);
-            }
             PendingDestructiveAction::ChooseWorkspace => {
                 self.scheduled_workspace_list = true;
             }
@@ -1835,9 +1817,6 @@ impl BlockApp {
             let _ = self.app_state.set_last_workspace(&account, None);
             self.switch_account(account);
         }
-        if let Some(account) = self.scheduled_account_switch.take() {
-            self.switch_account(account);
-        }
         self.poll_keys();
         if self.workspace.is_none() {
             be::stop();
@@ -2045,11 +2024,6 @@ impl BlockApp {
                         Some(PendingDestructiveAction::ChooseWorkspace);
                 }
             }
-            UiCommand::SwitchTo(key) => {
-                if let Some(account) = self.account_by_key(&key) {
-                    self.request_account_switch(account);
-                }
-            }
             UiCommand::About(open) => self.about_open = open,
             UiCommand::RunProgram(open) => self.run_program_open = open,
             UiCommand::Launch(command) => {
@@ -2140,7 +2114,7 @@ impl BlockApp {
                 pending: self.pending_error_action,
                 unsaved: be::status().unsealed,
             },
-            accounts: accounts.clone(),
+            accounts,
             account_error: self.account_error.clone(),
             add_account: ui::AddAccountView {
                 open: self.add_account_open,
@@ -2207,7 +2181,6 @@ impl BlockApp {
                 changes_saved,
                 workspace: workspace_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
-                accounts,
                 profiles: self
                     .root_settings
                     .profiles(self.client_id, self.every_profile_type)
@@ -2301,13 +2274,6 @@ impl BlockApp {
 
 fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
     let (message, button) = match action {
-        PendingDestructiveAction::Switch(account) => (
-            format!(
-                "Switching to {} will discard changes that have not reached the server.",
-                account.name
-            ),
-            "Discard and switch",
-        ),
         PendingDestructiveAction::ChooseWorkspace => (
             "Switching workspaces will discard changes that have not reached the server."
                 .to_owned(),

@@ -1,6 +1,6 @@
 use beui::icons::{
-    ICON_ACCOUNT_CIRCLE, ICON_BUG_REPORT, ICON_CHECK, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS,
-    ICON_PERSON_ADD, ICON_POWER_SETTINGS_NEW, ICON_SWAP_HORIZ, ICON_TERMINAL,
+    ICON_BUG_REPORT, ICON_CHECK, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD,
+    ICON_POWER_SETTINGS_NEW, ICON_SWAP_HORIZ, ICON_TERMINAL,
 };
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component, create_memo,
@@ -84,15 +84,6 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
     }));
     let workspace = create_memo(clone!(status -> move || status.get().workspace));
     let signed_in_as = create_memo(clone!(status -> move || status.get().signed_in_as));
-    let accounts = create_memo(clone!(status -> move || status.get().accounts));
-    let account_keys = create_memo(clone!(accounts -> move || {
-        accounts
-            .get()
-            .into_iter()
-            .map(|account| account.key)
-            .collect::<Vec<_>>()
-    }));
-    let listed = accounts.clone();
     let panel = |panel: HostPanel| move || pick(UiCommand::ShowPanel(panel));
     let runs_programs = create_memo(clone!(status -> move || status.get().runs_programs));
     let can_close = create_memo(clone!(status -> move || status.get().can_close));
@@ -132,31 +123,6 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
                     glyph={ICON_KEY.to_owned()}
                     on_click={|| pick(UiCommand::NewRecoveryPhrase)}
                 />
-                <ForEach keys={account_keys}>
-                    {move |key: String| {
-                        let listed = listed.clone();
-                        let test_id = format!("app.menu.account.{key}");
-                        let label = create_memo(clone!(key -> move || {
-                            listed
-                                .get()
-                                .into_iter()
-                                .find(|account| account.key == key)
-                                .map(|account| match account.current {
-                                    true => format!("{} (current)", account.name),
-                                    false => account.name,
-                                })
-                                .unwrap_or_default()
-                        }));
-                        view! {
-                            <ActionRow
-                                @test_id={test_id}
-                                label
-                                glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
-                                on_click={move || pick(UiCommand::SwitchTo(key.clone()))}
-                            />
-                        }
-                    }}
-                </ForEach>
                 <ActionRow
                     @test_id={"app.menu.accounts"}
                     label="Manage accounts"
