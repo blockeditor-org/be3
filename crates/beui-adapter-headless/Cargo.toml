@@ -1,0 +1,15 @@
+[package]
+name = "beui-adapter-headless"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-core = { path = "../beui-core" }
+
+[dev-dependencies]
+beui-font-freetype = { path = "../beui-font-freetype" }
+pollster = "0.4"
+
+[lints]
+workspace = true

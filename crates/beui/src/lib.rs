@@ -68,7 +68,9 @@ pub use web::{WebRenderer, run_web, web_adapter};
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 mod web;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub use window::{WindowRenderer, run_on, run_with, run_with_renderers, window_adapter};
+pub use window::{
+    WindowRenderer, headless_adapter, run_on, run_with, run_with_renderers, window_adapter,
+};
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 mod window;

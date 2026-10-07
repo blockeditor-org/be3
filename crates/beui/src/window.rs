@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use beui_core::app::App;
 use beui_core::renderer::{Loaded, WindowHandle, any_loaded};
+use beui_renderer_wgpu::offscreen::OffscreenSurface;
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_renderer_wgpu::window::WindowSurface;
 
@@ -48,6 +49,36 @@ pub fn window_adapter(renderers: Vec<WindowRenderer>) -> Box<dyn Adapter> {
     return Box::new(beui_adapter_android::Android::new(load));
     #[cfg(not(target_os = "android"))]
     return Box::new(beui_adapter_winit::Winit::new(load));
+}
+
+pub fn headless_adapter(renderers: Vec<WindowRenderer>) -> Box<dyn Adapter> {
+    Box::new(beui_adapter_headless::Headless::new(
+        move |width, height| {
+            let results = renderers
+                .into_iter()
+                .map(|renderer| load_offscreen(renderer, width, height));
+            any_loaded(results, |error| {
+                eprintln!("beui: a renderer did not load: {error}");
+            })
+        },
+    ))
+}
+
+fn load_offscreen(
+    renderer: WindowRenderer,
+    width: u32,
+    height: u32,
+) -> Result<Loaded, Box<dyn Error>> {
+    match renderer {
+        WindowRenderer::Wgpu { open_device } => Ok(Loaded {
+            renderer: Box::new(pollster::block_on(OffscreenSurface::new(
+                width,
+                height,
+                open_device,
+            ))?),
+            fonts: None,
+        }),
+    }
 }
 
 fn load(renderer: WindowRenderer, window: Arc<dyn WindowHandle>) -> Result<Loaded, Box<dyn Error>> {

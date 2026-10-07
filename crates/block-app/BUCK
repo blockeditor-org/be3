@@ -1,6 +1,6 @@
 load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
-load("@root//buck/app:defs.bzl", "app")
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
+load("@root//buck/app:defs.bzl", "app", "smoke_test")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages", "test_run")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 
@@ -241,15 +241,26 @@ export_file(
     visibility = ["//crates/be-launcher:"],
 )
 
-# The native startup smoke check: the app for ten seconds in a virtual display.
-command_alias(
+# The native smoke test: the app headless on a worker, opening the dev
+# workspace and closing once its plugins have drawn; it fails unless the app
+# exits cleanly. It draws through lavapipe from the test runtime, and the
+# Wayland compositor's keyboard takes the test runtime's keymaps. :smoke_run is
+# how ./scripts/verify runs it.
+smoke_test(
     name = "smoke",
-    args = [
-        "sh",
-        "$(location //buck/app:smoke.sh)",
-        "$(location :app)/block-app",
-        "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
-    ],
+    app = ":app",
+    env = {
+        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+        "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
+    },
+    executable = "block-app",
+    library_path = "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+    target_compatible_with = ["prelude//os:linux", "prelude//cpu:x86_64"],
+)
+
+test_run(
+    name = "smoke_run",
+    test = ":smoke",
 )
 
 # The app in a virtual display for an agent to drive, signed in with a
