@@ -31,6 +31,8 @@ pub(crate) use presenter::Piece;
 pub(crate) use presenter::shown as shown_blits;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use runtime::place_screens;
+#[cfg(target_os = "linux")]
+pub(crate) use runtime::set_input_devices;
 pub(crate) use runtime::{
     PACING, artifact, artifact_draft, aspect_ratio, block_picked, close, commit_creation, creation,
     creation_ready, flush, frame_child, frame_rects, hold, install, intrinsic_size, kill, menu,

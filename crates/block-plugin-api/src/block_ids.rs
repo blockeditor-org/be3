@@ -259,6 +259,8 @@ impl EditorMessage {
             | Self::WebViewCommand { .. }
             | Self::ShowPanel { .. }
             | Self::Windows { .. }
+            | Self::WatchInputDevices { .. }
+            | Self::InputDevices { .. }
             | Self::CloseWindow { .. }
             | Self::WebViewEvent { .. }
             | Self::OpenCreation { .. }

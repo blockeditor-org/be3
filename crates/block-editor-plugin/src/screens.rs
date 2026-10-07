@@ -465,6 +465,11 @@ impl Screens {
                     session.set_windows(windows.clone());
                 }
             }
+            Message::Editor(EditorMessage::InputDevices { instance, devices }) => {
+                if let Some(session) = self.sessions.get(instance) {
+                    session.set_input_devices(devices.clone());
+                }
+            }
             Message::Editor(EditorMessage::MenuPick { instance, id }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.pick_menu(id.clone());

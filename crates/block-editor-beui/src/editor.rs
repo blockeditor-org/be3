@@ -11,8 +11,8 @@ use beui::reactive::{
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
-    HostPanel, HostWindow, HostWindowId, InteractionMode, MenuEntry, ResizeMode, SettingsProgress,
-    TopBar, ViewChange, WebViewId,
+    HostInputDevice, HostPanel, HostWindow, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
+    SettingsProgress, TopBar, ViewChange, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -674,6 +674,15 @@ impl Editor {
         create_memo(move || {
             revision.get();
             host.windows()
+        })
+    }
+
+    pub fn input_devices(&self) -> Memo<Vec<HostInputDevice>> {
+        let host = self.0.host.clone();
+        let revision = self.pushed(Pushed::InputDevices);
+        create_memo(move || {
+            revision.get();
+            host.input_devices()
         })
     }
 

@@ -37,7 +37,7 @@ use be_dmabuf::{adapter_for, open_device};
 
 use crate::displays::{DisplayRenderer, Displays};
 use crate::gpu::{Gpu, SoftwareCursor};
-use crate::input::{InputConfig, InputControl};
+use crate::input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
 use crate::keyboard::Keyboard;
 use crate::layout::{arrange, bounds, clamp, moved};
 use crate::output::{Output, connected};
@@ -440,14 +440,33 @@ impl Session {
         }
     }
 
+    fn report_devices(&self) {
+        let mut pointers: Vec<PointerDevice> = Vec::new();
+        for device in &self.devices {
+            let defaults = pointer_defaults(device);
+            if defaults == PointerConfig::default() {
+                continue;
+            }
+            let id = device_id(device);
+            if pointers.iter().any(|pointer| pointer.id == id) {
+                continue;
+            }
+            pointers.push(PointerDevice { id, defaults });
+        }
+        pointers.sort_by(|left, right| left.id.cmp(&right.id));
+        self.control.set_devices(pointers);
+    }
+
     fn input(&mut self, event: InputEvent<LibinputInputBackend>) {
         match event {
             InputEvent::DeviceAdded { mut device } => {
                 configure_device(&mut device, &self.input);
                 self.devices.push(device);
+                self.report_devices();
             }
             InputEvent::DeviceRemoved { device } => {
                 self.devices.retain(|known| *known != device);
+                self.report_devices();
             }
             InputEvent::Keyboard { event } => {
                 let code = event.key_code().raw().saturating_sub(8);
@@ -588,17 +607,39 @@ impl Session {
     }
 }
 
+fn device_id(device: &InputDevice) -> DeviceId {
+    DeviceId {
+        name: device.name().to_owned(),
+        vendor: device.id_vendor(),
+        product: device.id_product(),
+    }
+}
+
+fn pointer_defaults(device: &InputDevice) -> PointerConfig {
+    PointerConfig {
+        speed: device
+            .config_accel_is_available()
+            .then(|| device.config_accel_default_speed()),
+        tap_to_click: (device.config_tap_finger_count() > 0)
+            .then(|| device.config_tap_default_enabled()),
+        natural_scroll: device
+            .config_scroll_has_natural_scroll()
+            .then(|| device.config_scroll_default_natural_scroll_enabled()),
+    }
+}
+
 fn configure_device(device: &mut InputDevice, config: &InputConfig) {
-    if device.config_accel_is_available() {
-        let _ = device.config_accel_set_speed(config.pointer_speed);
+    let defaults = pointer_defaults(device);
+    let wanted = config.pointer(&device_id(device));
+    if let Some(default) = defaults.speed {
+        let _ = device.config_accel_set_speed(wanted.speed.unwrap_or(default));
     }
-    if let Some(tap) = config.tap_to_click
-        && device.config_tap_finger_count() > 0
-    {
-        let _ = device.config_tap_set_enabled(tap);
+    if let Some(default) = defaults.tap_to_click {
+        let _ = device.config_tap_set_enabled(wanted.tap_to_click.unwrap_or(default));
     }
-    if device.config_scroll_has_natural_scroll() {
-        let _ = device.config_scroll_set_natural_scroll_enabled(config.natural_scroll);
+    if let Some(default) = defaults.natural_scroll {
+        let _ = device
+            .config_scroll_set_natural_scroll_enabled(wanted.natural_scroll.unwrap_or(default));
     }
 }
 

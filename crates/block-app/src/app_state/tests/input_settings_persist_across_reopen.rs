@@ -1,20 +1,17 @@
 use super::*;
 
-use be_block::{InputSettings, InputSettingsContent};
-
 #[test]
 fn input_settings_persist_across_reopen() {
     let path = std::env::temp_dir().join(format!("block-app-state-{}.sqlite3", Uuid::new_v4()));
-    let mut settings = InputSettingsContent::default();
-    settings.apply(&InputSettings::set_keyboard_layout("de"));
-    settings.apply(&InputSettings::set_natural_scroll(true));
+    let content = vec![1, 2, 3, 0, 255];
     {
         let store = AppStateStore::open(&path).unwrap();
         assert_eq!(store.input_settings().unwrap(), None);
-        store.set_input_settings(&settings.root()).unwrap();
+        store.set_input_settings(&content).unwrap();
+        store.set_input_settings(&content[1..]).unwrap();
     }
     let store = AppStateStore::open(&path).unwrap();
-    assert_eq!(store.input_settings().unwrap(), Some(settings.root()));
+    assert_eq!(store.input_settings().unwrap(), Some(content[1..].to_vec()));
     drop(store);
     std::fs::remove_file(path).unwrap();
 }

@@ -10,7 +10,7 @@ mod runner;
 mod screen;
 
 pub use gpu::{CursorImage, SoftwareCursor};
-pub use input::{InputConfig, InputControl};
+pub use input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
 pub use runner::run;
 
 use beui::{Adapter, Launch};

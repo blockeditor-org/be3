@@ -200,6 +200,10 @@ impl EditorSession {
         self.host.set_windows(windows);
     }
 
+    pub(crate) fn set_input_devices(&self, devices: Vec<block_plugin_api::HostInputDevice>) {
+        self.host.set_input_devices(devices);
+    }
+
     pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
         self.host.show_block(block_id, block_type, via);
     }
@@ -684,6 +688,11 @@ impl EditorSession {
             messages.push(Message::Editor(EditorMessage::WatchArtifacts {
                 instance,
                 blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
+            }));
+        }
+        if self.host.take_input_device_watch() {
+            messages.push(Message::Editor(EditorMessage::WatchInputDevices {
+                instance,
             }));
         }
         if let Some(blocks) = self.host.take_history_watch() {

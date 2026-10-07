@@ -1,4 +1,3 @@
-use be_block::InputSettings;
 use uuid::Uuid;
 
 use super::{AppStateError, SavedAccount};
@@ -182,12 +181,12 @@ impl AppStateStore {
         Ok(id)
     }
 
-    pub fn input_settings(&self) -> Result<Option<InputSettings>, AppStateError> {
+    pub fn input_settings(&self) -> Result<Option<Vec<u8>>, AppStateError> {
         self.read(INPUT_SETTINGS_KEY)
     }
 
-    pub fn set_input_settings(&self, settings: &InputSettings) -> Result<(), AppStateError> {
-        self.write(INPUT_SETTINGS_KEY, settings)
+    pub fn set_input_settings(&self, content: &[u8]) -> Result<(), AppStateError> {
+        self.write(INPUT_SETTINGS_KEY, &content)
     }
 
     fn read<T: serde::de::DeserializeOwned>(&self, key: &str) -> Result<Option<T>, AppStateError> {

@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use be_block::InputSettings;
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
@@ -43,6 +42,10 @@ impl AppStateStore {
                 workspace_id TEXT NOT NULL,
                 key          BLOB NOT NULL,
                 PRIMARY KEY (server_key, account_id, workspace_id)
+            );
+            CREATE TABLE IF NOT EXISTS input_settings (
+                id      INTEGER PRIMARY KEY CHECK (id = 0),
+                content BLOB NOT NULL
             );",
         )?;
         Ok(Self { connection })
@@ -236,20 +239,21 @@ impl AppStateStore {
         Ok(id)
     }
 
-    pub fn input_settings(&self) -> Result<Option<InputSettings>, AppStateError> {
-        let Some(text) = self.setting("input_settings")? else {
-            return Ok(None);
-        };
-        serde_json::from_str(&text).map(Some).map_err(|error| {
-            AppStateError::from(format!("stored input settings are unreadable: {error}"))
-        })
+    pub fn input_settings(&self) -> Result<Option<Vec<u8>>, AppStateError> {
+        let content = self
+            .connection
+            .query_row("SELECT content FROM input_settings", [], |row| row.get(0))
+            .optional()?;
+        Ok(content)
     }
 
-    pub fn set_input_settings(&self, settings: &InputSettings) -> Result<(), AppStateError> {
-        let text = serde_json::to_string(settings).map_err(|error| {
-            AppStateError::from(format!("failed to encode the input settings: {error}"))
-        })?;
-        self.set_setting("input_settings", &text)
+    pub fn set_input_settings(&self, content: &[u8]) -> Result<(), AppStateError> {
+        self.connection.execute(
+            "INSERT INTO input_settings (id, content) VALUES (0, ?1)
+             ON CONFLICT(id) DO UPDATE SET content = excluded.content",
+            params![content],
+        )?;
+        Ok(())
     }
 
     fn setting(&self, key: &str) -> Result<Option<String>, AppStateError> {

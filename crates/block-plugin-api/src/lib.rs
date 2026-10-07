@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 68;
+pub const PROTOCOL_VERSION: u16 = 69;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -212,6 +212,16 @@ pub struct HostWindow {
     pub app_id: String,
     pub parent: Option<HostWindowId>,
     pub size: Size,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct HostInputDevice {
+    pub name: String,
+    pub vendor: u32,
+    pub product: u32,
+    pub speed: Option<f64>,
+    pub tap_to_click: Option<bool>,
+    pub natural_scroll: Option<bool>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -800,6 +810,15 @@ pub enum EditorMessage {
         window: HostWindowId,
     },
 
+    WatchInputDevices {
+        instance: EditorInstanceId,
+    },
+
+    InputDevices {
+        instance: EditorInstanceId,
+        devices: Vec<HostInputDevice>,
+    },
+
     ShowDialog {
         instance: EditorInstanceId,
         block_id: [u8; 16],
@@ -1116,6 +1135,8 @@ impl EditorMessage {
             | Self::ShowBlock { instance, .. }
             | Self::ShowPanel { instance, .. }
             | Self::Windows { instance, .. }
+            | Self::WatchInputDevices { instance }
+            | Self::InputDevices { instance, .. }
             | Self::CloseWindow { instance, .. }
             | Self::ShowDialog { instance, .. }
             | Self::SetAccess { instance, .. }
@@ -1687,6 +1708,7 @@ impl EditorMessage {
             | Self::ShowBlock { .. }
             | Self::ShowPanel { .. }
             | Self::Windows { .. }
+            | Self::InputDevices { .. }
             | Self::ShowDialog { .. }
             | Self::DragOver { .. }
             | Self::DragLeft { .. }
@@ -1722,6 +1744,7 @@ impl EditorMessage {
             | Self::CommitChild { .. }
             | Self::SetAccess { .. }
             | Self::CloseWindow { .. }
+            | Self::WatchInputDevices { .. }
             | Self::PickAnswered { .. }
             | Self::ChildMenuPick { .. }
             | Self::GrabCursor { .. }
@@ -2582,6 +2605,13 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             for window in windows {
                 string(&window.title)?;
                 string(&window.app_id)?;
+            }
+            Ok(())
+        }
+        EditorMessage::InputDevices { devices, .. } => {
+            collection(devices.len())?;
+            for device in devices {
+                string(&device.name)?;
             }
             Ok(())
         }

@@ -1,4 +1,4 @@
-use be_model::{Document, Edit, Model, ObjectId};
+use be_model::{Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -6,19 +6,15 @@ use crate::Root;
 
 pub const MIN_REPEAT_DELAY: u32 = 150;
 pub const MAX_REPEAT_DELAY: u32 = 2000;
+pub const DEFAULT_REPEAT_DELAY: u32 = 600;
 pub const MIN_REPEAT_RATE: u32 = 1;
 pub const MAX_REPEAT_RATE: u32 = 100;
+pub const DEFAULT_REPEAT_RATE: u32 = 25;
 pub const MIN_POINTER_SPEED: f32 = -1.0;
 pub const MAX_POINTER_SPEED: f32 = 1.0;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RepeatDelay(u32);
-
-impl Default for RepeatDelay {
-    fn default() -> Self {
-        Self(600)
-    }
-}
 
 impl RepeatDelay {
     pub fn new(milliseconds: u32) -> Self {
@@ -32,12 +28,6 @@ impl RepeatDelay {
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RepeatRate(u32);
-
-impl Default for RepeatRate {
-    fn default() -> Self {
-        Self(25)
-    }
-}
 
 impl RepeatRate {
     pub fn new(per_second: u32) -> Self {
@@ -65,67 +55,91 @@ impl PointerSpeed {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Model, PartialEq, Serialize)]
-pub struct InputSettings {
-    pub keyboard_layout: String,
-    pub keyboard_variant: String,
-    pub keyboard_options: String,
-    pub repeat_delay: RepeatDelay,
-    pub repeat_rate: RepeatRate,
-    pub pointer_speed: PointerSpeed,
+#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct InputDevice {
+    pub name: String,
+    pub vendor: u32,
+    pub product: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct PointerSettings {
+    pub speed: Option<PointerSpeed>,
     pub tap_to_click: Option<bool>,
-    pub natural_scroll: bool,
+    pub natural_scroll: Option<bool>,
+}
+
+#[derive(Clone, Debug, Default, Model, PartialEq)]
+pub struct InputSettings {
+    pub keyboard_layout: Option<String>,
+    pub keyboard_variant: Option<String>,
+    pub keyboard_options: Option<String>,
+    pub repeat_delay: Option<RepeatDelay>,
+    pub repeat_rate: Option<RepeatRate>,
+    pub pointers: Map<InputDevice, PointerSettings>,
 }
 
 impl InputSettings {
-    pub fn set_keyboard_layout(layout: &str) -> Edit {
+    pub fn repeat_delay(&self) -> u32 {
+        self.repeat_delay
+            .map_or(DEFAULT_REPEAT_DELAY, RepeatDelay::milliseconds)
+    }
+
+    pub fn repeat_rate(&self) -> u32 {
+        self.repeat_rate
+            .map_or(DEFAULT_REPEAT_RATE, RepeatRate::per_second)
+    }
+
+    pub fn pointer(&self, device: &InputDevice) -> PointerSettings {
+        self.pointers.get(device).copied().unwrap_or_default()
+    }
+
+    pub fn set_keyboard_layout(layout: Option<&str>) -> Edit {
         Self::KEYBOARD_LAYOUT
-            .set(ObjectId::ROOT, &layout.trim().to_owned())
+            .set(
+                ObjectId::ROOT,
+                &layout.map(|layout| layout.trim().to_owned()),
+            )
             .into()
     }
 
-    pub fn set_keyboard_variant(variant: &str) -> Edit {
+    pub fn set_keyboard_variant(variant: Option<&str>) -> Edit {
         Self::KEYBOARD_VARIANT
-            .set(ObjectId::ROOT, &variant.trim().to_owned())
+            .set(
+                ObjectId::ROOT,
+                &variant.map(|variant| variant.trim().to_owned()),
+            )
             .into()
     }
 
-    pub fn set_keyboard_options(options: &str) -> Edit {
+    pub fn set_keyboard_options(options: Option<&str>) -> Edit {
         Self::KEYBOARD_OPTIONS
-            .set(ObjectId::ROOT, &options.trim().to_owned())
+            .set(
+                ObjectId::ROOT,
+                &options.map(|options| options.trim().to_owned()),
+            )
             .into()
     }
 
-    pub fn set_repeat_delay(milliseconds: u32) -> Edit {
+    pub fn set_repeat_delay(milliseconds: Option<u32>) -> Edit {
         Self::REPEAT_DELAY
-            .set(ObjectId::ROOT, &RepeatDelay::new(milliseconds))
+            .set(ObjectId::ROOT, &milliseconds.map(RepeatDelay::new))
             .into()
     }
 
-    pub fn set_repeat_rate(per_second: u32) -> Edit {
+    pub fn set_repeat_rate(per_second: Option<u32>) -> Edit {
         Self::REPEAT_RATE
-            .set(ObjectId::ROOT, &RepeatRate::new(per_second))
+            .set(ObjectId::ROOT, &per_second.map(RepeatRate::new))
             .into()
     }
 
-    pub fn set_pointer_speed(speed: f32) -> Edit {
-        Self::POINTER_SPEED
-            .set(ObjectId::ROOT, &PointerSpeed::new(speed))
-            .into()
-    }
-
-    pub fn set_tap_to_click(enabled: bool) -> Edit {
-        Self::TAP_TO_CLICK
-            .set(ObjectId::ROOT, &Some(enabled))
-            .into()
-    }
-
-    pub fn reset_tap_to_click() -> Edit {
-        Self::TAP_TO_CLICK.set(ObjectId::ROOT, &None).into()
-    }
-
-    pub fn set_natural_scroll(enabled: bool) -> Edit {
-        Self::NATURAL_SCROLL.set(ObjectId::ROOT, &enabled).into()
+    pub fn set_pointer(device: &InputDevice, settings: PointerSettings) -> Edit {
+        let settings = PointerSettings {
+            speed: settings.speed.map(|speed| PointerSpeed::new(speed.get())),
+            ..settings
+        };
+        let stored = (settings != PointerSettings::default()).then_some(&settings);
+        Self::POINTERS.put(ObjectId::ROOT, device, stored).into()
     }
 }
 

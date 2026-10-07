@@ -25,10 +25,16 @@ pub(crate) struct InputSync {
 impl InputSync {
     pub(crate) fn boot(&mut self, store: &AppStateStore) {
         match store.input_settings() {
-            Ok(Some(settings)) => {
-                apply(&settings);
-                self.applied = Some(settings);
-            }
+            Ok(Some(content)) => match InputSettingsContent::decode(&content) {
+                Ok(content) => {
+                    let settings = content.root();
+                    apply(&settings);
+                    self.applied = Some(settings);
+                }
+                Err(error) => {
+                    eprintln!("block-app: the saved input settings are unreadable: {error}")
+                }
+            },
             Ok(None) => {}
             Err(error) => eprintln!("block-app: the saved input settings were not read: {error}"),
         }
@@ -65,7 +71,8 @@ impl InputSync {
             return;
         }
         apply(&settings);
-        if let Err(error) = store.set_input_settings(&settings) {
+        if let Err(error) = store.set_input_settings(&InputSettingsContent::new(&settings).encode())
+        {
             eprintln!("block-app: the input settings were not saved on this device: {error}");
         }
         self.applied = Some(settings);

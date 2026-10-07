@@ -2,8 +2,10 @@ use std::cell::RefCell;
 use std::time::Duration;
 
 use be_block::InputSettings;
+use be_block::input_settings::{InputDevice, PointerSpeed};
 use be_wayland::KeyboardConfig;
-use beui_adapter_drm::{InputConfig, InputControl};
+use beui_adapter_drm::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
+use block_plugin_api::HostInputDevice;
 
 thread_local! {
     static CONTROL: RefCell<Option<InputControl>> = const { RefCell::new(None) };
@@ -11,6 +13,11 @@ thread_local! {
 
 pub(crate) fn start(setup: &beui::Setup) {
     let control = setup.get::<InputControl>().cloned();
+    if let Some(control) = &control {
+        control.on_devices(|devices| {
+            crate::plugin_host::set_input_devices(devices.iter().map(host_device).collect());
+        });
+    }
     CONTROL.with(|slot| *slot.borrow_mut() = control);
 }
 
@@ -28,26 +35,55 @@ pub(crate) fn apply(settings: &InputSettings) {
     }
 }
 
+fn host_device(device: &PointerDevice) -> HostInputDevice {
+    HostInputDevice {
+        name: device.id.name.clone(),
+        vendor: device.id.vendor,
+        product: device.id.product,
+        speed: device.defaults.speed,
+        tap_to_click: device.defaults.tap_to_click,
+        natural_scroll: device.defaults.natural_scroll,
+    }
+}
+
 fn seat(settings: &InputSettings) -> InputConfig {
-    let rate = settings.repeat_rate.per_second();
     InputConfig {
-        layout: settings.keyboard_layout.clone(),
-        variant: settings.keyboard_variant.clone(),
-        options: settings.keyboard_options.clone(),
-        repeat_delay: Duration::from_millis(settings.repeat_delay.milliseconds().into()),
-        repeat_interval: Duration::from_millis((1000 / rate).into()),
-        pointer_speed: settings.pointer_speed.get().into(),
-        tap_to_click: settings.tap_to_click,
-        natural_scroll: settings.natural_scroll,
+        layout: settings.keyboard_layout.clone().unwrap_or_default(),
+        variant: settings.keyboard_variant.clone().unwrap_or_default(),
+        options: settings.keyboard_options.clone().unwrap_or_default(),
+        repeat_delay: Duration::from_millis(settings.repeat_delay().into()),
+        repeat_interval: Duration::from_millis((1000 / settings.repeat_rate()).into()),
+        pointers: settings
+            .pointers
+            .iter()
+            .map(|(device, pointer)| {
+                (
+                    device_id(device),
+                    PointerConfig {
+                        speed: pointer.speed.map(|speed| PointerSpeed::get(speed).into()),
+                        tap_to_click: pointer.tap_to_click,
+                        natural_scroll: pointer.natural_scroll,
+                    },
+                )
+            })
+            .collect(),
+    }
+}
+
+fn device_id(device: &InputDevice) -> DeviceId {
+    DeviceId {
+        name: device.name.clone(),
+        vendor: device.vendor,
+        product: device.product,
     }
 }
 
 fn keyboard(settings: &InputSettings) -> KeyboardConfig {
     KeyboardConfig {
-        layout: settings.keyboard_layout.clone(),
-        variant: settings.keyboard_variant.clone(),
-        options: settings.keyboard_options.clone(),
-        repeat_delay: settings.repeat_delay.milliseconds().cast_signed(),
-        repeat_rate: settings.repeat_rate.per_second().cast_signed(),
+        layout: settings.keyboard_layout.clone().unwrap_or_default(),
+        variant: settings.keyboard_variant.clone().unwrap_or_default(),
+        options: settings.keyboard_options.clone().unwrap_or_default(),
+        repeat_delay: settings.repeat_delay().cast_signed(),
+        repeat_rate: settings.repeat_rate().cast_signed(),
     }
 }
