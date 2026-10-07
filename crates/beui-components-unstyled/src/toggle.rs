@@ -6,9 +6,9 @@ use beui_core::input::CursorIcon;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Action, Callback, Interactive, IntoProp, Memo, Prop, ReadSignal, Render, action_disabled,
-    action_glyph, action_label, action_pressed, action_tooltip, clone, component_accessibility,
-    create_effect, create_memo, create_signal, set_component_state, untrack,
+    Action, Callback, Interactive, Memo, Prop, ReadSignal, Render, action_disabled, action_glyph,
+    action_label, action_pressed, action_tooltip, clone, component_accessibility, create_effect,
+    create_memo, create_signal, set_component_state, untrack,
 };
 
 pub struct ToggleHandle {
@@ -30,6 +30,9 @@ pub fn Toggle(
     #[prop(default = Role::CheckBox)] role: Role,
     action: Option<Action>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] capture_presses: Prop<bool>,
+    #[prop(default = true)] tab_stop: Prop<bool>,
+    #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(children)] content: Option<Render<ToggleHandle>>,
     on_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
@@ -94,7 +97,8 @@ pub fn Toggle(
         }
     };
     let key_toggle = toggle_checked.clone();
-    let tab_stop = disabled.clone().into_prop().map(|disabled: bool| !disabled);
+    let tab_disabled = disabled.clone();
+    let tab_stop = tab_stop.map(move |tab_stop| tab_stop && !tab_disabled.get());
     let cursor = create_memo(clone!(disabled -> move || match disabled.get() {
         true => CursorIcon::Default,
         false => CursorIcon::PointingHand,
@@ -106,6 +110,8 @@ pub fn Toggle(
         <Interactive
             focusable=true
             tab_stop
+            press_focus
+            capture_presses
             on_focus_change={move |focused: bool| set_focused.set(focused)}
             on_activate_change={move |pressed: bool| set_key_active.set(pressed)}
             on_activate={key_toggle}
