@@ -74,6 +74,95 @@ pub enum Type {
     KwString(KwString),
     KwList(KwList),
     KwField(TypeKwField),
+    Null(TypeNull),
+    KwIfOptional(TypeKwIfOptional),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeNull;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeKwIfOptional {
+    pub child: Box<Type>,
+}
+
+impl TypeKwIfOptional {
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        optional: RuntimeValue,
+        arg_in: CallArg,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let is_some = crate::kw::emit(
+            env,
+            block,
+            pos.clone(),
+            crate::kw::KwBuiltinOp::OptionalIsSome,
+            vec![optional.clone()],
+            Type::KwBool(KwBool),
+        )?;
+        block_append(
+            block,
+            AnalysisLine::RegionBegin {
+                pos: pos.clone(),
+                region: Region::KwIf {
+                    cond: is_some.value,
+                },
+            },
+        );
+        let is_block = matches!(
+            trim_ws(arg_in.ast).as_slice(),
+            [SyntaxNode::Block(b)] if b.tag == BracketTag::Code
+        );
+        if is_block {
+            analyze(env, Type::Void(TypeVoid), arg_in.pos, arg_in.ast, block)?;
+        } else {
+            let body = analyze(
+                env,
+                Type::Unknown(TypeUnknown),
+                arg_in.pos.clone(),
+                arg_in.ast,
+                block,
+            )?;
+            let ComptimeValue::Fn(func) = get_comptime(
+                env,
+                Some(ComptimeValueKind::Fn),
+                body.value,
+                arg_in.pos.clone(),
+            )?
+            else {
+                unreachable!("get_comptime guarantees a matching kind")
+            };
+            let payload = block_append(
+                block,
+                AnalysisLine::KwBuiltin {
+                    pos: pos.clone(),
+                    op: crate::kw::KwBuiltinOp::OptionalUnwrap,
+                    args: vec![optional],
+                },
+            );
+            crate::user_type::inline_call(
+                env,
+                &func,
+                vec![AnalysisResult {
+                    ty: (*self.child).clone(),
+                    value: RuntimeValue::Runtime(payload),
+                }],
+                CallArg {
+                    pos: arg_in.pos,
+                    ast: &[],
+                },
+                block,
+            )?;
+        }
+        let end = block_append(block, AnalysisLine::RegionEnd { pos });
+        Ok(AnalysisResult {
+            ty: Type::KwIfResult(KwIfResult),
+            value: RuntimeValue::Runtime(end),
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -140,6 +229,38 @@ impl Type {
                     }),
                     value: RuntimeValue::Runtime(idx),
                 })
+            }
+            Type::Unknown(_) | Type::Infer(_) => Ok(other),
+            Type::Optional(optional) if other.ty != *self => {
+                if let Type::Null(_) = other.ty {
+                    return Ok(AnalysisResult {
+                        ty: self.clone(),
+                        value: other.value,
+                    });
+                }
+                if other.ty == *optional.child {
+                    return crate::kw::emit(
+                        env,
+                        block,
+                        pos,
+                        crate::kw::KwBuiltinOp::OptionalSome,
+                        vec![other.value],
+                        self.clone(),
+                    );
+                }
+                if let Type::Never(_) = other.ty {
+                    return Ok(AnalysisResult {
+                        ty: self.clone(),
+                        value: other.value,
+                    });
+                }
+                Err(throw_err(
+                    env,
+                    Some(pos),
+                    format!("expected {}, got {}", self.dump(), other.ty.dump()),
+                    None,
+                    None,
+                ))
             }
             _ if matches!(other.ty, Type::Never(_)) => Ok(AnalysisResult {
                 ty: self.clone(),
@@ -264,7 +385,7 @@ impl Type {
             Type::Fn(_) => "TypeFn",
             Type::Uint8Array(_) => "TypeUint8Array",
             Type::Tuple(_) => "TypeTuple",
-            Type::Optional(_) => "TypeOptional",
+            Type::Optional(o) => return format!("?{}", o.child.dump()),
             Type::CtExportList(_) => "CtExportList",
             Type::CtKey(_) => "CtKey",
             Type::CtAst(_) => "CtAst",
@@ -292,6 +413,8 @@ impl Type {
             Type::KwString(_) => "KwString",
             Type::KwList(_) => "KwList",
             Type::KwField(_) => "KwField",
+            Type::Null(_) => "Null",
+            Type::KwIfOptional(_) => "KwIf",
         }
         .to_string()
     }
@@ -336,6 +459,7 @@ impl Type {
             Type::KwIf(t) => t.analyze_call(env, pos, method, arg_in, block),
             Type::Label(t) => t.analyze_call(env, pos, arg_in, block),
             Type::KwField(t) => crate::kw::call_field(env, t, method.value, pos, arg_in, block),
+            Type::KwIfOptional(t) => t.analyze_call(env, pos, method.value, arg_in, block),
             Type::InlineFn(t) => {
                 crate::user_type::inline_call(env, &t.func, Vec::new(), arg_in, block)
             }
@@ -462,6 +586,9 @@ impl Type {
         if let Type::User(t) = self {
             return Ok(t.lookup(env, key)?.map(crate::user_type::inline_entry));
         }
+        if let (Type::Optional(optional), Some(StdKey::Literal(_))) = (self, symbol_std_key(key)) {
+            return optional.child.type_symbol(env, key);
+        }
         Ok(self.builtin_type_symbol(key))
     }
 
@@ -489,6 +616,9 @@ impl Type {
     pub fn type_field(&self, name: &str) -> Option<AnalysisResult> {
         if let Some(field) = crate::kw::type_field(self, name) {
             return Some(field);
+        }
+        if let Type::Optional(optional) = self {
+            return optional.child.type_field(name);
         }
         match (self, name) {
             (Type::KwBool(_), "true" | "false") => Some(AnalysisResult {
@@ -524,6 +654,7 @@ impl Type {
                     | Type::Bound(_)
                     | Type::InlineFn(_)
                     | Type::KwField(_)
+                    | Type::KwIfOptional(_)
             );
         }
         builtin_operator(self, OperatorKind::Lhs, key).is_some()

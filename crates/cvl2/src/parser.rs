@@ -785,13 +785,13 @@ pub fn tokenize(source: &mut Source) -> TokenizationResult {
                     };
                 } else if "()[]{},;\"'`".contains(first_char) {
                     current_token = first_char.to_string();
-                } else if first_char == '.' && source.peek() == Some('*') {
-                    source.take();
+                } else if first_char == '.' && matches!(source.peek(), Some('*' | '?')) {
+                    let access = source.take().expect("peeked above").to_string();
                     current_syntax_nodes
                         .borrow_mut()
                         .push(BuilderNode::Identifier(IdentifierToken {
                             pos: start,
-                            str: "*".to_string(),
+                            str: access,
                             ident_tag: IdentifierTag::Access,
                             ident_tag_raw: ".".to_string(),
                         }));

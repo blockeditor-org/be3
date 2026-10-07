@@ -1954,7 +1954,7 @@ pub fn analyze_sub(
     }
 
     if let SyntaxNode::Block(b) = expr
-        && matches!(b.tag, BracketTag::List | BracketTag::Code)
+        && matches!(b.tag, BracketTag::List | BracketTag::Code | BracketTag::Map)
         && index > 0
     {
         let lhs = analyze_sub(
@@ -3054,6 +3054,33 @@ fn builtin_kw_list_call(
     })
 }
 
+fn builtin_option_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let child = analyze(env, Type::CtType(CtType), arg_ast.pos, arg_ast.ast, block)?;
+    let ComptimeValue::Type(child) = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::Type),
+        child.value,
+        pos,
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    Ok(AnalysisResult {
+        ty: Type::CtType(CtType),
+        value: RuntimeValue::Comptime(ComptimeValue::Type(ComptimeValueType {
+            ty: Type::Optional(crate::ct::TypeOptional {
+                child: Box::new(child.ty),
+            }),
+        })),
+    })
+}
+
 fn builtin_kw_mut_call(
     env: &mut Env,
     _slot: Type,
@@ -3126,6 +3153,14 @@ fn builtin_kw_if_call(
     env.require_target(TargetEnv::Build, pos.clone(), "std.kw.if")?;
     let bool_ty = Type::KwBool(crate::ct::KwBool);
     let cond = analyze(env, bool_ty.clone(), arg_ast.pos, arg_ast.ast, block)?;
+    if let Type::Optional(optional) = cond.ty {
+        return Ok(AnalysisResult {
+            ty: Type::KwIfOptional(crate::ct::TypeKwIfOptional {
+                child: optional.child,
+            }),
+            value: cond.value,
+        });
+    }
     let cond = bool_ty.cast_into(env, block, cond, pos)?;
     Ok(AnalysisResult {
         ty: Type::KwIf(crate::ct::KwIf {
@@ -3377,6 +3412,15 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                     ),
                                     ("list", d_ns(vec![], Some(builtin_kw_list_call))),
                                     (
+                                        "null",
+                                        d_raw(AnalysisResult {
+                                            ty: Type::Null(crate::ct::TypeNull),
+                                            value: RuntimeValue::Comptime(ComptimeValue::Optional(
+                                                ComptimeValueOptional { some: None },
+                                            )),
+                                        }),
+                                    ),
+                                    (
                                         "bool",
                                         d_raw(AnalysisResult {
                                             ty: Type::CtType(CtType),
@@ -3438,6 +3482,7 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                             ),
                         ),
                         ("c", Rc::new(PreludeDescriptor)),
+                        ("Option", d_ns(vec![], Some(builtin_option_call))),
                         (
                             "Type",
                             d_raw(AnalysisResult {

@@ -1,7 +1,8 @@
 use crate::compiler::{
     AnalysisBlock, AnalysisLine, AnalysisResult, ComptimeNamespace, ComptimeValue,
-    ComptimeValueKwInt, ComptimeValueKwString, Env, PositionedError, RuntimeValue, Symbol, analyze,
-    analyze_base, block_append, compiler_pos, throw_err,
+    ComptimeValueKwBool, ComptimeValueKwInt, ComptimeValueKwString, ComptimeValueOptional, Env,
+    PositionedError, RuntimeValue, Symbol, analyze, analyze_base, block_append, compiler_pos,
+    throw_err,
 };
 use crate::comptime::{ComptimeValueKind, get_comptime};
 use crate::ct::{
@@ -18,6 +19,9 @@ pub enum KwBuiltinOp {
     ListGet,
     ListPush,
     ListJoin,
+    OptionalSome,
+    OptionalIsSome,
+    OptionalUnwrap,
 }
 
 impl KwBuiltinOp {
@@ -30,6 +34,9 @@ impl KwBuiltinOp {
             KwBuiltinOp::ListGet => "list_get",
             KwBuiltinOp::ListPush => "list_push",
             KwBuiltinOp::ListJoin => "list_join",
+            KwBuiltinOp::OptionalSome => "optional_some",
+            KwBuiltinOp::OptionalIsSome => "optional_is_some",
+            KwBuiltinOp::OptionalUnwrap => "optional_unwrap",
         }
     }
 }
@@ -86,6 +93,24 @@ pub fn eval(
                 .collect();
             string(parts.join(&separator.value))
         }
+        (KwBuiltinOp::OptionalSome, [value]) => V::Optional(ComptimeValueOptional {
+            some: Some(Box::new(value.clone())),
+        }),
+        (KwBuiltinOp::OptionalIsSome, [V::Optional(optional)]) => V::KwBool(ComptimeValueKwBool {
+            value: optional.some.is_some(),
+        }),
+        (KwBuiltinOp::OptionalUnwrap, [V::Optional(optional)]) => match &optional.some {
+            Some(value) => (**value).clone(),
+            None => {
+                return Err(throw_err(
+                    env,
+                    Some(pos.clone()),
+                    "unwrapped std.kw.null with .?",
+                    None,
+                    None,
+                ));
+            }
+        },
         _ => unreachable!("analysis only emits {} with matching arguments", op.name()),
     })
 }
@@ -196,6 +221,7 @@ pub fn value_field(
 ) -> Result<Option<AnalysisResult>, PositionedError> {
     let property = |op| (op, Type::KwInt(KwInt));
     let (op, result_ty) = match (ty, name) {
+        (Type::Optional(optional), "?") => (KwBuiltinOp::OptionalUnwrap, (*optional.child).clone()),
         (Type::KwString(_), "len") => property(KwBuiltinOp::StringLen),
         (Type::KwList(_), "len") => property(KwBuiltinOp::ListLen),
         (Type::KwList(list), "get" | "push" | "join") => {

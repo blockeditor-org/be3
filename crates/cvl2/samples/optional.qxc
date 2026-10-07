@@ -1,0 +1,36 @@
+#builtin.build .= () => std.Folder[
+  "found.txt" .= std.File: describe(find(letters(), "b"))
+  "missing.txt" .= std.File: describe(find(letters(), "z"))
+  "forced.txt" .= std.File: std.kw.string.from_int(find(letters(), "c").?)
+  "flag.txt" .= std.File: flag(std.Option(std.kw.bool): .true)
+]
+
+letters :: () => std.kw.list(std.kw.string): ("a", "b", "c")
+
+find :: (xs: std.kw.list(std.kw.string), target: std.kw.string) => std.Option(std.kw.int): :done {
+  i := std.kw.mut(std.kw.int: 0)
+  std.kw.loop {
+    std.kw.if (i.* == xs.len) {
+      done: std.kw.null
+    }
+    std.kw.if (xs.get(i.*) == target) {
+      done: i.*
+    }
+    i = i.* + 1
+  }
+}
+
+describe :: (index: std.Option(std.kw.int)) => std.kw.string: :out {
+  std.kw.if (index): (i) => {
+    out: "found at " + std.kw.string.from_int(i)
+  }
+  -> "not found"
+}
+
+flag :: (value: std.Option(std.kw.bool)) => std.kw.string: :out {
+  std.kw.if (value.? == std.Option(std.kw.bool).true) {
+    out: "set"
+  }
+  -> "unset"
+}
+std :: #builtin.std
