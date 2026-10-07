@@ -439,11 +439,17 @@ pub enum AnalysisLine {
         label: Symbol,
         value: RuntimeValue,
     },
-    IfBegin {
+    KwBinary {
         pos: TokenPosition,
-        cond: RuntimeValue,
+        op: crate::backend::c::CBinaryOp,
+        lhs: RuntimeValue,
+        rhs: RuntimeValue,
     },
-    IfEnd {
+    RegionBegin {
+        pos: TokenPosition,
+        region: Region,
+    },
+    RegionEnd {
         pos: TokenPosition,
     },
     ComptimeFileCreate {
@@ -454,6 +460,13 @@ pub enum AnalysisLine {
         pos: TokenPosition,
         command: RuntimeValue,
     },
+}
+
+#[derive(Debug, Clone)]
+pub enum Region {
+    CIf { cond: RuntimeValue },
+    KwIf { cond: RuntimeValue },
+    KwElse { if_end: BlockIdx },
 }
 
 #[derive(Debug, Clone)]
@@ -612,6 +625,21 @@ pub struct ComptimeValueCInt {
 }
 
 #[derive(Debug, Clone)]
+pub struct ComptimeValueKwInt {
+    pub value: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComptimeValueKwBool {
+    pub value: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComptimeValueTuple {
+    pub items: Vec<ComptimeValue>,
+}
+
+#[derive(Debug, Clone)]
 pub struct ComptimeValueOperatorName {
     pub value: String,
 }
@@ -711,6 +739,9 @@ pub enum ComptimeValue {
     McResult(ComptimeValueMcResult),
     CInt(ComptimeValueCInt),
     OperatorName(ComptimeValueOperatorName),
+    KwInt(ComptimeValueKwInt),
+    KwBool(ComptimeValueKwBool),
+    Tuple(ComptimeValueTuple),
     McNbtRef(ComptimeValueMcNbtRef),
     Error(ComptimeValueError),
     Mc(crate::backend::mc::ComptimeValueMc),
@@ -2464,6 +2495,13 @@ fn d_raw(result: AnalysisResult) -> Rc<dyn Descriptor> {
     Rc::new(CustomDescriptor(result))
 }
 
+fn d_kw_bool(value: bool) -> Rc<dyn Descriptor> {
+    d_raw(AnalysisResult {
+        ty: Type::KwBool(crate::ct::KwBool),
+        value: RuntimeValue::Comptime(ComptimeValue::KwBool(ComptimeValueKwBool { value })),
+    })
+}
+
 fn d_std_key(key: crate::std_keys::StdKey) -> Rc<dyn Descriptor> {
     d_raw(AnalysisResult {
         ty: Type::CtKey(CtKey),
@@ -2722,6 +2760,25 @@ fn builtin_operator_lhs_call(
     builtin_operator_key(env, crate::std_keys::OperatorKind::Lhs, arg_ast, block)
 }
 
+fn builtin_kw_if_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    env.require_target(TargetEnv::Build, pos.clone(), "std.kw.if")?;
+    let bool_ty = Type::KwBool(crate::ct::KwBool);
+    let cond = analyze(env, bool_ty.clone(), arg_ast.pos, arg_ast.ast, block)?;
+    let cond = bool_ty.cast_into(env, block, cond, pos)?;
+    Ok(AnalysisResult {
+        ty: Type::KwIf(crate::ct::KwIf {
+            region: crate::ct::KwIfRegion::If,
+        }),
+        value: cond.value,
+    })
+}
+
 fn builtin_c_if_call(
     env: &mut Env,
     _slot: Type,
@@ -2899,6 +2956,39 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                             None,
                                         ),
                                     ),
+                                ],
+                                None,
+                            ),
+                        ),
+                        (
+                            "kw",
+                            d_ns(
+                                vec![
+                                    (
+                                        "int",
+                                        d_raw(AnalysisResult {
+                                            ty: Type::CtType(CtType),
+                                            value: RuntimeValue::Comptime(ComptimeValue::Type(
+                                                ComptimeValueType {
+                                                    ty: Type::KwInt(crate::ct::KwInt),
+                                                },
+                                            )),
+                                        }),
+                                    ),
+                                    (
+                                        "bool",
+                                        d_raw(AnalysisResult {
+                                            ty: Type::CtType(CtType),
+                                            value: RuntimeValue::Comptime(ComptimeValue::Type(
+                                                ComptimeValueType {
+                                                    ty: Type::KwBool(crate::ct::KwBool),
+                                                },
+                                            )),
+                                        }),
+                                    ),
+                                    ("true", d_kw_bool(true)),
+                                    ("false", d_kw_bool(false)),
+                                    ("if", d_ns(vec![], Some(builtin_kw_if_call))),
                                 ],
                                 None,
                             ),

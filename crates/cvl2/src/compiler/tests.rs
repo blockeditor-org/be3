@@ -136,6 +136,27 @@ std :: #builtin.std"
     Ok(String::from_utf8(file.value.clone()).unwrap())
 }
 
+fn build_file(body: &str) -> Result<String, Vec<TokenizationError>> {
+    let artifact = import_file(
+        "file.qxc",
+        &format!(
+            "#builtin.build .= () => std.Folder: [
+  \"x.txt\" .= std.File: {{
+{body}
+  }}
+]
+std :: #builtin.std"
+        ),
+    )?;
+    let ComptimeValueBuildArtifact::Folder(folder) = artifact else {
+        panic!("expected a folder");
+    };
+    let [(_, ComptimeValueBuildArtifact::File(file))] = folder.value.as_slice() else {
+        panic!("expected a single file");
+    };
+    Ok(String::from_utf8(file.value.clone()).unwrap())
+}
+
 fn only_error(result: Result<String, Vec<TokenizationError>>) -> String {
     let errors = result.expect_err("expected the build to fail");
     assert_eq!(errors.len(), 1, "{errors:?}");
@@ -151,8 +172,13 @@ mod block_append_returns_sequential_indices;
 mod get_err_includes_message_and_trace;
 mod import_file_builds_c_sample;
 mod import_file_builds_demo_sample;
+mod import_file_builds_kw_sample;
 mod import_file_c_if_requires_c_target;
 mod import_file_compare_operator_takes_rhs_type_from_lhs;
+mod import_file_kw_else_must_follow_if_on_same_line;
+mod import_file_kw_if_condition_must_be_kw_bool;
+mod import_file_kw_if_requires_build_target;
+mod import_file_kw_int_arithmetic_errors_on_overflow;
 mod import_file_operator_errors_without_slot_or_lhs;
 mod import_file_operator_falls_back_to_lhs_in_unknown_slot;
 mod import_file_operator_name_must_be_an_operator;

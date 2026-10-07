@@ -1,0 +1,21 @@
+#builtin.build .= () => std.Folder: [
+  "zero.txt" .= std.File: describe(0)
+  "small.txt" .= std.File: describe(3)
+  "big.txt" .= std.File: describe(4 * 5)
+  "negative.txt" .= std.File: describe(2 - 9)
+]
+
+describe :: (n: std.kw.int) => std.File: :out {
+  std.kw.if (n == 0) {
+    out: "zero"
+  } .else {
+    std.kw.if (n < 0) {
+      out: "negative"
+    }
+  }
+  std.kw.if (n > 10) {
+    out: "big"
+  }
+  -> "small"
+}
+std :: #builtin.std

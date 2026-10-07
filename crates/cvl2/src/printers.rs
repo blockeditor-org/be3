@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::compiler::{
     AnalysisBlock, AnalysisLine, ComptimeValue, ComptimeValueBuildArtifact, ComptimeValueKey,
-    Destructure, DestructureExtract, RuntimeValue, syntax_node_kind,
+    Destructure, DestructureExtract, Region, RuntimeValue, syntax_node_kind,
 };
 use crate::ct::Type;
 use crate::parser::{
@@ -291,8 +291,13 @@ pub(crate) fn analysis_line_tag(line: &AnalysisLine) -> &'static str {
         AnalysisLine::CBinary { .. } => "c:binary",
         AnalysisLine::LabelBegin { .. } => "label_begin",
         AnalysisLine::LabelEnd { .. } => "label_end",
-        AnalysisLine::IfBegin { .. } => "if_begin",
-        AnalysisLine::IfEnd { .. } => "if_end",
+        AnalysisLine::KwBinary { .. } => "kw:binary",
+        AnalysisLine::RegionBegin { region, .. } => match region {
+            Region::CIf { .. } => "region_begin c:if",
+            Region::KwIf { .. } => "region_begin kw:if",
+            Region::KwElse { .. } => "region_begin kw:else",
+        },
+        AnalysisLine::RegionEnd { .. } => "region_end",
     }
 }
 
@@ -310,8 +315,9 @@ pub(crate) fn analysis_line_pos(line: &AnalysisLine) -> &TokenPosition {
         AnalysisLine::CBinary { pos, .. } => pos,
         AnalysisLine::LabelBegin { pos, .. } => pos,
         AnalysisLine::LabelEnd { pos, .. } => pos,
-        AnalysisLine::IfBegin { pos, .. } => pos,
-        AnalysisLine::IfEnd { pos } => pos,
+        AnalysisLine::KwBinary { pos, .. } => pos,
+        AnalysisLine::RegionBegin { pos, .. } => pos,
+        AnalysisLine::RegionEnd { pos } => pos,
     }
 }
 
@@ -333,6 +339,9 @@ fn comptime_value_kind(value: &ComptimeValue) -> &'static str {
         ComptimeValue::McResult(_) => "mc:result",
         ComptimeValue::CInt(_) => "c:int",
         ComptimeValue::OperatorName(_) => "operator_name",
+        ComptimeValue::KwInt(_) => "kw:int",
+        ComptimeValue::KwBool(_) => "kw:bool",
+        ComptimeValue::Tuple(_) => "tuple",
         ComptimeValue::McNbtRef(_) => "mc:nbt_ref",
         ComptimeValue::Error(_) => "error",
         ComptimeValue::Mc(_) => "mc",

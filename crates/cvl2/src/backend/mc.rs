@@ -120,8 +120,9 @@ pub fn codegen_mcfunction(
             | AnalysisLine::CBinary { pos, .. }
             | AnalysisLine::LabelBegin { pos, .. }
             | AnalysisLine::LabelEnd { pos, .. }
-            | AnalysisLine::IfBegin { pos, .. }
-            | AnalysisLine::IfEnd { pos }
+            | AnalysisLine::KwBinary { pos, .. }
+            | AnalysisLine::RegionBegin { pos, .. }
+            | AnalysisLine::RegionEnd { pos }
             | AnalysisLine::ComptimeFileCreate { pos, .. } => {
                 return Err(throw_err(
                     env,

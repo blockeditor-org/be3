@@ -9,12 +9,12 @@ use crate::compiler::{
     AnalysisBlock, AnalysisLine, AnalysisResult, Binary2, ComptimeFolder, ComptimeNamespace,
     ComptimeValue, ComptimeValueBuildArtifact, ComptimeValueCExportName, ComptimeValueCInt,
     ComptimeValueDeclaration, ComptimeValueExportList, ComptimeValueExportListEntry,
-    ComptimeValueKey, ComptimeValueMcIdentifier, ComptimeValueMcNbtRef, ComptimeValueMcResult,
-    ComptimeValueOperatorName, ComptimeValueUint8Array, ComptimeValueVoid, ConsumedErrorToken, Env,
-    PositionedError, RuntimeValue, Symbol, Uint8ArraySourcemapEntry, add_err, analyze,
-    analyze_base, analyze_block, analyze_call, analyze_function, block_append, cast_value,
-    compiler_pos, create_declaration, empty_block, get_declaration, read_binary,
-    throw_consumed_err, throw_err, trim_ws,
+    ComptimeValueKey, ComptimeValueKwBool, ComptimeValueKwInt, ComptimeValueMcIdentifier,
+    ComptimeValueMcNbtRef, ComptimeValueMcResult, ComptimeValueOperatorName,
+    ComptimeValueUint8Array, ComptimeValueVoid, ConsumedErrorToken, Env, PositionedError, Region,
+    RuntimeValue, Symbol, Uint8ArraySourcemapEntry, add_err, analyze, analyze_base, analyze_block,
+    analyze_call, analyze_function, block_append, cast_value, compiler_pos, create_declaration,
+    empty_block, get_declaration, read_binary, throw_consumed_err, throw_err, trim_ws,
 };
 use crate::comptime::{ComptimeValueKind, comptime_eval, get_comptime};
 use crate::parser::{
@@ -61,6 +61,10 @@ pub enum Type {
     Label(TypeLabel),
     OperatorName(OperatorName),
     Bound(TypeBound),
+    KwInt(KwInt),
+    KwBool(KwBool),
+    KwIf(KwIf),
+    KwIfResult(KwIfResult),
 }
 
 impl Type {
@@ -73,6 +77,10 @@ impl Type {
     ) -> Result<AnalysisResult, PositionedError> {
         match self {
             Type::McResult(m) => m.cast_into(env, block, other, pos),
+            Type::Void(_) if matches!(other.ty, Type::KwIfResult(_)) => Ok(AnalysisResult {
+                ty: Type::Void(TypeVoid),
+                value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+            }),
             _ => {
                 if &other.ty == self {
                     Ok(other)
@@ -80,7 +88,7 @@ impl Type {
                     Err(throw_err(
                         env,
                         Some(pos),
-                        format!("TODO implicit casting: {}", self.dump()),
+                        format!("expected {}, got {}", self.dump(), other.ty.dump()),
                         None,
                         None,
                     ))
@@ -102,7 +110,9 @@ impl Type {
             ),
             LiteralKind::Map => matches!(self, Type::CtExportList(_) | Type::CtBuildArtifact(_)),
             LiteralKind::List => matches!(self, Type::Tuple(_)),
-            LiteralKind::Number => matches!(self, Type::McResult(_) | Type::CInt(_)),
+            LiteralKind::Number => {
+                matches!(self, Type::McResult(_) | Type::CInt(_) | Type::KwInt(_))
+            }
         }
     }
 
@@ -146,6 +156,9 @@ impl Type {
             (LiteralKind::Number, Type::CInt(t)) => {
                 literal_number(node).map(|ast| t.from_number(env, ast))
             }
+            (LiteralKind::Number, Type::KwInt(t)) => {
+                literal_number(node).map(|ast| t.from_number(env, ast))
+            }
             _ => unreachable!("literal hooks only exist for supported literals"),
         };
         result.unwrap_or_else(|| {
@@ -182,6 +195,10 @@ impl Type {
             Type::Label(_) => "Label",
             Type::OperatorName(_) => "OperatorName",
             Type::Bound(_) => "Bound",
+            Type::KwInt(_) => "KwInt",
+            Type::KwBool(_) => "KwBool",
+            Type::KwIf(_) => "KwIf",
+            Type::KwIfResult(_) => "KwIfResult",
         }
         .to_string()
     }
@@ -223,6 +240,7 @@ impl Type {
             Type::CtNamespace(t) => t.analyze_call(env, slot, pos, method, arg_in, block),
             Type::CtType(t) => t.analyze_call(env, slot, pos, method, arg_in, block),
             Type::CIf(t) => t.analyze_call(env, pos, method, arg_in, block),
+            Type::KwIf(t) => t.analyze_call(env, pos, method, arg_in, block),
             Type::Label(t) => t.analyze_call(env, pos, arg_in, block),
             Type::Bound(t) => t
                 .receiver
@@ -252,6 +270,17 @@ impl Type {
                     ComptimeValueKey::Symbol { key, .. } => ty.ty.type_symbol(*key),
                     ComptimeValueKey::String { .. } => None,
                 };
+                if found.is_none()
+                    && matches!(&key, ComptimeValueKey::String { key } if key == "else")
+                {
+                    return Err(throw_err(
+                        env,
+                        Some(pos),
+                        ".else must follow the } of a std.kw.if on the same line",
+                        None,
+                        None,
+                    ));
+                }
                 found.ok_or_else(|| {
                     throw_err(
                         env,
@@ -265,6 +294,16 @@ impl Type {
             _ => {
                 let key = access_key(env, block, prop, &pos)?;
                 match key {
+                    ComptimeValueKey::String { key }
+                        if key == "else" && matches!(self, Type::KwIfResult(_)) =>
+                    {
+                        Ok(AnalysisResult {
+                            ty: Type::KwIf(KwIf {
+                                region: KwIfRegion::Else,
+                            }),
+                            value: obj.value,
+                        })
+                    }
                     ComptimeValueKey::Symbol { key, .. } if self.has_value_symbol(key) => {
                         Ok(AnalysisResult {
                             ty: Type::Bound(TypeBound {
@@ -297,18 +336,14 @@ impl Type {
                 }))),
             });
         }
-        match self {
-            Type::CInt(_) => c_int_operator(OperatorKind::Slot, key).map(|op| AnalysisResult {
-                ty: Type::CtNamespace(CtNamespace),
-                value: RuntimeValue::Comptime(ComptimeValue::Namespace(Rc::new(
-                    CIntSlotOperator {
-                        op,
-                        pos: compiler_pos(),
-                    },
-                ))),
-            }),
-            _ => None,
-        }
+        builtin_operator(self, OperatorKind::Slot, key).map(|op| AnalysisResult {
+            ty: Type::CtNamespace(CtNamespace),
+            value: RuntimeValue::Comptime(ComptimeValue::Namespace(Rc::new(SlotOperator {
+                ty: self.clone(),
+                op,
+                pos: compiler_pos(),
+            }))),
+        })
     }
 
     pub fn has_value_symbol(&self, key: Symbol) -> bool {
@@ -319,14 +354,12 @@ impl Type {
                     | Type::CtNamespace(_)
                     | Type::CtType(_)
                     | Type::CIf(_)
+                    | Type::KwIf(_)
                     | Type::Label(_)
                     | Type::Bound(_)
             );
         }
-        match self {
-            Type::CInt(_) => c_int_operator(OperatorKind::Lhs, key).is_some(),
-            _ => false,
-        }
+        builtin_operator(self, OperatorKind::Lhs, key).is_some()
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -343,18 +376,12 @@ impl Type {
         if symbol_std_key(key) == Some(StdKey::Call) {
             return self.builtin_call(env, slot, pos, receiver, arg_in, block);
         }
-        match self {
-            Type::CInt(_) => {
-                let Some(op) = c_int_operator(OperatorKind::Lhs, key) else {
-                    unreachable!("bound only to symbols has_value_symbol accepted")
-                };
-                let int = Type::CInt(CInt);
-                let rhs = analyze(env, int.clone(), arg_in.pos, arg_in.ast, block)?;
-                let rhs = int.cast_into(env, block, rhs, pos.clone())?;
-                Ok(c_int_binary(block, pos, op, receiver.value, rhs.value))
-            }
-            _ => unreachable!("bound only to types with value symbols"),
-        }
+        let Some(op) = builtin_operator(self, OperatorKind::Lhs, key) else {
+            unreachable!("bound only to symbols has_value_symbol accepted")
+        };
+        let rhs = analyze(env, self.clone(), arg_in.pos, arg_in.ast, block)?;
+        let rhs = self.cast_into(env, block, rhs, pos.clone())?;
+        builtin_binary(env, block, self, pos, op, receiver.value, rhs.value)
     }
 
     pub fn implicit_arg_ret_for_arrow_fn(&self) -> ImplicitArgRet {
@@ -771,7 +798,9 @@ impl CtBuildArtifact {
             },
         );
         Ok(AnalysisResult {
-            ty: Type::CtBuildArtifact(CtBuildArtifact { narrow: None }),
+            ty: Type::CtBuildArtifact(CtBuildArtifact {
+                narrow: Some(CtBuildArtifactNarrow::File),
+            }),
             value: RuntimeValue::Runtime(idx),
         })
     }
@@ -1208,19 +1237,106 @@ impl CIf {
     ) -> Result<AnalysisResult, PositionedError> {
         block_append(
             block,
-            AnalysisLine::IfBegin {
+            AnalysisLine::RegionBegin {
                 pos: pos.clone(),
-                cond: method.value,
+                region: Region::CIf { cond: method.value },
             },
         );
         analyze(env, Type::Void(TypeVoid), arg_in.pos, arg_in.ast, block)?;
-        block_append(block, AnalysisLine::IfEnd { pos });
+        block_append(block, AnalysisLine::RegionEnd { pos });
         Ok(AnalysisResult {
             ty: Type::Void(TypeVoid),
             value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
         })
     }
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KwInt;
+
+impl KwInt {
+    fn from_number(
+        &self,
+        env: &mut Env,
+        ast: &IdentifierToken,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let parsed = ast
+            .str
+            .parse::<i64>()
+            .ok()
+            .filter(|v| v.to_string() == ast.str);
+        let Some(value) = parsed else {
+            return Err(throw_err(
+                env,
+                Some(ast.pos.clone()),
+                format!("invalid std.kw.int: got '{}'", ast.str),
+                None,
+                None,
+            ));
+        };
+        Ok(AnalysisResult {
+            ty: Type::KwInt(KwInt),
+            value: RuntimeValue::Comptime(ComptimeValue::KwInt(ComptimeValueKwInt { value })),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KwBool;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum KwIfRegion {
+    If,
+    Else,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KwIf {
+    pub region: KwIfRegion,
+}
+
+impl KwIf {
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        method: AnalysisResult,
+        arg_in: CallArg,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let region = match self.region {
+            KwIfRegion::If => Region::KwIf { cond: method.value },
+            KwIfRegion::Else => {
+                let RuntimeValue::Runtime(if_end) = method.value else {
+                    unreachable!(".else is only reachable from an if's result")
+                };
+                Region::KwElse { if_end }
+            }
+        };
+        block_append(
+            block,
+            AnalysisLine::RegionBegin {
+                pos: pos.clone(),
+                region,
+            },
+        );
+        analyze(env, Type::Void(TypeVoid), arg_in.pos, arg_in.ast, block)?;
+        let end = block_append(block, AnalysisLine::RegionEnd { pos });
+        Ok(match self.region {
+            KwIfRegion::If => AnalysisResult {
+                ty: Type::KwIfResult(KwIfResult),
+                value: RuntimeValue::Runtime(end),
+            },
+            KwIfRegion::Else => AnalysisResult {
+                ty: Type::Void(TypeVoid),
+                value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+            },
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KwIfResult;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeLabel {
@@ -1443,39 +1559,110 @@ pub struct TypeBound {
     pub key: Symbol,
 }
 
-fn c_int_operator(kind: OperatorKind, key: Symbol) -> Option<CBinaryOp> {
+fn builtin_operator(ty: &Type, kind: OperatorKind, key: Symbol) -> Option<CBinaryOp> {
     let (key_kind, op) = symbol_operator(key)?;
     if key_kind != kind {
         return None;
     }
     let op = CBinaryOp::from_token(&op)?;
-    match (kind, op.is_comparison()) {
-        (OperatorKind::Slot, true) => None,
-        _ => Some(op),
+    match (ty, kind, op.is_comparison()) {
+        (Type::CInt(_) | Type::KwInt(_), OperatorKind::Slot, false) => Some(op),
+        (Type::CInt(_) | Type::KwInt(_), OperatorKind::Lhs, _) => Some(op),
+        (Type::KwBool(_), OperatorKind::Lhs, _) if matches!(op, CBinaryOp::Eq | CBinaryOp::Ne) => {
+            Some(op)
+        }
+        _ => None,
     }
 }
 
-fn c_int_binary(
+fn builtin_binary(
+    env: &mut Env,
     block: &mut AnalysisBlock,
+    ty: &Type,
     pos: TokenPosition,
     op: CBinaryOp,
     lhs: RuntimeValue,
     rhs: RuntimeValue,
-) -> AnalysisResult {
-    let idx = block_append(block, AnalysisLine::CBinary { pos, op, lhs, rhs });
-    AnalysisResult {
-        ty: Type::CInt(CInt),
+) -> Result<AnalysisResult, PositionedError> {
+    if let Type::CInt(_) = ty {
+        let idx = block_append(block, AnalysisLine::CBinary { pos, op, lhs, rhs });
+        return Ok(AnalysisResult {
+            ty: Type::CInt(CInt),
+            value: RuntimeValue::Runtime(idx),
+        });
+    }
+    let ty = if op.is_comparison() {
+        Type::KwBool(KwBool)
+    } else {
+        Type::KwInt(KwInt)
+    };
+    if let (RuntimeValue::Comptime(l), RuntimeValue::Comptime(r)) = (&lhs, &rhs) {
+        let value = fold_kw_binary(env, &pos, op, l, r)?;
+        return Ok(AnalysisResult {
+            ty,
+            value: RuntimeValue::Comptime(value),
+        });
+    }
+    let idx = block_append(block, AnalysisLine::KwBinary { pos, op, lhs, rhs });
+    Ok(AnalysisResult {
+        ty,
         value: RuntimeValue::Runtime(idx),
+    })
+}
+
+pub fn fold_kw_binary(
+    env: &mut Env,
+    pos: &TokenPosition,
+    op: CBinaryOp,
+    lhs: &ComptimeValue,
+    rhs: &ComptimeValue,
+) -> Result<ComptimeValue, PositionedError> {
+    let int = |value| Ok(ComptimeValue::KwInt(ComptimeValueKwInt { value }));
+    let bool = |value| Ok(ComptimeValue::KwBool(ComptimeValueKwBool { value }));
+    match (lhs, rhs) {
+        (ComptimeValue::KwInt(a), ComptimeValue::KwInt(b)) => {
+            let (a, b) = (a.value, b.value);
+            let arithmetic = match op {
+                CBinaryOp::Eq => return bool(a == b),
+                CBinaryOp::Ne => return bool(a != b),
+                CBinaryOp::Lt => return bool(a < b),
+                CBinaryOp::Le => return bool(a <= b),
+                CBinaryOp::Gt => return bool(a > b),
+                CBinaryOp::Ge => return bool(a >= b),
+                CBinaryOp::Add => a.checked_add(b),
+                CBinaryOp::Sub => a.checked_sub(b),
+                CBinaryOp::Mul => a.checked_mul(b),
+                CBinaryOp::Div => a.checked_div(b),
+                CBinaryOp::Rem => a.checked_rem(b),
+            };
+            match arithmetic {
+                Some(value) => int(value),
+                None => Err(throw_err(
+                    env,
+                    Some(pos.clone()),
+                    format!("{a} {} {b} overflows or divides by zero", op.as_str()),
+                    None,
+                    None,
+                )),
+            }
+        }
+        (ComptimeValue::KwBool(a), ComptimeValue::KwBool(b)) => match op {
+            CBinaryOp::Eq => bool(a.value == b.value),
+            CBinaryOp::Ne => bool(a.value != b.value),
+            _ => unreachable!("std.kw.bool only has == and !="),
+        },
+        _ => unreachable!("std.kw operators only take std.kw values"),
     }
 }
 
 #[derive(Debug)]
-struct CIntSlotOperator {
+struct SlotOperator {
+    ty: Type,
     op: CBinaryOp,
     pos: TokenPosition,
 }
 
-impl ComptimeNamespace for CIntSlotOperator {
+impl ComptimeNamespace for SlotOperator {
     fn get_string(
         &self,
         env: &mut Env,
@@ -1511,9 +1698,8 @@ impl ComptimeNamespace for CIntSlotOperator {
         arg: CallArg<'_>,
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
-        let int = Type::CInt(CInt);
         let args = Type::Tuple(TypeTuple {
-            children: vec![int.clone(), int],
+            children: vec![self.ty.clone(), self.ty.clone()],
         });
         let args = analyze(env, args, arg.pos, arg.ast, block)?;
         let RuntimeValue::Runtime(tuple) = &args.value else {
@@ -1526,7 +1712,7 @@ impl ComptimeNamespace for CIntSlotOperator {
             unreachable!("the tuple type has two items")
         };
         let (lhs, rhs) = (lhs.clone(), rhs.clone());
-        Ok(c_int_binary(block, pos, self.op, lhs, rhs))
+        builtin_binary(env, block, &self.ty, pos, self.op, lhs, rhs)
     }
 
     fn pos(&self) -> &TokenPosition {

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::compiler::{
     AnalysisBlock, AnalysisLine, AnalyzedFn, ComptimeValue, ComptimeValueFn, Env, PositionedError,
-    RuntimeValue, Symbol, analyze_function, compiler_pos, throw_err,
+    Region, RuntimeValue, Symbol, analyze_function, compiler_pos, throw_err,
 };
 use crate::comptime::{ComptimeValueKind, get_comptime};
 use crate::ct::Type;
@@ -418,14 +418,26 @@ fn codegen_c_body(
                 }
                 body.values[i] = target.result;
             }
-            AnalysisLine::IfBegin { pos, cond } => {
+            AnalysisLine::RegionBegin {
+                pos,
+                region: Region::CIf { cond },
+            } => {
                 let cond = body.value(env, cond, pos)?;
                 body.line(&format!("if ({cond}) {{"));
                 body.indent += 1;
             }
-            AnalysisLine::IfEnd { .. } => {
+            AnalysisLine::RegionEnd { .. } => {
                 body.indent -= 1;
                 body.line("}");
+            }
+            AnalysisLine::RegionBegin { pos, .. } | AnalysisLine::KwBinary { pos, .. } => {
+                return Err(throw_err(
+                    env,
+                    Some(pos.clone()),
+                    format!("{} is not supported in C", analysis_line_tag(line)),
+                    None,
+                    None,
+                ));
             }
             AnalysisLine::ComptimeKvListInit { pos }
             | AnalysisLine::ComptimeKvListAppend { pos, .. }
