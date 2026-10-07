@@ -44,6 +44,18 @@ pub async fn create_gpu(
             compatible_surface: Some(probe),
         })
         .await?;
+    let capabilities = probe.get_capabilities(&adapter);
+    let format =
+        surface_format(&capabilities.formats).ok_or("the adapter does not support this surface")?;
+    open_gpu(instance, adapter, format, open_device).await
+}
+
+pub async fn open_gpu(
+    instance: wgpu::Instance,
+    adapter: wgpu::Adapter,
+    format: wgpu::TextureFormat,
+    open_device: Option<OpenDevice>,
+) -> Result<Gpu, Box<dyn Error>> {
     let descriptor = wgpu::DeviceDescriptor {
         label: Some("beui device"),
         required_features: wgpu::Features::empty(),
@@ -57,9 +69,6 @@ pub async fn create_gpu(
         Some(opened) => opened,
         None => adapter.request_device(&descriptor).await?,
     };
-    let capabilities = probe.get_capabilities(&adapter);
-    let format =
-        surface_format(&capabilities.formats).ok_or("the adapter does not support this surface")?;
     let renderer = Renderer::new(&device, format);
     Ok(Gpu {
         instance,

@@ -229,6 +229,7 @@ direction:
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
 | `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter |
+| `beui-adapter-headless` | no display at all: an `Adapter` that runs frames as the app's waker and repaint deadlines ask until the app closes its window, drawing into whatever `Renderer` it is given; `beui::headless_adapter` gives it the wgpu renderer's `OffscreenSurface`, which draws into a texture |
 | `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips; callers run it with `beui::run_on` |
 | `beui-adapter-plugin` | the `Adapter`, `Platform` and `Renderer` for one region of a block editor plugin, which the plugin framework drives frame by frame (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it |
 
@@ -251,7 +252,7 @@ hooks the higher crates fill in:
 - A `Drawing` holds whatever its renderer draws; `beui::drawing` makes one for
   the wgpu renderer.
 - Each platform is a `beui_core::runner::Adapter`, a trait object the facade
-  picks (`beui::window_adapter`, `beui::web_adapter`) and runs with a `Launch`
+  picks (`beui::window_adapter`, `beui::web_adapter`, `beui::headless_adapter`) and runs with a `Launch`
   (`RunOptions`, `Context`, the `App`). The adapter owns the event loop and
   turns the platform's input into `Event`s; everything one frame does is
   `beui_core::runner::Runner::frame`, shared by all of them: it runs the
@@ -2104,5 +2105,5 @@ is the full check, and CI runs it on a pull request and pushes whatever it chang
 the pull request's branch; it runs the workspace tests, lints, formatting, project structure checks, snapshot updates, and the formatter for
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command
 only as a narrow diagnostic after one of the supported scripts has exposed a
-failure. Run `./scripts/buck run //crates/block-app:smoke` as well when a change can affect native
-startup or runtime integration.
+failure. `./scripts/verify` runs the native smoke test, `//crates/block-app:smoke`, which starts
+the app headless and closes it.

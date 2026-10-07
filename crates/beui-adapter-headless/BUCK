@@ -1,0 +1,7 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+headless_srcs = glob(["src/**/*.rs"])
+
+cargo_library(srcs = headless_srcs)
+
+cargo_test(srcs = headless_srcs)

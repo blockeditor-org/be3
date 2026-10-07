@@ -69,12 +69,10 @@ packages+=(
 packages+=(fonts-dejavu-core fonts-dejavu-mono)
 # beui-adapter-drm, which block-app's --session runs on, loads GBM, libinput, libseat and udev.
 packages+=(libgbm1 libinput10 libseat1 libudev1)
-# ./scripts/buck run //crates/block-app:smoke starts the app against a virtual
-# display.
-packages+=(xvfb)
-# ./scripts/buck run //crates/block-app:dev drives the app in that display:
-# xdotool sends it input and ImageMagick's import takes screenshots of it.
-packages+=(xdotool imagemagick)
+# ./scripts/buck run //crates/block-app:dev starts the app in a virtual display
+# and drives it there: xdotool sends it input and ImageMagick's import takes
+# screenshots of it.
+packages+=(xvfb xdotool imagemagick)
 
 missing=()
 for package in "${packages[@]}"; do

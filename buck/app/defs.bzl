@@ -112,3 +112,39 @@ app = rule(
     },
     impl = _app_impl,
 )
+
+# The native smoke test (buck/app/smoke.sh): the app on a worker with no
+# display, run until its dev workspace's plugins have drawn and then closed,
+# which it must exit cleanly from. The whole app directory is its input, since
+# the app finds its plugins beside it. Its LD_LIBRARY_PATH is an argument, which
+# the script exports, so that it survives a worker that sets its own.
+def _smoke_test_impl(ctx: AnalysisContext) -> list[Provider]:
+    command = cmd_args(
+        "sh",
+        ctx.attrs._smoke,
+        ctx.attrs.app[DefaultInfo].default_outputs[0],
+        ctx.attrs.executable,
+        ctx.attrs.library_path,
+    )
+    return [
+        DefaultInfo(),
+        RunInfo(args = command),
+        ExternalRunnerTestInfo(
+            command = [command],
+            env = ctx.attrs.env,
+            run_from_project_root = True,
+            type = "custom",
+            use_project_relative_paths = True,
+        ),
+    ]
+
+smoke_test = rule(
+    attrs = {
+        "app": attrs.dep(),
+        "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
+        "executable": attrs.string(),
+        "library_path": attrs.arg(),
+        "_smoke": attrs.default_only(attrs.source(default = "root//buck/app:smoke.sh")),
+    },
+    impl = _smoke_test_impl,
+)

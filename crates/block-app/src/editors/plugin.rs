@@ -299,6 +299,11 @@ impl PluginEditor {
         self.id
     }
 
+    pub(crate) fn shown_by(&self) -> Option<&str> {
+        let plugin = self.plugin.as_ref()?;
+        (self.shown > 0).then_some(plugin.identity.id.as_str())
+    }
+
     pub(crate) fn plugin(&self) -> Option<&Arc<PluginManifest>> {
         self.plugin.as_ref()
     }

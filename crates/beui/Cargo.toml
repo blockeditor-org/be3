@@ -10,6 +10,7 @@ render = ["dep:beui-renderer-wgpu"]
 window = [
     "render",
     "dep:beui-adapter-android",
+    "dep:beui-adapter-headless",
     "dep:beui-adapter-winit",
     "dep:pollster",
 ]
@@ -40,6 +41,7 @@ beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+beui-adapter-headless = { path = "../beui-adapter-headless", optional = true }
 pollster = { version = "0.4", optional = true }
 
 [target.'cfg(target_os = "android")'.dependencies]

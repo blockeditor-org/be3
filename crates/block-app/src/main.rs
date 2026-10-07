@@ -70,12 +70,16 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     panic_guard::install();
     let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
     let mut options = run_options();
-    let mut session = false;
+    let mut display = Display::Window;
     for argument in std::env::args().skip(1) {
         if argument == "--dev-workspace" {
             app.open_dev_workspace(None);
+        } else if argument == "--close-when-ready" {
+            app.close_when_ready = true;
+        } else if argument == "--headless" {
+            display = Display::Headless;
         } else if argument == "--session" && cfg!(target_os = "linux") {
-            session = true;
+            display = Display::Session;
             app.run_as_desktop();
         } else if let Some(path) = argument.strip_prefix("--accessibility-tree=") {
             options.accessibility_dump = Some(PathBuf::from(path));
@@ -83,18 +87,30 @@ pub fn run() -> Result<(), Box<dyn Error>> {
             return Err(format!("unknown argument {argument}").into());
         }
     }
-    run_shell(options, Shell::new(app), session)
+    run_shell(options, Shell::new(app), display)
+}
+
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+enum Display {
+    Window,
+    Headless,
+    Session,
 }
 
 #[cfg(target_os = "linux")]
-fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(), Box<dyn Error>> {
-    if session {
-        return beui::run_on(Box::new(beui_adapter_drm::Drm), options, shell);
-    }
+fn run_shell(
+    options: beui::RunOptions,
+    shell: Shell,
+    display: Display,
+) -> Result<(), Box<dyn Error>> {
     let renderer = beui::WindowRenderer::Wgpu {
         open_device: Some(std::sync::Arc::new(be_dmabuf::open_device)),
     };
-    beui::run_with_renderers(options, vec![renderer], shell)
+    match display {
+        Display::Window => beui::run_with_renderers(options, vec![renderer], shell),
+        Display::Headless => beui::run_on(beui::headless_adapter(vec![renderer]), options, shell),
+        Display::Session => beui::run_on(Box::new(beui_adapter_drm::Drm), options, shell),
+    }
 }
 
 #[cfg(all(
@@ -105,9 +121,16 @@ fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(
 fn run_shell(
     options: beui::RunOptions,
     shell: Shell,
-    _session: bool,
+    display: Display,
 ) -> Result<(), Box<dyn Error>> {
-    beui::run_with(options, shell)
+    match display {
+        Display::Headless => beui::run_on(
+            beui::headless_adapter(vec![beui::WindowRenderer::wgpu()]),
+            options,
+            shell,
+        ),
+        Display::Window | Display::Session => beui::run_with(options, shell),
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -328,6 +351,8 @@ struct BlockApp {
     pending_error_action: Option<ErrorAction>,
     inspector_requested: Option<bool>,
     dev_workspace: bool,
+    close_when_ready: bool,
+    waiting_on: Option<String>,
     keys: keys::KeyState,
     workspace_key: Option<[u8; 32]>,
 }
@@ -507,6 +532,8 @@ impl BlockApp {
             pending_error_action: None,
             inspector_requested: None,
             dev_workspace: false,
+            close_when_ready: false,
+            waiting_on: None,
             keys: keys::KeyState::default(),
             workspace_key: None,
         })
@@ -1799,8 +1826,27 @@ impl BlockApp {
         {
             self.crashed(report);
         }
-        if self.error.is_some() {
+        if let Some(report) = &self.error {
+            if self.close_when_ready {
+                eprintln!("Block stopped before it was ready: {report}");
+                std::process::exit(1);
+            }
             return;
+        }
+        if self.close_when_ready {
+            let waiting_on = self.waiting_on();
+            if waiting_on != self.waiting_on {
+                if let Some(waiting_on) = &waiting_on {
+                    eprintln!("Not ready yet: waiting on {waiting_on}.");
+                }
+                self.waiting_on = waiting_on.clone();
+            }
+            if waiting_on.is_none() {
+                be::flush();
+                if be::status().unsealed == 0 {
+                    context.close_window();
+                }
+            }
         }
         let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             self.run_frame(context);
@@ -1810,6 +1856,32 @@ impl BlockApp {
                 panic_guard::take().unwrap_or_else(|| "The app stopped responding.".into()),
             );
         }
+    }
+
+    fn waiting_on(&self) -> Option<String> {
+        if !self.signed_in {
+            return Some("signing in".to_owned());
+        }
+        if self.workspace.is_none() {
+            return Some("a workspace".to_owned());
+        }
+        let mut undrawn: Vec<String> = self.editors.with(|open| {
+            open.values()
+                .filter_map(PluginEditor::shown_by)
+                .filter(|plugin| plugin_host::frames(plugin) == 0)
+                .map(str::to_owned)
+                .collect()
+        });
+        if undrawn.is_empty()
+            && self
+                .editors
+                .with(|open| open.values().all(|editor| editor.shown_by().is_none()))
+        {
+            return Some("a plugin editor to be shown".to_owned());
+        }
+        undrawn.sort();
+        undrawn.dedup();
+        (!undrawn.is_empty()).then(|| format!("plugins to draw: {}", undrawn.join(", ")))
     }
 
     fn crashed(&mut self, report: String) {

@@ -23,6 +23,12 @@ What the launcher passes the app is available to any native run:
   the password `dev-password` if there is none, save a recovery phrase without asking, and
   open the last workspace, or the first one, or a new one called Dev.
 - `--accessibility-tree=PATH`: write the accessibility tree to PATH (see below).
+- `--headless`: run with no window or display, drawing offscreen through beui's headless
+  adapter; with lavapipe it needs no GPU either.
+- `--close-when-ready`: once the workspace is open and every plugin editor shown has drawn a
+  frame, close the window, printing what it is still waiting on as that changes, and exit
+  with an error if the app crashes first. The smoke test runs the app with `--headless
+  --dev-workspace --close-when-ready`.
 - `--session` (Linux): run on the displays and input devices themselves through
   `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
   server on it, as the desktop: the shell is linux-desktop instead of workspace-ui, on a
