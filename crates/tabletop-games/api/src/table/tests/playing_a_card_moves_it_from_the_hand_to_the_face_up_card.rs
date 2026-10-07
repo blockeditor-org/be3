@@ -1,4 +1,4 @@
-use super::{HAND_SIZE, seated};
+use super::{HAND_SIZE, cards, seated};
 
 #[test]
 fn playing_a_card_moves_it_from_the_hand_to_the_face_up_card() {
@@ -10,7 +10,7 @@ fn playing_a_card_moves_it_from_the_hand_to_the_face_up_card() {
     table.play(card);
 
     assert_eq!(table.face_up(), card);
-    assert_eq!(table.discard_pile, vec![was_face_up, card]);
+    assert_eq!(cards(&table.discard_pile), vec![was_face_up, card]);
     assert_eq!(table.hands[0].len(), HAND_SIZE - 1);
     assert!(!table.everyone_has_passed());
 }

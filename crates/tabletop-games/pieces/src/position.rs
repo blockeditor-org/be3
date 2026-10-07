@@ -81,6 +81,7 @@ impl Position {
             piece,
             side,
             moved: false,
+            id: index as u32,
         });
     }
 

@@ -13,7 +13,7 @@ fn turn_offers_moves_only_to_the_player_whose_turn_it_is() {
             mine,
             "Your turn",
             "Waiting",
-            |_| Board::Empty,
+            |_| Board::default(),
             |choose| {
                 choose(Move::new("Do the thing"));
             },

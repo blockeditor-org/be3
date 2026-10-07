@@ -1,4 +1,4 @@
-use game_api::board::{Board, Sprite};
+use game_api::board::Sprite;
 use game_api::{Gesture, Spot};
 use uuid::Uuid;
 
@@ -11,12 +11,14 @@ fn marks_are_drawn_on_the_board_and_open_tiles_are_clicked() {
     let actions = vec![play(&[], x, 4)];
 
     let screen = show(&actions, o);
-    let Board::Grid(grid) = &*screen.board else {
-        panic!("tic-tac-toe is played on a grid");
-    };
-    assert_eq!((grid.columns, grid.rows), (3, 3));
-    assert_eq!(grid.tile(1, 1).layers, [Sprite::piece("x", 0)]);
-    assert!(grid.tile(0, 0).layers.is_empty());
+    let board = &screen.board;
+    assert_eq!(
+        board.sprites_at(Spot::tile(1, 1)),
+        [Sprite::Cell, Sprite::piece("x", 0)]
+    );
+    assert_eq!(board.sprites_at(Spot::tile(0, 0)), [Sprite::Cell]);
+    assert_eq!(board.sprites_at(Spot::tile(2, 2)), [Sprite::Cell]);
+    assert!(board.sprites_at(Spot::tile(3, 0)).is_empty());
 
     assert_eq!(screen.actions.len(), 8);
     assert_eq!(

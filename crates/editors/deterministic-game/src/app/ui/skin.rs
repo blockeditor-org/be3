@@ -39,6 +39,7 @@ pub(crate) fn paint_sprite(painter: &Painter, rect: Rect, sprite: &Sprite) {
         Sprite::Piece(piece) => paint_piece(painter, square_in(rect), piece),
         Sprite::Card(card) => paint_card(painter, rect, *card),
         Sprite::CardBack => paint_back(painter, rect),
+        Sprite::Frame | Sprite::Tray | Sprite::Cell | Sprite::Slot | Sprite::Label(_) => {}
     }
 }
 
