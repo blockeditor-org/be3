@@ -3,6 +3,8 @@ use std::rc::Rc;
 
 use beui_macros::{component, view};
 
+use super::motion::GestureHold;
+
 use beui_core::base::{Direction, ScrollPosition};
 use beui_core::input::PointerPress;
 use beui_core::node::NodeId;
@@ -100,6 +102,8 @@ pub fn Scrollbar(
         (direction.clone(), direction.clone(), direction.clone());
     let (pressed_at, dragged_at, hovered_at) = (position.clone(), position.clone(), position);
     let (pressed_grab, dragged_grab, active_grab) = (grab.clone(), grab.clone(), grab);
+    let hold = GestureHold::default();
+    let released = hold.clone();
     view! {
         <Interactive
             on_press={move |press: PointerPress| {
@@ -127,7 +131,9 @@ pub fn Scrollbar(
                 if position.max_offset() <= 0.0 {
                     return;
                 }
-                on_scroll_to.call(offset_at(position, along(&dragged_axis, press) - grab));
+                let offset = offset_at(position, along(&dragged_axis, press) - grab);
+                let scroll_to = on_scroll_to.clone();
+                hold.run(move || scroll_to.call(offset));
             }}
             on_hover_move={clone!(set_hovered -> move |press: PointerPress| {
                 let position = untrack(|| hovered_at.get());
@@ -143,6 +149,7 @@ pub fn Scrollbar(
                 set_dragging.set(active && active_grab.get().is_some());
                 if !active {
                     active_grab.set(None);
+                    released.release();
                 }
             }}
             children={content_node}

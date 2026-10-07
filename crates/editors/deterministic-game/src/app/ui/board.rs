@@ -5,6 +5,7 @@ use block_editor_beui::Editor;
 use block_editor_beui::beui::reactive::{
     Canvas, CanvasItem, CanvasView, Draw, Drawing, ForEach, Interactive, ItemSize, Layers, List,
     Memo, NodeRef, Prop, clone, component, create_effect, create_memo, create_signal, now, view,
+    with_document,
 };
 use block_editor_beui::beui::styled::{Theme, use_theme};
 use block_editor_beui::beui::{
@@ -207,6 +208,9 @@ pub(crate) fn Stage(
         let delta = pointer.pos - state.last;
         state.last = pointer.pos;
         if state.dragging {
+            if !with_document(|document| document.motion().follows_gestures()) {
+                return;
+            }
             if let Some(dragging) = play.dragging.get_untracked() {
                 play.set_dragging.set(Some(Dragging {
                     at: pointer.pos,

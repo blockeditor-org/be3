@@ -22,6 +22,7 @@ pub mod floating;
 pub mod list_row;
 pub mod menu;
 pub mod menu_button;
+pub mod motion;
 pub mod number_input;
 pub mod pan_zoom;
 pub mod picture;
@@ -99,6 +100,7 @@ pub use menu::{
     menu_list_row_submenu_content,
 };
 pub use menu_button::{MenuButton, MenuButtonHandle, MenuSheet, MenuSheetHandle};
+pub use motion::GestureHold;
 pub use number_input::{
     NumberDrag, NumberFaceHandle, NumberFieldHandle, NumberInput, number_input_face,
     number_input_field,

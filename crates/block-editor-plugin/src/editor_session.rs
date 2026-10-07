@@ -3,8 +3,9 @@ use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion,
     FrameChrome, FrameReport, HostPanel, HostReply, ImeArea, InputEvent, MAX_CHILDREN,
-    MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
-    Size, ViewChange, ViewportMetrics, WebViewEvent, WebViewId,
+    MAX_COLLECTION_ITEMS, MenuEntry, Message, Motion, Occluder, PointerButton, RegionSize,
+    ScreenPlacement, ScreenRequest, Size, TouchPhase, ViewChange, ViewportMetrics, WebViewEvent,
+    WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -36,6 +37,13 @@ pub struct EditorSession {
     replacements: Vec<(u64, bool)>,
     generation: u64,
     sent_menu: Vec<MenuEntry>,
+    held: Vec<Held>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Held {
+    Button(PointerButton),
+    Finger(u64, u64),
 }
 
 struct ArtifactState {
@@ -106,6 +114,7 @@ impl EditorSession {
             replacements: Vec::new(),
             generation: 0,
             sent_menu: Vec::new(),
+            held: Vec::new(),
         }
     }
 
@@ -637,7 +646,12 @@ impl EditorSession {
                 presenting,
             }));
         }
-        for change in self.host.take_view_changes() {
+        let holding = !self.held.is_empty() && crate::motion() == Motion::Still;
+        let changes = match holding {
+            true => Vec::new(),
+            false => self.host.take_view_changes(),
+        };
+        for change in changes {
             messages.push(Message::Editor(EditorMessage::ChangeView {
                 instance,
                 change,
@@ -951,6 +965,31 @@ impl EditorSession {
     }
 
     pub(crate) fn input(&mut self, region: EditorRegion, event: &InputEvent) {
+        let (held, pressed) = match *event {
+            InputEvent::PointerButton {
+                button, pressed, ..
+            } => (Some(Held::Button(button)), pressed),
+            InputEvent::Touch {
+                device,
+                finger,
+                phase,
+                ..
+            } => (
+                Some(Held::Finger(device, finger)),
+                matches!(phase, TouchPhase::Start | TouchPhase::Move),
+            ),
+            InputEvent::Focus(false) => {
+                self.held.clear();
+                (None, false)
+            }
+            _ => (None, false),
+        };
+        if let Some(held) = held {
+            self.held.retain(|other| *other != held);
+            if pressed {
+                self.held.push(held);
+            }
+        }
         let context = self.context(region);
         self.app.input(&context, event);
     }

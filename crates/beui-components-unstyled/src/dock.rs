@@ -24,7 +24,8 @@ use crate::Scroll;
 use crate::back_slide::BackSlide;
 use crate::context_menu::{ContextMenu, MenuStyle};
 use crate::menu::MenuItem;
-use crate::rubber_band::{Band, WINDOW_SPRING, motion};
+use crate::motion::{GestureHold, motion};
+use crate::rubber_band::{Band, WINDOW_SPRING};
 use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 use beui_core::base::{Direction, ItemSize};
 use beui_core::document::Document;
@@ -1987,6 +1988,8 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
     let start = shown.clone();
     let dragged = dock.clone();
     let stepped = dock.clone();
+    let hold = GestureHold::default();
+    let released = hold.clone();
     view! {
         <Interactive
             focusable=true
@@ -2012,7 +2015,12 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
             }}
             touch_drag_axis={Some(direction)}
             on_hover_change={move |over: bool| set_hovered.set(over)}
-            on_active_change={move |held: bool| set_active.set(held)}
+            on_active_change={move |held: bool| {
+                set_active.set(held);
+                if !held {
+                    released.release();
+                }
+            }}
             on_press={move |press: PointerPress| {
                 grabbed.set(Some((start(), press.pos)));
             }}
@@ -2034,7 +2042,8 @@ fn DockSplitterView(dock: Handle, tree: Tree, split: SplitId) -> NodeId {
                     start,
                     moved,
                 );
-                dragged.edit(|state| state.set_split_fraction(split, fraction));
+                let dock = dragged.clone();
+                hold.run(move || dock.edit(|state| state.set_split_fraction(split, fraction)));
             }}
             children={face}
         />
@@ -2079,6 +2088,8 @@ fn DockSidebarSplitter(dock: Handle, leaf: LeafId) -> NodeId {
     let start = width.clone();
     let dragged = dock.clone();
     let stepped = dock.clone();
+    let hold = GestureHold::default();
+    let released = hold.clone();
     view! {
         <Interactive
             focusable=true
@@ -2099,7 +2110,12 @@ fn DockSidebarSplitter(dock: Handle, leaf: LeafId) -> NodeId {
             cursor=CursorIcon::ResizeHorizontal
             capture_presses=true
             on_hover_change={move |over: bool| set_hovered.set(over)}
-            on_active_change={move |held: bool| set_active.set(held)}
+            on_active_change={move |held: bool| {
+                set_active.set(held);
+                if !held {
+                    released.release();
+                }
+            }}
             on_press={move |press: PointerPress| {
                 grabbed.set(Some((start.get_untracked(), press.pos)));
             }}
@@ -2108,7 +2124,8 @@ fn DockSidebarSplitter(dock: Handle, leaf: LeafId) -> NodeId {
                     return;
                 };
                 let next = start + (press.pos.x - from.x);
-                dragged.edit(|state| state.set_sidebar_width(leaf, next));
+                let dock = dragged.clone();
+                hold.run(move || dock.edit(|state| state.set_sidebar_width(leaf, next)));
             }}
             children={face}
         />
@@ -2225,9 +2242,8 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
     let moved = dock.clone();
     let (held, stretched, released) = (band.clone(), band.clone(), band);
     let set_stretch = set_overshoot;
-    let held_rect: Rc<Cell<Option<Rect>>> = Rc::default();
-    let dropped_rect = held_rect.clone();
-    let dropped = dock.clone();
+    let hold = GestureHold::default();
+    let dropped = hold.clone();
     view! {
         <Overlay
             @node_ref=&overlay
@@ -2278,24 +2294,18 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                     Rect::from_min_size(start.min + (press.pos - from), start.size());
                                 let bounds = moved.rect.get_untracked().size();
                                 let origin = reachable_origin(placed, bounds, reach());
-                                let motion = motion();
                                 let mut band = stretched.borrow_mut();
-                                band.stretch(origin, placed.min - origin, bounds, motion.animates(), beui_core::timer::now());
+                                band.stretch(origin, placed.min - origin, bounds, motion().animates(), beui_core::timer::now());
                                 set_stretch.set(band.offset);
                                 let rect = Rect::from_min_size(origin, start.size());
-                                if !motion.follows_gestures() {
-                                    held_rect.set(Some(rect));
-                                    return;
-                                }
-                                moved.edit(|state| state.set_window_rect(surface, rect));
+                                let moved = moved.clone();
+                                hold.run(move || moved.edit(|state| state.set_window_rect(surface, rect)));
                             }}
                             on_active_change={move |active: bool| {
                                 if active {
                                     return;
                                 }
-                                if let Some(rect) = dropped_rect.take() {
-                                    dropped.edit(|state| state.set_window_rect(surface, rect));
-                                }
+                                dropped.release();
                                 released.borrow_mut().release(beui_core::timer::now());
                                 bounce.start(Duration::ZERO);
                             }}
@@ -2388,6 +2398,8 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                             let height = create_memo(clone!(handle -> move || handle.get().height()));
                             let held: Rc<Cell<(Rect, Pos2)>> = Rc::new(Cell::new((Rect::ZERO, Pos2::ZERO)));
                             let pressed = held.clone();
+                            let hold = GestureHold::default();
+                            let released = hold.clone();
                             let rect = rect.clone();
                             view! {
                                 <CanvasItem x={x} y={y} width={width} height={height}>
@@ -2400,7 +2412,13 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                         on_drag={move |press: PointerPress| {
                                             let (start, from) = held.get();
                                             let resized = grip.resized(start, press.pos - from);
-                                            dock.edit(|state| state.set_window_rect(surface, resized));
+                                            let dock = dock.clone();
+                                            hold.run(move || dock.edit(|state| state.set_window_rect(surface, resized)));
+                                        }}
+                                        on_active_change={move |active: bool| {
+                                            if !active {
+                                                released.release();
+                                            }
                                         }}
                                     ></Interactive>
                                 </CanvasItem>

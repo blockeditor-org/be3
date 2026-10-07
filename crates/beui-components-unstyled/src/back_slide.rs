@@ -11,7 +11,7 @@ use beui_view::reactive::{
     create_effect, create_signal, create_timer, on_cleanup, untrack, with_document,
 };
 
-use super::rubber_band::{animation_step, motion};
+use super::motion::{animation_step, motion};
 
 pub const BACK_DRAG_SHARE: f32 = 0.3;
 const RETURN_SECONDS: f32 = 0.25;

@@ -10,6 +10,7 @@ use beui::reactive::{
     ReadSignal, Show, WriteSignal, clone, component, component_rect, create_effect, create_memo,
     create_signal, on_cleanup, provide_context, use_context, view,
 };
+use beui::unstyled::GestureHold;
 use beui::{NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2};
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildRect, CreationProgress, EditorInstanceId, EditorRegion,
@@ -1088,22 +1089,35 @@ fn BlockFrameView(
             false => command(Command::Pan(gesture.delta)),
         }
     });
-    let zoom = clone!(command -> move |gesture: ZoomGesture| {
+    let hold = GestureHold::default();
+    let zoom = clone!(command hold -> move |gesture: ZoomGesture| {
         if gestures {
-            command(Command::Zoom {
+            let command = command.clone();
+            hold.run(move || command(Command::Zoom {
                 factor: gesture.factor,
                 anchor: Some(gesture.pos),
-            });
+            }));
         }
     });
-    let pan = clone!(command -> move |delta: Vec2| {
+    let pan = clone!(command hold -> move |delta: Vec2| {
         if gestures {
-            command(Command::Pan(delta));
+            let command = command.clone();
+            hold.run(move || command(Command::Pan(delta)));
         }
     });
+    let released = move |panning: bool| {
+        if !panning {
+            hold.release();
+        }
+    };
     let child_view = child_view(block, EditorRegion::Frame);
     view! {
-        <Interactive on_scroll={scroll} on_zoom={zoom} on_pan_drag={pan}>
+        <Interactive
+            on_scroll={scroll}
+            on_zoom={zoom}
+            on_pan_drag={pan}
+            on_pan_active_change={released}
+        >
             <PluginRegion
                 editor={region_editor}
                 region=EditorRegion::Frame

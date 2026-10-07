@@ -696,6 +696,7 @@ impl Document {
             return;
         }
         self.arena.invalidate();
+        self.drags.set_still(!motion.follows_gestures());
         let write = self.motion.1.clone();
         crate::current::with_reactive_scope(self, move || write.set(motion));
     }

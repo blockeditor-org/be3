@@ -833,10 +833,16 @@ move. `Animated` is the default. `Instant` has no animations: a slide or snap
 goes straight to its end (`rubber_band::animation_step` returns an elapsed time
 that finishes any animation), and there is no fling, rubber-banding, caret blink
 or spinner motion. `Still`, for e-ink, also stops content from following a
-held gesture: a scroll drag, a window drag, a sheet pull or a back swipe only
-lands when it is released. An animation added to beui checks it. The host sends
-it to plugins in the protocol's `Theme`, and the plugin adapter applies it to
-the plugin's context. The inspector's Simulation tab sets it.
+held gesture: a scroll or scrollbar drag, a window drag or resize, a splitter,
+a sheet pull, a back swipe, a pan or pinch, and a drag and drop (which shows no
+preview and tells its targets nothing until the drop) only land when they are
+released, and middle-click autoscroll moves once a second. A held gesture that
+moves something hands each change to `unstyled::GestureHold::run` and calls
+`release` when the gesture ends; an animation checks `motion().animates()`. The
+host sends the setting to plugins in the protocol's `Theme`, and the plugin
+adapter applies it to the plugin's context; a plugin's own pans and zooms are
+held back from the host while a button or finger is down. The inspector's
+Simulation tab sets it.
 
 `pixels_per_point()` is the document's scale as a signal, for layout that
 depends on it.

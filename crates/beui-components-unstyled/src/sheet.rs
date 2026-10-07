@@ -6,9 +6,8 @@ use beui_macros::{component, view};
 
 use super::back_slide::BACK_DRAG_SHARE;
 use super::fling::Fling;
-use super::rubber_band::{
-    SCROLL_SPRING, WINDOW_SPRING, animation_step, motion, rubber_band, spring_back, unband,
-};
+use super::motion::{animation_step, motion};
+use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, rubber_band, spring_back, unband};
 use beui_core::base::Direction;
 use beui_core::base::offset::{OffsetNode, ScrollPosition};
 use beui_core::base::overlay::{OverlayAnchor, Placement};

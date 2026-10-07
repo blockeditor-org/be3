@@ -1,6 +1,7 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
+use super::motion::GestureHold;
 use beui_core::base::canvas::CanvasView;
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
@@ -168,6 +169,10 @@ pub fn PanZoom(
     };
     let scroll_camera = camera.clone();
     let zoom_camera = camera.clone();
+    let (zoom_hold, pan_hold, released) = {
+        let hold = GestureHold::default();
+        (hold.clone(), hold.clone(), hold)
+    };
 
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ScrollView)));
     component_accessibility(create_memo(move || accessibility.get()));
@@ -202,9 +207,20 @@ pub fn PanZoom(
                     scroll_camera.pan(gesture.delta);
                 }
             }}
-            on_zoom={move |gesture: ZoomGesture| zoom_camera.zoom(gesture.factor, gesture.pos)}
-            on_pan_drag={move |delta: Vec2| camera.pan(delta)}
-            on_pan_active_change={move |panning: bool| set_panning.set(panning)}
+            on_zoom={move |gesture: ZoomGesture| {
+                let camera = zoom_camera.clone();
+                zoom_hold.run(move || camera.zoom(gesture.factor, gesture.pos));
+            }}
+            on_pan_drag={move |delta: Vec2| {
+                let camera = camera.clone();
+                pan_hold.run(move || camera.pan(delta));
+            }}
+            on_pan_active_change={move |panning: bool| {
+                set_panning.set(panning);
+                if !panning {
+                    released.release();
+                }
+            }}
             children={Some(content_node)}
         />
     }
