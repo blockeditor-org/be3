@@ -294,6 +294,19 @@ inside it, and the other document catches up the next time it is shown. A
 host driving several documents should give the others a frame when
 `zone_pending` says one of them is behind.
 
+## Pausing
+
+`Scope::detached().pausable()` (or `Scope::new().pausable()`, before anything
+is created in it) is a scope that can be paused. While `pause()` holds, an
+effect created under it that is woken waits instead of running, and
+`resume()` runs each one that waited once, with the values as they are by
+then. Memos are not paused, but they only compute when read, so a memo only
+paused effects read waits with them. An effect already woken when the scope
+pauses still runs, so the write that hides a subtree reaches it: an overlay
+inside closes rather than staying open. A scope inside a paused scope waits
+for it, whether or not it is paused itself. This is what keeps a hidden
+`ShowKeepAlive` child from doing work nobody can see.
+
 ## beui integration
 
 `beui::reactive` (re-exporting `create_signal`, `create_effect`, `create_memo`,

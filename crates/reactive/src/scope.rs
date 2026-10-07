@@ -4,22 +4,55 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use crate::computation::Computation;
-use crate::runtime::{Context, RUNTIME, batch};
+use crate::runtime::{Context, RUNTIME, batch, flush, next_sequence};
+
+pub(crate) struct Gate {
+    parent: Option<Rc<Gate>>,
+    paused_at: Cell<Option<u64>>,
+    parked: RefCell<Vec<Weak<Computation>>>,
+}
+
+impl Gate {
+    pub(crate) fn closed_since(gate: &Rc<Gate>, queued_at: u64) -> Option<Rc<Gate>> {
+        let mut gate = Some(gate);
+        while let Some(current) = gate {
+            if current
+                .paused_at
+                .get()
+                .is_some_and(|paused| queued_at > paused)
+            {
+                return Some(current.clone());
+            }
+            gate = current.parent.as_ref();
+        }
+        None
+    }
+
+    pub(crate) fn park(&self, computation: Weak<Computation>) {
+        self.parked.borrow_mut().push(computation);
+    }
+}
 
 #[derive(Default)]
 pub(crate) struct Owner {
     pub(crate) computation: Weak<Computation>,
     pub(crate) disposed: Cell<bool>,
     parent: Weak<Owner>,
+    pub(crate) gate: RefCell<Option<Rc<Gate>>>,
     contexts: RefCell<HashMap<TypeId, Rc<dyn Any>>>,
     cleanups: RefCell<Vec<Box<dyn FnOnce()>>>,
 }
 
 impl Owner {
-    pub(crate) fn for_computation(computation: Weak<Computation>, parent: Weak<Owner>) -> Self {
+    pub(crate) fn for_computation(
+        computation: Weak<Computation>,
+        parent: Weak<Owner>,
+        gate: Option<Rc<Gate>>,
+    ) -> Self {
         Self {
             computation,
             parent,
+            gate: RefCell::new(gate),
             ..Self::default()
         }
     }
@@ -56,6 +89,7 @@ impl Owner {
 
 pub struct Scope {
     owner: Rc<Owner>,
+    gate: Option<Rc<Gate>>,
 }
 
 impl Scope {
@@ -77,9 +111,60 @@ impl Scope {
                 .map(|parent| parent.computation.clone())
                 .unwrap_or_default(),
             parent: parent.as_ref().map(Rc::downgrade).unwrap_or_default(),
+            gate: RefCell::new(
+                parent
+                    .as_ref()
+                    .and_then(|parent| parent.gate.borrow().clone()),
+            ),
             ..Owner::default()
         });
-        Self { owner }
+        Self { owner, gate: None }
+    }
+
+    pub fn pausable(mut self) -> Self {
+        assert!(
+            self.owner.is_inert(),
+            "a scope must be made pausable before anything is created in it"
+        );
+        let gate = Rc::new(Gate {
+            parent: self.owner.gate.borrow().clone(),
+            paused_at: Cell::new(None),
+            parked: RefCell::new(Vec::new()),
+        });
+        self.owner.gate.replace(Some(gate.clone()));
+        self.gate = Some(gate);
+        self
+    }
+
+    pub fn pause(&self) {
+        let gate = self
+            .gate
+            .as_ref()
+            .expect("only a pausable scope can be paused");
+        if gate.paused_at.get().is_none() {
+            gate.paused_at.set(Some(next_sequence()));
+        }
+    }
+
+    pub fn resume(&self) {
+        let gate = self
+            .gate
+            .as_ref()
+            .expect("only a pausable scope can be resumed");
+        if gate.paused_at.take().is_none() {
+            return;
+        }
+        let parked = gate.parked.take();
+        RUNTIME.with(|runtime| {
+            let mut queue = runtime.queue.borrow_mut();
+            for computation in parked {
+                if let Some(live) = computation.upgrade() {
+                    live.queued_at.set(next_sequence());
+                    queue.push_back(computation);
+                }
+            }
+        });
+        flush();
     }
 
     pub fn run<T>(&self, f: impl FnOnce() -> T) -> T {

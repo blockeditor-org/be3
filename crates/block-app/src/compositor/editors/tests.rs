@@ -1,0 +1,2 @@
+use super::*;
+mod plugin_editors_close_with_their_owner_rather_than_when_the_thread_ends;
