@@ -1,6 +1,6 @@
 use beui::icons::{
-    ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_BUG_REPORT, ICON_CHECK, ICON_DEVICES, ICON_INFO, ICON_KEY,
-    ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD, ICON_SWAP_HORIZ, ICON_TERMINAL,
+    ICON_ACCOUNT_CIRCLE, ICON_BUG_REPORT, ICON_CHECK, ICON_INFO, ICON_KEY, ICON_MANAGE_ACCOUNTS,
+    ICON_PERSON_ADD, ICON_POWER_SETTINGS_NEW, ICON_SWAP_HORIZ, ICON_TERMINAL,
 };
 use beui::reactive::{
     Align, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component, create_memo,
@@ -67,36 +67,6 @@ fn WorkspaceBody(view: AppViewStore) -> NodeId {
     }
 }
 
-fn profile_label(profile: &super::ProfileRow) -> String {
-    match profile.current {
-        true => format!("{} (current)", profile.name),
-        false => profile.name.clone(),
-    }
-}
-
-fn profile_ids(status: &Memo<StatusView>) -> Memo<Vec<uuid::Uuid>> {
-    create_memo(clone!(status -> move || {
-        status
-            .get()
-            .profiles
-            .into_iter()
-            .map(|profile| profile.id)
-            .collect::<Vec<_>>()
-    }))
-}
-
-fn profile_name(status: &Memo<StatusView>, id: uuid::Uuid) -> Memo<String> {
-    create_memo(clone!(status -> move || {
-        status
-            .get()
-            .profiles
-            .iter()
-            .find(|profile| profile.id == id)
-            .map(profile_label)
-            .unwrap_or_default()
-    }))
-}
-
 fn pick(command: UiCommand) {
     send(UiCommand::AppMenu(false));
     send(command);
@@ -122,11 +92,10 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
             .map(|account| account.key)
             .collect::<Vec<_>>()
     }));
-    let profile_keys = profile_ids(&status);
-    let profile_names = status.clone();
     let listed = accounts.clone();
     let panel = |panel: HostPanel| move || pick(UiCommand::ShowPanel(panel));
     let runs_programs = create_memo(clone!(status -> move || status.get().runs_programs));
+    let can_close = create_memo(clone!(status -> move || status.get().can_close));
     view! {
         <Frame padding_horizontal=MENU_PADDING padding_vertical=MENU_PADDING>
             <List spacing=0.0>
@@ -162,25 +131,6 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
                     label="New recovery phrase"
                     glyph={ICON_KEY.to_owned()}
                     on_click={|| pick(UiCommand::NewRecoveryPhrase)}
-                />
-                <ForEach keys={profile_keys}>
-                    {move |id: uuid::Uuid| {
-                        let label = profile_name(&profile_names, id);
-                        view! {
-                            <ActionRow
-                                @test_id={format!("app.menu.profile.{id}")}
-                                label
-                                glyph={ICON_DEVICES.to_owned()}
-                                on_click={move || pick(UiCommand::SwitchProfile(id))}
-                            />
-                        }
-                    }}
-                </ForEach>
-                <ActionRow
-                    @test_id={"app.menu.new-profile"}
-                    label="New profile"
-                    glyph={ICON_ADD.to_owned()}
-                    on_click={|| pick(UiCommand::NewProfile)}
                 />
                 <ForEach keys={account_keys}>
                     {move |key: String| {
@@ -229,6 +179,14 @@ fn AppMenu(status: Memo<StatusView>) -> NodeId {
                     glyph={ICON_INFO.to_owned()}
                     on_click={|| pick(UiCommand::About(true))}
                 />
+                <Show condition={can_close}>
+                    <ActionRow
+                        @test_id={"app.menu.close"}
+                        label="Close block-app"
+                        glyph={ICON_POWER_SETTINGS_NEW.to_owned()}
+                        on_click={|| pick(UiCommand::CloseApp)}
+                    />
+                </Show>
                 <Separator />
                 <ForEach keys={HostPanel::ALL.to_vec()}>
                     {move |shown: HostPanel| view! {

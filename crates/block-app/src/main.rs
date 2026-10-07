@@ -293,6 +293,7 @@ struct BlockApp {
     account: Account,
     root_settings: RootSettings,
     choosing_profile: bool,
+    every_profile_type: bool,
     shell: Option<Uuid>,
     windows_sent: Option<(Uuid, u64)>,
     forwarded_picks: HashMap<u64, (PickSource, u64)>,
@@ -476,6 +477,7 @@ impl BlockApp {
             account,
             root_settings: RootSettings::new(WORKSPACE_EDITOR),
             choosing_profile: false,
+            every_profile_type: false,
             shell: None,
             windows_sent: None,
             forwarded_picks: HashMap::new(),
@@ -1289,7 +1291,7 @@ impl BlockApp {
             }
             self.block_types.remove(&previous);
         }
-        let shell_editor = self.root_settings.shell();
+        let shell_editor = self.root_settings.profile_editor(id)?;
         self.block_types.insert(id, shell_editor);
         if !self.editors.with(|open| open.contains_key(&id)) {
             let editor = self.registry.open(id, shell_editor).viewed_by(Some(id));
@@ -1937,6 +1939,11 @@ impl BlockApp {
                 None => {}
             },
             UiCommand::Exit => std::process::exit(1),
+            UiCommand::CloseApp => {
+                if self.close_requested() {
+                    context.close_window();
+                }
+            }
             UiCommand::OpenAccount(key) => {
                 if let Some(account) = self.account_by_key(&key) {
                     self.open_account(account, false);
@@ -1997,10 +2004,11 @@ impl BlockApp {
                 self.root_settings.use_profile(self.client_id, profile);
                 self.choosing_profile = false;
             }
-            UiCommand::OpenNewProfile => {
-                self.root_settings.new_profile(self.client_id);
+            UiCommand::OpenNewProfile(editor) => {
+                self.root_settings.new_profile(self.client_id, editor);
                 self.choosing_profile = false;
             }
+            UiCommand::EveryProfileType(every) => self.every_profile_type = every,
             UiCommand::RespondInvitation(id, accept) => {
                 self.begin_workspace_request(WorkspaceOperation::Respond(id, accept));
             }
@@ -2027,10 +2035,6 @@ impl BlockApp {
                 self.close_reauth();
             }
             UiCommand::ReauthClose => self.close_reauth(),
-            UiCommand::SwitchProfile(profile) => {
-                self.root_settings.use_profile(self.client_id, profile);
-            }
-            UiCommand::NewProfile => self.root_settings.new_profile(self.client_id),
             UiCommand::OpenInspector => self.inspector_requested = Some(true),
             UiCommand::InviteMember => self.invite_open = true,
             UiCommand::SwitchWorkspace => {
@@ -2206,11 +2210,20 @@ impl BlockApp {
                 accounts,
                 profiles: self
                     .root_settings
-                    .profiles(self.client_id)
+                    .profiles(self.client_id, self.every_profile_type)
                     .into_iter()
-                    .map(|(id, name, current)| ui::ProfileRow { id, name, current })
+                    .map(|profile| ui::ProfileRow {
+                        id: profile.id,
+                        name: profile.name,
+                        kind: (profile.editor != self.root_settings.shell())
+                            .then(|| root_settings::session_type_name(profile.editor).to_owned()),
+                        current: profile.current,
+                    })
                     .collect(),
                 profiles_loaded: self.root_settings.loaded(),
+                every_profile_type: self.every_profile_type,
+                session_type: self.root_settings.shell(),
+                can_close: !cfg!(target_arch = "wasm32"),
                 runs_programs: wayland::running(),
             },
             invite: self.invite_open.then(|| ui::InviteView {
