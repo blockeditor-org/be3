@@ -11085,6 +11085,92 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/verify": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "verify",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": None,
+        "name": "verify",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "verify": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "verify": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "verify": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "verify": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "verify": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "verify": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "verify": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/wasi-threads": {
         "binaries": [],
         "edition": "2024",
