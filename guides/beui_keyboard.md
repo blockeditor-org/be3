@@ -136,7 +136,7 @@ it, is for tests and host integration: `*_selected`, `*_open`, `*_pressed`,
 
 The unstyled controls hand their interaction state to whoever renders their
 content: `<unstyled::Button content={...}>` calls the content builder with a
-`ButtonHandle` carrying `hovered`, `active` and `focused` signals, and the
+`ButtonHandle` carrying `hovered`, `active`, `focused` and `disabled` signals, and the
 text input and select equivalents do the same. Build reactive props out of
 those signals — including effects that react to a child's hover or focus —
 instead of querying the control's state back afterwards.
@@ -156,7 +156,7 @@ the tree is built.
 
 A host sends `Event::Focus(false)` when its window or editor region loses focus. Text and paste arrive through `Event::Text`. An input method's edits arrive as `Event::Ime`, a few operations every platform's input method maps onto: set the composing text, commit text, finish composing, mark existing text as the composition, replace a range (an autocorrect suggestion), delete around the selection, and set the selection, with ranges in UTF-8 bytes of the field's text. A focusable's `on_ime` receives them; one without it gets committed and finished compositions through `on_text`. A text area hands them to text-editor-core as `EditorCommand::Ime`, which writes the composition into the document and tracks its range (`Core::composition`, drawn underlined); any other command ends it. The text area leaves keys to the input method while a composition lasts, and reports its caret through `Interactive`'s `ime_cursor` and the text around it through `ime_text`, so `FrameOutput::ime` places the candidate window beside the caret and the runner can show the input method the field's real text (`beui_core::app::ime_mirror::ImeMirror` keeps a platform text field such as the web's hidden textarea in step with it and turns its edits back into these operations). `ImeArea::keyboard` says whether the runner should show an on-screen keyboard: a focusable with `keyboard_on_focus=false` (a select's search box) takes text from a hardware keyboard as soon as it is focused but holds the on-screen keyboard back until it is tapped, and a plugin's region passes its editor's answer on through `ime_keyboard`. Copy and cut return text in `FrameOutput::copied_text`; the host writes this to its clipboard. Both the desktop runner and the block editor integration handle these outputs. Clipboard access for other custom hosts belongs to their platform integration.
 
-Keyboard regression tests run without a window. `./scripts/buck test //crates/beui:test` runs the tests that drive whole documents, each `beui-*` crate has its own `:test`, and `./scripts/buck run //:verify` runs the whole workspace's.
+Keyboard regression tests run without a window. `./scripts/buck test //crates/beui:test` runs the tests that drive whole documents, each `beui-*` crate has its own `:test`, and `./scripts/verify` runs the whole workspace's.
 
 ## Touch behavior
 

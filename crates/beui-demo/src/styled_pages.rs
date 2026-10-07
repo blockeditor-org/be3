@@ -267,7 +267,34 @@ pub(crate) fn ButtonsPage() -> NodeId {
             <Sample title="Tooltips" code={vec![HoverTooltip::SOURCE]}>
                 <HoverTooltip />
             </Sample>
+            <Sample title="Focus ring" code={vec![FocusedTile::SOURCE]}>
+                <FocusedTile />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn FocusedTile() -> NodeId {
+    let (opened, set_opened) = create_signal("Tab to the tile, then press Enter".to_owned());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=0.0>
+                <beui::unstyled::Button
+                    label="Open the album"
+                    on_click={move || set_opened.set("Opened the album".to_owned())}
+                    content={move |handle: beui::unstyled::ButtonHandle| view! {
+                        <FocusRing focused={handle.focused} radius={CARD_RADIUS + 3} offset=3.0>
+                            <Card>
+                                <Body content={handle.label} />
+                            </Card>
+                        </FocusRing>
+                    }}
+                />
+            </List>
+            <Caption content={opened} />
+        </List>
     }
 }
 
@@ -695,6 +722,20 @@ pub(crate) fn PickersPage() -> NodeId {
             <Sample title="Calendar" code={vec![BookingCalendar::SOURCE]}>
                 <BookingCalendar />
             </Sample>
+        </ScrollPage>
+    }
+}
+
+#[component]
+pub(crate) fn ColorsPage() -> NodeId {
+    view! {
+        <ScrollPage>
+            <Sample title="Color wheel" code={vec![HueWheel::SOURCE]}>
+                <HueWheel />
+            </Sample>
+            <Sample title="OKLCH color wheel" code={vec![PerceptualWheel::SOURCE]}>
+                <PerceptualWheel />
+            </Sample>
             <Sample title="Color input" code={vec![AccentInput::SOURCE]}>
                 <AccentInput />
             </Sample>
@@ -845,6 +886,59 @@ fn PaintPicker() -> NodeId {
     }
 }
 
+#[sample]
+#[component]
+fn HueWheel() -> NodeId {
+    let (paint, set_paint) = create_signal(Color32::from_rgb(0x30, 0xA4, 0x6C));
+    let (preview, set_preview) = create_signal(None::<Color32>);
+    let shown_paint =
+        create_memo(clone!(paint preview -> move || preview.get().unwrap_or(paint.get())));
+    let paint_text = create_memo(clone!(shown_paint -> move || {
+        format!("Painting in {}", beui::format_hex(shown_paint.get(), false))
+    }));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <ColorWheel
+                value={paint}
+                on_change={move |color| set_paint.set(color)}
+                on_preview={move |color| set_preview.set(color)}
+            />
+            <Frame height=SWATCH_HEIGHT color={shown_paint} radius=RADIUS />
+            <Caption content={paint_text} />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn PerceptualWheel() -> NodeId {
+    let (paint, set_paint) = create_signal(Color32::from_rgb(0xD6, 0x40, 0x9F));
+    let (preview, set_preview) = create_signal(None::<Color32>);
+    let shown_paint =
+        create_memo(clone!(paint preview -> move || preview.get().unwrap_or(paint.get())));
+    let paint_text = create_memo(clone!(shown_paint -> move || {
+        let color = beui::Oklch::from_color(shown_paint.get());
+        format!(
+            "oklch({:.0}% {:.3} {:.0})",
+            color.lightness * 100.0,
+            color.chroma,
+            color.hue
+        )
+    }));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Caption content="Turning the hue keeps lightness and chroma" />
+            <OklchColorWheel
+                value={paint}
+                on_change={move |color| set_paint.set(color)}
+                on_preview={move |color| set_preview.set(color)}
+            />
+            <Frame height=SWATCH_HEIGHT color={shown_paint} radius=RADIUS />
+            <Caption content={paint_text} />
+        </List>
+    }
+}
+
 #[component]
 pub(crate) fn MenusPage() -> NodeId {
     view! {
@@ -872,12 +966,27 @@ fn CardMenu() -> NodeId {
         <List spacing=SECTION_SPACING>
             <ContextMenu
                 items={view! {
-                    <unstyled::MenuItem label="Copy" />
-                    <unstyled::MenuItem label="Paste" disabled={nothing_copied} />
-                    <unstyled::MenuItem label="Share">
-                        <unstyled::MenuItem label="Email" />
-                        <unstyled::MenuItem label="Link" />
+                    <unstyled::MenuItem
+                        label="Copy"
+                        glyph={ICON_CONTENT_COPY.to_owned()}
+                        detail="Ctrl+C"
+                    />
+                    <unstyled::MenuItem
+                        label="Paste"
+                        glyph={ICON_CONTENT_PASTE.to_owned()}
+                        detail="Ctrl+V"
+                        disabled={nothing_copied}
+                    />
+                    <unstyled::MenuItem label="Share" glyph={ICON_SHARE.to_owned()}>
+                        <unstyled::MenuItem label="Email" glyph={ICON_MAIL.to_owned()} />
+                        <unstyled::MenuItem label="Link" glyph={ICON_LINK.to_owned()} />
                     </unstyled::MenuItem>
+                    <unstyled::MenuItem
+                        label="Delete"
+                        glyph={ICON_DELETE.to_owned()}
+                        danger=true
+                        separated=true
+                    />
                 }}
                 on_select={move |path: Vec<usize>| {
                     let label = match path.as_slice() {
@@ -888,6 +997,7 @@ fn CardMenu() -> NodeId {
                         [1] => "Paste".to_owned(),
                         [2, 0] => "Share > Email".to_owned(),
                         [2, 1] => "Share > Link".to_owned(),
+                        [3] => "Delete".to_owned(),
                         other => format!("{other:?}"),
                     };
                     set_menu_text.set(format!("Chose: {label}"));
@@ -895,10 +1005,11 @@ fn CardMenu() -> NodeId {
             >
                 <Card>
                     <List spacing=4.0>
-                        <Caption content="Right-click this card" />
+                        <Caption content="Right-click or long-press this card" />
                         <Paragraph
-                            content="Paste stays disabled until Copy is chosen; Share opens \
-                             a submenu on hover or Right Arrow, and Left Arrow closes it."
+                            content="A mouse opens the menu at the pointer and a finger opens \
+                             it as a sheet. Paste stays disabled until Copy is chosen; Share \
+                             opens a submenu on hover or Right Arrow, and Left Arrow closes it."
                         />
                     </List>
                 </Card>
@@ -1002,7 +1113,7 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Dialog" code={vec![DiscardDialog::SOURCE]}>
                 <DiscardDialog />
             </Sample>
-            <Sample title="Modal sheet" code={vec![ActionsSheet::SOURCE]}>
+            <Sample title="Menu as a sheet" code={vec![ActionsSheet::SOURCE]}>
                 <ActionsSheet />
             </Sample>
             <Sample title="Long modal sheet" code={vec![LongSheet::SOURCE]}>
@@ -1153,59 +1264,40 @@ fn LongSheet() -> NodeId {
 #[sample]
 #[component]
 fn ActionsSheet() -> NodeId {
-    let (sheet, set_sheet) = create_signal(false);
     let (outcome, set_outcome) = create_signal("No action taken".to_owned());
-    let open_sheet = set_sheet.clone();
-    let dismiss_sheet = set_sheet.clone();
-    let duplicate = set_sheet.clone();
-    let duplicated = set_outcome.clone();
-    let rename = set_sheet.clone();
-    let renamed = set_outcome.clone();
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Button
+                <MenuButton
                     label="Show actions"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || open_sheet.set(true)}
+                    items={view! {
+                        <unstyled::MenuItem label="Duplicate" glyph=ICON_CONTENT_COPY />
+                        <unstyled::MenuItem label="Rename" glyph=ICON_EDIT detail="Ctrl+R" />
+                        <unstyled::MenuItem label="Share" glyph=ICON_SHARE disabled=true />
+                        <unstyled::MenuItem
+                            label="Delete"
+                            glyph=ICON_DELETE
+                            danger=true
+                            separated=true
+                        />
+                    }}
+                    on_select={move |path: Vec<usize>| {
+                        let done = match path.as_slice() {
+                            [0] => "Duplicated",
+                            [1] => "Renamed",
+                            [3] => "Deleted",
+                            _ => return,
+                        };
+                        set_outcome.set(done.to_owned());
+                    }}
                 />
             </List>
             <Caption
-                content="A sheet slides up from the bottom; swipe it down, or tap above it, to close it."
+                content="Tap the button to see its menu as a sheet; swipe it down, or tap above \
+                 it, to close it. A click opens the same menu under the button."
                 wrap=true
             />
             <Caption content={outcome} />
-            <ModalSheet open={sheet} fit=true on_close={move || dismiss_sheet.set(false)}>
-                <List spacing=0.0>
-                    <ActionRow
-                        label="Duplicate"
-                        glyph=ICON_CONTENT_COPY
-                        on_click={move || {
-                            duplicated.set("Duplicated".to_owned());
-                            duplicate.set(false);
-                        }}
-                    />
-                    <ActionRow
-                        label="Rename"
-                        glyph=ICON_EDIT
-                        detail="Ctrl+R"
-                        on_click={move || {
-                            renamed.set("Renamed".to_owned());
-                            rename.set(false);
-                        }}
-                    />
-                    <ActionRow label="Share" glyph=ICON_SHARE disabled=true />
-                    <ActionRow
-                        label="Delete"
-                        glyph=ICON_DELETE
-                        danger=true
-                        on_click={move || {
-                            set_outcome.set("Deleted".to_owned());
-                            set_sheet.set(false);
-                        }}
-                    />
-                </List>
-            </ModalSheet>
         </List>
     }
 }

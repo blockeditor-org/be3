@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 accesskit = "0.24.1"
+beui-tree = { path = "../beui-tree" }
 foldhash = "0.2"
 geometry = { path = "../geometry" }
 raw-window-handle = { version = "0.6", features = ["alloc"] }

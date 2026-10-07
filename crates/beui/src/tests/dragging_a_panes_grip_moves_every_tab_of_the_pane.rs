@@ -1,27 +1,30 @@
 use super::*;
-use crate::unstyled::{DockState, Entry, Side, TabId, dock_state};
+use crate::unstyled::{DockPane, DockSplit, DockTab, DockingLayout, Entry, TabId, dock_state};
 
 #[test]
 fn dragging_a_panes_grip_moves_every_tab_of_the_pane() {
     let dock = NodeRef::new();
     let built = dock.clone();
     let document = build(move || {
-        let mut start = DockState::new([TabId::new(1), TabId::new(2)]);
-        let left = start.leaves(start.main())[0];
-        start.split(left, Side::Right, 0.5, vec![TabId::new(3)]);
-        let (state, set_state) = create_signal(start);
+        let layout = DockingLayout::new();
         view! {
-            <styled::DockArea
-                @node_ref=&built
-                state={state}
-                title={Func::new(|tab: TabId| format!("Tab {}", tab.value()))}
-                on_change={move |next: DockState| set_state.set(next)}
-                on_close={move |_: TabId| {}}
-            >
-                {move |tab: TabId| view! {
-                    <Frame @test_id={format!("content.{}", tab.value())} />
-                }}
-            </styled::DockArea>
+            <styled::Docking @node_ref=&built layout>
+                <DockSplit id="split">
+                    <DockPane id="left">
+                        <DockTab id=1u64 title="Tab 1">
+                            <Frame @test_id="content.1" />
+                        </DockTab>
+                        <DockTab id=2u64 title="Tab 2">
+                            <Frame @test_id="content.2" />
+                        </DockTab>
+                    </DockPane>
+                    <DockPane id="right">
+                        <DockTab id=3u64 title="Tab 3">
+                            <Frame @test_id="content.3" />
+                        </DockTab>
+                    </DockPane>
+                </DockSplit>
+            </styled::Docking>
         }
     });
     let dock = dock.get();

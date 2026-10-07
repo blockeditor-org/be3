@@ -11,7 +11,7 @@ pub use manifest::{
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 
-pub const PROTOCOL_VERSION: u16 = 63;
+pub const PROTOCOL_VERSION: u16 = 68;
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
@@ -20,7 +20,6 @@ pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 pub const MAX_QUEUED_MESSAGES: usize = 256;
 pub const MAX_CHILDREN: usize = 256;
 pub const MAX_LISTED_BLOCKS: usize = 16 * 1024;
-pub const DEFAULT_SURFACE_SIDE: u32 = 8192;
 pub const REQUEST_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -103,8 +102,7 @@ pub struct ScreenPlacement {
     pub screen: ScreenId,
     pub instance: EditorInstanceId,
     pub region: EditorRegion,
-    pub x: u32,
-    pub y: u32,
+    pub surface: u32,
     pub width: u32,
     pub height: u32,
     pub scale_factor_millis: u32,
@@ -120,8 +118,6 @@ pub struct RegionSize {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScreenLayout {
     pub generation: u64,
-    pub width: u32,
-    pub height: u32,
     pub screens: Vec<ScreenPlacement>,
 }
 
@@ -132,59 +128,27 @@ impl ScreenPlacement {
 }
 
 impl ScreenLayout {
-    pub fn packed(screens: &[ScreenRequest], max_side: u32) -> Self {
-        let mut slots: Vec<&ScreenRequest> = screens
-            .iter()
-            .filter(|request| request.metrics.pixel_width > 0 && request.metrics.pixel_height > 0)
-            .collect();
-        slots.sort_by_key(|request| {
-            (
-                std::cmp::Reverse(request.metrics.pixel_height),
-                request.screen.0,
-            )
-        });
-        let widest = slots
-            .iter()
-            .map(|request| request.metrics.pixel_width)
-            .max()
-            .unwrap_or(0);
-        let area: u64 = slots
-            .iter()
-            .map(|request| {
-                u64::from(request.metrics.pixel_width) * u64::from(request.metrics.pixel_height)
-            })
-            .sum();
-        let shelf_width = widest
-            .max((area as f64).sqrt().ceil() as u32)
-            .min(max_side)
-            .max(widest);
-        let mut layout = Self::default();
-        let mut x = 0;
-        let mut shelf_top = 0;
-        let mut shelf_height = 0;
-        for request in slots {
-            let metrics = &request.metrics;
-            if x > 0 && x + metrics.pixel_width > shelf_width {
-                shelf_top += shelf_height;
-                shelf_height = 0;
-                x = 0;
-            }
-            layout.screens.push(ScreenPlacement {
-                screen: request.screen,
-                instance: request.instance,
-                region: request.region,
-                x,
-                y: shelf_top,
-                width: metrics.pixel_width,
-                height: metrics.pixel_height,
-                scale_factor_millis: (metrics.scale_factor * 1000.0).round().max(1.0) as u32,
-            });
-            x += metrics.pixel_width;
-            shelf_height = shelf_height.max(metrics.pixel_height);
-            layout.width = layout.width.max(x);
-            layout.height = layout.height.max(shelf_top + shelf_height);
+    pub fn placed(screens: &[ScreenRequest], surface: impl FnMut(ScreenId) -> u32) -> Self {
+        let mut surface = surface;
+        Self {
+            generation: 0,
+            screens: screens
+                .iter()
+                .filter(|request| {
+                    request.metrics.pixel_width > 0 && request.metrics.pixel_height > 0
+                })
+                .map(|request| ScreenPlacement {
+                    screen: request.screen,
+                    instance: request.instance,
+                    region: request.region,
+                    surface: surface(request.screen),
+                    width: request.metrics.pixel_width,
+                    height: request.metrics.pixel_height,
+                    scale_factor_millis: (request.metrics.scale_factor * 1000.0).round().max(1.0)
+                        as u32,
+                })
+                .collect(),
         }
-        layout
     }
 
     pub fn placement(&self, screen: ScreenId) -> Option<&ScreenPlacement> {
@@ -194,11 +158,11 @@ impl ScreenLayout {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.width == 0 || self.height == 0
+        self.screens.is_empty()
     }
 
     pub fn same_placements(&self, other: &Self) -> bool {
-        self.width == other.width && self.height == other.height && self.screens == other.screens
+        self.screens == other.screens
     }
 }
 
@@ -238,7 +202,19 @@ pub struct ChildRect {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WebViewId(pub u32);
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct HostWindowId(pub u64);
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct HostWindow {
+    pub id: HostWindowId,
+    pub title: String,
+    pub app_id: String,
+    pub parent: Option<HostWindowId>,
+    pub size: Size,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChildContent {
     Block {
         block_id: [u8; 16],
@@ -246,18 +222,57 @@ pub enum ChildContent {
         view_block: Option<[u8; 16]>,
     },
     WebView(WebViewId),
+    Host(HostPanel),
+    Window(HostWindowId),
+    Creation {
+        editor: [u8; 16],
+        template: String,
+    },
+    ArtifactSettings {
+        block_id: [u8; 16],
+    },
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum HostPanel {
+    BlockStack,
+    Performance,
+    Plugins,
+    Version,
+}
+
+impl HostPanel {
+    pub const ALL: [Self; 4] = [
+        Self::BlockStack,
+        Self::Performance,
+        Self::Plugins,
+        Self::Version,
+    ];
+
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::BlockStack => "Block Stack State",
+            Self::Performance => "Performance",
+            Self::Plugins => "Plugins",
+            Self::Version => "App Version",
+        }
+    }
 }
 
 impl ChildContent {
     pub fn block_id(&self) -> Option<[u8; 16]> {
         match self {
             Self::Block { block_id, .. } => Some(*block_id),
-            Self::WebView(_) => None,
+            Self::WebView(_)
+            | Self::Host(_)
+            | Self::Window(_)
+            | Self::Creation { .. }
+            | Self::ArtifactSettings { .. } => None,
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ChildPlacement {
     pub child: ChildId,
     pub content: ChildContent,
@@ -323,6 +338,44 @@ pub struct ChildStatus {
     pub resize: ResizeMode,
     pub error: Option<String>,
     pub menu: Vec<MenuEntry>,
+    pub creation: Option<CreationProgress>,
+    pub settings: Option<SettingsProgress>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SettingsProgress {
+    pub changed: bool,
+    pub summary: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ShellDialog {
+    Rename,
+    Share,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AccessGrant {
+    pub account: [u8; 16],
+    pub email: String,
+    pub display_name: String,
+    pub administrator: bool,
+    pub granted: Option<AccessLevel>,
+    pub effective: AccessLevel,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AccessListing {
+    Listed(Vec<AccessGrant>),
+    Failed(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CreationProgress {
+    Options { ready: bool },
+    Working,
+    Created([u8; 16]),
+    Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -344,6 +397,27 @@ pub struct EditorManifest {
     pub capabilities: EditorCapabilities,
     pub resize: ResizeMode,
     pub regions: Vec<EditorRegion>,
+    pub accepts: Vec<ShellRequest>,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShellRequest {
+    ShowBlock,
+    Pick,
+    Dialog,
+    Panel,
+    Window,
+}
+
+impl ShellRequest {
+    pub const ALL: [Self; 5] = [
+        Self::ShowBlock,
+        Self::Pick,
+        Self::Dialog,
+        Self::Panel,
+        Self::Window,
+    ];
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -379,6 +453,10 @@ impl PluginManifest {
 impl EditorManifest {
     pub fn template(&self, id: &str) -> Option<&TemplateManifest> {
         self.templates.iter().find(|template| template.id == id)
+    }
+
+    pub fn accepts(&self, request: ShellRequest) -> bool {
+        self.accepts.contains(&request)
     }
 }
 
@@ -433,59 +511,29 @@ pub struct BlockTypeDescriptor {
     pub children: ChildOperations,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TemplateDescriptor {
+    pub editor: [u8; 16],
+    pub template: String,
+    pub block_type: [u8; 16],
+    pub name: String,
+    pub icon_codepoint: String,
+    pub category: TemplateCategory,
+    pub dialog: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Catalog {
+    pub types: Vec<BlockTypeDescriptor>,
+    pub templates: Vec<TemplateDescriptor>,
+}
+
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EditorRegion {
     Frame,
     Preview,
     ArtifactSettings,
-    Pane(PaneId),
 }
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct PaneId(pub u64);
-
-pub const MAX_PANE_DEPTH: usize = 32;
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum PaneItem {
-    Split {
-        horizontal: bool,
-        fraction: f32,
-    },
-    Tabs {
-        count: u32,
-        active: u32,
-        vertical: bool,
-        sidebar: f32,
-    },
-    Pane(PaneId),
-    Group,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct PaneTree {
-    pub items: Vec<PaneItem>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PaneInfo {
-    pub pane: PaneId,
-    pub title: String,
-    pub icon: String,
-    pub closable: bool,
-    pub menu: Vec<MenuEntry>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct PaneLayout {
-    pub panes: Vec<PaneInfo>,
-    pub tree: PaneTree,
-    pub arrangement: u64,
-    pub home: Option<PaneId>,
-    pub empty: bool,
-}
-
-pub const EMPTY_PANE: PaneId = PaneId(u64::MAX);
 
 impl EditorRegion {
     pub const ALL: [Self; 3] = [Self::Frame, Self::Preview, Self::ArtifactSettings];
@@ -737,6 +785,34 @@ pub enum EditorMessage {
         via: Option<[u8; 16]>,
     },
 
+    ShowPanel {
+        instance: EditorInstanceId,
+        panel: HostPanel,
+    },
+
+    Windows {
+        instance: EditorInstanceId,
+        windows: Vec<HostWindow>,
+    },
+
+    CloseWindow {
+        instance: EditorInstanceId,
+        window: HostWindowId,
+    },
+
+    ShowDialog {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        dialog: ShellDialog,
+    },
+
+    SetAccess {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        account: [u8; 16],
+        access: AccessLevel,
+    },
+
     Focused {
         instance: EditorInstanceId,
         block_id: Option<[u8; 16]>,
@@ -841,6 +917,23 @@ pub enum EditorMessage {
     },
     CommitCreation {
         instance: EditorInstanceId,
+    },
+    CommitChild {
+        instance: EditorInstanceId,
+        child: ChildId,
+        parent: BlockLocation,
+        name: Option<String>,
+    },
+    PickRequested {
+        instance: EditorInstanceId,
+        pick: u64,
+        filter: BlockFilter,
+        parent: BlockLocation,
+    },
+    PickAnswered {
+        instance: EditorInstanceId,
+        pick: u64,
+        answer: BlockPick,
     },
     CreationBlock {
         instance: EditorInstanceId,
@@ -982,30 +1075,6 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         name: Option<String>,
     },
-    Panes {
-        instance: EditorInstanceId,
-        layout: Option<PaneLayout>,
-    },
-    ShowPane {
-        instance: EditorInstanceId,
-        pane: PaneId,
-    },
-    PanesArranged {
-        instance: EditorInstanceId,
-        arrangement: u64,
-        tree: PaneTree,
-        detached: Vec<PaneId>,
-        focused: Option<PaneId>,
-    },
-    ClosePane {
-        instance: EditorInstanceId,
-        pane: PaneId,
-    },
-    PaneMenuPick {
-        instance: EditorInstanceId,
-        pane: PaneId,
-        id: String,
-    },
     VersionControl {
         instance: EditorInstanceId,
         block_id: [u8; 16],
@@ -1045,6 +1114,11 @@ impl EditorMessage {
             | Self::Close { instance, .. }
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
+            | Self::ShowPanel { instance, .. }
+            | Self::Windows { instance, .. }
+            | Self::CloseWindow { instance, .. }
+            | Self::ShowDialog { instance, .. }
+            | Self::SetAccess { instance, .. }
             | Self::Focused { instance, .. }
             | Self::FocusChanged { instance, .. }
             | Self::DragBlock { instance, .. }
@@ -1064,6 +1138,9 @@ impl EditorMessage {
             | Self::OpenCreation { instance, .. }
             | Self::CreationReady { instance, .. }
             | Self::CommitCreation { instance, .. }
+            | Self::CommitChild { instance, .. }
+            | Self::PickRequested { instance, .. }
+            | Self::PickAnswered { instance, .. }
             | Self::CreationBlock { instance, .. }
             | Self::OpenArtifact { instance, .. }
             | Self::ArtifactSettings { instance, .. }
@@ -1092,11 +1169,6 @@ impl EditorMessage {
             | Self::CreateBlock { instance, .. }
             | Self::SetParent { instance, .. }
             | Self::SetName { instance, .. }
-            | Self::Panes { instance, .. }
-            | Self::ShowPane { instance, .. }
-            | Self::PanesArranged { instance, .. }
-            | Self::ClosePane { instance, .. }
-            | Self::PaneMenuPick { instance, .. }
             | Self::VersionControl { instance, .. }
             | Self::VersionStatus { instance, .. } => *instance,
         }
@@ -1164,6 +1236,7 @@ pub enum BlockLocation {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlockQuery {
+    All,
     Roots,
     Detached,
     Children([u8; 16]),
@@ -1236,7 +1309,6 @@ impl AccessLevel {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ArtifactAction {
     Regenerate,
-    Settings,
     Unlink,
 }
 
@@ -1394,6 +1466,7 @@ pub enum HostRequest {
     PickFile(FileFilter),
     SaveFile(SavedFile),
     PickBlock(BlockFilter),
+    ListAccess([u8; 16]),
     PasteImage,
     Fetch(String),
     ListData,
@@ -1409,6 +1482,7 @@ pub enum HostReply {
     Fetched(FetchResult),
     DataListed(DataListing),
     DataRead(FetchResult),
+    AccessListed(AccessListing),
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1521,6 +1595,7 @@ pub enum Message {
     HelloAccepted(HelloAccepted),
     HelloRejected(ProtocolError),
     Theme(Theme),
+    UtcOffset(i32),
     Fonts(Fonts),
     MissingCharacters(Vec<char>),
     Screens(ScreenSet),
@@ -1528,7 +1603,7 @@ pub enum Message {
     RegionSizes(Vec<RegionSize>),
     Frames(Vec<FrameReport>),
     Input(InputBatch),
-    DrawFrame,
+    DrawFrame { now_micros: u64 },
     FrameNeeded,
     FrameReady(FrameReady),
     Acknowledged { request_id: u64 },
@@ -1536,7 +1611,7 @@ pub enum Message {
     Shutdown,
     ShutdownAcknowledged,
     Editor(EditorMessage),
-    BlockTypes(Vec<BlockTypeDescriptor>),
+    BlockTypes(Catalog),
     Children(ChildPlacements),
     ChildStatuses(Vec<ChildStatus>),
 }
@@ -1569,10 +1644,11 @@ impl Message {
             Self::HelloAccepted(_)
             | Self::HelloRejected(_)
             | Self::Theme(_)
+            | Self::UtcOffset(_)
             | Self::Fonts(_)
             | Self::Screens(_)
             | Self::Input(_)
-            | Self::DrawFrame
+            | Self::DrawFrame { .. }
             | Self::Shutdown
             | Self::BlockTypes(_)
             | Self::ChildStatuses(_) => Direction::ToPlugin,
@@ -1609,6 +1685,9 @@ impl EditorMessage {
             | Self::Presence { .. }
             | Self::FocusChanged { .. }
             | Self::ShowBlock { .. }
+            | Self::ShowPanel { .. }
+            | Self::Windows { .. }
+            | Self::ShowDialog { .. }
             | Self::DragOver { .. }
             | Self::DragLeft { .. }
             | Self::FileDrop { .. }
@@ -1617,6 +1696,7 @@ impl EditorMessage {
             | Self::AudioStatus { .. }
             | Self::WebViewEvent { .. }
             | Self::CommitCreation { .. }
+            | Self::PickRequested { .. }
             | Self::ArtifactSettings { .. }
             | Self::RegenerateArtifact { .. }
             | Self::ArtifactStates { .. }
@@ -1625,9 +1705,6 @@ impl EditorMessage {
             | Self::ChildView { .. }
             | Self::ChildBar { .. }
             | Self::Blocks { .. }
-            | Self::PanesArranged { .. }
-            | Self::ClosePane { .. }
-            | Self::PaneMenuPick { .. }
             | Self::MenuPick { .. }
             | Self::VersionStatus { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
@@ -1642,6 +1719,10 @@ impl EditorMessage {
             | Self::LeaveFrame { .. }
             | Self::BarAction { .. }
             | Self::Menu { .. }
+            | Self::CommitChild { .. }
+            | Self::SetAccess { .. }
+            | Self::CloseWindow { .. }
+            | Self::PickAnswered { .. }
             | Self::ChildMenuPick { .. }
             | Self::GrabCursor { .. }
             | Self::WebViewCommand { .. }
@@ -1669,8 +1750,6 @@ impl EditorMessage {
             | Self::WatchBlocks { .. }
             | Self::VersionControl { .. }
             | Self::CreateBlock { .. }
-            | Self::Panes { .. }
-            | Self::ShowPane { .. }
             | Self::SetParent { .. }
             | Self::SetName { .. } => Direction::ToHost,
         }
@@ -1690,7 +1769,6 @@ pub struct HelloAccepted {
     pub host_name: String,
     pub surface: Option<SurfaceSpec>,
     pub theme: Theme,
-    pub panes: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1747,7 +1825,6 @@ pub enum SurfaceSupport {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SurfaceSpec {
     pub format: SurfaceFormat,
-    pub max_side: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2148,7 +2225,13 @@ pub struct FrameReady {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PresentedFrame {
     pub sequence: u64,
-    pub damage: Vec<SurfaceRect>,
+    pub damage: Vec<ScreenDamage>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScreenDamage {
+    pub screen: ScreenId,
+    pub rect: SurfaceRect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2269,10 +2352,16 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
         Message::MissingCharacters(value) => collection(value.len()),
         Message::Editor(value) => validate_editor(value),
         Message::BlockTypes(value) => {
-            collection(value.len())?;
-            for descriptor in value {
+            collection(value.types.len())?;
+            collection(value.templates.len())?;
+            for descriptor in &value.types {
                 string(&descriptor.display_name)?;
                 string(&descriptor.icon_codepoint)?;
+            }
+            for template in &value.templates {
+                string(&template.template)?;
+                string(&template.name)?;
+                string(&template.icon_codepoint)?;
             }
             Ok(())
         }
@@ -2284,11 +2373,27 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
                     string(error)?;
                 }
                 menu(&status.menu)?;
+                if let Some(CreationProgress::Failed(error)) = &status.creation {
+                    string(error)?;
+                }
+                if let Some(summary) = status
+                    .settings
+                    .as_ref()
+                    .and_then(|settings| settings.summary.as_ref())
+                {
+                    string(summary)?;
+                }
             }
             Ok(())
         }
         _ => Ok(()),
     }
+}
+
+fn block_filter(filter: &BlockFilter) -> Result<(), DecodeError> {
+    string(&filter.name)?;
+    collection(filter.block_types.len())?;
+    collection(filter.excluded.len())
 }
 
 fn validate_children(placements: &ChildPlacements) -> Result<(), DecodeError> {
@@ -2307,6 +2412,11 @@ fn validate_children(placements: &ChildPlacements) -> Result<(), DecodeError> {
         }
         covered = occluder.after as usize;
     }
+    for child in &placements.children {
+        if let ChildContent::Creation { template, .. } = &child.content {
+            string(template)?;
+        }
+    }
     Ok(())
 }
 
@@ -2314,6 +2424,14 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
     match message {
         EditorMessage::Request { request, .. } => validate_request(request),
         EditorMessage::Replied { reply, .. } => validate_reply(reply),
+        EditorMessage::PickRequested { filter, .. } => block_filter(filter),
+        EditorMessage::CommitChild {
+            name: Some(name), ..
+        } => string(name),
+        EditorMessage::PickAnswered { answer, .. } => match answer {
+            BlockPick::Failed(error) => string(error),
+            BlockPick::Chosen { .. } | BlockPick::Cancelled => Ok(()),
+        },
         EditorMessage::Performance {
             group,
             measurements,
@@ -2459,28 +2577,16 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(())
         }
         EditorMessage::CopyText { text: value, .. } => text(value),
-        EditorMessage::Panes { layout: None, .. } => Ok(()),
-        EditorMessage::Panes {
-            layout: Some(layout),
-            ..
-        } => {
-            collection(layout.panes.len())?;
-            collection(layout.tree.items.len())?;
-            strings(layout.panes.iter().map(|pane| &pane.title))?;
-            strings(layout.panes.iter().map(|pane| &pane.icon))?;
-            for pane in &layout.panes {
-                menu(&pane.menu)?;
+        EditorMessage::Windows { windows, .. } => {
+            collection(windows.len())?;
+            for window in windows {
+                string(&window.title)?;
+                string(&window.app_id)?;
             }
             Ok(())
         }
         EditorMessage::Menu { entries, .. } => menu(entries),
-        EditorMessage::MenuPick { id, .. }
-        | EditorMessage::ChildMenuPick { id, .. }
-        | EditorMessage::PaneMenuPick { id, .. } => string(id),
-        EditorMessage::PanesArranged { tree, detached, .. } => {
-            collection(tree.items.len())?;
-            collection(detached.len())
-        }
+        EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),
         EditorMessage::WebViewCommand { command, .. } => match command {
             WebViewCommand::Open(url) | WebViewCommand::Load(url) => string(url),
             WebViewCommand::Reload | WebViewCommand::FocusApp | WebViewCommand::Close => Ok(()),
@@ -2513,11 +2619,8 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
             string(&file.mime_type)?;
             blob(&file.data)
         }
-        HostRequest::PickBlock(filter) => {
-            string(&filter.name)?;
-            collection(filter.block_types.len())?;
-            collection(filter.excluded.len())
-        }
+        HostRequest::PickBlock(filter) => block_filter(filter),
+        HostRequest::ListAccess(_) => Ok(()),
         HostRequest::PasteImage | HostRequest::ListData => Ok(()),
         HostRequest::Fetch(url) => string(url),
         HostRequest::ReadData(path) => string(path),
@@ -2544,7 +2647,16 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         | HostReply::ImagePasted(ClipboardImage::Failed(message))
         | HostReply::Fetched(FetchResult::Failed(message))
         | HostReply::DataRead(FetchResult::Failed(message))
-        | HostReply::DataListed(DataListing::Failed(message)) => string(message),
+        | HostReply::DataListed(DataListing::Failed(message))
+        | HostReply::AccessListed(AccessListing::Failed(message)) => string(message),
+        HostReply::AccessListed(AccessListing::Listed(grants)) => {
+            collection(grants.len())?;
+            for grant in grants {
+                string(&grant.email)?;
+                string(&grant.display_name)?;
+            }
+            Ok(())
+        }
         HostReply::FilePicked(FilePick::Cancelled)
         | HostReply::FileSaved(FileSave::Saved | FileSave::Cancelled)
         | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)

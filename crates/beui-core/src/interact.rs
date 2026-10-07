@@ -66,6 +66,12 @@ pub fn interact(
     if !touching {
         doc.touch_shift = Vec2::ZERO;
     }
+    if pointer && let Some(pos) = raw_pointer {
+        doc.last_pointer = Some(crate::input::PointerSample {
+            pos: pos + doc.touch_shift,
+            touch: ctx.input(|input| input.pointer.from_touch()),
+        });
+    }
     let input = InteractInput {
         pointer_pos: raw_pointer.map(|pos| pos + doc.touch_shift),
         pointer_down: ctx.input(|input| input.pointer.primary_down),

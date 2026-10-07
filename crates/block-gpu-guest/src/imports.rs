@@ -83,6 +83,7 @@ gpu_imports! {
     fn surface_acquire(surface: u32) -> u32;
     fn surface_age(surface: u32) -> u32;
     fn surface_present(surface: u32);
+    fn surface_release(surface: u32);
     fn texture_describe(texture: u32, pointer: u32, capacity: u32) -> u32;
     fn error_take(pointer: u32, capacity: u32) -> u32;
 }

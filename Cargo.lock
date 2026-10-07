@@ -670,17 +670,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "be-compositor"
+name = "be-dmabuf"
 version = "0.1.0"
 dependencies = [
  "ash",
- "beui",
- "bytemuck",
  "pollster",
  "rustix 1.1.4",
  "smithay",
- "wayland-client",
- "wayland-protocols",
  "wgpu",
 ]
 
@@ -819,6 +815,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-wayland"
+version = "0.1.0"
+dependencies = [
+ "be-dmabuf",
+ "beui",
+ "bytemuck",
+ "rustix 1.1.4",
+ "smithay",
+ "wayland-client",
+ "wayland-protocols",
+ "wayland-protocols-misc",
+ "wgpu",
+]
+
+[[package]]
 name = "beui"
 version = "0.1.0"
 dependencies = [
@@ -858,6 +869,31 @@ dependencies = [
  "ndk-context",
  "ndk-sys 0.6.0+11769913",
  "raw-window-handle",
+]
+
+[[package]]
+name = "beui-adapter-drm"
+version = "0.1.0"
+dependencies = [
+ "be-dmabuf",
+ "beui",
+ "beui-core",
+ "bytemuck",
+ "smithay",
+ "wgpu",
+]
+
+[[package]]
+name = "beui-adapter-plugin"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "beui-core",
+ "beui-plugin-input",
+ "beui-renderer-wgpu",
+ "block-editor-plugin",
+ "block-plugin-api",
+ "wgpu",
 ]
 
 [[package]]
@@ -919,6 +955,7 @@ name = "beui-core"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "beui-tree",
  "foldhash 0.2.0",
  "geometry",
  "raw-window-handle",
@@ -1006,11 +1043,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-tree"
+version = "0.1.0"
+dependencies = [
+ "beui_macros",
+ "reactive",
+]
+
+[[package]]
 name = "beui-view"
 version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-core",
+ "beui-tree",
  "beui_macros",
  "reactive",
 ]
@@ -1142,13 +1188,16 @@ dependencies = [
  "be-block",
  "be-client",
  "be-commit",
+ "be-dmabuf",
  "be-graph",
  "be-keys",
  "be-protocol",
  "be-server",
  "be-store",
  "be-vcs",
+ "be-wayland",
  "beui",
+ "beui-adapter-drm",
  "beui-plugin-input",
  "block-editor-plugin",
  "block-plugin-api",
@@ -1197,7 +1246,7 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "beui",
- "beui-plugin-input",
+ "beui-adapter-plugin",
  "block-editor-plugin",
  "block-plugin-api",
  "block-ui",
@@ -1268,6 +1317,17 @@ dependencies = [
  "bincode",
  "serde",
  "serde_bytes",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "block-shell"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-editor-beui",
+ "serde",
  "serde_json",
  "uuid",
 ]
@@ -4096,6 +4156,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
+name = "linux_desktop"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-editor-beui",
+ "block-plugin-api",
+ "block-shell",
+ "block-ui-test",
+ "uuid",
+]
+
+[[package]]
 name = "litemap"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6630,6 +6702,7 @@ dependencies = [
  "block-editor-beui",
  "block-ui-test",
  "serde",
+ "serde_json",
  "similar",
  "text-editor-core",
  "uuid",
@@ -7958,6 +8031,7 @@ checksum = "6e9567599ef23e09b8dad6e429e5738d4509dfc46b3b21f32841a304d16b29c8"
 dependencies = [
  "bitflags 2.12.1",
  "wayland-backend",
+ "wayland-client",
  "wayland-protocols",
  "wayland-scanner",
  "wayland-server",
@@ -9148,9 +9222,9 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-beui",
+ "block-plugin-api",
+ "block-shell",
  "block-ui-test",
- "serde",
- "serde_json",
  "uuid",
 ]
 

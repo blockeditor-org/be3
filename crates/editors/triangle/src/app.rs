@@ -50,7 +50,7 @@ impl Instance for Triangle {
     }
 
     fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
-        let (x, y, width, height) = target.scissor();
+        let (width, height) = (target.width, target.height);
         let side = width.min(height);
         if side == 0 {
             return Vec::new();
@@ -82,10 +82,9 @@ impl Instance for Triangle {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            pass.set_scissor_rect(x, y, width, height);
             pass.set_viewport(
-                (x + (width - side) / 2) as f32,
-                (y + (height - side) / 2) as f32,
+                ((width - side) / 2) as f32,
+                ((height - side) / 2) as f32,
                 side as f32,
                 side as f32,
                 0.0,

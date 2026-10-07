@@ -47,22 +47,18 @@ pub(crate) fn presenter(
 impl SurfacePresenter for Presenter {
     type Frame = ();
 
-    fn replace(
-        &mut self,
-        _device: &wgpu::Device,
-        _surface: u32,
-        _frame: &(),
-    ) -> Result<(), String> {
+    fn replace(&mut self, _device: &wgpu::Device, _slot: u32, _frame: &()) -> Result<(), String> {
         Ok(())
     }
 
-    fn prepare(&mut self, _queue: &wgpu::Queue, _surface: u32, _frame: &()) -> Result<(), String> {
+    fn prepare(&mut self, _queue: &wgpu::Queue, _slot: u32, _frame: &()) -> Result<(), String> {
         Ok(())
     }
 
     fn paint(
         &self,
         pass: &mut wgpu::RenderPass<'_>,
+        _slot: u32,
         _surface: u32,
         regions: &wgpu::BindGroup,
         offset: u32,
@@ -72,5 +68,7 @@ impl SurfacePresenter for Presenter {
         pass.draw(0..6, 0..1);
     }
 
-    fn release(&mut self, _surface: u32) {}
+    fn retain(&mut self, _slot: u32, _surfaces: &[u32]) {}
+
+    fn release(&mut self, _slot: u32) {}
 }

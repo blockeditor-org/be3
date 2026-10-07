@@ -34,6 +34,7 @@ pub mod screen_simulation;
 pub mod sight;
 pub mod slow_repaint;
 pub mod timer;
+pub mod tree;
 
 pub use ::geometry;
 pub use accesskit;

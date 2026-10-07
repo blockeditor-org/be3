@@ -286,9 +286,13 @@ fn fill(
                 texel[3] * color[3] / 255.0,
             ];
             let target = canvas.get_pixel_mut(x as u32, y as u32);
-            let inverse = 1.0 - source[3] / 255.0;
-            for (target, source) in target.0.iter_mut().zip(source) {
-                let blended = source + *target as f32 * inverse;
+            let alpha = source[3] / 255.0;
+            for (index, (target, source)) in target.0.iter_mut().zip(source).enumerate() {
+                let covered = match index {
+                    3 => source,
+                    _ => source * alpha,
+                };
+                let blended = covered + *target as f32 * (1.0 - alpha);
                 *target = blended.round().clamp(0.0, 255.0) as u8;
             }
         }

@@ -28,8 +28,7 @@ fn place(session: &mut EditorSession, height: u32) {
             screen,
             instance,
             region: EditorRegion::Frame,
-            x: 0,
-            y: 0,
+            surface: 1,
             width: 100,
             height,
             scale_factor_millis: 1000,
@@ -50,7 +49,7 @@ fn place(session: &mut EditorSession, height: u32) {
             },
         }],
     );
-    session.run(EditorRegion::Frame, 1);
+    session.run(EditorRegion::Frame, 1, 0);
 }
 
 fn sizes(session: &mut EditorSession) -> Vec<Size> {

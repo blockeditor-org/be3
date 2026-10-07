@@ -121,6 +121,7 @@ pub struct GlyphImage {
     pub left: i32,
     pub top: i32,
     pub pixels: Vec<u8>,
+    pub color: bool,
 }
 
 #[derive(Clone)]

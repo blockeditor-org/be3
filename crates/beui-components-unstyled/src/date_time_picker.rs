@@ -28,23 +28,41 @@ pub struct DateTimeTriggerHandle {
     pub label: Memo<String>,
 }
 
-pub struct DateTimePanelHandle {
-    pub field: Child,
-    pub field_width: Memo<f32>,
-    pub parts: DateTimeParts,
-    pub hour_cycle: HourCycle,
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DateTimePanelLayout {
+    Beside,
+    Date,
+    Time,
+    Paged,
+}
+
+#[derive(Clone)]
+pub struct DateTimeCalendarHandle {
     pub date: Memo<Option<Date>>,
-    pub time: Memo<Option<Time>>,
     pub shown: Memo<Option<Date>>,
     pub min: Memo<Option<Date>>,
     pub max: Memo<Option<Date>>,
     pub today: Memo<Option<Date>>,
-    pub calendar_focused: Memo<bool>,
-    pub list_focused: Memo<bool>,
-    pub tab: ReadSignal<usize>,
-    pub set_tab: WriteSignal<usize>,
-    pub pick_date: Callback<Date>,
-    pub pick_time: Callback<Time>,
+    pub focused: Memo<bool>,
+    pub pick: Callback<Date>,
+}
+
+#[derive(Clone)]
+pub struct DateTimeTimesHandle {
+    pub time: Memo<Option<Time>>,
+    pub hour_cycle: HourCycle,
+    pub focused: Memo<bool>,
+    pub pick: Callback<Time>,
+}
+
+pub struct DateTimePanelHandle {
+    pub field: Child,
+    pub field_width: Memo<f32>,
+    pub layout: Memo<DateTimePanelLayout>,
+    pub calendar: DateTimeCalendarHandle,
+    pub times: DateTimeTimesHandle,
+    pub page: ReadSignal<usize>,
+    pub show_page: Callback<usize>,
     pub now: ClickCallback,
     pub now_label: &'static str,
     pub clear: ClickCallback,
@@ -370,6 +388,12 @@ fn PickerPanel(
         report.call(None);
         close.call(());
     }));
+    let layout = create_memo(clone!(paged -> move || match parts {
+        DateTimeParts::Date => DateTimePanelLayout::Date,
+        DateTimeParts::Time => DateTimePanelLayout::Time,
+        DateTimeParts::DateTime if paged.get() => DateTimePanelLayout::Paged,
+        DateTimeParts::DateTime => DateTimePanelLayout::Beside,
+    }));
     let now_label = match parts {
         DateTimeParts::Time => "Now",
         DateTimeParts::Date | DateTimeParts::DateTime => "Today",
@@ -391,20 +415,24 @@ fn PickerPanel(
                     />
                 },
                 field_width: width,
-                parts,
-                hour_cycle,
-                date,
-                time,
-                shown,
-                min,
-                max,
-                today,
-                calendar_focused,
-                list_focused,
-                tab,
-                set_tab,
-                pick_date,
-                pick_time,
+                layout,
+                calendar: DateTimeCalendarHandle {
+                    date,
+                    shown,
+                    min,
+                    max,
+                    today,
+                    focused: calendar_focused,
+                    pick: pick_date,
+                },
+                times: DateTimeTimesHandle {
+                    time,
+                    hour_cycle,
+                    focused: list_focused,
+                    pick: pick_time,
+                },
+                page: tab,
+                show_page: Callback::new(move |page: usize| set_tab.set(page)),
                 now,
                 now_label,
                 clear,

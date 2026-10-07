@@ -24,5 +24,6 @@ fn dragging_a_card_onto_the_discard_pile_plays_it() {
     let played = moves(&editor);
     assert_eq!(played.len(), actions.len() + 1);
     assert_eq!(played.last().map(|last| &last.action), Some(&play.effect));
+    editor.settle();
     editor.snapshot("dragging_a_card_onto_the_discard_pile_plays_it");
 }

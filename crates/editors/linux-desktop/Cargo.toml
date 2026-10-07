@@ -1,0 +1,21 @@
+[package]
+name = "linux_desktop"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+beui = { path = "../../beui", default-features = false, features = ["render"] }
+block-editor-beui = { path = "../../block-editor-beui" }
+block-shell = { path = "../../block-shell" }
+uuid = { version = "1", features = ["v4"] }
+
+[dev-dependencies]
+block-plugin-api = { path = "../../block-plugin-api" }
+block-ui-test = { path = "../../block-ui-test" }
+
+[lints]
+workspace = true

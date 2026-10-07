@@ -2,32 +2,36 @@ use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
 use crate::calendar::{CALENDAR_WIDTH, Calendar};
+use crate::focus_ring::FocusRing;
 use crate::popover::{PANEL_PADDING, PopoverPanel};
 use crate::scroll::scrollbar_style;
 use crate::tabs::Tabs;
 use crate::text::IconSized;
-use crate::theme::{BORDER_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, field_border, use_theme};
+use crate::theme::{
+    BORDER_WIDTH, FOCUS_RING_WIDTH, FONT_BODY, ICON_SIZE, RADIUS, field_border, use_theme,
+};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Time, Weekday};
+use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Weekday};
 use beui_components_unstyled::{
-    ChoiceOption, DateSegmentHandle, DateTimeBoxHandle, DateTimePanelHandle, DateTimeParts,
-    DateTimeTriggerHandle, PopoverPlacement, PopoverTriggerHandle, TimeOptionHandle, narrower_than,
+    ButtonHandle, ChoiceOption, DateSegmentHandle, DateTimeBoxHandle, DateTimeCalendarHandle,
+    DateTimePanelHandle, DateTimePanelLayout, DateTimeParts, DateTimeTimesHandle,
+    DateTimeTriggerHandle, PopoverPlacement, PopoverTriggerHandle, TimeOptionHandle, grid_columns,
+    narrower_than,
 };
 use beui_core::base::{Align, Direction, Justify, TextAlign};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_CALENDAR_MONTH, ICON_SCHEDULE};
 use beui_core::node::NodeId;
 use beui_view::reactive::{
-    Callback, Child, Dynamic, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, Text,
-    WriteSignal, clone, create_memo, focus_ring,
+    Callback, Child, Dynamic, Frame, ItemSize, List, Memo, Prop, ReadSignal, Show, Text, clone,
+    create_memo, focus_ring,
 };
 
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 8.0;
 const SEGMENT_PADDING: f32 = 2.0;
 const SEGMENT_RADIUS: u8 = 3;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 const TRIGGER_PADDING: f32 = 4.0;
 const TRIGGER_GAP: f32 = 4.0;
@@ -37,7 +41,7 @@ const TIME_LIST_HEIGHT: f32 = 300.0;
 const TIME_GRID_HEIGHT: f32 = 264.0;
 const TIME_GRID_MIN_WIDTH: f32 = 280.0;
 const TIME_GRID_SPACING: f32 = 4.0;
-const MAX_GRID_COLUMNS: u32 = 4;
+const MAX_GRID_COLUMNS: usize = 4;
 const CALENDAR_MAX_WIDTH: f32 = 420.0;
 const TIME_ROW_HEIGHT: f32 = 32.0;
 const STACK_BREAKPOINT: f32 = 460.0;
@@ -134,9 +138,7 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                     {field} @sizing=ItemSize::Percent(100.0)
-                    <Show condition=outer>
-                        {trigger.unwrap_or_else(|| unreachable!())}
-                    </Show>
+                    {trigger}
                 </List>
             </Frame>
         </Frame>
@@ -191,10 +193,14 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
         popover:
             PopoverTriggerHandle {
                 open,
-                hovered,
-                active,
-                focused,
-                disabled,
+                button:
+                    ButtonHandle {
+                        hovered,
+                        active,
+                        focused,
+                        disabled,
+                        ..
+                    },
             },
         label,
     } = handle;
@@ -217,13 +223,7 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
     };
     view! {
         <Tooltip label disabled={open}>
-            <Frame
-                outline={theme.accent.clone()}
-                outline_width=FOCUS_RING_WIDTH
-                radius=RADIUS
-                outline_offset=1.0
-                outline_visible={focus_ring(focused)}
-            >
+            <FocusRing focused offset=1.0>
                 <Frame
                     color={fill}
                     radius=SEGMENT_RADIUS
@@ -232,7 +232,7 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
                 >
                     <IconSized glyph={glyph.to_owned()} font_size=ICON_SIZE color={ink} />
                 </Frame>
-            </Frame>
+            </FocusRing>
         </Tooltip>
     }
 }
@@ -247,55 +247,24 @@ fn PickerPanel(
     let DateTimePanelHandle {
         field,
         field_width,
-        parts,
-        hour_cycle,
-        date,
-        time,
-        shown,
-        min,
-        max,
-        today,
-        calendar_focused,
-        list_focused,
-        tab,
-        set_tab,
-        pick_date,
-        pick_time,
+        layout,
+        calendar,
+        times,
+        page,
+        show_page,
         now,
         now_label,
         clear,
     } = handle;
-    let narrow = narrower_than(STACK_BREAKPOINT);
-    let layout = create_memo(clone!(narrow -> move || match parts {
-        DateTimeParts::Date => PanelLayout::Date,
-        DateTimeParts::Time => PanelLayout::Time,
-        DateTimeParts::DateTime if narrow.get() => PanelLayout::Paged,
-        DateTimeParts::DateTime => PanelLayout::Beside,
-    }));
     let panel_width = create_memo(clone!(layout field_width -> move || {
         let least = match layout.get() {
-            PanelLayout::Date | PanelLayout::Paged => CALENDAR_WIDTH,
-            PanelLayout::Time => TIME_GRID_MIN_WIDTH,
-            PanelLayout::Beside => CALENDAR_WIDTH + PANEL_SPACING + TIME_LIST_WIDTH,
+            DateTimePanelLayout::Date | DateTimePanelLayout::Paged => CALENDAR_WIDTH,
+            DateTimePanelLayout::Time => TIME_GRID_MIN_WIDTH,
+            DateTimePanelLayout::Beside => CALENDAR_WIDTH + PANEL_SPACING + TIME_LIST_WIDTH,
         };
         least.max(field_width.get())
     }));
-    let pieces = Pieces {
-        date,
-        time,
-        shown,
-        min,
-        max,
-        today,
-        first_weekday,
-        hour_cycle,
-        step_minutes,
-        calendar_focused,
-        list_focused,
-        pick_date,
-        pick_time,
-        width: panel_width.clone(),
-    };
+    let width = panel_width.clone();
     view! {
         <Frame width={panel_width}>
             <List spacing=PANEL_SPACING>
@@ -303,11 +272,20 @@ fn PickerPanel(
                     <Frame width={field_width}>{field}</Frame>
                 </List>
                 <Dynamic value={layout}>
-                    {move |shape: PanelLayout| {
-                        let pieces = pieces.clone();
-                        let (tab, set_tab) = (tab.clone(), set_tab.clone());
+                    {move |shape: DateTimePanelLayout| {
+                        let (calendar, times) = (calendar.clone(), times.clone());
+                        let (page, show_page) = (page.clone(), show_page.clone());
                         view! {
-                            <PanelBody shape pieces tab set_tab />
+                            <PanelBody
+                                shape
+                                calendar
+                                times
+                                page
+                                show_page={move |chosen: usize| show_page.call(chosen)}
+                                width={width.clone()}
+                                first_weekday
+                                step_minutes
+                            />
                         }
                     }}
                 </Dynamic>
@@ -337,100 +315,86 @@ fn PickerPanel(
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum PanelLayout {
-    Beside,
-    Date,
-    Time,
-    Paged,
-}
-
-#[derive(Clone)]
-struct Pieces {
-    date: Memo<Option<Date>>,
-    time: Memo<Option<Time>>,
-    shown: Memo<Option<Date>>,
-    min: Memo<Option<Date>>,
-    max: Memo<Option<Date>>,
-    today: Memo<Option<Date>>,
-    first_weekday: Weekday,
-    hour_cycle: HourCycle,
-    step_minutes: u32,
-    calendar_focused: Memo<bool>,
-    list_focused: Memo<bool>,
-    pick_date: Callback<Date>,
-    pick_time: Callback<Time>,
-    width: Memo<f32>,
-}
-
 #[component]
 fn PanelBody(
-    shape: PanelLayout,
-    pieces: Pieces,
-    tab: ReadSignal<usize>,
-    set_tab: WriteSignal<usize>,
+    shape: DateTimePanelLayout,
+    calendar: DateTimeCalendarHandle,
+    times: DateTimeTimesHandle,
+    page: ReadSignal<usize>,
+    show_page: Callback<usize>,
+    width: Memo<f32>,
+    first_weekday: Weekday,
+    step_minutes: u32,
 ) -> NodeId {
-    let width = pieces.width.clone();
     let beside = create_memo(clone!(width -> move || {
         (width.get() - PANEL_SPACING - TIME_LIST_WIDTH).min(CALENDAR_MAX_WIDTH)
     }));
     let alone = create_memo(move || width.get().min(CALENDAR_MAX_WIDTH));
-    let columns = grid_columns(pieces.step_minutes);
-    let dates = create_memo(clone!(tab -> move || tab.get() == 0));
-    let times = create_memo(clone!(tab -> move || tab.get() == 1));
-    let (beside_pieces, date_pieces, time_pieces, tab_dates, tab_times) = (
-        pieces.clone(),
-        pieces.clone(),
-        pieces.clone(),
-        pieces.clone(),
-        pieces,
-    );
-    let tab_alone = alone.clone();
+    let dates = create_memo(clone!(page -> move || page.get() == 0));
+    let times_shown = create_memo(clone!(page -> move || page.get() == 1));
+    let (beside_calendar, beside_times) = (calendar.clone(), times.clone());
+    let (date_calendar, time_times) = (calendar.clone(), times.clone());
+    let alone_date = alone.clone();
     view! {
         <List spacing=PANEL_SPACING>
-            <Show condition={shape == PanelLayout::Beside}>
-                {move || clone!(beside beside_pieces -> view! {
+            <Show condition={shape == DateTimePanelLayout::Beside}>
+                {move || clone!(beside beside_calendar beside_times -> view! {
                     <List direction=Direction::Horizontal spacing=PANEL_SPACING>
-                        <CalendarPane pieces={beside_pieces.clone()} width={beside} />
+                        <CalendarPane handle={beside_calendar} width={beside} first_weekday />
                         <TimePane
                             @sizing=ItemSize::Percent(100.0)
-                            pieces={beside_pieces}
-                            columns=1
+                            handle={beside_times}
+                            step_minutes
+                            max_columns=1
                             height=TIME_LIST_HEIGHT
                         />
                     </List>
                 })}
             </Show>
-            <Show condition={shape == PanelLayout::Date}>
-                {move || clone!(alone date_pieces -> view! {
+            <Show condition={shape == DateTimePanelLayout::Date}>
+                {move || clone!(alone_date date_calendar -> view! {
                     <Centred>
-                        <CalendarPane pieces={date_pieces} width={alone} />
+                        <CalendarPane handle={date_calendar} width={alone_date} first_weekday />
                     </Centred>
                 })}
             </Show>
-            <Show condition={shape == PanelLayout::Time}>
-                <TimePane pieces={time_pieces.clone()} columns height=TIME_GRID_HEIGHT />
+            <Show condition={shape == DateTimePanelLayout::Time}>
+                {move || clone!(time_times -> view! {
+                    <TimePane
+                        handle={time_times}
+                        step_minutes
+                        max_columns=MAX_GRID_COLUMNS
+                        height=TIME_GRID_HEIGHT
+                    />
+                })}
             </Show>
-            <Show condition={shape == PanelLayout::Paged}>
-                {move || clone!(dates set_tab tab tab_alone tab_dates tab_times times -> view! {
+            <Show condition={shape == DateTimePanelLayout::Paged}>
+                {move || clone!(dates times_shown page show_page alone calendar times -> view! {
                     <List spacing=PANEL_SPACING>
                         <Tabs
                             options={view! {
                                 <ChoiceOption label="Date" />
                                 <ChoiceOption label="Time" />
                             }}
-                            selected={tab}
-                            on_change={move |chosen: usize| set_tab.set(chosen)}
+                            selected={page}
+                            on_change={move |chosen: usize| show_page.call(chosen)}
                         />
                         <Show condition={dates}>
-                            {move || clone!(tab_alone tab_dates -> view! {
+                            {move || clone!(alone calendar -> view! {
                                 <Centred>
-                                    <CalendarPane pieces={tab_dates} width={tab_alone} />
+                                    <CalendarPane handle={calendar} width={alone} first_weekday />
                                 </Centred>
                             })}
                         </Show>
-                        <Show condition={times}>
-                            <TimePane pieces={tab_times.clone()} columns height=TIME_GRID_HEIGHT />
+                        <Show condition={times_shown}>
+                            {move || clone!(times -> view! {
+                                <TimePane
+                                    handle={times}
+                                    step_minutes
+                                    max_columns=MAX_GRID_COLUMNS
+                                    height=TIME_GRID_HEIGHT
+                                />
+                            })}
                         </Show>
                     </List>
                 })}
@@ -447,18 +411,20 @@ fn Centred(children: Child) -> NodeId {
 }
 
 #[component]
-fn CalendarPane(pieces: Pieces, width: Memo<f32>) -> NodeId {
-    let Pieces {
+fn CalendarPane(
+    handle: DateTimeCalendarHandle,
+    width: Memo<f32>,
+    first_weekday: Weekday,
+) -> NodeId {
+    let DateTimeCalendarHandle {
         date,
         shown,
         min,
         max,
         today,
-        first_weekday,
-        calendar_focused,
-        pick_date,
-        ..
-    } = pieces;
+        focused,
+        pick,
+    } = handle;
     view! {
         <Calendar
             selected={date}
@@ -466,52 +432,46 @@ fn CalendarPane(pieces: Pieces, width: Memo<f32>) -> NodeId {
             max
             today
             first_weekday
-            focused={calendar_focused}
+            focused
             show={shown}
             width
-            on_change={move |date| pick_date.call(date)}
+            on_change={move |date| pick.call(date)}
         />
     }
 }
 
 #[component]
-fn TimePane(pieces: Pieces, columns: usize, height: f32) -> NodeId {
-    let Pieces {
+fn TimePane(
+    handle: DateTimeTimesHandle,
+    step_minutes: u32,
+    max_columns: usize,
+    height: f32,
+) -> NodeId {
+    let DateTimeTimesHandle {
         time,
         hour_cycle,
-        step_minutes,
-        list_focused,
-        pick_time,
-        ..
-    } = pieces;
-    let centred = columns > 1;
+        focused,
+        pick,
+    } = handle;
+    let centred = grid_columns(step_minutes, max_columns) > 1;
     view! {
         <Frame height>
             <unstyled::TimeList
                 value={time}
                 step_minutes
                 hour_cycle
-                focused={list_focused}
+                focused
                 row_height={TIME_ROW_HEIGHT}
-                columns
+                max_columns
                 spacing={if centred { TIME_GRID_SPACING } else { 0.0 }}
                 label="Time"
                 scrollbar={scrollbar_style()}
                 option={move |handle: TimeOptionHandle| view! {
                     <TimeOptionFace handle centred />
                 }}
-                on_change={move |time| pick_time.call(time)}
+                on_change={move |time| pick.call(time)}
             />
         </Frame>
-    }
-}
-
-fn grid_columns(step_minutes: u32) -> usize {
-    match step_minutes {
-        step if step > 0 && step < 60 && 60 % step == 0 => {
-            (60 / step).min(MAX_GRID_COLUMNS) as usize
-        }
-        _ => 1,
     }
 }
 

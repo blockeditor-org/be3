@@ -1,9 +1,8 @@
-use be_block::metadata::MAX_NAME_BYTES;
 use be_protocol::WorkspaceRole;
 use beui::NodeId;
 use beui::reactive::{
-    Align, Direction, Frame, ItemSize, List, Show, Spacer, clone, component, create_effect,
-    create_memo, create_signal, untrack, view,
+    Align, Direction, Frame, List, Show, clone, component, create_effect, create_memo,
+    create_signal, untrack, view,
 };
 use beui::styled::{
     Button, ButtonVariant, Caption, Code, Dialog, Paragraph, Spinner, Tabs, TextInput,
@@ -12,24 +11,98 @@ use beui::unstyled::ChoiceOption;
 
 use super::onboarding::ErrorText;
 
-const PANEL_PADDING: f32 = 12.0;
 use super::{AppViewStore, UiCommand, send};
-use crate::surfaces::{self, HostedSurface, SurfaceId};
 
 #[component]
 pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
     view! {
         <List spacing=0.0>
             <DiscardDialog view={view.clone()} />
-            <RenameDialog view={view.clone()} />
-            <ArtifactSettingsDialog view={view.clone()} />
-            <UnlinkDialog view />
+            <InviteDialog view={view.clone()} />
+            <AboutDialog view={view.clone()} />
+            <RunProgramDialog view />
         </List>
     }
 }
 
 #[component]
-pub(super) fn InvitePanel(view: AppViewStore) -> NodeId {
+fn InviteDialog(view: AppViewStore) -> NodeId {
+    let invite = view.invite.clone();
+    let open = create_memo(move || invite.get().is_some());
+    view! {
+        <Dialog
+            open={open}
+            title="Invite member"
+            width=380.0
+            on_dismiss={|| send(UiCommand::CloseInvite)}
+        >
+            <InvitePanel view />
+        </Dialog>
+    }
+}
+
+#[component]
+fn AboutDialog(view: AppViewStore) -> NodeId {
+    let open = view.about.clone();
+    view! {
+        <Dialog open={open} title="About" width=420.0 on_dismiss={|| send(UiCommand::About(false))}>
+            <AboutPanel />
+        </Dialog>
+    }
+}
+
+#[component]
+fn RunProgramDialog(view: AppViewStore) -> NodeId {
+    let open = view.run_program.clone();
+    let (command, set_command) = create_signal(String::new());
+    create_effect(clone!(open set_command -> move || {
+        if open.get() {
+            untrack(|| set_command.set(String::new()));
+        }
+    }));
+    let blank = create_memo(clone!(command -> move || command.get().trim().is_empty()));
+    let run = clone!(command -> move || {
+        let line = command.get_untracked();
+        if !line.trim().is_empty() {
+            send(UiCommand::Launch(line));
+        }
+    });
+    let submit = run.clone();
+    view! {
+        <Dialog
+            open={open}
+            title="Run a program"
+            width=420.0
+            on_dismiss={|| send(UiCommand::RunProgram(false))}
+        >
+            <Frame>
+                <List spacing=8.0>
+                    <Caption content="Its windows open in the workspace." />
+                    <TextInput
+                        @test_id={"app.run-program.command"}
+                        value={command}
+                        label="Command"
+                        placeholder="A command, like foot or gtk4-demo"
+                        on_change={move |line: String| set_command.set(line)}
+                        on_submit={move |_: String| submit()}
+                    />
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <Button
+                            @test_id={"app.run-program.run"}
+                            label="Run"
+                            variant=ButtonVariant::Primary
+                            disabled={blank}
+                            on_click={run}
+                        />
+                    </List>
+                </List>
+            </Frame>
+        </Dialog>
+    }
+}
+
+#[component]
+fn InvitePanel(view: AppViewStore) -> NodeId {
     let invite = view.invite.clone();
     let workspace = create_memo(clone!(invite -> move || {
         format!(
@@ -59,7 +132,7 @@ pub(super) fn InvitePanel(view: AppViewStore) -> NodeId {
     let cannot =
         create_memo(clone!(email busy -> move || busy.get() || email.get().trim().is_empty()));
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame>
             <List spacing=8.0>
                 <Caption content={workspace} />
                 <Caption content="Email address" />
@@ -98,9 +171,9 @@ pub(super) fn InvitePanel(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-pub(super) fn AboutPanel() -> NodeId {
+fn AboutPanel() -> NodeId {
     view! {
-        <Frame padding_horizontal=PANEL_PADDING padding_vertical=PANEL_PADDING>
+        <Frame>
             <List spacing=8.0>
                 <Paragraph content="Block" />
                 <Caption content="Version" />
@@ -143,132 +216,6 @@ fn DiscardDialog(view: AppViewStore) -> NodeId {
                         variant=ButtonVariant::Secondary
                         on_click={|| send(UiCommand::CancelDiscard)}
                     />
-                </List>
-            </List>
-        </Dialog>
-    }
-}
-
-#[component]
-fn RenameDialog(view: AppViewStore) -> NodeId {
-    let rename = view.rename.clone();
-    let open = create_memo(clone!(rename -> move || rename.get().is_some()));
-    let (name, set_name) = create_signal(String::new());
-    create_effect(clone!(set_name -> move || {
-        let initial = rename.get().map(|rename| rename.name).unwrap_or_default();
-        untrack(|| set_name.set(initial));
-    }));
-    let invalid = create_memo(clone!(name -> move || name.get().len() > MAX_NAME_BYTES));
-    let error = create_memo(clone!(invalid -> move || {
-        invalid
-            .get()
-            .then(|| format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes."))
-    }));
-    let submit = clone!(name invalid -> move || {
-        if !invalid.get_untracked() {
-            send(UiCommand::SubmitRename(name.get_untracked()));
-        }
-    });
-    let submit_on_enter = submit.clone();
-    view! {
-        <Dialog open={open} title="Rename block" on_dismiss={|| send(UiCommand::CancelRename)}>
-            <List spacing=10.0>
-                <TextInput
-                    value={name}
-                    label="Name"
-                    focused=true
-                    on_change={move |value: String| set_name.set(value)}
-                    on_submit={move |_value: String| submit_on_enter()}
-                />
-                <ErrorText text={error} />
-                <List direction=Direction::Horizontal spacing=8.0>
-                    <Button
-                        label="Rename"
-                        variant=ButtonVariant::Primary
-                        disabled={invalid}
-                        on_click={submit}
-                    />
-                    <Button
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::CancelRename)}
-                    />
-                </List>
-            </List>
-        </Dialog>
-    }
-}
-
-#[component]
-fn ArtifactSettingsDialog(view: AppViewStore) -> NodeId {
-    let settings = view.artifact_settings.clone();
-    let open = create_memo(clone!(settings -> move || settings.get().is_some()));
-    let unchanged = create_memo(
-        clone!(settings -> move || !settings.get().is_some_and(|settings| settings.changed)),
-    );
-    let summary = create_memo(move || settings.get().and_then(|settings| settings.summary));
-    let has_summary = create_memo(clone!(summary -> move || summary.get().is_some()));
-    let summary_text = create_memo(move || summary.get().unwrap_or_default());
-    let height = surfaces::height(SurfaceId::ArtifactSettings);
-    view! {
-        <Dialog
-            open={open}
-            title="Dynamic artifact settings"
-            width=360.0
-            on_dismiss={|| send(UiCommand::CancelArtifactSettings)}
-        >
-            <List spacing=12.0>
-                <Frame height={height}>
-                    <HostedSurface id=SurfaceId::ArtifactSettings />
-                </Frame>
-                <Show condition={has_summary}>
-                    <Caption content={summary_text.clone()} />
-                </Show>
-                <List direction=Direction::Horizontal spacing=8.0>
-                    <Button
-                        label="Apply"
-                        variant=ButtonVariant::Primary
-                        disabled={unchanged}
-                        on_click={|| send(UiCommand::ApplyArtifactSettings)}
-                    />
-                    <Button
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::CancelArtifactSettings)}
-                    />
-                </List>
-            </List>
-        </Dialog>
-    }
-}
-
-#[component]
-fn UnlinkDialog(view: AppViewStore) -> NodeId {
-    let open = view.unlink.clone();
-    view! {
-        <Dialog
-            open={open}
-            title="Unlink from the source block?"
-            width=360.0
-            on_dismiss={|| send(UiCommand::CancelUnlink)}
-        >
-            <List spacing=12.0>
-                <Paragraph
-                    content="This block keeps what was generated for it, but stops being rebuilt from its source and becomes editable."
-                />
-                <Paragraph content="The link and its settings cannot be restored." />
-                <List direction=Direction::Horizontal spacing=8.0>
-                    <Button
-                        label="Unlink"
-                        variant=ButtonVariant::Primary
-                        on_click={|| send(UiCommand::Unlink)}
-                    />
-                    <Button
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::CancelUnlink)}
-                    />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
             </List>
         </Dialog>

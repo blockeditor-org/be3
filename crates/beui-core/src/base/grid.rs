@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList};
+use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::base::share::{Part, share, snapped_run};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, pos2, vec2};

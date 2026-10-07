@@ -17,10 +17,8 @@ use block_wasm_host::{Host, Plugin};
 
 use super::{
     backend::{Deadline, StepTime},
-    surface::{SurfaceFrame, gpu},
+    surface::{PresentedTexture, SurfaceFrame, gpu},
 };
-
-const SCREENS_SURFACE: u32 = 0;
 const NO_ENTRY_POINT: &str = "This plugin has no wasm entry point.";
 const NO_GPU: &str = "The plugin host has no graphics device.";
 const STOPPED: &str = "The plugin worker stopped.";
@@ -37,20 +35,15 @@ fn cache() -> Option<PathBuf> {
     CACHE.with(|cache| cache.borrow().clone())
 }
 
-struct Target {
-    texture: wgpu::Texture,
-    generation: u64,
-}
-
 struct Produced {
     outbound: Vec<Vec<u8>>,
-    presented: Option<Target>,
+    presented: Vec<PresentedTexture>,
     took: StepTime,
 }
 
 impl Produced {
     fn is_empty(&self) -> bool {
-        self.outbound.is_empty() && self.presented.is_none()
+        self.outbound.is_empty() && self.presented.is_empty()
     }
 }
 
@@ -73,8 +66,7 @@ struct Worker {
     ready: bool,
     stepping: bool,
     carrying: bool,
-    target: Option<Target>,
-    presented: bool,
+    presented: Vec<PresentedTexture>,
     presents: u64,
     took: Option<StepTime>,
 }
@@ -135,8 +127,7 @@ impl super::backend::Backend for Wasm {
                     ready: false,
                     stepping: false,
                     carrying: false,
-                    target: None,
-                    presented: false,
+                    presented: Vec::new(),
                     presents: 0,
                     took: None,
                 })
@@ -179,13 +170,12 @@ impl super::backend::Backend for Wasm {
 
     fn received_frame(&mut self) -> Option<SurfaceFrame> {
         let worker = self.worker.as_mut()?;
-        if !std::mem::take(&mut worker.presented) {
+        let textures = std::mem::take(&mut worker.presented);
+        if textures.is_empty() {
             return None;
         }
-        let target = worker.target.as_ref()?;
         Some(SurfaceFrame {
-            texture: target.texture.clone(),
-            generation: target.generation,
+            textures,
             presents: worker.presents,
             damage: None,
         })
@@ -299,10 +289,13 @@ impl Worker {
 
     fn absorb(&mut self, produced: Produced) {
         self.received.extend(produced.outbound);
-        if let Some(target) = produced.presented {
+        if !produced.presented.is_empty() {
             self.took = Some(produced.took);
-            self.target = Some(target);
-            self.presented = true;
+            for presented in produced.presented {
+                self.presented
+                    .retain(|held| held.surface != presented.surface);
+                self.presented.push(presented);
+            }
             self.presents += 1;
         }
     }
@@ -396,15 +389,18 @@ fn report(reports: &Sender<Event>, event: Event, woken: bool, waiting: &AtomicBo
 
 fn produced(plugin: &mut Plugin, took: StepTime) -> Produced {
     let outbound = plugin.take_outbound();
-    let presented = plugin
-        .take_presented()
-        .contains(&SCREENS_SURFACE)
-        .then(|| plugin.surface(SCREENS_SURFACE))
-        .flatten()
-        .map(|(texture, generation)| Target {
+    let mut presented: Vec<PresentedTexture> = Vec::new();
+    for surface in plugin.take_presented() {
+        let Some((texture, generation)) = plugin.surface(surface) else {
+            continue;
+        };
+        presented.retain(|held| held.surface != surface);
+        presented.push(PresentedTexture {
+            surface,
             texture,
             generation,
         });
+    }
     Produced {
         outbound,
         presented,

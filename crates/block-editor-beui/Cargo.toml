@@ -7,17 +7,12 @@ license.workspace = true
 [dependencies]
 be-block = { path = "../be-block" }
 beui = { path = "../beui", default-features = false }
+beui-adapter-plugin = { path = "../beui-adapter-plugin" }
 block-editor-plugin = { path = "../block-editor-plugin" }
 block-plugin-api = { path = "../block-plugin-api" }
-beui-plugin-input = { path = "../beui-plugin-input" }
 block-ui = { path = "../block-ui" }
 serde_json = "1"
 uuid = "1"
-
-# The beui adapter paints with beui's renderer into the surface the plugin
-# framework hands it, which only exists in the wasm guest.
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-beui = { path = "../beui", default-features = false, features = ["render"] }
 
 [lints]
 workspace = true

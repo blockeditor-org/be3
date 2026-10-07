@@ -11,7 +11,9 @@ use beui_core::base::{Align, Direction, ItemSize, ScrollPosition};
 use beui_core::color::Color32;
 use beui_core::icons::{ICON_HEIGHT, ICON_WIDTH};
 use beui_core::node::NodeId;
-use beui_view::reactive::{Callback, Children, Frame, List, Memo, Prop, Spacer, create_memo};
+use beui_view::reactive::{
+    Callback, Children, Frame, List, ListChild, Memo, Prop, Spacer, create_memo,
+};
 
 const MARKER_SIZE: f32 = 28.0;
 const MARKER_RADIUS: u8 = 14;
@@ -23,7 +25,7 @@ pub fn Scroll(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = None)] focus_color: Prop<Option<Color32>>,
     on_change: Callback<ScrollPosition>,
-    children: Children<NodeId>,
+    children: Children<ListChild>,
 ) -> NodeId {
     let focus = focus_ring(focus_color);
     view! {

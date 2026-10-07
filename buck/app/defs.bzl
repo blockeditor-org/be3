@@ -1,40 +1,15 @@
 # A plugin's read-only data, which the app stages beside it under
 # data/<plugin id>/ and a plugin reads through the host (ReadData): each file at
 # files/<path>, and index.json listing every path.
-_plugin_data = """
-set -eu
-out="$1"
-shift
-mkdir -p "$out/files"
-paths=''
-while [ "$#" -gt 0 ]; do
-    mkdir -p "$(dirname "$out/files/$1")"
-    cp "$2" "$out/files/$1"
-    paths="$paths $1"
-    shift 2
-done
-{
-    printf '['
-    separator=''
-    for path in $paths; do
-        printf '%s\\n  "%s"' "$separator" "$path"
-        separator=','
-    done
-    [ -n "$paths" ] && printf '\\n'
-    printf ']\\n'
-} > "$out/index.json"
-"""
-
 def _plugin_data_impl(ctx: AnalysisContext) -> list[Provider]:
-    out = ctx.actions.declare_output(ctx.label.name, dir = True)
-    command = cmd_args("sh", "-c", _plugin_data, "sh", out.as_output())
-    for path in sorted(ctx.attrs.files):
+    paths = sorted(ctx.attrs.files)
+    for path in paths:
         for segment in path.split("/"):
             if not segment or segment in [".", ".."] or not all([character.isalnum() or character in "._-" for character in segment.elems()]):
                 fail("{} is not a plain relative path".format(path))
-        command.add(path, ctx.attrs.files[path])
-    ctx.actions.run(command, category = "plugin_data")
-    return [DefaultInfo(default_output = out)]
+    contents = {"files/" + path: ctx.attrs.files[path] for path in paths}
+    contents["index.json"] = ctx.actions.write_json("index.json", paths, pretty = True)
+    return [DefaultInfo(default_output = ctx.actions.copied_dir(ctx.label.name, contents))]
 
 plugin_data = rule(
     attrs = {

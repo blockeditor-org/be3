@@ -2,9 +2,6 @@ mod debug;
 mod dialogs;
 mod keys;
 mod onboarding;
-mod picker;
-mod share;
-mod tools;
 mod workspace;
 
 use std::cell::RefCell;
@@ -13,16 +10,14 @@ use be_protocol::WorkspaceRole;
 use beui::reactive::{Dynamic, Frame, List, Store, component, view};
 use beui::styled::use_theme;
 use beui::{ItemSize, NodeId};
-use block_plugin_api::{PaneId, PaneLayout, PaneTree};
+use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
-use crate::block_picker::{PickerCommand, PickerView};
-use crate::share::{ShareCommand, ShareView};
 
 pub(crate) use debug::{
-    DebugCommand, DebugView, DebugWindow, Line, LineStyle, PerformanceRow, PluginsView, RunView,
-    RuntimeView, VersionRuns, VersionView,
+    DebugCommand, DebugView, HostPanelSurface, Line, LineStyle, PerformanceRow, PluginsView,
+    RunView, RuntimeView, VersionRuns, VersionView,
 };
 
 thread_local! {
@@ -155,12 +150,12 @@ pub(crate) struct ReauthView {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct StatusView {
     pub(crate) changes_saved: bool,
-    pub(crate) frame: String,
     pub(crate) workspace: String,
     pub(crate) signed_in_as: String,
     pub(crate) accounts: Vec<AccountRow>,
     pub(crate) profiles: Vec<ProfileRow>,
     pub(crate) profiles_loaded: bool,
+    pub(crate) runs_programs: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -185,25 +180,6 @@ pub(crate) struct DiscardView {
     pub(crate) button: String,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct RenameView {
-    pub(crate) id: Uuid,
-    pub(crate) name: String,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct ArtifactSettingsView {
-    pub(crate) id: Uuid,
-    pub(crate) changed: bool,
-    pub(crate) summary: Option<String>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct PanesView {
-    pub(crate) layout: Option<PaneLayout>,
-    pub(crate) shown: Option<(u64, PaneId)>,
-}
-
 #[derive(Clone, Default, PartialEq, Store)]
 pub(crate) struct AppView {
     pub(crate) screen: Screen,
@@ -220,14 +196,9 @@ pub(crate) struct AppView {
     pub(crate) status: StatusView,
     pub(crate) invite: Option<InviteView>,
     pub(crate) about: bool,
+    pub(crate) run_program: bool,
     pub(crate) app_menu: bool,
     pub(crate) discard: Option<DiscardView>,
-    pub(crate) rename: Option<RenameView>,
-    pub(crate) artifact_settings: Option<ArtifactSettingsView>,
-    pub(crate) unlink: bool,
-    pub(crate) share: Option<ShareView>,
-    pub(crate) pickers: Vec<PickerView>,
-    pub(crate) panes: PanesView,
     pub(crate) presenting: bool,
     pub(crate) debug: DebugView,
 }
@@ -257,7 +228,6 @@ pub(crate) enum UiCommand {
     ReauthSubmit(String),
     ReauthLogOut,
     ReauthClose,
-    OpenSettings,
     OpenInspector,
     InviteMember,
     SwitchWorkspace,
@@ -266,28 +236,15 @@ pub(crate) enum UiCommand {
     NewProfile,
     ManageAccounts,
     About(bool),
+    RunProgram(bool),
+    Launch(String),
     AppMenu(bool),
     SendInvite(String, WorkspaceRole),
     CloseInvite,
     Discard,
     CancelDiscard,
-    SubmitRename(String),
-    CancelRename,
-    ApplyArtifactSettings,
-    CancelArtifactSettings,
-    Unlink,
-    CancelUnlink,
-    Share(ShareCommand),
-    Picker(PickerCommand),
     Debug(DebugCommand),
-    ArrangePanes {
-        arrangement: u64,
-        tree: PaneTree,
-        detached: Vec<PaneId>,
-        focused: Option<PaneId>,
-    },
-    ClosePane(PaneId),
-    PaneMenuPick(PaneId, String),
+    ShowPanel(HostPanel),
     ConfirmRecovery(Vec<String>),
     NewRecoveryPhrase,
     CancelRecovery,

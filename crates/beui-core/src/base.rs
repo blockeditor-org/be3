@@ -3,6 +3,7 @@ pub mod canvas;
 pub mod child_list;
 pub mod drawing;
 pub mod embed;
+pub mod fade;
 pub mod focus;
 pub mod frame;
 pub mod grid;
@@ -19,6 +20,7 @@ pub mod virtual_list;
 
 pub use crate::font::TextAlign;
 pub use focus::{ImeCursor, focus_within};
+pub use frame::Sides;
 pub use grid::Track;
 pub use list::{Align, Direction, ItemSize, Justify, Sizing};
 pub use offset::ScrollPosition;

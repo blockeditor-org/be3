@@ -168,9 +168,11 @@ impl State {
                 .collect();
             self.anchors().remap(|index| {
                 let run = kept.partition_point(|(old, _, len)| old + len <= index);
-                kept.get(run)
-                    .filter(|(old, _, _)| *old <= index)
-                    .map(|(old, new, _)| new + (index - old))
+                match kept.get(run) {
+                    Some((old, new, _)) if *old <= index => Ok(new + (index - old)),
+                    Some((_, new, _)) => Err(*new),
+                    None => Err(incoming.len()),
+                }
             });
             self.bytes = incoming.to_vec();
             self.external = true;
@@ -352,6 +354,10 @@ impl DocumentRead for Read<'_> {
         self.state.index_of(anchor)
     }
 
+    fn deleted_anchor_index(&self, anchor: Anchor) -> Option<usize> {
+        self.state.anchors().deleted_at(anchor)
+    }
+
     fn language(&self) -> TextLanguage {
         self.state.language
     }
@@ -381,6 +387,10 @@ impl DocumentRead for Edit<'_> {
 
     fn anchor_index(&self, anchor: Anchor) -> Option<usize> {
         self.state.index_of(anchor)
+    }
+
+    fn deleted_anchor_index(&self, anchor: Anchor) -> Option<usize> {
+        self.state.anchors().deleted_at(anchor)
     }
 
     fn language(&self) -> TextLanguage {

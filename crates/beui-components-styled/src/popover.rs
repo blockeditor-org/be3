@@ -22,37 +22,20 @@ pub fn Popover(
     #[prop(children)] content: Render<PopoverHandle>,
     on_open_change: Callback<bool>,
 ) -> NodeId {
-    let label = create_memo(move || label.get());
-    let named = create_memo(move || !icon_only.get());
-    let face_label = create_memo(clone!(label named -> move || match named.get() {
-        true => label.get(),
-        false => String::new(),
-    }));
-    let face_disabled = create_memo(clone!(disabled -> move || disabled.get()));
+    let icon_only = create_memo(move || icon_only.get());
     let max_width = create_memo(move || Some(max_width.get()));
     view! {
         <unstyled::Popover
-            label={label.clone()}
+            label
+            glyph
             disabled
             on_open_change={move |open| on_open_change.call(open)}
             trigger={move |handle: PopoverTriggerHandle| {
-                let PopoverTriggerHandle {
-                    open,
-                    hovered,
-                    active,
-                    focused,
-                    ..
-                } = handle;
-                let quiet = create_memo(clone!(named -> move || named.get() || open.get()));
+                let PopoverTriggerHandle { open, button } = handle;
+                let quiet = create_memo(clone!(icon_only -> move || !icon_only.get() || open.get()));
                 view! {
-                    <Tooltip label disabled={quiet}>
-                        <ButtonFace
-                            handle={unstyled::ButtonHandle { hovered, active, focused }}
-                            variant
-                            label={face_label}
-                            glyph
-                            disabled={face_disabled}
-                        />
+                    <Tooltip label={button.label.clone()} disabled={quiet}>
+                        <ButtonFace handle={button} variant icon_only={icon_only.clone()} />
                     </Tooltip>
                 }
             }}

@@ -3,7 +3,7 @@ members = [
     "crates/be-block",
     "crates/be-client",
     "crates/be-commit",
-    "crates/be-compositor",
+    "crates/be-dmabuf",
     "crates/be-graph",
     "crates/be-keys",
     "crates/be-launcher",
@@ -14,8 +14,11 @@ members = [
     "crates/be-session",
     "crates/be-store",
     "crates/be-vcs",
+    "crates/be-wayland",
     "crates/beui",
     "crates/beui-adapter-android",
+    "crates/beui-adapter-drm",
+    "crates/beui-adapter-plugin",
     "crates/beui-adapter-web",
     "crates/beui-font-browser",
     "crates/beui-renderer-dom",
@@ -28,6 +31,7 @@ members = [
     "crates/beui-font-freetype",
     "crates/beui-inspector",
     "crates/beui-renderer-wgpu",
+    "crates/beui-tree",
     "crates/beui-view",
     "crates/beui-plugin-input",
     "crates/geometry",
@@ -59,6 +63,7 @@ members = [
     "crates/editors/file-tree",
     "crates/editors/image-block",
     "crates/editors/infinite-canvas",
+    "crates/editors/linux-desktop",
     "crates/editors/logic-grid",
     "crates/editors/map",
     "crates/editors/paint-review",
@@ -84,6 +89,7 @@ members = [
     "crates/block-gpu-shim",
     "crates/block-wasm-host",
     "crates/block-plugin-api",
+    "crates/block-shell",
     "crates/ghostty-vt",
     "crates/paint-snapshot",
     "crates/plugin-test-runner",
@@ -293,7 +299,7 @@ opt-level = 2
 debug-assertions = false
 overflow-checks = false
 
-# fix-rust-source parses every Rust file in the repository on every //:verify,
+# fix-rust-source parses every Rust file in the repository on every ./scripts/verify,
 # and unoptimised the parser took 8 seconds of it; optimised, about one. These
 # crates are its alone, so optimising them changes nothing else.
 

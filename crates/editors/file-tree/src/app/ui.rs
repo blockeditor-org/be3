@@ -3,7 +3,11 @@ use std::rc::Rc;
 
 use block_editor_beui::BlockParent;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_AUTO_AWESOME, ICON_CLOSE};
+use block_editor_beui::beui::icons::{
+    ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_AUTO_AWESOME, ICON_CLOSE, ICON_DELETE,
+    ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_FILE_DOWNLOAD, ICON_INFO, ICON_LINK_OFF, ICON_MOVE_UP,
+    ICON_NOTE_ADD, ICON_SHARE,
+};
 use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, ItemSize, Justify, List, Memo, NodeRef, Prop, ReadSignal, Show,
     Spacer, WriteSignal, clone, component, create_effect, create_memo, create_signal, focus_ring,
@@ -89,6 +93,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         tree.show_orphans();
         tree.expand(editor.host().focused_block().via.iter().rev().copied());
     });
+    let app_menu = clone!(editor -> move || editor.host().show_app_menu(editor.block_id()));
     let add_root = clone!(picker editor -> move || {
         picker.open(
             &editor,
@@ -159,6 +164,12 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                         on_click={add_root}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <IconButton
+                        glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
+                        label="Account and settings"
+                        @test_id={"file-tree.desktop-app-menu"}
+                        on_click={app_menu}
+                    />
                 </Toolbar>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <List spacing=0.0>
@@ -408,17 +419,34 @@ fn TreeRow(
         <ContextMenu
             child_size=ItemSize::Percent(100.0)
             items={view! {
-                <MenuItem label="Add" disabled={add} />
-                <MenuItem label="Set parent" disabled={edit.clone()}>
+                <MenuItem label="Add" glyph={ICON_NOTE_ADD.to_owned()} disabled={add} />
+                <MenuItem
+                    label="Set parent"
+                    glyph={ICON_MOVE_UP.to_owned()}
+                    disabled={edit.clone()}
+                >
                     <MenuItem label="Root" disabled={rooted} />
                     <MenuItem label="Orphaned" disabled={orphaned} />
                 </MenuItem>
-                <MenuItem label="Rename" disabled={edit.clone()} />
-                <MenuItem label="Share" disabled={edit} />
-                <MenuItem label="Unlink" disabled={unlinkable} />
-                <MenuItem label={delete_label} disabled={deletable} />
-                <MenuItem label="Inspect" disabled={uninspectable} />
-                <MenuItem label="Export" disabled={unexportable} />
+                <MenuItem
+                    label="Rename"
+                    glyph={ICON_DRIVE_FILE_RENAME_OUTLINE.to_owned()}
+                    disabled={edit.clone()}
+                />
+                <MenuItem label="Share" glyph={ICON_SHARE.to_owned()} disabled={edit} />
+                <MenuItem label="Unlink" glyph={ICON_LINK_OFF.to_owned()} disabled={unlinkable} />
+                <MenuItem
+                    label={delete_label}
+                    glyph={ICON_DELETE.to_owned()}
+                    disabled={deletable}
+                    danger=true
+                />
+                <MenuItem label="Inspect" glyph={ICON_INFO.to_owned()} disabled={uninspectable} />
+                <MenuItem
+                    label="Export"
+                    glyph={ICON_FILE_DOWNLOAD.to_owned()}
+                    disabled={unexportable}
+                />
             }}
             on_select={chose}
         >
@@ -501,6 +529,7 @@ fn AddChildFace(handle: ButtonHandle) -> NodeId {
         hovered,
         active,
         focused,
+        ..
     } = handle;
     let theme = use_theme();
     let color = create_memo(clone!(theme hovered active -> move || {

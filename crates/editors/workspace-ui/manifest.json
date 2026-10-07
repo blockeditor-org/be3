@@ -11,6 +11,13 @@
       "resize": "None",
       "regions": [
         "Frame"
+      ],
+      "accepts": [
+        "show_block",
+        "pick",
+        "dialog",
+        "panel",
+        "window"
       ]
     }
   ],

@@ -1,11 +1,12 @@
 use crate::reactive::{
-    BuildsNode, Child, ChildValue, Children, NodeSlot, Prop, Scope, SlotChild, create_effect,
-    with_document,
+    BuildsNode, Child, ChildValue, Children, ComponentContext, NodeSlot, Prop, Scope, SlotChild,
+    create_effect, with_document,
 };
 use beui_core::base::canvas::{CanvasNode, CanvasView};
 use beui_core::document::Document;
 use beui_core::geometry::{Rect, Vec2, pos2};
 use beui_core::node::NodeId;
+use beui_core::tree::remove_stored_node;
 use beui_macros::component;
 
 pub struct CanvasItem {
@@ -19,12 +20,12 @@ impl BuildsNode for CanvasItem {
 }
 
 impl ChildValue for CanvasItem {
-    fn anchor(&self) -> Option<NodeId> {
-        Some(self.node)
-    }
-
     fn adopt_scope(&mut self, scope: Scope) {
         self.node.adopt_scope(scope);
+    }
+
+    fn finish_component(&mut self, component: &ComponentContext, scope: &Scope) {
+        self.node.finish_component(component, scope);
     }
 }
 
@@ -33,12 +34,12 @@ crate::child_type!(CanvasItem);
 impl SlotChild for CanvasItem {
     type Stored = NodeId;
 
-    fn store(self, _parent: Option<NodeId>) -> NodeId {
+    fn store(self) -> NodeId {
         self.node
     }
 
-    fn stored_node(stored: &NodeId) -> Option<NodeId> {
-        Some(*stored)
+    fn discard(stored: &NodeId) {
+        remove_stored_node(*stored);
     }
 }
 

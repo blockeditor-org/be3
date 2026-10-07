@@ -1,0 +1,13 @@
+[package]
+name = "beui-tree"
+description = "Beui's components, view! and control flow, independent of what the tree is made of"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui_macros = { path = "../beui-macros" }
+reactive = { path = "../reactive" }
+
+[lints]
+workspace = true

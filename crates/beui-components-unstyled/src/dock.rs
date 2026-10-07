@@ -1,3 +1,4 @@
+mod docking;
 pub mod state;
 #[cfg(test)]
 mod tests;
@@ -21,8 +22,9 @@ use crate::DropHandle;
 use crate::DropTarget;
 use crate::Scroll;
 use crate::back_slide::BackSlide;
-use crate::context_menu::{ContextMenu, MenuStyle};
+use crate::context_menu::ContextMenu;
 use crate::menu::MenuItem;
+use crate::menu_popup::MenuStyle;
 use crate::rubber_band::{Band, WINDOW_SPRING};
 use beui_core::base::overlay::{OverlayAnchor, OverlayMode, Placement};
 use beui_core::base::{Direction, ItemSize};
@@ -40,6 +42,10 @@ use beui_view::reactive::{
     with_document,
 };
 
+pub use docking::{
+    DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow, Docking,
+    DockingLayout, DockingSnapshot,
+};
 pub use state::{
     DockDrop, DockLayout, DockSplitter, DockState, DockTree, DockTreeEntry, Entry, GroupId, LeafId,
     Side, SplitId, SurfaceId, TabId, TabPosition, Tree, layout_surface, layout_tree,
@@ -98,22 +104,23 @@ pub struct DockPreviewHandle {
     pub icon: Memo<String>,
 }
 
-pub struct DockPanelHandle {
-    pub leaf: LeafId,
-    pub surface: SurfaceId,
+pub struct DockChromeHandle {
     pub floating: bool,
-    pub nested: bool,
+    pub barred: bool,
+    pub focused: Memo<bool>,
+    pub content: Child,
+}
+
+pub struct DockBarHandle {
+    pub floating: bool,
     pub vertical: bool,
     pub focused: Memo<bool>,
-    pub contents: Memo<Vec<TabId>>,
-    pub sidebar_width: Memo<f32>,
-    pub sidebar_splitter: Option<NodeId>,
-    pub grip: Option<NodeId>,
-    pub bar: Option<NodeId>,
+    pub grip: NodeId,
+    pub tabs: Option<NodeId>,
+    pub title: Memo<String>,
     pub closable: Memo<bool>,
     pub menu: Memo<Vec<Action>>,
     pub close: ClickCallback,
-    pub body: NodeId,
 }
 
 pub struct DockSplitterHandle {
@@ -130,20 +137,36 @@ pub struct DockGripHandle {
 }
 
 pub struct DockStackHandle {
-    pub shown: Memo<Option<TabId>>,
     pub title: Memo<String>,
     pub icon: Memo<String>,
-    pub home: Memo<Option<TabId>>,
     pub away: Memo<bool>,
-    pub tabs: Memo<Vec<TabId>>,
     pub actions: Memo<Option<NodeId>>,
     pub menu: Memo<Vec<Action>>,
-    pub titles: Func<TabId, String>,
-    pub icons: Func<TabId, String>,
     pub back: ClickCallback,
-    pub show: Func<TabId, ()>,
-    pub close: Func<TabId, ()>,
-    pub closable: Func<TabId, bool>,
+    pub others: Memo<usize>,
+    pub switch_label: Memo<String>,
+    pub open_switcher: ClickCallback,
+}
+
+pub struct DockSwitcherHandle {
+    pub open: ReadSignal<bool>,
+    pub close: ClickCallback,
+    pub tabs: Memo<Vec<TabId>>,
+    pub card: Func<TabId, DockSwitcherCardHandle>,
+    pub homed: Memo<bool>,
+    pub home_title: Memo<String>,
+    pub home_icon: Memo<String>,
+    pub go_home: ClickCallback,
+}
+
+pub struct DockSwitcherCardHandle {
+    pub tab: TabId,
+    pub title: Memo<String>,
+    pub icon: Memo<String>,
+    pub current: Memo<bool>,
+    pub closable: bool,
+    pub pick: ClickCallback,
+    pub close: ClickCallback,
 }
 
 #[derive(Clone)]
@@ -208,22 +231,6 @@ pub fn dock_actions(actions: impl FnOnce() -> NodeId) {
     });
 }
 
-pub struct DockWindowHandle {
-    pub surface: SurfaceId,
-    pub vertical: bool,
-    pub focused: Memo<bool>,
-    pub title: Memo<String>,
-    pub contents: Memo<Vec<TabId>>,
-    pub sidebar_width: Memo<f32>,
-    pub sidebar_splitter: Option<NodeId>,
-    pub grip: NodeId,
-    pub tabs: Option<NodeId>,
-    pub closable: Memo<bool>,
-    pub menu: Memo<Vec<Action>>,
-    pub close: ClickCallback,
-    pub pane: NodeId,
-}
-
 #[derive(Clone, Default)]
 struct TabBar {
     strip: NodeRef,
@@ -264,14 +271,15 @@ struct State {
     owner: Option<ScopeContext>,
     tab: RenderFn<DockTabHandle>,
     content: RenderFn<TabId>,
-    empty: RenderFn<()>,
-    panel: RenderFn<DockPanelHandle>,
+    empty: RenderFn<LeafId>,
+    chrome: RenderFn<DockChromeHandle>,
+    bar: RenderFn<DockBarHandle>,
     splitter: RenderFn<DockSplitterHandle>,
     grip: RenderFn<DockGripHandle>,
-    window: RenderFn<DockWindowHandle>,
     highlight: RenderFn<()>,
     preview: RenderFn<DockPreviewHandle>,
     stack: Option<RenderFn<DockStackHandle>>,
+    switcher: Option<RenderFn<DockSwitcherHandle>>,
 }
 
 type Handle = Rc<State>;
@@ -446,20 +454,6 @@ impl State {
     }
 
     fn close_tab(&self, tab: TabId) {
-        self.edit(|state| {
-            state.remove(tab);
-        });
-        self.on_close.call(tab);
-    }
-
-    fn close_stacked(&self, tab: TabId) {
-        self.edit(|state| {
-            let shown = state.stacked_tab() == Some(tab);
-            state.remove(tab);
-            if let Some(next) = state.recent_tabs().first().copied().filter(|_| shown) {
-                state.show(next);
-            }
-        });
         self.on_close.call(tab);
     }
 
@@ -899,32 +893,67 @@ impl Grip {
     }
 }
 
+fn vacant_leaf(state: &DockState) -> LeafId {
+    state
+        .focused_leaf()
+        .unwrap_or_else(|| state.leaves(state.main())[0])
+}
+
+pub(crate) struct DockConfig {
+    pub(crate) state: Prop<DockState>,
+    pub(crate) on_change: Callback<DockState>,
+    pub(crate) on_close: Callback<TabId>,
+    pub(crate) title: Func<TabId, String>,
+    pub(crate) group_title: Func<GroupId, Option<String>>,
+    pub(crate) icon: Func<TabId, String>,
+    pub(crate) closable: Func<TabId, bool>,
+    pub(crate) menu: MenuStyle,
+    pub(crate) mode: Prop<DockMode>,
+    pub(crate) home: Prop<Option<TabId>>,
+    pub(crate) splitter_thickness: f32,
+    pub(crate) group_inset: f32,
+    pub(crate) inset: Prop<f32>,
+    pub(crate) tab: RenderFn<DockTabHandle>,
+    pub(crate) content: RenderFn<TabId>,
+    pub(crate) empty: RenderFn<LeafId>,
+    pub(crate) chrome: Option<RenderFn<DockChromeHandle>>,
+    pub(crate) bar: Option<RenderFn<DockBarHandle>>,
+    pub(crate) splitter: Option<RenderFn<DockSplitterHandle>>,
+    pub(crate) grip: Option<RenderFn<DockGripHandle>>,
+    pub(crate) highlight: Option<RenderFn<()>>,
+    pub(crate) preview: Option<RenderFn<DockPreviewHandle>>,
+    pub(crate) stack: Option<RenderFn<DockStackHandle>>,
+    pub(crate) switcher: Option<RenderFn<DockSwitcherHandle>>,
+}
+
 #[component]
-pub fn Dock(
-    state: Prop<DockState>,
-    on_change: Callback<DockState>,
-    on_close: Callback<TabId>,
-    title: Func<TabId, String>,
-    group_title: Option<Func<GroupId, Option<String>>>,
-    icon: Option<Func<TabId, String>>,
-    closable: Option<Func<TabId, bool>>,
-    #[prop(default = MenuStyle::default())] menu: MenuStyle,
-    #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
-    #[prop(default = None)] home: Prop<Option<TabId>>,
-    #[prop(default = SPLITTER_THICKNESS)] splitter_thickness: f32,
-    #[prop(default = 0.0)] group_inset: f32,
-    #[prop(default = 0.0)] inset: Prop<f32>,
-    tab: RenderFn<DockTabHandle>,
-    #[prop(children)] content: RenderFn<TabId>,
-    empty: Option<RenderFn<()>>,
-    panel: Option<RenderFn<DockPanelHandle>>,
-    splitter: Option<RenderFn<DockSplitterHandle>>,
-    grip: Option<RenderFn<DockGripHandle>>,
-    window: Option<RenderFn<DockWindowHandle>>,
-    highlight: Option<RenderFn<()>>,
-    preview: Option<RenderFn<DockPreviewHandle>>,
-    stack: Option<RenderFn<DockStackHandle>>,
-) -> NodeId {
+pub(crate) fn Dock(config: DockConfig) -> NodeId {
+    let DockConfig {
+        state,
+        on_change,
+        on_close,
+        title,
+        group_title,
+        icon,
+        closable,
+        menu,
+        mode,
+        home,
+        splitter_thickness,
+        group_inset,
+        inset,
+        tab,
+        content,
+        empty,
+        chrome,
+        bar,
+        splitter,
+        grip,
+        highlight,
+        preview,
+        stack,
+        switcher,
+    } = config;
     let (current, set_current) = create_signal(state.peek());
     let (actions, set_actions) = create_signal(HashMap::new());
     let (menus, set_menu) = create_signal(DockMenus::new());
@@ -941,9 +970,9 @@ pub fn Dock(
         drag,
         set_drag,
         title,
-        group_title: group_title.unwrap_or_else(|| Func::new(|_| None)),
-        icon: icon.unwrap_or_else(|| Func::new(|_| String::new())),
-        closable: closable.unwrap_or_else(|| Func::new(|_| true)),
+        group_title,
+        icon,
+        closable,
         menu,
         home: create_memo(move || home.get()),
         actions,
@@ -951,6 +980,7 @@ pub fn Dock(
         menus,
         set_menu,
         stack,
+        switcher,
         thickness: splitter_thickness,
         group_inset,
         rect: component_rect(),
@@ -958,17 +988,12 @@ pub fn Dock(
         bars: RefCell::default(),
         tab,
         content,
-        empty: empty.unwrap_or_else(|| {
-            RenderFn::new(|()| {
-                view! {
-                    <Frame />
-                }
-            })
-        }),
-        panel: panel.unwrap_or_else(|| {
+        empty,
+        chrome: chrome.unwrap_or_else(|| RenderFn::new(|handle: DockChromeHandle| handle.content)),
+        bar: bar.unwrap_or_else(|| {
             RenderFn::new(|handle| {
                 view! {
-                    <StackedPanel handle />
+                    <PlainBar handle />
                 }
             })
         }),
@@ -983,13 +1008,6 @@ pub fn Dock(
             RenderFn::new(|_| {
                 view! {
                     <Frame />
-                }
-            })
-        }),
-        window: window.unwrap_or_else(|| {
-            RenderFn::new(|handle| {
-                view! {
-                    <StackedWindow handle />
                 }
             })
         }),
@@ -1064,10 +1082,35 @@ fn DockStack(dock: Handle) -> NodeId {
         home.get().is_some_and(|home| shown.get().is_some_and(|shown| shown != home))
     }));
     let going = dock.clone();
-    let bar = dock
-        .stack
-        .clone()
-        .map(|stack| stack.call(stack_handle(&dock, shown, away.clone())));
+    let (switching, set_switching) = create_signal(false);
+    let tabs = create_memo(clone!(state home -> move || {
+        let home = home.get();
+        state.with(|state| {
+            state
+                .recent_tabs()
+                .into_iter()
+                .filter(|tab| Some(*tab) != home)
+                .collect::<Vec<_>>()
+        })
+    }));
+    let bar = dock.stack.clone().map(|stack| {
+        stack.call(stack_handle(
+            &dock,
+            shown.clone(),
+            away.clone(),
+            tabs.clone(),
+            set_switching.clone(),
+        ))
+    });
+    let switcher = dock.switcher.clone().map(|switcher| {
+        switcher.call(switcher_handle(
+            &dock,
+            shown.clone(),
+            tabs,
+            switching,
+            set_switching,
+        ))
+    });
     on_cleanup(move || {
         if let Some(bar) = bar {
             try_with_document(|document| document.remove_node(bar));
@@ -1089,17 +1132,24 @@ fn DockStack(dock: Handle) -> NodeId {
                     <Portal node={bar} />
                 </Show>
                 <Show condition={vacant}>
-                    {empty.call(())} @sizing=ItemSize::Percent(100.0)
+                    {empty.call(state.with_untracked(vacant_leaf))} @sizing=ItemSize::Percent(100.0)
                 </Show>
                 <Show condition={occupied}>
                     <Portal node={panel.clone()} @sizing=ItemSize::Percent(100.0) />
                 </Show>
+                {switcher}
             </List>
         </BackSlide>
     }
 }
 
-fn stack_handle(dock: &Handle, shown: Memo<Option<TabId>>, away: Memo<bool>) -> DockStackHandle {
+fn stack_handle(
+    dock: &Handle,
+    shown: Memo<Option<TabId>>,
+    away: Memo<bool>,
+    tabs: Memo<Vec<TabId>>,
+    set_switching: WriteSignal<bool>,
+) -> DockStackHandle {
     let titled = dock.clone();
     let title = create_memo(clone!(shown -> move || {
         shown.get().map(|tab| titled.title(tab)).unwrap_or_default()
@@ -1108,50 +1158,85 @@ fn stack_handle(dock: &Handle, shown: Memo<Option<TabId>>, away: Memo<bool>) -> 
     let icon = create_memo(clone!(shown -> move || {
         shown.get().map(|tab| pictured.icon(tab)).unwrap_or_default()
     }));
-    let state = dock.state.clone();
-    let home = dock.home.clone();
-    let tabs = create_memo(clone!(home -> move || {
-        let home = home.get();
-        state.with(|state| {
-            state
-                .recent_tabs()
-                .into_iter()
-                .filter(|tab| Some(*tab) != home)
-                .collect::<Vec<_>>()
-        })
-    }));
     let actions = dock.actions.clone();
     let slot = create_memo(clone!(shown -> move || {
         let shown = shown.get()?;
         actions.with(|actions| actions.get(&shown).copied())
     }));
     let menus = dock.menus.clone();
-    let menu = create_memo(clone!(shown -> move || dock_menu_items(&menus, shown.get())));
-    let titles = dock.clone();
-    let icons = dock.clone();
+    let menu = create_memo(move || dock_menu_items(&menus, shown.get()));
+    let others = create_memo(move || tabs.with(Vec::len));
+    let switch_label = create_memo(clone!(others -> move || match others.get() {
+        1 => "1 other open tab".to_owned(),
+        count => format!("{count} other open tabs"),
+    }));
     let back = dock.clone();
-    let show = dock.clone();
-    let close = dock.clone();
-    let closable = dock.closable.clone();
     DockStackHandle {
-        closable,
-        shown,
         title,
         icon,
-        home,
         away,
-        tabs,
         actions: slot,
         menu,
-        titles: Func::new(move |tab| titles.title(tab)),
-        icons: Func::new(move |tab| icons.icon(tab)),
         back: ClickCallback::new(move || {
             if let Some(home) = back.home.get_untracked() {
                 back.show(home);
             }
         }),
-        show: Func::new(move |tab| show.show(tab)),
-        close: Func::new(move |tab| close.close_stacked(tab)),
+        others,
+        switch_label,
+        open_switcher: ClickCallback::new(move || set_switching.set(true)),
+    }
+}
+
+fn switcher_handle(
+    dock: &Handle,
+    shown: Memo<Option<TabId>>,
+    tabs: Memo<Vec<TabId>>,
+    switching: ReadSignal<bool>,
+    set_switching: WriteSignal<bool>,
+) -> DockSwitcherHandle {
+    let home = dock.home.clone();
+    let homed = create_memo(clone!(home -> move || home.get().is_some()));
+    let titled = dock.clone();
+    let home_title = create_memo(clone!(home -> move || {
+        home.get().map(|home| titled.title(home)).unwrap_or_default()
+    }));
+    let pictured = dock.clone();
+    let home_icon = create_memo(clone!(home -> move || {
+        home.get().map(|home| pictured.icon(home)).unwrap_or_default()
+    }));
+    let going = dock.clone();
+    let carded = dock.clone();
+    DockSwitcherHandle {
+        open: switching,
+        close: ClickCallback::new(clone!(set_switching -> move || set_switching.set(false))),
+        tabs,
+        card: Func::new(clone!(set_switching -> move |tab: TabId| {
+            let (titled, pictured, picked, closed) =
+                (carded.clone(), carded.clone(), carded.clone(), carded.clone());
+            let set_switching = set_switching.clone();
+            DockSwitcherCardHandle {
+                tab,
+                title: create_memo(move || titled.title(tab)),
+                icon: create_memo(move || pictured.icon(tab)),
+                current: create_memo(clone!(shown -> move || shown.get() == Some(tab))),
+                closable: carded.closable.call(tab),
+                pick: ClickCallback::new(move || {
+                    set_switching.set(false);
+                    picked.show(tab);
+                }),
+                close: ClickCallback::new(move || closed.close_tab(tab)),
+            }
+        })),
+        homed,
+        home_title,
+        home_icon,
+        go_home: ClickCallback::new(move || {
+            set_switching.set(false);
+            if let Some(home) = going.home.get_untracked() {
+                going.show(home);
+            }
+        }),
     }
 }
 
@@ -1175,7 +1260,7 @@ fn DockTiles(dock: Handle) -> NodeId {
                         {move |surface: SurfaceId| {
                             let dock = panes.clone();
                             view! {
-                                <DockPane
+                                <DockTreeView
                                     dock
                                     tree={Tree::Surface(surface)}
                                     @sizing=ItemSize::Percent(100.0)
@@ -1199,71 +1284,66 @@ fn DockTiles(dock: Handle) -> NodeId {
 }
 
 #[component]
-fn StackedPanel(handle: DockPanelHandle) -> NodeId {
-    let DockPanelHandle {
-        grip,
-        bar,
-        body,
+fn PlainBar(handle: DockBarHandle) -> NodeId {
+    let DockBarHandle {
         vertical,
-        sidebar_width,
-        sidebar_splitter,
-        ..
-    } = handle;
-    let (outer, inner) = match vertical {
-        true => (Direction::Horizontal, Direction::Vertical),
-        false => (Direction::Vertical, Direction::Horizontal),
-    };
-    let bar_size = sidebar_size(vertical, sidebar_width);
-    view! {
-        <List direction={outer} spacing=0.0>
-            <Show condition={bar.is_some()}>
-                <List direction={inner} spacing=0.0 @sizing={bar_size.clone()}>
-                    {grip.expect("a panel with its own tab bar has its own grip")}
-                    {bar.expect("the panel keeps its own tab bar")}
-                </List>
-            </Show>
-            <Show condition={sidebar_splitter.is_some()}>
-                {sidebar_splitter.expect("a sidebar has its splitter")} @sizing=ItemSize::Fixed(SPLITTER_THICKNESS)
-            </Show>
-            {body} @sizing=ItemSize::Percent(100.0)
-        </List>
-    }
-}
-
-#[component]
-fn StackedWindow(handle: DockWindowHandle) -> NodeId {
-    let DockWindowHandle {
         grip,
         tabs,
-        pane,
-        vertical,
-        sidebar_width,
-        sidebar_splitter,
         ..
     } = handle;
-    let (outer, inner) = match vertical {
-        true => (Direction::Horizontal, Direction::Vertical),
-        false => (Direction::Vertical, Direction::Horizontal),
+    let direction = match vertical {
+        true => Direction::Vertical,
+        false => Direction::Horizontal,
     };
-    let bar_size = sidebar_size(vertical, sidebar_width);
     view! {
-        <List direction={outer} spacing=0.0>
-            <List direction={inner} spacing=0.0 @sizing={bar_size}>
-                {grip}
-                <Show condition={tabs.is_some()}>
-                    {tabs.expect("the window holds one pane")}
-                </Show>
-            </List>
-            <Show condition={sidebar_splitter.is_some()}>
-                {sidebar_splitter.expect("a sidebar has its splitter")} @sizing=ItemSize::Fixed(SPLITTER_THICKNESS)
-            </Show>
-            {pane} @sizing=ItemSize::Percent(100.0)
-        </List>
+        <List direction spacing=0.0>{grip}{tabs}</List>
     }
 }
 
+struct ChromeParts {
+    floating: bool,
+    vertical: bool,
+    focused: Memo<bool>,
+    sidebar_width: Memo<f32>,
+    sidebar_splitter: Option<NodeId>,
+    bar: Option<DockBarHandle>,
+    body: NodeId,
+}
+
 #[component]
-fn DockPane(
+fn DockChrome(dock: Handle, parts: ChromeParts) -> NodeId {
+    let ChromeParts {
+        floating,
+        vertical,
+        focused,
+        sidebar_width,
+        sidebar_splitter,
+        bar,
+        body,
+    } = parts;
+    let barred = bar.is_some();
+    let bar = bar.map(|handle| dock.bar.call(handle));
+    let direction = match vertical {
+        true => Direction::Horizontal,
+        false => Direction::Vertical,
+    };
+    let content = view! {
+        <List direction spacing=0.0>
+            {bar} @sizing={sidebar_size(vertical, sidebar_width)}
+            {sidebar_splitter} @sizing=ItemSize::Fixed(SPLITTER_THICKNESS)
+            {body} @sizing=ItemSize::Percent(100.0)
+        </List>
+    };
+    dock.chrome.call(DockChromeHandle {
+        floating,
+        barred,
+        focused,
+        content,
+    })
+}
+
+#[component]
+fn DockTreeView(
     dock: Handle,
     tree: Tree,
     #[prop(default = None)] hoisted: Prop<Option<LeafId>>,
@@ -1429,47 +1509,41 @@ fn DockPanelView(dock: Handle, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeI
                 <Dynamic value={vertical}>
                     {move |vertical: bool| {
                         let dock = built.clone();
-                        let bar = match hoisted {
-                            true => None,
-                            false => Some(view! {
-                                <DockTabBar dock={dock.clone()} leaf vertical />
-                            }),
-                        };
-                        let grip = match hoisted {
-                            true => None,
-                            false => Some(view! {
+                        let bar = (!hoisted).then(|| DockBarHandle {
+                            floating,
+                            vertical,
+                            focused: focused.clone(),
+                            grip: view! {
                                 <DockPaneGrip
                                     dock={dock.clone()}
                                     leaf
                                     vertical
                                     focused={focused.clone()}
                                 />
+                            },
+                            tabs: Some(view! {
+                                <DockTabBar dock={dock.clone()} leaf vertical />
                             }),
-                        };
-                        let body = view! {
-                            <DockPanelBody dock={dock.clone()} leaf />
-                        };
-                        let chrome = dock.panel.call(DockPanelHandle {
-                            leaf,
-                            surface,
+                            title: create_memo(String::new),
+                            closable: dock.all_closable(contents.clone()),
+                            menu: menu.clone(),
+                            close: close.clone(),
+                        });
+                        let parts = ChromeParts {
                             floating,
-                            nested,
                             vertical,
                             focused: focused.clone(),
-                            contents: contents.clone(),
                             sidebar_width: sidebar_width.clone(),
                             sidebar_splitter: (vertical && !hoisted).then(|| view! {
                                 <DockSidebarSplitter dock={dock.clone()} leaf />
                             }),
-                            grip,
                             bar,
-                            closable: dock.all_closable(contents.clone()),
-                            menu: menu.clone(),
-                            close: close.clone(),
-                            body,
-                        });
+                            body: view! {
+                                <DockPanelBody dock={dock.clone()} leaf />
+                            },
+                        };
                         view! {
-                            {chrome} @sizing=ItemSize::Percent(100.0)
+                            <DockChrome dock parts @sizing=ItemSize::Percent(100.0) />
                         }
                     }}
                 </Dynamic>
@@ -1536,7 +1610,7 @@ fn DockPanelBody(dock: Handle, leaf: LeafId) -> NodeId {
                                 padding_vertical={inset}
                                 @sizing=ItemSize::Percent(100.0)
                             >
-                                <DockPane dock tree={Tree::Group(group)} />
+                                <DockTreeView dock tree={Tree::Group(group)} />
                             </Frame>
                         },
                         None => view! {
@@ -1563,7 +1637,7 @@ fn DockTabBody(dock: Handle, leaf: LeafId) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={vacant}>
-                {empty.call(())} @sizing=ItemSize::Percent(100.0)
+                {empty.call(leaf)} @sizing=ItemSize::Percent(100.0)
             </Show>
             <Show condition={occupied}>
                 <Portal node={panel.clone()} @sizing=ItemSize::Percent(100.0) />
@@ -1823,12 +1897,10 @@ fn TabMenu(
             "Close group",
         ),
     };
-    let (row, panel) = menu.parts();
     let closing = close.clone();
     view! {
         <ContextMenu
-            row
-            panel
+            menu
             items={view! {
                 <MenuItem label="Pop out into a window" disabled={stuck} />
                 <MenuItem label={group_label} disabled={alone.clone()} />
@@ -1870,11 +1942,9 @@ fn GripMenu(menu: MenuStyle, vertical: bool, toggle: ClickCallback, children: Ch
         true => "Show tabs across the top",
         false => "Show tabs in a sidebar",
     };
-    let (row, panel) = menu.parts();
     view! {
         <ContextMenu
-            row
-            panel
+            menu
             items={view! {
                 <MenuItem label />
             }}
@@ -2261,31 +2331,39 @@ fn DockWindowView(dock: Handle, surface: SurfaceId) -> NodeId {
                                             }
                                         });
                                         let pane = view! {
-                                            <DockPane
+                                            <DockTreeView
                                                 dock={dock.clone()}
                                                 tree={Tree::Surface(surface)}
                                                 hoisted
                                             />
                                         };
-                                        let chrome = dock.window.call(DockWindowHandle {
-                                            surface,
+                                        let parts = ChromeParts {
+                                            floating: true,
                                             vertical,
                                             focused: focused.clone(),
-                                            title: title.clone(),
-                                            contents: contents.clone(),
                                             sidebar_width: sidebar_width.clone(),
                                             sidebar_splitter: hoisted.filter(|_| vertical).map(|leaf| view! {
                                                 <DockSidebarSplitter dock={dock.clone()} leaf />
                                             }),
-                                            grip,
-                                            tabs,
-                                            closable: dock.all_closable(contents.clone()),
-                                            menu: menu.clone(),
-                                            close: close.clone(),
-                                            pane,
-                                        });
+                                            bar: Some(DockBarHandle {
+                                                floating: true,
+                                                vertical,
+                                                focused: focused.clone(),
+                                                grip,
+                                                tabs,
+                                                title: title.clone(),
+                                                closable: dock.all_closable(contents.clone()),
+                                                menu: menu.clone(),
+                                                close: close.clone(),
+                                            }),
+                                            body: pane,
+                                        };
                                         view! {
-                                            {chrome} @sizing=ItemSize::Percent(100.0)
+                                            <DockChrome
+                                                dock
+                                                parts
+                                                @sizing=ItemSize::Percent(100.0)
+                                            />
                                         }
                                     }}
                                 </Dynamic>

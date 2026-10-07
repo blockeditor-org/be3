@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # buck2, run against our build server, on Linux, macOS or Git Bash on Windows.
-# Before starting it, this installs the pinned buck2 if it is missing, finds the
-# build server's key (asking for it at a terminal), points buck2 at the build
-# server this checkout picked, and regenerates the crates'
-# rules if their inputs changed (scripts/internal/common.sh). Arguments go to
+# Before starting it, this installs the pinned buck2 if it is missing, and
+# points buck2 at the build server BE3_BUILD_SERVER picks (Namespace, whose
+# cluster it wakes with nsc, unless it names another)
+# (scripts/internal/common.sh). Arguments go to
 # buck2 unchanged, except that tests may run on the workers, on anything but
 # Linux x86_64 `run` builds for this machine unless it names
 # --target-platforms, and a command that fails with an infrastructure error is
@@ -24,24 +24,39 @@ buck2="$(buck2_path)"
 if [[ ! -x "$buck2" ]]; then
     "$internal/install-buck2.sh" >&2
 fi
-assert_build_server_key
 mkdir -p "$repository/target"
 configure_build_server "$buck2"
-ensure_generated_rules "$buck2"
 
 command="${1:-}"
 
 # buck2 exits with 2 for an infrastructure error and with other statuses for a
 # build that is wrong. A connection to the build server sometimes resets
-# partway through a download, which buck2 does not retry itself; the second
-# attempt finds the actions cached.
+# partway through a download, which buck2 does not retry itself, and
+# Namespace's cluster may have shut down since nsc was last asked; the second
+# attempt wakes it if it has, and finds the actions cached. When a program
+# reads the output, the first attempt's is held back until it is known not to
+# be retried: a --keep-going bxl prints its results even when it fails, and the
+# reader would otherwise get each one twice.
 retrying() {
-    local status=0
-    "$@" || status=$?
+    local status=0 first=''
+    if [[ -t 1 ]]; then
+        "$@" || status=$?
+    else
+        first="$(mktemp)"
+        "$@" > "$first" || status=$?
+    fi
     if [[ $status -eq 2 ]]; then
+        [[ -z "$first" ]] || rm -f "$first"
         echo 'buck2 failed with an infrastructure error; trying once more.' >&2
+        namespace_recheck=true
+        configure_build_server "$buck2"
         status=0
         "$@" || status=$?
+        return $status
+    fi
+    if [[ -n "$first" ]]; then
+        cat "$first"
+        rm -f "$first"
     fi
     return $status
 }
@@ -99,26 +114,6 @@ if [[ "$command" == 'run' ]]; then
             --emit-shell | --command-args-file | --command-args-file=*) prebuild=false ;;
         esac
     done
-    # //:verify prints only what failed unless it runs in CI, so its own build
-    # is quiet too, and says something only when it fails.
-    quiet=false
-    if [[ -z "${CI:-}" || "${CI:-}" == false ]]; then
-        for argument in "$@"; do
-            case "$argument" in
-                --) break ;;
-                //:verify | root//:verify) quiet=$prebuild ;;
-            esac
-        done
-    fi
-    if $quiet; then
-        shift
-        log="$repository/target/verify-build.log"
-        if ! retrying "$buck2" run --command-args-file "$repository/target/run-command-args" "$@" > "$log" 2>&1; then
-            awk -f "$internal/quiet.awk" < "$log" >&2
-            exit 1
-        fi
-        exec "$buck2" run --console none "$@"
-    fi
     if $prebuild; then
         shift
         retrying "$buck2" run --command-args-file "$repository/target/run-command-args" "$@"

@@ -10,12 +10,6 @@ const SAMPLE_CAPACITY: usize = 120;
 const PACING: &str = crate::plugin_host::PACING;
 
 #[derive(Clone)]
-pub struct LastFrame {
-    pub number: u64,
-    pub duration: Duration,
-}
-
-#[derive(Clone)]
 enum Value {
     Duration,
     Count(u64),
@@ -40,7 +34,6 @@ struct PerformanceState {
     update_start: Option<Instant>,
     update_end: Option<Instant>,
     shown: Option<(Instant, Vec<PerformanceRow>)>,
-    last_frame: Option<LastFrame>,
     frame_times: VecDeque<Duration>,
     groups: BTreeMap<String, Group>,
 }
@@ -63,10 +56,6 @@ pub fn end_frame() {
     let mut state = state();
     let elapsed = state.frame_start.take().map(|start| start.elapsed());
     if let Some(elapsed) = elapsed {
-        state.last_frame = Some(LastFrame {
-            number: state.frame,
-            duration: elapsed,
-        });
         push_sample(&mut state.frame_times, elapsed);
     }
 }
@@ -100,10 +89,6 @@ pub fn record_update(started: Instant, document: &beui::PerformanceTimings) {
     ] {
         record_duration_in(PACING, name, duration);
     }
-}
-
-pub fn last_frame() -> Option<LastFrame> {
-    state().last_frame.clone()
 }
 
 pub fn record_group_duration(group: &str, id: &str, duration: Duration) {

@@ -17,7 +17,7 @@ use accesskit::{Node, Role};
 
 use text_editor_core::{
     CursorHorizontalPositionMetric, CursorLeftRightStop, DragSelectionMode, EditorCommand,
-    ImeCommand, LRDirection, MarkdownCommand, MoveMode, UDDirection, VerticalMoveMode,
+    ImeCommand, LRDirection, MoveMode, UDDirection, VerticalMoveMode,
 };
 
 use beui_macros::{component, view};
@@ -53,6 +53,12 @@ pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle}
 pub use emoji::{emoji_completer, search_emoji};
 pub use rows::TextWidget;
 pub use state::{TextAreaLayout, TextAreaState};
+
+pub struct TextCheckbox {
+    pub checked: Memo<bool>,
+    pub disabled: Memo<bool>,
+    pub on_change: Callback<bool>,
+}
 
 pub const PADDING: Vec2 = Vec2::new(12.0, 8.0);
 pub const CARET_WIDTH: f32 = 2.0;
@@ -143,6 +149,7 @@ struct Surface {
     reveal_attempts: Cell<u8>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
+    checkbox: Option<RenderFn<TextCheckbox>>,
     completion: Memo<Option<Query>>,
     completions: Memo<Vec<Completion>>,
     completing: Memo<bool>,
@@ -736,12 +743,7 @@ fn tap(cx: &Context, press: PointerPress) {
 fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
     if let Some((_, item)) = cx.inline_at(pos) {
         match item.inline {
-            Inline::Checkbox { line_start, .. } => {
-                let position = cx.state.core().position(line_start);
-                cx.state
-                    .execute(EditorCommand::Markdown(MarkdownCommand::ToggleCheckbox(
-                        position,
-                    )));
+            Inline::Checkbox { .. } => {
                 cx.state.set_selecting(false);
                 return;
             }
@@ -965,6 +967,7 @@ pub fn TextArea(
     frame: Option<Render<Child>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
+    checkbox: Option<RenderFn<TextCheckbox>>,
     #[prop(default = Completer::none())] completer: Completer,
     completion_menu: Option<CompletionMenu>,
     on_widget_press: Callback<usize, bool>,
@@ -1178,6 +1181,7 @@ pub fn TextArea(
         reveal_attempts: Cell::new(0),
         block,
         selected_widget,
+        checkbox,
         completion,
         completions: completions.clone(),
         completing: completing.clone(),

@@ -71,6 +71,7 @@ fn region_screen(
     }
 }
 
+mod a_layout_gives_each_shown_screen_its_own_surface;
 mod a_paste_over_the_text_limit_arrives_in_pieces;
 mod artifact_messages_round_trip;
 mod artifact_watch_messages_round_trip;
@@ -96,19 +97,19 @@ mod file_drop_messages_round_trip;
 mod file_pick_messages_round_trip;
 mod file_save_messages_round_trip;
 mod focus_messages_round_trip;
+mod forwarded_picks_and_creation_children_round_trip;
 mod frame_round_trips;
 mod frame_screens_and_reports_round_trip;
 mod grabbing_the_cursor_round_trips;
 mod history_messages_round_trip;
+mod host_panel_messages_round_trip;
+mod host_window_messages_round_trip;
 mod ime_messages_round_trip;
 mod manifest_validation;
 mod menus_and_their_picks_round_trip;
 mod multiplexed_messages_round_trip;
 mod open_block_request_round_trips;
 mod open_messages_round_trip;
-mod packed_layout_keeps_each_region;
-mod packed_layout_packs_screens_within_a_row;
-mod pane_messages_round_trip;
 mod performance_messages_round_trip;
 mod pick_block_messages_round_trip;
 mod presence_messages_round_trip;
@@ -122,6 +123,7 @@ mod rejects_unknown_message_kind;
 mod rejects_unordered_occluders;
 mod replacing_a_child_round_trips;
 mod resize_messages_round_trip;
+mod shell_dialog_and_access_messages_round_trip;
 mod show_block_request_round_trips;
 mod theme_messages_round_trip;
 mod touch_input_round_trips;

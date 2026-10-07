@@ -13,6 +13,8 @@ fn region() -> Region {
         region: EditorRegion::Frame,
         rect: Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0)),
         scale_factor: 1.0,
+        pixels: [400, 300],
+        age: 0,
         spec: FrameSpec::default(),
     }
 }

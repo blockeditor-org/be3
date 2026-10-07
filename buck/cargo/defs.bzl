@@ -1,38 +1,26 @@
+load("@prelude//rust:cargo_package.bzl", "apply_platform_attrs", "get_reindeer_platform_names")
 load("@root//buck/platforms:profile.bzl", "dev_only")
 load(":crates.bzl", "crates")
 
 # The rules for a workspace crate, filled in from its Cargo.toml through
-# crates.bzl, which ./scripts/buck generates from cargo's own plans. A BUCK file
+# crates.bzl, which //:buckify generates from cargo's own plans. A BUCK file
 # passes what Cargo.toml cannot say as arguments: extra_deps and env are added
 # to what the macro works out, and anything else goes to the rule as it is.
 # Where a crate's dependencies or features differ between platforms, the macro
-# writes the select(); these are the constraints each plan is selected by.
-_CONSTRAINTS = {
-    "android-arm64": "root//buck/platforms:android_arm64_setting",
-    "linux-arm64": "root//buck/platforms:linux_arm64_setting",
-    "linux-x86_64": "DEFAULT",
-    "macos-arm64": "root//buck/platforms:macos_arm64_setting",
-    "macos-x86_64": "root//buck/platforms:macos_x86_64_setting",
-    "wasi": "root//buck/platforms:wasi_setting",
-    "wasi-guest": "root//buck/platforms:wasi_guest_setting",
-    "wasm32": "prelude//os:none",
-    "windows-arm64": "root//buck/platforms:windows_arm64_setting",
-    "windows-x86_64": "root//buck/platforms:windows_x86_64_setting",
-}
+# selects them by plan through the prelude's apply_platform_attrs, which the
+# third-party rules use too, from the map the root PACKAGE sets.
 
 def _crate():
     package = native.package_name()
     if package not in crates:
-        fail("{} is not a workspace member cargo knows about; run ./scripts/buck, which regenerates buck/cargo/crates.bzl".format(package))
+        fail("{} is not a workspace member cargo knows about; run ./scripts/buck run //:buckify, which regenerates buck/cargo/crates.bzl".format(package))
     return crates[package]
 
 # One value per platform, as a select() when they differ and a plain list when
-# they do not. A crate cargo never builds for the host still needs a DEFAULT,
-# and gets the first platform it is built for.
+# they do not. A crate cargo never builds for a platform still needs a value
+# there, and gets the first platform it is built for's.
 def _per_platform(crate, pick, extra = []):
-    values = {}
-    for platform, entry in crate["platforms"].items():
-        values[_CONSTRAINTS[platform]] = sorted(pick(entry) + extra)
+    values = {platform: sorted(pick(entry) + extra) for platform, entry in crate["platforms"].items()}
     if not values:
         return sorted(extra)
     distinct = []
@@ -41,9 +29,9 @@ def _per_platform(crate, pick, extra = []):
             distinct.append(value)
     if len(distinct) == 1:
         return distinct[0]
-    if "DEFAULT" not in values:
-        values["DEFAULT"] = values[sorted(values.keys())[0]]
-    return select(values)
+    fallback = values[sorted(values)[0]]
+    per_plan = {platform: {"value": values.get(platform, fallback)} for platform in get_reindeer_platform_names()}
+    return apply_platform_attrs(per_plan, {})["value"]
 
 def _env(crate, crate_name, env):
     base = {
@@ -85,31 +73,74 @@ def cargo_library(name = None, extra_deps = [], env = {}, **kwargs):
 # The library's own tests, which are #[cfg(test)] modules in its sources, with
 # the dev-dependencies added. A proc macro's tests need proc_macro named, since
 # rust_test has no attribute for it.
+#
+# A test whose env names LD_LIBRARY_PATH is a library_path_test around the
+# test harness, built as a binary, since Namespace's workers replace an
+# action's LD_LIBRARY_PATH with their own.
 def cargo_test(name = "test", extra_deps = [], env = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     rustc_flags = _rustc_flags(crate, kwargs)
     if library["proc_macro"]:
         rustc_flags = rustc_flags + ["--extern", "proc_macro"]
-    native.rust_test(
-        name = name,
+    common = dict(
         crate = library["crate"],
         crate_root = library["crate_root"],
         deps = _per_platform(crate, lambda entry: entry["deps"] + entry["test_deps"], extra_deps),
         edition = crate["edition"],
-        env = _env(crate, library["crate"], env),
         features = _per_platform(crate, lambda entry: entry["test_features"]),
-        rustc_flags = rustc_flags,
         srcs = _srcs(kwargs),
-        **kwargs,
     )
-    if kwargs.get("remote_execution") != "disabled":
-        test_run(name = name + "_run", test = ":" + name)
+    if "LD_LIBRARY_PATH" in env:
+        compile_env = {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"}
+        native.rust_binary(
+            name = name + "-harness",
+            env = _env(crate, library["crate"], compile_env),
+            rustc_flags = rustc_flags + ["--test"],
+            target_compatible_with = kwargs.get("target_compatible_with", []),
+            **common,
+        )
+        library_path_test(name = name, env = _env(crate, library["crate"], env), harness = ":" + name + "-harness", **kwargs)
+    else:
+        native.rust_test(name = name, env = _env(crate, library["crate"], env), rustc_flags = rustc_flags, **(common | kwargs))
+    test_run(name = name + "_run", local_only = kwargs.get("remote_execution") == "disabled", test = ":" + name)
 
-# A test as an action, which is how //:verify runs it: buck2 runs a test again
-# every time, where an action whose binary and inputs have not changed comes
-# from the cache. It runs the test's own command and environment on a worker,
-# and fails, with the test's output, when the test does.
+# A Rust test harness run with its LD_LIBRARY_PATH carried as
+# BE3_LD_LIBRARY_PATH and put back by the shell that starts it, so it survives
+# a worker that sets its own.
+_restore_library_path = 'LD_LIBRARY_PATH="$BE3_LD_LIBRARY_PATH" && export LD_LIBRARY_PATH && exec "$@"'
+
+def _library_path_test_impl(ctx: AnalysisContext) -> list[Provider]:
+    env = {key: value for key, value in ctx.attrs.env.items() if key != "LD_LIBRARY_PATH"}
+    env["BE3_LD_LIBRARY_PATH"] = ctx.attrs.env["LD_LIBRARY_PATH"]
+    command = cmd_args("sh", "-c", _restore_library_path, "sh", ctx.attrs.harness[RunInfo])
+    return [
+        DefaultInfo(default_outputs = ctx.attrs.harness[DefaultInfo].default_outputs),
+        RunInfo(args = command),
+        ExternalRunnerTestInfo(
+            command = [command],
+            env = env,
+            labels = ctx.attrs.labels,
+            run_from_project_root = True,
+            type = "rust",
+            use_project_relative_paths = True,
+        ),
+    ]
+
+library_path_test = rule(
+    attrs = {
+        "env": attrs.dict(key = attrs.string(), value = attrs.arg()),
+        "harness": attrs.dep(providers = [RunInfo]),
+        "labels": attrs.list(attrs.string(), default = []),
+    },
+    impl = _library_path_test_impl,
+)
+
+# A test as an action, which is how ./scripts/verify runs it: buck2 runs a test
+# again every time, where an action whose binary and inputs have not changed
+# comes from the cache. It runs the test's own command and environment on a
+# worker, or here for a test that must stay local, and fails, with the test's
+# output, when the test does.
 def _test_run_impl(ctx: AnalysisContext) -> list[Provider]:
     test = ctx.attrs.test[ExternalRunnerTestInfo]
     passed = ctx.actions.declare_output("passed")
@@ -123,12 +154,16 @@ def _test_run_impl(ctx: AnalysisContext) -> list[Provider]:
             test.command,
         ),
         category = "test_run",
-        env = test.env,
+        env = test.env or {},
+        local_only = ctx.attrs.local_only,
     )
     return [DefaultInfo(default_output = passed)]
 
 test_run = rule(
-    attrs = {"test": attrs.dep(providers = [ExternalRunnerTestInfo])},
+    attrs = {
+        "local_only": attrs.bool(default = False),
+        "test": attrs.dep(providers = [ExternalRunnerTestInfo]),
+    },
     impl = _test_run_impl,
 )
 
@@ -166,7 +201,7 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
     crate = _crate()
     examples = {entry["name"]: entry for entry in crate["examples"]}
     if example not in examples:
-        fail("{} has no example {}; run ./scripts/buck, which regenerates buck/cargo/crates.bzl".format(crate["name"], example))
+        fail("{} has no example {}; run ./scripts/buck run //:buckify, which regenerates buck/cargo/crates.bzl".format(crate["name"], example))
     crate_name = example.replace("-", "_")
     own = []
     if crate["library"] != None:

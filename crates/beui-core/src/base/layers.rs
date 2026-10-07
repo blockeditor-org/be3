@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList};
+use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2};
 use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};

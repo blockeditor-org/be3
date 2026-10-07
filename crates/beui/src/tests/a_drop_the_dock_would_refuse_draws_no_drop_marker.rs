@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockState, DockTree, DockTreeEntry, SIDEBAR_WIDTH, TabId};
+use crate::unstyled::{DockGroup, DockPane, DockTab, DockingLayout};
 
 fn shown(harness: &Harness, test_id: &str) -> bool {
     harness
@@ -14,34 +14,25 @@ fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
     let dock = NodeRef::new();
     let built = dock.clone();
     let document = build(move || {
-        let mut layout = DockState::new([TabId::new(1)]);
-        let leaf = layout.leaves(layout.main())[0];
-        layout.insert_pinned_group(
-            leaf,
-            1,
-            &DockTree::Tabs {
-                entries: vec![
-                    DockTreeEntry::Tab(TabId::new(10)),
-                    DockTreeEntry::Tab(TabId::new(11)),
-                ],
-                active: 0,
-                vertical: false,
-                sidebar: SIDEBAR_WIDTH,
-            },
-        );
-        let (state, set_state) = create_signal(layout);
+        let layout = DockingLayout::new();
         view! {
-            <styled::DockArea
-                @node_ref=&built
-                state={state}
-                title={Func::new(|tab: TabId| format!("Tab {}", tab.value()))}
-                on_change={move |next: DockState| set_state.set(next)}
-                on_close={move |_: TabId| {}}
-            >
-                {move |tab: TabId| view! {
-                    <Frame @test_id={format!("content.{}", tab.value())} />
-                }}
-            </styled::DockArea>
+            <styled::Docking @node_ref=&built layout focus=10u64>
+                <DockPane id="main">
+                    <DockTab id=1u64 title="Tab 1">
+                        <Frame @test_id="content.1" />
+                    </DockTab>
+                    <DockGroup id="pinned" pinned=true>
+                        <DockPane id="inside">
+                            <DockTab id=10u64 title="Tab 10">
+                                <Frame @test_id="content.10" />
+                            </DockTab>
+                            <DockTab id=11u64 title="Tab 11">
+                                <Frame @test_id="content.11" />
+                            </DockTab>
+                        </DockPane>
+                    </DockGroup>
+                </DockPane>
+            </styled::Docking>
         }
     });
     dock.get();

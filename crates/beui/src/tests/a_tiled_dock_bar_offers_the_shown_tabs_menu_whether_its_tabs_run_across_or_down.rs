@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::{Action, create_memo};
-use crate::unstyled::{DockState, TabId, dock_menu, dock_state};
+use crate::unstyled::{DockPane, DockTab, DockingLayout, dock_menu, dock_state};
 
 fn laid_out(harness: &Harness, test_id: &str) -> bool {
     harness
@@ -28,31 +28,30 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
     let dock = NodeRef::new();
     let built = dock.clone();
     let document = build(move || {
-        let mut layout = DockState::new([TabId::new(1), TabId::new(2)]);
-        layout.show(TabId::new(2));
-        let (state, set_state) = create_signal(layout);
+        let layout = DockingLayout::new();
         view! {
-            <styled::DockArea
-                @node_ref=&built
-                state={state}
-                title={Func::new(|tab: TabId| format!("Tab {}", tab.value()))}
-                on_change={move |next: DockState| set_state.set(next)}
-                on_close={move |_: TabId| {}}
-            >
-                {move |tab: TabId| {
-                    if tab == TabId::new(2) {
-                        let running = running.clone();
-                        let tidy = Action::new("tidy", "Tidy up", move || {
-                            running.set(running.get() + 1)
-                        })
-                        .detached();
-                        dock_menu(create_memo(move || vec![tidy.clone()]));
-                    }
-                    view! {
-                        <Frame @test_id={format!("content.{}", tab.value())} />
-                    }
-                }}
-            </styled::DockArea>
+            <styled::Docking @node_ref=&built layout focus=2u64>
+                <DockPane id="tabs">
+                    <DockTab id=1u64 title="Tab 1">
+                        <Frame @test_id="content.1" />
+                    </DockTab>
+                    <DockTab
+                        id=2u64
+                        title="Tab 2"
+                        content={move || {
+                            let running = running.clone();
+                            let tidy = Action::new("tidy", "Tidy up", move || {
+                                running.set(running.get() + 1)
+                            })
+                            .detached();
+                            dock_menu(create_memo(move || vec![tidy.clone()]));
+                            view! {
+                                <Frame @test_id="content.2" />
+                            }
+                        }}
+                    />
+                </DockPane>
+            </styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

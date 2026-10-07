@@ -2,11 +2,9 @@ mod accounts;
 mod app_state;
 mod be;
 mod block_label;
-mod block_picker;
 mod compositor;
 mod debug;
 mod editors;
-mod files;
 mod host;
 mod keys;
 mod panic_guard;
@@ -14,32 +12,35 @@ mod performance;
 mod platform;
 mod plugin_host;
 mod root_settings;
-mod share;
+mod shell_route;
 mod surfaces;
 mod ui;
+mod wayland;
 
 use beui::styled::DocumentTheme;
-use std::{collections::HashMap, error::Error, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    rc::Rc,
+};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::{io, path::PathBuf};
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
-use be_block::metadata::MAX_NAME_BYTES;
 use be_block::{BlockContent, UiSettingsContent, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Workspace, WorkspaceInvitation, WorkspaceRole};
 use beui::Document;
 use block_plugin_api::{
-    AccessLevel, ArtifactAction, BlockCommand, BlockLocation, PaneId, PaneLayout,
+    AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog, ShellRequest,
 };
 use editors::{
-    ArtifactSession, ArtifactStatus, BlockLabel, EditorAccess, EditorAction, EditorRegistry,
-    PluginEditor, SidebarDragSource,
+    ArtifactSession, ArtifactStatus, EditorAction, EditorRegistry, PluginEditor, SidebarDragSource,
+    plugin::PickSource,
 };
 use root_settings::RootSettings;
-use share::ShareDialog;
 use surfaces::SurfaceId;
 use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
 use uuid::Uuid;
@@ -69,16 +70,44 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     panic_guard::install();
     let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
     let mut options = run_options();
+    let mut session = false;
     for argument in std::env::args().skip(1) {
         if argument == "--dev-workspace" {
             app.open_dev_workspace(None);
+        } else if argument == "--session" && cfg!(target_os = "linux") {
+            session = true;
+            app.run_as_desktop();
         } else if let Some(path) = argument.strip_prefix("--accessibility-tree=") {
             options.accessibility_dump = Some(PathBuf::from(path));
         } else {
             return Err(format!("unknown argument {argument}").into());
         }
     }
-    beui::run_with(options, Shell::new(app))
+    run_shell(options, Shell::new(app), session)
+}
+
+#[cfg(target_os = "linux")]
+fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(), Box<dyn Error>> {
+    if session {
+        return beui::run_on(Box::new(beui_adapter_drm::Drm), options, shell);
+    }
+    let renderer = beui::WindowRenderer::Wgpu {
+        open_device: Some(std::sync::Arc::new(be_dmabuf::open_device)),
+    };
+    beui::run_with_renderers(options, vec![renderer], shell)
+}
+
+#[cfg(all(
+    not(target_os = "linux"),
+    not(target_os = "android"),
+    not(target_arch = "wasm32")
+))]
+fn run_shell(
+    options: beui::RunOptions,
+    shell: Shell,
+    _session: bool,
+) -> Result<(), Box<dyn Error>> {
+    beui::run_with(options, shell)
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -147,6 +176,7 @@ impl Shell {
         let mut view = None;
         let mut document = beui::reactive::build(|| {
             compositor::install();
+            wayland::create();
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
             view = Some(store.clone());
@@ -172,6 +202,7 @@ impl beui::App for Shell {
     fn setup(&mut self, setup: &beui::Setup) {
         host::install_waker(setup.waker.clone());
         plugin_host::install(setup);
+        wayland::start(setup);
         #[cfg(all(
             feature = "web-view",
             not(target_os = "android"),
@@ -185,6 +216,7 @@ impl beui::App for Shell {
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
         let started = std::time::Instant::now();
         host::begin(context, &self.document);
+        wayland::before(context, rect, &mut self.document);
         self.app.frame(context);
         if let Some(open) = self.app.inspector_requested.take()
             && open
@@ -204,6 +236,7 @@ impl beui::App for Shell {
             self.document.theme().background,
         );
         self.document.show(context, rect);
+        wayland::after(context, &mut self.document);
         let commands = ui::take_commands();
         if !commands.is_empty() {
             for command in commands {
@@ -225,6 +258,7 @@ impl beui::App for Shell {
     }
 
     fn exiting(&mut self) {
+        wayland::exiting();
         be::flush();
         be::stop();
     }
@@ -260,8 +294,11 @@ struct BlockApp {
     root_settings: RootSettings,
     choosing_profile: bool,
     shell: Option<Uuid>,
-    shell_panes: Option<PaneLayout>,
-    shown_pane: Option<(u64, PaneId)>,
+    windows_sent: Option<(Uuid, u64)>,
+    forwarded_picks: HashMap<u64, (PickSource, u64)>,
+    next_pick: u64,
+    focus_reports: HashMap<Uuid, editors::FocusReport>,
+    artifact_watches: HashMap<Uuid, Vec<Uuid>>,
     ui_settings: Option<Uuid>,
     block_types: HashMap<Uuid, Uuid>,
     registry: Rc<EditorRegistry>,
@@ -275,13 +312,10 @@ struct BlockApp {
 
     dynamic_artifact_settings_open: Option<Uuid>,
 
-    dynamic_artifact_unlink: Option<Uuid>,
-
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
-    rename: Option<RenameState>,
-    share: ShareDialog,
     about_open: bool,
+    run_program_open: bool,
     app_menu_open: bool,
     pending_destructive_action: Option<PendingDestructiveAction>,
     scheduled_account_switch: Option<Account>,
@@ -363,11 +397,6 @@ enum CopyStage {
     Replace { copy_id: Uuid, block_type: Uuid },
 }
 
-struct RenameState {
-    id: Uuid,
-    name: String,
-}
-
 impl BlockApp {
     #[cfg(not(target_arch = "wasm32"))]
     fn new(storage_root: Option<PathBuf>) -> Result<Self, Box<dyn Error + Send + Sync>> {
@@ -445,11 +474,14 @@ impl BlockApp {
             scheduled_workspace_list: false,
             server_url,
             account,
-            root_settings: RootSettings::default(),
+            root_settings: RootSettings::new(WORKSPACE_EDITOR),
             choosing_profile: false,
             shell: None,
-            shell_panes: None,
-            shown_pane: None,
+            windows_sent: None,
+            forwarded_picks: HashMap::new(),
+            focus_reports: HashMap::new(),
+            artifact_watches: HashMap::new(),
+            next_pick: 0,
             ui_settings: None,
             block_types: HashMap::new(),
             registry,
@@ -459,12 +491,10 @@ impl BlockApp {
             dynamic_artifact_errors: HashMap::new(),
             dynamic_artifact_settings: HashMap::new(),
             dynamic_artifact_settings_open: None,
-            dynamic_artifact_unlink: None,
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
-            rename: None,
-            share: ShareDialog::default(),
             about_open: false,
+            run_program_open: false,
             app_menu_open: false,
             pending_destructive_action: None,
             scheduled_account_switch: None,
@@ -480,6 +510,11 @@ impl BlockApp {
             keys: keys::KeyState::default(),
             workspace_key: None,
         })
+    }
+
+    #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+    fn run_as_desktop(&mut self) {
+        self.root_settings = RootSettings::new(be_block::LINUX_DESKTOP_EDITOR);
     }
 
     #[cfg(not(target_os = "android"))]
@@ -843,6 +878,9 @@ impl BlockApp {
     }
 
     fn open_workspace(&mut self, workspace: Workspace) {
+        self.cancel_forwarded_picks();
+        self.focus_reports.clear();
+        self.artifact_watches.clear();
         be::stop();
         self.block_types.clear();
         self.registry = Rc::new(EditorRegistry::new());
@@ -852,12 +890,9 @@ impl BlockApp {
         self.dynamic_artifact_errors.clear();
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
-        self.dynamic_artifact_unlink = None;
-        self.share = ShareDialog::default();
-        self.root_settings = RootSettings::default();
+        self.root_settings = RootSettings::new(self.root_settings.shell());
         self.choosing_profile = false;
         self.shell = None;
-        self.shell_panes = None;
         self.ui_settings = None;
         self.keys.cancel_pairing();
         self.workspace_key = match self.app_state.workspace_key(&self.account, workspace.id) {
@@ -943,6 +978,9 @@ impl BlockApp {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
         };
+        self.cancel_forwarded_picks();
+        self.focus_reports.clear();
+        self.artifact_watches.clear();
         be::stop();
         self.block_types.clear();
         self.registry = Rc::new(EditorRegistry::new());
@@ -952,12 +990,9 @@ impl BlockApp {
         self.dynamic_artifact_errors.clear();
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
-        self.dynamic_artifact_unlink = None;
         self.pending_transfers.clear();
-        self.rename = None;
-        self.share = ShareDialog::default();
-        debug::close_client_windows();
         self.about_open = false;
+        self.run_program_open = false;
         self.app_menu_open = false;
         self.pending_destructive_action = None;
         self.scheduled_account_switch = None;
@@ -971,10 +1006,9 @@ impl BlockApp {
         self.workspace_error = None;
         self.reauth = None;
         self.invite_open = false;
-        self.root_settings = RootSettings::default();
+        self.root_settings = RootSettings::new(self.root_settings.shell());
         self.choosing_profile = false;
         self.shell = None;
-        self.shell_panes = None;
         self.ui_settings = None;
         self.keys = keys::KeyState::default();
         self.workspace_key = None;
@@ -1218,7 +1252,12 @@ impl BlockApp {
             }
 
             self.set_block_parent(copy_id, BlockParent::Block(copy.container));
-            self.show_in_shell(copy_id, block_type, Some(copy.container));
+            self.show_block(
+                Some(copy.container),
+                copy_id,
+                block_type,
+                Some(copy.container),
+            );
         }
     }
 
@@ -1238,9 +1277,6 @@ impl BlockApp {
         if self.dynamic_artifact_settings_open == Some(id) {
             self.dynamic_artifact_settings_open = None;
         }
-        if self.dynamic_artifact_unlink == Some(id) {
-            self.dynamic_artifact_unlink = None;
-        }
     }
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
@@ -1253,24 +1289,59 @@ impl BlockApp {
             }
             self.block_types.remove(&previous);
         }
-        self.block_types.insert(id, WORKSPACE_EDITOR);
+        let shell_editor = self.root_settings.shell();
+        self.block_types.insert(id, shell_editor);
         if !self.editors.with(|open| open.contains_key(&id)) {
-            let editor = self.registry.open(id, WORKSPACE_EDITOR).viewed_by(Some(id));
+            let editor = self.registry.open(id, shell_editor).viewed_by(Some(id));
+            if let Some(missing) = ShellRequest::ALL
+                .into_iter()
+                .find(|request| !editor.accepts(*request))
+            {
+                eprintln!("the shell editor does not accept {missing:?} requests");
+            }
             self.editors.with(|open| open.insert(id, editor));
+            self.windows_sent = None;
         }
         self.shell = Some(id);
         Some(id)
     }
 
-    fn show_in_shell(&mut self, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
-        self.block_types.insert(id, block_type);
-        if let Some(shell) = self.shell {
-            self.with_editor(shell, |shell| shell.show_block(id, block_type, via));
+    fn handler_for(&self, from: Option<Uuid>, request: ShellRequest) -> Option<Uuid> {
+        Some(shell_route::handler(
+            from,
+            self.shell?,
+            |id| self.with_editor(id, |editor| editor.accepts(request)) == Some(true),
+            |id| self.editors.parent_of(id),
+        ))
+    }
+
+    fn show_dialog(&mut self, from: Option<Uuid>, id: Uuid, dialog: ShellDialog) {
+        if let Some(handler) = self.handler_for(from, ShellRequest::Dialog) {
+            self.with_editor(handler, |handler| handler.show_dialog(id, dialog));
         }
     }
+
+    fn show_panel(&mut self, panel: HostPanel) {
+        if let Some(shell) = self.shell {
+            self.with_editor(shell, |shell| shell.show_panel(panel));
+        }
+    }
+
+    fn show_block(&mut self, from: Option<Uuid>, id: Uuid, block_type: Uuid, via: Option<Uuid>) {
+        self.block_types.insert(id, block_type);
+        if let Some(handler) = self.handler_for(from, ShellRequest::ShowBlock) {
+            self.with_editor(handler, |handler| handler.show_block(id, block_type, via));
+        }
+    }
+
     fn close_editor(&mut self, id: Uuid) {
         if self.shell == Some(id) {
             return;
+        }
+        self.editors.forget_parent(id);
+        self.focus_reports.remove(&id);
+        if self.artifact_watches.remove(&id).is_some() {
+            self.watch_artifacts(self.watched());
         }
         self.editors
             .with_simulated(|simulated| simulated.remove(&id));
@@ -1304,8 +1375,7 @@ impl BlockApp {
                     self.dynamic_artifact_errors.remove(&id);
                 }
             }
-            ArtifactAction::Settings => self.dynamic_artifact_settings_open = Some(id),
-            ArtifactAction::Unlink => self.dynamic_artifact_unlink = Some(id),
+            ArtifactAction::Unlink => self.unlink_artifact(id),
         }
     }
 
@@ -1318,26 +1388,50 @@ impl BlockApp {
             return;
         };
         compositor::set_shell(Some(shell));
-        let Some((panes, shown, focus, watch)) = self.with_editor(shell, |editor| {
-            (
-                editor.panes(),
-                editor.take_shown_panes(),
-                editor.take_focus_report(),
-                editor.take_artifact_watch(),
-            )
+        let windows = (Some((shell, wayland::revision())) != self.windows_sent).then(|| {
+            self.windows_sent = Some((shell, wayland::revision()));
+            wayland::listed()
+        });
+        let Some(closed) = self.with_editor(shell, |editor| {
+            if let Some(windows) = windows {
+                editor.set_windows(windows);
+            }
+            editor.take_closed_windows()
         }) else {
             return;
         };
-        self.shell_panes = panes;
-        for pane in shown {
-            let count = self.shown_pane.map_or(0, |(count, _)| count) + 1;
-            self.shown_pane = Some((count, pane));
+        for window in closed {
+            wayland::close(window);
         }
-        if let Some(focus) = focus {
+        let reports: Vec<(Uuid, Option<editors::FocusReport>, Option<Vec<Uuid>>)> =
+            self.editors.with(|open| {
+                open.values()
+                    .map(|editor| {
+                        (
+                            editor.id(),
+                            editor.take_focus_report(),
+                            editor.take_artifact_watch(),
+                        )
+                    })
+                    .collect()
+            });
+        let mut refocused = false;
+        let mut rewatched = false;
+        for (id, focus, watch) in reports {
+            if let Some(focus) = focus {
+                self.focus_reports.insert(id, focus);
+                refocused = true;
+            }
+            if let Some(watch) = watch {
+                self.artifact_watches.insert(id, watch);
+                rewatched = true;
+            }
+        }
+        if refocused && let Some(focus) = self.focus(shell) {
             plugin_host::set_focus(focus.block, focus.via);
         }
-        if let Some(watch) = watch {
-            self.watch_artifacts(watch);
+        if rewatched {
+            self.watch_artifacts(self.watched());
         }
         if host::key_pressed(beui::Key::Escape) {
             let presenting: Vec<Uuid> = self.editors.with(|open| {
@@ -1350,29 +1444,118 @@ impl BlockApp {
                 self.with_editor(id, PluginEditor::stop_presenting_now);
             }
         }
-        for action in self.serve_block_picks() {
-            self.handle_editor_action(action);
-        }
-        for action in compositor::take_actions() {
-            self.handle_editor_action(action);
+        self.forward_block_picks(shell);
+        self.editors.step_creations();
+        for (from, action) in compositor::take_actions() {
+            self.handle_editor_action(from, action);
         }
     }
 
-    fn serve_block_picks(&mut self) -> Vec<EditorAction> {
-        let ids: Vec<Uuid> = self.editors.with(|open| open.keys().copied().collect());
-        let mut actions = Vec::new();
-        for id in ids {
-            let Some(mut editor) = self.editors.with(|open| open.remove(&id)) else {
-                continue;
-            };
-            let action = self.editors.with(|open| {
-                let mut editors = EditorAccess::new(id, self.client_id, &self.registry, open);
-                editor.serve_block_pick(&mut editors)
-            });
-            self.editors.with(|open| open.insert(id, editor));
-            actions.extend(action);
+    fn focus(&self, shell: Uuid) -> Option<editors::FocusReport> {
+        let mut report = self.focus_reports.get(&shell)?;
+        let mut visited = HashSet::from([shell]);
+        while let Some((block, _)) = report.block
+            && visited.insert(block)
+            && let Some(inner) = self.focus_reports.get(&block)
+            && inner.block.is_some()
+        {
+            report = inner;
         }
-        actions
+        Some(editors::FocusReport {
+            block: report.block,
+            via: report.via.clone(),
+        })
+    }
+
+    fn watched(&self) -> Vec<Uuid> {
+        let mut watched: Vec<Uuid> = self.artifact_watches.values().flatten().copied().collect();
+        watched.sort_unstable();
+        watched.dedup();
+        watched
+    }
+
+    fn cancel_forwarded_picks(&mut self) {
+        for (_, (source, request_id)) in self.forwarded_picks.drain() {
+            source.answer(request_id, block_plugin_api::BlockPick::Cancelled);
+        }
+    }
+
+    fn forward_block_picks(&mut self, shell: Uuid) {
+        let editors: Vec<(Uuid, PickSource, bool)> = self.editors.with(|open| {
+            open.values()
+                .filter_map(|editor| {
+                    Some((
+                        editor.id(),
+                        editor.pick_source()?,
+                        editor.accepts(ShellRequest::Pick),
+                    ))
+                })
+                .collect()
+        });
+        for (_, picker, _) in editors.iter().filter(|(_, _, accepts)| *accepts) {
+            for (pick, answer) in
+                crate::plugin_host::take_pick_answers(&picker.plugin_id, picker.instance)
+            {
+                if let Some((source, request_id)) = self.forwarded_picks.remove(&pick) {
+                    source.answer(request_id, answer);
+                }
+            }
+        }
+        let pickers: HashMap<Uuid, PickSource> = editors
+            .iter()
+            .filter(|(_, _, accepts)| *accepts)
+            .map(|(id, picker, _)| (*id, picker.clone()))
+            .collect();
+        let editors: Vec<(Uuid, PickSource)> = editors
+            .into_iter()
+            .map(|(id, source, _)| (id, source))
+            .collect();
+        for (id, source) in &editors {
+            let (settings, commits): (Vec<_>, Vec<_>) =
+                crate::plugin_host::take_child_commits(&source.plugin_id, source.instance)
+                    .into_iter()
+                    .partition(|commit| self.editors.settings_block(*id, commit.child).is_some());
+            for commit in settings {
+                if let Some(block) = self.editors.settings_block(*id, commit.child) {
+                    self.apply_artifact_settings(block);
+                }
+            }
+            if !commits.is_empty() {
+                self.editors.commit_creations(*id, commits);
+            }
+        }
+        self.editors.forget_hidden_settings();
+        let creations = self.editors.creation_pick_sources();
+        let requesters = editors
+            .into_iter()
+            .map(|(id, source)| (Some(id), source))
+            .chain(creations.into_iter().map(|source| (None, source)));
+        for (block, source) in requesters {
+            while let Some(request) = source.take() {
+                let mut filter = request.filter;
+                filter.excluded.extend(block.map(Uuid::into_bytes));
+                let parent = match block {
+                    Some(block) => block_plugin_api::BlockLocation::Block(block.into_bytes()),
+                    None => block_plugin_api::BlockLocation::Root,
+                };
+                self.next_pick += 1;
+                let pick = self.next_pick;
+                let handler = self.handler_for(block, ShellRequest::Pick).unwrap_or(shell);
+                let Some(picker) = pickers.get(&handler).or_else(|| pickers.get(&shell)) else {
+                    source.answer(request.request_id, block_plugin_api::BlockPick::Cancelled);
+                    continue;
+                };
+                self.forwarded_picks
+                    .insert(pick, (source.clone(), request.request_id));
+                crate::plugin_host::request_pick(
+                    &picker.plugin_id,
+                    picker.instance,
+                    pick,
+                    filter,
+                    parent,
+                );
+            }
+        }
     }
 
     fn poll_artifacts(&mut self) {
@@ -1444,14 +1627,21 @@ impl BlockApp {
             }
             states.push(state);
         }
-        if let Some(shell) = self.shell {
-            self.with_editor(shell, |shell| shell.set_artifact_states(states));
+        let watchers: Vec<Uuid> = self.artifact_watches.keys().copied().collect();
+        for watcher in watchers {
+            self.with_editor(watcher, |editor| editor.set_artifact_states(states.clone()));
         }
         self.show_artifact_settings();
     }
 
     fn show_artifact_settings(&mut self) {
+        let requested = self.editors.requested_settings();
+        if self.dynamic_artifact_settings_open != requested {
+            self.cancel_artifact_settings();
+            self.dynamic_artifact_settings_open = requested;
+        }
         let Some(id) = self.dynamic_artifact_settings_open else {
+            self.editors.set_settings_status(None);
             return;
         };
         let descriptor = artifact_of(id);
@@ -1465,7 +1655,6 @@ impl BlockApp {
             .dynamic_artifact_settings
             .entry(id)
             .or_insert_with(|| descriptor.data.clone());
-        surfaces::set_height(SurfaceId::ArtifactSettings, Some(session.settings_height()));
         surfaces::host(
             SurfaceId::ArtifactSettings,
             Some(session.settings_region(&self.registry)),
@@ -1473,13 +1662,19 @@ impl BlockApp {
         if let Some(edited) = session.take_draft() {
             *draft = edited;
         }
+        let progress = block_plugin_api::SettingsProgress {
+            changed: *draft != descriptor.data,
+            summary: session.summary(draft),
+        };
+        self.editors
+            .set_settings_status(Some((id, progress, session.settings_height())));
         self.dynamic_artifact_sessions.insert(id, session);
     }
 
-    fn apply_artifact_settings(&mut self) {
-        let Some(id) = self.dynamic_artifact_settings_open else {
+    fn apply_artifact_settings(&mut self, id: Uuid) {
+        if self.dynamic_artifact_settings_open != Some(id) {
             return;
-        };
+        }
         let Some(descriptor) = artifact_of(id) else {
             self.dynamic_artifact_settings_open = None;
             return;
@@ -1511,52 +1706,33 @@ impl BlockApp {
         }
     }
 
-    fn unlink_artifact(&mut self) {
-        let Some(id) = self.dynamic_artifact_unlink else {
-            return;
-        };
+    fn unlink_artifact(&mut self, id: Uuid) {
         set_artifact(id, None);
         self.dynamic_artifact_errors.remove(&id);
         self.forget_dynamic_artifact_dialogs(id);
     }
 
-    fn handle_editor_action(&mut self, action: EditorAction) {
+    fn handle_editor_action(&mut self, from: Option<Uuid>, action: EditorAction) {
         match action {
             EditorAction::OpenBlock {
                 id,
                 block_type,
                 via,
-            } => self.show_in_shell(id, block_type, via),
+            } => self.show_block(from, id, block_type, via),
             EditorAction::DragBlock { id, block_type } => {
                 host::start_drag(host::DragPayload {
                     block_id: id,
                     block_type,
                 });
             }
-            EditorAction::Command { id, command } => self.handle_block_command(id, command),
+            EditorAction::Command { id, command } => self.handle_block_command(from, id, command),
         }
     }
 
-    fn block_label(&self, id: Uuid) -> BlockLabel {
-        be::node(id).map_or_else(
-            || {
-                let block_type = self.block_type_of(id).unwrap_or_default();
-                BlockLabel::new(&self.registry, block_type, None, false)
-            },
-            |node| BlockLabel::for_node(&self.registry, &node),
-        )
-    }
-
-    fn handle_block_command(&mut self, id: Uuid, command: BlockCommand) {
+    fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
         match command {
-            BlockCommand::Share => {
-                let label = self.block_label(id);
-                self.share.open(id, label);
-            }
-            BlockCommand::Rename => {
-                let name = self.block_label(id).name;
-                self.rename = Some(RenameState { id, name });
-            }
+            BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
+            BlockCommand::Rename => self.show_dialog(from, id, ShellDialog::Rename),
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
@@ -1689,7 +1865,6 @@ impl BlockApp {
         }
         self.process_pending_transfers();
         self.process_pending_copies();
-        self.share.poll();
         debug::poll();
         self.show_shell();
         self.poll_artifacts();
@@ -1852,7 +2027,6 @@ impl BlockApp {
                 self.close_reauth();
             }
             UiCommand::ReauthClose => self.close_reauth(),
-            UiCommand::OpenSettings => self.open_settings(),
             UiCommand::SwitchProfile(profile) => {
                 self.root_settings.use_profile(self.client_id, profile);
             }
@@ -1873,6 +2047,11 @@ impl BlockApp {
                 }
             }
             UiCommand::About(open) => self.about_open = open,
+            UiCommand::RunProgram(open) => self.run_program_open = open,
+            UiCommand::Launch(command) => {
+                self.run_program_open = false;
+                wayland::launch(command);
+            }
             UiCommand::AppMenu(open) => self.app_menu_open = open,
             UiCommand::SendInvite(email, role) => {
                 if let Some(workspace) = &self.workspace
@@ -1885,44 +2064,8 @@ impl BlockApp {
             UiCommand::CloseInvite => self.invite_open = false,
             UiCommand::Discard => self.discard(context),
             UiCommand::CancelDiscard => self.pending_destructive_action = None,
-            UiCommand::SubmitRename(name) => {
-                if name.len() <= MAX_NAME_BYTES
-                    && let Some(rename) = self.rename.take()
-                {
-                    let name = name.trim().to_owned();
-                    be::set_name(rename.id, (!name.is_empty()).then_some(name));
-                }
-            }
-            UiCommand::CancelRename => self.rename = None,
-            UiCommand::ApplyArtifactSettings => self.apply_artifact_settings(),
-            UiCommand::CancelArtifactSettings => self.cancel_artifact_settings(),
-            UiCommand::Unlink => self.unlink_artifact(),
-            UiCommand::CancelUnlink => self.dynamic_artifact_unlink = None,
-            UiCommand::Share(command) => self.share.command(command),
-            UiCommand::Picker(command) => block_picker::deliver(command),
             UiCommand::Debug(command) => debug::command(command),
-            UiCommand::ArrangePanes {
-                arrangement,
-                tree,
-                detached,
-                focused,
-            } => {
-                if let Some(shell) = self.shell {
-                    self.with_editor(shell, |shell| {
-                        shell.arrange_panes(arrangement, tree, detached, focused)
-                    });
-                }
-            }
-            UiCommand::ClosePane(pane) => {
-                if let Some(shell) = self.shell {
-                    self.with_editor(shell, |shell| shell.close_pane(pane));
-                }
-            }
-            UiCommand::PaneMenuPick(pane, id) => {
-                if let Some(shell) = self.shell {
-                    self.with_editor(shell, |shell| shell.pick_pane_menu(pane, id));
-                }
-            }
+            UiCommand::ShowPanel(panel) => self.show_panel(panel),
             UiCommand::ConfirmRecovery(words) => {
                 let held = self.held_keys();
                 self.keys.confirm_recovery(
@@ -2058,15 +2201,6 @@ impl BlockApp {
             }),
             status: ui::StatusView {
                 changes_saved,
-                frame: performance::last_frame()
-                    .map(|frame| {
-                        format!(
-                            "Frame {}: {:.3} ms",
-                            frame.number,
-                            frame.duration.as_secs_f64() * 1_000.0
-                        )
-                    })
-                    .unwrap_or_default(),
                 workspace: workspace_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
                 accounts,
@@ -2077,6 +2211,7 @@ impl BlockApp {
                     .map(|(id, name, current)| ui::ProfileRow { id, name, current })
                     .collect(),
                 profiles_loaded: self.root_settings.loaded(),
+                runs_programs: wayland::running(),
             },
             invite: self.invite_open.then(|| ui::InviteView {
                 workspace: workspace_name,
@@ -2085,31 +2220,9 @@ impl BlockApp {
                 sent: self.invite_sent,
             }),
             about: self.about_open,
+            run_program: self.run_program_open,
             app_menu: self.app_menu_open,
             discard: self.pending_destructive_action.as_ref().map(discard_view),
-            rename: self.rename.as_ref().map(|rename| ui::RenameView {
-                id: rename.id,
-                name: rename.name.clone(),
-            }),
-            artifact_settings: self.dynamic_artifact_settings_open.and_then(|id| {
-                let descriptor = artifact_of(id)?;
-                let draft = self.dynamic_artifact_settings.get(&id);
-                let session = self.dynamic_artifact_sessions.get(&id);
-                Some(ui::ArtifactSettingsView {
-                    id,
-                    changed: draft.is_some_and(|draft| *draft != descriptor.data),
-                    summary: session
-                        .zip(draft)
-                        .and_then(|(session, draft)| session.summary(draft)),
-                })
-            }),
-            unlink: self.dynamic_artifact_unlink.is_some(),
-            share: self.share.view(),
-            pickers: block_picker::views(),
-            panes: ui::PanesView {
-                layout: self.shell_panes.clone(),
-                shown: self.shown_pane,
-            },
             presenting: self
                 .editors
                 .with(|open| open.values().any(PluginEditor::presenting_now)),

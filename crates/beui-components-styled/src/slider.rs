@@ -1,10 +1,10 @@
-use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
 use crate::theme::{
-    BORDER_WIDTH, RADIUS, ThemeStore, control_outline, control_outline_visible, use_theme,
+    BORDER_WIDTH, FOCUS_RING_WIDTH, RADIUS, ThemeStore, control_outline, control_outline_visible,
+    use_theme,
 };
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SliderHandle, SliderScale};
@@ -19,7 +19,6 @@ const TRACK_HEIGHT: f32 = 6.0;
 const TRACK_RADIUS: u8 = 3;
 const KNOB_SIZE: f32 = 16.0;
 const KNOB_RADIUS: u8 = 8;
-const FOCUS_RING_WIDTH: f32 = 2.0;
 const FOCUS_RING_OFFSET: f32 = 3.0;
 
 #[component]
@@ -32,13 +31,6 @@ pub fn Slider(
     #[prop(default = false)] disabled: Prop<bool>,
     on_change: Callback<f32>,
 ) -> NodeId {
-    let accessibility = label.map(|label| {
-        let mut node = Node::new(Role::Slider);
-        if !label.is_empty() {
-            node.set_label(label);
-        }
-        node
-    });
     view! {
         <unstyled::Slider
             value
@@ -47,7 +39,7 @@ pub fn Slider(
             scale
             thumb=KNOB_SIZE
             disabled
-            accessibility
+            label
             on_change={move |value| on_change.call(value)}
         >
             {move |handle: SliderHandle| {

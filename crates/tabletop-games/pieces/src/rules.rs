@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use game_api::board::{Grid, Shade, Sprite, Tint};
+use game_api::board::{Board, ItemId, Shade, Sprite, Squares, Tint};
 use game_api::{Control, GameHelper, GameScreen, Move, Scene, Spot};
 use uuid::Uuid;
 
@@ -47,6 +47,10 @@ impl Rules {
         }
     }
 }
+
+const LAST_MOVE: u32 = 1;
+const DANGER: u32 = 2;
+const MEN: u32 = 3;
 
 enum Ending {
     Won { winner: Side, how: &'static str },
@@ -254,9 +258,10 @@ impl Table<'_> {
         }
     }
 
-    fn grid(&self, viewer: Uuid) -> Grid {
+    fn grid(&self, viewer: Uuid) -> Board {
         let flipped = self.flipped(viewer);
-        let mut grid = Grid::new(self.position.columns() as u32, self.position.rows() as u32);
+        let (columns, rows) = (self.position.columns() as u32, self.position.rows() as u32);
+        let squares = Squares::checkered(columns, rows);
         let marked: Vec<Square> = self
             .last
             .map(|step| {
@@ -269,26 +274,38 @@ impl Table<'_> {
             .check
             .map(|side| self.position.royals(side).collect())
             .unwrap_or_default();
-        for square in self.position.squares() {
-            let Spot::Tile { column, row } = self.spot(square, flipped) else {
-                continue;
-            };
-            let shade = match dark(square) {
-                true => Shade::Dark,
-                false => Shade::Light,
-            };
-            grid.place(column, row, Sprite::Square(shade));
+        let shown: Vec<(Square, u32, u32)> = self
+            .position
+            .squares()
+            .filter_map(|square| match self.spot(square, flipped) {
+                Spot::Tile { column, row } => Some((square, column, row)),
+                _ => None,
+            })
+            .collect();
+        let mut shades = vec![Shade::Light; (columns * rows) as usize];
+        for (square, column, row) in &shown {
+            if dark(*square) {
+                shades[(row * columns + column) as usize] = Shade::Dark;
+            }
+        }
+        let mut board =
+            squares.board(|column, row| Sprite::Square(shades[(row * columns + column) as usize]));
+        for (square, column, row) in shown {
+            let index = square.rank as u32 * columns + square.file as u32;
             if marked.contains(&square) {
-                grid.place(column, row, Sprite::Tint(Tint::LastMove));
+                let id = ItemId::new(LAST_MOVE, index);
+                squares.place(&mut board, id, column, row, Sprite::Tint(Tint::LastMove));
             }
             if endangered.contains(&square) {
-                grid.place(column, row, Sprite::Tint(Tint::Danger));
+                let id = ItemId::new(DANGER, index);
+                squares.place(&mut board, id, column, row, Sprite::Tint(Tint::Danger));
             }
             if let Some(man) = self.position.at(square) {
                 let color = self.rules.army(man.side).color;
-                grid.place(column, row, Sprite::piece(man.piece.name(), color));
+                let sprite = Sprite::piece(man.piece.name(), color);
+                squares.place(&mut board, ItemId::new(MEN, man.id), column, row, sprite);
             }
         }
-        grid
+        board
     }
 }

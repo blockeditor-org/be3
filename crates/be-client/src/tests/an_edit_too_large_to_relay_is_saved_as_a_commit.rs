@@ -24,7 +24,13 @@ async fn an_edit_too_large_to_relay_is_saved_as_a_commit() {
         .unwrap();
 
     let pasted = "a line of pasted text\n".repeat(500_000);
+    owner.take_journal();
     owner.edit(TextOp::insert(6, &pasted)).await.unwrap();
+    assert_eq!(
+        owner.take_journal(),
+        [crate::Journaled::Replaced { edits: 1 }],
+        "the replacement lost count of the edit it was saved for"
+    );
     assert!(
         !owner_peer.connection().is_closed(),
         "relaying the large edit broke the connection"

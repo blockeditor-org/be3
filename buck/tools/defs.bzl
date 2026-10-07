@@ -2,11 +2,18 @@
 
 # The container a worker runs actions in: Ubuntu 24.04's buildpack-deps, pinned
 # by digest. It brings glibc, libstdc++ and the Python the prelude runs on; the
-# compilers come from buck/tools/BUCK.
-worker_properties = {
-    "OSFamily": "Linux",
-    "container-image": "docker://docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da07137ab3178ae8b7118dfe1dff7991549",
-}
+# compilers come from buck/tools/BUCK. Namespace runs only its own copy of it
+# in its registry (guides/build_server.md); the other servers pull it from
+# Docker Hub. be3.build_server is the server ./scripts/buck builds on.
+def worker_properties():
+    if read_root_config("be3", "build_server", "namespace") == "namespace":
+        image = "docker://nscr.io/nmbprh983nhl8/be3-worker@sha256:a8f4627669b71081a3f3a0db26375e35fce20b75335130b50b8526bba1d0a497"
+    else:
+        image = "docker://docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da07137ab3178ae8b7118dfe1dff7991549"
+    return {
+        "OSFamily": "Linux",
+        "container-image": image,
+    }
 
 # Lays the Rust dist components over one another into the sysroot rustup would
 # have installed: rustc's bin and lib, each target's standard library under
@@ -38,44 +45,54 @@ rust_sysroot = rule(
 # name decides how it behaves.
 def _llvm_tree_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output("llvm", dir = True)
-    script = """
-set -eu
-out="$1"
-shift
-packages="$(mktemp -d)"
-for package; do dpkg-deb -x "$package" "$packages"; done
-mkdir -p "$out/bin" "$out/lib"
-cp -P "$packages"/usr/lib/llvm-20/bin/clang "$packages"/usr/lib/llvm-20/bin/clang++ \
-    "$packages"/usr/lib/llvm-20/bin/lld "$packages"/usr/lib/llvm-20/bin/ld.lld \
-    "$packages"/usr/lib/llvm-20/bin/ld64.lld "$packages"/usr/lib/llvm-20/bin/lld-link \
-    "$packages"/usr/lib/llvm-20/bin/llvm-ar "$packages"/usr/lib/llvm-20/bin/llvm-lib "$out/bin/"
-cp "$packages"/usr/lib/x86_64-linux-gnu/libLLVM.so.20.1 \
-    "$packages"/usr/lib/x86_64-linux-gnu/libclang-cpp.so.20.1 "$out/lib/"
-cp "$packages"/usr/lib/x86_64-linux-gnu/libclang-20.so.20 "$out/lib/libclang.so"
-cp -R "$packages"/usr/lib/llvm-20/lib/clang "$out/lib/"
-rm -rf "$packages"
-"""
     ctx.actions.run(
-        cmd_args("sh", "-c", script, "--", out.as_output(), ctx.attrs.packages),
+        cmd_args("sh", ctx.attrs._script, out.as_output(), ctx.attrs.packages),
         category = "llvm_tree",
     )
     return [DefaultInfo(default_output = out)]
 
 llvm_tree = rule(
-    attrs = {"packages": attrs.list(attrs.source())},
+    attrs = {
+        "packages": attrs.list(attrs.source()),
+        "_script": attrs.default_only(attrs.source(default = "root//buck/tools:llvm_tree.sh")),
+    },
     impl = _llvm_tree_impl,
 )
 
-# A command made of artifacts and arguments, as a tool a toolchain can name.
-# Its location macros are what put the directories above into every action
-# that runs it, which is how a worker comes to have the compiler at all.
-def _tool_impl(ctx: AnalysisContext) -> list[Provider]:
+# A program from a Rust sysroot, run with SDKROOT set to Apple's SDK, as one
+# executable rather than a shell command: the prelude's clippy wrapper writes
+# each argument of the driver's command on a line of its own, so only a lone
+# program survives it. SDKROOT must be absolute, and build scripts run the
+# compiler from directories of their own, so the script finds the SDK and the
+# program from where it is itself.
+def _apple_sdk_tool_impl(ctx: AnalysisContext) -> list[Provider]:
+    script = ctx.actions.declare_output("{}.sh".format(ctx.attrs.program))
+    ctx.actions.write(
+        script,
+        [
+            "#!/bin/sh",
+            'here="$(cd "$(dirname "$0")" && pwd)"',
+            cmd_args(
+                cmd_args(ctx.attrs.sdk, format = 'SDKROOT="$here/{}"', relative_to = (script, 1)),
+                "exec",
+                cmd_args(ctx.attrs.sysroot, format = '"$here/{}/bin/' + ctx.attrs.program + '"', relative_to = (script, 1)),
+                '"$@"',
+                delimiter = " ",
+            ),
+        ],
+        allow_args = True,
+        is_executable = True,
+    )
     return [
-        DefaultInfo(),
-        RunInfo(args = cmd_args(ctx.attrs.command)),
+        DefaultInfo(default_output = script),
+        RunInfo(args = cmd_args(script, hidden = [ctx.attrs.sdk, ctx.attrs.sysroot])),
     ]
 
-tool = rule(
-    attrs = {"command": attrs.list(attrs.arg())},
-    impl = _tool_impl,
+apple_sdk_tool = rule(
+    attrs = {
+        "program": attrs.string(),
+        "sdk": attrs.source(),
+        "sysroot": attrs.source(),
+    },
+    impl = _apple_sdk_tool_impl,
 )

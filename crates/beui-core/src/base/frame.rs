@@ -315,6 +315,10 @@ impl Element for FrameNode {
         self.child.into_iter().collect()
     }
 
+    fn passes_scroll_anchor(&self) -> bool {
+        true
+    }
+
     fn kind(&self) -> &'static str {
         "frame"
     }

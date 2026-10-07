@@ -15,7 +15,7 @@ fn placed() -> Instances {
 fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
     let rect = Rect::from_min_size(pos2(10.0, 10.0), SIZE);
     let mut instances = Instances::default();
-    let block_types = Arc::new(Vec::new());
+    let block_types = Arc::new(block_plugin_api::Catalog::default());
     let role = InstanceRole::Editor(EditorBlock {
         id: block,
         block_type,
@@ -85,6 +85,7 @@ mod a_message_waits_for_the_instance_it_names_to_be_opened;
 mod a_plugin_is_told_when_the_pointer_leaves_it;
 mod a_plugin_reaches_only_the_hosts_its_manifest_names;
 mod a_plugin_seeds_only_blocks_it_holds;
+mod a_window_close_is_kept_for_the_host_to_take;
 mod after_the_first_snapshot_an_editor_is_sent_operations;
 mod an_editor_can_read_and_edit_a_block_it_watches;
 mod an_editor_is_only_sent_messages_its_plugin_session_accepts;
@@ -94,3 +95,4 @@ mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
 mod clearing_a_name_names_the_block_after_its_content_at_once;
 mod input_is_withheld_from_screens_the_plugin_no_longer_has;
 mod the_view_a_screen_is_given_carries_the_scale_it_is_shown_at;
+mod the_windows_the_host_runs_reach_an_instance_again_after_a_restart;

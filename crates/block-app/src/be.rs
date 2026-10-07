@@ -76,7 +76,12 @@ impl Content {
                     self.log.pop_front();
                 }
             }
-            worker::Logged::Replaced => self.log.clear(),
+            worker::Logged::Replaced { acknowledged } => {
+                for (origin, count) in acknowledged {
+                    *self.taken.entry(origin).or_default() += count;
+                }
+                self.log.clear();
+            }
         }
     }
 
@@ -626,10 +631,6 @@ pub(crate) fn query(query: Query) -> Vec<Node> {
     with_shared(|shared| shared.graph.query(query)).unwrap_or_default()
 }
 
-pub(crate) fn nodes() -> Vec<Node> {
-    with_shared(|shared| shared.graph.nodes()).unwrap_or_default()
-}
-
 pub(crate) fn node(block: Uuid) -> Option<Node> {
     with_shared(|shared| shared.graph.get(block).cloned())?
 }
@@ -741,10 +742,12 @@ pub(crate) fn set_access(block: Uuid, account: Uuid, access: be_graph::Access) {
 
 pub(crate) fn list_access(
     block: Uuid,
-) -> std::sync::mpsc::Receiver<Result<Vec<be_protocol::AccessEntry>, String>> {
-    let (reply, received) = crate::host::waking_channel();
-    send(Command::ListAccess { block, reply });
-    received
+    reply: impl FnOnce(Result<Vec<be_protocol::AccessEntry>, String>) + Send + 'static,
+) {
+    send(Command::ListAccess {
+        block,
+        reply: Box::new(reply),
+    });
 }
 
 fn with_shared<T>(read: impl FnOnce(&Shared) -> T) -> Option<T> {

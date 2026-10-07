@@ -1,6 +1,5 @@
 load("@root//buck/app:defs.bzl", "app")
 load("@root//buck/cargo:defs.bzl", "cargo_library")
-load("@root//buck/tools:defs.bzl", "tool")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 
 # beui's demo (crates/beui-demo) in a browser, drawn with DOM elements or with
@@ -35,9 +34,9 @@ app(
 )
 
 # The bundle on http://127.0.0.1:8070, or on the address after `--`.
-tool(
+command_alias(
     name = "web-serve",
-    command = [
+    args = [
         "sh",
         "$(location :serve.sh)",
         "$(location //buck/tools:caddy)",
