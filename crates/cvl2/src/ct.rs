@@ -268,7 +268,7 @@ impl Type {
                 };
                 let found = match &key {
                     ComptimeValueKey::Symbol { key, .. } => ty.ty.type_symbol(*key),
-                    ComptimeValueKey::String { .. } => None,
+                    ComptimeValueKey::String { key } => ty.ty.type_field(key),
                 };
                 if found.is_none()
                     && matches!(&key, ComptimeValueKey::String { key } if key == "else")
@@ -344,6 +344,18 @@ impl Type {
                 pos: compiler_pos(),
             }))),
         })
+    }
+
+    pub fn type_field(&self, name: &str) -> Option<AnalysisResult> {
+        match (self, name) {
+            (Type::KwBool(_), "true" | "false") => Some(AnalysisResult {
+                ty: Type::KwBool(KwBool),
+                value: RuntimeValue::Comptime(ComptimeValue::KwBool(ComptimeValueKwBool {
+                    value: name == "true",
+                })),
+            }),
+            _ => None,
+        }
     }
 
     pub fn has_value_symbol(&self, key: Symbol) -> bool {

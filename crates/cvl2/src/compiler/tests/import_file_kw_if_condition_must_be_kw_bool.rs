@@ -9,7 +9,7 @@ fn import_file_kw_if_condition_must_be_kw_bool() {
         "expected KwBool, got KwInt"
     );
     assert_eq!(
-        build_file("    std.kw.if (std.kw.true != std.kw.false) { } .else { }\n    -> \"x\""),
+        build_file("    std.kw.if (std.kw.bool.true != .false) { } .else { }\n    -> \"x\""),
         Ok("x".to_string())
     );
 }

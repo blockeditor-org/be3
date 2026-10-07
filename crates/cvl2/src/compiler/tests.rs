@@ -175,6 +175,7 @@ mod import_file_builds_demo_sample;
 mod import_file_builds_kw_sample;
 mod import_file_c_if_requires_c_target;
 mod import_file_compare_operator_takes_rhs_type_from_lhs;
+mod import_file_kw_bool_values_resolve_from_slot;
 mod import_file_kw_else_must_follow_if_on_same_line;
 mod import_file_kw_if_condition_must_be_kw_bool;
 mod import_file_kw_if_requires_build_target;

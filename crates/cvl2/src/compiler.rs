@@ -2495,13 +2495,6 @@ fn d_raw(result: AnalysisResult) -> Rc<dyn Descriptor> {
     Rc::new(CustomDescriptor(result))
 }
 
-fn d_kw_bool(value: bool) -> Rc<dyn Descriptor> {
-    d_raw(AnalysisResult {
-        ty: Type::KwBool(crate::ct::KwBool),
-        value: RuntimeValue::Comptime(ComptimeValue::KwBool(ComptimeValueKwBool { value })),
-    })
-}
-
 fn d_std_key(key: crate::std_keys::StdKey) -> Rc<dyn Descriptor> {
     d_raw(AnalysisResult {
         ty: Type::CtKey(CtKey),
@@ -2986,8 +2979,6 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                             )),
                                         }),
                                     ),
-                                    ("true", d_kw_bool(true)),
-                                    ("false", d_kw_bool(false)),
                                     ("if", d_ns(vec![], Some(builtin_kw_if_call))),
                                 ],
                                 None,
