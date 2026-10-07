@@ -108,6 +108,15 @@ editor's Waker, or for the delay the editor asked to be painted again after, and
 fixed time. Work that lands without waking the editor and without asking for a frame stalls
 it until the deadline, which is the stall a person would see in the app.
 
+Time in the editor is the harness's own clock, not the wall clock: every frame the harness
+paints is one frame interval later, and the host hands the plugin that time with each frame,
+which is what its frame clock (`timer::now()`) reads. An animation therefore lands on the same
+frame on any machine, a frame captured part way through one paints the same everywhere, and
+waiting for a delay the editor asked for costs no real time. advance(by) moves the clock on and
+paints a frame, for a timer that is longer than an animation:
+
+    editor.advance(Duration::from_secs(60));
+
     editor.settle_until("the lighting to land", |editor| editor.shown("scene.lit"));
 
 settle() is the same wait for the editor's own animations, such as a sheet sliding in:

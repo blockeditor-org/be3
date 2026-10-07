@@ -46,7 +46,7 @@ impl Runtime {
         let mut draw = false;
         let mut outbound = Vec::new();
         for message in batch {
-            if matches!(message, Message::DrawFrame) {
+            if matches!(message, Message::DrawFrame { .. }) {
                 draw = true;
             }
             changed |= self.screens.receive(&message);

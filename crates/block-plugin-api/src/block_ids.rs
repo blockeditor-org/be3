@@ -50,7 +50,7 @@ impl Message {
             | Self::RegionSizes(_)
             | Self::Frames(_)
             | Self::Input(_)
-            | Self::DrawFrame
+            | Self::DrawFrame { .. }
             | Self::FrameNeeded
             | Self::FrameReady(_)
             | Self::Acknowledged { .. }

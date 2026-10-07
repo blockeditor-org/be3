@@ -118,6 +118,9 @@ impl PluginSurface {
         if resized && let Some(renderers) = self.runner.renderers() {
             renderers.resize(width, height);
         }
+        if let Some(now) = block_editor_plugin::frame_time() {
+            self.runner.context().set_clock(now);
+        }
         self.platform.deliver_picks(self.runner.context());
         let ratio = self.ratio(region);
         let scale = region.scale_factor;

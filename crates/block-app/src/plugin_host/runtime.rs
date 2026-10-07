@@ -360,7 +360,9 @@ impl Runtime {
         let drawing = self.session.granted_surface().is_some();
         if drawing && self.pacing.due(self.now(), host::pass()) {
             self.pacing.request(self.now(), host::pass());
-            self.send(vec![Message::DrawFrame]);
+            self.send(vec![Message::DrawFrame {
+                now_micros: self.now().as_micros() as u64,
+            }]);
         }
         if let Some(delay) = self.pacing.wake_after(self.now(), drawing) {
             host::request_repaint_after(delay);

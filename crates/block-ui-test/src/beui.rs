@@ -17,6 +17,7 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use uuid::Uuid;
 
+use crate::document::FRAME_INTERVAL;
 use crate::input::Input;
 use crate::{ContentStore, snapshot};
 
@@ -56,6 +57,7 @@ pub struct BeuiTest<A: BeuiApp> {
     next_request: u64,
     screens: u64,
     wakes: Arc<Wakes>,
+    clock: std::time::Duration,
     app: PhantomData<A>,
 }
 
@@ -215,6 +217,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             next_request: 0,
             screens: 0,
             wakes,
+            clock: std::time::Duration::ZERO,
             app: PhantomData,
         };
         let hello = test.plugin.hello();
@@ -649,6 +652,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
     }
 
+    pub fn advance(&mut self, by: std::time::Duration) {
+        self.clock += by;
+        self.run();
+    }
+
     pub fn settle(&mut self) {
         self.settle_until("its animations to finish", |test| {
             test.output.as_ref().is_none_or(|output| {
@@ -677,8 +685,12 @@ impl<A: BeuiApp> BeuiTest<A> {
                 continue;
             }
             eager = 0;
+            if requested < std::time::Duration::MAX {
+                self.clock += requested.saturating_sub(FRAME_INTERVAL);
+                continue;
+            }
             let left = SETTLE_DEADLINE.saturating_sub(started.elapsed());
-            self.wakes.wait_past(seen, requested.min(left));
+            self.wakes.wait_past(seen, left);
         }
         panic!("the editor was still waiting for {what} after {SETTLE_DEADLINE:?}");
     }
@@ -703,7 +715,10 @@ impl<A: BeuiApp> BeuiTest<A> {
                 events,
             }));
         }
-        inbox.push(Message::DrawFrame);
+        self.clock += FRAME_INTERVAL;
+        inbox.push(Message::DrawFrame {
+            now_micros: self.clock.as_micros() as u64,
+        });
         for message in inbox {
             self.deliver(message);
         }
