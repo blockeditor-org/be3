@@ -87,11 +87,13 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
     event_loop.set_control_flow(ControlFlow::Wait);
     let size = launch.options.size;
+    #[cfg(all(unix, not(target_os = "macos")))]
     let app_id = launch.options.app_id.clone();
     launch.context.set_test_ids_published(false);
     let mut runner = Runner {
         runner: beui_core::runner::Runner::new(launch),
         size,
+        #[cfg(all(unix, not(target_os = "macos")))]
         app_id,
         load: Some(load),
         surface: None,
@@ -126,6 +128,7 @@ struct Surface {
 struct Runner {
     runner: beui_core::runner::Runner,
     size: Vec2,
+    #[cfg(all(unix, not(target_os = "macos")))]
     app_id: Option<String>,
     load: Option<Load>,
     surface: Option<Surface>,

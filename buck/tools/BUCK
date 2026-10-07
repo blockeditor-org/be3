@@ -1,6 +1,6 @@
 load("@toolchains//:defs.bzl", "script")
 load("//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple")
-load(":defs.bzl", "llvm_tree", "rust_sysroot")
+load(":defs.bzl", "apple_sdk_tool", "llvm_tree", "rust_sysroot")
 
 # The compilers and tools the build runs. A worker is a container with nothing
 # of this project's in it (defs.bzl), so everything is downloaded here, pinned
@@ -160,10 +160,17 @@ cross_targets = sorted([cross_triple(name) for name in CROSS_PLATFORMS])
 # in a command line is relative to wherever the action runs.
 [
     [
-        command_alias(
+        apple_sdk_tool(
             name = "{}-{}".format(program, target),
-            args = (["sh", "-c", 'SDKROOT="$PWD/$0" exec "$@"', "$(location :macos-sdk)"] if "apple" in target else [])
-            + ["$(location :rust-{})/bin/{}".format(target, program)],
+            program = program,
+            sdk = ":macos-sdk",
+            sysroot = ":rust-" + target,
+            visibility = ["PUBLIC"],
+        )
+        if "apple" in target
+        else command_alias(
+            name = "{}-{}".format(program, target),
+            args = ["$(location :rust-{})/bin/{}".format(target, program)],
             visibility = ["PUBLIC"],
         )
         for program in ["rustc", "rustdoc", "clippy-driver"]

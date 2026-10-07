@@ -1,4 +1,5 @@
 load("//buck/cargo/buckify.bxl", buckify = "generate")
+load(":workspace.bxl", "rust_targets")
 
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command: the
 # generated rules and Cargo.lock, the sysroot's lockfile, the autofixes
@@ -49,7 +50,7 @@ def _rust_fixes(ctx, actions) -> list[Artifact]:
         if path.endswith(".rs"):
             sources.setdefault(_owner(path, crate_dirs), []).append(path)
     clippy = {}
-    for target in ctx.cquery().eval('kind("^rust_(library|binary|test)$", //crates/...)'):
+    for target in rust_targets(ctx):
         sub_targets = ctx.analysis(target).providers()[DefaultInfo].sub_targets
         if "clippy.json" in sub_targets:
             clippy.setdefault(target.label.package, []).append(sub_targets["clippy.json"][DefaultInfo].default_outputs[0])
