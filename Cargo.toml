@@ -95,6 +95,7 @@ members = [
     "crates/plugin-test-runner",
     "crates/fix-rust-source",
     "crates/buck-tools",
+    "crates/verify",
     "crates/wasi-threads",
 ]
 resolver = "3"
