@@ -58,3 +58,41 @@ llvm_tree = rule(
     },
     impl = _llvm_tree_impl,
 )
+
+# A program from a Rust sysroot, run with SDKROOT set to Apple's SDK, as one
+# executable rather than a shell command: the prelude's clippy wrapper writes
+# each argument of the driver's command on a line of its own, so only a lone
+# program survives it. SDKROOT must be absolute, and build scripts run the
+# compiler from directories of their own, so the script finds the SDK and the
+# program from where it is itself.
+def _apple_sdk_tool_impl(ctx: AnalysisContext) -> list[Provider]:
+    script = ctx.actions.declare_output("{}.sh".format(ctx.attrs.program))
+    ctx.actions.write(
+        script,
+        [
+            "#!/bin/sh",
+            'here="$(cd "$(dirname "$0")" && pwd)"',
+            cmd_args(
+                cmd_args(ctx.attrs.sdk, format = 'SDKROOT="$here/{}"', relative_to = (script, 1)),
+                "exec",
+                cmd_args(ctx.attrs.sysroot, format = '"$here/{}/bin/' + ctx.attrs.program + '"', relative_to = (script, 1)),
+                '"$@"',
+                delimiter = " ",
+            ),
+        ],
+        allow_args = True,
+        is_executable = True,
+    )
+    return [
+        DefaultInfo(default_output = script),
+        RunInfo(args = cmd_args(script, hidden = [ctx.attrs.sdk, ctx.attrs.sysroot])),
+    ]
+
+apple_sdk_tool = rule(
+    attrs = {
+        "program": attrs.string(),
+        "sdk": attrs.source(),
+        "sysroot": attrs.source(),
+    },
+    impl = _apple_sdk_tool_impl,
+)
