@@ -13,6 +13,7 @@ use beui_view::reactive::{
 
 pub struct ToggleHandle {
     pub checked: ReadSignal<bool>,
+    pub mixed: Memo<bool>,
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
@@ -25,6 +26,7 @@ pub struct ToggleHandle {
 #[component]
 pub fn Toggle(
     checked: Prop<bool>,
+    #[prop(default = false)] mixed: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = Role::CheckBox)] role: Role,
@@ -49,25 +51,32 @@ pub fn Toggle(
     let (focused, set_focused) = create_signal(false);
     let (key_active, set_key_active) = create_signal(false);
     let disabled = create_memo(move || disabled.get());
+    let mixed = create_memo(move || mixed.get());
 
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
-    component_accessibility(create_memo(clone!(checked_read disabled label -> move || {
-        let mut node = accessibility.get();
-        if node.label().is_none() && !label.get().is_empty() {
-            node.set_label(label.get());
-        }
-        node.set_toggled(Toggled::from(checked_read.get()));
-        if disabled.get() {
-            node.set_disabled();
-        } else {
-            node.clear_disabled();
-        }
-        node
-    })));
+    component_accessibility(create_memo(
+        clone!(checked_read mixed disabled label -> move || {
+            let mut node = accessibility.get();
+            if node.label().is_none() && !label.get().is_empty() {
+                node.set_label(label.get());
+            }
+            node.set_toggled(match mixed.get() {
+                true => Toggled::Mixed,
+                false => Toggled::from(checked_read.get()),
+            });
+            if disabled.get() {
+                node.set_disabled();
+            } else {
+                node.clear_disabled();
+            }
+            node
+        }),
+    ));
 
     let content_node = content.map(|build| {
         build.call(ToggleHandle {
             checked: checked_read.clone(),
+            mixed: mixed.clone(),
             hovered: hovered.clone(),
             active: active.clone(),
             focused: focused.clone(),
@@ -85,7 +94,7 @@ pub fn Toggle(
             if untrack(|| disabled.get()) {
                 return;
             }
-            let next = !untrack(|| checked.get());
+            let next = untrack(|| mixed.get() || !checked.get());
             set_checked.set(next);
             if let Some(action) = &action {
                 action.run();

@@ -18,6 +18,16 @@ pub struct PointerConfig {
     pub natural_scroll: Option<bool>,
 }
 
+impl PointerConfig {
+    pub(crate) fn or(self, fallback: Self) -> Self {
+        Self {
+            speed: self.speed.or(fallback.speed),
+            tap_to_click: self.tap_to_click.or(fallback.tap_to_click),
+            natural_scroll: self.natural_scroll.or(fallback.natural_scroll),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct PointerDevice {
     pub id: DeviceId,
@@ -31,6 +41,7 @@ pub struct InputConfig {
     pub options: String,
     pub repeat_delay: Duration,
     pub repeat_interval: Duration,
+    pub every_pointer: PointerConfig,
     pub pointers: Vec<(DeviceId, PointerConfig)>,
 }
 
@@ -42,6 +53,7 @@ impl Default for InputConfig {
             options: String::new(),
             repeat_delay: Duration::from_millis(600),
             repeat_interval: Duration::from_millis(40),
+            every_pointer: PointerConfig::default(),
             pointers: Vec::new(),
         }
     }
@@ -60,6 +72,7 @@ impl InputConfig {
             .find(|(device, _)| device == id)
             .map(|(_, config)| *config)
             .unwrap_or_default()
+            .or(self.every_pointer)
     }
 }
 

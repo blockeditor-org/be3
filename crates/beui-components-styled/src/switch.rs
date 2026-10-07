@@ -22,11 +22,18 @@ const FOCUS_RING_OFFSET: f32 = 4.0;
 #[component]
 pub fn Switch(
     on: Prop<bool>,
+    #[prop(default = false)] indeterminate: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     on_change: Callback<bool>,
 ) -> NodeId {
     view! {
-        <Toggle checked={on} label role=Role::Switch on_change={move |on| on_change.call(on)}>
+        <Toggle
+            checked={on}
+            mixed={indeterminate}
+            label
+            role=Role::Switch
+            on_change={move |on| on_change.call(on)}
+        >
             {move |handle: ToggleHandle| {
                 view! {
                     <SwitchTrack handle />
@@ -40,14 +47,17 @@ pub fn Switch(
 fn SwitchTrack(handle: ToggleHandle) -> NodeId {
     let ToggleHandle {
         checked,
+        mixed,
         hovered,
         focused,
         ..
     } = handle;
     let theme = use_theme();
-    let knob_align = create_memo(clone!(checked -> move || knob_align(checked.get())));
-    let track_color =
-        create_memo(clone!(theme -> move || track_fill(&theme, checked.get(), hovered.get())));
+    let knob_align =
+        create_memo(clone!(checked mixed -> move || knob_align(checked.get(), mixed.get())));
+    let track_color = create_memo(clone!(theme -> move || {
+        track_fill(&theme, checked.get() && !mixed.get(), hovered.get())
+    }));
 
     view! {
         <FocusRing focused offset=FOCUS_RING_OFFSET>
@@ -82,8 +92,12 @@ pub fn switch_on(document: &Document, switch: NodeId) -> bool {
     unstyled::toggle_checked(document, switch).get()
 }
 
-fn knob_align(on: bool) -> Align {
-    if on { Align::End } else { Align::Start }
+fn knob_align(on: bool, mixed: bool) -> Align {
+    match (mixed, on) {
+        (true, _) => Align::Center,
+        (false, true) => Align::End,
+        (false, false) => Align::Start,
+    }
 }
 
 fn track_fill(theme: &ThemeStore, on: bool, hovered: bool) -> Color32 {

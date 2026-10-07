@@ -546,6 +546,38 @@ fn LockedControls() -> NodeId {
     }
 }
 
+#[sample]
+#[component]
+fn LightSwitches() -> NodeId {
+    let (kitchen, set_kitchen) = create_signal(true);
+    let (hall, set_hall) = create_signal(false);
+    let every = create_memo(clone!(kitchen hall -> move || kitchen.get() && hall.get()));
+    let mixed = create_memo(clone!(kitchen hall -> move || kitchen.get() != hall.get()));
+    let (set_every_kitchen, set_every_hall) = (set_kitchen.clone(), set_hall.clone());
+    view! {
+        <List spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Switch
+                    label="Every light"
+                    on={every}
+                    indeterminate={mixed}
+                    on_change={move |on: bool| {
+                        set_every_kitchen.set(on);
+                        set_every_hall.set(on);
+                    }}
+                />
+                <Body content="Every light" />
+            </List>
+            <LabelledSwitch
+                label="Kitchen"
+                on={kitchen}
+                on_change={move |on| set_kitchen.set(on)}
+            />
+            <LabelledSwitch label="Hall" on={hall} on_change={move |on| set_hall.set(on)} />
+        </List>
+    }
+}
+
 #[component]
 pub(crate) fn ChoicesPage() -> NodeId {
     view! {
@@ -558,6 +590,9 @@ pub(crate) fn ChoicesPage() -> NodeId {
             </Sample>
             <Sample title="Select" code={vec![FruitSelect::SOURCE]}>
                 <FruitSelect />
+            </Sample>
+            <Sample title="Switches with a mixed state" code={vec![LightSwitches::SOURCE]}>
+                <LightSwitches />
             </Sample>
             <Sample title="Tabs" code={vec![ScaleTabs::SOURCE]}>
                 <ScaleTabs />

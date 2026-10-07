@@ -5,9 +5,9 @@ use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
     ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon, DataListing,
     EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave, FrameReport,
-    FrameSpec, HostPanel, HostReply, HostRequest, Message, Occluder, PerformanceMeasurement,
-    RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, Size,
-    ViewChange, WatchedContent, WebViewId,
+    FrameSpec, HostPanel, HostReply, HostRequest, LinuxMessage, Message, Occluder,
+    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
+    ScreenSet, Size, ViewChange, WatchedContent, WebViewId,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -1266,16 +1266,16 @@ impl Instances {
                 && entry.reported_input_devices.as_ref() != Some(&input_devices)
             {
                 entry.reported_input_devices = Some(input_devices.clone());
-                opened.push(Message::Editor(EditorMessage::InputDevices {
+                opened.push(Message::Editor(EditorMessage::Linux {
                     instance,
-                    devices: input_devices.clone(),
+                    message: LinuxMessage::InputDevices(input_devices.clone()),
                 }));
             }
             if entry.windows.is_some() && entry.windows != entry.reported_windows {
                 entry.reported_windows = entry.windows.clone();
-                opened.push(Message::Editor(EditorMessage::Windows {
+                opened.push(Message::Editor(EditorMessage::Linux {
                     instance,
-                    windows: entry.windows.clone().unwrap_or_default(),
+                    message: LinuxMessage::Windows(entry.windows.clone().unwrap_or_default()),
                 }));
             }
             if entry.view != entry.reported_view {
@@ -2274,6 +2274,16 @@ impl Instances {
                 entry.closed_windows.push(window);
                 true
             }
+            EditorMessage::Linux { instance, message } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                match message {
+                    LinuxMessage::WatchInputDevices => entry.watches_input_devices = true,
+                    LinuxMessage::Windows(_) | LinuxMessage::InputDevices(_) => return false,
+                }
+                true
+            }
             EditorMessage::SetAccess {
                 block_id,
                 account,
@@ -2333,13 +2343,6 @@ impl Instances {
                         .map(|block_id| (Uuid::from_bytes(block_id), Uuid::from_bytes(block_type))),
                     via: via.into_iter().map(Uuid::from_bytes).collect(),
                 });
-                true
-            }
-            EditorMessage::WatchInputDevices { instance } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.watches_input_devices = true;
                 true
             }
             EditorMessage::WatchHistory { instance, blocks } => {

@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::input_settings::{InputDevice, PointerSettings, PointerSpeed};
+use crate::input_settings::{InputDevice, PointerSetting, PointerSpeed};
 
 #[test]
 fn input_settings_keep_their_values_in_bounds() {
@@ -14,39 +14,34 @@ fn input_settings_keep_their_values_in_bounds() {
     assert_eq!(root.keyboard_layout, None);
     assert_eq!(root.repeat_delay(), 600);
     assert_eq!(root.repeat_rate(), 25);
-    assert_eq!(root.pointer(&mouse), PointerSettings::default());
+    assert_eq!(root.pointer(&mouse).tap_to_click, None);
 
+    let speed =
+        root.set_device_pointer(&mouse, PointerSetting::Speed(Some(PointerSpeed::new(-4.0))));
     let settings = edited(
         &settings,
         [
             InputSettings::set_keyboard_layout(Some(" de,us ")),
             InputSettings::set_repeat_delay(Some(5)),
             InputSettings::set_repeat_rate(Some(1000)),
-            InputSettings::set_pointer(
-                &mouse,
-                PointerSettings {
-                    speed: Some(PointerSpeed::new(-4.0)),
-                    tap_to_click: Some(false),
-                    natural_scroll: None,
-                },
-            ),
+            speed,
         ],
     );
     let root = settings.root();
     assert_eq!(root.keyboard_layout.as_deref(), Some("de,us"));
     assert_eq!(root.repeat_delay(), 150);
     assert_eq!(root.repeat_rate(), 100);
-    let pointer = root.pointer(&mouse);
-    assert_eq!(pointer.speed.map(PointerSpeed::get), Some(-1.0));
-    assert_eq!(pointer.tap_to_click, Some(false));
-    assert_eq!(pointer.natural_scroll, None);
+    assert_eq!(
+        root.pointer(&mouse).speed.map(PointerSpeed::get),
+        Some(-1.0)
+    );
 
     let settings = edited(
         &settings,
         [
             InputSettings::set_keyboard_layout(None),
             InputSettings::set_repeat_delay(None),
-            InputSettings::set_pointer(&mouse, PointerSettings::default()),
+            root.set_device_pointer(&mouse, PointerSetting::Speed(None)),
         ],
     );
     let root = settings.root();

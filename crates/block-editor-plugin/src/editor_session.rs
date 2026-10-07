@@ -2,9 +2,9 @@ use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, CursorIcon, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameChrome, FrameReport, HostPanel, HostReply, ImeArea, InputEvent, MAX_CHILDREN,
-    MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
-    Size, ViewChange, ViewportMetrics, WebViewEvent, WebViewId,
+    FrameChrome, FrameReport, HostPanel, HostReply, ImeArea, InputEvent, LinuxMessage,
+    MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize, ScreenPlacement,
+    ScreenRequest, Size, ViewChange, ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -196,12 +196,12 @@ impl EditorSession {
         self.host.show_panel(panel);
     }
 
-    pub(crate) fn set_windows(&self, windows: Vec<block_plugin_api::HostWindow>) {
-        self.host.set_windows(windows);
-    }
-
-    pub(crate) fn set_input_devices(&self, devices: Vec<block_plugin_api::HostInputDevice>) {
-        self.host.set_input_devices(devices);
+    pub(crate) fn linux_message(&self, message: LinuxMessage) {
+        match message {
+            LinuxMessage::Windows(windows) => self.host.set_windows(windows),
+            LinuxMessage::InputDevices(devices) => self.host.set_input_devices(devices),
+            LinuxMessage::WatchInputDevices => {}
+        }
     }
 
     pub(crate) fn show_block(&self, block_id: Uuid, block_type: Uuid, via: Option<Uuid>) {
@@ -691,8 +691,9 @@ impl EditorSession {
             }));
         }
         if self.host.take_input_device_watch() {
-            messages.push(Message::Editor(EditorMessage::WatchInputDevices {
+            messages.push(Message::Editor(EditorMessage::Linux {
                 instance,
+                message: LinuxMessage::WatchInputDevices,
             }));
         }
         if let Some(blocks) = self.host.take_history_watch() {

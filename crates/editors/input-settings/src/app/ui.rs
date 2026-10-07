@@ -2,19 +2,20 @@ use std::rc::Rc;
 
 use block_editor_beui::be_block::input_settings::{
     DEFAULT_REPEAT_DELAY, DEFAULT_REPEAT_RATE, InputDevice, MAX_POINTER_SPEED, MAX_REPEAT_DELAY,
-    MAX_REPEAT_RATE, MIN_POINTER_SPEED, MIN_REPEAT_DELAY, MIN_REPEAT_RATE, PointerSettings,
-    PointerSpeed,
+    MAX_REPEAT_RATE, MIN_POINTER_SPEED, MIN_REPEAT_DELAY, MIN_REPEAT_RATE, PointerSetting,
+    PointerSettings, PointerSpeed,
 };
 use block_editor_beui::be_block::{InputSettings, InputSettingsContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
 use block_editor_beui::beui::reactive::{
-    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, Show, clone, component,
-    create_memo, view,
+    Align, Callback, Direction, ForEach, Frame, ItemSize, List, Memo, ReadSignal, Show, clone,
+    component, create_memo, create_signal, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Caption, Heading, IconButton, Scroll, Slider, Switch, TextInput, use_theme,
+    Body, Caption, Heading, IconButton, Scroll, Select, Slider, Switch, TextInput, use_theme,
 };
+use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{ContentProjection, Editor, HostInputDevice};
 
 const PADDING: f32 = 20.0;
@@ -26,17 +27,14 @@ const COLUMN_SPACING: f32 = 12.0;
 
 type Settings = Rc<ContentProjection<InputSettingsContent>>;
 type DeviceKey = (String, u32, u32);
-type PointerChange = Rc<dyn Fn(&dyn Fn(&mut PointerSettings))>;
+type Apply = Rc<dyn Fn(PointerSetting)>;
 
 #[component]
 pub fn InputSettingsView(editor: Editor) -> NodeId {
     let settings = editor.block_content::<InputSettingsContent>();
     let read_only = editor.read_only();
     let devices = editor.input_devices();
-    let keys = create_memo(clone!(devices -> move || {
-        devices.with(|devices| devices.iter().map(device_key).collect::<Vec<DeviceKey>>())
-    }));
-    let none = create_memo(clone!(devices -> move || devices.with(Vec::is_empty)));
+    let root = settings.project(|content| content.root());
     let layout = settings.project(|content| content.root().keyboard_layout);
     let variant = settings.project(|content| content.root().keyboard_variant);
     let options = settings.project(|content| content.root().keyboard_options);
@@ -52,6 +50,15 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
             .repeat_rate
             .map(|rate| rate.per_second() as f32)
     });
+    let delay_value =
+        create_memo(clone!(delay -> move || delay.get().unwrap_or(DEFAULT_REPEAT_DELAY as f32)));
+    let delay_shown =
+        create_memo(clone!(delay_value -> move || format!("{} ms", delay_value.get())));
+    let delay_unset = create_memo(move || delay.get().is_none());
+    let rate_value =
+        create_memo(clone!(rate -> move || rate.get().unwrap_or(DEFAULT_REPEAT_RATE as f32)));
+    let rate_shown = create_memo(clone!(rate_value -> move || format!("{} / s", rate_value.get())));
+    let rate_unset = create_memo(move || rate.get().is_none());
     let (set_layout, set_variant, set_options) =
         (settings.clone(), settings.clone(), settings.clone());
     let (set_delay, set_rate) = (settings.clone(), settings.clone());
@@ -94,11 +101,11 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                             />
                             <SliderSetting
                                 label="Repeat delay"
-                                value={create_memo(move || delay.get())}
-                                default={DEFAULT_REPEAT_DELAY as f32}
+                                value={delay_value}
+                                shown={delay_shown}
+                                unset={delay_unset}
                                 min={MIN_REPEAT_DELAY as f32}
                                 max={MAX_REPEAT_DELAY as f32}
-                                unit=" ms"
                                 read_only={read_only.clone()}
                                 id={"repeat-delay".to_owned()}
                                 on_change={move |delay: Option<f32>| {
@@ -107,11 +114,11 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                             />
                             <SliderSetting
                                 label="Repeat rate"
-                                value={create_memo(move || rate.get())}
-                                default={DEFAULT_REPEAT_RATE as f32}
+                                value={rate_value}
+                                shown={rate_shown}
+                                unset={rate_unset}
                                 min={MIN_REPEAT_RATE as f32}
                                 max={MAX_REPEAT_RATE as f32}
-                                unit=" / s"
                                 read_only={read_only.clone()}
                                 id={"repeat-rate".to_owned()}
                                 on_change={move |rate: Option<f32>| {
@@ -119,29 +126,12 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                                 }}
                             />
                         </List>
-                        <List spacing=ROW_SPACING>
-                            <Heading content="Pointers" />
-                            <Show condition={none}>
-                                <Caption content="No pointer is connected to this session." />
-                            </Show>
-                            <ForEach keys={keys}>
-                                {move |key: DeviceKey| {
-                                    let device = create_memo(clone!(devices key -> move || {
-                                        devices.with(|devices| {
-                                            devices.iter().find(|device| device_key(device) == key).cloned()
-                                        })
-                                    }));
-                                    view! {
-                                        <PointerDevice
-                                            settings={settings.clone()}
-                                            device={device}
-                                            identity={InputDevice { name: key.0, vendor: key.1, product: key.2 }}
-                                            read_only={pointers_off.clone()}
-                                        />
-                                    }
-                                }}
-                            </ForEach>
-                        </List>
+                        <Pointers
+                            settings={settings.clone()}
+                            root={root}
+                            devices={devices}
+                            read_only={pointers_off}
+                        />
                     </List>
                 </Frame>
             </Scroll>
@@ -153,91 +143,209 @@ fn device_key(device: &HostInputDevice) -> DeviceKey {
     (device.name.clone(), device.vendor, device.product)
 }
 
+fn identity(key: &DeviceKey) -> InputDevice {
+    InputDevice {
+        name: key.0.clone(),
+        vendor: key.1,
+        product: key.2,
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct FieldState<T> {
+    value: T,
+    mixed: bool,
+    set: bool,
+    supported: bool,
+}
+
+fn field_state<T: Copy + PartialEq>(
+    root: &InputSettings,
+    devices: &[HostInputDevice],
+    scope: Option<&DeviceKey>,
+    get: fn(&PointerSettings) -> Option<T>,
+    default: fn(&HostInputDevice) -> Option<T>,
+    fallback: T,
+) -> FieldState<T> {
+    if let Some(key) = scope {
+        let device = identity(key);
+        let device_default = devices
+            .iter()
+            .find(|device| device_key(device) == *key)
+            .and_then(default);
+        return FieldState {
+            value: get(&root.pointer(&device))
+                .or(device_default)
+                .unwrap_or(fallback),
+            mixed: false,
+            set: get(&root.device_pointer(&device)).is_some(),
+            supported: device_default.is_some(),
+        };
+    }
+    let values: Vec<T> = devices
+        .iter()
+        .filter_map(|device| {
+            let device_default = default(device)?;
+            Some(get(&root.pointer(&identity(&device_key(device)))).unwrap_or(device_default))
+        })
+        .collect();
+    let value = values
+        .first()
+        .copied()
+        .or(get(&root.every_pointer))
+        .unwrap_or(fallback);
+    FieldState {
+        value,
+        mixed: values.iter().any(|other| *other != value),
+        set: get(&root.every_pointer).is_some()
+            || root.pointers.values().any(|pointer| get(pointer).is_some()),
+        supported: true,
+    }
+}
+
 #[component]
-fn PointerDevice(
+fn Pointers(
     settings: Settings,
-    device: Memo<Option<HostInputDevice>>,
-    identity: InputDevice,
+    root: ReadSignal<InputSettings>,
+    devices: Memo<Vec<HostInputDevice>>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let id = format!("{:04x}:{:04x}", identity.vendor, identity.product);
-    let name = identity.name.clone();
-    let stored =
-        settings.project(clone!(identity -> move |content| content.root().pointer(&identity)));
-    let stored = create_memo(move || stored.get());
-    let change: PointerChange = Rc::new(
-        clone!(stored -> move |change: &dyn Fn(&mut PointerSettings)| {
-            let mut pointer = stored.get_untracked();
-            change(&mut pointer);
-            settings.operate(InputSettings::set_pointer(&identity, pointer));
-        }),
+    let keys = create_memo(clone!(devices -> move || {
+        devices.with(|devices| devices.iter().map(device_key).collect::<Vec<DeviceKey>>())
+    }));
+    let none = create_memo(clone!(devices -> move || devices.with(Vec::is_empty)));
+    let (chosen, choose) = create_signal(None::<DeviceKey>);
+    let scope = create_memo(clone!(keys -> move || {
+        chosen.get().filter(|key| keys.with(|keys| keys.contains(key)))
+    }));
+    let selected = create_memo(clone!(keys scope -> move || {
+        let index = scope
+            .get()
+            .and_then(|key| keys.with(|keys| keys.iter().position(|known| *known == key)));
+        Some(index.map_or(0, |index| index + 1))
+    }));
+    let picked = keys.clone();
+    let apply: Apply = Rc::new(clone!(root scope -> move |setting: PointerSetting| {
+        let root = root.get_untracked();
+        let edit = match scope.get_untracked() {
+            None => root.set_every_pointer(setting),
+            Some(key) => root.set_device_pointer(&identity(&key), setting),
+        };
+        settings.operate(edit);
+    }));
+    let state = |get: fn(&PointerSettings) -> Option<bool>,
+                 default: fn(&HostInputDevice) -> Option<bool>| {
+        create_memo(clone!(root devices scope -> move || {
+            let root = root.get();
+            devices.with(|devices| field_state(&root, devices, scope.get().as_ref(), get, default, false))
+        }))
+    };
+    let tap = state(|pointer| pointer.tap_to_click, |device| device.tap_to_click);
+    let natural = state(
+        |pointer| pointer.natural_scroll,
+        |device| device.natural_scroll,
     );
-    let speed_default = create_memo(clone!(device -> move || {
-        device.get().and_then(|device| device.speed).map(|speed| speed as f32)
+    let speed = create_memo(clone!(root devices scope -> move || {
+        let root = root.get();
+        devices.with(|devices| {
+            field_state(
+                &root,
+                devices,
+                scope.get().as_ref(),
+                |pointer| pointer.speed.map(PointerSpeed::get),
+                |device| device.speed.map(|speed| speed as f32),
+                0.0,
+            )
+        })
     }));
-    let tap_default = create_memo(clone!(device -> move || {
-        device.get().and_then(|device| device.tap_to_click)
+    let speed_value = create_memo(clone!(speed -> move || speed.get().value));
+    let speed_shown = create_memo(clone!(speed -> move || match speed.get() {
+        FieldState { mixed: true, .. } => "Mixed".to_owned(),
+        state => format!("{:+.2}", state.value),
     }));
-    let natural_default =
-        create_memo(move || device.get().and_then(|device| device.natural_scroll));
-    let has_speed = create_memo(clone!(speed_default -> move || speed_default.get().is_some()));
-    let has_tap = create_memo(clone!(tap_default -> move || tap_default.get().is_some()));
-    let has_natural =
-        create_memo(clone!(natural_default -> move || natural_default.get().is_some()));
-    let speed = create_memo(clone!(stored -> move || stored.get().speed.map(PointerSpeed::get)));
-    let tap = create_memo(clone!(stored -> move || stored.get().tap_to_click));
-    let natural = create_memo(move || stored.get().natural_scroll);
+    let speed_unset = create_memo(clone!(speed -> move || !speed.get().set));
+    let has_speed = create_memo(move || speed.get().supported);
+    let (tap_on, tap_mixed, tap_unset, has_tap) = switch_state(tap);
+    let (natural_on, natural_mixed, natural_unset, has_natural) = switch_state(natural);
     let (speed_off, tap_off, natural_off) = (read_only.clone(), read_only.clone(), read_only);
-    let (speed_change, tap_change, natural_change) = (change.clone(), change.clone(), change);
-    let (speed_id, tap_id, natural_id) = (
-        format!("{id}.speed"),
-        format!("{id}.tap-to-click"),
-        format!("{id}.natural-scroll"),
-    );
+    let (apply_speed, apply_tap, apply_natural) = (apply.clone(), apply.clone(), apply);
     view! {
         <List spacing=ROW_SPACING>
-            <Body content={name} />
+            <Heading content="Pointers" />
+            <Show condition={none}>
+                <Caption content="No pointer is connected to this session." />
+            </Show>
+            <Select
+                options={view! {
+                    <ChoiceOption label="All pointers" />
+                    <ForEach keys={keys.clone()}>
+                        {|key: DeviceKey| view! {
+                            <ChoiceOption label={key.0} />
+                        }}
+                    </ForEach>
+                }}
+                selected={selected}
+                label="Pointer"
+                @test_id={"input-settings.pointer"}
+                on_change={move |index: Option<usize>| {
+                    let key = index
+                        .and_then(|index| index.checked_sub(1))
+                        .and_then(|index| picked.with_untracked(|keys| keys.get(index).cloned()));
+                    choose.set(key);
+                }}
+            />
             <Show condition={has_speed}>
                 <SliderSetting
                     label="Speed"
-                    value={speed.clone()}
-                    default={speed_default.get_untracked().unwrap_or_default()}
+                    value={speed_value.clone()}
+                    shown={speed_shown.clone()}
+                    unset={speed_unset.clone()}
                     min=MIN_POINTER_SPEED
                     max=MAX_POINTER_SPEED
-                    unit=""
                     read_only={speed_off.clone()}
-                    id={speed_id.clone()}
-                    on_change={clone!(speed_change -> move |speed: Option<f32>| {
-                        speed_change(&|pointer| pointer.speed = speed.map(PointerSpeed::new))
+                    id={"pointer.speed".to_owned()}
+                    on_change={clone!(apply_speed -> move |speed: Option<f32>| {
+                        apply_speed(PointerSetting::Speed(speed.map(PointerSpeed::new)))
                     })}
                 />
             </Show>
             <Show condition={has_tap}>
                 <SwitchSetting
                     label="Tap to click"
-                    value={tap.clone()}
-                    default={tap_default.clone()}
+                    on={tap_on.clone()}
+                    mixed={tap_mixed.clone()}
+                    unset={tap_unset.clone()}
                     read_only={tap_off.clone()}
-                    id={tap_id.clone()}
-                    on_change={clone!(tap_change -> move |tap: Option<bool>| {
-                        tap_change(&|pointer| pointer.tap_to_click = tap)
+                    id={"pointer.tap-to-click".to_owned()}
+                    on_change={clone!(apply_tap -> move |tap: Option<bool>| {
+                        apply_tap(PointerSetting::TapToClick(tap))
                     })}
                 />
             </Show>
             <Show condition={has_natural}>
                 <SwitchSetting
                     label="Natural scrolling"
-                    value={natural.clone()}
-                    default={natural_default.clone()}
+                    on={natural_on.clone()}
+                    mixed={natural_mixed.clone()}
+                    unset={natural_unset.clone()}
                     read_only={natural_off.clone()}
-                    id={natural_id.clone()}
-                    on_change={clone!(natural_change -> move |natural: Option<bool>| {
-                        natural_change(&|pointer| pointer.natural_scroll = natural)
+                    id={"pointer.natural-scroll".to_owned()}
+                    on_change={clone!(apply_natural -> move |natural: Option<bool>| {
+                        apply_natural(PointerSetting::NaturalScroll(natural))
                     })}
                 />
             </Show>
         </List>
     }
+}
+
+fn switch_state(state: Memo<FieldState<bool>>) -> (Memo<bool>, Memo<bool>, Memo<bool>, Memo<bool>) {
+    (
+        create_memo(clone!(state -> move || state.get().value)),
+        create_memo(clone!(state -> move || state.get().mixed)),
+        create_memo(clone!(state -> move || !state.get().set)),
+        create_memo(move || state.get().supported),
+    )
 }
 
 #[component]
@@ -299,21 +407,15 @@ fn TextSetting(
 #[component]
 fn SliderSetting(
     label: &'static str,
-    value: Memo<Option<f32>>,
-    default: f32,
+    value: Memo<f32>,
+    shown: Memo<String>,
+    unset: Memo<bool>,
     min: f32,
     max: f32,
-    unit: &'static str,
     read_only: Memo<bool>,
     id: String,
     on_change: Callback<Option<f32>>,
 ) -> NodeId {
-    let current = create_memo(clone!(value -> move || value.get().unwrap_or(default)));
-    let shown = create_memo(clone!(current -> move || match unit {
-        "" => format!("{:+.2}", current.get()),
-        unit => format!("{}{unit}", current.get()),
-    }));
-    let unset = create_memo(move || value.get().is_none());
     let moved = on_change.clone();
     view! {
         <List spacing=LABEL_SPACING>
@@ -321,7 +423,7 @@ fn SliderSetting(
             <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
                 <Slider
                     @sizing=ItemSize::Percent(100.0)
-                    value={current}
+                    value={value}
                     min={min}
                     max={max}
                     label={label}
@@ -344,20 +446,20 @@ fn SliderSetting(
 #[component]
 fn SwitchSetting(
     label: &'static str,
-    value: Memo<Option<bool>>,
-    default: Memo<Option<bool>>,
+    on: Memo<bool>,
+    mixed: Memo<bool>,
+    unset: Memo<bool>,
     read_only: Memo<bool>,
     id: String,
     on_change: Callback<Option<bool>>,
 ) -> NodeId {
-    let on = create_memo(clone!(value -> move || value.get().or(default.get()).unwrap_or(false)));
-    let unset = create_memo(move || value.get().is_none());
     let switched = on_change.clone();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
             <Body @sizing=ItemSize::Percent(100.0) content={label} />
             <Switch
                 on={on}
+                indeterminate={mixed}
                 label={label}
                 @test_id={format!("input-settings.{id}")}
                 on_change={move |on: bool| switched.call(Some(on))}

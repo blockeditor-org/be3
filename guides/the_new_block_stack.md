@@ -664,11 +664,12 @@ into the copy's id before anything opens the copy.
 The app can read a block itself, not only through an editor: the zoom in
 `sync_ui_settings` comes from the UI settings block's content, and
 `sync_input_settings` hands the input settings block (keymap, key repeat, and
-each pointer device's settings) to the `--session` seat through
-`beui_adapter_drm::InputControl` and to the nested Wayland clients' keyboard.
-Every setting is an `Option`, and an unset one means the default: libinput's own
-for a pointer setting, which the seat reports per device and an editor reads
-with `Editor::input_devices`. Because the seat runs before anyone signs in, the
+pointer settings for every pointer with per-device overrides) to the `--session`
+seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
+keyboard. Every setting is an `Option`, and an unset one means the default:
+libinput's own for a pointer setting, which the seat reports per device and an
+editor reads with `Editor::input_devices`. Messages only a Linux host can answer,
+such as that device list, travel as `EditorMessage::Linux`. Because the seat runs before anyone signs in, the
 app keeps a copy of the last input settings it applied in `app_state` and
 applies that at startup; the block stays the source of truth. `be::hold` opens a
 block for the app and keeps it open when the last editor showing it closes,

@@ -1,16 +1,15 @@
 use super::*;
 
-use block_plugin_api::HostInputDevice;
+use block_plugin_api::{HostInputDevice, LinuxMessage};
 
 fn devices_sent(messages: &[Message]) -> Vec<Vec<HostInputDevice>> {
     messages
         .iter()
         .filter_map(|message| match message {
-            Message::Editor(EditorMessage::InputDevices { instance, devices })
-                if *instance == INSTANCE =>
-            {
-                Some(devices.clone())
-            }
+            Message::Editor(EditorMessage::Linux {
+                instance,
+                message: LinuxMessage::InputDevices(devices),
+            }) if *instance == INSTANCE => Some(devices.clone()),
             _ => None,
         })
         .collect()
@@ -35,7 +34,10 @@ fn an_instance_watching_input_devices_is_told_what_is_connected() {
     );
     assert!(devices_sent(&instances.next_screens(PASS).opened).is_empty());
 
-    assert!(instances.editor_message(EditorMessage::WatchInputDevices { instance: INSTANCE }));
+    assert!(instances.editor_message(EditorMessage::Linux {
+        instance: INSTANCE,
+        message: LinuxMessage::WatchInputDevices,
+    }));
     assert_eq!(
         devices_sent(&instances.next_screens(PASS).opened),
         vec![vec![mouse.clone()]]

@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::time::Duration;
 
 use be_block::InputSettings;
-use be_block::input_settings::{InputDevice, PointerSpeed};
+use be_block::input_settings::{InputDevice, PointerSettings, PointerSpeed};
 use be_wayland::KeyboardConfig;
 use beui_adapter_drm::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
 use block_plugin_api::HostInputDevice;
@@ -53,20 +53,20 @@ fn seat(settings: &InputSettings) -> InputConfig {
         options: settings.keyboard_options.clone().unwrap_or_default(),
         repeat_delay: Duration::from_millis(settings.repeat_delay().into()),
         repeat_interval: Duration::from_millis((1000 / settings.repeat_rate()).into()),
+        every_pointer: pointer(&settings.every_pointer),
         pointers: settings
             .pointers
             .iter()
-            .map(|(device, pointer)| {
-                (
-                    device_id(device),
-                    PointerConfig {
-                        speed: pointer.speed.map(|speed| PointerSpeed::get(speed).into()),
-                        tap_to_click: pointer.tap_to_click,
-                        natural_scroll: pointer.natural_scroll,
-                    },
-                )
-            })
+            .map(|(device, settings)| (device_id(device), pointer(settings)))
             .collect(),
+    }
+}
+
+fn pointer(settings: &PointerSettings) -> PointerConfig {
+    PointerConfig {
+        speed: settings.speed.map(|speed| PointerSpeed::get(speed).into()),
+        tap_to_click: settings.tap_to_click,
+        natural_scroll: settings.natural_scroll,
     }
 }
 

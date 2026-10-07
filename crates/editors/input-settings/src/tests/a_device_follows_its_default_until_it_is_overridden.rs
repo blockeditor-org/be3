@@ -1,18 +1,18 @@
 use super::*;
 
-const TAP: &str = "input-settings.06cb:0001.tap-to-click";
-const TAP_RESET: &str = "input-settings.06cb:0001.tap-to-click.reset";
+const TAP: &str = "input-settings.pointer.tap-to-click";
+const TAP_RESET: &str = "input-settings.pointer.tap-to-click.reset";
 
 #[test]
-fn a_pointer_follows_its_device_default_until_it_is_set() {
+fn a_device_follows_its_default_until_it_is_overridden() {
     let mut editor = editor(vec![touchpad()]);
+    choose_pointer(&mut editor, 1);
     let tap = |editor: &BeuiTest<InputSettingsApp>| {
         content(editor)
             .root()
-            .pointer(&touchpad_identity())
+            .device_pointer(&touchpad_identity())
             .tap_to_click
     };
-    assert_eq!(tap(&editor), None);
 
     editor.click(TAP_RESET);
     editor.run();
@@ -38,11 +38,9 @@ fn a_pointer_follows_its_device_default_until_it_is_set() {
         "a value equal to the default stays set"
     );
 
-    editor.click(TAP);
-    editor.run();
     editor.click(TAP_RESET);
     editor.run();
     assert_eq!(tap(&editor), None);
     assert!(content(&editor).root().pointers.is_empty());
-    editor.snapshot("a_pointer_follows_its_device_default_until_it_is_set");
+    assert_eq!(content(&editor).root().every_pointer.tap_to_click, None);
 }
