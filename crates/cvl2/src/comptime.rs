@@ -55,6 +55,9 @@ pub enum ComptimeValueKind {
     McNbtRef,
     Error,
     Mc,
+    Target,
+    ReflectValue,
+    ReflectConstant,
 }
 
 impl ComptimeValueKind {
@@ -88,6 +91,9 @@ impl ComptimeValueKind {
             ComptimeValue::McNbtRef(_) => ComptimeValueKind::McNbtRef,
             ComptimeValue::Error(_) => ComptimeValueKind::Error,
             ComptimeValue::Mc(_) => ComptimeValueKind::Mc,
+            ComptimeValue::Target(_) => ComptimeValueKind::Target,
+            ComptimeValue::ReflectValue(_) => ComptimeValueKind::ReflectValue,
+            ComptimeValue::ReflectConstant(_) => ComptimeValueKind::ReflectConstant,
         }
     }
 }

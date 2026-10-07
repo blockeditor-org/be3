@@ -58,6 +58,6 @@ fn import_file_loop_and_mut_errors() {
 
     assert_eq!(
         only_error(build_c_fn("  x := std.kw.mut(std.kw.int: 1)\n  -> a")),
-        "std.kw.mut is only available when compiling to the build, not C"
+        "std.kw.mut is not supported in C"
     );
 }

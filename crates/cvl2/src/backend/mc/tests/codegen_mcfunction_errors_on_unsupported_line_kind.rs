@@ -31,9 +31,5 @@ fn codegen_mcfunction_errors_on_unsupported_line_kind() {
     let PositionedError::Fresh(e) = err else {
         panic!("expected a fresh error");
     };
-    assert!(
-        e.entries[0]
-            .message
-            .starts_with("TODO codegenMcfunction line:")
-    );
+    assert_eq!(e.entries[0].message, "break is not supported in a datapack");
 }

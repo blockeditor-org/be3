@@ -277,6 +277,26 @@ fn syntax_node_pos(node: &SyntaxNode) -> &TokenPosition {
     }
 }
 
+pub(crate) fn analysis_line_name(line: &AnalysisLine) -> String {
+    match line {
+        AnalysisLine::RegionBegin { region, .. } => match region {
+            Region::CIf { .. } => "std.c.if",
+            Region::KwIf { .. } => "std.kw.if",
+            Region::KwElse { .. } => ".else",
+            Region::KwLoop => "std.kw.loop",
+        }
+        .to_string(),
+        AnalysisLine::MutNew { .. } => "std.kw.mut".to_string(),
+        AnalysisLine::MutGet { .. } => "reading a std.kw.mut".to_string(),
+        AnalysisLine::MutSet { .. } => "assigning a std.kw.mut".to_string(),
+        AnalysisLine::KwBinary { op, .. } => format!("std.kw {}", op.as_str()),
+        AnalysisLine::KwBuiltin { op, .. } => format!("std.kw {}", op.name()),
+        AnalysisLine::CBinary { op, .. } => format!("std.c.int {}", op.as_str()),
+        AnalysisLine::McExecRaw { .. } => "std.mc.runCommand".to_string(),
+        other => analysis_line_tag(other).to_string(),
+    }
+}
+
 pub(crate) fn analysis_line_tag(line: &AnalysisLine) -> &'static str {
     match line {
         AnalysisLine::ComptimeKvListInit { .. } => "comptime:kv_list_init",
@@ -360,6 +380,9 @@ fn comptime_value_kind(value: &ComptimeValue) -> &'static str {
         ComptimeValue::McNbtRef(_) => "mc:nbt_ref",
         ComptimeValue::Error(_) => "error",
         ComptimeValue::Mc(_) => "mc",
+        ComptimeValue::Target(_) => "target",
+        ComptimeValue::ReflectValue(_) => "reflect_value",
+        ComptimeValue::ReflectConstant(_) => "reflect_constant",
     }
 }
 

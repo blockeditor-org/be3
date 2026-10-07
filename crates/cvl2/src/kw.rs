@@ -38,6 +38,13 @@ pub enum KwBuiltinOp {
     TextFromInt,
     TextFresh,
     TextRender,
+    ReflectIndex,
+    ReflectType,
+    ConstantType,
+    ConstantInt,
+    TypeName,
+    TypeBase,
+    ReflectFail,
 }
 
 #[derive(Debug)]
@@ -102,6 +109,13 @@ impl KwBuiltinOp {
             KwBuiltinOp::TextFromInt => "text_from_int",
             KwBuiltinOp::TextFresh => "text_fresh",
             KwBuiltinOp::TextRender => "text_render",
+            KwBuiltinOp::ReflectIndex => "reflect_index",
+            KwBuiltinOp::ReflectType => "reflect_type",
+            KwBuiltinOp::ConstantType => "constant_type",
+            KwBuiltinOp::ConstantInt => "constant_int",
+            KwBuiltinOp::TypeName => "type_name",
+            KwBuiltinOp::TypeBase => "type_base",
+            KwBuiltinOp::ReflectFail => "reflect_fail",
         }
     }
 }
@@ -122,6 +136,31 @@ pub fn eval(
 ) -> Result<ComptimeValue, PositionedError> {
     use ComptimeValue as V;
     Ok(match (op, args.as_slice()) {
+        (KwBuiltinOp::ReflectIndex, [V::ReflectValue(v)]) => int(v.index as i64),
+        (KwBuiltinOp::ReflectType, [V::ReflectValue(v)]) => {
+            V::Type(crate::compiler::ComptimeValueType { ty: v.ty() })
+        }
+        (KwBuiltinOp::ConstantType, [V::ReflectConstant(c)]) => {
+            V::Type(crate::compiler::ComptimeValueType {
+                ty: crate::reflect::constant_type(c),
+            })
+        }
+        (KwBuiltinOp::ConstantInt, [V::ReflectConstant(c)]) => V::Optional(ComptimeValueOptional {
+            some: crate::reflect::constant_int(c).map(|n| Box::new(int(n))),
+        }),
+        (KwBuiltinOp::TypeName, [V::Type(t)]) => string(t.ty.dump()),
+        (KwBuiltinOp::TypeBase, [V::Type(t)]) => V::Type(crate::compiler::ComptimeValueType {
+            ty: crate::reflect::base_type(env, &t.ty, pos)?,
+        }),
+        (KwBuiltinOp::ReflectFail, [V::ReflectValue(at), V::KwString(message)]) => {
+            return Err(throw_err(
+                env,
+                Some(at.pos().clone()),
+                message.to_owned_string(),
+                Some(vec![(Some(pos.clone()), "reported here".to_string())]),
+                None,
+            ));
+        }
         (KwBuiltinOp::StringFromInt, [V::KwInt(n)]) => string(n.value.to_string()),
         (KwBuiltinOp::StringLen, [V::KwString(s)]) => int(s.with_str(|s| s.chars().count()) as i64),
         (KwBuiltinOp::StringConcat, _) => {
@@ -305,7 +344,8 @@ pub fn emit(
             RuntimeValue::Runtime(_) => None,
         })
         .collect();
-    if let (Some(known), false) = (known, op == KwBuiltinOp::TextFresh) {
+    let folds = !matches!(op, KwBuiltinOp::TextFresh | KwBuiltinOp::ReflectFail);
+    if let (Some(known), true) = (known, folds) {
         return Ok(AnalysisResult {
             ty,
             value: RuntimeValue::Comptime(eval(env, &pos, op, known)?),
@@ -435,6 +475,19 @@ pub fn value_field(
         }
         (Type::KwList(_), "len") => property(KwBuiltinOp::ListLen),
         (Type::KwText(_), "render") => (KwBuiltinOp::TextRender, Type::KwString(KwString)),
+        (Type::ReflectValue(_), "index") => property(KwBuiltinOp::ReflectIndex),
+        (Type::ReflectValue(_), "ty") => {
+            (KwBuiltinOp::ReflectType, Type::CtType(crate::ct::CtType))
+        }
+        (Type::ReflectConstant(_), "ty") => {
+            (KwBuiltinOp::ConstantType, Type::CtType(crate::ct::CtType))
+        }
+        (Type::ReflectConstant(_), "int") => (
+            KwBuiltinOp::ConstantInt,
+            Type::Optional(crate::ct::TypeOptional {
+                child: Box::new(Type::KwInt(KwInt)),
+            }),
+        ),
         (Type::KwList(list), "get" | "push" | "join") => {
             if name == "join" && !matches!(*list.elem, Type::KwString(_) | Type::KwText(_)) {
                 return Ok(None);
@@ -517,6 +570,19 @@ pub fn type_field(ty: &Type, name: &str) -> Option<AnalysisResult> {
             pos: compiler_pos(),
         }))),
     })
+}
+
+pub fn static_fn(name: &str, op: KwBuiltinOp, arg: Type, result: Type) -> AnalysisResult {
+    AnalysisResult {
+        ty: Type::CtNamespace(CtNamespace),
+        value: RuntimeValue::Comptime(ComptimeValue::Namespace(Rc::new(StaticFn {
+            name: name.to_string(),
+            op,
+            arg,
+            result,
+            pos: compiler_pos(),
+        }))),
+    }
 }
 
 #[derive(Debug)]

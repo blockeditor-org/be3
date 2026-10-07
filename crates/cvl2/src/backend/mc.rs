@@ -6,7 +6,7 @@ use crate::compiler::{
 };
 use crate::comptime::{ComptimeValueKind, get_comptime};
 use crate::parser::TokenPosition;
-use crate::printers::printers::{BLOCK, RUNTIME_VALUE};
+use crate::printers::printers::RUNTIME_VALUE;
 use crate::printers::{UNLIMITED_DEPTH, analysis_line_pos};
 
 #[cfg(test)]
@@ -132,8 +132,8 @@ pub fn codegen_mcfunction(
                     env,
                     Some(pos.clone()),
                     format!(
-                        "TODO codegenMcfunction line: {}",
-                        BLOCK.dump(block, UNLIMITED_DEPTH)
+                        "{} is not supported in a datapack",
+                        crate::printers::analysis_line_name(line)
                     ),
                     None,
                     None,

@@ -369,6 +369,36 @@ impl UserType {
         )
     }
 
+    pub fn case(
+        &self,
+        env: &mut Env,
+        name: &str,
+    ) -> Result<Option<(usize, bool)>, PositionedError> {
+        let sections = self.sections(env)?;
+        Ok(sections.cases.as_ref().and_then(|cases| {
+            cases
+                .iter()
+                .position(|case| case.name == name)
+                .map(|index| (index, cases[index].ty.is_some()))
+        }))
+    }
+
+    pub fn case_payload(&self, env: &mut Env, index: usize) -> Result<Type, PositionedError> {
+        let sections = self.sections(env)?;
+        let cases = sections.cases.as_ref().expect("case found the index");
+        cases[index].ty(env)
+    }
+
+    pub fn field_names(&self, env: &mut Env) -> Result<Vec<String>, PositionedError> {
+        let sections = self.sections(env)?;
+        Ok(sections
+            .fields
+            .iter()
+            .flatten()
+            .map(|field| field.name.clone())
+            .collect())
+    }
+
     pub fn has_fields(&self, env: &mut Env) -> Result<bool, PositionedError> {
         Ok(self.sections(env)?.fields.is_some())
     }
@@ -796,9 +826,13 @@ pub fn inline_call(
 }
 
 const PRELUDE_C: &str = include_str!("prelude/c.qxc");
+const PRELUDE_REFLECT: &str = include_str!("prelude/reflect.qxc");
 
 pub fn prelude_sources() -> Vec<crate::parser::Source> {
-    vec![crate::parser::Source::new("prelude/c.qxc", PRELUDE_C)]
+    vec![
+        crate::parser::Source::new("prelude/c.qxc", PRELUDE_C),
+        crate::parser::Source::new("prelude/reflect.qxc", PRELUDE_REFLECT),
+    ]
 }
 
 #[derive(Debug)]
@@ -810,17 +844,46 @@ pub struct LazyPrelude {
 }
 
 impl LazyPrelude {
-    pub fn c() -> Self {
+    fn new(filename: &'static str, source: &'static str) -> Self {
         LazyPrelude {
-            filename: "prelude/c.qxc",
-            source: PRELUDE_C,
+            filename,
+            source,
             pos: TokenPosition {
-                fyl: "prelude/c.qxc".to_string(),
+                fyl: filename.to_string(),
                 idx: 0,
                 lyn: 1,
                 col: 1,
             },
             namespace: RefCell::new(None),
+        }
+    }
+
+    pub fn c() -> Self {
+        LazyPrelude::new("prelude/c.qxc", PRELUDE_C)
+    }
+
+    pub fn reflect() -> Rc<Self> {
+        thread_local! {
+            static REFLECT: Rc<LazyPrelude> =
+                Rc::new(LazyPrelude::new("prelude/reflect.qxc", PRELUDE_REFLECT));
+        }
+        REFLECT.with(Rc::clone)
+    }
+
+    pub fn user_type(&self, env: &mut Env, name: &str) -> Result<UserType, PositionedError> {
+        let pos = self.pos.clone();
+        let found = self.get_string(env, pos.clone(), name, &mut empty_block())?;
+        match get_comptime(env, Some(ComptimeValueKind::Type), found.value, pos.clone())? {
+            ComptimeValue::Type(ComptimeValueType {
+                ty: Type::User(user),
+            }) => Ok(user),
+            _ => Err(throw_err(
+                env,
+                Some(pos),
+                format!("{}'s {name} is not a std.Type", self.filename),
+                None,
+                None,
+            )),
         }
     }
 

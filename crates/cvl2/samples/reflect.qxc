@@ -1,0 +1,103 @@
+#builtin.build .= () => std.Folder: [
+  "clamp.c" .= std.File: emit_fn("clamp", std.reflect.function(toy, clamp))
+]
+
+toy :: std.Target: "toy"
+c_int :: std.type.base(std.c.int)
+
+clamp :: (a: std.c.int, b: std.c.int) => std.c.int: :out {
+  std.c.if (a > b) {
+    out: b
+  }
+  -> a + b * 2
+}
+
+c_type :: (at: std.reflect.Value, ty: std.Type) => std.kw.text: :done {
+  std.kw.if (std.type.base(ty) == c_int) {
+    done: "int"
+  }
+  -> std.reflect.fail(at, "toy doesn't support " + std.type.name(ty))
+}
+
+fresh_names :: (n: std.kw.int, hint: std.kw.string) => std.kw.list(std.kw.text): :done {
+  names := std.kw.mut(std.kw.list(std.kw.text): ())
+  std.kw.loop {
+    std.kw.if (names.*.len == n) {
+      done: names.*
+    }
+    names = names.*.push(std.kw.text.fresh(hint))
+  }
+}
+
+operand :: (names: std.kw.list(std.kw.text), o: std.reflect.Operand) => std.kw.text: :done {
+  std.kw.if (v := o.value) {
+    done: names.get(v.index)
+  }
+  -> "\(o.constant.?.int.?)"
+}
+
+signature :: (name: std.kw.string, f: std.reflect.Function, params: std.kw.list(std.kw.text)) => std.kw.text: :done {
+  at := f.lines.get(0).args.?.at
+  parts := std.kw.mut(std.kw.list(std.kw.text): ())
+  std.kw.loop {
+    std.kw.if (parts.*.len == params.len) {
+      done: "\(c_type(at, f.ret)) \(name)(" + parts.*.join(", ") + ") {\n"
+    }
+    parts = parts.*.push(c_type(at, f.params.get(parts.*.len)) + " " + params.get(parts.*.len))
+  }
+}
+
+emit_line :: (f: std.reflect.Function, names: std.kw.list(std.kw.text), params: std.kw.list(std.kw.text), line: std.reflect.Line) => std.kw.text: :done {
+  std.kw.if (_ := line.args) {
+    done: ""
+  }
+  std.kw.if (_ := line.tuple) {
+    done: ""
+  }
+  std.kw.if (l := line.tuple_get) {
+    std.kw.if (t := f.lines.get(l.tuple.value.?.index).tuple) {
+      done: "  \(c_type(l.at, l.at.ty)) \(names.get(l.at.index)) = \(operand(names, t.items.get(l.index)));\n"
+    }
+    done: "  \(c_type(l.at, l.at.ty)) \(names.get(l.at.index)) = \(params.get(l.index));\n"
+  }
+  std.kw.if (l := line.c_binary) {
+    done: "  \(c_type(l.at, l.at.ty)) \(names.get(l.at.index)) = \(operand(names, l.lhs)) \(l.op) \(operand(names, l.rhs));\n"
+  }
+  std.kw.if (l := line.label_begin) {
+    done: "  \(c_type(l.at, l.ty)) \(names.get(l.at.index));\n  {\n"
+  }
+  std.kw.if (l := line.label_end) {
+    label := names.get(l.label.index)
+    done: "  \(label) = \(operand(names, l.value));\n  }\n  \(label)_end:;\n  \(c_type(l.at, l.at.ty)) \(names.get(l.at.index)) = \(label);\n"
+  }
+  std.kw.if (l := line.break) {
+    label := names.get(l.label.index)
+    done: "  \(label) = \(operand(names, l.value));\n  goto \(label)_end;\n"
+  }
+  std.kw.if (l := line.c_if) {
+    done: "  if (\(operand(names, l.cond))) {\n"
+  }
+  std.kw.if (_ := line.end) {
+    done: "  }\n"
+  }
+  std.kw.if (l := line.other) {
+    done: std.reflect.fail(l.at, "toy doesn't support " + l.name)
+  }
+  -> std.reflect.fail(line.call.?.at, "toy doesn't support calls yet")
+}
+
+emit_fn :: (name: std.kw.string, f: std.reflect.Function) => std.kw.text: :done {
+  names := fresh_names(f.lines.len, "v")
+  params := fresh_names(f.params.len, "p")
+  out := std.kw.mut(signature(name, f, params))
+  i := std.kw.mut(std.kw.int: 0)
+  std.kw.loop {
+    std.kw.if (i.* == f.lines.len) {
+      done: out.* + "  return \(operand(names, f.result));\n}\n"
+    }
+    out = out.* + emit_line(f, names, params, f.lines.get(i.*))
+    i = i.* + 1
+  }
+}
+
+std :: #builtin.std

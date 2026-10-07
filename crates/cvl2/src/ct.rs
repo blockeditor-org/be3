@@ -77,7 +77,19 @@ pub enum Type {
     Null(TypeNull),
     KwIfOptional(TypeKwIfOptional),
     BoundName(TypeBoundName),
+    Target(TypeTarget),
+    ReflectValue(TypeReflectValue),
+    ReflectConstant(TypeReflectConstant),
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeTarget;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeReflectValue;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeReflectConstant;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeBoundName {
@@ -369,6 +381,7 @@ impl Type {
                     | Type::CtKey(_)
                     | Type::KwString(_)
                     | Type::KwText(_)
+                    | Type::Target(_)
             ),
             LiteralKind::Map => matches!(
                 self,
@@ -407,6 +420,8 @@ impl Type {
                 literal_block(node, BracketTag::String)
                     .map(|ast| crate::kw::interpolated_literal(env, &slot, ast, block))
             }
+            (LiteralKind::String, Type::Target(_)) => literal_block(node, BracketTag::String)
+                .map(|ast| crate::reflect::target_literal(env, ast, block)),
             (LiteralKind::List, Type::KwList(t)) => literal_block(node, BracketTag::List)
                 .map(|ast| crate::kw::list_literal(env, t, ast, block)),
             (LiteralKind::String, Type::CtKey(_)) => {
@@ -492,6 +507,9 @@ impl Type {
             Type::Infer(_) => "TypeUnknown",
             Type::KwString(_) => "KwString",
             Type::KwText(_) => "KwText",
+            Type::Target(_) => "std.Target",
+            Type::ReflectValue(_) => "std.reflect.Value",
+            Type::ReflectConstant(_) => "std.reflect.Constant",
             Type::KwList(_) => "KwList",
             Type::KwField(_) => "KwField",
             Type::Null(_) => "Null",
@@ -2082,7 +2100,9 @@ fn builtin_operator(ty: &Type, kind: OperatorKind, key: Symbol) -> Option<CBinar
         {
             Some(op)
         }
-        (Type::KwBool(_), OperatorKind::Lhs, _) if matches!(op, CBinaryOp::Eq | CBinaryOp::Ne) => {
+        (Type::KwBool(_) | Type::CtType(_) | Type::Target(_), OperatorKind::Lhs, _)
+            if matches!(op, CBinaryOp::Eq | CBinaryOp::Ne) =>
+        {
             Some(op)
         }
         _ => None,
@@ -2180,6 +2200,16 @@ pub fn fold_kw_binary(
             CBinaryOp::Eq => bool(a.value == b.value),
             CBinaryOp::Ne => bool(a.value != b.value),
             _ => unreachable!("std.kw.bool only has == and !="),
+        },
+        (ComptimeValue::Type(a), ComptimeValue::Type(b)) => match op {
+            CBinaryOp::Eq => bool(a.ty == b.ty),
+            CBinaryOp::Ne => bool(a.ty != b.ty),
+            _ => unreachable!("std.Type only has == and !="),
+        },
+        (ComptimeValue::Target(a), ComptimeValue::Target(b)) => match op {
+            CBinaryOp::Eq => bool(a.env == b.env),
+            CBinaryOp::Ne => bool(a.env != b.env),
+            _ => unreachable!("std.Target only has == and !="),
         },
         _ => unreachable!("std.kw operators only take std.kw values"),
     }

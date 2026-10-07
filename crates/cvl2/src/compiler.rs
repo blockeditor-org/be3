@@ -113,7 +113,7 @@ pub enum TargetEnv {
     Build,
     C,
     Mc,
-    Todo,
+    User(Symbol),
 }
 
 pub fn target_env_symbol() -> Symbol {
@@ -258,48 +258,6 @@ impl<K: CacheKey, V: Clone> PerComptimeScopeCache<K, V> {
     }
 }
 
-impl Env {
-    pub fn target(&self) -> TargetEnv {
-        self.scope
-            .comptime
-            .get(target_env_symbol())
-            .expect("the root comptime scope sets the target")
-    }
-
-    pub fn require_target(
-        &self,
-        target: TargetEnv,
-        pos: TokenPosition,
-        what: &str,
-    ) -> Result<(), PositionedError> {
-        if self.target() == target {
-            return Ok(());
-        }
-        Err(throw_err(
-            self,
-            Some(pos),
-            format!(
-                "{what} is only available when compiling to {}, not {}",
-                target.name(),
-                self.target().name()
-            ),
-            None,
-            None,
-        ))
-    }
-}
-
-impl TargetEnv {
-    pub fn name(self) -> &'static str {
-        match self {
-            TargetEnv::Build => "the build",
-            TargetEnv::C => "C",
-            TargetEnv::Mc => "a datapack",
-            TargetEnv::Todo => "an unfinished target",
-        }
-    }
-}
-
 pub struct Env {
     pub trace: Vec<TraceEntry>,
     pub errors: Vec<TokenizationError>,
@@ -320,7 +278,7 @@ pub fn with_scope<R>(
     result
 }
 
-fn with_target_env<R>(
+pub fn with_target_env<R>(
     env: &mut Env,
     target: TargetEnv,
     f: impl FnOnce(&mut Env) -> Result<R, PositionedError>,
@@ -902,6 +860,15 @@ pub enum ComptimeValue {
     McNbtRef(ComptimeValueMcNbtRef),
     Error(ComptimeValueError),
     Mc(crate::backend::mc::ComptimeValueMc),
+    Target(ComptimeValueTarget),
+    ReflectValue(crate::reflect::ReflectValue),
+    ReflectConstant(Rc<ComptimeValue>),
+}
+
+#[derive(Debug, Clone)]
+pub struct ComptimeValueTarget {
+    pub env: TargetEnv,
+    pub name: String,
 }
 
 #[derive(Debug, Clone)]
@@ -2709,6 +2676,24 @@ impl Descriptor for PreludeDescriptor {
 }
 
 #[derive(Debug)]
+struct ReflectPreludeDescriptor;
+
+impl Descriptor for ReflectPreludeDescriptor {
+    fn construct_impl(
+        &self,
+        _env: &mut Env,
+        _route: &str,
+    ) -> Result<AnalysisResult, PositionedError> {
+        Ok(AnalysisResult {
+            ty: Type::CtNamespace(CtNamespace),
+            value: RuntimeValue::Comptime(ComptimeValue::Namespace(
+                crate::user_type::LazyPrelude::reflect(),
+            )),
+        })
+    }
+}
+
+#[derive(Debug)]
 pub struct CustomDescriptor(pub AnalysisResult);
 
 impl Descriptor for CustomDescriptor {
@@ -2723,6 +2708,13 @@ impl Descriptor for CustomDescriptor {
 
 fn d_raw(result: AnalysisResult) -> Rc<dyn Descriptor> {
     Rc::new(CustomDescriptor(result))
+}
+
+fn d_type(ty: Type) -> Rc<dyn Descriptor> {
+    d_raw(AnalysisResult {
+        ty: Type::CtType(CtType),
+        value: RuntimeValue::Comptime(ComptimeValue::Type(ComptimeValueType { ty })),
+    })
 }
 
 fn d_std_key(key: crate::std_keys::StdKey) -> Rc<dyn Descriptor> {
@@ -2777,7 +2769,6 @@ fn builtin_mc_run_command_call(
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
-    env.require_target(TargetEnv::Mc, pos.clone(), "std.mc.runCommand")?;
     let arg = analyze(
         env,
         Type::McNbtRef(McNbtRef {
@@ -2983,7 +2974,7 @@ fn builtin_operator_lhs_call(
     builtin_operator_key(env, crate::std_keys::OperatorKind::Lhs, arg_ast, block)
 }
 
-fn builtin_list_args<'a>(
+pub(crate) fn builtin_list_args<'a>(
     env: &mut Env,
     pos: &TokenPosition,
     arg_ast: &CallArg<'a>,
@@ -3273,7 +3264,6 @@ fn builtin_kw_mut_call(
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
-    env.require_target(TargetEnv::Build, pos.clone(), "std.kw.mut")?;
     let init = analyze(
         env,
         Type::Unknown(TypeUnknown),
@@ -3312,7 +3302,6 @@ fn builtin_kw_loop_call(
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
-    env.require_target(TargetEnv::Build, pos.clone(), "std.kw.loop")?;
     block_append(
         block,
         AnalysisLine::RegionBegin {
@@ -3396,7 +3385,6 @@ fn builtin_kw_if_call(
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
-    env.require_target(TargetEnv::Build, pos.clone(), "std.kw.if")?;
     if let Some(binding) = kw_if_binding(env, &arg_ast, block)? {
         return Ok(binding);
     }
@@ -3427,7 +3415,6 @@ fn builtin_c_if_call(
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
-    env.require_target(TargetEnv::C, pos.clone(), "std.c.if")?;
     let int = Type::CInt(CInt);
     let cond = analyze(
         env,
@@ -3569,9 +3556,35 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                 ),
             ),
             (
+                "reflect",
+                d_ns(
+                    vec![
+                        (
+                            "function",
+                            d_ns(vec![], Some(crate::reflect::builtin_reflect_function_call)),
+                        ),
+                        (
+                            "fail",
+                            d_ns(vec![], Some(crate::reflect::builtin_reflect_fail_call)),
+                        ),
+                        (
+                            "Value",
+                            d_type(Type::ReflectValue(crate::ct::TypeReflectValue)),
+                        ),
+                        (
+                            "Constant",
+                            d_type(Type::ReflectConstant(crate::ct::TypeReflectConstant)),
+                        ),
+                    ],
+                    None,
+                ),
+            ),
+            (
                 "std",
                 d_ns(
                     vec![
+                        ("Target", d_type(Type::Target(crate::ct::TypeTarget))),
+                        ("reflect", Rc::new(ReflectPreludeDescriptor)),
                         (
                             "File",
                             d_raw(AnalysisResult {
@@ -3764,6 +3777,24 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                     ("wrap", d_ns(vec![], Some(builtin_type_wrap_call))),
                                     ("unwrap", d_ns(vec![], Some(builtin_type_unwrap_call))),
                                     ("repr", d_std_key(crate::std_keys::StdKey::Repr)),
+                                    (
+                                        "name",
+                                        d_raw(crate::kw::static_fn(
+                                            "std.type.name",
+                                            crate::kw::KwBuiltinOp::TypeName,
+                                            Type::CtType(CtType),
+                                            Type::KwString(crate::ct::KwString),
+                                        )),
+                                    ),
+                                    (
+                                        "base",
+                                        d_raw(crate::kw::static_fn(
+                                            "std.type.base",
+                                            crate::kw::KwBuiltinOp::TypeBase,
+                                            Type::CtType(CtType),
+                                            Type::CtType(CtType),
+                                        )),
+                                    ),
                                     (
                                         "fields",
                                         d_std_key(crate::std_keys::StdKey::Section(

@@ -8,7 +8,7 @@ use crate::comptime::{ComptimeValueKind, get_comptime};
 use crate::ct::Type;
 use crate::parser::TokenPosition;
 use crate::printers::printers::RUNTIME_VALUE;
-use crate::printers::{UNLIMITED_DEPTH, analysis_line_pos, analysis_line_tag};
+use crate::printers::{UNLIMITED_DEPTH, analysis_line_name, analysis_line_pos};
 
 #[cfg(test)]
 mod tests;
@@ -460,7 +460,7 @@ fn codegen_c_body(
                 return Err(throw_err(
                     env,
                     Some(pos.clone()),
-                    format!("{} is not supported in C", analysis_line_tag(line)),
+                    format!("{} is not supported in C", analysis_line_name(line)),
                     None,
                     None,
                 ));
@@ -472,7 +472,7 @@ fn codegen_c_body(
                 return Err(throw_err(
                     env,
                     Some(pos.clone()),
-                    format!("{} is not supported in C", analysis_line_tag(line)),
+                    format!("{} is not supported in C", analysis_line_name(line)),
                     None,
                     None,
                 ));

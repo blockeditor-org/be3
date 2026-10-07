@@ -1,0 +1,38 @@
+std :: #builtin.std
+raw :: #builtin.reflect
+
+Operand :: std.Enum[
+  "value" .= raw.Value
+  "constant" .= raw.Constant
+]
+
+At :: std.Struct["at" .= raw.Value]
+
+Line :: std.Enum[
+  "args" .= At
+  "tuple" .= std.Struct["at" .= raw.Value, "items" .= std.kw.list(Operand)]
+  "tuple_get" .= std.Struct["at" .= raw.Value, "tuple" .= Operand, "index" .= std.kw.int]
+  "call" .= std.Struct["at" .= raw.Value, "callee" .= Operand, "arg" .= Operand]
+  "c_binary" .= std.Struct["at" .= raw.Value, "op" .= std.kw.string, "lhs" .= Operand, "rhs" .= Operand]
+  "label_begin" .= std.Struct["at" .= raw.Value, "ty" .= std.Type]
+  "label_end" .= std.Struct["at" .= raw.Value, "label" .= raw.Value, "value" .= Operand]
+  "break" .= std.Struct["at" .= raw.Value, "label" .= raw.Value, "value" .= Operand]
+  "c_if" .= std.Struct["at" .= raw.Value, "cond" .= Operand]
+  "end" .= At
+  "other" .= std.Struct["at" .= raw.Value, "name" .= std.kw.string]
+]
+
+Function :: std.Struct[
+  "lines" .= std.kw.list(Line)
+  "params" .= std.kw.list(std.Type)
+  "ret" .= std.Type
+  "result" .= Operand
+]
+
+"Value" .= raw.Value
+"Constant" .= raw.Constant
+"Operand" .= Operand
+"Line" .= Line
+"Function" .= Function
+"function" .= raw.function
+"fail" .= raw.fail
