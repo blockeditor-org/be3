@@ -241,7 +241,8 @@ export_file(
     visibility = ["//crates/be-launcher:"],
 )
 
-# The native startup smoke check: the app for ten seconds in a virtual display.
+# The native smoke check: the app for ten seconds in a virtual display with a
+# workspace open, then closed through its window, which it must exit cleanly from.
 command_alias(
     name = "smoke",
     args = [
@@ -249,6 +250,7 @@ command_alias(
         "$(location //buck/app:smoke.sh)",
         "$(location :app)/block-app",
         "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+        "$(location //buck/app:close-window.py)",
     ],
 )
 

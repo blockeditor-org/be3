@@ -9,6 +9,11 @@ export_file(
 )
 
 export_file(
+    name = "close-window.py",
+    visibility = ["PUBLIC"],
+)
+
+export_file(
     name = "dev.sh",
     visibility = ["PUBLIC"],
 )
