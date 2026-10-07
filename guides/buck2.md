@@ -49,7 +49,8 @@ these in front of the pinned buck2:
 - **buck2 itself.** The release pinned in `scripts/internal/common.sh` is
   installed into `target/tools/buck2-<version>/` the first time it is missing.
   A `buck2` on `PATH` is not used, since each buck2 carries its own prelude.
-- **The build server.** `BE3_BUILD_SERVER` picks it, and its hosts and key go
+- **The build server.** `BE3_BUILD_SERVER` picks it (or the prompt on the
+  first run), and its hosts and key go
   into a generated `.buckconfig.local`, with the server's name as
   `be3.build_server`, which picks the workers' image. For Namespace, the
   default, the pinned `nsc` is installed into `target/tools/nsc-<version>/` the

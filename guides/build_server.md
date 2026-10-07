@@ -1,7 +1,9 @@
 # The build server
 
 Every buck2 action runs on a remote execution server. `BE3_BUILD_SERVER` picks
-which:
+which, or else the one saved in `~/.config/be3/build-server`. Without either,
+at a terminal, `./scripts/buck` asks which and saves the answer there (delete
+it to be asked again); anything else builds on Namespace.
 
 | `BE3_BUILD_SERVER` | Server | Key |
 |---|---|---|
@@ -9,6 +11,11 @@ which:
 | `blocks.pfg.pw` | our own NativeLink server | `authorization: Bearer KEY` |
 | `buildserver.pfg.pw` | our own NativeLink server, 8 cores | `authorization: Bearer KEY` |
 | `buildbuddy` | BuildBuddy's `remote.buildbuddy.io` | `x-buildbuddy-api-key: KEY` |
+| `local` | a NativeLink server of your own, at `host:port` | none, and no TLS |
+
+`local`'s address, such as `127.0.0.1:50052`, is `BE3_BUILD_SERVER_ADDRESS`,
+or else the second line of `~/.config/be3/build-server`, where the prompt
+saves it. It is dialed directly, never through `scripts/internal/re-relay`.
 
 The servers share nothing: each has its own cache and its own key.
 `./scripts/buck` writes the one it picked into `.buckconfig.local`, with its
@@ -16,7 +23,7 @@ name as `be3.build_server`; `worker_properties` (`buck/tools/defs.bzl`) reads
 that to pick the workers' image, since Namespace runs only its own copy of it.
 `nsc` is only downloaded for Namespace.
 
-A server other than Namespace takes its key from:
+A server other than Namespace and `local` takes its key from:
 
 1. `BE3_BUILD_SERVER_KEY` in the environment
 2. `.build-server-key.SERVER` at the root of the checkout

@@ -350,8 +350,11 @@ write_if_changed() {
 }
 
 # Where buck2 reaches the build server, written into .buckconfig.local.
-# BE3_BUILD_SERVER picks the server: namespace, which is the default and CI's,
-# or one of our own, blocks.pfg.pw and buildserver.pfg.pw, or buildbuddy. Each
+# BE3_BUILD_SERVER picks the server, or else the one a person at a terminal
+# picked the first time and that is saved in ~/.config/be3/build-server:
+# namespace, which is the default and CI's, or one of our own, blocks.pfg.pw
+# and buildserver.pfg.pw, or buildbuddy, or local, a NativeLink server a
+# person runs themselves, reached at its host:port without TLS or a key. Each
 # has its own key and its own cache. The file also names the server under
 # [be3] build_server, since the workers' image is not the same on all of them
 # (buck/tools/defs.bzl).
@@ -423,17 +426,121 @@ namespace_token_file() {
     fi
 }
 
-# The server BE3_BUILD_SERVER names, namespace when it names none.
+# The servers BE3_BUILD_SERVER can name, in the order a person is offered them.
+build_servers=(namespace blocks.pfg.pw buildserver.pfg.pw buildbuddy local)
+
+# Where the server a person picked is saved: its name, and for local the
+# address of its NativeLink on the next line.
+saved_build_server_file() {
+    echo "${XDG_CONFIG_HOME:-$HOME/.config}/be3/build-server"
+}
+
+# The server to build on: BE3_BUILD_SERVER, or else the one a person picked
+# before. Without either, a person at a terminal is asked which, and anything
+# else - a pipe, CI, an agent's shell - builds on Namespace.
 build_server() {
-    local server="${BE3_BUILD_SERVER:-namespace}"
+    local server="${BE3_BUILD_SERVER:-}" saved
+    saved="$(saved_build_server_file)"
+    if [[ -z "$server" && -f "$saved" ]]; then
+        server="$(sed -n 1p "$saved" | tr -d '[:space:]')"
+    fi
+    if [[ -z "$server" ]]; then
+        server="$(ask_for_build_server "$saved")"
+    fi
+    server="${server:-namespace}"
     case "$server" in
-        namespace | blocks.pfg.pw | buildserver.pfg.pw | buildbuddy) echo "$server" ;;
+        namespace | blocks.pfg.pw | buildserver.pfg.pw | buildbuddy | local) echo "$server" ;;
         *)
-            echo "BE3_BUILD_SERVER is $server, which is none of namespace, blocks.pfg.pw," >&2
-            echo 'buildserver.pfg.pw and buildbuddy.' >&2
+            echo "The build server is $server, which is none of ${build_servers[*]}." >&2
+            echo "BE3_BUILD_SERVER or $saved picks it." >&2
             return 1
             ;;
     esac
+}
+
+# Asks a person at a terminal which server to build on, and for local, where
+# its NativeLink listens, and saves the answer. Without a terminal it prints
+# nothing.
+ask_for_build_server() {
+    local saved="$1" choice server='' address=''
+    [[ -t 0 && -t 2 ]] || return 0
+    echo 'Which build server should buck2 build on? guides/build_server.md says more.' >&2
+    local index=1
+    for server in "${build_servers[@]}"; do
+        case "$server" in
+            namespace) echo "  $index) namespace: Namespace's remote execution" >&2 ;;
+            blocks.pfg.pw) echo "  $index) blocks.pfg.pw: our own NativeLink server" >&2 ;;
+            buildserver.pfg.pw) echo "  $index) buildserver.pfg.pw: our own NativeLink server, 8 cores" >&2 ;;
+            buildbuddy) echo "  $index) buildbuddy: BuildBuddy's remote.buildbuddy.io" >&2 ;;
+            local) echo "  $index) local: a NativeLink server of your own, without TLS or a key" >&2 ;;
+        esac
+        index=$((index + 1))
+    done
+    server=''
+    while [[ -z "$server" ]]; do
+        read -r -p "Build server [1-${#build_servers[@]}]: " choice || return 0
+        choice="$(printf '%s' "$choice" | tr -d '[:space:]')"
+        if [[ "$choice" =~ ^[0-9]+$ && "$choice" -ge 1 && "$choice" -le ${#build_servers[@]} ]]; then
+            server="${build_servers[$((choice - 1))]}"
+        fi
+    done
+    if [[ "$server" == 'local' ]]; then
+        address="$(ask_for_local_build_server_address)"
+        [[ -n "$address" ]] || return 0
+    fi
+    mkdir -p "$(dirname "$saved")"
+    printf '%s\n' "$server" > "$saved"
+    if [[ -n "$address" ]]; then
+        printf '%s\n' "$address" >> "$saved"
+    fi
+    echo "Saved it to $saved; delete it to be asked again." >&2
+    printf '%s\n' "$server"
+}
+
+# A NativeLink address as buck2 takes it: a bare host:port.
+local_build_server_address_is_valid() {
+    [[ "$1" =~ ^[^/:[:space:]]+:[0-9]+$ ]]
+}
+
+ask_for_local_build_server_address() {
+    local address=''
+    while true; do
+        read -r -p 'NativeLink address (such as 127.0.0.1:50052): ' address || return 0
+        address="$(printf '%s' "$address" | tr -d '[:space:]')"
+        address="${address#grpc://}"
+        if local_build_server_address_is_valid "$address"; then
+            printf '%s\n' "$address"
+            return 0
+        fi
+        echo 'That is not a host:port.' >&2
+    done
+}
+
+# Where the local server listens: BE3_BUILD_SERVER_ADDRESS, or else the
+# address saved with the choice, or else, at a terminal, what a person types.
+local_build_server_address() {
+    local address="${BE3_BUILD_SERVER_ADDRESS:-}" saved
+    saved="$(saved_build_server_file)"
+    if [[ -z "$address" && -f "$saved" && "$(sed -n 1p "$saved" | tr -d '[:space:]')" == 'local' ]]; then
+        address="$(sed -n 2p "$saved" | tr -d '[:space:]')"
+    fi
+    if [[ -z "$address" && -t 0 && -t 2 ]]; then
+        address="$(ask_for_local_build_server_address)"
+        if [[ -n "$address" ]]; then
+            mkdir -p "$(dirname "$saved")"
+            printf 'local\n%s\n' "$address" > "$saved"
+        fi
+    fi
+    if [[ -z "$address" ]]; then
+        echo 'buck2 builds on a local NativeLink server, and nothing says where it is. Set' >&2
+        echo "BE3_BUILD_SERVER_ADDRESS to its host:port, such as 127.0.0.1:50052." >&2
+        return 1
+    fi
+    if ! local_build_server_address_is_valid "$address"; then
+        echo "The local build server's address is $address, which is not a host:port." >&2
+        return 1
+    fi
+    printf '%s\n' "$address"
 }
 
 # Asks a person at a terminal for a server's key and saves it to the file
@@ -584,7 +691,16 @@ configure_build_server() {
     fi
     local server engine storage header key proxy="${HTTPS_PROXY:-${https_proxy:-}}"
     server="$(build_server)" || exit 1
-    if [[ "$server" == 'namespace' ]]; then
+    local engine_address storage_address tls=true
+    if [[ "$server" == 'local' ]]; then
+        engine="$(local_build_server_address)" || exit 1
+        storage="$engine"
+        engine_address="$engine"
+        storage_address="$engine"
+        header=''
+        tls=false
+        proxy=''
+    elif [[ "$server" == 'namespace' ]]; then
         refresh_namespace_cluster
         engine="$(namespace_host engine_address)"
         storage="$(namespace_host cas_address)"
@@ -595,7 +711,10 @@ configure_build_server() {
         storage="$engine"
         header="$(static_build_server_header "$server" "$key")"
     fi
-    local engine_address="$engine:443" storage_address="$storage:443" tls=true
+    if [[ "$server" != 'local' ]]; then
+        engine_address="$engine:443"
+        storage_address="$storage:443"
+    fi
     if [[ -n "$proxy" ]]; then
         assert_command go 'HTTPS_PROXY is set, and buck2 reaches the build server through it with scripts/internal/re-relay, which needs Go 1.24 or newer.'
         local version relay
@@ -626,7 +745,9 @@ configure_build_server() {
             echo "action_cache_address = $storage_address"
             echo "cas_address = $storage_address"
             echo "engine_address = $engine_address"
-            echo "http_headers = $header"
+            if [[ -n "$header" ]]; then
+                echo "http_headers = $header"
+            fi
             echo "tls = $tls"
             echo '[be3]'
             echo "build_server = $server"
