@@ -77,12 +77,19 @@ where
                 && held.is_none()
                 && let Some(build) = then.take()
             {
-                let scope = Scope::detached();
+                let scope = Scope::detached().pausable();
                 let stored = scope.context().run(|| slot.store(build.call(())));
                 *held = Some((stored, scope));
             }
             let items = match (visible, held.as_ref()) {
-                (true, Some((stored, _))) => vec![stored.clone()],
+                (true, Some((stored, scope))) => {
+                    scope.resume();
+                    vec![stored.clone()]
+                }
+                (false, Some((_, scope))) => {
+                    scope.pause();
+                    Vec::new()
+                }
                 _ => Vec::new(),
             };
             slot.fill(items);

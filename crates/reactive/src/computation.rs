@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use crate::runtime::{Context, RUNTIME, Reset, batch, current_zone, enqueue, flush};
-use crate::scope::{Owner, current_owner};
+use crate::scope::{Gate, Owner, current_owner};
 use crate::signal::Source;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -25,7 +25,9 @@ pub(crate) struct Computation {
     pub(crate) dependencies: RefCell<Vec<(Rc<Source>, u64)>>,
     pub(crate) source: Option<Rc<Source>>,
     pub(crate) queued: Cell<bool>,
+    pub(crate) queued_at: Cell<u64>,
     pub(crate) zone: u64,
+    gate: Option<Rc<Gate>>,
 }
 
 impl Computation {
@@ -41,7 +43,9 @@ impl Computation {
             dependencies: RefCell::new(Vec::new()),
             source,
             queued: Cell::new(false),
+            queued_at: Cell::new(0),
             zone: current_zone(),
+            gate: owner.gate.borrow().clone(),
         });
         let owned = computation.clone();
         owner.add(move || owned.dispose());
@@ -121,6 +125,7 @@ impl Computation {
         let old_owner = self.execution_owner.replace(Rc::new(Owner::for_computation(
             Rc::downgrade(self),
             self.owner.clone(),
+            self.gate.clone(),
         )));
         old_owner.dispose();
         if self.state.get() == State::Disposed {
@@ -158,6 +163,13 @@ impl Computation {
         if self.is_spent() {
             self.dispose();
         }
+    }
+
+    pub(crate) fn closed_gate(&self) -> Option<Rc<Gate>> {
+        if self.source.is_some() {
+            return None;
+        }
+        Gate::closed_since(self.gate.as_ref()?, self.queued_at.get())
     }
 
     fn is_spent(&self) -> bool {
