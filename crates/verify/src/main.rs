@@ -39,7 +39,8 @@ fn main() -> ExitCode {
         Ok(manifest) => manifest,
         Err(error) => {
             eprintln!("could not read {}: {error}", options.manifest.display());
-            String::new()
+            println!("\nVerification failed.");
+            return ExitCode::FAILURE;
         }
     };
     let built = manifest
