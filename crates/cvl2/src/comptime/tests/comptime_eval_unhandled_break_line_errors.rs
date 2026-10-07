@@ -8,6 +8,7 @@ fn comptime_eval_unhandled_break_line_errors() {
         validate,
         lines: vec![AnalysisLine::Break {
             pos: pos_at(0),
+            label: Symbol::new(),
             value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
         }],
     };

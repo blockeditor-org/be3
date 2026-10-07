@@ -5,16 +5,18 @@ use std::collections::HashMap;
 use crate::backend::c::{CValidatedIdentifierName, validate_c_name};
 use crate::compiler::{
     AnalysisBlock, AnalysisLine, AnalysisResult, Binary2, ComptimeFolder, ComptimeValue,
-    ComptimeValueBuildArtifact, ComptimeValueCExportName, ComptimeValueDeclaration,
-    ComptimeValueExportList, ComptimeValueExportListEntry, ComptimeValueKey,
-    ComptimeValueMcIdentifier, ComptimeValueMcNbtRef, ComptimeValueMcResult,
-    ComptimeValueUint8Array, ConsumedErrorToken, Env, PositionedError, RuntimeValue,
-    Uint8ArraySourcemapEntry, add_err, analyze, analyze_base, analyze_block, block_append,
-    cast_value, create_declaration, empty_block, get_declaration, throw_consumed_err, throw_err,
+    ComptimeValueBuildArtifact, ComptimeValueCExportName, ComptimeValueCInt,
+    ComptimeValueDeclaration, ComptimeValueExportList, ComptimeValueExportListEntry,
+    ComptimeValueKey, ComptimeValueMcIdentifier, ComptimeValueMcNbtRef, ComptimeValueMcResult,
+    ComptimeValueUint8Array, ComptimeValueVoid, ConsumedErrorToken, Env, PositionedError,
+    RuntimeValue, Symbol, Uint8ArraySourcemapEntry, add_err, analyze, analyze_base, analyze_block,
+    analyze_function, block_append, cast_value, create_declaration, empty_block, get_declaration,
+    read_binary, throw_consumed_err, throw_err, trim_ws,
 };
 use crate::comptime::{ComptimeValueKind, comptime_eval, get_comptime};
 use crate::parser::{
-    BlockToken, ErrorStyle, IdentifierToken, RawTag, SyntaxNode, TokenPosition, unescape_string,
+    BlockToken, ErrorStyle, IdentifierToken, OpTag, OperatorSegmentToken, RawTag, SyntaxNode,
+    TokenPosition, unescape_string,
 };
 use crate::printers::printers::AST_NODE;
 
@@ -47,6 +49,9 @@ pub enum Type {
     McNbtRef(McNbtRef),
     McIdentifier(McIdentifier),
     CExportName(CExportName),
+    CInt(CInt),
+    CIf(CIf),
+    Label(TypeLabel),
 }
 
 impl Type {
@@ -118,6 +123,29 @@ impl Type {
         }
     }
 
+    pub fn from_list(
+        &self,
+        env: &mut Env,
+        slot: Type,
+        ast: &BlockToken,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        if let Type::Tuple(t) = self {
+            return t.from_list(env, ast, block);
+        }
+        let items = list_items(env, ast)?;
+        let [item] = items.as_slice() else {
+            return Err(throw_err(
+                env,
+                Some(ast.pos.clone()),
+                format!("List is not supported in slot: {}", self.dump()),
+                None,
+                None,
+            ));
+        };
+        analyze(env, slot, item.pos.clone(), &item.items, block)
+    }
+
     pub fn from_number(
         &self,
         env: &mut Env,
@@ -127,6 +155,7 @@ impl Type {
     ) -> Result<AnalysisResult, PositionedError> {
         match self {
             Type::McResult(t) => t.from_number(env, slot, ast, block),
+            Type::CInt(t) => t.from_number(env, ast),
             _ => Err(throw_err(
                 env,
                 Some(ast.pos.clone()),
@@ -155,6 +184,9 @@ impl Type {
             Type::McNbtRef(_) => "McNbtRef",
             Type::McIdentifier(_) => "McIdentifier",
             Type::CExportName(_) => "CExportName",
+            Type::CInt(_) => "CInt",
+            Type::CIf(_) => "CIf",
+            Type::Label(_) => "Label",
         }
         .to_string()
     }
@@ -172,6 +204,8 @@ impl Type {
             Type::Fn(t) => t.analyze_call(env, slot, pos, method, arg_in, block),
             Type::CtNamespace(t) => t.analyze_call(env, slot, pos, method, arg_in, block),
             Type::CtType(t) => t.analyze_call(env, slot, pos, method, arg_in, block),
+            Type::CIf(t) => t.analyze_call(env, pos, method, arg_in, block),
+            Type::Label(t) => t.analyze_call(env, pos, arg_in, block),
             _ => Err(throw_err(
                 env,
                 Some(pos),
@@ -235,6 +269,21 @@ impl TypeFn {
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
         let arg = analyze(env, (*self.arg).clone(), arg_in.pos, arg_in.ast, block)?;
+        let ret = match &*self.ret {
+            Type::Unknown(_) => {
+                let callee = get_comptime(
+                    env,
+                    Some(ComptimeValueKind::Fn),
+                    method.value.clone(),
+                    pos.clone(),
+                )?;
+                let ComptimeValue::Fn(callee) = callee else {
+                    unreachable!("get_comptime guarantees a matching kind")
+                };
+                analyze_function(env, &callee)?.ty
+            }
+            ret => ret.clone(),
+        };
         let idx = block_append(
             block,
             AnalysisLine::Call {
@@ -244,7 +293,7 @@ impl TypeFn {
             },
         );
         Ok(AnalysisResult {
-            ty: (*self.ret).clone(),
+            ty: ret,
             value: RuntimeValue::Runtime(idx),
         })
     }
@@ -302,6 +351,63 @@ impl TypeUint8Array {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeTuple {
     pub children: Vec<Type>,
+}
+
+impl TypeTuple {
+    fn from_list(
+        &self,
+        env: &mut Env,
+        ast: &BlockToken,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let items = list_items(env, ast)?;
+        if items.len() != self.children.len() {
+            return Err(throw_err(
+                env,
+                Some(ast.pos.clone()),
+                format!(
+                    "expected {} items, found {}",
+                    self.children.len(),
+                    items.len()
+                ),
+                None,
+                None,
+            ));
+        }
+        let ty = Type::Tuple(self.clone());
+        if items.is_empty() {
+            return Ok(AnalysisResult {
+                ty,
+                value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+            });
+        }
+        let mut values = Vec::new();
+        for (item, child) in items.iter().zip(&self.children) {
+            let value = analyze(env, child.clone(), item.pos.clone(), &item.items, block)?;
+            values.push(child.cast_into(env, block, value, item.pos.clone())?.value);
+        }
+        let idx = block_append(
+            block,
+            AnalysisLine::Tuple {
+                pos: ast.pos.clone(),
+                items: values,
+            },
+        );
+        Ok(AnalysisResult {
+            ty,
+            value: RuntimeValue::Runtime(idx),
+        })
+    }
+}
+
+fn list_items(
+    env: &mut Env,
+    ast: &BlockToken,
+) -> Result<Vec<OperatorSegmentToken>, PositionedError> {
+    Ok(read_binary(env, ast.pos.clone(), &ast.items, OpTag::Sep)?
+        .into_iter()
+        .filter(|item| !trim_ws(&item.items).is_empty())
+        .collect())
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -932,6 +1038,95 @@ impl CExportName {
             value: RuntimeValue::Comptime(ComptimeValue::CExportName(ComptimeValueCExportName {
                 value: validated,
             })),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CInt;
+
+impl CInt {
+    fn from_number(
+        &self,
+        env: &mut Env,
+        ast: &IdentifierToken,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let parsed = ast
+            .str
+            .parse::<i32>()
+            .ok()
+            .filter(|v| v.to_string() == ast.str);
+        let Some(value) = parsed else {
+            return Err(throw_err(
+                env,
+                Some(ast.pos.clone()),
+                format!("invalid c int: got '{}'", ast.str),
+                None,
+                None,
+            ));
+        };
+        Ok(AnalysisResult {
+            ty: Type::CInt(CInt),
+            value: RuntimeValue::Comptime(ComptimeValue::CInt(ComptimeValueCInt { value })),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CIf;
+
+impl CIf {
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        method: AnalysisResult,
+        arg_in: CallArg,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        block_append(
+            block,
+            AnalysisLine::IfBegin {
+                pos: pos.clone(),
+                cond: method.value,
+            },
+        );
+        analyze(env, Type::Void(TypeVoid), arg_in.pos, arg_in.ast, block)?;
+        block_append(block, AnalysisLine::IfEnd { pos });
+        Ok(AnalysisResult {
+            ty: Type::Void(TypeVoid),
+            value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeLabel {
+    pub label: Symbol,
+    pub ty: Box<Type>,
+}
+
+impl TypeLabel {
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        arg_in: CallArg,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let value = analyze(env, (*self.ty).clone(), arg_in.pos, arg_in.ast, block)?;
+        let value = self.ty.cast_into(env, block, value, pos.clone())?;
+        block_append(
+            block,
+            AnalysisLine::Break {
+                pos,
+                label: self.label,
+                value: value.value,
+            },
+        );
+        Ok(AnalysisResult {
+            ty: Type::Void(TypeVoid),
+            value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
         })
     }
 }

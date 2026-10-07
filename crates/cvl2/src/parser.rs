@@ -22,6 +22,9 @@ pub enum OpTag {
     Pub,
     Var,
     Assign,
+    Compare,
+    Add,
+    Mul,
     None,
 }
 
@@ -407,6 +410,87 @@ const CONFIG_GROUPS: &[(&str, &[ConfigSpec])] = &[
             op_tag: Some(OpTag::Assign),
             ..ConfigSpec::DEFAULT
         }],
+    ),
+    (
+        "compare",
+        &[
+            ConfigSpec {
+                token: "==",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Compare),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "!=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Compare),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "<",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Compare),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "<=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Compare),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: ">",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Compare),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: ">=",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Compare),
+                ..ConfigSpec::DEFAULT
+            },
+        ],
+    ),
+    (
+        "additive",
+        &[
+            ConfigSpec {
+                token: "+",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Add),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "-",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Add),
+                ..ConfigSpec::DEFAULT
+            },
+        ],
+    ),
+    (
+        "multiplicative",
+        &[
+            ConfigSpec {
+                token: "*",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Mul),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "/",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Mul),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
+                token: "%",
+                style: ConfigStyle::Join,
+                op_tag: Some(OpTag::Mul),
+                ..ConfigSpec::DEFAULT
+            },
+        ],
     ),
     (
         "string",
@@ -1248,6 +1332,7 @@ fn op_highlight(tag: OpTag) -> Option<&'static str> {
         OpTag::Assign => Some(highlights::KEYWORD),
         OpTag::Sep => Some(highlights::OPERATORS),
         OpTag::Var => Some(highlights::KEYWORD),
+        OpTag::Compare | OpTag::Add | OpTag::Mul => Some(highlights::OPERATORS),
         OpTag::None => None,
     }
 }

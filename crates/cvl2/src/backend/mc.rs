@@ -115,6 +115,13 @@ pub fn codegen_mcfunction(
             AnalysisLine::ComptimeKvListInit { pos }
             | AnalysisLine::ComptimeKvListAppend { pos, .. }
             | AnalysisLine::Break { pos, .. }
+            | AnalysisLine::Tuple { pos, .. }
+            | AnalysisLine::TupleGet { pos, .. }
+            | AnalysisLine::CBinary { pos, .. }
+            | AnalysisLine::LabelBegin { pos, .. }
+            | AnalysisLine::LabelEnd { pos, .. }
+            | AnalysisLine::IfBegin { pos, .. }
+            | AnalysisLine::IfEnd { pos }
             | AnalysisLine::ComptimeFileCreate { pos, .. } => {
                 return Err(throw_err(
                     env,

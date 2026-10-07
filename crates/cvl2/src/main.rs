@@ -1,12 +1,32 @@
-use std::{env, fs, process::ExitCode};
+use std::{env, fs, path::Path, process::ExitCode};
 
-use cvl2::{Source, import_file, pretty_print_errors, printers, render_tokenized_output, tokenize};
+use cvl2::{
+    ComptimeValueBuildArtifact, Source, import_file, pretty_print_errors, printers,
+    render_tokenized_output, tokenize,
+};
+
+fn write_artifact(path: &Path, artifact: &ComptimeValueBuildArtifact) -> std::io::Result<()> {
+    match artifact {
+        ComptimeValueBuildArtifact::File(file) => fs::write(path, &file.value),
+        ComptimeValueBuildArtifact::Folder(folder) => {
+            fs::create_dir_all(path)?;
+            for (name, child) in &folder.value {
+                write_artifact(&path.join(name), child)?;
+            }
+            Ok(())
+        }
+    }
+}
 
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
-    let [filename] = args.as_slice() else {
-        eprintln!("Usage: cvl2 <file.qxc>");
-        return ExitCode::FAILURE;
+    let (filename, out_dir) = match args.as_slice() {
+        [filename] => (filename, None),
+        [filename, out_dir] => (filename, Some(Path::new(out_dir))),
+        _ => {
+            eprintln!("Usage: cvl2 <file.qxc> [out_dir]");
+            return ExitCode::FAILURE;
+        }
     };
 
     let contents = match fs::read_to_string(filename) {
@@ -27,6 +47,12 @@ fn main() -> ExitCode {
                 "got result{}",
                 printers::printers::FOLDER_OR_FILE.dump(&artifact, printers::UNLIMITED_DEPTH)
             );
+            if let Some(out_dir) = out_dir
+                && let Err(err) = write_artifact(out_dir, &artifact)
+            {
+                eprintln!("failed to write {}: {err}", out_dir.display());
+                return ExitCode::FAILURE;
+            }
             ExitCode::SUCCESS
         }
         Err(errors) => {

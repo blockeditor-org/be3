@@ -55,6 +55,7 @@ mod source_cursor_tracks_position;
 mod source_indent_level_tracks_leading_spaces;
 mod source_revert_restores_position;
 mod tokenize_access_and_builtin_identifiers;
+mod tokenize_arithmetic_operators_nest_by_precedence;
 mod tokenize_bad_token_reports_error;
 mod tokenize_bind_operators;
 mod tokenize_bracket_blocks;

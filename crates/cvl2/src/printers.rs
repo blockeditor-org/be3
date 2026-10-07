@@ -223,6 +223,9 @@ fn op_tag_str(tag: OpTag) -> &'static str {
         OpTag::Pub => "pub",
         OpTag::Var => "var",
         OpTag::Assign => "assign",
+        OpTag::Compare => "compare",
+        OpTag::Add => "add",
+        OpTag::Mul => "mul",
         OpTag::None => "",
     }
 }
@@ -273,7 +276,7 @@ fn syntax_node_pos(node: &SyntaxNode) -> &TokenPosition {
     }
 }
 
-fn analysis_line_tag(line: &AnalysisLine) -> &'static str {
+pub(crate) fn analysis_line_tag(line: &AnalysisLine) -> &'static str {
     match line {
         AnalysisLine::ComptimeKvListInit { .. } => "comptime:kv_list_init",
         AnalysisLine::ComptimeKvListAppend { .. } => "comptime:kv_list_append",
@@ -282,6 +285,13 @@ fn analysis_line_tag(line: &AnalysisLine) -> &'static str {
         AnalysisLine::Args { .. } => "args",
         AnalysisLine::ComptimeFileCreate { .. } => "comptime:file_create",
         AnalysisLine::McExecRaw { .. } => "mc:exec_raw",
+        AnalysisLine::Tuple { .. } => "tuple",
+        AnalysisLine::TupleGet { .. } => "tuple_get",
+        AnalysisLine::CBinary { .. } => "c:binary",
+        AnalysisLine::LabelBegin { .. } => "label_begin",
+        AnalysisLine::LabelEnd { .. } => "label_end",
+        AnalysisLine::IfBegin { .. } => "if_begin",
+        AnalysisLine::IfEnd { .. } => "if_end",
     }
 }
 
@@ -294,6 +304,13 @@ pub(crate) fn analysis_line_pos(line: &AnalysisLine) -> &TokenPosition {
         AnalysisLine::Args { pos } => pos,
         AnalysisLine::ComptimeFileCreate { pos, .. } => pos,
         AnalysisLine::McExecRaw { pos, .. } => pos,
+        AnalysisLine::Tuple { pos, .. } => pos,
+        AnalysisLine::TupleGet { pos, .. } => pos,
+        AnalysisLine::CBinary { pos, .. } => pos,
+        AnalysisLine::LabelBegin { pos, .. } => pos,
+        AnalysisLine::LabelEnd { pos, .. } => pos,
+        AnalysisLine::IfBegin { pos, .. } => pos,
+        AnalysisLine::IfEnd { pos } => pos,
     }
 }
 
@@ -313,6 +330,7 @@ fn comptime_value_kind(value: &ComptimeValue) -> &'static str {
         ComptimeValue::CExportName(_) => "c:export_name",
         ComptimeValue::McIdentifier(_) => "mc:identifier",
         ComptimeValue::McResult(_) => "mc:result",
+        ComptimeValue::CInt(_) => "c:int",
         ComptimeValue::McNbtRef(_) => "mc:nbt_ref",
         ComptimeValue::Error(_) => "error",
         ComptimeValue::Mc(_) => "mc",

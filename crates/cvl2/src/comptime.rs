@@ -24,6 +24,7 @@ pub enum ComptimeValueKind {
     CExportName,
     McIdentifier,
     McResult,
+    CInt,
     McNbtRef,
     Error,
     Mc,
@@ -46,6 +47,7 @@ impl ComptimeValueKind {
             ComptimeValue::CExportName(_) => ComptimeValueKind::CExportName,
             ComptimeValue::McIdentifier(_) => ComptimeValueKind::McIdentifier,
             ComptimeValue::McResult(_) => ComptimeValueKind::McResult,
+            ComptimeValue::CInt(_) => ComptimeValueKind::CInt,
             ComptimeValue::McNbtRef(_) => ComptimeValueKind::McNbtRef,
             ComptimeValue::Error(_) => ComptimeValueKind::Error,
             ComptimeValue::Mc(_) => ComptimeValueKind::Mc,
@@ -273,6 +275,24 @@ fn comptime_eval_with_args(
                     env,
                     Some(ipos.clone()),
                     "todo: comptime eval expr: break",
+                    None,
+                    None,
+                ));
+            }
+            AnalysisLine::Tuple { pos: ipos, .. }
+            | AnalysisLine::TupleGet { pos: ipos, .. }
+            | AnalysisLine::CBinary { pos: ipos, .. }
+            | AnalysisLine::LabelBegin { pos: ipos, .. }
+            | AnalysisLine::LabelEnd { pos: ipos, .. }
+            | AnalysisLine::IfBegin { pos: ipos, .. }
+            | AnalysisLine::IfEnd { pos: ipos } => {
+                return Err(throw_err(
+                    env,
+                    Some(ipos.clone()),
+                    format!(
+                        "todo: comptime eval expr: {}",
+                        crate::printers::analysis_line_tag(instr)
+                    ),
                     None,
                     None,
                 ));
