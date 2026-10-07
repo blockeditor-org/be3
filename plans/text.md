@@ -40,7 +40,12 @@ check that a client only appends to its own buffer.
 An insert names its first offset explicitly (`start`), and is refused unless it
 is the next offset of that client's buffer. That never fires in normal use
 (operations are deduplicated by `OpId` and arrive in order per client); if it
-does, the edit is visibly lost instead of two elements sharing an id.
+does, the edit is visibly lost instead of two elements sharing an id. An insert
+or replace with the right `start` uses up its offsets even when it is refused
+for another reason (a replace whose text someone else changed first, an anchor
+nobody knows), so the client's later inserts, numbered as if it had applied,
+still land. Without that, losing one replace race lost everything the client
+typed after it.
 
 ## Structure
 
@@ -177,6 +182,23 @@ line. Fixes, if it matters:
   heavy edit that is 15 ms per incoming keystroke until the session resets.
   The commuting fast path avoids it; chunks behind `Arc` (copy on write) would
   make the clone proportional to the number of chunks.
+
+## Fuzzing
+
+`be_model::fuzz::sequence(data: &[u8])` (behind the `fuzzing` feature, and in
+tests) reads any byte string as a script: three clients edit their own views
+(including undo, inserts after tombstones and garbage operations), a sequencer
+orders what they send, and clients catch up the way `Live` does, rebuilding from
+`confirmed` plus pending when someone else's edit lands under theirs. Every
+sequenced operation is checked against a naive reference model (order,
+tombstones, offsets, splices), every replica against the sequence's internal
+invariants, and at the end every replica against the sequencer's state. It
+panics on any violation. Test and fuzzing builds use two fragments per chunk so
+the multi-chunk paths run constantly.
+
+Today a test feeds it seeded random bytes. To make it coverage guided, add a
+cargo-fuzz (libFuzzer) target that enables `fuzzing` and calls it, and keep
+the inputs it finds as a corpus.
 
 ## Status
 

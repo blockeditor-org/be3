@@ -10,7 +10,11 @@ use crate::Malformed;
 
 pub const LOADED: u64 = 0;
 
+#[cfg(not(any(test, feature = "fuzzing")))]
 const CHUNK: usize = 64;
+
+#[cfg(any(test, feature = "fuzzing"))]
+const CHUNK: usize = 2;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Pos {
@@ -466,6 +470,7 @@ impl<T> Sequence<T> {
         T: Clone,
     {
         if !self.applies(operation) {
+            self.reserve(operation);
             return None;
         }
         let mut splices = Vec::new();
@@ -499,6 +504,33 @@ impl<T> Sequence<T> {
             }
         }
         Some(splices)
+    }
+
+    fn reserve(&mut self, operation: &SeqOp<T>)
+    where
+        T: Clone,
+    {
+        let (SeqOp::Insert {
+            client,
+            start,
+            items,
+            ..
+        }
+        | SeqOp::Replace {
+            client,
+            start,
+            items,
+            ..
+        }) = operation
+        else {
+            return;
+        };
+        if *start == self.next_offset(*client) {
+            self.buffers
+                .entry(*client)
+                .or_default()
+                .extend_from_slice(items);
+        }
     }
 
     fn can_insert(&self, after: Option<Pos>, client: u64, start: u64) -> bool {
@@ -974,6 +1006,9 @@ impl<'de, T: Deserialize<'de> + Clone> Deserialize<'de> for Sequence<T> {
         Vec::<T>::deserialize(deserializer).map(Self::from_items)
     }
 }
+
+#[cfg(any(test, feature = "fuzzing"))]
+pub mod fuzz;
 
 #[cfg(test)]
 mod tests;
