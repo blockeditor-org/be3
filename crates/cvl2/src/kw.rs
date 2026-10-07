@@ -1,14 +1,17 @@
+use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use crate::compiler::{
     AnalysisBlock, AnalysisLine, AnalysisResult, ComptimeNamespace, ComptimeValue,
-    ComptimeValueEnum, ComptimeValueKwBool, ComptimeValueKwInt, ComptimeValueKwString,
-    ComptimeValueOptional, ComptimeValueVoid, Env, PositionedError, RuntimeValue, Symbol, analyze,
-    analyze_base, block_append, compiler_pos, throw_err,
+    ComptimeValueEnum, ComptimeValueKwBool, ComptimeValueKwInt, ComptimeValueKwList,
+    ComptimeValueKwString, ComptimeValueOptional, ComptimeValueVoid, Env, PositionedError,
+    RuntimeValue, Symbol, analyze, block_append, compiler_pos, throw_err,
 };
-use crate::comptime::{ComptimeValueKind, get_comptime};
 use crate::ct::{
-    CallArg, CtNamespace, KwInt, KwList, KwString, Type, TypeKwField, TypeUint8Array, list_items,
+    CallArg, CtNamespace, KwInt, KwList, KwString, KwText, Type, TypeKwField, list_items,
 };
-use crate::parser::{BlockToken, SyntaxNode, TokenPosition};
+use crate::parser::{BlockToken, BracketTag, RawTag, SyntaxNode, TokenPosition, unescape_string};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KwBuiltinOp {
@@ -29,6 +32,48 @@ pub enum KwBuiltinOp {
     EnumEq,
     EnumNe,
     BoolIs,
+    StringConcat,
+    TextParts,
+    TextFromString,
+    TextFromInt,
+    TextFresh,
+    TextRender,
+}
+
+#[derive(Debug)]
+pub enum TextNode {
+    Str(ComptimeValueKwString),
+    Parts(Vec<Rc<TextNode>>),
+    Fresh { id: u64, hint: String },
+}
+
+pub fn render_text(text: &TextNode) -> String {
+    fn walk(
+        text: &TextNode,
+        out: &mut String,
+        names: &mut HashMap<u64, String>,
+        counts: &mut HashMap<String, usize>,
+    ) {
+        match text {
+            TextNode::Str(s) => s.with_str(|s| out.push_str(s)),
+            TextNode::Parts(parts) => {
+                for part in parts {
+                    walk(part, out, names, counts);
+                }
+            }
+            TextNode::Fresh { id, hint } => {
+                let name = names.entry(*id).or_insert_with(|| {
+                    let count = counts.entry(hint.clone()).or_insert(0);
+                    *count += 1;
+                    format!("{hint}_{}", *count - 1)
+                });
+                out.push_str(name);
+            }
+        }
+    }
+    let mut out = String::new();
+    walk(text, &mut out, &mut HashMap::new(), &mut HashMap::new());
+    out
 }
 
 impl KwBuiltinOp {
@@ -51,12 +96,18 @@ impl KwBuiltinOp {
             KwBuiltinOp::EnumEq => "enum_eq",
             KwBuiltinOp::EnumNe => "enum_ne",
             KwBuiltinOp::BoolIs => "bool_is",
+            KwBuiltinOp::StringConcat => "string_concat",
+            KwBuiltinOp::TextParts => "text_parts",
+            KwBuiltinOp::TextFromString => "text_from_string",
+            KwBuiltinOp::TextFromInt => "text_from_int",
+            KwBuiltinOp::TextFresh => "text_fresh",
+            KwBuiltinOp::TextRender => "text_render",
         }
     }
 }
 
 fn string(value: String) -> ComptimeValue {
-    ComptimeValue::KwString(ComptimeValueKwString { value })
+    ComptimeValue::KwString(ComptimeValueKwString::new(value))
 }
 
 fn int(value: i64) -> ComptimeValue {
@@ -72,8 +123,18 @@ pub fn eval(
     use ComptimeValue as V;
     Ok(match (op, args.as_slice()) {
         (KwBuiltinOp::StringFromInt, [V::KwInt(n)]) => string(n.value.to_string()),
-        (KwBuiltinOp::StringLen, [V::KwString(s)]) => int(s.value.chars().count() as i64),
-        (KwBuiltinOp::ListNew, _) => V::KwList(args),
+        (KwBuiltinOp::StringLen, [V::KwString(s)]) => int(s.with_str(|s| s.chars().count()) as i64),
+        (KwBuiltinOp::StringConcat, _) => {
+            let mut parts = args.iter().map(|part| match part {
+                V::KwString(s) => s.clone(),
+                _ => unreachable!("string interpolation only joins strings"),
+            });
+            let first = parts
+                .next()
+                .unwrap_or_else(|| ComptimeValueKwString::new(String::new()));
+            V::KwString(parts.fold(first, |acc, part| acc.concat(&part)))
+        }
+        (KwBuiltinOp::ListNew, _) => V::KwList(ComptimeValueKwList::new(args)),
         (KwBuiltinOp::ListLen, [V::KwList(items)]) => int(items.len() as i64),
         (KwBuiltinOp::ListGet, [V::KwList(items), V::KwInt(index)]) => {
             let found = usize::try_from(index.value).ok().and_then(|i| items.get(i));
@@ -90,23 +151,57 @@ pub fn eval(
                     None,
                 ));
             };
-            item.clone()
+            item
         }
-        (KwBuiltinOp::ListPush, [V::KwList(items), item]) => {
-            let mut items = items.clone();
-            items.push(item.clone());
-            V::KwList(items)
-        }
+        (KwBuiltinOp::ListPush, [V::KwList(items), item]) => V::KwList(items.push(item.clone())),
         (KwBuiltinOp::ListJoin, [V::KwList(items), V::KwString(separator)]) => {
-            let parts: Vec<&str> = items
-                .iter()
-                .map(|item| match item {
-                    V::KwString(s) => s.value.as_str(),
-                    _ => unreachable!("join is only offered on lists of std.kw.string"),
-                })
-                .collect();
-            string(parts.join(&separator.value))
+            let mut out = String::new();
+            for (i, item) in items.to_vec().iter().enumerate() {
+                if i > 0 {
+                    separator.with_str(|sep| out.push_str(sep));
+                }
+                match item {
+                    V::KwString(s) => s.with_str(|s| out.push_str(s)),
+                    _ => unreachable!("string join only takes strings"),
+                }
+            }
+            string(out)
         }
+        (KwBuiltinOp::ListJoin, [V::KwList(items), V::KwText(separator)]) => {
+            let mut parts = Vec::new();
+            for (i, item) in items.to_vec().into_iter().enumerate() {
+                if i > 0 {
+                    parts.push(separator.clone());
+                }
+                match item {
+                    V::KwText(t) => parts.push(t),
+                    _ => unreachable!("text join only takes text"),
+                }
+            }
+            V::KwText(Rc::new(TextNode::Parts(parts)))
+        }
+        (KwBuiltinOp::TextParts, _) => V::KwText(Rc::new(TextNode::Parts(
+            args.iter()
+                .map(|part| match part {
+                    V::KwText(t) => t.clone(),
+                    _ => unreachable!("text parts are text"),
+                })
+                .collect(),
+        ))),
+        (KwBuiltinOp::TextFromString, [V::KwString(s)]) => {
+            V::KwText(Rc::new(TextNode::Str(s.clone())))
+        }
+        (KwBuiltinOp::TextFromInt, [V::KwInt(n)]) => V::KwText(Rc::new(TextNode::Str(
+            ComptimeValueKwString::new(n.value.to_string()),
+        ))),
+        (KwBuiltinOp::TextFresh, [V::KwString(hint)]) => {
+            static NEXT_FRESH: AtomicU64 = AtomicU64::new(0);
+            V::KwText(Rc::new(TextNode::Fresh {
+                id: NEXT_FRESH.fetch_add(1, Ordering::Relaxed),
+                hint: hint.to_owned_string(),
+            }))
+        }
+        (KwBuiltinOp::TextRender, [V::KwText(t)]) => string(render_text(t)),
         (KwBuiltinOp::OptionalSome, [value]) => V::Optional(ComptimeValueOptional {
             some: Some(Box::new(value.clone())),
         }),
@@ -168,9 +263,14 @@ fn values_equal(a: &ComptimeValue, b: &ComptimeValue) -> bool {
         (V::Void(_), V::Void(_)) => true,
         (V::KwInt(a), V::KwInt(b)) => a.value == b.value,
         (V::KwBool(a), V::KwBool(b)) => a.value == b.value,
-        (V::KwString(a), V::KwString(b)) => a.value == b.value,
+        (V::KwString(a), V::KwString(b)) => a == b,
+        (V::KwText(a), V::KwText(b)) => render_text(a) == render_text(b),
         (V::CInt(a), V::CInt(b)) => a.value == b.value,
-        (V::KwList(a), V::KwList(b)) | (V::Struct(a), V::Struct(b)) => {
+        (V::KwList(a), V::KwList(b)) => {
+            let (a, b) = (a.to_vec(), b.to_vec());
+            a.len() == b.len() && a.iter().zip(&b).all(|(a, b)| values_equal(a, b))
+        }
+        (V::Struct(a), V::Struct(b)) => {
             a.len() == b.len() && a.iter().zip(b).all(|(a, b)| values_equal(a, b))
         }
         (V::Optional(a), V::Optional(b)) => match (&a.some, &b.some) {
@@ -205,7 +305,7 @@ pub fn emit(
             RuntimeValue::Runtime(_) => None,
         })
         .collect();
-    if let Some(known) = known {
+    if let (Some(known), false) = (known, op == KwBuiltinOp::TextFresh) {
         return Ok(AnalysisResult {
             ty,
             value: RuntimeValue::Comptime(eval(env, &pos, op, known)?),
@@ -229,30 +329,49 @@ fn analyze_as(
     Ok(ty.cast_into(env, block, value, pos)?.value)
 }
 
-pub fn string_literal(
+pub fn interpolated_literal(
     env: &mut Env,
+    ty: &Type,
     ast: &BlockToken,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
-    let bytes = analyze_base(
-        env,
-        Type::Uint8Array(TypeUint8Array),
-        &SyntaxNode::Block(Box::new(ast.clone())),
-        block,
-    )?;
-    let ComptimeValue::Uint8Array(bytes) = get_comptime(
-        env,
-        Some(ComptimeValueKind::Uint8Array),
-        bytes.value,
-        ast.pos.clone(),
-    )?
-    else {
-        unreachable!("get_comptime guarantees a matching kind")
+    let is_text = matches!(ty, Type::KwText(_));
+    let mut parts = Vec::new();
+    for item in &ast.items {
+        match item {
+            SyntaxNode::Raw(raw) if raw.tag == RawTag::String => {
+                let text = unescape_string(env, &raw.raw, raw.pos.clone())?;
+                if text.is_empty() {
+                    continue;
+                }
+                let value = string(text);
+                parts.push(RuntimeValue::Comptime(if is_text {
+                    eval(env, &raw.pos, KwBuiltinOp::TextFromString, vec![value])?
+                } else {
+                    value
+                }));
+            }
+            SyntaxNode::Block(part) if part.tag == BracketTag::List => {
+                let value = analyze(env, ty.clone(), part.pos.clone(), &part.items, block)?;
+                parts.push(ty.cast_into(env, block, value, part.pos.clone())?.value);
+            }
+            other => {
+                return Err(throw_err(
+                    env,
+                    Some(ast.pos.clone()),
+                    format!("unexpected {other:?} in a string"),
+                    None,
+                    None,
+                ));
+            }
+        }
+    }
+    let op = if is_text {
+        KwBuiltinOp::TextParts
+    } else {
+        KwBuiltinOp::StringConcat
     };
-    Ok(AnalysisResult {
-        ty: Type::KwString(KwString),
-        value: RuntimeValue::Comptime(string(String::from_utf8_lossy(&bytes.value).into_owned())),
-    })
+    emit(env, block, ast.pos.clone(), op, parts, ty.clone())
 }
 
 pub fn list_literal(
@@ -315,8 +434,9 @@ pub fn value_field(
             .map(Some);
         }
         (Type::KwList(_), "len") => property(KwBuiltinOp::ListLen),
+        (Type::KwText(_), "render") => (KwBuiltinOp::TextRender, Type::KwString(KwString)),
         (Type::KwList(list), "get" | "push" | "join") => {
-            if name == "join" && !matches!(*list.elem, Type::KwString(_)) {
+            if name == "join" && !matches!(*list.elem, Type::KwString(_) | Type::KwText(_)) {
                 return Ok(None);
             }
             return Ok(Some(AnalysisResult {
@@ -364,8 +484,8 @@ pub fn call_field(
         ),
         "join" => (
             KwBuiltinOp::ListJoin,
-            Type::KwString(KwString),
-            Type::KwString(KwString),
+            (*list.elem).clone(),
+            (*list.elem).clone(),
         ),
         _ => unreachable!("value_field only offers get, push and join"),
     };
@@ -374,25 +494,41 @@ pub fn call_field(
 }
 
 pub fn type_field(ty: &Type, name: &str) -> Option<AnalysisResult> {
-    match (ty, name) {
-        (Type::KwString(_), "from_int") => Some(AnalysisResult {
-            ty: Type::CtNamespace(CtNamespace),
-            value: RuntimeValue::Comptime(ComptimeValue::Namespace(std::rc::Rc::new(
-                StringFromInt {
-                    pos: compiler_pos(),
-                },
-            ))),
-        }),
-        _ => None,
-    }
+    let (op, arg, result) = match (ty, name) {
+        (Type::KwString(_), "from_int") => (
+            KwBuiltinOp::StringFromInt,
+            Type::KwInt(KwInt),
+            Type::KwString(KwString),
+        ),
+        (Type::KwText(_), "fresh") => (
+            KwBuiltinOp::TextFresh,
+            Type::KwString(KwString),
+            Type::KwText(KwText),
+        ),
+        _ => return None,
+    };
+    Some(AnalysisResult {
+        ty: Type::CtNamespace(CtNamespace),
+        value: RuntimeValue::Comptime(ComptimeValue::Namespace(Rc::new(StaticFn {
+            name: format!("{}.{name}", ty.dump()),
+            op,
+            arg,
+            result,
+            pos: compiler_pos(),
+        }))),
+    })
 }
 
 #[derive(Debug)]
-struct StringFromInt {
+struct StaticFn {
+    name: String,
+    op: KwBuiltinOp,
+    arg: Type,
+    result: Type,
     pos: TokenPosition,
 }
 
-impl ComptimeNamespace for StringFromInt {
+impl ComptimeNamespace for StaticFn {
     fn get_string(
         &self,
         env: &mut Env,
@@ -403,7 +539,7 @@ impl ComptimeNamespace for StringFromInt {
         Err(throw_err(
             env,
             Some(pos),
-            format!("std.kw.string.from_int has no field: {field}"),
+            format!("{} has no field: {field}", self.name),
             None,
             None,
         ))
@@ -428,15 +564,8 @@ impl ComptimeNamespace for StringFromInt {
         arg: CallArg<'_>,
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
-        let n = analyze_as(env, &Type::KwInt(KwInt), arg, block)?;
-        emit(
-            env,
-            block,
-            pos,
-            KwBuiltinOp::StringFromInt,
-            vec![n],
-            Type::KwString(KwString),
-        )
+        let value = analyze_as(env, &self.arg, arg, block)?;
+        emit(env, block, pos, self.op, vec![value], self.result.clone())
     }
 
     fn pos(&self) -> &TokenPosition {

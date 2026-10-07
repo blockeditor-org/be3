@@ -9,13 +9,12 @@ use crate::compiler::{
     AnalysisBlock, AnalysisLine, AnalysisResult, Binary2, ComptimeFolder, ComptimeNamespace,
     ComptimeValue, ComptimeValueBuildArtifact, ComptimeValueCExportName, ComptimeValueCInt,
     ComptimeValueDeclaration, ComptimeValueExportList, ComptimeValueExportListEntry,
-    ComptimeValueKey, ComptimeValueKwBool, ComptimeValueKwInt, ComptimeValueKwString,
-    ComptimeValueMcIdentifier, ComptimeValueMcNbtRef, ComptimeValueMcResult,
-    ComptimeValueOperatorName, ComptimeValueUint8Array, ComptimeValueVoid, ConsumedErrorToken, Env,
-    PositionedError, Region, RuntimeValue, Symbol, Uint8ArraySourcemapEntry, add_err, analyze,
-    analyze_base, analyze_block, analyze_call, analyze_function, block_append, compiler_pos,
-    create_declaration, empty_block, get_declaration, read_binary, throw_consumed_err, throw_err,
-    trim_ws,
+    ComptimeValueKey, ComptimeValueKwBool, ComptimeValueKwInt, ComptimeValueMcIdentifier,
+    ComptimeValueMcNbtRef, ComptimeValueMcResult, ComptimeValueOperatorName,
+    ComptimeValueUint8Array, ComptimeValueVoid, ConsumedErrorToken, Env, PositionedError, Region,
+    RuntimeValue, Symbol, Uint8ArraySourcemapEntry, add_err, analyze, analyze_base, analyze_block,
+    analyze_call, analyze_function, block_append, compiler_pos, create_declaration, empty_block,
+    get_declaration, read_binary, throw_consumed_err, throw_err, trim_ws,
 };
 use crate::comptime::{ComptimeValueKind, comptime_eval, get_comptime};
 use crate::parser::{
@@ -72,6 +71,7 @@ pub enum Type {
     Never(TypeNever),
     Infer(TypeInfer),
     KwString(KwString),
+    KwText(KwText),
     KwList(KwList),
     KwField(TypeKwField),
     Null(TypeNull),
@@ -229,6 +229,9 @@ impl TypeKwIfOptional {
 pub struct KwString;
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct KwText;
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct KwList {
     pub elem: Box<Type>,
 }
@@ -272,8 +275,15 @@ impl Type {
     ) -> Result<AnalysisResult, PositionedError> {
         match self {
             Type::McResult(m) => m.cast_into(env, block, other, pos),
+            Type::KwText(_) if matches!(other.ty, Type::KwString(_) | Type::KwInt(_)) => {
+                let op = match other.ty {
+                    Type::KwString(_) => crate::kw::KwBuiltinOp::TextFromString,
+                    _ => crate::kw::KwBuiltinOp::TextFromInt,
+                };
+                crate::kw::emit(env, block, pos, op, vec![other.value], self.clone())
+            }
             Type::CtBuildArtifact(artifact)
-                if matches!(other.ty, Type::KwString(_))
+                if matches!(other.ty, Type::KwString(_) | Type::KwText(_))
                     && artifact.narrow != Some(CtBuildArtifactNarrow::Folder) =>
             {
                 let idx = block_append(
@@ -358,6 +368,7 @@ impl Type {
                     | Type::OperatorName(_)
                     | Type::CtKey(_)
                     | Type::KwString(_)
+                    | Type::KwText(_)
             ),
             LiteralKind::Map => matches!(
                 self,
@@ -392,8 +403,10 @@ impl Type {
                 .map(|ast| t.from_string(env, slot, ast, block)),
             (LiteralKind::String, Type::CExportName(t)) => literal_block(node, BracketTag::String)
                 .map(|ast| t.from_string(env, slot, ast, block)),
-            (LiteralKind::String, Type::KwString(_)) => literal_block(node, BracketTag::String)
-                .map(|ast| crate::kw::string_literal(env, ast, block)),
+            (LiteralKind::String, Type::KwString(_) | Type::KwText(_)) => {
+                literal_block(node, BracketTag::String)
+                    .map(|ast| crate::kw::interpolated_literal(env, &slot, ast, block))
+            }
             (LiteralKind::List, Type::KwList(t)) => literal_block(node, BracketTag::List)
                 .map(|ast| crate::kw::list_literal(env, t, ast, block)),
             (LiteralKind::String, Type::CtKey(_)) => {
@@ -478,6 +491,7 @@ impl Type {
             Type::Never(_) => "Never",
             Type::Infer(_) => "TypeUnknown",
             Type::KwString(_) => "KwString",
+            Type::KwText(_) => "KwText",
             Type::KwList(_) => "KwList",
             Type::KwField(_) => "KwField",
             Type::Null(_) => "Null",
@@ -2057,7 +2071,12 @@ fn builtin_operator(ty: &Type, kind: OperatorKind, key: Symbol) -> Option<CBinar
     match (ty, kind, op.is_comparison()) {
         (Type::KwInt(_), OperatorKind::Slot, false) => Some(op),
         (Type::KwInt(_), OperatorKind::Lhs, _) => Some(op),
-        (Type::KwString(_), OperatorKind::Slot, false) if op == CBinaryOp::Add => Some(op),
+        (Type::KwString(_) | Type::KwText(_), OperatorKind::Slot, false)
+            if op == CBinaryOp::Add =>
+        {
+            Some(op)
+        }
+        (Type::KwText(_), OperatorKind::Lhs, _) if op == CBinaryOp::Add => Some(op),
         (Type::KwString(_), OperatorKind::Lhs, _)
             if matches!(op, CBinaryOp::Add | CBinaryOp::Eq | CBinaryOp::Ne) =>
         {
@@ -2085,6 +2104,16 @@ fn builtin_binary(
             ty: Type::CInt(CInt),
             value: RuntimeValue::Runtime(idx),
         });
+    }
+    if let Type::KwText(_) = ty {
+        return crate::kw::emit(
+            env,
+            block,
+            pos,
+            crate::kw::KwBuiltinOp::TextParts,
+            vec![lhs, rhs],
+            Type::KwText(KwText),
+        );
     }
     let ty = if op.is_comparison() {
         Type::KwBool(KwBool)
@@ -2142,11 +2171,9 @@ pub fn fold_kw_binary(
             }
         }
         (ComptimeValue::KwString(a), ComptimeValue::KwString(b)) => match op {
-            CBinaryOp::Add => Ok(ComptimeValue::KwString(ComptimeValueKwString {
-                value: format!("{}{}", a.value, b.value),
-            })),
-            CBinaryOp::Eq => bool(a.value == b.value),
-            CBinaryOp::Ne => bool(a.value != b.value),
+            CBinaryOp::Add => Ok(ComptimeValue::KwString(a.concat(b))),
+            CBinaryOp::Eq => bool(a == b),
+            CBinaryOp::Ne => bool(a != b),
             _ => unreachable!("std.kw.string only has +, == and !="),
         },
         (ComptimeValue::KwBool(a), ComptimeValue::KwBool(b)) => match op {

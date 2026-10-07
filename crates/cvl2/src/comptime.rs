@@ -49,6 +49,7 @@ pub enum ComptimeValueKind {
     KwMut,
     KwString,
     KwList,
+    KwText,
     Struct,
     Enum,
     McNbtRef,
@@ -81,6 +82,7 @@ impl ComptimeValueKind {
             ComptimeValue::KwMut(_) => ComptimeValueKind::KwMut,
             ComptimeValue::KwString(_) => ComptimeValueKind::KwString,
             ComptimeValue::KwList(_) => ComptimeValueKind::KwList,
+            ComptimeValue::KwText(_) => ComptimeValueKind::KwText,
             ComptimeValue::Struct(_) => ComptimeValueKind::Struct,
             ComptimeValue::Enum(_) => ComptimeValueKind::Enum,
             ComptimeValue::McNbtRef(_) => ComptimeValueKind::McNbtRef,
@@ -341,7 +343,8 @@ fn comptime_eval_with_args(
                     ipos.clone(),
                     Some(&runtime),
                 )? {
-                    ComptimeValue::KwString(s) => s.value.into_bytes(),
+                    ComptimeValue::KwString(s) => s.to_owned_string().into_bytes(),
+                    ComptimeValue::KwText(t) => crate::kw::render_text(&t).into_bytes(),
                     other => {
                         let ComptimeValue::Uint8Array(bytes) = get_comptime_impl(
                             env,

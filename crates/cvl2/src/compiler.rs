@@ -678,7 +678,100 @@ pub struct ComptimeValueKwInt {
 
 #[derive(Debug, Clone)]
 pub struct ComptimeValueKwString {
-    pub value: String,
+    buf: Rc<RefCell<String>>,
+    len: usize,
+}
+
+impl ComptimeValueKwString {
+    pub fn new(value: String) -> Self {
+        let len = value.len();
+        ComptimeValueKwString {
+            buf: Rc::new(RefCell::new(value)),
+            len,
+        }
+    }
+
+    pub fn with_str<R>(&self, f: impl FnOnce(&str) -> R) -> R {
+        f(&self.buf.borrow()[..self.len])
+    }
+
+    pub fn to_owned_string(&self) -> String {
+        self.with_str(str::to_string)
+    }
+
+    pub fn concat(&self, other: &ComptimeValueKwString) -> ComptimeValueKwString {
+        let appended = other.with_str(|other| {
+            let mut buf = self.buf.borrow_mut();
+            if buf.len() != self.len {
+                return None;
+            }
+            buf.push_str(other);
+            Some(buf.len())
+        });
+        match appended {
+            Some(len) => ComptimeValueKwString {
+                buf: self.buf.clone(),
+                len,
+            },
+            None => {
+                let mut value = self.to_owned_string();
+                other.with_str(|other| value.push_str(other));
+                ComptimeValueKwString::new(value)
+            }
+        }
+    }
+}
+
+impl PartialEq for ComptimeValueKwString {
+    fn eq(&self, other: &Self) -> bool {
+        self.with_str(|a| other.with_str(|b| a == b))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ComptimeValueKwList {
+    buf: Rc<RefCell<Vec<ComptimeValue>>>,
+    len: usize,
+}
+
+impl ComptimeValueKwList {
+    pub fn new(items: Vec<ComptimeValue>) -> Self {
+        let len = items.len();
+        ComptimeValueKwList {
+            buf: Rc::new(RefCell::new(items)),
+            len,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    pub fn get(&self, index: usize) -> Option<ComptimeValue> {
+        (index < self.len).then(|| self.buf.borrow()[index].clone())
+    }
+
+    pub fn to_vec(&self) -> Vec<ComptimeValue> {
+        self.buf.borrow()[..self.len].to_vec()
+    }
+
+    pub fn push(&self, item: ComptimeValue) -> ComptimeValueKwList {
+        let mut buf = self.buf.borrow_mut();
+        if buf.len() == self.len {
+            buf.push(item);
+            return ComptimeValueKwList {
+                buf: self.buf.clone(),
+                len: self.len + 1,
+            };
+        }
+        let mut items = buf[..self.len].to_vec();
+        items.push(item);
+        ComptimeValueKwList::new(items)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -800,7 +893,8 @@ pub enum ComptimeValue {
     KwInt(ComptimeValueKwInt),
     KwBool(ComptimeValueKwBool),
     KwString(ComptimeValueKwString),
-    KwList(Vec<ComptimeValue>),
+    KwList(ComptimeValueKwList),
+    KwText(Rc<crate::kw::TextNode>),
     Tuple(ComptimeValueTuple),
     Struct(Vec<ComptimeValue>),
     Enum(ComptimeValueEnum),
@@ -3567,6 +3661,17 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                         }),
                                     ),
                                     ("list", d_ns(vec![], Some(builtin_kw_list_call))),
+                                    (
+                                        "text",
+                                        d_raw(AnalysisResult {
+                                            ty: Type::CtType(CtType),
+                                            value: RuntimeValue::Comptime(ComptimeValue::Type(
+                                                ComptimeValueType {
+                                                    ty: Type::KwText(crate::ct::KwText),
+                                                },
+                                            )),
+                                        }),
+                                    ),
                                     (
                                         "null",
                                         d_raw(AnalysisResult {
