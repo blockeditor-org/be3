@@ -1,2 +1,3 @@
 use super::*;
 mod a_frame_carries_damage_only_when_every_present_since_the_last_one_reported_it;
+mod a_plugin_repaint_deadline_wakes_the_host_on_every_frame_until_it_is_due;

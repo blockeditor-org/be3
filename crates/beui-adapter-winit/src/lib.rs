@@ -102,6 +102,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         pointer_left: false,
         error: None,
         next_update: None,
+        prepared: false,
         clipboard: Clipboard::new(),
         file_picker: FilePicker::new(),
         event_loop_proxy: event_loop.create_proxy(),
@@ -135,6 +136,7 @@ struct Runner {
     pointer_left: bool,
     error: Option<String>,
     next_update: Option<Instant>,
+    prepared: bool,
     clipboard: Clipboard,
     file_picker: FilePicker,
     event_loop_proxy: EventLoopProxy<UserEvent>,
@@ -289,7 +291,9 @@ impl Runner {
     }
 
     fn redraw(&mut self, event_loop: &ActiveEventLoop) {
-        self.update(event_loop);
+        if !std::mem::take(&mut self.prepared) || self.runner.has_events() {
+            self.update(event_loop);
+        }
         if self.runner.present() {
             self.request_redraw();
         }
@@ -317,6 +321,7 @@ impl ApplicationHandler<UserEvent> for Runner {
                 .is_some_and(|deadline| deadline <= Instant::now()))
             && self.update(event_loop)
         {
+            self.prepared = true;
             self.request_redraw();
         }
         event_loop.set_control_flow(match self.next_update {
@@ -389,6 +394,7 @@ impl ApplicationHandler<UserEvent> for Runner {
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
+        self.prepared = false;
         let event = match event {
             UserEvent::Wake => {
                 self.request_redraw();
@@ -430,6 +436,9 @@ impl ApplicationHandler<UserEvent> for Runner {
         }
         if let Some(surface) = &mut self.surface {
             surface.accessibility.process_event(&surface.window, &event);
+        }
+        if !matches!(event, WindowEvent::RedrawRequested) {
+            self.prepared = false;
         }
         match event {
             WindowEvent::CloseRequested => {
