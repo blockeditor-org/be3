@@ -294,7 +294,7 @@ impl Root for Calendar {
 pub type CalendarContent = Document<Calendar>;
 ```
 
-A field is one of seven things. A `Count` is a counter whose concurrent changes
+A field is one of eight things. A `Count` is a counter whose concurrent changes
 add up. A `Grid<T>` is a dense block of fixed-size cells addressed by
 coordinates, for pixel data: its bounds are part of its value, so a resize moves
 the bounds and keeps every cell at its coordinates, `paint` sets cells and
@@ -306,6 +306,11 @@ both keep theirs, which is how a database row holds a cell per schema field.
 and a merge keeps the later stamp per key, so they never conflict and never
 undo. `next(time, origin)` stamps a write past the one it replaces, so a client
 with a slow clock still overwrites what it last read. View state uses them.
+A `Text` is bytes edited in place: it saves only its bytes, and a live session
+gives every byte a position (`Sequence`, in the `sequence` crate) that edits anchor to,
+so concurrent typing and deleting never need rebasing. Positions and tombstones
+are session state, an offline merge is a line diff3, and no block uses it yet
+(see `plans/text.md`).
 Anything else that is `Serialize + DeserializeOwned + Clone + PartialEq +
 Default` is a register: it is set as a whole, and setting it on both sides of an
 offline merge is a conflict. `Root` names the content type and, optionally, the

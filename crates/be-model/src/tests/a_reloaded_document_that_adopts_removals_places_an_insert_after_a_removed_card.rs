@@ -10,7 +10,7 @@ fn a_reloaded_document_that_adopts_removals_places_an_insert_after_a_removed_car
     let (_, insert) = Column::CARDS.insert(todo, Anchor::After(write), &card("draft"));
 
     reloaded
-        .adopt_removals(&removed.removals())
+        .adopt_session_state(&removed.session_state())
         .expect("the removals decode");
     reloaded.apply(&insert.into());
 

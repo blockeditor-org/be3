@@ -57,11 +57,11 @@ impl<R: Root> LiveEdit for Document<R> {
     }
 
     fn session_state(&self) -> Vec<u8> {
-        self.removals()
+        Document::session_state(self)
     }
 
     fn adopt_session_state(&mut self, state: &[u8]) -> Result<(), ContentError> {
-        self.adopt_removals(state)
+        Document::adopt_session_state(self, state)
             .map_err(|_| ContentError::Malformed("session state"))
     }
 }

@@ -2,9 +2,18 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Anchor, Change, Malformed, Model, Object, ObjectId, Objects, Place, Touched, Value};
+use crate::{
+    Anchor, Change, Malformed, Model, Object, ObjectId, Objects, Place, Sequence, Touched, Value,
+};
+use sequence::State;
 
 pub(crate) type Gone = BTreeMap<ObjectId, (Place, Anchor)>;
+
+#[derive(Default, Deserialize, Serialize)]
+struct Session {
+    gone: Gone,
+    texts: BTreeMap<Place, State<u8>>,
+}
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Tree {
@@ -33,19 +42,64 @@ impl Tree {
         &self.objects
     }
 
-    pub(crate) fn removals(&self) -> Vec<u8> {
-        match self.gone.is_empty() {
-            true => Vec::new(),
-            false => postcard::to_stdvec(&self.gone).unwrap_or_default(),
+    pub(crate) fn session_state(&self) -> Vec<u8> {
+        let texts: BTreeMap<Place, State<u8>> = self
+            .texts()
+            .filter(|(_, sequence)| !sequence.is_fresh())
+            .map(|(place, sequence)| (place, sequence.state()))
+            .collect();
+        if self.gone.is_empty() && texts.is_empty() {
+            return Vec::new();
         }
+        let session = Session {
+            gone: self.gone.clone(),
+            texts,
+        };
+        postcard::to_stdvec(&session).unwrap_or_default()
     }
 
-    pub(crate) fn adopt_removals(&mut self, bytes: &[u8]) -> Result<(), Malformed> {
-        self.gone = match bytes.is_empty() {
-            true => Gone::new(),
+    pub(crate) fn adopt_session_state(&mut self, bytes: &[u8]) -> Result<(), Malformed> {
+        let Session { gone, texts } = match bytes.is_empty() {
+            true => Session::default(),
             false => postcard::from_bytes(bytes).map_err(|_| Malformed)?,
         };
+        let mut adopted = Vec::new();
+        for (place, state) in texts {
+            let sequence = Sequence::from_state(state).map_err(|_| Malformed)?;
+            match self.value(place.object, place.field) {
+                Some(Value::Text(held)) if *held == sequence => adopted.push((place, sequence)),
+                _ => return Err(Malformed),
+            }
+        }
+        self.gone = gone;
+        self.refresh_texts();
+        for (place, sequence) in adopted {
+            if let Some(Value::Text(held)) = self.value_mut(place.object, place.field) {
+                *held = sequence;
+            }
+        }
         Ok(())
+    }
+
+    fn texts(&self) -> impl Iterator<Item = (Place, &Sequence<u8>)> {
+        self.objects.iter().flat_map(|(id, object)| {
+            object
+                .fields
+                .iter()
+                .enumerate()
+                .filter_map(move |(index, value)| match (value, u16::try_from(index)) {
+                    (Value::Text(sequence), Ok(field)) => {
+                        Some((Place { object: *id, field }, sequence))
+                    }
+                    _ => None,
+                })
+        })
+    }
+
+    pub(crate) fn refresh_texts(&mut self) {
+        for object in self.objects.values_mut() {
+            refresh(&mut object.fields);
+        }
     }
 
     pub fn upgrade(&mut self, id: ObjectId, blank: Vec<Value>) {
@@ -187,6 +241,10 @@ impl Tree {
                 stamped,
             } => match self.value_mut(*object, *field) {
                 Some(Value::Latest(entries)) => crate::latest::stamp(entries, key, stamped),
+                _ => false,
+            },
+            Change::Text { object, field, op } => match self.value_mut(*object, *field) {
+                Some(Value::Text(sequence)) => sequence.apply(op).is_some(),
                 _ => false,
             },
             Change::Remove { object } => self.remove(*object),
@@ -340,6 +398,24 @@ impl Tree {
                 ))
             }
             Change::Stamp { .. } => None,
+            Change::Text { object, field, op } => {
+                let Some(Value::Text(sequence)) = self.value(*object, *field) else {
+                    return None;
+                };
+                let (back, forward) = sequence.inverse(op)?;
+                Some((
+                    Change::Text {
+                        object: *object,
+                        field: *field,
+                        op: back,
+                    },
+                    Change::Text {
+                        object: *object,
+                        field: *field,
+                        op: forward,
+                    },
+                ))
+            }
             Change::Insert { place, objects, .. } => {
                 let (top, _) = objects.first()?;
                 (!self.contains(*top) && self.list(*place).is_some())
@@ -428,7 +504,8 @@ impl Tree {
             | Change::PutIf { object, field, .. }
             | Change::Paint { object, field, .. }
             | Change::Reshape { object, field, .. }
-            | Change::Stamp { object, field, .. } => {
+            | Change::Stamp { object, field, .. }
+            | Change::Text { object, field, .. } => {
                 out.push(Touched::Field(*object, *field));
                 self.touch_up(*object, out);
             }
@@ -586,6 +663,7 @@ impl Tree {
             if index == 0 {
                 object.parent = Some(place);
             }
+            refresh(&mut object.fields);
             self.objects.insert(*id, object);
         }
         self.place_in(*top, place, anchor)
@@ -703,4 +781,14 @@ fn conditional_entry(
             value: after.cloned(),
         },
     )
+}
+
+fn refresh(fields: &mut [Value]) {
+    for value in fields {
+        if let Value::Text(sequence) = value
+            && !sequence.is_fresh()
+        {
+            *sequence = sequence.refreshed();
+        }
+    }
 }

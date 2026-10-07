@@ -1,7 +1,7 @@
 use super::*;
 
 use be_block::be_model::{Anchor, ObjectId};
-use be_block::{Checklist, ChecklistContent, ChecklistItem, LiveEdit};
+use be_block::{Checklist, ChecklistContent, ChecklistItem};
 
 use crate::Journaled;
 
