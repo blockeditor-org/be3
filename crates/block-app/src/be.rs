@@ -48,16 +48,18 @@ const LOG_LIMIT: usize = 512;
 pub(crate) struct Content {
     pub(crate) content_type: Uuid,
     pub(crate) bytes: Vec<u8>,
+    pub(crate) session: Vec<u8>,
     pub(crate) revision: u64,
     log: std::collections::VecDeque<(Vec<u8>, Option<u64>)>,
     taken: std::collections::HashMap<u64, u64>,
 }
 
 impl Content {
-    pub(crate) fn new(content_type: Uuid, bytes: Vec<u8>) -> Self {
+    pub(crate) fn new(content_type: Uuid, bytes: Vec<u8>, session: Vec<u8>) -> Self {
         Self {
             content_type,
             bytes,
+            session,
             revision: 1,
             log: std::collections::VecDeque::new(),
             taken: std::collections::HashMap::new(),
@@ -98,6 +100,7 @@ impl Content {
             _ => Update::Snapshot {
                 content_type: self.content_type,
                 bytes: self.bytes.clone(),
+                session: self.session.clone(),
                 applied: self.taken.get(&origin).copied().unwrap_or_default(),
             },
         }
@@ -109,6 +112,7 @@ pub(crate) enum Update {
     Snapshot {
         content_type: Uuid,
         bytes: Vec<u8>,
+        session: Vec<u8>,
         applied: u64,
     },
     Operations(Vec<(Vec<u8>, bool)>),

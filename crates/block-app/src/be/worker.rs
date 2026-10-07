@@ -217,6 +217,8 @@ pub(super) trait Session {
 
     fn bytes(&self) -> Vec<u8>;
 
+    fn session_state(&self) -> Vec<u8>;
+
     fn head(&self) -> Option<CommitId>;
 
     fn is_clean(&self) -> bool;
@@ -332,6 +334,10 @@ where
 
     fn bytes(&self) -> Vec<u8> {
         self.live.content().encode()
+    }
+
+    fn session_state(&self) -> Vec<u8> {
+        self.live.content().session_state()
     }
 
     fn head(&self) -> Option<CommitId> {
@@ -519,6 +525,10 @@ where
 
     fn bytes(&self) -> Vec<u8> {
         self.live.content().encode()
+    }
+
+    fn session_state(&self) -> Vec<u8> {
+        self.live.content().session_state()
     }
 
     fn head(&self) -> Option<CommitId> {
@@ -1413,7 +1423,11 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         let Some(content) = held.blocks.get_mut(block) else {
             held.blocks.insert(
                 *block,
-                Content::new(session.content_type(), session.bytes()),
+                Content::new(
+                    session.content_type(),
+                    session.bytes(),
+                    session.session_state(),
+                ),
             );
             held.touch(*block);
             changed = true;
@@ -1426,6 +1440,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             content.record(entry);
         }
         content.bytes = session.bytes();
+        content.session = session.session_state();
         held.touch(*block);
         changed = true;
     }

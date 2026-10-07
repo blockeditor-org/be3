@@ -676,6 +676,8 @@ pub enum EditorMessage {
         content_type: [u8; 16],
         #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        session: Vec<u8>,
         applied: u64,
     },
     ContentOperations {

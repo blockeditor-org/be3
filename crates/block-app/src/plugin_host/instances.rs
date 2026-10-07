@@ -185,12 +185,14 @@ impl ContentLink {
             crate::be::Update::Snapshot {
                 content_type,
                 bytes,
+                session,
                 applied,
             } => EditorMessage::Content {
                 instance,
                 block_id,
                 content_type: content_type.into_bytes(),
                 bytes,
+                session,
                 applied,
             },
             crate::be::Update::Operations(operations) => EditorMessage::ContentOperations {
