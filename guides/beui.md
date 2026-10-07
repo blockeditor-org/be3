@@ -897,8 +897,7 @@ chevron, the indent beside it and the name to mean three different things. The
 handle carries `select`, `toggle` and `hover` for the face to call from
 wherever it decides they belong. The arrow keys, Home, End and typing move the
 keyboard between rows without selecting them, and Enter or Space selects the
-row it is on; `selection_follows_focus` makes every move select, as the beui
-inspector does. `toggle` puts the keyboard on its row too.
+row it is on. `toggle` puts the keyboard on its row too.
 
 `styled::Tree` is the face that split was made for, and the one app code
 reaches for. It draws the indent, a chevron that is a button of its own -

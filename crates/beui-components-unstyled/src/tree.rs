@@ -67,7 +67,6 @@ struct State<K> {
     buried: Memo<Option<K>>,
     focus: ReadSignal<Option<K>>,
     set_focus: WriteSignal<Option<K>>,
-    selection_follows_focus: bool,
     on_select: Callback<K>,
     on_expand: Callback<(K, bool)>,
     typeahead: RefCell<Typeahead>,
@@ -84,7 +83,6 @@ pub fn Tree<K>(
     selected: Prop<Option<K>>,
     #[prop(default = None)] ancestors: Option<Func<K, Vec<K>>>,
     #[prop(default = 0.0)] spacing: f32,
-    #[prop(default = false)] selection_follows_focus: bool,
     on_select: Callback<K>,
     on_expand: Callback<(K, bool)>,
     on_hover_change: Callback<(K, bool)>,
@@ -135,7 +133,6 @@ where
         buried,
         focus: focus.clone(),
         set_focus,
-        selection_follows_focus,
         on_select,
         on_expand,
         typeahead: RefCell::default(),
@@ -524,7 +521,7 @@ where
         _ => return false,
     };
     if press.pressed {
-        walk(state, &keys[moved]);
+        state.set_focus.set(Some(keys[moved].clone()));
     }
     true
 }
@@ -553,17 +550,7 @@ where
             untrack(|| state.item.call(keys[row].clone())).label
         });
     if let Some(matched) = matched {
-        walk(state, &keys[matched]);
-    }
-}
-
-fn walk<K>(state: &State<K>, key: &K)
-where
-    K: Clone + Eq + Hash + 'static,
-{
-    match state.selection_follows_focus {
-        true => select(state, key),
-        false => state.set_focus.set(Some(key.clone())),
+        state.set_focus.set(Some(keys[matched].clone()));
     }
 }
 
