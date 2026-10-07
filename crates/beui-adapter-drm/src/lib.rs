@@ -1,4 +1,5 @@
 mod arrow;
+mod displays;
 mod gpu;
 mod keyboard;
 mod keys;

@@ -18,6 +18,7 @@ members = [
     "crates/beui",
     "crates/beui-adapter-android",
     "crates/beui-adapter-drm",
+    "crates/beui-adapter-plugin",
     "crates/beui-adapter-web",
     "crates/beui-font-browser",
     "crates/beui-renderer-dom",
@@ -296,7 +297,7 @@ opt-level = 2
 debug-assertions = false
 overflow-checks = false
 
-# fix-rust-source parses every Rust file in the repository on every //:verify,
+# fix-rust-source parses every Rust file in the repository on every ./scripts/verify,
 # and unoptimised the parser took 8 seconds of it; optimised, about one. These
 # crates are its alone, so optimising them changes nothing else.
 

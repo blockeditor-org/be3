@@ -108,6 +108,7 @@ pub struct Man {
     pub piece: &'static dyn Piece,
     pub side: Side,
     pub moved: bool,
+    pub id: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use uuid::Uuid;
 
-use game_api::board::{Grid, Sprite};
+use game_api::board::{Board, ItemId, Sprite, Squares};
 use game_api::{GameHelper, GameScreen, Move, Scene, Spot};
 
 const SIDE: u32 = 3;
@@ -45,11 +45,16 @@ fn spot(cell: usize) -> Spot {
     Spot::tile(cell as u32 % SIDE, cell as u32 / SIDE)
 }
 
-fn grid(board: &[Option<Symbol>; CELL_COUNT]) -> Grid {
-    let mut grid = Grid::new(SIDE, SIDE);
+const MARKS: u32 = 1;
+
+fn grid(board: &[Option<Symbol>; CELL_COUNT]) -> Board {
+    let squares = Squares::cells(SIDE, SIDE);
+    let mut grid = squares.board(|_, _| Sprite::Cell);
     for (cell, symbol) in board.iter().enumerate() {
         if let Some(symbol) = symbol {
-            grid.place(cell as u32 % SIDE, cell as u32 / SIDE, symbol.sprite());
+            let (column, row) = (cell as u32 % SIDE, cell as u32 / SIDE);
+            let id = ItemId::new(MARKS, cell as u32);
+            squares.place(&mut grid, id, column, row, symbol.sprite());
         }
     }
     grid

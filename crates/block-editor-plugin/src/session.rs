@@ -137,7 +137,7 @@ impl ClientSession {
                 }
             }
             (State::Running, Message::Editor(editor)) => self.editor(editor),
-            (State::Running, Message::DrawFrame) => match self.surface.is_some() {
+            (State::Running, Message::DrawFrame { .. }) => match self.surface.is_some() {
                 true => Ok(Vec::new()),
                 false => Err("the host asked a plugin it gave no surface to draw a frame".into()),
             },
@@ -191,7 +191,7 @@ fn name(message: &Message) -> &'static str {
         Message::RegionSizes(_) => "region sizes",
         Message::Frames(_) => "frame reports",
         Message::Input(_) => "input",
-        Message::DrawFrame => "a draw request",
+        Message::DrawFrame { .. } => "a draw request",
         Message::FrameNeeded => "a frame request",
         Message::FrameReady(_) => "a ready frame",
         Message::Acknowledged { .. } => "an acknowledgement",

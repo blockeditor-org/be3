@@ -41,19 +41,12 @@ digest_algorithms = SHA256
 defer_write_actions = true
 sqlite_materializer_state = true
 
-# Namespace's remote execution cluster for this repository
-# (guides/build_server.md): the executor on one host, the action cache and CAS
-# on the other. A mistake here looks like a refused or empty cache rather than
-# an error: the address is a bare host:port (buck2 rejects grpcs:// and
-# https://), http_headers uses a colon, and there is no instance name.
-# $BE3_BUILD_SERVER_KEY is expanded from the daemon's environment, so a new
-# token needs ./scripts/buck killall.
-[buck2_re_client]
-action_cache_address = storageh-850u4k8p4ignk.iad4.namespaced.app:443
-cas_address = storageh-850u4k8p4ignk.iad4.namespaced.app:443
-engine_address = reapih-p5cvniii97l8a.iad4.namespaced.app:443
-http_headers = x-nsc-ingress-auth:Bearer $BE3_BUILD_SERVER_KEY
-tls = true
+# Where the remote execution cluster is: not here. Namespace shuts it down when
+# it has been idle, so ./scripts/buck asks nsc for its hosts and writes them,
+# with the header that authenticates to them, into .buckconfig.local
+# (configure_build_server in scripts/internal/common.sh). The address is a bare
+# host:port (buck2 rejects grpcs:// and https://), http_headers uses a colon,
+# and there is no instance name.
 
 # What buck2 does not watch or read as part of the workspace: git's own
 # directory, whose every fetch would otherwise be a file change, and the

@@ -54,7 +54,7 @@ Dependencies are discovered on each execution. Conditional branches unsubscribe
 from inputs they no longer read. `untrack(|| ...)` disables subscription for its
 closure while preserving the current cleanup scope. Memo computations must be
 pure: writing a signal inside a memo panics, including inside `untrack`, and
-`./scripts/buck run //:verify` reports a `set`, `update` or `set_unconditionally`
+`./scripts/verify` reports a `set`, `update` or `set_unconditionally`
 written inside a `create_memo` closure outside tests.
 
 `with` holds a shared borrow for the closure; `update` holds a mutable borrow.
@@ -393,6 +393,11 @@ fn Badge(
 ) -> NodeId
 ```
 
+An `Option<T>` prop takes a plain `T`, and also an `Option<T>`, so a wrapper
+hands its own optional prop straight on with `action={action}`. Two kinds of `T`
+take only the plain value: a primitive such as `f32`, so a numeric literal keeps
+its type, and `String`, which takes anything that is `Into<String>`.
+
 `Option<Prop<T>>` settles at build time: the tag either wrote the attribute or
 it did not, and a signal behind it can only ever hand over another `T`. A prop
 that has to go back to "nothing" while it is alive — a `Frame` whose `width`
@@ -444,6 +449,9 @@ it takes exactly one and arrives as the `NodeId` itself, so wrappers use
 or more than one, does not compile. `Option<Child>` is the same for a wrapper
 whose child is optional, like `fill` or a `button` that takes `content` instead:
 none or one compiles and two do not, rather than the extras being dropped.
+Inside a list, `{child}` may also be an `Option<NodeId>`, with or without
+`@sizing`: `None` adds nothing. That is how a handle's optional part, such as a
+tab bar a pane may not have, is placed without a `Show` around an `unwrap`.
 A `Children` value cannot be handed to a `Child` or `Option<Child>` prop, since
 its arity is only known once it is built; a wrapper that forwards its children
 into a single-child slot declares that arity itself.

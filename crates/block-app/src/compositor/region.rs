@@ -42,7 +42,7 @@ struct DrawingKey {
     drawn: Option<(u32, u32)>,
     held: Option<Rect>,
     size: Vec2,
-    placed: Option<[u32; 4]>,
+    placed: Option<[u32; 3]>,
 }
 
 pub(crate) type ChildView = Rc<dyn Fn(ChildId, Memo<Option<HostChild>>, Memo<Rect>) -> NodeId>;

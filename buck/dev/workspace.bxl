@@ -2,9 +2,32 @@
 # wasm ones included through transitions; prints "label<TAB>path" per target.
 #
 #   buck2 bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.json
+
+# The programs that also ship for Windows and macOS, which nothing else here
+# builds for them: their first-party dependencies are configured for each too,
+# so the code behind cfg(windows) and cfg(target_os = "macos") is compiled.
+_DESKTOP_PLATFORMS = [
+    "root//buck/platforms:windows_x86_64",
+    "root//buck/platforms:macos_arm64",
+]
+
+_DESKTOP_PROGRAMS = "set(//crates/block-app:block-app-bin //crates/be-server:be-server-bin //crates/be-launcher:launcher //crates/beui-demo:demo)"
+
+# Every first-party Rust target in every configuration //:check and clippy
+# cover.
+def rust_targets(ctx: bxl.Context) -> list:
+    targets = list(ctx.cquery().eval('kind("^rust_(library|binary|test)$", //crates/...)'))
+    for platform in _DESKTOP_PLATFORMS:
+        targets += list(
+            ctx.cquery(target_platform = platform).eval(
+                'kind("^rust_(library|binary)$", filter("^root//crates/", deps({})))'.format(_DESKTOP_PROGRAMS),
+            )
+        )
+    return targets
+
 def _impl(ctx: bxl.Context):
     name = ctx.cli_args.subtarget
-    targets = ctx.cquery().eval('kind("^rust_(library|binary|test)$", //crates/...)')
+    targets = rust_targets(ctx)
     outputs = {}
     for target in targets:
         sub_targets = ctx.analysis(target).providers()[DefaultInfo].sub_targets

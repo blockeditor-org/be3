@@ -36,7 +36,7 @@ registered against the node it builds, so that removing that node disposes
 exactly the effects the function created. A plain helper that
 builds nodes leaves its effects in the caller's scope, where they outlive the
 subtree they bind and panic with "node was removed" the next time one of their
-inputs changes. `./scripts/buck run //:verify` reports a function outside an
+inputs changes. `./scripts/verify` reports a function outside an
 `impl` that writes a `view!` and returns a node or a child value without the
 attribute. `#[component]` is also what makes the function usable as a tag,
 gives it `@test_id`, `@node_ref` and `@sizing`, and makes
@@ -138,7 +138,7 @@ a missing required prop and a prop written twice at the line that wrote the tag
 rather than from inside generated code, what routes `@test_id`, `@node_ref` and
 `@sizing` to the right place, what enforces a component's child arity, and what
 keeps render props unbuilt until the component calls them. Hand-written builder chains lose the
-diagnostics, are invisible to the `view!` formatter that `./scripts/buck run //:verify`
+diagnostics, are invisible to the `view!` formatter that `./scripts/verify`
 runs, and read nothing like the rest of the tree. The same applies to a
 component you want to pass around: hand over a `Render`/`RenderFn` closure that
 writes a `view!`, not a half-applied builder.
@@ -227,6 +227,8 @@ direction:
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
 | `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter |
+| `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips; callers run it with `beui::run_on` |
+| `beui-adapter-plugin` | the `Adapter`, `Platform` and `Renderer` for one region of a block editor plugin, which the plugin framework drives frame by frame (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it |
 
 Core cannot see the crates above it, so the few places it used to reach up are
 hooks the higher crates fill in:
@@ -360,10 +362,14 @@ faces, and `Text` takes them as props.
 
 `unstyled::Button` shows the split. It is a focusable `Interactive`,
 and owns button semantics, disabled behavior, pointer and keyboard activation,
-and accessibility. Its content closure receives a `ButtonHandle` of reactive
-`hovered`, `active`, and `focused` state. `styled::Button` wraps it and uses
-that handle to choose fills and paint a focus outline, so every visual treatment
-sits on the same interaction behavior.
+and accessibility: it takes the `label`, `glyph`, `role` or `Action` and builds
+its own accessibility node from them. Its content closure receives a
+`ButtonHandle` of reactive `hovered`, `active`, `focused` and `disabled` state
+and the resolved `label`, `glyph` and `tooltip`. `styled::Button` wraps it and
+uses that handle to choose fills and paint a focus outline, so every visual
+treatment sits on the same interaction behavior. Handles of controls built on a
+button, like `MenuButtonHandle` and `PopoverTriggerHandle`, carry that
+`ButtonHandle` as `button` rather than copying its fields.
 
 Pure presentation components such as styled text and cards compose base
 components directly, because they have no interaction behavior to delegate.
@@ -451,7 +457,7 @@ under the pointer. The unstyled module contains
 `Button`, `Pressable`, `Toggle`, `Choice`, `Slider`, `TextInput`, `TextArea`,
 `Disclosure`, `Tree`, `Select`, `ContextMenu`, `MenuButton`, `Popover`, `Container`,
 `PanZoom`, `PointerLock`, `Dock`, `Draggable`, `DropTarget`, `Tooltip`, `Floating`, `Scroll`, `Scrollbar`,
-`Stack`, `Calendar`, `DateTimeField`, `TimeList`, `ColorArea` and `Picture`. `TextArea` is the multiline one: it owns a
+`Stack`, `Calendar`, `DateTimeField`, `TimeList`, `ColorArea`, `ColorWheel` and `Picture`. `TextArea` is the multiline one: it owns a
 `text_editor_core::Core` through the `TextAreaState` its caller holds, lays the
 document out with a gutter, wrapping, collapsible sections and markdown
 checkboxes, and lays out the inline and block `TextWidget`s the caller
@@ -751,6 +757,19 @@ moves and through `on_change` once, when it ends, the way `NumberInput`
 reports a scrub - so an edit lands in the undo history once per gesture.
 That state is `unstyled::ColorPickerState`, and `unstyled::HexText` keeps a hex
 field in step with a color for both.
+
+`styled::ColorWheel` is a hue ring around a triangle whose tip points at the
+hue, and `styled::OklchColorWheel` is the same wheel over OKLCH: the triangle is
+the lightness and chroma plane, black to white with its tip at the hue's cusp
+lightness (`Oklch::cusp`) and a chroma past every hue's cusp, so it holds all of
+sRGB. Turning the hue keeps lightness and chroma. A point outside sRGB is painted
+and reported clamped to the most colorful color at its lightness and hue
+(`Oklch::clamped`), and a line on the triangle marks where sRGB ends. Both share
+`unstyled::ColorWheel`, which works in `WheelPoint`s (a hue and the triangle's
+saturation and value) and leaves the color model to its caller, and
+`ColorPickerState` is generic over the model (`Hsva` or `Oklch`). The faces are
+images rasterised on the CPU at the screen's pixel density, so they work on
+every renderer.
 
 `unstyled::Popover` is what both open: a trigger and a modal overlay, built the
 first time it opens, that traps Tab, closes on Escape, a press outside or its
@@ -1846,17 +1865,18 @@ and report user changes through its callback; see `unstyled::Toggle` and
 
 Put a styled component in `crates/beui-components-styled/src/<name>.rs`, declare it in
 `lib.rs`, and re-export its public API there. An interactive styled component
-wraps the matching unstyled component, supplies its accessibility label when
-needed, and renders the unstyled handle with base visual primitives:
+wraps the matching unstyled component, passes its `label` on for the unstyled
+one to put in the accessibility tree, and renders the unstyled handle with base
+visual primitives:
 
 ```rust
 #[component]
 pub fn Checkbox(label: Prop<String>, checked: Prop<bool>, on_change: Callback<bool>) -> NodeId {
     view! {
-        <Toggle checked on_change={move |checked| on_change.call(checked)}>
+        <Toggle checked label on_change={move |checked| on_change.call(checked)}>
             {move |handle: ToggleHandle| {
                 view! {
-                    <CheckboxFace handle label />
+                    <CheckboxFace handle />
                 }
             }}
         </Toggle>
@@ -1865,7 +1885,8 @@ pub fn Checkbox(label: Prop<String>, checked: Prop<bool>, on_change: Callback<bo
 ```
 
 The face component derives colors and visibility with memos over
-`handle.checked`, `handle.hovered`, `handle.active`, and `handle.focused`, then
+`handle.checked`, `handle.hovered`, `handle.active`, and `handle.focused`, reads
+its text from `handle.label`, then
 composes `Frame` and `Text`. Keyboard and pointer handling stay in the unstyled
 control. `styled/checkbox.rs` is a short, complete example of the pair.
 
@@ -2073,10 +2094,10 @@ From the workspace root, use:
 
 ```text
 ./scripts/buck run //:check
-./scripts/buck run //:verify
+./scripts/verify
 ```
 
-`./scripts/buck run //:check` is the fast complete-workspace compile check. `./scripts/buck run //:verify`
+`./scripts/buck run //:check` is the fast complete-workspace compile check. `./scripts/verify`
 is the full check, and CI runs it on a pull request and pushes whatever it changes to
 the pull request's branch; it runs the workspace tests, lints, formatting, project structure checks, snapshot updates, and the formatter for
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command

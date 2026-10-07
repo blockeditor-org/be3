@@ -13,6 +13,7 @@ use crate::app::{DeterministicGameApp, module_filter, seats};
 mod a_module_that_is_not_a_game_is_reported;
 mod a_new_player_can_take_the_other_side;
 mod a_piece_is_dragged_from_square_to_square;
+mod a_played_card_flies_from_the_hand_to_the_discard_pile;
 mod a_player_joins_by_clicking_the_deck_even_without_the_chrome;
 mod a_promotion_asks_which_piece_to_become;
 mod choosing_a_staged_game_copies_it_into_the_workspace;

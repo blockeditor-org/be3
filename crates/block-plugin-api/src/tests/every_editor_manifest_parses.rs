@@ -2,13 +2,11 @@ use super::*;
 
 #[test]
 fn every_editor_manifest_parses() {
-    let manifest_directory = std::env::var_os("CARGO_MANIFEST_DIR").map_or_else(
-        || env!("CARGO_MANIFEST_DIR").into(),
-        std::path::PathBuf::from,
-    );
-    let editors = manifest_directory.join("../editors");
+    let editors = std::env::var_os("EDITOR_MANIFESTS")
+        .map(std::path::PathBuf::from)
+        .expect("EDITOR_MANIFESTS names the editors' manifests");
     let mut checked = 0;
-    for entry in std::fs::read_dir(&editors).expect("the editors are beside this crate") {
+    for entry in std::fs::read_dir(&editors).expect("EDITOR_MANIFESTS is a directory") {
         let manifest = entry
             .expect("the entry is readable")
             .path()

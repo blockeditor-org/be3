@@ -3,27 +3,47 @@ use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
 use uuid::Uuid;
 
-use crate::board::{CardTable, Pile, PilePlace, Spot, Spread, Sprite};
+use crate::board::{Board, ItemId, Pile, Spot, Sprite, card_table};
 use crate::cards::{Card, deck};
 
 pub const DRAW_PILE: u32 = 0;
 pub const DISCARD_PILE: u32 = 1;
+const CARDS: u32 = u32::MAX - 1;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Dealt {
+    pub id: ItemId,
+    pub card: Card,
+}
 
 #[derive(Clone)]
 pub struct Table {
     players: Vec<Uuid>,
-    hands: Vec<Vec<Card>>,
-    draw_pile: Vec<Card>,
-    discard_pile: Vec<Card>,
+    hands: Vec<Vec<Dealt>>,
+    draw_pile: Vec<Dealt>,
+    discard_pile: Vec<Dealt>,
     turn: usize,
     passes: usize,
     shuffle: ChaCha8Rng,
 }
 
+pub fn face_down(count: usize) -> Vec<(ItemId, Sprite)> {
+    (0..count as u32)
+        .map(|index| (ItemId::new(CARDS, index), Sprite::CardBack))
+        .collect()
+}
+
 impl Table {
     pub fn deal(players: &[Uuid], hand_size: usize, decks: usize) -> Self {
         let mut shuffle = shuffle_for(players);
-        let mut draw_pile: Vec<Card> = (0..decks).flat_map(|_| deck()).collect();
+        let mut draw_pile: Vec<Dealt> = (0..decks)
+            .flat_map(|_| deck())
+            .zip(0..)
+            .map(|(card, index)| Dealt {
+                id: ItemId::new(CARDS, index),
+                card,
+            })
+            .collect();
         draw_pile.shuffle(&mut shuffle);
 
         let mut hands = Vec::new();
@@ -49,24 +69,24 @@ impl Table {
         self.players[self.turn]
     }
 
-    pub fn hand(&self) -> &[Card] {
-        &self.hands[self.turn]
+    pub fn hand(&self) -> Vec<Card> {
+        self.hands[self.turn].iter().map(|held| held.card).collect()
     }
 
     pub fn face_up(&self) -> Card {
-        *self
-            .discard_pile
+        self.discard_pile
             .last()
             .expect("the deal turns a card face up")
+            .card
     }
 
     pub fn play(&mut self, card: Card) {
         let position = self.hands[self.turn]
             .iter()
-            .position(|held| *held == card)
+            .position(|held| held.card == card)
             .expect("a card is only played from the hand holding it");
-        self.hands[self.turn].remove(position);
-        self.discard_pile.push(card);
+        let played = self.hands[self.turn].remove(position);
+        self.discard_pile.push(played);
         self.passes = 0;
     }
 
@@ -76,15 +96,17 @@ impl Table {
 
     pub fn draw(&mut self) -> Option<Card> {
         if self.draw_pile.is_empty() {
-            let face_up = self.face_up();
-            self.discard_pile.pop();
+            let face_up = self
+                .discard_pile
+                .pop()
+                .expect("the deal turns a card face up");
             self.draw_pile.append(&mut self.discard_pile);
             self.discard_pile.push(face_up);
             self.draw_pile.shuffle(&mut self.shuffle);
         }
-        let card = self.draw_pile.pop()?;
-        self.hands[self.turn].push(card);
-        Some(card)
+        let drawn = self.draw_pile.pop()?;
+        self.hands[self.turn].push(drawn);
+        Some(drawn.card)
     }
 
     pub fn pass(&mut self) {
@@ -117,49 +139,49 @@ impl Table {
     pub fn in_hand(&self, card: Card) -> Spot {
         let position = self.hands[self.turn]
             .iter()
-            .rposition(|held| *held == card)
+            .rposition(|held| held.card == card)
             .expect("only a card in the hand has a place in it");
         Spot::card(self.turn as u32 + 2, position as u32)
     }
 
-    pub fn board(&self, viewer: Uuid) -> CardTable {
-        let mut piles = vec![
-            Pile {
-                label: "Draw pile".to_owned(),
-                place: PilePlace::Deck,
-                spread: Spread::Stacked,
-                cards: vec![Sprite::CardBack; self.draw_pile.len()],
-            },
-            Pile {
-                label: "Discard pile".to_owned(),
-                place: PilePlace::Discard,
-                spread: Spread::Stacked,
-                cards: self
-                    .discard_pile
-                    .iter()
-                    .copied()
-                    .map(Sprite::Card)
-                    .collect(),
-            },
+    pub fn board(&self, viewer: Uuid) -> Board {
+        let face_down = |cards: &[Dealt]| -> Vec<(ItemId, Sprite)> {
+            cards
+                .iter()
+                .map(|held| (held.id, Sprite::CardBack))
+                .collect()
+        };
+        let face_up = |cards: &[Dealt]| -> Vec<(ItemId, Sprite)> {
+            cards
+                .iter()
+                .map(|held| (held.id, Sprite::Card(held.card)))
+                .collect()
+        };
+        let opponents = self
+            .players
+            .iter()
+            .zip(&self.hands)
+            .enumerate()
+            .filter(|(_, (player, _))| **player != viewer)
+            .map(|(seat, (_, hand))| {
+                Pile::fanned(seat as u32 + 2, format!("P{}", seat + 1), face_down(hand))
+            })
+            .collect();
+        let middle = vec![
+            Pile::stacked(DRAW_PILE, "Draw pile", face_down(&self.draw_pile)),
+            Pile::stacked(DISCARD_PILE, "Discard pile", face_up(&self.discard_pile)),
         ];
-        for (seat, (player, hand)) in self.players.iter().zip(&self.hands).enumerate() {
-            piles.push(if *player == viewer {
-                Pile {
-                    label: "Your hand".to_owned(),
-                    place: PilePlace::Hand,
-                    spread: Spread::Fanned,
-                    cards: hand.iter().copied().map(Sprite::Card).collect(),
-                }
-            } else {
-                Pile {
-                    label: format!("P{}", seat + 1),
-                    place: PilePlace::Opponent,
-                    spread: Spread::Fanned,
-                    cards: vec![Sprite::CardBack; hand.len()],
-                }
-            });
+        let mut board = card_table(vec![opponents, middle]);
+        if let Some(seat) = self.players.iter().position(|player| *player == viewer) {
+            for (card, held) in self.hands[seat].iter().enumerate() {
+                board.hold(
+                    held.id,
+                    Sprite::Card(held.card),
+                    Spot::card(seat as u32 + 2, card as u32),
+                );
+            }
         }
-        CardTable { piles }
+        board
     }
 }
 

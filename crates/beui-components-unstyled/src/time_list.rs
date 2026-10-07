@@ -51,7 +51,7 @@ pub fn TimeList(
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = 32.0)] row_height: f32,
-    #[prop(default = 1)] columns: usize,
+    #[prop(default = 1)] max_columns: usize,
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
@@ -59,7 +59,7 @@ pub fn TimeList(
     on_change: Callback<Time>,
 ) -> NodeId {
     let step_minutes = step_minutes.clamp(1, MINUTES_PER_DAY);
-    let columns = columns.max(1);
+    let columns = grid_columns(step_minutes, max_columns);
     let (selected, set_selected) = create_signal(value.peek());
     create_effect(clone!(set_selected -> move || set_selected.set(value.get())));
     let times = create_memo(clone!(selected -> move || {
@@ -278,4 +278,12 @@ fn option_key(state: &State, minutes: u32, press: KeyPress) -> bool {
         state.set_focus.set(Some(times[next]));
     }
     true
+}
+
+pub fn grid_columns(step_minutes: u32, max_columns: usize) -> usize {
+    match step_minutes {
+        step if step > 0 && step < 60 && 60 % step == 0 => (60 / step as usize).min(max_columns),
+        _ => 1,
+    }
+    .max(1)
 }

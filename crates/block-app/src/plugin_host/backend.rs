@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use block_plugin_api::{Message, PluginManifest, ScreenLayout, SurfaceRect};
+use block_plugin_api::{Message, PluginManifest, ScreenDamage, ScreenLayout};
 
 #[cfg(not(target_arch = "wasm32"))]
 use super::wasm::Wasm;
@@ -19,9 +19,9 @@ pub(super) struct StepTime {
 pub(super) trait ShownFrame {
     fn presents(&self) -> u64;
 
-    fn damage(&self) -> Option<&[SurfaceRect]>;
+    fn damage(&self) -> Option<&[ScreenDamage]>;
 
-    fn set_damage(&mut self, damage: Option<Vec<SurfaceRect>>);
+    fn set_damage(&mut self, damage: Option<Vec<ScreenDamage>>);
 }
 
 pub(super) trait Backend: Sized {

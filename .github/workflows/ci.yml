@@ -26,23 +26,26 @@ env:
   # The token for Namespace's remote execution (guides/build_server.md), which
   # runs every buck2 action. A pull request from a fork sees an empty value,
   # and ./scripts/buck says so rather than building.
-  BE3_BUILD_SERVER_KEY: ${{ secrets.BE3_NAMESPACE_TOKEN }}
+  BE3_NAMESPACE_TOKEN: ${{ secrets.BE3_NAMESPACE_TOKEN }}
 
-# One job does the work: ci is ./scripts/buck run //:ci, which verifies, builds
+# One job does the work: ci is ./scripts/ci, which verifies, builds
 # the Android app and launcher, and on a pull request renders the paint
-# previews, and uploads what each of those produced. It runs the pull
+# previews, and uploads what each of those produced. It is also the gate: ci is
+# the one check the ruleset on main requires, on the pull request and on the
+# merge group GitHub's merge queue builds from it. It runs the pull
 # request's code, so it holds no credentials beyond Namespace's token and the
 # Android keystore, both of which a build can already read.
 # The jobs after it each run nothing from the pull request and hold the one
 # credential they write with: autofix pushes the fixes, publish-paint-previews
 # comments with the previews, publish-android puts the Android build where the
-# launcher on Android finds it, and CI OK is the gate. Everything builds on the
+# launcher on Android finds it. Everything builds on the
 # build server, so what a runner needs is buck2 and whatever runs here rather
 # than there.
 jobs:
-  # ./scripts/buck run //:ci, the way a person runs it: the lint pass and the
-  # tests on the build server, and the plugin tests here, since they read and
-  # write the accepted paintings in snapshots/. On a pull request it fixes and
+  # ./scripts/ci, the way a person runs it: one buck2 command builds the
+  # fixes and runs the lints, the tests and the plugin tests on the build
+  # server, and the script writes what they changed into the checkout, the
+  # accepted paintings in snapshots/ among them. On a pull request it fixes and
   # accepts instead of only reporting, and anything that leaves the checkout
   # changed is uploaded as a patch for the autofix job to push, and fails this
   # job. Everywhere else nothing may be written: main, the merge queue and a
@@ -53,7 +56,7 @@ jobs:
   # the commit that carries it is what a reviewer looks at in Paint review.
   #
   # The Android builds are signed on a worker with CI's keystore, the secret
-  # ANDROID_DEBUG_KEYSTORE_BASE64, so successive CI builds install as updates
+  # ANDROID_CI_KEYSTORE_BASE64, so successive CI builds install as updates
   # over one another. The plugins are in each, since an APK has nowhere else
   # to find them.
   #
@@ -102,15 +105,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: zizmor --config .github/zizmor.yml .github/workflows .github/actions
 
-      # A plugin test that paints through the gpu abi opens the software
-      # Vulkan device.
-      - name: Install system dependencies
-        if: ${{ !cancelled() }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            libvulkan1 mesa-vulkan-drivers
-
       - uses: ./.github/actions/buck2
         if: ${{ !cancelled() }}
 
@@ -118,13 +112,13 @@ jobs:
       - name: Write CI's Android keystore
         if: ${{ !cancelled() }}
         env:
-          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+          ANDROID_CI_KEYSTORE_BASE64: ${{ secrets.ANDROID_CI_KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$ANDROID_DEBUG_KEYSTORE_BASE64" ]; then
-            (umask 077 && printf '%s' "$ANDROID_DEBUG_KEYSTORE_BASE64" > buck/android/ci-keystore.base64)
+          if [ -n "$ANDROID_CI_KEYSTORE_BASE64" ]; then
+            (umask 077 && printf '%s' "$ANDROID_CI_KEYSTORE_BASE64" > buck/android/ci-keystore.base64)
           fi
 
-      - name: Run //:ci
+      - name: Run ./scripts/ci
         if: ${{ !cancelled() }}
         env:
           CHECK: ${{ github.event_name != 'pull_request' }}
@@ -138,7 +132,7 @@ jobs:
           if [ "$PREVIEWS" = true ]; then
             set -- "$@" --previews "$BASE" "$RUNNER_TEMP/previews"
           fi
-          ./scripts/buck run //:ci -- "$@"
+          ./scripts/ci "$@"
 
       # What the jobs after this one take: each only when it was made whole.
       - name: Note what was made
@@ -176,10 +170,17 @@ jobs:
       # test has still accepted the paintings the others made, and a run that
       # failed on a clippy warning it could not fix has still formatted the
       # rest, and both of those are worth the push.
+      #
+      # The keystore is deleted first rather than left to .gitignore, because
+      # the .gitignore is the pull request's: one based on a main from before
+      # the keystore was ignored would stage it, and one that already tracks it
+      # would stage the secret's new value. Deleted, the most it can stage is
+      # its removal.
       - name: Collect what verification changed
         id: collect
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         run: |
+          rm -f buck/android/ci-keystore.base64
           git add --all
           if git diff --cached --quiet; then
             echo 'Verification changed nothing.'
@@ -204,7 +205,7 @@ jobs:
       - name: Fail because verification changed the checkout
         if: ${{ !cancelled() && steps.collect.outputs.dirty == 'true' }}
         run: |
-          echo '::error::Verification changed the checkout. The autofix job pushes the change to this branch when it can; otherwise run ./scripts/buck run //:verify and commit what it changes.'
+          echo '::error::Verification changed the checkout. The autofix job pushes the change to this branch when it can; otherwise run ./scripts/verify and commit what it changes.'
           exit 1
 
   # A pull request's verification fixes what it can and accepts what the tests
@@ -223,9 +224,8 @@ jobs:
   # not this repository's to push to, and a fork's run has no secrets to push
   # with, so there the failure and its patches are the whole of the answer.
   #
-  # The gate below waits for this but does not judge it. Whether the pull
-  # request passes was decided by ci; this only decides whether its author
-  # has to push the fix themselves.
+  # This is not part of the gate. Whether the pull request passes was decided
+  # by ci; this only decides whether its author has to push the fix themselves.
   autofix:
     name: push autofixes
     if: >-
@@ -295,9 +295,9 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           author="$APP_SLUG[bot]"
-          message='style: apply the fixes from ./scripts/buck run //:verify'
+          message='style: apply the fixes from ./scripts/verify'
           if [ "$(git log -1 --format=%an)" = "$author" ] && [ "$(git log -1 --format=%s)" = "$message" ]; then
-            echo "::error::The head is already an autofix commit and verification still changed it. Run ./scripts/buck run //:verify and commit what it changes."
+            echo "::error::The head is already an autofix commit and verification still changed it. Run ./scripts/verify and commit what it changes."
             exit 1
           fi
 
@@ -391,8 +391,8 @@ jobs:
   # previews, the storage key is given to the upload step alone, and what the
   # artifacts hold is only data here.
   #
-  # Not one of CI OK's needs: a build the launcher cannot fetch does not stop
-  # a merge.
+  # Not part of the gate: a build the launcher cannot fetch does not stop a
+  # merge.
   publish-android:
     name: publish the Android build
     needs: [ci]
@@ -472,31 +472,3 @@ jobs:
                 "$store/$name"
             fi
           done <<< "$present"
-
-  # The one check the ruleset on main requires, on the pull request and on
-  # the merge group GitHub's merge queue builds from it. Every job it names in
-  # needs other than autofix has to pass, so requiring this one name requires
-  # all of them, and adding a job to the check below extends the gate without
-  # anyone editing the ruleset.
-  #
-  # It waits for autofix without judging it. Waiting means that by the time
-  # this fails, the push of the fixes has already happened, and CI has
-  # started again on it.
-  #
-  # always(), and nothing else. A job whose `if` is false does not run, and
-  # GitHub reports what did not run as a skipped check run, which a required
-  # status check accepts the same way it accepts a pass. A condition here that
-  # can be false is therefore a gate that opens itself: this job spent a while
-  # carrying `github.event_name != 'pull_request'` and resolved to skipped on
-  # every pull request, which satisfied the rule without reading a single one
-  # of its needs. always() is what makes it run after the needs finish
-  # whatever they did, so that the step below is the thing that decides.
-  ci-ok:
-    name: 'CI OK'
-    if: always()
-    needs: [ci, autofix]
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Require every job to have passed
-        if: needs.ci.result != 'success'
-        run: exit 1

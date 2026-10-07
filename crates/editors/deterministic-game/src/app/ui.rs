@@ -16,7 +16,9 @@ use game_api::{Board, Control, GameActionOption, GameScreen, Gesture};
 
 mod annotations;
 mod board;
+mod hand;
 mod layout;
+mod motion;
 pub(crate) mod moves;
 mod play;
 mod skin;
@@ -311,13 +313,15 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
         set_over,
     };
     let drawn = create_memo(clone!(board -> move || board.with(Layout::of)));
+    let hand = create_memo(clone!(board -> move || board.with(|board| board.hand.clone())));
     let sized = editor.clone();
     create_effect(clone!(drawn -> move || {
         let size = drawn.with(|layout| layout.size);
         sized.set_intrinsic_size((size.x > 0.0 && size.y > 0.0).then_some(size));
     }));
     let world = editor.world();
-    let layout = create_memo(move || drawn.with(|layout| layout.centered_in(world.get())));
+    let layout =
+        create_memo(clone!(drawn -> move || drawn.with(|layout| layout.centered_in(world.get()))));
     let steps = Steps {
         game: game.clone(),
         count,
@@ -342,10 +346,12 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
             <Keyed value={chrome} key={|shown: bool| shown}>
                 {move |chrome: ReadSignal<bool>| {
                     let stage = stage.clone();
-                    let (editor, play, layout, steps, panel) = (
+                    let (editor, play, drawn, layout, hand, steps, panel) = (
                         editor.clone(),
                         play.clone(),
+                        drawn.clone(),
                         layout.clone(),
+                        hand.clone(),
                         steps.clone(),
                         panel.clone(),
                     );
@@ -358,10 +364,12 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
                             >
                                 <Stage
                                     @sizing=ItemSize::Percent(100.0)
-                                    @node_ref={&stage}
+                                    content={stage.clone()}
                                     editor
                                     play
+                                    drawn
                                     layout
+                                    hand
                                     steps
                                 />
                                 <Sidebar @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) panel />
@@ -370,10 +378,12 @@ fn GamePlay(editor: Editor, game: Rc<dyn GameModel>, snapshot: ReadSignal<GameSn
                         false => view! {
                             <Stage
                                 @sizing=ItemSize::Percent(100.0)
-                                @node_ref={&stage}
+                                content={stage.clone()}
                                 editor
                                 play
+                                drawn
                                 layout
+                                hand
                                 steps
                             />
                         },

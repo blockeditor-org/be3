@@ -267,7 +267,34 @@ pub(crate) fn ButtonsPage() -> NodeId {
             <Sample title="Tooltips" code={vec![HoverTooltip::SOURCE]}>
                 <HoverTooltip />
             </Sample>
+            <Sample title="Focus ring" code={vec![FocusedTile::SOURCE]}>
+                <FocusedTile />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn FocusedTile() -> NodeId {
+    let (opened, set_opened) = create_signal("Tab to the tile, then press Enter".to_owned());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=0.0>
+                <beui::unstyled::Button
+                    label="Open the album"
+                    on_click={move || set_opened.set("Opened the album".to_owned())}
+                    content={move |handle: beui::unstyled::ButtonHandle| view! {
+                        <FocusRing focused={handle.focused} radius={CARD_RADIUS + 3} offset=3.0>
+                            <Card>
+                                <Body content={handle.label} />
+                            </Card>
+                        </FocusRing>
+                    }}
+                />
+            </List>
+            <Caption content={opened} />
+        </List>
     }
 }
 
@@ -695,6 +722,20 @@ pub(crate) fn PickersPage() -> NodeId {
             <Sample title="Calendar" code={vec![BookingCalendar::SOURCE]}>
                 <BookingCalendar />
             </Sample>
+        </ScrollPage>
+    }
+}
+
+#[component]
+pub(crate) fn ColorsPage() -> NodeId {
+    view! {
+        <ScrollPage>
+            <Sample title="Color wheel" code={vec![HueWheel::SOURCE]}>
+                <HueWheel />
+            </Sample>
+            <Sample title="OKLCH color wheel" code={vec![PerceptualWheel::SOURCE]}>
+                <PerceptualWheel />
+            </Sample>
             <Sample title="Color input" code={vec![AccentInput::SOURCE]}>
                 <AccentInput />
             </Sample>
@@ -836,6 +877,59 @@ fn PaintPicker() -> NodeId {
             <ColorPicker
                 value={paint}
                 alpha=false
+                on_change={move |color| set_paint.set(color)}
+                on_preview={move |color| set_preview.set(color)}
+            />
+            <Frame height=SWATCH_HEIGHT color={shown_paint} radius=RADIUS />
+            <Caption content={paint_text} />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn HueWheel() -> NodeId {
+    let (paint, set_paint) = create_signal(Color32::from_rgb(0x30, 0xA4, 0x6C));
+    let (preview, set_preview) = create_signal(None::<Color32>);
+    let shown_paint =
+        create_memo(clone!(paint preview -> move || preview.get().unwrap_or(paint.get())));
+    let paint_text = create_memo(clone!(shown_paint -> move || {
+        format!("Painting in {}", beui::format_hex(shown_paint.get(), false))
+    }));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <ColorWheel
+                value={paint}
+                on_change={move |color| set_paint.set(color)}
+                on_preview={move |color| set_preview.set(color)}
+            />
+            <Frame height=SWATCH_HEIGHT color={shown_paint} radius=RADIUS />
+            <Caption content={paint_text} />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn PerceptualWheel() -> NodeId {
+    let (paint, set_paint) = create_signal(Color32::from_rgb(0xD6, 0x40, 0x9F));
+    let (preview, set_preview) = create_signal(None::<Color32>);
+    let shown_paint =
+        create_memo(clone!(paint preview -> move || preview.get().unwrap_or(paint.get())));
+    let paint_text = create_memo(clone!(shown_paint -> move || {
+        let color = beui::Oklch::from_color(shown_paint.get());
+        format!(
+            "oklch({:.0}% {:.3} {:.0})",
+            color.lightness * 100.0,
+            color.chroma,
+            color.hue
+        )
+    }));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Caption content="Turning the hue keeps lightness and chroma" />
+            <OklchColorWheel
+                value={paint}
                 on_change={move |color| set_paint.set(color)}
                 on_preview={move |color| set_preview.set(color)}
             />

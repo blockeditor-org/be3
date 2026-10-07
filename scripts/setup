@@ -99,7 +99,7 @@ step 'Installing buck2'
 
 end_step
 echo ''
-echo 'Setup finished. Every build runs on Namespace, so put its token in'
-echo 'BE3_BUILD_SERVER_KEY or in ~/.config/be3/build-server-key - guides/build_server.md'
-echo 'says more - then check the workspace compiles with'
-echo './scripts/buck run //:check, and run ./scripts/buck run //:verify before committing.'
+echo 'Setup finished. The first time ./scripts/buck runs, it asks which build server'
+echo 'to build on and for its key - guides/build_server.md says more. Then check the'
+echo 'workspace compiles with'
+echo './scripts/buck run //:check, and run ./scripts/verify before committing.'

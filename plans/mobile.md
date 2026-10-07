@@ -240,7 +240,7 @@ tools.
 
 ### 7. Checking on a device
 
-For each phase, after `//:verify`:
+For each phase, after `./scripts/verify`:
 
 - Run `./scripts/buck run //crates/block-app:android -- --install` and try
   the four mockup flows on a phone:

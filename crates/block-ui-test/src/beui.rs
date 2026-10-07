@@ -17,6 +17,7 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use uuid::Uuid;
 
+use crate::document::FRAME_INTERVAL;
 use crate::input::Input;
 use crate::{ContentStore, snapshot};
 
@@ -30,7 +31,6 @@ const MINIMUM_ZOOM: f32 = 1.0 / 64.0;
 const MAXIMUM_ZOOM: f32 = 32.0;
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const SCREEN: ScreenId = ScreenId(1);
-const SURFACE_SIDE: u32 = 8192;
 
 pub struct BeuiTest<A: BeuiApp> {
     plugin: HeadlessPlugin,
@@ -57,6 +57,7 @@ pub struct BeuiTest<A: BeuiApp> {
     next_request: u64,
     screens: u64,
     wakes: Arc<Wakes>,
+    clock: std::time::Duration,
     app: PhantomData<A>,
 }
 
@@ -216,6 +217,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             next_request: 0,
             screens: 0,
             wakes,
+            clock: std::time::Duration::ZERO,
             app: PhantomData,
         };
         let hello = test.plugin.hello();
@@ -225,7 +227,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             host_name: "block-ui-test".to_owned(),
             surface: Some(SurfaceSpec {
                 format: SurfaceFormat::Rgba8UnormSrgb,
-                max_side: SURFACE_SIDE,
             }),
             theme: Theme::default(),
         }));
@@ -391,7 +392,6 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn set_view(&mut self, view: Rect, scale: f32) {
-        let view = view.translate(-self.origin());
         self.inbox.push(Message::Editor(EditorMessage::ViewChanged {
             instance: INSTANCE,
             x: view.min.x,
@@ -403,7 +403,6 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn drag_block(&mut self, position: Pos2, block_id: Uuid, block_type: Uuid, dropped: bool) {
-        let position = position - self.origin();
         self.inbox.push(Message::Editor(EditorMessage::DragOver {
             instance: INSTANCE,
             region: self.region(),
@@ -483,10 +482,9 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn content_rect(&self) -> Option<Rect> {
         let report = self.report.as_ref()?;
-        let origin = self.origin();
         let rect = report.content;
         Some(Rect::from_min_size(
-            Pos2::new(rect.x + origin.x, rect.y + origin.y),
+            Pos2::new(rect.x, rect.y),
             Vec2::new(rect.width, rect.height),
         ))
     }
@@ -635,17 +633,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn rect(&self) -> Rect {
-        Rect::from_min_size(Pos2::ZERO + self.origin(), self.size)
-    }
-
-    fn origin(&self) -> Vec2 {
-        self.plugin
-            .layout()
-            .placement(SCREEN)
-            .map_or(Vec2::ZERO, |placement| {
-                let scale = placement.scale_factor();
-                Vec2::new(placement.x as f32 / scale, placement.y as f32 / scale)
-            })
+        Rect::from_min_size(Pos2::ZERO, self.size)
     }
 
     pub fn run(&mut self) {
@@ -662,6 +650,11 @@ impl<A: BeuiApp> BeuiTest<A> {
             }
             self.step(Vec::new());
         }
+    }
+
+    pub fn advance(&mut self, by: std::time::Duration) {
+        self.clock += by;
+        self.run();
     }
 
     pub fn settle(&mut self) {
@@ -692,8 +685,12 @@ impl<A: BeuiApp> BeuiTest<A> {
                 continue;
             }
             eager = 0;
+            if requested < std::time::Duration::MAX {
+                self.clock += requested.saturating_sub(FRAME_INTERVAL);
+                continue;
+            }
             let left = SETTLE_DEADLINE.saturating_sub(started.elapsed());
-            self.wakes.wait_past(seen, requested.min(left));
+            self.wakes.wait_past(seen, left);
         }
         panic!("the editor was still waiting for {what} after {SETTLE_DEADLINE:?}");
     }
@@ -711,14 +708,17 @@ impl<A: BeuiApp> BeuiTest<A> {
         {
             inbox.push(message);
         }
-        let events = self.input.normalize(events, self.origin());
+        let events = self.input.normalize(events);
         if !events.is_empty() {
             inbox.push(Message::Input(InputBatch {
                 screen: SCREEN,
                 events,
             }));
         }
-        inbox.push(Message::DrawFrame);
+        self.clock += FRAME_INTERVAL;
+        inbox.push(Message::DrawFrame {
+            now_micros: self.clock.as_micros() as u64,
+        });
         for message in inbox {
             self.deliver(message);
         }

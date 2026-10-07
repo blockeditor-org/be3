@@ -14,7 +14,6 @@ pub enum Pointer<'a> {
 }
 
 pub struct Frame<'a> {
-    pub output: &'a FrameOutput,
     pub scale: f32,
     pub clear: beui::Color32,
     pub pointer: beui::Pos2,
@@ -27,6 +26,7 @@ pub struct Screen {
     renderer: Renderer,
     retained: wgpu::Texture,
     pending: Option<Repaint>,
+    prepared: Option<Repaint>,
     pub cursor: bool,
 }
 
@@ -38,6 +38,7 @@ impl Screen {
             renderer: Renderer::new(gpu.device(), FORMAT),
             retained: retained(gpu.device(), size),
             pending: Some(Repaint::Everything),
+            prepared: None,
             cursor: false,
         }
     }
@@ -58,7 +59,24 @@ impl Screen {
     }
 
     pub fn dirty(&self) -> bool {
-        self.pending.is_some() || self.cursor
+        self.prepared.is_some() || self.cursor
+    }
+
+    pub fn prepare(&mut self, gpu: &Gpu, output: &FrameOutput, scale: f32) {
+        let Some(repaint) = self.pending else {
+            return;
+        };
+        let physical = vec2(self.size.0 as f32, self.size.1 as f32);
+        self.renderer
+            .set_origin(vec2(self.rect.min.x * scale, self.rect.min.y * scale));
+        self.prepared = Some(self.renderer.prepare(
+            gpu.device(),
+            gpu.queue(),
+            output,
+            physical,
+            scale,
+            repaint,
+        ));
     }
 
     pub fn draw(
@@ -69,17 +87,11 @@ impl Screen {
     ) -> wgpu::SubmissionIndex {
         let device = gpu.device();
         let queue = gpu.queue();
-        let scale = frame.scale;
-        let physical = vec2(self.size.0 as f32, self.size.1 as f32);
-        self.renderer
-            .set_origin(vec2(self.rect.min.x * scale, self.rect.min.y * scale));
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("output"),
         });
-        if let Some(repaint) = self.pending.take() {
-            let effective =
-                self.renderer
-                    .prepare(device, queue, frame.output, physical, scale, repaint);
+        if let Some(effective) = self.prepared.take() {
+            self.pending = None;
             let load = match effective {
                 Repaint::Region { .. } => wgpu::LoadOp::Load,
                 Repaint::Everything => wgpu::LoadOp::Clear(beui::clear_color(frame.clear)),

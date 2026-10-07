@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 pub use beui_core::base::{Align, Direction, ItemSize, Justify, Sizing, Track};
 pub use beui_core::tree::{
-    AcceptsSizing, BuildsNode, ListChild, NodeSlot, component_accessibility, component_placed,
-    component_rect, component_size, set_component_state,
+    AcceptsSizing, BuildsNode, ListChild, NodeSlot, WithSizing, component_accessibility,
+    component_placed, component_rect, component_size, set_component_state, with_sizing,
 };
 pub use beui_tree::reactive::*;
 

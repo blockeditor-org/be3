@@ -33,7 +33,7 @@ pub use block_plugin_api::{
     WebViewId, WheelUnit,
 };
 pub use block_ui;
-pub use clock::utc_offset;
+pub use clock::{frame_time, utc_offset};
 pub use content::ContentProjection;
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
@@ -44,9 +44,9 @@ pub use host::{
     PerformanceReporter, PickRequest, PickedBlock, PickedFile, Pushed, SavedFile, SeededContent,
     ShowRequest, ShownPresence, Waker,
 };
-#[cfg(target_arch = "wasm32")]
-pub use plugin::PaintTarget;
 pub use plugin::{Frame, Ime, Instance, Plugin, Region};
+#[cfg(target_arch = "wasm32")]
+pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 #[cfg(target_arch = "wasm32")]
 pub use wgpu;
 

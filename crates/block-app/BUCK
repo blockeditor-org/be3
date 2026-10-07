@@ -2,7 +2,6 @@ load("@root//buck/android:defs.bzl", "android_apk", "signed_apk")
 load("@root//buck/app:defs.bzl", "app")
 load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test", "editor_packages")
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
-load("@root//buck/tools:defs.bzl", "tool")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 
 # The app, with its full features (the embedded browser), which buckify.bxl
@@ -137,9 +136,9 @@ app(
 )
 
 # The bundle served here by Caddy, with be-server behind it (web/serve.sh).
-tool(
+command_alias(
     name = "web-serve",
-    command = [
+    args = [
         "sh",
         "$(location :serve.sh)",
         "$(location //buck/tools:caddy)",
@@ -151,9 +150,9 @@ tool(
 
 # The web app served here and open in a headless Chromium for an agent to
 # drive, signed in with a workspace open: guides/running_the_web_app.md.
-tool(
+command_alias(
     name = "web-dev",
-    command = [
+    args = [
         "sh",
         "$(location //buck/app:web-dev.sh)",
         "$(location //buck/tools:caddy)",
@@ -215,9 +214,9 @@ app(
     ]
 ]
 
-tool(
+command_alias(
     name = "android",
-    command = [
+    args = [
         "sh",
         "$(location //buck/android:sign.sh)",
         "$(location //buck/android:jdk)",
@@ -243,9 +242,9 @@ export_file(
 )
 
 # The native startup smoke check: the app for ten seconds in a virtual display.
-tool(
+command_alias(
     name = "smoke",
-    command = [
+    args = [
         "sh",
         "$(location //buck/app:smoke.sh)",
         "$(location :app)/block-app",
@@ -255,9 +254,9 @@ tool(
 
 # The app in a virtual display for an agent to drive, signed in with a
 # workspace open: guides/running_the_app.md.
-tool(
+command_alias(
     name = "dev",
-    command = [
+    args = [
         "sh",
         "$(location //buck/app:dev.sh)",
         "$(location :app)/block-app",

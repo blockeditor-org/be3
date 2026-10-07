@@ -70,6 +70,7 @@ pub fn Slider(
     #[prop(default = 1.0)] max: f32,
     #[prop(default = SliderScale::Linear)] scale: SliderScale,
     #[prop(default = 0.0)] thumb: f32,
+    #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(children)] content: Option<Render<SliderHandle>>,
     on_change: Callback<f32>,
@@ -86,7 +87,7 @@ pub fn Slider(
     let (focused, set_focused) = create_signal(false);
     let disabled = create_memo(move || disabled.get());
 
-    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Slider)));
+    let accessibility = crate::labelled_node(Role::Slider, accessibility, label);
     component_accessibility(create_memo(clone!(value_read disabled -> move || {
         let mut node = accessibility.get();
         let value = value_read.get();
