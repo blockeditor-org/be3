@@ -269,6 +269,7 @@ fn DockBarFace(handle: DockBarHandle) -> NodeId {
         grip,
         tabs,
         title,
+        vacant,
         closable,
         menu,
         close,
@@ -277,10 +278,10 @@ fn DockBarFace(handle: DockBarHandle) -> NodeId {
     let close = move || close.call();
     match vertical {
         true => view! {
-            <DockSideBar grip tabs title menu closable close />
+            <DockSideBar grip tabs title vacant menu closable close />
         },
         false => view! {
-            <DockTitleBar grip tabs title menu closable close />
+            <DockTitleBar grip tabs title vacant menu closable close />
         },
     }
 }
@@ -290,27 +291,30 @@ fn DockTitleBar(
     grip: NodeId,
     tabs: Option<NodeId>,
     title: Prop<String>,
+    vacant: Memo<bool>,
     menu: Memo<Vec<Action>>,
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let titled = tabs.is_none();
+    let fill = bar_fill(vacant);
     view! {
         <Frame
-            color={theme.surface.clone()}
+            color={fill}
             padding_vertical=BAR_PADDING
             padding_horizontal=BAR_PADDING
         >
-            <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                {grip}
-                {tabs} @sizing=ItemSize::Percent(100.0)
-                <Show condition={titled}>
-                    <Body content={title.clone()} @sizing=ItemSize::Percent(100.0) />
-                </Show>
-                <DockMenu menu />
-                <DockClose closable close={move || close.call()} />
-            </List>
+            <Frame min_height=TAB_HEIGHT>
+                <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
+                    {grip}
+                    {tabs} @sizing=ItemSize::Percent(100.0)
+                    <Show condition={titled}>
+                        <Body content={title.clone()} @sizing=ItemSize::Percent(100.0) />
+                    </Show>
+                    <DockMenu menu />
+                    <DockClose closable close={move || close.call()} />
+                </List>
+            </Frame>
         </Frame>
     }
 }
@@ -320,15 +324,16 @@ fn DockSideBar(
     grip: NodeId,
     tabs: Option<NodeId>,
     title: Prop<String>,
+    vacant: Memo<bool>,
     menu: Memo<Vec<Action>>,
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
-    let theme = use_theme();
     let titled = tabs.is_none();
+    let fill = bar_fill(vacant);
     view! {
         <Frame
-            color={theme.surface.clone()}
+            color={fill}
             padding_vertical=BAR_PADDING
             padding_horizontal=BAR_PADDING
         >
@@ -511,6 +516,14 @@ fn close_test_id(entry: Entry) -> String {
         Entry::Tab(tab) => format!("dock.tab.{}.close", tab.value()),
         Entry::Group(_) => String::new(),
     }
+}
+
+fn bar_fill(vacant: Memo<bool>) -> Memo<Color32> {
+    let theme = use_theme();
+    create_memo(move || match vacant.get() {
+        true => theme.background.get(),
+        false => theme.surface.get(),
+    })
 }
 
 fn translucent(color: Color32, alpha: u8) -> Color32 {
