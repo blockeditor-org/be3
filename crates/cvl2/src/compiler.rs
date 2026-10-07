@@ -227,6 +227,12 @@ impl<K, V> PerComptimeScopeCache<K, V> {
 }
 
 impl<K: CacheKey, V: Clone> PerComptimeScopeCache<K, V> {
+    pub fn is_in_progress(&self, key: &K, comptime: &ComptimeScopeMap) -> bool {
+        self.in_progress
+            .borrow()
+            .contains(&(key.cache_ptr(), comptime.snapshot()))
+    }
+
     pub fn get_or_put(
         &self,
         key: &K,
@@ -1703,6 +1709,26 @@ pub fn analyze_namespace(
     Ok(Rc::new(NamespaceImpl { pos, registered }))
 }
 
+struct PendingReturn {
+    call_pos: TokenPosition,
+    key: (usize, ComptimeSnapshot),
+}
+
+thread_local! {
+    static PENDING_RETURN: RefCell<Option<PendingReturn>> = const { RefCell::new(None) };
+    static POSTED_RETURNS: RefCell<HashMap<(usize, ComptimeSnapshot), Type>> =
+        RefCell::new(HashMap::new());
+}
+
+pub fn posted_return(fn_value: &ComptimeValueFn, comptime: &ComptimeScopeMap) -> Option<Type> {
+    POSTED_RETURNS.with(|posted| {
+        posted
+            .borrow()
+            .get(&(fn_value.cache_ptr(), comptime.snapshot()))
+            .cloned()
+    })
+}
+
 pub fn analyze_function(
     env: &mut Env,
     fn_value: &ComptimeValueFn,
@@ -1742,13 +1768,28 @@ pub fn analyze_function(
                 },
             );
         }
+        let key = (fn_value.cache_ptr(), env.scope.comptime.snapshot());
+        let body = trim_ws(&fn_value.body().ast);
+        let pending = match body.as_slice() {
+            [_, .., SyntaxNode::Block(call)] if call.tag == BracketTag::ColonCall => {
+                Some(PendingReturn {
+                    call_pos: call.pos.clone(),
+                    key: key.clone(),
+                })
+            }
+            _ => None,
+        };
+        let previous = PENDING_RETURN.with(|p| p.replace(pending));
         let result = analyze(
             env,
             Type::Unknown(TypeUnknown),
             fn_value.pos().clone(),
             &fn_value.body().ast,
             &mut block,
-        )?;
+        );
+        PENDING_RETURN.with(|p| *p.borrow_mut() = previous);
+        POSTED_RETURNS.with(|p| p.borrow_mut().remove(&key));
+        let result = result?;
         Ok(AnalyzedFn {
             block,
             ty: result.ty,
@@ -1898,6 +1939,7 @@ pub fn analyze_sub(
                 index - 1,
                 block,
             )?;
+            post_return_if_pending(&b.pos, &lhs);
             return analyze_call(
                 env,
                 slot,
@@ -1951,6 +1993,29 @@ pub fn analyze_sub(
             None,
             None,
         ))
+    }
+}
+
+fn post_return_if_pending(call_pos: &TokenPosition, lhs: &AnalysisResult) {
+    let pending = PENDING_RETURN.with(|p| {
+        let mut p = p.borrow_mut();
+        if p.as_ref()
+            .is_some_and(|pending| &pending.call_pos == call_pos)
+        {
+            p.take()
+        } else {
+            None
+        }
+    });
+    if let (
+        Some(pending),
+        AnalysisResult {
+            ty: Type::CtType(_),
+            value: RuntimeValue::Comptime(ComptimeValue::Type(ty)),
+        },
+    ) = (pending, lhs)
+    {
+        POSTED_RETURNS.with(|p| p.borrow_mut().insert(pending.key, ty.ty.clone()));
     }
 }
 
@@ -3466,12 +3531,23 @@ pub fn import_file(
     filename: &str,
     contents: &str,
 ) -> Result<ComptimeValueBuildArtifact, Vec<TokenizationError>> {
+    import_file_with_step_limit(filename, contents, crate::comptime::DEFAULT_STEP_LIMIT)
+}
+
+pub fn import_file_with_step_limit(
+    filename: &str,
+    contents: &str,
+    step_limit: usize,
+) -> Result<ComptimeValueBuildArtifact, Vec<TokenizationError>> {
     let filename = filename.to_string();
     let contents = contents.to_string();
     std::thread::Builder::new()
         .name("cvl2 import".to_string())
         .stack_size(IMPORT_STACK_SIZE)
-        .spawn(move || import_file_on_this_thread(&filename, &contents))
+        .spawn(move || {
+            crate::comptime::set_step_limit(step_limit);
+            import_file_on_this_thread(&filename, &contents)
+        })
         .expect("spawning the import thread")
         .join()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))

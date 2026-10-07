@@ -1,7 +1,7 @@
 use super::*;
 
 fn build_with_helpers(body: &str) -> Result<String, Vec<TokenizationError>> {
-    import_file(
+    import_file_with_step_limit(
         "loop.qxc",
         &format!(
             "#builtin.build .= () => std.Folder: [
@@ -11,11 +11,15 @@ fn build_with_helpers(body: &str) -> Result<String, Vec<TokenizationError>> {
   }}
 ]
 forever :: (n: std.kw.int) => std.kw.int: forever(n)
+early :: (n: std.kw.int) => {{
+  -> early(n)
+}}
 spin :: () => std.kw.int: :out {{
   std.kw.loop {{ }}
 }}
 std :: #builtin.std"
         ),
+        10_000,
     )
     .map(|_| String::new())
 }

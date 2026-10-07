@@ -571,8 +571,17 @@ impl TypeFn {
                 let ComptimeValue::Fn(callee) = callee else {
                     unreachable!("get_comptime guarantees a matching kind")
                 };
-                match declared_return(env, &callee) {
+                match crate::compiler::posted_return(&callee, &env.scope.comptime) {
                     Some(ty) => ty,
+                    None if env.fn_cache.is_in_progress(&callee, &env.scope.comptime) => {
+                        return Err(throw_err(
+                            env,
+                            Some(pos),
+                            "this call needs the function's return type before it is known; start the function's body with its type, as in `T: ...`",
+                            None,
+                            None,
+                        ));
+                    }
                     None => analyze_function(env, &callee)?.ty,
                 }
             }
@@ -1917,34 +1926,4 @@ fn string_key(
             key: String::from_utf8_lossy(&u8a.value).into_owned(),
         })),
     })
-}
-
-fn declared_return(env: &mut Env, func: &crate::compiler::ComptimeValueFn) -> Option<Type> {
-    let body = trim_ws(&func.body().ast);
-    let [prefix @ .., SyntaxNode::Block(last)] = body.as_slice() else {
-        return None;
-    };
-    if last.tag != BracketTag::ColonCall || prefix.is_empty() {
-        return None;
-    }
-    let errors = env.errors.len();
-    let saved = std::mem::replace(&mut env.scope.bindings, func.body().scope.bindings.clone());
-    let result = analyze(
-        env,
-        Type::Unknown(TypeUnknown),
-        func.pos().clone(),
-        prefix,
-        &mut empty_block(),
-    );
-    env.scope.bindings = saved;
-    match result {
-        Ok(AnalysisResult {
-            ty: Type::CtType(_),
-            value: RuntimeValue::Comptime(ComptimeValue::Type(ty)),
-        }) => Some(ty.ty),
-        _ => {
-            env.errors.truncate(errors);
-            None
-        }
-    }
 }

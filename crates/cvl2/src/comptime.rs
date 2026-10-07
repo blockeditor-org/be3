@@ -2,11 +2,16 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-const MAX_STEPS: usize = 10_000_000;
+pub const DEFAULT_STEP_LIMIT: usize = 10_000_000;
 const MAX_CALL_DEPTH: usize = 1000;
 
 thread_local! {
     static CALL_DEPTH: Cell<usize> = const { Cell::new(0) };
+    static STEP_LIMIT: Cell<usize> = const { Cell::new(DEFAULT_STEP_LIMIT) };
+}
+
+pub fn set_step_limit(limit: usize) {
+    STEP_LIMIT.with(|l| l.set(limit));
 }
 
 use crate::compiler::{
@@ -193,7 +198,7 @@ fn comptime_eval_with_args(
         let instr = &block.lines[i];
         let mut next = i + 1;
         steps += 1;
-        if steps > MAX_STEPS {
+        if steps > STEP_LIMIT.with(|l| l.get()) {
             return Err(throw_err(
                 env,
                 Some(crate::printers::analysis_line_pos(instr).clone()),
