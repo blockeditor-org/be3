@@ -21,7 +21,7 @@ use super::{
     DockSplitterHandle, DockStackHandle, DockState, DockSwitcherHandle, DockTabHandle, GroupId,
     LeafId, SIDEBAR_WIDTH, SPLITTER_THICKNESS, TabId,
 };
-use crate::context_menu::MenuStyle;
+use crate::menu_popup::MenuStyle;
 
 pub trait DockKey: Clone + Eq + Hash + 'static {}
 

@@ -105,6 +105,10 @@ pub fn on_finger_tap(tap: impl Fn(usize) -> bool + 'static) {
     on_cleanup(move || drop(tap));
 }
 
+pub fn last_pointer() -> Option<beui_core::input::PointerSample> {
+    try_with_document(|document| document.last_pointer).flatten()
+}
+
 pub fn focus_takes_text() -> bool {
     with_document(|document| document.focus_takes_text())
 }
