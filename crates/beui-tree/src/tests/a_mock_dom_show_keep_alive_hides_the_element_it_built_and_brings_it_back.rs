@@ -31,7 +31,7 @@ fn a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back() {
     assert_eq!(
         page.html(),
         "<div id=0><p id=3>rebuilt</p><textarea id=2>edited while hidden</textarea></div>",
-        "a `ShowKeepAlive` brings back the element it built, kept up to date while hidden, \
+        "a `ShowKeepAlive` brings back the element it built, brought up to date as it is shown, \
          where a `Show` builds a new one"
     );
 }
