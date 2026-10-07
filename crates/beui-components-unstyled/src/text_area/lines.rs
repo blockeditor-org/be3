@@ -115,20 +115,6 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
 #[component]
 fn AreaRow(cx: Context, line: usize) -> NodeId {
     let model = row_model(&cx, line);
-    let fill = create_memo(clone!(cx model -> move || {
-        let start = model.get().start;
-        let revealed = cx.state.content();
-        revealed.get();
-        match cx.state.with_snapshot(|snapshot| {
-            snapshot
-                .sections
-                .iter()
-                .any(|section| section.revealed && start > section.line_end && start <= section.content_end)
-        }) {
-            true => cx.colors.get().revealed_background,
-            false => Color32::TRANSPARENT,
-        }
-    }));
     let gutter = create_memo(clone!(cx -> move || Some(cx.gutter.get())));
     let padding = create_memo(clone!(cx -> move || (cx.padding.get().x - CODE_OUTSET.x).max(0.0)));
     let inset = create_memo(clone!(cx -> move || cx.padding.get().x.min(CODE_OUTSET.x)));
@@ -147,7 +133,7 @@ fn AreaRow(cx: Context, line: usize) -> NodeId {
     register_row(&cx, line, &row, &text, &block_ref, &model);
     let (gutter_cx, gutter_model) = (cx.clone(), model.clone());
     view! {
-        <Frame @node_ref=&row color={fill}>
+        <Frame @node_ref=&row>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Frame width={gutter}>
                     <Gutter cx={gutter_cx} model={gutter_model} />
