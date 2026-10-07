@@ -604,7 +604,7 @@ where
 
 pub(crate) enum Logged {
     Operation { bytes: Vec<u8>, origin: Option<u64> },
-    Replaced,
+    Replaced { acknowledged: HashMap<u64, u64> },
 }
 
 fn drain<C>(live: &mut Live<Store, C>, log: &mut Vec<Logged>, origin: Option<u64>)
@@ -621,9 +621,30 @@ where
                 bytes: C::encode_operation(&operation),
                 origin: None,
             }),
-            Journaled::Replaced => {
-                log.clear();
-                log.push(Logged::Replaced);
+            Journaled::Replaced { edits } => {
+                let mut acknowledged = HashMap::new();
+                for logged in log.drain(..) {
+                    match logged {
+                        Logged::Operation {
+                            origin: Some(origin),
+                            ..
+                        } => *acknowledged.entry(origin).or_default() += 1,
+                        Logged::Operation { origin: None, .. } => {}
+                        Logged::Replaced {
+                            acknowledged: earlier,
+                        } => {
+                            for (origin, count) in earlier {
+                                *acknowledged.entry(origin).or_default() += count;
+                            }
+                        }
+                    }
+                }
+                if let Some(origin) = origin
+                    && edits > 0
+                {
+                    *acknowledged.entry(origin).or_default() += edits;
+                }
+                log.push(Logged::Replaced { acknowledged });
             }
         }
     }

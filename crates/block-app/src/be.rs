@@ -76,7 +76,12 @@ impl Content {
                     self.log.pop_front();
                 }
             }
-            worker::Logged::Replaced => self.log.clear(),
+            worker::Logged::Replaced { acknowledged } => {
+                for (origin, count) in acknowledged {
+                    *self.taken.entry(origin).or_default() += count;
+                }
+                self.log.clear();
+            }
         }
     }
 
