@@ -32,4 +32,7 @@ fn input_settings_keep_their_values_in_bounds() {
 
     let settings = edited(&settings, [InputSettings::set_pointer_speed(-4.0)]);
     assert_eq!(settings.root().pointer_speed.get(), -1.0);
+
+    let settings = edited(&settings, [InputSettings::reset_tap_to_click()]);
+    assert_eq!(settings.root().tap_to_click, None);
 }

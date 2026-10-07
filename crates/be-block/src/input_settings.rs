@@ -120,6 +120,10 @@ impl InputSettings {
             .into()
     }
 
+    pub fn reset_tap_to_click() -> Edit {
+        Self::TAP_TO_CLICK.set(ObjectId::ROOT, &None).into()
+    }
+
     pub fn set_natural_scroll(enabled: bool) -> Edit {
         Self::NATURAL_SCROLL.set(ObjectId::ROOT, &enabled).into()
     }

@@ -5,11 +5,12 @@ use block_editor_beui::be_block::input_settings::{
 };
 use block_editor_beui::be_block::{InputSettings, InputSettingsContent, ObjectId};
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
 use block_editor_beui::beui::reactive::{
     Align, Direction, Frame, ItemSize, List, clone, component, create_memo, view,
 };
 use block_editor_beui::beui::styled::{
-    Body, Caption, Heading, Scroll, Slider, Switch, TextInput, use_theme,
+    Body, Caption, Heading, IconButton, Scroll, Slider, Switch, TextInput, use_theme,
 };
 
 const PADDING: f32 = 20.0;
@@ -18,6 +19,7 @@ const SECTION_SPACING: f32 = 18.0;
 const ROW_SPACING: f32 = 8.0;
 const LABEL_SPACING: f32 = 4.0;
 const COLUMN_SPACING: f32 = 12.0;
+const TAP_TO_CLICK_DEFAULT: bool = false;
 
 #[component]
 pub fn InputSettingsView(editor: Editor) -> NodeId {
@@ -33,7 +35,8 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
     let speed = settings.field(ObjectId::ROOT, InputSettings::POINTER_SPEED);
     let speed = create_memo(move || speed.get().get());
     let tap = settings.field(ObjectId::ROOT, InputSettings::TAP_TO_CLICK);
-    let tap = create_memo(move || tap.get().unwrap_or(false));
+    let tap_default = create_memo(clone!(tap -> move || tap.get().is_none()));
+    let tap = create_memo(move || tap.get().unwrap_or(TAP_TO_CLICK_DEFAULT));
     let natural = settings.field(ObjectId::ROOT, InputSettings::NATURAL_SCROLL);
     let natural = create_memo(move || natural.get());
     let delay_shown = create_memo(clone!(delay -> move || format!("{} ms", delay.get())));
@@ -41,11 +44,13 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
     let speed_shown = create_memo(clone!(speed -> move || format!("{:+.2}", speed.get())));
     let (layout_off, variant_off, options_off) =
         (read_only.clone(), read_only.clone(), read_only.clone());
-    let (delay_off, rate_off, speed_off) = (read_only.clone(), read_only.clone(), read_only);
+    let (delay_off, rate_off, speed_off) =
+        (read_only.clone(), read_only.clone(), read_only.clone());
+    let reset_off = create_memo(move || read_only.get() || tap_default.get());
     let (set_layout, set_variant, set_options) =
         (settings.clone(), settings.clone(), settings.clone());
     let (set_delay, set_rate, set_speed) = (settings.clone(), settings.clone(), settings.clone());
-    let set_tap = settings.clone();
+    let (set_tap, reset_tap) = (settings.clone(), settings.clone());
     let theme = use_theme();
     view! {
         <Frame color={theme.background.clone()}>
@@ -167,6 +172,15 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                                     @test_id={"input-settings.tap-to-click"}
                                     on_change={move |on: bool| {
                                         set_tap.operate(InputSettings::set_tap_to_click(on))
+                                    }}
+                                />
+                                <IconButton
+                                    glyph={ICON_RESET_SETTINGS.to_owned()}
+                                    label="Use the device's default"
+                                    disabled={reset_off}
+                                    @test_id={"input-settings.tap-to-click.reset"}
+                                    on_click={move || {
+                                        reset_tap.operate(InputSettings::reset_tap_to_click())
                                     }}
                                 />
                             </List>
