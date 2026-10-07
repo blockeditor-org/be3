@@ -6,8 +6,8 @@
 ]
 
 sum_to :: (n: std.kw.int) => std.kw.int: :done {
-  total := std.kw.mut(std.kw.int: 0)
-  i := std.kw.mut(std.kw.int: 1)
+  total := std.kw.mut(std.kw.int).new: 0
+  i := std.kw.mut(std.kw.int).new: 1
   std.kw.loop {
     std.kw.if (i.* > n) {
       done: total.*
@@ -25,8 +25,8 @@ fact :: (n: std.kw.int) => std.kw.int: :out {
 }
 
 collatz_steps :: (start: std.kw.int) => std.kw.int: :done {
-  n := std.kw.mut(start)
-  steps := std.kw.mut(std.kw.int: 0)
+  n := std.kw.mut(std.kw.int).new: start
+  steps := std.kw.mut(std.kw.int).new: 0
   std.kw.loop {
     std.kw.if (n.* == 1) {
       done: steps.*

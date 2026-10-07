@@ -1,6 +1,5 @@
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 pub const DEFAULT_STEP_LIMIT: usize = 10_000_000;
 const MAX_CALL_DEPTH: usize = 1000;
@@ -500,7 +499,7 @@ fn comptime_eval_with_args(
                 };
                 let init =
                     get_comptime_impl(env, None, init.clone(), ipos.clone(), Some(&runtime))?;
-                results[i] = Some(ComptimeValue::KwMut(Rc::new(RefCell::new(init))));
+                results[i] = Some(ComptimeValue::KwMut(crate::compiler::MutPlace::new(init)));
             }
             AnalysisLine::MutGet { pos: ipos, cell } => {
                 let runtime = RuntimeData {
@@ -517,7 +516,7 @@ fn comptime_eval_with_args(
                 else {
                     unreachable!("get_comptime guarantees a matching kind")
                 };
-                results[i] = Some(cell.borrow().clone());
+                results[i] = Some(cell.get());
             }
             AnalysisLine::MutSet {
                 pos: ipos,
@@ -540,7 +539,7 @@ fn comptime_eval_with_args(
                 };
                 let value =
                     get_comptime_impl(env, None, value.clone(), ipos.clone(), Some(&runtime))?;
-                *cell.borrow_mut() = value;
+                cell.set(value);
             }
             AnalysisLine::LabelEnd {
                 pos: ipos, value, ..

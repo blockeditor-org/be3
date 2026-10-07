@@ -7,8 +7,8 @@
 f :: (x: std.c.int) => std.c.int: scale(2, x) + scale(3, x) + scale(2, 1)
 scale :: (k :: std.kw.int, x: std.c.int) => std.c.int: x * std.c.int.[std.literal.number](k)
 repeat :: (s :: std.kw.string, n: std.kw.int) => std.kw.string: :done {
-  out := std.kw.mut(std.kw.string: "")
-  i := std.kw.mut(std.kw.int: 0)
+  out := std.kw.mut(std.kw.string).new: ""
+  i := std.kw.mut(std.kw.int).new: 0
   std.kw.loop {
     std.kw.if (i.* == n) {
       done: out.*

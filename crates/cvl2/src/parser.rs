@@ -48,6 +48,7 @@ pub enum RawTag {
     Void,
     String,
     Comment,
+    Spread,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -583,6 +584,7 @@ fn raw_tag_for(token: &str) -> Option<RawTag> {
     match token {
         "->" => Some(RawTag::Return),
         "_" => Some(RawTag::Discard),
+        "..." => Some(RawTag::Spread),
         _ => None,
     }
 }
@@ -1376,6 +1378,7 @@ fn raw_highlight(tag: RawTag) -> Option<&'static str> {
     match tag {
         RawTag::Return => Some(highlights::KEYWORD),
         RawTag::Discard => Some(highlights::KEYWORD),
+        RawTag::Spread => Some(highlights::KEYWORD),
         RawTag::String => Some(highlights::STRING),
         RawTag::Comment => Some(highlights::COMMENT),
         RawTag::Void => None,

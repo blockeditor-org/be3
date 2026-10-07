@@ -44,7 +44,7 @@ fn import_file_loop_and_mut_errors() {
             "KwInt has no field '*'",
         ),
         (
-            "    m := std.kw.mut(std.kw.int: 1)\n    m = std.kw.bool.true",
+            "    m := std.kw.mut(std.kw.int).new: 1\n    m = std.kw.bool.true",
             "expected KwInt, got KwBool",
         ),
         (
@@ -57,7 +57,7 @@ fn import_file_loop_and_mut_errors() {
     }
 
     assert_eq!(
-        only_error(build_c_fn("  x := std.kw.mut(std.kw.int: 1)\n  -> a")),
+        only_error(build_c_fn("  x := std.kw.mut(std.kw.int).new: 1\n  -> a")),
         "std.kw.mut is not supported in C"
     );
 }

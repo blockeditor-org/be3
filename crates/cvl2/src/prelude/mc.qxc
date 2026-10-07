@@ -32,18 +32,18 @@ name :: (names: Names, f: std.reflect.Fn) => Names: :done {
 Body :: std.Struct["names" .= Names, "text" .= std.kw.string]
 
 body :: (f: std.reflect.Function, start: Names) => Body: :done {
-  names := std.kw.mut(start)
-  commands := std.kw.mut(std.kw.list(std.kw.string): ())
-  pending := std.kw.mut(std.kw.string: "")
-  pending_at := std.kw.mut(std.kw.int: 0 - 1)
-  i := std.kw.mut(std.kw.int: 0)
+  names := std.kw.mut(Names).new: start
+  commands := std.kw.mut(std.kw.list(std.kw.string)).new: ()
+  pending := std.kw.mut(std.kw.string).new: ""
+  pending_at := std.kw.mut(std.kw.int).new: 0 - 1
+  i := std.kw.mut(std.kw.int).new: 0
   std.kw.loop {
     std.kw.if (i.* == f.lines.len) {
       done: finish(f, names.*, commands.*, pending.*, pending_at.*)
     }
     line := f.lines.get(i.*)
     i = i.* + 1
-    command := std.kw.mut(std.Option(std.kw.string): std.kw.null)
+    command := std.kw.mut(std.Option(std.kw.string)).new: std.kw.null
     std.kw.if (c := line.call) {
       callee := c.callee.constant.?.fn.?
       names = name(names.*, callee)
@@ -87,12 +87,12 @@ finish :: (f: std.reflect.Function, names: Names, commands: std.kw.list(std.kw.s
 }
 
 compile :: (exports: std.kw.map(std.kw.string, std.reflect.Fn)) => std.Folder: :done {
-  names := std.kw.mut(Names[
+  names := std.kw.mut(Names).new(Names[
     "order" .= exports.values
     "ids" .= std.kw.map(std.reflect.Fn, std.kw.string): []
     "internal" .= 0
   ])
-  i := std.kw.mut(std.kw.int: 0)
+  i := std.kw.mut(std.kw.int).new: 0
   std.kw.loop {
     std.kw.if (i.* == exports.len) {
       done: files(names.*)
@@ -107,9 +107,9 @@ compile :: (exports: std.kw.map(std.kw.string, std.reflect.Fn)) => std.Folder: :
 }
 
 files :: (start: Names) => std.kw.map(std.kw.string, std.kw.string): :done {
-  names := std.kw.mut(start)
-  out := std.kw.mut(std.kw.map(std.kw.string, std.kw.string): [])
-  i := std.kw.mut(std.kw.int: 0)
+  names := std.kw.mut(Names).new: start
+  out := std.kw.mut(std.kw.map(std.kw.string, std.kw.string)).new: []
+  i := std.kw.mut(std.kw.int).new: 0
   std.kw.loop {
     std.kw.if (i.* == names.*.order.len) {
       done: out.*

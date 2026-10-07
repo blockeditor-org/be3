@@ -888,13 +888,63 @@ pub enum ComptimeValue {
     Tuple(ComptimeValueTuple),
     Struct(Vec<ComptimeValue>),
     Enum(ComptimeValueEnum),
-    KwMut(Rc<RefCell<ComptimeValue>>),
+    KwMut(MutPlace),
     Error(ComptimeValueError),
     Target(ComptimeValueTarget),
     ReflectValue(crate::reflect::ReflectValue),
     ReflectConstant(Rc<ComptimeValue>),
     ReflectData(Rc<(ComptimeValue, Type)>),
     KwMap(Rc<Vec<(ComptimeValue, ComptimeValue)>>),
+}
+
+#[derive(Debug, Clone)]
+pub struct MutPlace {
+    pub root: Rc<RefCell<ComptimeValue>>,
+    pub path: Vec<usize>,
+}
+
+impl MutPlace {
+    pub fn new(value: ComptimeValue) -> Self {
+        MutPlace {
+            root: Rc::new(RefCell::new(value)),
+            path: Vec::new(),
+        }
+    }
+
+    pub fn field(&self, index: usize) -> Self {
+        let mut path = self.path.clone();
+        path.push(index);
+        MutPlace {
+            root: self.root.clone(),
+            path,
+        }
+    }
+
+    pub fn get(&self) -> ComptimeValue {
+        let mut value = self.root.borrow().clone();
+        for index in &self.path {
+            let ComptimeValue::Struct(fields) = value else {
+                unreachable!("a field cell's path only goes through structs")
+            };
+            value = fields[*index].clone();
+        }
+        value
+    }
+
+    pub fn set(&self, new: ComptimeValue) {
+        fn set_at(value: &mut ComptimeValue, path: &[usize], new: ComptimeValue) {
+            match path.split_first() {
+                None => *value = new,
+                Some((index, rest)) => {
+                    let ComptimeValue::Struct(fields) = value else {
+                        unreachable!("a field cell's path only goes through structs")
+                    };
+                    set_at(&mut fields[*index], rest, new);
+                }
+            }
+        }
+        set_at(&mut self.root.borrow_mut(), &self.path, new);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -3254,35 +3304,88 @@ fn builtin_kw_mut_call(
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
-    let init = analyze(
+    let inner = analyze(env, Type::CtType(CtType), arg_ast.pos, arg_ast.ast, block)?;
+    let ComptimeValue::Type(inner) = crate::comptime::get_comptime(
         env,
-        Type::Unknown(TypeUnknown),
-        arg_ast.pos,
-        arg_ast.ast,
-        block,
-    )?;
-    if let Type::Unknown(_) = init.ty {
-        return Err(throw_err(
+        Some(crate::comptime::ComptimeValueKind::Type),
+        inner.value,
+        pos,
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    Ok(AnalysisResult {
+        ty: Type::CtType(CtType),
+        value: RuntimeValue::Comptime(ComptimeValue::Type(ComptimeValueType {
+            ty: Type::KwMut(crate::ct::KwMut {
+                inner: Box::new(inner.ty),
+            }),
+        })),
+    })
+}
+
+#[derive(Debug)]
+pub struct KwMutNew {
+    pub inner: Type,
+    pub pos: TokenPosition,
+}
+
+impl ComptimeNamespace for KwMutNew {
+    fn get_string(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        field: &str,
+        _block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        Err(throw_err(
             env,
             Some(pos),
-            "std.kw.mut needs a value of a known type",
+            format!("std.kw.mut(T).new has no field: {field}"),
             None,
             None,
-        ));
+        ))
     }
-    let cell = block_append(
-        block,
-        AnalysisLine::MutNew {
-            pos,
-            init: init.value,
-        },
-    );
-    Ok(AnalysisResult {
-        ty: Type::KwMut(crate::ct::KwMut {
-            inner: Box::new(init.ty),
-        }),
-        value: RuntimeValue::Runtime(cell),
-    })
+
+    fn get_symbol(
+        &self,
+        _env: &mut Env,
+        _pos: TokenPosition,
+        _keychild: Type,
+        _field: Symbol,
+        _block: &mut AnalysisBlock,
+    ) -> Result<Option<AnalysisResult>, PositionedError> {
+        Ok(None)
+    }
+
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        _slot: Type,
+        pos: TokenPosition,
+        arg: CallArg<'_>,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let init = analyze(env, self.inner.clone(), arg.pos.clone(), arg.ast, block)?;
+        let init = self.inner.cast_into(env, block, init, arg.pos)?;
+        let cell = block_append(
+            block,
+            AnalysisLine::MutNew {
+                pos,
+                init: init.value,
+            },
+        );
+        Ok(AnalysisResult {
+            ty: Type::KwMut(crate::ct::KwMut {
+                inner: Box::new(self.inner.clone()),
+            }),
+            value: RuntimeValue::Runtime(cell),
+        })
+    }
+
+    fn pos(&self) -> &TokenPosition {
+        &self.pos
+    }
 }
 
 fn builtin_kw_loop_call(

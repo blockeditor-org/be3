@@ -202,6 +202,7 @@ mod import_file_optionals_wrap_one_level_at_a_time;
 mod import_file_reflect_generator_rejects_unsupported_types;
 mod import_file_shared_buffers_keep_values_immutable;
 mod import_file_struct_and_enum_errors;
+mod import_file_struct_spread_and_field_cells;
 mod import_file_text_interpolates_and_names_fresh_identifiers;
 mod import_file_user_type_errors;
 mod import_file_written_calls_match_calls;

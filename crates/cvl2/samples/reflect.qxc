@@ -36,7 +36,7 @@ c_type :: (at: std.reflect.Value, ty: std.Type) => std.kw.text: :done {
 }
 
 fresh_names :: (n: std.kw.int, hint: std.kw.string) => std.kw.list(std.kw.text): :done {
-  names := std.kw.mut(std.kw.list(std.kw.text): ())
+  names := std.kw.mut(std.kw.list(std.kw.text)).new: ()
   std.kw.loop {
     std.kw.if (names.*.len == n) {
       done: names.*
@@ -54,7 +54,7 @@ operand :: (names: std.kw.list(std.kw.text), o: std.reflect.Operand) => std.kw.t
 
 signature :: (name: std.kw.string, f: std.reflect.Function, params: std.kw.list(std.kw.text)) => std.kw.text: :done {
   at := f.lines.get(0).args.?.at
-  parts := std.kw.mut(std.kw.list(std.kw.text): ())
+  parts := std.kw.mut(std.kw.list(std.kw.text)).new: ()
   std.kw.loop {
     std.kw.if (parts.*.len == params.len) {
       done: "\(c_type(at, f.ret)) \(name)(" + parts.*.join(", ") + ") {\n"
@@ -118,8 +118,8 @@ emit_line :: (f: std.reflect.Function, names: std.kw.list(std.kw.text), params: 
 emit_fn :: (name: std.kw.string, f: std.reflect.Function) => std.kw.text: :done {
   names := fresh_names(f.lines.len, "v")
   params := fresh_names(f.params.len, "p")
-  out := std.kw.mut(signature(name, f, params))
-  i := std.kw.mut(std.kw.int: 0)
+  out := std.kw.mut(std.kw.text).new: signature(name, f, params)
+  i := std.kw.mut(std.kw.int).new: 0
   std.kw.loop {
     std.kw.if (i.* == f.lines.len) {
       done: out.* + "  return \(operand(names, f.result));\n}\n"

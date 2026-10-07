@@ -16,7 +16,7 @@ fn import_file_comptime_param_errors() {
     };
     assert_eq!(
         only_error(file(
-            "    m := std.kw.mut(std.kw.int: 2)\n    _ = twice(m.*)"
+            "    m := std.kw.mut(std.kw.int).new: 2\n    _ = twice(m.*)"
         )),
         "k must be known at compile time"
     );

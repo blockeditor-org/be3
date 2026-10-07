@@ -770,6 +770,17 @@ impl Type {
     }
 
     pub fn type_field(&self, name: &str) -> Option<AnalysisResult> {
+        if let (Type::KwMut(cell), "new") = (self, name) {
+            return Some(AnalysisResult {
+                ty: Type::CtNamespace(CtNamespace),
+                value: RuntimeValue::Comptime(ComptimeValue::Namespace(Rc::new(
+                    crate::compiler::KwMutNew {
+                        inner: (*cell.inner).clone(),
+                        pos: compiler_pos(),
+                    },
+                ))),
+            });
+        }
         if let Some(field) = crate::kw::type_field(self, name) {
             return Some(field);
         }

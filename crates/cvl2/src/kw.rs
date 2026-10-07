@@ -57,6 +57,7 @@ pub enum KwBuiltinOp {
     StringSplit,
     FolderFromMap,
     ReflectFunction,
+    MutField,
 }
 
 #[derive(Debug)]
@@ -140,12 +141,17 @@ impl KwBuiltinOp {
             KwBuiltinOp::StringSplit => "string_split",
             KwBuiltinOp::FolderFromMap => "folder_from_map",
             KwBuiltinOp::ReflectFunction => "reflect_function",
+            KwBuiltinOp::MutField => "mut_field",
         }
     }
 }
 
 fn string(value: String) -> ComptimeValue {
     ComptimeValue::KwString(ComptimeValueKwString::new(value))
+}
+
+fn int_value(value: usize) -> RuntimeValue {
+    RuntimeValue::Comptime(int(value as i64))
 }
 
 fn int(value: i64) -> ComptimeValue {
@@ -185,6 +191,9 @@ pub fn eval(
                 map_insert(env, pos, &mut entries, pair[0].clone(), pair[1].clone())?;
             }
             V::KwMap(Rc::new(entries))
+        }
+        (KwBuiltinOp::MutField, [V::KwMut(place), V::KwInt(index)]) => {
+            V::KwMut(place.field(index.value as usize))
         }
         (KwBuiltinOp::ReflectFunction, [V::Target(target), V::Fn(f)]) => {
             crate::reflect::reflect_function(env, target, f)?
@@ -642,6 +651,22 @@ pub fn value_field(
     name: &str,
 ) -> Result<Option<AnalysisResult>, PositionedError> {
     let property = |op| (op, Type::KwInt(KwInt));
+    if let Type::KwMut(cell) = ty
+        && let Type::User(user) = &*cell.inner
+        && let Some((index, field_ty)) = user.field(env, name)?
+    {
+        return emit(
+            env,
+            block,
+            pos.clone(),
+            KwBuiltinOp::MutField,
+            vec![obj.value.clone(), int_value(index)],
+            Type::KwMut(crate::ct::KwMut {
+                inner: Box::new(field_ty),
+            }),
+        )
+        .map(Some);
+    }
     let (op, result_ty) = match (ty, name) {
         (Type::Optional(optional), "?") => (KwBuiltinOp::OptionalUnwrap, (*optional.child).clone()),
         (Type::KwString(_), "len") => property(KwBuiltinOp::StringLen),

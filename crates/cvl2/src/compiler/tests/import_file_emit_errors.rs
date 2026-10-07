@@ -24,7 +24,7 @@ fn import_file_emit_errors() {
     );
     assert_eq!(
         message(build(
-            "    m := std.kw.mut(Op.one)\n    _ = std.emit(num, m.*, ())"
+            "    m := std.kw.mut(Op).new: Op.one\n    _ = std.emit(num, m.*, ())"
         )),
         "std.emit's data must be known at compile time"
     );

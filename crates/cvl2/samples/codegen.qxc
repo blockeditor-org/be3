@@ -3,10 +3,10 @@
 ]
 
 emit_sum :: (terms: std.kw.list(std.kw.int)) => std.kw.text: :done {
-  lines := std.kw.mut(std.kw.list(std.kw.text): ())
-  acc := std.kw.mut(std.kw.text.fresh("t"))
+  lines := std.kw.mut(std.kw.list(std.kw.text)).new: ()
+  acc := std.kw.mut(std.kw.text).new: std.kw.text.fresh("t")
   lines = lines.*.push("int \(acc.*) = 0;")
-  i := std.kw.mut(std.kw.int: 0)
+  i := std.kw.mut(std.kw.int).new: 0
   std.kw.loop {
     std.kw.if (i.* == terms.len) {
       done: lines.*.join("\n") + "\nreturn \(acc.*);\n"

@@ -8,7 +8,7 @@
 letters :: () => std.kw.list(std.kw.string): ("a", "b", "c")
 
 find :: (xs: std.kw.list(std.kw.string), target: std.kw.string) => std.Option(std.kw.int): :done {
-  i := std.kw.mut(std.kw.int: 0)
+  i := std.kw.mut(std.kw.int).new: 0
   std.kw.loop {
     std.kw.if (i.* == xs.len) {
       done: std.kw.null

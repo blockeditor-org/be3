@@ -16,8 +16,8 @@ use crate::ct::{
 };
 use crate::kw::KwBuiltinOp;
 use crate::parser::{
-    BlockToken, BracketTag, IdentifierTag, OpTag, OperatorSegmentToken, SyntaxNode, TokenPosition,
-    tokenize,
+    BlockToken, BracketTag, IdentifierTag, OpTag, OperatorSegmentToken, RawTag, SyntaxNode,
+    TokenPosition, tokenize,
 };
 use crate::std_keys::{Section, StdKey, std_key, symbol_std_key};
 
@@ -389,6 +389,21 @@ impl UserType {
         cases[index].ty(env)
     }
 
+    pub fn field(
+        &self,
+        env: &mut Env,
+        name: &str,
+    ) -> Result<Option<(usize, Type)>, PositionedError> {
+        let sections = self.sections(env)?;
+        let Some(fields) = &sections.fields else {
+            return Ok(None);
+        };
+        match fields.iter().position(|field| field.name == name) {
+            Some(index) => Ok(Some((index, fields[index].ty(env)?))),
+            None => Ok(None),
+        }
+    }
+
     pub fn field_names(&self, env: &mut Env) -> Result<Vec<String>, PositionedError> {
         let sections = self.sections(env)?;
         Ok(sections
@@ -556,13 +571,26 @@ impl UserType {
         let sections = self.sections(env)?;
         let fields = sections.fields.as_ref().expect("checked has_fields before");
         let mut values: Vec<Option<RuntimeValue>> = vec![None; fields.len()];
+        let mut spreads: Vec<RuntimeValue> = Vec::new();
         for (lhs, rhs) in map_lines(env, ast.pos.clone(), &ast.items)? {
+            let lhs_items = trim_ws(&lhs.items);
+            if let (Some(SyntaxNode::Raw(raw)), None) = (lhs_items.first(), &rhs)
+                && raw.tag == RawTag::Spread
+            {
+                let ty = Type::User(self.clone());
+                let value = analyze(env, ty.clone(), lhs.pos.clone(), &lhs_items[1..], block)?;
+                spreads.push(ty.cast_into(env, block, value, lhs.pos.clone())?.value);
+                continue;
+            }
             let key = key_of(env, &lhs)?;
             let (ComptimeValueKey::String { key: name }, Some(rhs)) = (key, rhs) else {
                 return Err(throw_err(
                     env,
                     Some(lhs.pos.clone()),
-                    format!("expected \"field\" .= value in a {} literal", self.name()),
+                    format!(
+                        "expected \"field\" .= value or ...value in a {} literal",
+                        self.name()
+                    ),
                     None,
                     None,
                 ));
@@ -576,9 +604,36 @@ impl UserType {
                     None,
                 ));
             };
+            if values[index].is_some() {
+                return Err(throw_err(
+                    env,
+                    Some(lhs.pos.clone()),
+                    format!("field \"{name}\" is given twice"),
+                    None,
+                    None,
+                ));
+            }
             let ty = fields[index].ty(env)?;
             let value = analyze(env, ty.clone(), rhs.pos.clone(), &rhs.items, block)?;
             values[index] = Some(ty.cast_into(env, block, value, rhs.pos.clone())?.value);
+        }
+        if let Some(spread) = spreads.last() {
+            for (index, value) in values.iter_mut().enumerate() {
+                if value.is_none() {
+                    let ty = fields[index].ty(env)?;
+                    *value = Some(
+                        crate::kw::emit(
+                            env,
+                            block,
+                            ast.pos.clone(),
+                            KwBuiltinOp::StructGet,
+                            vec![spread.clone(), kw_int(index)],
+                            ty,
+                        )?
+                        .value,
+                    );
+                }
+            }
         }
         let mut args = Vec::new();
         for (field, value) in fields.iter().zip(values) {

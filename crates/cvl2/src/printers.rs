@@ -258,6 +258,7 @@ fn raw_tag_str(tag: RawTag) -> &'static str {
     match tag {
         RawTag::Return => "return",
         RawTag::Discard => "discard",
+        RawTag::Spread => "spread",
         RawTag::Void => "void",
         RawTag::String => "string",
         RawTag::Comment => "comment",

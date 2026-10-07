@@ -4,8 +4,8 @@
 ]
 
 squares :: (n: std.kw.int) => std.kw.string: :done {
-  lines := std.kw.mut(std.kw.list(std.kw.string): ())
-  i := std.kw.mut(std.kw.int: 1)
+  lines := std.kw.mut(std.kw.list(std.kw.string)).new: ()
+  i := std.kw.mut(std.kw.int).new: 1
   std.kw.loop {
     std.kw.if (i.* > n) {
       done: lines.*.join("\n")
@@ -16,8 +16,8 @@ squares :: (n: std.kw.int) => std.kw.string: :done {
 }
 
 greet :: (names: std.kw.list(std.kw.string)) => std.kw.string: :done {
-  out := std.kw.mut(std.kw.string: "")
-  i := std.kw.mut(std.kw.int: 0)
+  out := std.kw.mut(std.kw.string).new: ""
+  i := std.kw.mut(std.kw.int).new: 0
   std.kw.loop {
     std.kw.if (i.* == names.len) {
       done: out.*
