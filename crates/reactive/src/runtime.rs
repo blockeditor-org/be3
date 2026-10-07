@@ -15,6 +15,7 @@ pub(crate) struct Runtime {
     pub(crate) memo_depth: Cell<usize>,
     pub(crate) zone: Cell<u64>,
     pub(crate) parked: RefCell<HashMap<u64, Vec<Weak<Computation>>>>,
+    pub(crate) sequence: Cell<u64>,
 }
 
 thread_local! {
@@ -99,8 +100,17 @@ pub fn settle<T>(f: impl FnOnce() -> T) -> T {
     result
 }
 
+pub(crate) fn next_sequence() -> u64 {
+    RUNTIME.with(|runtime| {
+        let next = runtime.sequence.get() + 1;
+        runtime.sequence.set(next);
+        next
+    })
+}
+
 pub(crate) fn enqueue(computation: &Rc<Computation>) {
     if !computation.queued.replace(true) {
+        computation.queued_at.set(next_sequence());
         RUNTIME.with(|runtime| {
             runtime
                 .queue
@@ -122,6 +132,10 @@ pub(crate) fn flush() {
         let Some(computation) = next.upgrade() else {
             continue;
         };
+        if let Some(gate) = computation.closed_gate() {
+            gate.park(next);
+            continue;
+        }
         let current = RUNTIME.with(|runtime| runtime.zone.get());
         if computation.zone != 0 && current != 0 && computation.zone != current {
             RUNTIME.with(|runtime| {
