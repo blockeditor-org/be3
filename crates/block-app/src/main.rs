@@ -213,6 +213,11 @@ impl beui::App for Shell {
         }
     }
 
+    fn renderer_replaced(&mut self, setup: &beui::Setup) {
+        plugin_host::replace_gpu(setup);
+        wayland::replace_gpu(setup);
+    }
+
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
         let started = std::time::Instant::now();
         host::begin(context, &self.document);

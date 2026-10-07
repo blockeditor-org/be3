@@ -35,6 +35,8 @@ pub trait App {
 
     fn setup(&mut self, _setup: &Setup) {}
 
+    fn renderer_replaced(&mut self, _setup: &Setup) {}
+
     fn close_requested(&mut self) -> bool {
         true
     }

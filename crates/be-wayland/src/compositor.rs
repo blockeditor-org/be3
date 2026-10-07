@@ -337,6 +337,17 @@ impl Compositor {
 }
 
 impl Compositor {
+    pub fn replace_gpu(
+        &mut self,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        format: wgpu::TextureFormat,
+    ) {
+        self.textures
+            .borrow_mut()
+            .set_gpu(Gpu::new(device, queue, format));
+    }
+
     pub fn start(
         &mut self,
         device: wgpu::Device,
