@@ -146,6 +146,7 @@ mod a_rect_watched_inside_a_scroll_follows_it_as_it_scrolls;
 mod a_redrawn_drawing_damages_only_the_part_it_names;
 mod a_released_sheet_springs_to_its_stop_or_closed;
 mod a_removed_nodes_slot_is_reused_under_a_new_id;
+mod a_repaint_that_starts_while_another_scans_in_does_not_restart_it;
 mod a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose;
 mod a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again;
 mod a_row_replaced_by_narrower_rows_leaves_nothing_of_it_behind_the_copy;
@@ -178,6 +179,7 @@ mod a_simulated_mouse_click_lands_where_the_trackpad_moved_its_cursor;
 mod a_simulated_screen_larger_than_the_window_is_shrunk_to_fit;
 mod a_skipped_element_keeps_the_repaint_deadline_it_asked_for;
 mod a_slider_reports_and_steps_within_the_range_it_was_given;
+mod a_slowed_repaint_that_keeps_animating_still_scans_to_its_bottom_edge;
 mod a_spinner_hidden_by_a_show_stops_asking_for_frames;
 mod a_split_button_runs_its_action_or_opens_its_menu;
 mod a_stack_becomes_a_column_when_its_container_gets_narrow;
@@ -471,6 +473,8 @@ mod showing_a_child_at_the_end_of_a_list_damages_only_that_child;
 mod simulating_a_device_pixel_ratio_in_the_inspector_changes_the_pixels_per_point;
 mod sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured;
 mod slider_home_end_and_page_keys_clamp_at_the_bounds;
+mod slowing_repaints_scans_a_change_in_from_its_top_edge;
+mod slowing_repaints_still_copies_what_a_scroll_moved_at_once;
 mod space_toggles_checkboxes_switches_and_toggle_buttons;
 mod splitting_a_dock_tab_with_the_next_shows_both_side_by_side;
 mod swiping_the_simulated_middle_button_scrolls_in_ticks;
@@ -1110,6 +1114,10 @@ impl Harness {
 
     pub(crate) fn damage_flash_toggle_center(&self) -> Pos2 {
         self.inspector_center("inspector.performance.flash_damage")
+    }
+
+    pub(crate) fn slow_repaint_toggle_center(&self) -> Pos2 {
+        self.inspector_center("inspector.performance.slow_repaints")
     }
 
     pub(crate) fn accesskit_tab_center(&self) -> Pos2 {

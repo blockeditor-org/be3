@@ -17,6 +17,7 @@ use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::input::{Key, KeyPress};
+use crate::slow_repaint::SlowRepaint;
 
 use crate::display::Display;
 use crate::interact::{self, Keys};
@@ -140,6 +141,7 @@ pub struct Document {
     changes: FlashLog<NodeId>,
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
+    slow_repaint: SlowRepaint,
     painters: NodeMap<Placing>,
     spaces_moved: bool,
     rubber_banding: bool,
@@ -342,6 +344,7 @@ impl Document {
             changes: FlashLog::default(),
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
+            slow_repaint: SlowRepaint::default(),
             painters: NodeMap::default(),
             spaces_moved: false,
             rubber_banding: true,
@@ -691,6 +694,10 @@ impl Document {
 
     pub fn track_damage(&mut self, enabled: bool) {
         self.damage_flashes.set_enabled(enabled);
+    }
+
+    pub fn slow_repaints(&mut self, enabled: bool) {
+        self.slow_repaint.set_enabled(enabled);
     }
 
     pub fn change_flashes(&self) -> impl Iterator<Item = (NodeId, Instant)> {
@@ -1074,6 +1081,7 @@ impl Document {
         repaints.extend(cache.take_due(now));
         cache.mark(&repaints, &self.arena);
         self.arena.recycle(released);
+        let mut painted = Region::NOTHING;
         if !repaints.is_empty() || self.paint_revision != self.arena.revision {
             measurement.painted = true;
             let verifying = self.verifies_paint && verifying_paint();
@@ -1089,13 +1097,20 @@ impl Document {
             }
             for damaged in region.rects() {
                 self.damage_flashes.record(*damaged, now);
-                ctx.report_damage(*damaged);
             }
             if let Some(moved) = moved {
+                self.slow_repaint.shift(moved);
                 let roots = self.painting.iter().map(|(display, _)| Rc::clone(display));
                 ctx.report_move(moved, roots.collect());
             }
+            painted = region;
             self.next_paint = self.paint_cache.get_mut().next_deadline();
+        }
+        for damaged in self.slow_repaint.scan(painted, rect, now) {
+            ctx.report_damage(damaged);
+        }
+        if self.slow_repaint.scanning() {
+            ctx.request_repaint();
         }
         if let Some(deadline) = self.next_paint {
             ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
