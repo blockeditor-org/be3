@@ -652,7 +652,11 @@ the thumb it would paint, drags the thumb with the pointer, pages by a viewport
 towards a press on the track either side of it, and hands its content a
 `ScrollbarHandle` of `hovered` and `dragging` so the styled bar can paint those
 states. `thumb_start` and `thumb_length` are the same fractions both layers
-work in, so what is painted and what is pressed cannot drift apart. A press on
+work in, so what is painted and what is pressed cannot drift apart. The styled
+bar paints its track inset by `SCROLLBAR_INSET` from the scroll's outer edge and
+from both ends, so it does not touch the separators around a panel; the inset at
+the ends sits outside the unstyled bar, keeping those fractions measured over
+the track that is painted. A press on
 the bar rests whatever momentum a fling left, so the content stops where it is
 put.
 
@@ -2059,6 +2063,8 @@ damaged whole either: the frame reports it as `FrameOutput::moved`, and a host
 that keeps its last frame, as `beui::run` does, copies that region by the
 scroll with `Renderer::shift` and repaints only what the copy cannot supply -
 the rows it exposes, and whatever else changed or does not move with the rows.
+Only one region is copied per frame: when several moved at once - a scroll and
+its scrollbar's thumb - the largest is copied and the rest are repainted.
 `FrameOutput::repaint` covers the moved region for hosts that do not copy.
 
 Pointer input only visits a node when the pointer lies within the rects of it

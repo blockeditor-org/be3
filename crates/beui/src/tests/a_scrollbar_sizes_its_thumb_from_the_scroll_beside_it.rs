@@ -43,7 +43,7 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
 
     let content = ROWS as f32 * ROW_HEIGHT;
     let viewport = VIEWPORT.y - BAR_HEIGHT;
-    let track = harness.rect(thumb.get()).height();
+    let track = harness.rect(track_of(&harness, thumb.get())).height();
     let painted = thumb_height(&harness, thumb.get());
     let wanted = track * (viewport / content);
     assert!(
@@ -57,8 +57,14 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
     );
 }
 
+fn track_of(harness: &Harness, bar: NodeId) -> NodeId {
+    let interactive = harness.document().children(bar)[0];
+    let inset = harness.document().children(interactive)[0];
+    harness.document().children(inset)[0]
+}
+
 fn thumb_height(harness: &Harness, bar: NodeId) -> f32 {
-    let track = harness.document().children(bar)[0];
+    let track = track_of(harness, bar);
     let list = harness.document().children(track)[0];
     let thumb = harness.document().children(list)[1];
     harness.rect(thumb).height()

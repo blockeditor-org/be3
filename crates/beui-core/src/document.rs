@@ -1154,13 +1154,22 @@ impl Document {
         region: Region,
         viewport: Rect,
     ) -> (Region, Option<Moved>) {
-        let [only] = moves.as_slice() else {
-            let mut region = region;
-            for moved in &moves {
-                region.add(moved.viewport.intersect(viewport));
-            }
+        let shown_area = |moved: &paint::Move| {
+            let visible = moved.viewport.intersect(viewport);
+            visible.width().max(0.0) * visible.height().max(0.0)
+        };
+        let Some(largest) = (0..moves.len())
+            .max_by(|a, b| shown_area(&moves[*a]).total_cmp(&shown_area(&moves[*b])))
+        else {
             return (region, None);
         };
+        let mut region = region;
+        for (index, moved) in moves.iter().enumerate() {
+            if index != largest {
+                region.add(moved.viewport.intersect(viewport));
+            }
+        }
+        let only = &moves[largest];
         let visible = only.viewport.intersect(viewport);
         let rooted = self.paint_cache.borrow().rooted();
         let (fixed, inner) =
