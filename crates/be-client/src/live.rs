@@ -225,12 +225,16 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
     }
 
     fn adopt_session_state(&mut self, state: &[u8]) {
+        let shown = self.visible.session_state();
         let adopted = self
             .confirmed
             .adopt_session_state(state)
             .and_then(|()| self.visible.adopt_session_state(state));
         if adopted.is_err() {
             self.unreadable_message();
+        }
+        if self.visible.session_state() != shown {
+            self.journal(Journaled::Replaced { edits: 0 });
         }
     }
 
@@ -251,10 +255,10 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             return Ok(false);
         }
         let sequence = sequencer.sequence();
-        self.restarted_at = sequence;
         self.adopt_session_state(&[]);
         self.broadcast(&SessionMessage::Restarted { sequence })
             .await?;
+        self.restarted_at = sequence;
         Ok(true)
     }
 

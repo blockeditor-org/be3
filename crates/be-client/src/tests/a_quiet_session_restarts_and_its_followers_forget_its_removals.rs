@@ -3,6 +3,8 @@ use super::*;
 use be_block::be_model::{Anchor, ObjectId};
 use be_block::{Checklist, ChecklistContent, ChecklistItem, LiveEdit};
 
+use crate::Journaled;
+
 #[tokio::test]
 async fn a_quiet_session_restarts_and_its_followers_forget_its_removals() {
     let harness = Harness::start().await;
@@ -39,6 +41,8 @@ async fn a_quiet_session_restarts_and_its_followers_forget_its_removals() {
     )
     .await;
     owner.seal().await.unwrap();
+    owner.take_journal();
+    follower.take_journal();
 
     assert!(owner.activity().is_some());
     assert!(owner.restart().await.unwrap());
@@ -48,6 +52,16 @@ async fn a_quiet_session_restarts_and_its_followers_forget_its_removals() {
         sessions[1].content().session_state().is_empty()
     })
     .await;
+    assert!(
+        owner
+            .take_journal()
+            .contains(&Journaled::Replaced { edits: 0 })
+    );
+    assert!(
+        follower
+            .take_journal()
+            .contains(&Journaled::Replaced { edits: 0 })
+    );
     let (_, insert) = Checklist::ITEMS.insert(
         ObjectId::ROOT,
         Anchor::After(removed),
