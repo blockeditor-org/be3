@@ -1,21 +1,14 @@
 use beui_macros::{component, view};
 
-use crate::action_row::ActionRowFace;
 use crate::button::{ButtonFace, ButtonVariant};
 use crate::context_menu::menu_style;
 use crate::icon_button::{IconButtonFace, IconButtonSize};
-use crate::sheet::ModalSheet;
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{
-    MenuButtonHandle, MenuItem, MenuRowHandle, MenuSheet, MenuSheetHandle,
-};
+use beui_components_unstyled::{MenuButtonHandle, MenuItem};
 use beui_core::icons::ICON_ARROW_DROP_DOWN;
 use beui_core::node::NodeId;
-use beui_view::reactive::{Callback, Children, Frame, Prop, RenderFn, clone, create_memo};
-
-const SHEET_PADDING: f32 = 8.0;
-const SHEET_STOPS: [f32; 2] = [0.5, 0.9];
+use beui_view::reactive::{Callback, Children, Prop, clone, create_memo};
 
 #[component]
 pub fn MenuButton(
@@ -40,7 +33,6 @@ pub fn MenuButton(
             glyph
             disabled
             menu={menu_style()}
-            sheet={menu_sheet()}
             trigger={move |handle: MenuButtonHandle| {
                 let MenuButtonHandle { open, button } = handle;
                 let quiet = create_memo(clone!(icon_only -> move || !icon_only.get() || open.get()));
@@ -77,7 +69,6 @@ pub fn IconMenuButton(
             glyph
             disabled
             menu={menu_style()}
-            sheet={menu_sheet()}
             trigger={move |handle: MenuButtonHandle| {
                 let MenuButtonHandle { open, button } = handle;
                 view! {
@@ -88,64 +79,5 @@ pub fn IconMenuButton(
             }}
             on_select={move |path: Vec<usize>| on_select.call(path)}
         />
-    }
-}
-
-pub fn menu_sheet() -> MenuSheet {
-    MenuSheet {
-        row: RenderFn::new(|handle| {
-            view! {
-                <MenuSheetRow handle />
-            }
-        }),
-        sheet: RenderFn::new(|handle| {
-            view! {
-                <MenuSheetPanel handle />
-            }
-        }),
-    }
-}
-
-#[component]
-fn MenuSheetRow(handle: MenuRowHandle) -> NodeId {
-    let MenuRowHandle {
-        label,
-        glyph,
-        disabled,
-        hovered,
-        active,
-        focused,
-        ..
-    } = handle;
-    view! {
-        <ActionRowFace
-            hovered
-            active
-            focused
-            label
-            glyph
-            detail=String::new()
-            disabled
-            danger=false
-        />
-    }
-}
-
-#[component]
-fn MenuSheetPanel(handle: MenuSheetHandle) -> NodeId {
-    let MenuSheetHandle {
-        open,
-        on_close,
-        menu,
-    } = handle;
-    view! {
-        <ModalSheet
-            open={open}
-            rest={SHEET_STOPS[0]}
-            stops={SHEET_STOPS.to_vec()}
-            on_close={move || on_close.call()}
-        >
-            <Frame padding_horizontal=SHEET_PADDING padding_vertical=SHEET_PADDING>{menu}</Frame>
-        </ModalSheet>
     }
 }
