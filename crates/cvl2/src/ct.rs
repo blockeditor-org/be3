@@ -73,6 +73,7 @@ pub enum Type {
     KwElseIf(TypeKwElseIf),
     KwElseIfBody(TypeKwElseIfBody),
     KwMatch(TypeKwMatch),
+    KwFor(TypeKwFor),
     BoundName(TypeBoundName),
     Target(TypeTarget),
     ReflectValue(TypeReflectValue),
@@ -535,6 +536,7 @@ impl Type {
             Type::KwIfOptional(_) => "KwIf",
             Type::KwElseIf(_) | Type::KwElseIfBody(_) => "KwElseIf",
             Type::KwMatch(_) => "KwMatch",
+            Type::KwFor(_) => "KwFor",
             Type::BoundName(_) => "BoundName",
         }
         .to_string()
@@ -584,6 +586,9 @@ impl Type {
             Type::KwElseIf(t) => t.analyze_call(env, pos, method.value, arg_in, block),
             Type::KwElseIfBody(t) => t.analyze_call(env, slot, pos, method, arg_in, block),
             Type::KwMatch(t) => t.analyze_call(env, pos, method.value, arg_in, block),
+            Type::KwFor(t) => {
+                crate::compiler::analyze_kw_for_body(env, &t.iter, pos, method.value, arg_in, block)
+            }
             Type::BoundName(t) => {
                 let Type::User(user) = &*t.receiver else {
                     unreachable!("only declared types have named methods")
@@ -844,6 +849,7 @@ impl Type {
                     | Type::KwElseIf(_)
                     | Type::KwElseIfBody(_)
                     | Type::KwMatch(_)
+                    | Type::KwFor(_)
                     | Type::BoundName(_)
             );
         }
@@ -1908,6 +1914,11 @@ pub fn builtin_kw_match_call(
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct TypeKwFor {
+    pub iter: Box<crate::compiler::KwForIter>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct TypeKwMatch {
     pub subject: Box<Type>,
 }
@@ -2302,8 +2313,15 @@ impl TypeLabel {
         arg_in: CallArg,
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
-        let value = analyze(env, (*self.ty).clone(), arg_in.pos, arg_in.ast, block)?;
-        let value = self.ty.cast_into(env, block, value, pos.clone())?;
+        let value = if matches!(*self.ty, Type::Void(_)) && trim_ws(arg_in.ast).is_empty() {
+            AnalysisResult {
+                ty: Type::Void(TypeVoid),
+                value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+            }
+        } else {
+            let value = analyze(env, (*self.ty).clone(), arg_in.pos, arg_in.ast, block)?;
+            self.ty.cast_into(env, block, value, pos.clone())?
+        };
         block_append(
             block,
             AnalysisLine::Break {

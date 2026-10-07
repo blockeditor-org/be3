@@ -58,6 +58,7 @@ pub enum KwBuiltinOp {
     FolderFromMap,
     ReflectFunction,
     MutField,
+    Range,
 }
 
 #[derive(Debug)]
@@ -142,6 +143,7 @@ impl KwBuiltinOp {
             KwBuiltinOp::FolderFromMap => "folder_from_map",
             KwBuiltinOp::ReflectFunction => "reflect_function",
             KwBuiltinOp::MutField => "mut_field",
+            KwBuiltinOp::Range => "range",
         }
     }
 }
@@ -192,6 +194,9 @@ pub fn eval(
             }
             V::KwMap(Rc::new(entries))
         }
+        (KwBuiltinOp::Range, [V::KwInt(start), V::KwInt(end)]) => V::KwList(
+            ComptimeValueKwList::new((start.value..end.value).map(int).collect()),
+        ),
         (KwBuiltinOp::MutField, [V::KwMut(place), V::KwInt(index)]) => {
             V::KwMut(place.field(index.value as usize))
         }
@@ -909,6 +914,41 @@ pub fn type_field(ty: &Type, name: &str) -> Option<AnalysisResult> {
             pos: compiler_pos(),
         }))),
     })
+}
+
+pub fn builtin_kw_range_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let items = crate::compiler::builtin_list_args(env, &pos, &arg, "std.kw.range", 2)?;
+    let mut args = Vec::new();
+    for item in &items {
+        let value = analyze(
+            env,
+            Type::KwInt(KwInt),
+            item.pos.clone(),
+            &item.items,
+            block,
+        )?;
+        args.push(
+            Type::KwInt(KwInt)
+                .cast_into(env, block, value, item.pos.clone())?
+                .value,
+        );
+    }
+    emit(
+        env,
+        block,
+        pos,
+        KwBuiltinOp::Range,
+        args,
+        Type::KwList(KwList {
+            elem: Box::new(Type::KwInt(KwInt)),
+        }),
+    )
 }
 
 pub fn static_fn(name: &str, op: KwBuiltinOp, arg: Type, result: Type) -> AnalysisResult {

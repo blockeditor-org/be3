@@ -3428,6 +3428,263 @@ fn builtin_kw_loop_call(
     })
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct KwForIter {
+    pub names: Vec<(String, TokenPosition)>,
+    pub item_types: Vec<Type>,
+    pub map: bool,
+}
+
+fn builtin_kw_for_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let usage = "std.kw.for takes (item := list) or ((key, value) := map)";
+    let Some(items) = crate::ct::call_list_items(env, &arg_ast)? else {
+        return Err(throw_err(env, Some(pos), usage, None, None));
+    };
+    let [item] = items.as_slice() else {
+        return Err(throw_err(env, Some(pos), usage, None, None));
+    };
+    let Some((lhs, _, rhs)) = read_binary2(env, &item.items, OpTag::Var)? else {
+        return Err(throw_err(env, Some(pos), usage, None, None));
+    };
+    let mut targets = Vec::new();
+    let destructure = read_destructure(env, lhs.pos.clone(), &lhs.items, &mut targets)?;
+    let iterable = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        rhs.pos.clone(),
+        &rhs.items,
+        block,
+    )?;
+    let name_of = |extract: &DestructureExtract| match extract {
+        DestructureExtract::SingleItem { target, pos } => {
+            Some((targets[*target].name.clone(), pos.clone()))
+        }
+        DestructureExtract::Discard { pos } => Some(("_".to_string(), pos.clone())),
+        _ => None,
+    };
+    let (names, item_types, map) = match (&iterable.ty, &destructure.extract) {
+        (Type::KwList(list), extract) if name_of(extract).is_some() => (
+            vec![name_of(extract).expect("checked above")],
+            vec![(*list.elem).clone()],
+            false,
+        ),
+        (Type::KwMap(map), DestructureExtract::List { items, .. }) if items.len() == 2 => {
+            let (Some(key), Some(value)) = (name_of(&items[0]), name_of(&items[1])) else {
+                return Err(throw_err(env, Some(lhs.pos.clone()), usage, None, None));
+            };
+            (
+                vec![key, value],
+                vec![(*map.key).clone(), (*map.value).clone()],
+                true,
+            )
+        }
+        (Type::KwList(_) | Type::KwMap(_), _) => {
+            return Err(throw_err(env, Some(lhs.pos.clone()), usage, None, None));
+        }
+        (other, _) => {
+            return Err(throw_err(
+                env,
+                Some(rhs.pos.clone()),
+                format!(
+                    "std.kw.for needs a std.kw.list or std.kw.map, got {}",
+                    other.dump()
+                ),
+                None,
+                None,
+            ));
+        }
+    };
+    Ok(AnalysisResult {
+        ty: Type::KwFor(crate::ct::TypeKwFor {
+            iter: Box::new(KwForIter {
+                names,
+                item_types,
+                map,
+            }),
+        }),
+        value: iterable.value,
+    })
+}
+
+pub fn analyze_kw_for_body(
+    env: &mut Env,
+    iter: &KwForIter,
+    pos: TokenPosition,
+    iterable: RuntimeValue,
+    arg_in: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    use crate::kw::KwBuiltinOp;
+    let kw_int =
+        |value: i64| RuntimeValue::Comptime(ComptimeValue::KwInt(ComptimeValueKwInt { value }));
+    let int_ty = Type::KwInt(crate::ct::KwInt);
+    let list_of = |ty: &Type| {
+        Type::KwList(crate::ct::KwList {
+            elem: Box::new(ty.clone()),
+        })
+    };
+    let lists = if iter.map {
+        vec![
+            crate::kw::emit(
+                env,
+                block,
+                pos.clone(),
+                KwBuiltinOp::MapKeys,
+                vec![iterable.clone()],
+                list_of(&iter.item_types[0]),
+            )?
+            .value,
+            crate::kw::emit(
+                env,
+                block,
+                pos.clone(),
+                KwBuiltinOp::MapValues,
+                vec![iterable],
+                list_of(&iter.item_types[1]),
+            )?
+            .value,
+        ]
+    } else {
+        vec![iterable]
+    };
+    let len = crate::kw::emit(
+        env,
+        block,
+        pos.clone(),
+        KwBuiltinOp::ListLen,
+        vec![lists[0].clone()],
+        int_ty.clone(),
+    )?
+    .value;
+    let done = Symbol::new();
+    block_append(
+        block,
+        AnalysisLine::LabelBegin {
+            pos: pos.clone(),
+            label: done,
+            ty: Type::Void(TypeVoid),
+        },
+    );
+    let counter = block_append(
+        block,
+        AnalysisLine::MutNew {
+            pos: pos.clone(),
+            init: kw_int(0),
+        },
+    );
+    block_append(
+        block,
+        AnalysisLine::RegionBegin {
+            pos: pos.clone(),
+            region: Region::KwLoop,
+        },
+    );
+    let index = block_append(
+        block,
+        AnalysisLine::MutGet {
+            pos: pos.clone(),
+            cell: RuntimeValue::Runtime(counter),
+        },
+    );
+    let finished = block_append(
+        block,
+        AnalysisLine::KwBinary {
+            pos: pos.clone(),
+            op: crate::backend::c::CBinaryOp::Ge,
+            lhs: RuntimeValue::Runtime(index),
+            rhs: len,
+        },
+    );
+    block_append(
+        block,
+        AnalysisLine::RegionBegin {
+            pos: pos.clone(),
+            region: Region::KwIf {
+                cond: RuntimeValue::Runtime(finished),
+            },
+        },
+    );
+    block_append(
+        block,
+        AnalysisLine::Break {
+            pos: pos.clone(),
+            label: done,
+            value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+        },
+    );
+    block_append(block, AnalysisLine::RegionEnd { pos: pos.clone() });
+    let next = block_append(
+        block,
+        AnalysisLine::KwBinary {
+            pos: pos.clone(),
+            op: crate::backend::c::CBinaryOp::Add,
+            lhs: RuntimeValue::Runtime(index),
+            rhs: kw_int(1),
+        },
+    );
+    block_append(
+        block,
+        AnalysisLine::MutSet {
+            pos: pos.clone(),
+            cell: RuntimeValue::Runtime(counter),
+            value: RuntimeValue::Runtime(next),
+        },
+    );
+    let saved = env.scope.bindings.clone();
+    let mut bindings = saved.borrow().clone();
+    for ((list, (name, name_pos)), ty) in lists.iter().zip(&iter.names).zip(&iter.item_types) {
+        let item = block_append(
+            block,
+            AnalysisLine::KwBuiltin {
+                pos: name_pos.clone(),
+                op: KwBuiltinOp::ListGet,
+                args: vec![list.clone(), RuntimeValue::Runtime(index)],
+            },
+        );
+        if name != "_" {
+            bindings.insert(
+                name.clone(),
+                Binding::Runtime {
+                    pos: name_pos.clone(),
+                    runtime: AnalysisResult {
+                        ty: ty.clone(),
+                        value: RuntimeValue::Runtime(item),
+                    },
+                },
+            );
+        }
+    }
+    env.scope.bindings = Rc::new(RefCell::new(bindings));
+    let body = analyze(
+        env,
+        Type::Void(TypeVoid),
+        arg_in.pos.clone(),
+        arg_in.ast,
+        block,
+    );
+    env.scope.bindings = saved;
+    Type::Void(TypeVoid).cast_into(env, block, body?, arg_in.pos)?;
+    block_append(block, AnalysisLine::RegionEnd { pos: pos.clone() });
+    block_append(
+        block,
+        AnalysisLine::LabelEnd {
+            pos,
+            label: done,
+            value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+        },
+    );
+    Ok(AnalysisResult {
+        ty: Type::Void(TypeVoid),
+        value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+    })
+}
+
 fn kw_if_binding(
     env: &mut Env,
     arg_ast: &CallArg<'_>,
@@ -3810,6 +4067,11 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                         d_ns(vec![], Some(crate::ct::builtin_kw_match_call)),
                                     ),
                                     ("loop", d_ns(vec![], Some(builtin_kw_loop_call))),
+                                    ("for", d_ns(vec![], Some(builtin_kw_for_call))),
+                                    (
+                                        "range",
+                                        d_ns(vec![], Some(crate::kw::builtin_kw_range_call)),
+                                    ),
                                     ("mut", d_ns(vec![], Some(builtin_kw_mut_call))),
                                 ],
                                 None,

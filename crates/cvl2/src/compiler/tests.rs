@@ -191,6 +191,7 @@ mod import_file_emit_errors;
 mod import_file_kw_bool_values_resolve_from_slot;
 mod import_file_kw_else_if_chains;
 mod import_file_kw_else_must_follow_if_on_same_line;
+mod import_file_kw_for;
 mod import_file_kw_if_binds_an_optional;
 mod import_file_kw_if_condition_must_be_kw_bool;
 mod import_file_kw_int_arithmetic_errors_on_overflow;
