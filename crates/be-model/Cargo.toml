@@ -9,11 +9,9 @@ license.workspace = true
 be-commit = { path = "../be-commit" }
 be-model-derive = { path = "../be-model-derive" }
 postcard = { version = "1", features = ["use-std"] }
+sequence = { path = "../sequence" }
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["serde", "v4"] }
-
-[features]
-fuzzing = []
 
 [lints]
 workspace = true

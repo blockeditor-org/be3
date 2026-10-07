@@ -10,7 +10,6 @@ mod grid;
 mod history;
 mod latest;
 mod merge;
-mod sequence;
 mod text;
 mod tree;
 
@@ -19,8 +18,6 @@ pub use field::{Count, Field, FieldRef, Item, List, Map, Register};
 pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
 pub use latest::{Latest, LatestMap, Stamp, Stamped};
-#[cfg(feature = "fuzzing")]
-pub use sequence::fuzz;
 pub use sequence::{LOADED, Pos, SeqOp, Sequence, Span, Splice};
 pub use text::Text;
 pub use tree::Tree;

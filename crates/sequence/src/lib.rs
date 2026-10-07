@@ -6,8 +6,6 @@ use std::{
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, ser::SerializeSeq};
 
-use crate::Malformed;
-
 pub const LOADED: u64 = 0;
 
 #[cfg(not(any(test, feature = "fuzzing")))]
@@ -15,6 +13,17 @@ const CHUNK: usize = 64;
 
 #[cfg(any(test, feature = "fuzzing"))]
 const CHUNK: usize = 2;
+
+#[derive(Debug)]
+pub struct Malformed;
+
+impl fmt::Display for Malformed {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a sequence's session state is malformed")
+    }
+}
+
+impl std::error::Error for Malformed {}
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Pos {
@@ -113,7 +122,7 @@ struct Chunk {
 }
 
 #[derive(Deserialize, Serialize)]
-pub(crate) struct State<T> {
+pub struct State<T> {
     buffers: BTreeMap<u64, Vec<T>>,
     fragments: Vec<Fragment>,
 }
@@ -158,7 +167,7 @@ impl<T: Clone> Sequence<T> {
         Self::from_items(self.items())
     }
 
-    pub(crate) fn state(&self) -> State<T> {
+    pub fn state(&self) -> State<T> {
         State {
             buffers: self.buffers.clone(),
             fragments: self.fragments().copied().collect(),
@@ -221,7 +230,7 @@ impl<T> Sequence<T> {
         sequence
     }
 
-    pub(crate) fn from_state(state: State<T>) -> Result<Self, Malformed> {
+    pub fn from_state(state: State<T>) -> Result<Self, Malformed> {
         let mut seen: BTreeMap<u64, Vec<(u64, u64)>> = BTreeMap::new();
         for fragment in &state.fragments {
             let held = state.buffers.get(&fragment.client).map_or(0, Vec::len) as u64;

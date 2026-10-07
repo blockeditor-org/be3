@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Anchor, Change, Malformed, Model, Object, ObjectId, Objects, Place, Sequence, Touched, Value,
-    sequence::State,
 };
+use sequence::State;
 
 pub(crate) type Gone = BTreeMap<ObjectId, (Place, Anchor)>;
 
@@ -65,7 +65,7 @@ impl Tree {
         };
         let mut adopted = Vec::new();
         for (place, state) in texts {
-            let sequence = Sequence::from_state(state)?;
+            let sequence = Sequence::from_state(state).map_err(|_| Malformed)?;
             match self.value(place.object, place.field) {
                 Some(Value::Text(held)) if *held == sequence => adopted.push((place, sequence)),
                 _ => return Err(Malformed),

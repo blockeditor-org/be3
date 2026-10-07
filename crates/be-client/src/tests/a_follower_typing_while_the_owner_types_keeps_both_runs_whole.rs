@@ -33,10 +33,10 @@ async fn a_follower_typing_while_the_owner_types_keeps_both_runs_whole() {
     }
     let expected = format!("{letters}base{digits}");
     until(&mut [&mut owner, &mut follower], "converged", |sessions| {
-        sessions.iter().all(|session| body_of(session) == expected)
+        sessions.iter().all(|session| body_of(session) == expected) && sessions[1].is_clean()
     })
     .await;
 
-    assert!(follower.is_clean());
+    assert_eq!(body_of(&follower), expected);
     harness.stop().await;
 }

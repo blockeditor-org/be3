@@ -1133,6 +1133,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/sequence:sequence",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1147,6 +1148,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/sequence:sequence",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1161,6 +1163,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/sequence:sequence",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1175,6 +1178,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/sequence:sequence",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1189,6 +1193,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/sequence:sequence",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1203,6 +1208,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/sequence:sequence",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1217,6 +1223,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/sequence:sequence",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1231,6 +1238,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/sequence:sequence",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -1245,6 +1253,7 @@ crates = {
                 "deps": [
                     "//crates/be-commit:be-commit",
                     "//crates/be-model-derive:be-model-derive",
+                    "//crates/sequence:sequence",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
@@ -9802,6 +9811,125 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/sequence": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "sequence",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "sequence",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
+                "test_features": [],
+            },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//third-party/rust:postcard-1.1.3",
+                ],
                 "test_features": [],
             },
         },

@@ -183,10 +183,31 @@ line. Fixes, if it matters:
   The commuting fast path avoids it; chunks behind `Arc` (copy on write) would
   make the clone proportional to the number of chunks.
 
+## text-editor-core
+
+Decided: text-editor-core depends on the `sequence` crate and works on
+`Sequence<u8>` directly, instead of staying generic and having the text block
+translate its anchors. `Sequence` lives in its own crate (serde only) so the
+editor and beui's text inputs can use it without the block stack; `be-model`
+wraps it as the `Text` field. When text migrates:
+
+- `DocumentRead::anchor` and `anchor_index` take and return `Pos`; a cursor or
+  selection is a position that survives other people's edits.
+  `deleted_anchor_index` becomes where a tombstone sits. `AnchorTable` goes.
+- `ChangeLog` and `TextChange` come from the splices `apply` reports; the text
+  block's whole-document Myers diff in `adopt` (and the `similar` dependency)
+  goes.
+- `TextBuffer`, the editor's standalone document, becomes a `Sequence<u8>` with
+  one local client, so beui's inputs work like the text block without a session.
+- Undo: the text block uses `be-model`'s `Step`. Beui's inputs have no
+  `be-model`, so a small undo stack over `Sequence::inverse` lives beside the
+  sequence; both follow the same rules and the editor still works outside this
+  project.
+
 ## Fuzzing
 
-`be_model::fuzz::sequence(data: &[u8])` (behind the `fuzzing` feature, and in
-tests) reads any byte string as a script: three clients edit their own views
+`sequence::fuzz::sequence(data: &[u8])` (behind the `sequence` crate's
+`fuzzing` feature, and in tests) reads any byte string as a script: three clients edit their own views
 (including undo, inserts after tombstones and garbage operations), a sequencer
 orders what they send, and clients catch up the way `Live` does, rebuilding from
 `confirmed` plus pending when someone else's edit lands under theirs. Every
@@ -232,10 +253,7 @@ Still to do:
   `visible` holds pending edits whose positions the owner's state lacks, so it
   has to be rebuilt from `confirmed` plus the pending operations instead.
 - The text block as `Document<TextBlock { language, indentation, body: Text }>`,
-  with text-editor-core reading fragments directly, anchoring to positions, and
-  dropping its own undo, `AnchorTable` and whole-document diff. Beui's own text
-  inputs use text-editor-core too, so the sequence may need to move into a small
-  crate both can depend on.
+  and text-editor-core on the sequence (decided; see below).
 - Splices reported through `Touched` (or beside it) to editors: `Tree::apply`
   drops what `Sequence::apply` returns today.
 - A replace inserts after the last element of its last span as listed; it

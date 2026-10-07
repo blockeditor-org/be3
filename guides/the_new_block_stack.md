@@ -307,7 +307,7 @@ and a merge keeps the later stamp per key, so they never conflict and never
 undo. `next(time, origin)` stamps a write past the one it replaces, so a client
 with a slow clock still overwrites what it last read. View state uses them.
 A `Text` is bytes edited in place: it saves only its bytes, and a live session
-gives every byte a position (`Sequence` in `sequence.rs`) that edits anchor to,
+gives every byte a position (`Sequence`, in the `sequence` crate) that edits anchor to,
 so concurrent typing and deleting never need rebasing. Positions and tombstones
 are session state, an offline merge is a line diff3, and no block uses it yet
 (see `plans/text.md`).
