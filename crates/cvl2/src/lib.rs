@@ -15,7 +15,9 @@ pub use parser::{
     SyntaxNode, TokenPosition, TokenizationError, TokenizationErrorEntry, TokenizationResult,
     TraceEntry, WhitespaceToken, colors, highlights, tokenize,
 };
-pub use parser::{pretty_print_errors, render_tokenized_output, unescape_string};
+pub use parser::{
+    pretty_print_errors, render_brackets, render_formatted, render_syntax_tree, unescape_string,
+};
 
 pub use compiler::{
     AnalysisBlock, AnalysisLine, AnalysisResult, AnalyzedFn, Binary2, BlockIdx, ComptimeNamespace,

@@ -57,7 +57,7 @@ body :: (f: std.reflect.Function, start: Names) => Body: :return {
       .other .= (o) => {
         _ = std.reflect.fail(o.at, o.name + " is not supported in a datapack")
       }
-      .else .= () => { }
+      kw.match.else .= () => { }
     ]
     kw.if (cmd := command.*) {
       kw.if (p := pending.*) {

@@ -170,6 +170,7 @@ mod analyze_call_not_supported_call_type_errors;
 mod analyze_namespace_errors_on_non_key_bind_target;
 mod block_append_returns_sequential_indices;
 mod get_err_includes_message_and_trace;
+mod import_file_bad_token_reports_once;
 mod import_file_build_rejects_c_if;
 mod import_file_builds_c_sample;
 mod import_file_builds_codegen_sample;

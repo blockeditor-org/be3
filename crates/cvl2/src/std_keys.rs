@@ -64,6 +64,7 @@ pub enum StdKey {
     Call,
     Repr,
     Section(Section),
+    MatchElse,
 }
 
 impl StdKey {
@@ -75,6 +76,7 @@ impl StdKey {
             StdKey::Call => "std.operator.call".to_string(),
             StdKey::Repr => "std.type.repr".to_string(),
             StdKey::Section(section) => format!("std.type.{}", section.name()),
+            StdKey::MatchElse => "std.kw.match.else".to_string(),
         }
     }
 }

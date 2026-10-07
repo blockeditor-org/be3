@@ -114,6 +114,7 @@ pub struct RawToken {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ErrToken {
     pub pos: TokenPosition,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -667,6 +668,7 @@ enum BuilderNode {
         items: NodeList,
     },
     Raw(RawToken),
+    Err(ErrToken),
 }
 
 fn freeze_list(list: &NodeList) -> Vec<SyntaxNode> {
@@ -709,6 +711,7 @@ fn freeze_node(node: BuilderNode) -> SyntaxNode {
             items: freeze_list(&items),
         })),
         BuilderNode::Raw(t) => SyntaxNode::Raw(t),
+        BuilderNode::Err(t) => SyntaxNode::Err(t),
     }
 }
 
@@ -1146,6 +1149,12 @@ pub fn tokenize(source: &mut Source) -> TokenizationResult {
                         }],
                         trace: Vec::new(),
                     });
+                    current_syntax_nodes
+                        .borrow_mut()
+                        .push(BuilderNode::Err(ErrToken {
+                            pos: start.clone(),
+                            text: current_token.clone(),
+                        }));
                 }
             }
         }
@@ -1590,7 +1599,7 @@ fn render_entity_pretty(
                 )
             }
         }
-        SyntaxNode::Err(_) => "%TODO<err>%".to_string(),
+        SyntaxNode::Err(t) => t.text.clone(),
     }
 }
 
@@ -1750,11 +1759,8 @@ pub fn pretty_print_errors(sources: &[&Source], errors: &[TokenizationError]) ->
     output
 }
 
-pub fn render_tokenized_output(
-    tokenization_result: &TokenizationResult,
-    source: &Source,
-) -> String {
-    let formatted_code = render_entity_pretty_list(
+pub fn render_formatted(tokenization_result: &TokenizationResult) -> String {
+    render_entity_pretty_list(
         &RenderConfig {
             indent: "  ".to_string(),
             reveal: false,
@@ -1764,8 +1770,11 @@ pub fn render_tokenized_output(
         0,
         0,
         true,
-    );
-    let ugly_code = render_entity_pretty_list(
+    )
+}
+
+pub fn render_brackets(tokenization_result: &TokenizationResult) -> String {
+    render_entity_pretty_list(
         &RenderConfig {
             indent: "  ".to_string(),
             reveal: true,
@@ -1775,12 +1784,9 @@ pub fn render_tokenized_output(
         0,
         0,
         true,
-    );
-    let adisp =
-        crate::printers::printers::AST_NODE.dump_list(&tokenization_result.result, usize::MAX);
-    let pretty_errors = pretty_print_errors(&[source], &tokenization_result.errors);
-
-    format!(
-        "// adisp:{adisp}\n\n// ugly\n{ugly_code}\n\n// formatted\n{formatted_code}\n\n// errors:\n{pretty_errors}"
     )
+}
+
+pub fn render_syntax_tree(tokenization_result: &TokenizationResult) -> String {
+    crate::printers::printers::AST_NODE.dump_list(&tokenization_result.result, usize::MAX)
 }

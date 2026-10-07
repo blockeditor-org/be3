@@ -1969,27 +1969,38 @@ impl TypeKwMatch {
                     id.str.clone()
                 }
                 _ => {
-                    return Err(throw_err(
-                        env,
-                        Some(lhs.pos.clone()),
-                        "a std.kw.match arm starts with .case or .else",
-                        None,
-                        None,
-                    ));
+                    let key = analyze(env, Type::CtKey(CtKey), lhs.pos.clone(), &lhs.items, block)?;
+                    let key = access_key(env, block, key, &lhs.pos)?;
+                    if !matches!(key, ComptimeValueKey::Symbol { key, .. } if symbol_std_key(key) == Some(StdKey::MatchElse))
+                    {
+                        return Err(throw_err(
+                            env,
+                            Some(lhs.pos.clone()),
+                            "a std.kw.match arm starts with .case or std.kw.match.else",
+                            None,
+                            None,
+                        ));
+                    }
+                    String::new()
                 }
             };
             if let Some((_, previous)) = seen.iter().find(|(seen, _)| *seen == name) {
                 let previous = previous.clone();
+                let arm = if name.is_empty() {
+                    "std.kw.match.else".to_string()
+                } else {
+                    format!(".{name}")
+                };
                 return Err(throw_err(
                     env,
                     Some(lhs.pos.clone()),
-                    format!("std.kw.match has two .{name} arms"),
+                    format!("std.kw.match has two {arm} arms"),
                     Some(vec![(Some(previous), "first here".to_string())]),
                     None,
                 ));
             }
             seen.push((name.clone(), lhs.pos.clone()));
-            let case = if name == "else" {
+            let case = if name.is_empty() {
                 None
             } else {
                 let Some((index, _)) = user.case(env, &name)? else {
@@ -2031,7 +2042,7 @@ impl TypeKwMatch {
             return Err(throw_err(
                 env,
                 Some(arms[position].pos.clone()),
-                "the .else arm of std.kw.match comes last",
+                "the std.kw.match.else arm comes last",
                 None,
                 None,
             ));
@@ -2083,7 +2094,7 @@ impl TypeKwMatch {
                     return Err(throw_err(
                         env,
                         Some(arm.pos.clone()),
-                        "the .else arm takes no parameters, as in .else .= () => { ... }",
+                        "the std.kw.match.else arm takes no parameters, as in std.kw.match.else .= () => { ... }",
                         None,
                         None,
                     ));

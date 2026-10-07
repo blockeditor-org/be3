@@ -2092,6 +2092,10 @@ pub fn analyze(
     }
     let ast = trim_ws(ast);
 
+    if ast.iter().any(|node| matches!(node, SyntaxNode::Err(_))) {
+        return Err(PositionedError::Consumed);
+    }
+
     if ast.is_empty() {
         return Err(throw_err(
             env,
@@ -4064,7 +4068,13 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                     ("if", d_ns(vec![], Some(builtin_kw_if_call))),
                                     (
                                         "match",
-                                        d_ns(vec![], Some(crate::ct::builtin_kw_match_call)),
+                                        d_ns(
+                                            vec![(
+                                                "else",
+                                                d_std_key(crate::std_keys::StdKey::MatchElse),
+                                            )],
+                                            Some(crate::ct::builtin_kw_match_call),
+                                        ),
                                     ),
                                     ("loop", d_ns(vec![], Some(builtin_kw_loop_call))),
                                     ("for", d_ns(vec![], Some(builtin_kw_for_call))),
