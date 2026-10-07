@@ -3,11 +3,12 @@ pub mod find;
 
 use beui_macros::{component, view};
 
+use crate::checkbox::Checkbox;
 use crate::context_menu::menu_style;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    Completer, RemoteTextCursor, TextAreaColors, TextAreaState, TextWidget,
+    Completer, RemoteTextCursor, TextAreaColors, TextAreaState, TextCheckbox, TextWidget,
 };
 use beui_core::base::ItemSize;
 use beui_core::document::Document;
@@ -74,6 +75,7 @@ pub fn TextArea(
                         on_menu={move |at: Pos2| open_menu.call(at)}
                         block={block}
                         selected_widget={selected_widget}
+                        checkbox={inline_checkbox()}
                         completer={match emoji {
                             true => unstyled::emoji_completer(),
                             false => Completer::none(),
@@ -84,6 +86,26 @@ pub fn TextArea(
             </unstyled::TextContextMenu>
         </List>
     }
+}
+
+fn inline_checkbox() -> RenderFn<TextCheckbox> {
+    RenderFn::new(|checkbox: TextCheckbox| {
+        let TextCheckbox {
+            checked,
+            disabled,
+            on_change,
+        } = checkbox;
+        view! {
+            <Checkbox
+                checked
+                disabled
+                capture_presses=true
+                tab_stop=false
+                press_focus=false
+                on_change={move |checked: bool| on_change.call(checked)}
+            />
+        }
+    })
 }
 
 fn blank_widget() -> RenderFn<usize> {
