@@ -34,7 +34,7 @@ describe_shape :: (s: Shape) => std.kw.string: :out {
 }
 
 describe_bool :: (b: std.kw.bool) => std.kw.string: :out {
-  std.kw.if (b.false) {
+  std.kw.if (_ := b.false) {
     out: "false"
   }
   -> "true"

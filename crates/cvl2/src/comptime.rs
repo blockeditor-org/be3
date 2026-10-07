@@ -439,12 +439,15 @@ fn comptime_eval_with_args(
                             next = end + 1;
                         }
                     }
-                    Region::KwElse { if_end } => {
+                    Region::KwElse { if_end, .. } => {
                         let if_taken = matches!(
                             &results[if_end.0],
                             Some(ComptimeValue::KwBool(taken)) if taken.value
                         );
                         if if_taken {
+                            results[end] = Some(ComptimeValue::KwBool(
+                                crate::compiler::ComptimeValueKwBool { value: true },
+                            ));
                             next = end + 1;
                         }
                     }
@@ -462,12 +465,28 @@ fn comptime_eval_with_args(
             }
             AnalysisLine::RegionEnd { .. } => {
                 let begin = region_begin[i].expect("every region_end has a region_begin");
-                if let AnalysisLine::RegionBegin {
-                    region: Region::KwLoop,
-                    ..
-                } = &block.lines[begin]
-                {
-                    next = begin + 1;
+                match &block.lines[begin] {
+                    AnalysisLine::RegionBegin {
+                        region: Region::KwLoop,
+                        ..
+                    } => next = begin + 1,
+                    AnalysisLine::RegionBegin {
+                        region: Region::KwElse { then, .. },
+                        ..
+                    } => {
+                        let taken = match then {
+                            crate::compiler::ElseThen::Always => true,
+                            crate::compiler::ElseThen::Known(taken) => *taken,
+                            crate::compiler::ElseThen::Line(line) => matches!(
+                                &results[line.0],
+                                Some(ComptimeValue::KwBool(taken)) if taken.value
+                            ),
+                        };
+                        results[i] = Some(ComptimeValue::KwBool(
+                            crate::compiler::ComptimeValueKwBool { value: taken },
+                        ));
+                    }
+                    _ => {}
                 }
             }
             AnalysisLine::LabelBegin { .. } => {}

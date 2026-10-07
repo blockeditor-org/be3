@@ -459,6 +459,13 @@ pub enum AnalysisLine {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ElseThen {
+    Always,
+    Line(BlockIdx),
+    Known(bool),
+}
+
 pub fn set_line_pos(line: &mut AnalysisLine, new_pos: TokenPosition) {
     match line {
         AnalysisLine::ComptimeKvListInit { pos }
@@ -487,7 +494,7 @@ pub fn set_line_pos(line: &mut AnalysisLine, new_pos: TokenPosition) {
 pub enum Region {
     CIf { cond: RuntimeValue },
     KwIf { cond: RuntimeValue },
-    KwElse { if_end: BlockIdx },
+    KwElse { if_end: BlockIdx, then: ElseThen },
     KwLoop,
 }
 
@@ -1757,6 +1764,17 @@ fn analyze_block_body(
                 if let Type::Never(_) = result.ty {
                     retloc = Some(line.pos.clone());
                     ret = Some(result);
+                } else if let (
+                    Type::KwIfResult(r),
+                    RuntimeValue::Comptime(ComptimeValue::KwBool(b)),
+                ) = (&result.ty, &result.value)
+                    && r.body_never
+                    && b.value
+                {
+                    return Ok(AnalysisResult {
+                        ty: Type::Never(crate::ct::TypeNever),
+                        value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+                    });
                 }
             }
         }
@@ -3478,19 +3496,28 @@ fn builtin_kw_if_call(
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
+    kw_if_condition(env, pos, arg_ast, block)
+}
+
+pub fn kw_if_condition(
+    env: &mut Env,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
     if let Some(binding) = kw_if_binding(env, &arg_ast, block)? {
         return Ok(binding);
     }
     let bool_ty = Type::KwBool(crate::ct::KwBool);
     let cond = analyze(env, bool_ty.clone(), arg_ast.pos, arg_ast.ast, block)?;
-    if let Type::Optional(optional) = cond.ty {
-        return Ok(AnalysisResult {
-            ty: Type::KwIfOptional(crate::ct::TypeKwIfOptional {
-                bind: None,
-                child: optional.child,
-            }),
-            value: cond.value,
-        });
+    if let Type::Optional(_) = cond.ty {
+        return Err(throw_err(
+            env,
+            Some(pos),
+            "std.kw.if needs a std.kw.bool; to test an optional, write (_ := opt) or opt != std.kw.null",
+            None,
+            None,
+        ));
     }
     let cond = bool_ty.cast_into(env, block, cond, pos)?;
     Ok(AnalysisResult {

@@ -428,7 +428,8 @@ fn codegen_c_body(
                 let Some(target) = labels.pop().filter(|l| l.label == *label) else {
                     unreachable!("label_end always matches the innermost label_begin")
                 };
-                if let Some(result) = &target.result {
+                let unreachable = matches!(value, RuntimeValue::Comptime(ComptimeValue::Void(_)));
+                if let (Some(result), false) = (&target.result, unreachable) {
                     let value = body.value(env, value, pos)?;
                     body.line(&format!("{result} = {value};"));
                 }

@@ -2,7 +2,7 @@
   "lib.c" .= std.c.compile: [
     "f" .= f
   ]
-  "words.txt" .= std.File: repeat("ab", 3) + repeat("-", 2)
+  "words.txt" .= std.File: repeat("ab", 3) + repeat("-", 2) + std.kw.string.from_int(fact(5))
 ]
 f :: (x: std.c.int) => std.c.int: scale(2, x) + scale(3, x) + scale(2, 1)
 scale :: (k :: std.kw.int, x: std.c.int) => std.c.int: x * std.c.int.[std.literal.number](k)
@@ -16,5 +16,11 @@ repeat :: (s :: std.kw.string, n: std.kw.int) => std.kw.string: :done {
     out = out.* + s
     i = i.* + 1
   }
+}
+fact :: (n :: std.kw.int) => std.kw.int: :return {
+  std.kw.if (n == 0) {
+    return: 1
+  }
+  -> n * fact(n - 1)
 }
 std :: #builtin.std

@@ -70,6 +70,8 @@ pub enum Type {
     KwField(TypeKwField),
     Null(TypeNull),
     KwIfOptional(TypeKwIfOptional),
+    KwElseIf(TypeKwElseIf),
+    KwElseIfBody(TypeKwElseIfBody),
     BoundName(TypeBoundName),
     Target(TypeTarget),
     ReflectValue(TypeReflectValue),
@@ -131,6 +133,39 @@ pub struct KwIfBinding {
 }
 
 impl TypeKwIfOptional {
+    fn analyze_body(
+        &self,
+        env: &mut Env,
+        optional: RuntimeValue,
+        arg_in: CallArg,
+        block: &mut AnalysisBlock,
+    ) -> Result<bool, PositionedError> {
+        let saved = env.scope.bindings.clone();
+        if let Some(bind) = &self.bind {
+            let payload = crate::kw::emit(
+                env,
+                block,
+                bind.pos.clone(),
+                crate::kw::KwBuiltinOp::OptionalUnwrap,
+                vec![optional],
+                (*self.child).clone(),
+            )?;
+            let payload = bind.ty.cast_into(env, block, payload, bind.pos.clone())?;
+            let mut bindings = saved.borrow().clone();
+            bindings.insert(
+                bind.name.clone(),
+                crate::compiler::Binding::Runtime {
+                    pos: bind.pos.clone(),
+                    runtime: payload,
+                },
+            );
+            env.scope.bindings = Rc::new(std::cell::RefCell::new(bindings));
+        }
+        let body = analyze(env, Type::Void(TypeVoid), arg_in.pos, arg_in.ast, block);
+        env.scope.bindings = saved;
+        Ok(matches!(body?.ty, Type::Never(_)))
+    }
+
     fn analyze_call(
         &self,
         env: &mut Env,
@@ -139,6 +174,29 @@ impl TypeKwIfOptional {
         arg_in: CallArg,
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
+        let is_block = matches!(
+            trim_ws(arg_in.ast).as_slice(),
+            [SyntaxNode::Block(b)] if b.tag == BracketTag::Code
+        );
+        if !is_block {
+            return Err(throw_err(
+                env,
+                Some(arg_in.pos),
+                "std.kw.if (v := opt) takes a { ... } block",
+                None,
+                None,
+            ));
+        }
+        if let RuntimeValue::Comptime(ComptimeValue::Optional(known)) = &optional {
+            let taken = known.some.is_some();
+            let body_never = !taken || self.analyze_body(env, optional.clone(), arg_in, block)?;
+            return Ok(AnalysisResult {
+                ty: Type::KwIfResult(KwIfResult { body_never }),
+                value: RuntimeValue::Comptime(ComptimeValue::KwBool(ComptimeValueKwBool {
+                    value: taken,
+                })),
+            });
+        }
         let is_some = crate::kw::emit(
             env,
             block,
@@ -156,88 +214,7 @@ impl TypeKwIfOptional {
                 },
             },
         );
-
-        let is_block = matches!(
-            trim_ws(arg_in.ast).as_slice(),
-            [SyntaxNode::Block(b)] if b.tag == BracketTag::Code
-        );
-        let body_never = if is_block {
-            let saved = env.scope.bindings.clone();
-            if let Some(bind) = &self.bind {
-                let payload = block_append(
-                    block,
-                    AnalysisLine::KwBuiltin {
-                        pos: bind.pos.clone(),
-                        op: crate::kw::KwBuiltinOp::OptionalUnwrap,
-                        args: vec![optional.clone()],
-                    },
-                );
-                let payload = AnalysisResult {
-                    ty: (*self.child).clone(),
-                    value: RuntimeValue::Runtime(payload),
-                };
-                let payload = bind.ty.cast_into(env, block, payload, bind.pos.clone())?;
-                let mut bindings = saved.borrow().clone();
-                bindings.insert(
-                    bind.name.clone(),
-                    crate::compiler::Binding::Runtime {
-                        pos: bind.pos.clone(),
-                        runtime: payload,
-                    },
-                );
-                env.scope.bindings = Rc::new(std::cell::RefCell::new(bindings));
-            }
-            let body = analyze(env, Type::Void(TypeVoid), arg_in.pos, arg_in.ast, block);
-            env.scope.bindings = saved;
-            matches!(body?.ty, Type::Never(_))
-        } else if self.bind.is_some() {
-            return Err(throw_err(
-                env,
-                Some(arg_in.pos),
-                "std.kw.if (v := opt) takes a { ... } block",
-                None,
-                None,
-            ));
-        } else {
-            let body = analyze(
-                env,
-                Type::Unknown(TypeUnknown),
-                arg_in.pos.clone(),
-                arg_in.ast,
-                block,
-            )?;
-            let ComptimeValue::Fn(func) = get_comptime(
-                env,
-                Some(ComptimeValueKind::Fn),
-                body.value,
-                arg_in.pos.clone(),
-            )?
-            else {
-                unreachable!("get_comptime guarantees a matching kind")
-            };
-            let payload = block_append(
-                block,
-                AnalysisLine::KwBuiltin {
-                    pos: pos.clone(),
-                    op: crate::kw::KwBuiltinOp::OptionalUnwrap,
-                    args: vec![optional],
-                },
-            );
-            let body = crate::user_type::inline_call(
-                env,
-                &func,
-                vec![AnalysisResult {
-                    ty: (*self.child).clone(),
-                    value: RuntimeValue::Runtime(payload),
-                }],
-                CallArg {
-                    pos: arg_in.pos,
-                    ast: &[],
-                },
-                block,
-            )?;
-            matches!(body.ty, Type::Never(_))
-        };
+        let body_never = self.analyze_body(env, optional, arg_in, block)?;
         let end = block_append(block, AnalysisLine::RegionEnd { pos });
         Ok(AnalysisResult {
             ty: Type::KwIfResult(KwIfResult { body_never }),
@@ -554,6 +531,7 @@ impl Type {
             Type::KwField(_) => "KwField",
             Type::Null(_) => "Null",
             Type::KwIfOptional(_) => "KwIf",
+            Type::KwElseIf(_) | Type::KwElseIfBody(_) => "KwElseIf",
             Type::BoundName(_) => "BoundName",
         }
         .to_string()
@@ -600,6 +578,8 @@ impl Type {
             Type::Label(t) => t.analyze_call(env, pos, arg_in, block),
             Type::KwField(t) => crate::kw::call_field(env, t, method.value, pos, arg_in, block),
             Type::KwIfOptional(t) => t.analyze_call(env, pos, method.value, arg_in, block),
+            Type::KwElseIf(t) => t.analyze_call(env, pos, method.value, arg_in, block),
+            Type::KwElseIfBody(t) => t.analyze_call(env, slot, pos, method, arg_in, block),
             Type::BoundName(t) => {
                 let Type::User(user) = &*t.receiver else {
                     unreachable!("only declared types have named methods")
@@ -650,12 +630,13 @@ impl Type {
                     },
                 };
                 if found.is_none()
-                    && matches!(&key, ComptimeValueKey::String { key } if key == "else")
+                    && let ComptimeValueKey::String { key } = &key
+                    && (key == "else" || key == "else_if")
                 {
                     return Err(throw_err(
                         env,
                         Some(pos),
-                        ".else must follow the } of a std.kw.if on the same line",
+                        format!(".{key} must follow the }} of a std.kw.if on the same line"),
                         None,
                         None,
                     ));
@@ -703,6 +684,19 @@ impl Type {
                         Ok(AnalysisResult {
                             ty: (*cell.inner).clone(),
                             value: RuntimeValue::Runtime(idx),
+                        })
+                    }
+                    ComptimeValueKey::String { key }
+                        if key == "else_if" && matches!(self, Type::KwIfResult(_)) =>
+                    {
+                        let Type::KwIfResult(result) = self else {
+                            unreachable!("matched KwIfResult above")
+                        };
+                        Ok(AnalysisResult {
+                            ty: Type::KwElseIf(TypeKwElseIf {
+                                then_never: result.body_never,
+                            }),
+                            value: obj.value,
                         })
                     }
                     ComptimeValueKey::String { key }
@@ -843,6 +837,8 @@ impl Type {
                     | Type::InlineFn(_)
                     | Type::KwField(_)
                     | Type::KwIfOptional(_)
+                    | Type::KwElseIf(_)
+                    | Type::KwElseIfBody(_)
                     | Type::BoundName(_)
             );
         }
@@ -1756,13 +1752,33 @@ impl KwIf {
         arg_in: CallArg,
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
+        let known = |value: &RuntimeValue| match value {
+            RuntimeValue::Comptime(ComptimeValue::KwBool(b)) => Some(b.value),
+            _ => None,
+        };
         let region = match self.region {
-            KwIfRegion::If => Region::KwIf { cond: method.value },
-            KwIfRegion::Else { .. } => {
+            KwIfRegion::If => {
+                if let Some(taken) = known(&method.value) {
+                    let body_never = !taken || analyze_body_never(env, arg_in, block)?;
+                    return Ok(AnalysisResult {
+                        ty: Type::KwIfResult(KwIfResult { body_never }),
+                        value: method.value,
+                    });
+                }
+                Region::KwIf { cond: method.value }
+            }
+            KwIfRegion::Else { then_never } => {
+                if let Some(prev_taken) = known(&method.value) {
+                    let body_never = prev_taken || analyze_body_never(env, arg_in, block)?;
+                    return Ok(else_result(then_never, body_never));
+                }
                 let RuntimeValue::Runtime(if_end) = method.value else {
                     unreachable!(".else is only reachable from an if's result")
                 };
-                Region::KwElse { if_end }
+                Region::KwElse {
+                    if_end,
+                    then: crate::compiler::ElseThen::Always,
+                }
             }
         };
         block_append(
@@ -1772,22 +1788,167 @@ impl KwIf {
                 region,
             },
         );
-        let body = analyze(env, Type::Void(TypeVoid), arg_in.pos, arg_in.ast, block)?;
-        let body_never = matches!(body.ty, Type::Never(_));
+        let body_never = analyze_body_never(env, arg_in, block)?;
         let end = block_append(block, AnalysisLine::RegionEnd { pos });
         Ok(match self.region {
             KwIfRegion::If => AnalysisResult {
                 ty: Type::KwIfResult(KwIfResult { body_never }),
                 value: RuntimeValue::Runtime(end),
             },
-            KwIfRegion::Else { then_never } => AnalysisResult {
-                ty: if then_never && body_never {
-                    Type::Never(TypeNever)
-                } else {
-                    Type::Void(TypeVoid)
-                },
-                value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+            KwIfRegion::Else { then_never } => else_result(then_never, body_never),
+        })
+    }
+}
+
+fn analyze_body_never(
+    env: &mut Env,
+    arg_in: CallArg,
+    block: &mut AnalysisBlock,
+) -> Result<bool, PositionedError> {
+    let body = analyze(env, Type::Void(TypeVoid), arg_in.pos, arg_in.ast, block)?;
+    Ok(matches!(body.ty, Type::Never(_)))
+}
+
+fn else_result(then_never: bool, body_never: bool) -> AnalysisResult {
+    AnalysisResult {
+        ty: if then_never && body_never {
+            Type::Never(TypeNever)
+        } else {
+            Type::Void(TypeVoid)
+        },
+        value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeKwElseIf {
+    pub then_never: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ElseIfMode {
+    Skip,
+    Direct,
+    Region {
+        begin: crate::compiler::BlockIdx,
+        prev_end: crate::compiler::BlockIdx,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeKwElseIfBody {
+    pub then_never: bool,
+    pub mode: ElseIfMode,
+    pub cond: Option<Box<Type>>,
+}
+
+impl TypeKwElseIf {
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        prev: RuntimeValue,
+        arg_in: CallArg,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let skip = |mode| AnalysisResult {
+            ty: Type::KwElseIfBody(TypeKwElseIfBody {
+                then_never: self.then_never,
+                mode,
+                cond: None,
+            }),
+            value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+        };
+        let mode = match prev {
+            RuntimeValue::Comptime(ComptimeValue::KwBool(b)) if b.value => {
+                return Ok(skip(ElseIfMode::Skip));
+            }
+            RuntimeValue::Comptime(_) => ElseIfMode::Direct,
+            RuntimeValue::Runtime(prev_end) => {
+                let begin = block_append(
+                    block,
+                    AnalysisLine::RegionBegin {
+                        pos: pos.clone(),
+                        region: Region::KwElse {
+                            if_end: prev_end,
+                            then: crate::compiler::ElseThen::Always,
+                        },
+                    },
+                );
+                ElseIfMode::Region { begin, prev_end }
+            }
+        };
+        let cond = crate::compiler::kw_if_condition(env, pos, arg_in, block)?;
+        Ok(AnalysisResult {
+            ty: Type::KwElseIfBody(TypeKwElseIfBody {
+                then_never: self.then_never,
+                mode,
+                cond: Some(Box::new(cond.ty)),
+            }),
+            value: cond.value,
+        })
+    }
+}
+
+impl TypeKwElseIfBody {
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        slot: Type,
+        pos: TokenPosition,
+        method: AnalysisResult,
+        arg_in: CallArg,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let Some(cond) = &self.cond else {
+            return Ok(AnalysisResult {
+                ty: Type::KwIfResult(KwIfResult {
+                    body_never: self.then_never,
+                }),
+                value: RuntimeValue::Comptime(ComptimeValue::KwBool(ComptimeValueKwBool {
+                    value: true,
+                })),
+            });
+        };
+        let inner = cond.builtin_call(
+            env,
+            slot,
+            pos.clone(),
+            AnalysisResult {
+                ty: (**cond).clone(),
+                value: method.value,
             },
+            arg_in,
+            block,
+        )?;
+        let Type::KwIfResult(inner_result) = &inner.ty else {
+            unreachable!("an if condition's call returns an if result")
+        };
+        let body_never = self.then_never && inner_result.body_never;
+        let ElseIfMode::Region { begin, prev_end } = self.mode else {
+            return Ok(AnalysisResult {
+                ty: Type::KwIfResult(KwIfResult { body_never }),
+                value: inner.value,
+            });
+        };
+        let then = match inner.value {
+            RuntimeValue::Runtime(line) => crate::compiler::ElseThen::Line(line),
+            RuntimeValue::Comptime(ComptimeValue::KwBool(b)) => {
+                crate::compiler::ElseThen::Known(b.value)
+            }
+            RuntimeValue::Comptime(_) => unreachable!("an if result is a bool or a line"),
+        };
+        block.lines[begin.0] = AnalysisLine::RegionBegin {
+            pos: pos.clone(),
+            region: Region::KwElse {
+                if_end: prev_end,
+                then,
+            },
+        };
+        let end = block_append(block, AnalysisLine::RegionEnd { pos });
+        Ok(AnalysisResult {
+            ty: Type::KwIfResult(KwIfResult { body_never }),
+            value: RuntimeValue::Runtime(end),
         })
     }
 }
@@ -2044,7 +2205,11 @@ fn builtin_operator(ty: &Type, kind: OperatorKind, key: Symbol) -> Option<CBinar
             Some(op)
         }
         (
-            Type::KwBool(_) | Type::CtType(_) | Type::Target(_) | Type::ReflectFn(_),
+            Type::KwBool(_)
+            | Type::CtType(_)
+            | Type::Target(_)
+            | Type::ReflectFn(_)
+            | Type::Optional(_),
             OperatorKind::Lhs,
             _,
         ) if matches!(op, CBinaryOp::Eq | CBinaryOp::Ne) => Some(op),
@@ -2148,6 +2313,11 @@ pub fn fold_kw_binary(
             CBinaryOp::Eq => bool(a.ty == b.ty),
             CBinaryOp::Ne => bool(a.ty != b.ty),
             _ => unreachable!("std.Type only has == and !="),
+        },
+        (a @ ComptimeValue::Optional(_), b @ ComptimeValue::Optional(_)) => match op {
+            CBinaryOp::Eq => bool(crate::kw::values_equal(a, b)),
+            CBinaryOp::Ne => bool(!crate::kw::values_equal(a, b)),
+            _ => unreachable!("optionals only have == and !="),
         },
         (ComptimeValue::Fn(a), ComptimeValue::Fn(b)) => match op {
             CBinaryOp::Eq => bool(a == b),

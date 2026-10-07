@@ -34,7 +34,11 @@ fn import_file_kw_if_binds_an_optional() {
             "some",
         ),
         (
-            "  std.kw.if (o): (v) => { out: std.kw.string.from_int(v) }\n  -> \"none\"",
+            "  std.kw.if (o != std.kw.null) { out: \"some\" }\n  -> \"none\"",
+            "some",
+        ),
+        (
+            "  std.kw.if (o == std.kw.null) { out: \"null\" } .else_if (v := o) { out: std.kw.string.from_int(v) }\n  -> \"none\"",
             "3",
         ),
         (
@@ -47,6 +51,14 @@ fn import_file_kw_if_binds_an_optional() {
     }
 
     let errors = [
+        (
+            "  std.kw.if (o): (v) => { out: \"a\" }\n  -> \"none\"",
+            "std.kw.if needs a std.kw.bool; to test an optional, write (_ := opt) or opt != std.kw.null",
+        ),
+        (
+            "  std.kw.if (o) { out: \"a\" }\n  -> \"none\"",
+            "std.kw.if needs a std.kw.bool; to test an optional, write (_ := opt) or opt != std.kw.null",
+        ),
         (
             "  std.kw.if (v := std.kw.int: 1) { out: \"a\" }\n  -> \"none\"",
             "std.kw.if (v := x) needs an optional, got KwInt",

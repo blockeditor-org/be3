@@ -28,7 +28,7 @@ fn import_file_builds_comptime_sample() {
         files,
         vec![
             ("lib.c", "int f(int _a0);\nstatic int cvl2_fn_0(int _a0);\nstatic int cvl2_fn_1(int _a0);\n\nint f(int _a0) {\n    int _0 = cvl2_fn_0(_a0);\n    int _1 = cvl2_fn_1(_a0);\n    int _2 = _0 + _1;\n    int _3 = cvl2_fn_0(1);\n    int _4 = _2 + _3;\n    return _4;\n}\n\nstatic int cvl2_fn_0(int _a0) {\n    int _0 = _a0 * 2;\n    return _0;\n}\n\nstatic int cvl2_fn_1(int _a0) {\n    int _0 = _a0 * 3;\n    return _0;\n}\n".to_string()),
-            ("words.txt", "ababab--".to_string()),
+            ("words.txt", "ababab--120".to_string()),
         ]
     );
 }
