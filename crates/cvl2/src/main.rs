@@ -7,7 +7,12 @@ use cvl2::{
 
 fn write_artifact(path: &Path, artifact: &ComptimeValueBuildArtifact) -> std::io::Result<()> {
     match artifact {
-        ComptimeValueBuildArtifact::File(file) => fs::write(path, &file.value),
+        ComptimeValueBuildArtifact::File(file) => {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(path, &file.value)
+        }
         ComptimeValueBuildArtifact::Folder(folder) => {
             fs::create_dir_all(path)?;
             for (name, child) in &folder.value {

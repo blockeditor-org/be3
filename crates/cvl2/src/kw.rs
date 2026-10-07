@@ -47,6 +47,16 @@ pub enum KwBuiltinOp {
     ReflectFail,
     DataType,
     DataAs,
+    ConstantFn,
+    MapNew,
+    MapLen,
+    MapGet,
+    MapSet,
+    MapKeys,
+    MapValues,
+    StringSplit,
+    FolderFromMap,
+    ReflectFunction,
 }
 
 #[derive(Debug)]
@@ -120,6 +130,16 @@ impl KwBuiltinOp {
             KwBuiltinOp::ReflectFail => "reflect_fail",
             KwBuiltinOp::DataType => "data_type",
             KwBuiltinOp::DataAs => "data_as",
+            KwBuiltinOp::ConstantFn => "constant_fn",
+            KwBuiltinOp::MapNew => "map_new",
+            KwBuiltinOp::MapLen => "map_len",
+            KwBuiltinOp::MapGet => "map_get",
+            KwBuiltinOp::MapSet => "map_set",
+            KwBuiltinOp::MapKeys => "map_keys",
+            KwBuiltinOp::MapValues => "map_values",
+            KwBuiltinOp::StringSplit => "string_split",
+            KwBuiltinOp::FolderFromMap => "folder_from_map",
+            KwBuiltinOp::ReflectFunction => "reflect_function",
         }
     }
 }
@@ -153,6 +173,81 @@ pub fn eval(
             some: crate::reflect::constant_int(c).map(|n| Box::new(int(n))),
         }),
         (KwBuiltinOp::TypeName, [V::Type(t)]) => string(t.ty.dump()),
+        (KwBuiltinOp::ConstantFn, [V::ReflectConstant(c)]) => V::Optional(ComptimeValueOptional {
+            some: match &**c {
+                V::Fn(f) => Some(Box::new(V::Fn(f.clone()))),
+                _ => None,
+            },
+        }),
+        (KwBuiltinOp::MapNew, _) => {
+            let mut entries: Vec<(ComptimeValue, ComptimeValue)> = Vec::new();
+            for pair in args.chunks(2) {
+                map_insert(env, pos, &mut entries, pair[0].clone(), pair[1].clone())?;
+            }
+            V::KwMap(Rc::new(entries))
+        }
+        (KwBuiltinOp::ReflectFunction, [V::Target(target), V::Fn(f)]) => {
+            crate::reflect::reflect_function(env, target, f)?
+        }
+        (KwBuiltinOp::StringSplit, [V::KwString(text), V::KwString(separator)]) => {
+            let parts = text.with_str(|text| {
+                separator.with_str(|separator| {
+                    if separator.is_empty() {
+                        return vec![text.to_string()];
+                    }
+                    text.split(separator)
+                        .map(str::to_string)
+                        .collect::<Vec<_>>()
+                })
+            });
+            V::KwList(ComptimeValueKwList::new(
+                parts.into_iter().map(string).collect(),
+            ))
+        }
+        (KwBuiltinOp::FolderFromMap, [V::KwMap(entries)]) => {
+            let mut files = Vec::new();
+            for (name, content) in entries.iter() {
+                let V::KwString(name) = name else {
+                    unreachable!("analysis only folds string-keyed maps into folders")
+                };
+                let artifact = match content {
+                    V::KwString(s) => crate::compiler::ComptimeValueBuildArtifact::File(
+                        crate::compiler::ComptimeFile {
+                            value: s.to_owned_string().into_bytes(),
+                        },
+                    ),
+                    V::KwText(t) => crate::compiler::ComptimeValueBuildArtifact::File(
+                        crate::compiler::ComptimeFile {
+                            value: render_text(t).into_bytes(),
+                        },
+                    ),
+                    V::BuildArtifact(artifact) => artifact.clone(),
+                    _ => unreachable!("analysis only folds files, strings and text into folders"),
+                };
+                files.push((name.to_owned_string(), artifact));
+            }
+            V::BuildArtifact(crate::compiler::ComptimeValueBuildArtifact::Folder(
+                crate::compiler::ComptimeFolder { value: files },
+            ))
+        }
+        (KwBuiltinOp::MapLen, [V::KwMap(entries)]) => int(entries.len() as i64),
+        (KwBuiltinOp::MapGet, [V::KwMap(entries), key]) => V::Optional(ComptimeValueOptional {
+            some: entries
+                .iter()
+                .find(|(k, _)| values_equal(k, key))
+                .map(|(_, v)| Box::new(v.clone())),
+        }),
+        (KwBuiltinOp::MapSet, [V::KwMap(entries), key, value]) => {
+            let mut entries = (**entries).clone();
+            map_insert(env, pos, &mut entries, key.clone(), value.clone())?;
+            V::KwMap(Rc::new(entries))
+        }
+        (KwBuiltinOp::MapKeys, [V::KwMap(entries)]) => V::KwList(ComptimeValueKwList::new(
+            entries.iter().map(|(k, _)| k.clone()).collect(),
+        )),
+        (KwBuiltinOp::MapValues, [V::KwMap(entries)]) => V::KwList(ComptimeValueKwList::new(
+            entries.iter().map(|(_, v)| v.clone()).collect(),
+        )),
         (KwBuiltinOp::DataType, [V::ReflectData(data)]) => {
             V::Type(crate::compiler::ComptimeValueType { ty: data.1.clone() })
         }
@@ -308,6 +403,29 @@ pub fn eval(
     })
 }
 
+fn map_insert(
+    env: &mut Env,
+    pos: &TokenPosition,
+    entries: &mut Vec<(ComptimeValue, ComptimeValue)>,
+    key: ComptimeValue,
+    value: ComptimeValue,
+) -> Result<(), PositionedError> {
+    if !can_compare(&key) {
+        return Err(throw_err(
+            env,
+            Some(pos.clone()),
+            "this value can't be a std.kw.map key",
+            None,
+            None,
+        ));
+    }
+    match entries.iter_mut().find(|(k, _)| values_equal(k, &key)) {
+        Some(entry) => entry.1 = value,
+        None => entries.push((key, value)),
+    }
+    Ok(())
+}
+
 pub fn can_compare(value: &ComptimeValue) -> bool {
     use ComptimeValue as V;
     match value {
@@ -450,6 +568,40 @@ pub fn interpolated_literal(
     emit(env, block, ast.pos.clone(), op, parts, ty.clone())
 }
 
+pub fn map_literal(
+    env: &mut Env,
+    map: &crate::ct::KwMap,
+    ast: &BlockToken,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let mut args = Vec::new();
+    for line in list_items(env, ast)? {
+        let Some((key, _, value)) =
+            crate::compiler::read_binary2(env, &line.items, crate::parser::OpTag::Pub)?
+        else {
+            return Err(throw_err(
+                env,
+                Some(line.pos.clone()),
+                "expected key .= value in a std.kw.map literal",
+                None,
+                None,
+            ));
+        };
+        for (seg, ty) in [(key, &*map.key), (value, &*map.value)] {
+            let analyzed = analyze(env, ty.clone(), seg.pos.clone(), &seg.items, block)?;
+            args.push(ty.cast_into(env, block, analyzed, seg.pos.clone())?.value);
+        }
+    }
+    emit(
+        env,
+        block,
+        ast.pos.clone(),
+        KwBuiltinOp::MapNew,
+        args,
+        Type::KwMap(map.clone()),
+    )
+}
+
 pub fn list_literal(
     env: &mut Env,
     list: &KwList,
@@ -518,6 +670,43 @@ pub fn value_field(
         (Type::ReflectConstant(_), "ty") => {
             (KwBuiltinOp::ConstantType, Type::CtType(crate::ct::CtType))
         }
+        (Type::KwMap(_), "len") => property(KwBuiltinOp::MapLen),
+        (Type::KwString(_), "split") => {
+            return Ok(Some(AnalysisResult {
+                ty: Type::KwField(TypeKwField {
+                    receiver: Box::new(ty.clone()),
+                    name: name.to_string(),
+                }),
+                value: obj.value.clone(),
+            }));
+        }
+        (Type::KwMap(map), "keys") => (
+            KwBuiltinOp::MapKeys,
+            Type::KwList(KwList {
+                elem: map.key.clone(),
+            }),
+        ),
+        (Type::KwMap(map), "values") => (
+            KwBuiltinOp::MapValues,
+            Type::KwList(KwList {
+                elem: map.value.clone(),
+            }),
+        ),
+        (Type::KwMap(_), "get" | "set") => {
+            return Ok(Some(AnalysisResult {
+                ty: Type::KwField(TypeKwField {
+                    receiver: Box::new(ty.clone()),
+                    name: name.to_string(),
+                }),
+                value: obj.value.clone(),
+            }));
+        }
+        (Type::ReflectConstant(_), "fn") => (
+            KwBuiltinOp::ConstantFn,
+            Type::Optional(crate::ct::TypeOptional {
+                child: Box::new(Type::ReflectFn(crate::ct::TypeReflectFn)),
+            }),
+        ),
         (Type::ReflectData(_), "ty") => (KwBuiltinOp::DataType, Type::CtType(crate::ct::CtType)),
         (Type::ReflectData(_), "as") => {
             return Ok(Some(AnalysisResult {
@@ -590,8 +779,64 @@ pub fn call_field(
             result,
         );
     }
+    if let Type::KwString(_) = &*field.receiver {
+        let separator = analyze_as(env, &Type::KwString(KwString), arg, block)?;
+        return emit(
+            env,
+            block,
+            pos,
+            KwBuiltinOp::StringSplit,
+            vec![receiver, separator],
+            Type::KwList(KwList {
+                elem: Box::new(Type::KwString(KwString)),
+            }),
+        );
+    }
+    if let Type::KwMap(map) = &*field.receiver {
+        let optional = |ty: &Type| {
+            Type::Optional(crate::ct::TypeOptional {
+                child: Box::new(ty.clone()),
+            })
+        };
+        if field.name == "get" {
+            let key = analyze_as(env, &map.key, arg, block)?;
+            return emit(
+                env,
+                block,
+                pos,
+                KwBuiltinOp::MapGet,
+                vec![receiver, key],
+                optional(&map.value),
+            );
+        }
+        let items = match crate::ct::call_list_items(env, &arg)? {
+            Some(items) if items.len() == 2 => items,
+            _ => {
+                return Err(throw_err(
+                    env,
+                    Some(pos),
+                    "set takes a key and a value, as in m.set(k, v)",
+                    None,
+                    None,
+                ));
+            }
+        };
+        let mut args = vec![receiver];
+        for (item, ty) in items.iter().zip([&*map.key, &*map.value]) {
+            let value = analyze(env, ty.clone(), item.pos.clone(), &item.items, block)?;
+            args.push(ty.cast_into(env, block, value, item.pos.clone())?.value);
+        }
+        return emit(
+            env,
+            block,
+            pos,
+            KwBuiltinOp::MapSet,
+            args,
+            Type::KwMap(map.clone()),
+        );
+    }
     let Type::KwList(list) = &*field.receiver else {
-        unreachable!("only lists and std.reflect.Data have callable fields")
+        unreachable!("only lists, maps and std.reflect.Data have callable fields")
     };
     let (op, arg_ty, result_ty) = match field.name.as_str() {
         "get" => (

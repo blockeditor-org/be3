@@ -1,0 +1,129 @@
+std :: #builtin.std
+
+target :: std.Target: "mc"
+
+Line :: std.Enum["command" .= std.kw.string, "value" .= std.kw.int]
+
+Result :: std.Type[
+  .statics .= [
+    std.literal.number .= (n: std.kw.int) => std.emit(Result, Line.value(n), ())
+  ]
+]
+
+runCommand :: (cmd :: std.kw.string) #inline => Result: std.emit(Result, Line.command(cmd), ())
+
+Names :: std.Struct[
+  "order" .= std.kw.list(std.reflect.Fn)
+  "ids" .= std.kw.map(std.reflect.Fn, std.kw.string)
+  "internal" .= std.kw.int
+]
+
+name :: (names: Names, f: std.reflect.Fn) => Names: :done {
+  std.kw.if (_ := names.ids.get(f)) {
+    done: names
+  }
+  -> Names[
+    "order" .= names.order.push(f)
+    "ids" .= names.ids.set(f, "_0:_" + std.kw.string.from_int(names.internal))
+    "internal" .= names.internal + 1
+  ]
+}
+
+Body :: std.Struct["names" .= Names, "text" .= std.kw.string]
+
+body :: (f: std.reflect.Function, start: Names) => Body: :done {
+  names := std.kw.mut(start)
+  commands := std.kw.mut(std.kw.list(std.kw.string): ())
+  pending := std.kw.mut(std.kw.string: "")
+  pending_at := std.kw.mut(std.kw.int: 0 - 1)
+  i := std.kw.mut(std.kw.int: 0)
+  std.kw.loop {
+    std.kw.if (i.* == f.lines.len) {
+      done: finish(f, names.*, commands.*, pending.*, pending_at.*)
+    }
+    line := f.lines.get(i.*)
+    i = i.* + 1
+    command := std.kw.mut(std.Option(std.kw.string): std.kw.null)
+    std.kw.if (c := line.call) {
+      callee := c.callee.constant.?.fn.?
+      names = name(names.*, callee)
+      command = std.kw.string: "function " + names.*.ids.get(callee).?
+    }
+    std.kw.if (e := line.emit) {
+      std.kw.if (cmd := e.data.as(Line).?.command) {
+        command = cmd
+      }
+    }
+    std.kw.if (o := line.other) {
+      _ = std.reflect.fail(o.at, o.name + " is not supported in a datapack")
+    }
+    std.kw.if (b := line.break) {
+      _ = std.reflect.fail(b.at, "break is not supported in a datapack")
+    }
+    std.kw.if (cmd := command.*) {
+      std.kw.if (pending_at.* != 0 - 1) {
+        commands = commands.*.push(pending.*)
+      }
+      pending = cmd
+      pending_at = i.* - 1
+    }
+  }
+}
+
+finish :: (f: std.reflect.Function, names: Names, commands: std.kw.list(std.kw.string), pending: std.kw.string, pending_at: std.kw.int) => Body: :done {
+  v := f.result.value.?
+  std.kw.if (e := f.lines.get(v.index).emit) {
+    std.kw.if (n := e.data.as(Line).?.value) {
+      std.kw.if (pending_at != 0 - 1) {
+        done: Body["names" .= names, "text" .= commands.push(pending).push("return " + std.kw.string.from_int(n)).join("\n")]
+      }
+      done: Body["names" .= names, "text" .= commands.push("return " + std.kw.string.from_int(n)).join("\n")]
+    }
+  }
+  std.kw.if (v.index == pending_at) {
+    done: Body["names" .= names, "text" .= commands.push("return run " + pending).join("\n")]
+  }
+  -> std.reflect.fail(v, "this result was lost")
+}
+
+compile :: (exports: std.kw.map(std.kw.string, std.reflect.Fn)) => std.Folder: :done {
+  names := std.kw.mut(Names[
+    "order" .= exports.values
+    "ids" .= std.kw.map(std.reflect.Fn, std.kw.string): []
+    "internal" .= 0
+  ])
+  i := std.kw.mut(std.kw.int: 0)
+  std.kw.loop {
+    std.kw.if (i.* == exports.len) {
+      done: files(names.*)
+    }
+    names = Names[
+      "order" .= names.*.order
+      "ids" .= names.*.ids.set(exports.values.get(i.*), exports.keys.get(i.*))
+      "internal" .= 0
+    ]
+    i = i.* + 1
+  }
+}
+
+files :: (start: Names) => std.kw.map(std.kw.string, std.kw.string): :done {
+  names := std.kw.mut(start)
+  out := std.kw.mut(std.kw.map(std.kw.string, std.kw.string): [])
+  i := std.kw.mut(std.kw.int: 0)
+  std.kw.loop {
+    std.kw.if (i.* == names.*.order.len) {
+      done: out.*
+    }
+    f := names.*.order.get(i.*)
+    id := names.*.ids.get(f).?.split(":")
+    result := body(std.reflect.function(target, f), names.*)
+    names = result.names
+    out = out.*.set("data/" + id.get(0) + "/functions/" + id.get(1) + ".mcfunction", result.text)
+    i = i.* + 1
+  }
+}
+
+"target" .= target
+"Result" .= Result
+"runCommand" .= runCommand
+"Datapack" .= std.Type[.statics .= ["compile" .= compile]]

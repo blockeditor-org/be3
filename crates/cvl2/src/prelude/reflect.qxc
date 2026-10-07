@@ -33,6 +33,7 @@ Function :: std.Struct[
 "Value" .= raw.Value
 "Constant" .= raw.Constant
 "Data" .= raw.Data
+"Fn" .= raw.Fn
 "Operand" .= Operand
 "Line" .= Line
 "Function" .= Function

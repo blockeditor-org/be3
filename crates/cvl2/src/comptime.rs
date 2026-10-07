@@ -39,8 +39,6 @@ pub enum ComptimeValueKind {
     Uint8Array,
     ExportList,
     CExportName,
-    McIdentifier,
-    McResult,
     CInt,
     OperatorName,
     KwInt,
@@ -52,13 +50,12 @@ pub enum ComptimeValueKind {
     KwText,
     Struct,
     Enum,
-    McNbtRef,
     Error,
-    Mc,
     Target,
     ReflectValue,
     ReflectConstant,
     ReflectData,
+    KwMap,
 }
 
 impl ComptimeValueKind {
@@ -76,8 +73,6 @@ impl ComptimeValueKind {
             ComptimeValue::Uint8Array(_) => ComptimeValueKind::Uint8Array,
             ComptimeValue::ExportList(_) => ComptimeValueKind::ExportList,
             ComptimeValue::CExportName(_) => ComptimeValueKind::CExportName,
-            ComptimeValue::McIdentifier(_) => ComptimeValueKind::McIdentifier,
-            ComptimeValue::McResult(_) => ComptimeValueKind::McResult,
             ComptimeValue::CInt(_) => ComptimeValueKind::CInt,
             ComptimeValue::OperatorName(_) => ComptimeValueKind::OperatorName,
             ComptimeValue::KwInt(_) => ComptimeValueKind::KwInt,
@@ -89,13 +84,12 @@ impl ComptimeValueKind {
             ComptimeValue::KwText(_) => ComptimeValueKind::KwText,
             ComptimeValue::Struct(_) => ComptimeValueKind::Struct,
             ComptimeValue::Enum(_) => ComptimeValueKind::Enum,
-            ComptimeValue::McNbtRef(_) => ComptimeValueKind::McNbtRef,
             ComptimeValue::Error(_) => ComptimeValueKind::Error,
-            ComptimeValue::Mc(_) => ComptimeValueKind::Mc,
             ComptimeValue::Target(_) => ComptimeValueKind::Target,
             ComptimeValue::ReflectValue(_) => ComptimeValueKind::ReflectValue,
             ComptimeValue::ReflectConstant(_) => ComptimeValueKind::ReflectConstant,
             ComptimeValue::ReflectData(_) => ComptimeValueKind::ReflectData,
+            ComptimeValue::KwMap(_) => ComptimeValueKind::KwMap,
         }
     }
 }
@@ -599,7 +593,7 @@ fn comptime_eval_with_args(
                     None,
                 ));
             }
-            AnalysisLine::McExecRaw { pos: ipos, .. } | AnalysisLine::Emit { pos: ipos, .. } => {
+            AnalysisLine::Emit { pos: ipos, .. } => {
                 return Err(throw_err(
                     env,
                     Some(ipos.clone()),

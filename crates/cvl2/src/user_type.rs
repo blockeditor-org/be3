@@ -832,6 +832,7 @@ pub fn inline_call(
     }
     let saved = std::mem::replace(&mut env.scope.bindings, Rc::new(RefCell::new(bindings)));
     INLINE_DEPTH.with(|d| d.set(depth + 1));
+    let first_line = block.lines.len();
     let result = analyze(
         env,
         Type::Unknown(TypeUnknown),
@@ -839,6 +840,9 @@ pub fn inline_call(
         &func.body().ast,
         block,
     );
+    for line in &mut block.lines[first_line..] {
+        crate::compiler::set_line_pos(line, pos.clone());
+    }
     INLINE_DEPTH.with(|d| d.set(depth));
     env.scope.bindings = saved;
     result
@@ -846,11 +850,13 @@ pub fn inline_call(
 
 const PRELUDE_C: &str = include_str!("prelude/c.qxc");
 const PRELUDE_REFLECT: &str = include_str!("prelude/reflect.qxc");
+const PRELUDE_MC: &str = include_str!("prelude/mc.qxc");
 
 pub fn prelude_sources() -> Vec<crate::parser::Source> {
     vec![
         crate::parser::Source::new("prelude/c.qxc", PRELUDE_C),
         crate::parser::Source::new("prelude/reflect.qxc", PRELUDE_REFLECT),
+        crate::parser::Source::new("prelude/mc.qxc", PRELUDE_MC),
     ]
 }
 
@@ -879,6 +885,10 @@ impl LazyPrelude {
 
     pub fn c() -> Self {
         LazyPrelude::new("prelude/c.qxc", PRELUDE_C)
+    }
+
+    pub fn mc() -> Self {
+        LazyPrelude::new("prelude/mc.qxc", PRELUDE_MC)
     }
 
     pub fn reflect() -> Rc<Self> {

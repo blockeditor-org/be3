@@ -390,47 +390,38 @@ pub fn builtin_reflect_function_call(
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
     let items = crate::compiler::builtin_list_args(env, &pos, &arg_ast, "std.reflect.function", 2)?;
-    let target = analyze(
-        env,
+    let mut args = Vec::new();
+    for (item, ty) in items.iter().zip([
         Type::Target(TypeTarget),
-        items[0].pos.clone(),
-        &items[0].items,
+        Type::ReflectFn(crate::ct::TypeReflectFn),
+    ]) {
+        let value = analyze(env, ty.clone(), item.pos.clone(), &item.items, block)?;
+        args.push(ty.cast_into(env, block, value, item.pos.clone())?.value);
+    }
+    let function_ty = LazyPrelude::reflect().user_type(env, "Function")?;
+    crate::kw::emit(
+        env,
         block,
-    )?;
-    let ComptimeValue::Target(target) = get_comptime(
-        env,
-        Some(ComptimeValueKind::Target),
-        target.value,
-        items[0].pos.clone(),
-    )?
-    else {
-        unreachable!("get_comptime guarantees a matching kind")
-    };
-    let func = analyze(
-        env,
-        Type::Unknown(TypeUnknown),
-        items[1].pos.clone(),
-        &items[1].items,
-        block,
-    )?;
-    let ComptimeValue::Fn(fn_value) = get_comptime(
-        env,
-        Some(ComptimeValueKind::Fn),
-        func.value,
-        items[1].pos.clone(),
-    )?
-    else {
-        unreachable!("get_comptime guarantees a matching kind")
-    };
+        pos,
+        crate::kw::KwBuiltinOp::ReflectFunction,
+        args,
+        Type::User(function_ty),
+    )
+}
 
+pub fn reflect_function(
+    env: &mut Env,
+    target: &ComptimeValueTarget,
+    fn_value: &crate::compiler::ComptimeValueFn,
+) -> Result<ComptimeValue, PositionedError> {
     let prelude = LazyPrelude::reflect();
     let function_ty = prelude.user_type(env, "Function")?;
     let operand = prelude.user_type(env, "Operand")?;
     let line = prelude.user_type(env, "Line")?;
 
     let (analyzed, types) = with_target_env(env, target.env, |env| {
-        let analyzed = analyze_function(env, &fn_value)?;
-        let types = line_types(env, &fn_value, &analyzed)?;
+        let analyzed = analyze_function(env, fn_value)?;
+        let types = line_types(env, fn_value, &analyzed)?;
         Ok((analyzed, types))
     })?;
     let params = match &fn_value.args().ty {
@@ -451,9 +442,9 @@ pub fn builtin_reflect_function_call(
         lines.push(builder.line(env, index, &mut labels)?);
     }
     let result = builder.operand(env, &result)?;
-    let function = struct_value(
+    struct_value(
         env,
-        &Type::User(function_ty.clone()),
+        &Type::User(function_ty),
         vec![
             (
                 "lines",
@@ -468,11 +459,7 @@ pub fn builtin_reflect_function_call(
             ("ret", type_value(ret)),
             ("result", result),
         ],
-    )?;
-    Ok(AnalysisResult {
-        ty: Type::User(function_ty),
-        value: RuntimeValue::Comptime(function),
-    })
+    )
 }
 
 pub fn builtin_reflect_fail_call(

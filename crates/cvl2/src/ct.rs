@@ -1,7 +1,5 @@
 #![allow(clippy::wrong_self_convention)]
 
-use std::collections::HashMap;
-
 use std::rc::Rc;
 
 use crate::backend::c::{CBinaryOp, CValidatedIdentifierName, validate_c_name};
@@ -9,8 +7,7 @@ use crate::compiler::{
     AnalysisBlock, AnalysisLine, AnalysisResult, Binary2, ComptimeFolder, ComptimeNamespace,
     ComptimeValue, ComptimeValueBuildArtifact, ComptimeValueCExportName, ComptimeValueCInt,
     ComptimeValueDeclaration, ComptimeValueExportList, ComptimeValueExportListEntry,
-    ComptimeValueKey, ComptimeValueKwBool, ComptimeValueKwInt, ComptimeValueMcIdentifier,
-    ComptimeValueMcNbtRef, ComptimeValueMcResult, ComptimeValueOperatorName,
+    ComptimeValueKey, ComptimeValueKwBool, ComptimeValueKwInt, ComptimeValueOperatorName,
     ComptimeValueUint8Array, ComptimeValueVoid, ConsumedErrorToken, Env, PositionedError, Region,
     RuntimeValue, Symbol, Uint8ArraySourcemapEntry, add_err, analyze, analyze_base, analyze_block,
     analyze_call, analyze_function, block_append, compiler_pos, create_declaration, empty_block,
@@ -52,9 +49,6 @@ pub enum Type {
     CtNamespace(CtNamespace),
     CtType(CtType),
     CtBuildArtifact(CtBuildArtifact),
-    McResult(McResult),
-    McNbtRef(McNbtRef),
-    McIdentifier(McIdentifier),
     CExportName(CExportName),
     CInt(CInt),
     CIf(CIf),
@@ -81,6 +75,17 @@ pub enum Type {
     ReflectValue(TypeReflectValue),
     ReflectConstant(TypeReflectConstant),
     ReflectData(TypeReflectData),
+    ReflectFn(TypeReflectFn),
+    KwMap(KwMap),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeReflectFn;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct KwMap {
+    pub key: Box<Type>,
+    pub value: Box<Type>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -290,13 +295,29 @@ impl Type {
         pos: TokenPosition,
     ) -> Result<AnalysisResult, PositionedError> {
         match self {
-            Type::McResult(m) => m.cast_into(env, block, other, pos),
             Type::KwText(_) if matches!(other.ty, Type::KwString(_) | Type::KwInt(_)) => {
                 let op = match other.ty {
                     Type::KwString(_) => crate::kw::KwBuiltinOp::TextFromString,
                     _ => crate::kw::KwBuiltinOp::TextFromInt,
                 };
                 crate::kw::emit(env, block, pos, op, vec![other.value], self.clone())
+            }
+            Type::CtBuildArtifact(artifact)
+                if matches!(&other.ty, Type::KwMap(map)
+                    if matches!(*map.key, Type::KwString(_))
+                        && matches!(*map.value, Type::KwString(_) | Type::KwText(_) | Type::CtBuildArtifact(_)))
+                    && artifact.narrow != Some(CtBuildArtifactNarrow::File) =>
+            {
+                crate::kw::emit(
+                    env,
+                    block,
+                    pos,
+                    crate::kw::KwBuiltinOp::FolderFromMap,
+                    vec![other.value],
+                    Type::CtBuildArtifact(CtBuildArtifact {
+                        narrow: Some(CtBuildArtifactNarrow::Folder),
+                    }),
+                )
             }
             Type::CtBuildArtifact(artifact)
                 if matches!(other.ty, Type::KwString(_) | Type::KwText(_))
@@ -317,6 +338,19 @@ impl Type {
                 })
             }
             Type::Unknown(_) | Type::Infer(_) => Ok(other),
+            Type::ReflectFn(_) if matches!(other.ty, Type::Fn(_)) => match other.value {
+                RuntimeValue::Comptime(ComptimeValue::Fn(_)) => Ok(AnalysisResult {
+                    ty: self.clone(),
+                    value: other.value,
+                }),
+                _ => Err(throw_err(
+                    env,
+                    Some(pos),
+                    "a std.reflect.Fn needs a function known at compile time",
+                    None,
+                    None,
+                )),
+            },
             Type::Optional(optional) if other.ty != *self => {
                 if let Type::Null(_) = other.ty {
                     return Ok(AnalysisResult {
@@ -378,8 +412,6 @@ impl Type {
                 self,
                 Type::Uint8Array(_)
                     | Type::CtBuildArtifact(_)
-                    | Type::McNbtRef(_)
-                    | Type::McIdentifier(_)
                     | Type::CExportName(_)
                     | Type::OperatorName(_)
                     | Type::CtKey(_)
@@ -389,11 +421,11 @@ impl Type {
             ),
             LiteralKind::Map => matches!(
                 self,
-                Type::CtExportList(_) | Type::CtBuildArtifact(_) | Type::CtType(_)
+                Type::CtExportList(_) | Type::CtBuildArtifact(_) | Type::CtType(_) | Type::KwMap(_)
             ),
             LiteralKind::List => matches!(self, Type::Tuple(_) | Type::KwList(_)),
             LiteralKind::Number => {
-                matches!(self, Type::McResult(_) | Type::CInt(_) | Type::KwInt(_))
+                matches!(self, Type::CInt(_) | Type::KwInt(_))
             }
         }
     }
@@ -414,10 +446,6 @@ impl Type {
                 literal_block(node, BracketTag::String)
                     .map(|ast| t.from_string(env, slot, ast, block))
             }
-            (LiteralKind::String, Type::McNbtRef(t)) => literal_block(node, BracketTag::String)
-                .map(|ast| t.from_string(env, slot, ast, block)),
-            (LiteralKind::String, Type::McIdentifier(t)) => literal_block(node, BracketTag::String)
-                .map(|ast| t.from_string(env, slot, ast, block)),
             (LiteralKind::String, Type::CExportName(t)) => literal_block(node, BracketTag::String)
                 .map(|ast| t.from_string(env, slot, ast, block)),
             (LiteralKind::String, Type::KwString(_) | Type::KwText(_)) => {
@@ -426,6 +454,8 @@ impl Type {
             }
             (LiteralKind::String, Type::Target(_)) => literal_block(node, BracketTag::String)
                 .map(|ast| crate::reflect::target_literal(env, ast, block)),
+            (LiteralKind::Map, Type::KwMap(t)) => literal_block(node, BracketTag::Map)
+                .map(|ast| crate::kw::map_literal(env, t, ast, block)),
             (LiteralKind::List, Type::KwList(t)) => literal_block(node, BracketTag::List)
                 .map(|ast| crate::kw::list_literal(env, t, ast, block)),
             (LiteralKind::String, Type::CtKey(_)) => {
@@ -451,9 +481,6 @@ impl Type {
             }
             (LiteralKind::List, Type::Tuple(t)) => {
                 literal_block(node, BracketTag::List).map(|ast| t.from_list(env, ast, block))
-            }
-            (LiteralKind::Number, Type::McResult(t)) => {
-                literal_number(node).map(|ast| t.from_number(env, slot, ast, block))
             }
             (LiteralKind::Number, Type::CInt(t)) => {
                 literal_number(node).map(|ast| t.from_number(env, ast))
@@ -491,9 +518,6 @@ impl Type {
             Type::CtNamespace(_) => "CtNamespace",
             Type::CtType(_) => "CtType",
             Type::CtBuildArtifact(_) => "CtBuildArtifact",
-            Type::McResult(_) => "McResult",
-            Type::McNbtRef(_) => "McNbtRef",
-            Type::McIdentifier(_) => "McIdentifier",
             Type::CExportName(_) => "CExportName",
             Type::CInt(_) => "CInt",
             Type::CIf(_) => "CIf",
@@ -515,6 +539,8 @@ impl Type {
             Type::ReflectValue(_) => "std.reflect.Value",
             Type::ReflectConstant(_) => "std.reflect.Constant",
             Type::ReflectData(_) => "std.reflect.Data",
+            Type::ReflectFn(_) => "std.reflect.Fn",
+            Type::KwMap(_) => "KwMap",
             Type::KwList(_) => "KwList",
             Type::KwField(_) => "KwField",
             Type::Null(_) => "Null",
@@ -906,6 +932,11 @@ impl TypeFn {
         arg_in: CallArg,
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
+        if let RuntimeValue::Comptime(ComptimeValue::Fn(callee)) = &method.value
+            && callee.is_inline()
+        {
+            return crate::user_type::inline_call(env, callee, Vec::new(), arg_in, block);
+        }
         if let RuntimeValue::Comptime(ComptimeValue::Fn(callee)) = &method.value
             && callee.has_comptime_params()
         {
@@ -1497,204 +1528,6 @@ impl CtBuildArtifact {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum McResultNarrow {
-    I32,
-    Fail,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct McResult {
-    pub narrow: Option<McResultNarrow>,
-}
-
-impl McResult {
-    fn cast_into(
-        &self,
-        env: &mut Env,
-        _block: &mut AnalysisBlock,
-        other: AnalysisResult,
-        pos: TokenPosition,
-    ) -> Result<AnalysisResult, PositionedError> {
-        let Type::McResult(other_narrow) = &other.ty else {
-            return Err(throw_err(
-                env,
-                Some(pos),
-                "no implicit cast available",
-                None,
-                None,
-            ));
-        };
-        if self.narrow.is_some() && self.narrow != other_narrow.narrow {
-            return Err(throw_err(env, Some(pos), "cannot widen", None, None));
-        }
-        Ok(other)
-    }
-
-    fn from_number(
-        &self,
-        env: &mut Env,
-        _slot: Type,
-        ast: &IdentifierToken,
-        _block: &mut AnalysisBlock,
-    ) -> Result<AnalysisResult, PositionedError> {
-        let parsed = ast
-            .str
-            .parse::<i32>()
-            .ok()
-            .filter(|v| v.to_string() == ast.str);
-        let Some(parsed) = parsed else {
-            return Err(throw_err(
-                env,
-                Some(ast.pos.clone()),
-                format!("invalid i32: got '{}'", ast.str),
-                None,
-                None,
-            ));
-        };
-        Ok(AnalysisResult {
-            ty: Type::McResult(McResult {
-                narrow: Some(McResultNarrow::I32),
-            }),
-            value: RuntimeValue::Comptime(ComptimeValue::McResult(ComptimeValueMcResult {
-                result: parsed,
-            })),
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum McNbtRefNarrow {
-    String,
-    I8,
-    I16,
-    I32,
-    I64,
-    F32,
-    F64,
-    List(Box<McNbtRef>),
-    Compound(HashMap<String, McNbtRef>),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct McNbtRef {
-    pub narrow: Option<McNbtRefNarrow>,
-}
-
-impl McNbtRef {
-    fn from_string(
-        &self,
-        env: &mut Env,
-        _slot: Type,
-        ast: &BlockToken,
-        block: &mut AnalysisBlock,
-    ) -> Result<AnalysisResult, PositionedError> {
-        let str_result = analyze_base(
-            env,
-            Type::Uint8Array(TypeUint8Array),
-            &SyntaxNode::Block(Box::new(ast.clone())),
-            block,
-        )?;
-        let u8a = get_comptime(
-            env,
-            Some(ComptimeValueKind::Uint8Array),
-            str_result.value,
-            ast.pos.clone(),
-        )?;
-        let ComptimeValue::Uint8Array(u8a) = u8a else {
-            unreachable!("get_comptime guarantees a matching kind")
-        };
-        let decoded = String::from_utf8_lossy(&u8a.value).into_owned();
-        Ok(AnalysisResult {
-            ty: Type::McNbtRef(McNbtRef {
-                narrow: Some(McNbtRefNarrow::String),
-            }),
-            value: RuntimeValue::Comptime(ComptimeValue::McNbtRef(ComptimeValueMcNbtRef::String(
-                decoded,
-            ))),
-        })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct McIdentifier {
-    pub category: Option<String>,
-}
-
-impl McIdentifier {
-    fn from_string(
-        &self,
-        env: &mut Env,
-        _slot: Type,
-        ast: &BlockToken,
-        block: &mut AnalysisBlock,
-    ) -> Result<AnalysisResult, PositionedError> {
-        let str_result = analyze_base(
-            env,
-            Type::Uint8Array(TypeUint8Array),
-            &SyntaxNode::Block(Box::new(ast.clone())),
-            block,
-        )?;
-        let u8a = get_comptime(
-            env,
-            Some(ComptimeValueKind::Uint8Array),
-            str_result.value,
-            ast.pos.clone(),
-        )?;
-        let ComptimeValue::Uint8Array(u8a) = u8a else {
-            unreachable!("get_comptime guarantees a matching kind")
-        };
-        let decoded = String::from_utf8_lossy(&u8a.value).into_owned();
-        let Some((namespace, path)) = parse_mc_identifier(&decoded) else {
-            return Err(throw_err(
-                env,
-                Some(ast.pos.clone()),
-                "invalid minecraft identifier name",
-                None,
-                None,
-            ));
-        };
-        if namespace == ".." {
-            return Err(throw_err(
-                env,
-                Some(ast.pos.clone()),
-                "invalid minecraft identifier name",
-                None,
-                None,
-            ));
-        }
-        Ok(AnalysisResult {
-            ty: Type::McIdentifier(McIdentifier { category: None }),
-            value: RuntimeValue::Comptime(ComptimeValue::McIdentifier(ComptimeValueMcIdentifier {
-                namespace,
-                path,
-            })),
-        })
-    }
-}
-
-fn parse_mc_identifier(decoded: &str) -> Option<(String, String)> {
-    fn is_id_char(c: char) -> bool {
-        matches!(c, '-' | '.' | '_' | '0'..='9' | 'a'..='z')
-    }
-    let (namespace_part, path_part) = match decoded.split_once(':') {
-        Some((ns, path)) => (Some(ns), path),
-        None => (None, decoded),
-    };
-    if let Some(ns) = namespace_part
-        && (ns.is_empty() || !ns.chars().all(is_id_char))
-    {
-        return None;
-    }
-    if path_part.is_empty() || !path_part.chars().all(|c| is_id_char(c) || c == '/') {
-        return None;
-    }
-    Some((
-        namespace_part.unwrap_or("minecraft").to_string(),
-        path_part.to_string(),
-    ))
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct CExportName;
 
@@ -2141,11 +1974,11 @@ fn builtin_operator(ty: &Type, kind: OperatorKind, key: Symbol) -> Option<CBinar
         {
             Some(op)
         }
-        (Type::KwBool(_) | Type::CtType(_) | Type::Target(_), OperatorKind::Lhs, _)
-            if matches!(op, CBinaryOp::Eq | CBinaryOp::Ne) =>
-        {
-            Some(op)
-        }
+        (
+            Type::KwBool(_) | Type::CtType(_) | Type::Target(_) | Type::ReflectFn(_),
+            OperatorKind::Lhs,
+            _,
+        ) if matches!(op, CBinaryOp::Eq | CBinaryOp::Ne) => Some(op),
         _ => None,
     }
 }
@@ -2246,6 +2079,11 @@ pub fn fold_kw_binary(
             CBinaryOp::Eq => bool(a.ty == b.ty),
             CBinaryOp::Ne => bool(a.ty != b.ty),
             _ => unreachable!("std.Type only has == and !="),
+        },
+        (ComptimeValue::Fn(a), ComptimeValue::Fn(b)) => match op {
+            CBinaryOp::Eq => bool(a == b),
+            CBinaryOp::Ne => bool(a != b),
+            _ => unreachable!("std.reflect.Fn only has == and !="),
         },
         (ComptimeValue::Target(a), ComptimeValue::Target(b)) => match op {
             CBinaryOp::Eq => bool(a.env == b.env),

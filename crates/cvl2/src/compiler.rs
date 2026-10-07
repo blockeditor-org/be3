@@ -7,8 +7,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::ct::{
     CExportName, CInt, CallArg, CtAst, CtBuildArtifact, CtBuildArtifactNarrow, CtExportList, CtKey,
-    CtNamespace, CtType, McIdentifier, McNbtRef, McNbtRefNarrow, McResult, OperatorName, Type,
-    TypeBound, TypeFn, TypeLabel, TypeTuple, TypeUnknown, TypeVoid,
+    CtNamespace, CtType, OperatorName, Type, TypeBound, TypeFn, TypeLabel, TypeTuple, TypeUnknown,
+    TypeVoid,
 };
 use crate::parser::{
     BinaryExpressionToken, BlockToken, BracketTag, IdentifierTag, OpTag, OperatorSegmentToken,
@@ -112,7 +112,6 @@ pub fn throw_consumed_err(_consumed: ConsumedErrorToken) -> PositionedError {
 pub enum TargetEnv {
     Build,
     C,
-    Mc,
     User(Symbol),
 }
 
@@ -451,10 +450,6 @@ pub enum AnalysisLine {
         pos: TokenPosition,
         value: RuntimeValue,
     },
-    McExecRaw {
-        pos: TokenPosition,
-        command: RuntimeValue,
-    },
     Emit {
         pos: TokenPosition,
         data: ComptimeValue,
@@ -462,6 +457,30 @@ pub enum AnalysisLine {
         operands: Vec<RuntimeValue>,
         ty: Type,
     },
+}
+
+pub fn set_line_pos(line: &mut AnalysisLine, new_pos: TokenPosition) {
+    match line {
+        AnalysisLine::ComptimeKvListInit { pos }
+        | AnalysisLine::ComptimeKvListAppend { pos, .. }
+        | AnalysisLine::Call { pos, .. }
+        | AnalysisLine::Break { pos, .. }
+        | AnalysisLine::Args { pos }
+        | AnalysisLine::Tuple { pos, .. }
+        | AnalysisLine::TupleGet { pos, .. }
+        | AnalysisLine::CBinary { pos, .. }
+        | AnalysisLine::LabelBegin { pos, .. }
+        | AnalysisLine::LabelEnd { pos, .. }
+        | AnalysisLine::KwBinary { pos, .. }
+        | AnalysisLine::RegionBegin { pos, .. }
+        | AnalysisLine::RegionEnd { pos }
+        | AnalysisLine::MutNew { pos, .. }
+        | AnalysisLine::KwBuiltin { pos, .. }
+        | AnalysisLine::MutGet { pos, .. }
+        | AnalysisLine::MutSet { pos, .. }
+        | AnalysisLine::ComptimeFileCreate { pos, .. }
+        | AnalysisLine::Emit { pos, .. } => *pos = new_pos,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -621,17 +640,6 @@ pub struct ComptimeValueCExportName {
 }
 
 #[derive(Debug, Clone)]
-pub struct ComptimeValueMcIdentifier {
-    pub namespace: String,
-    pub path: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct ComptimeValueMcResult {
-    pub result: i32,
-}
-
-#[derive(Debug, Clone)]
 pub struct ComptimeValueCInt {
     pub value: i32,
 }
@@ -761,11 +769,6 @@ pub struct ComptimeValueOperatorName {
 }
 
 #[derive(Debug, Clone)]
-pub enum ComptimeValueMcNbtRef {
-    String(String),
-}
-
-#[derive(Debug, Clone)]
 pub struct ComptimeValueExportListEntry {
     pub key: ComptimeValue,
     pub key_pos: TokenPosition,
@@ -803,6 +806,14 @@ impl ComptimeValueFn {
             pos,
             specializations: RefCell::new(Vec::new()),
         }))
+    }
+
+    pub fn is_inline(&self) -> bool {
+        self.0
+            .args
+            .tags
+            .iter()
+            .any(|tag| matches!(tag, DestructureTag::Inline { .. }))
     }
 
     pub fn has_comptime_params(&self) -> bool {
@@ -867,8 +878,6 @@ pub enum ComptimeValue {
     Uint8Array(ComptimeValueUint8Array),
     ExportList(ComptimeValueExportList),
     CExportName(ComptimeValueCExportName),
-    McIdentifier(ComptimeValueMcIdentifier),
-    McResult(ComptimeValueMcResult),
     CInt(ComptimeValueCInt),
     OperatorName(ComptimeValueOperatorName),
     KwInt(ComptimeValueKwInt),
@@ -880,13 +889,12 @@ pub enum ComptimeValue {
     Struct(Vec<ComptimeValue>),
     Enum(ComptimeValueEnum),
     KwMut(Rc<RefCell<ComptimeValue>>),
-    McNbtRef(ComptimeValueMcNbtRef),
     Error(ComptimeValueError),
-    Mc(crate::backend::mc::ComptimeValueMc),
     Target(ComptimeValueTarget),
     ReflectValue(crate::reflect::ReflectValue),
     ReflectConstant(Rc<ComptimeValue>),
     ReflectData(Rc<(ComptimeValue, Type)>),
+    KwMap(Rc<Vec<(ComptimeValue, ComptimeValue)>>),
 }
 
 #[derive(Debug, Clone)]
@@ -1133,6 +1141,9 @@ pub enum DestructureTag {
     CallConv {
         pos: TokenPosition,
     },
+    Inline {
+        pos: TokenPosition,
+    },
     Error {
         pos: TokenPosition,
         tok: ConsumedErrorToken,
@@ -1313,13 +1324,20 @@ pub fn read_destructure(
         ));
     }
 
-    let _processed_tags: Vec<DestructureTag> = raw_tags
+    let tags: Vec<DestructureTag> = raw_tags
         .into_iter()
         .map(|tag| {
             if let SyntaxNode::Identifier(id) = &tag
                 && id.str == "callconv_c"
             {
                 return DestructureTag::CallConv {
+                    pos: id.pos.clone(),
+                };
+            }
+            if let SyntaxNode::Identifier(id) = &tag
+                && id.str == "inline"
+            {
+                return DestructureTag::Inline {
                     pos: id.pos.clone(),
                 };
             }
@@ -1348,7 +1366,7 @@ pub fn read_destructure(
                     pos: id.pos.clone(),
                 },
                 ty: ty.unwrap_or(Type::Unknown(TypeUnknown)),
-                tags: Vec::new(),
+                tags: tags.clone(),
                 targets: targets.clone(),
             })
         }
@@ -1357,7 +1375,7 @@ pub fn read_destructure(
                 pos: id.pos.clone(),
             },
             ty: Type::Unknown(TypeUnknown),
-            tags: Vec::new(),
+            tags: tags.clone(),
             targets: targets.clone(),
         }),
         SyntaxNode::Block(b) if b.tag == BracketTag::List => {
@@ -1392,7 +1410,7 @@ pub fn read_destructure(
                     pos: b.pos.clone(),
                 },
                 ty: Type::Tuple(TypeTuple { children: types }),
-                tags: Vec::new(),
+                tags: tags.clone(),
                 targets: targets.clone(),
             })
         }
@@ -2751,7 +2769,7 @@ impl ComptimeNamespace for BuiltinNamespaceImpl {
 }
 
 #[derive(Debug)]
-struct PreludeDescriptor;
+struct PreludeDescriptor(fn() -> crate::user_type::LazyPrelude);
 
 impl Descriptor for PreludeDescriptor {
     fn construct_impl(
@@ -2761,9 +2779,7 @@ impl Descriptor for PreludeDescriptor {
     ) -> Result<AnalysisResult, PositionedError> {
         Ok(AnalysisResult {
             ty: Type::CtNamespace(CtNamespace),
-            value: RuntimeValue::Comptime(ComptimeValue::Namespace(Rc::new(
-                crate::user_type::LazyPrelude::c(),
-            ))),
+            value: RuntimeValue::Comptime(ComptimeValue::Namespace(Rc::new((self.0)()))),
         })
     }
 }
@@ -2853,166 +2869,6 @@ fn build_symbol_value() -> ComptimeValueKey {
         key: build_symbol(),
         child: build_symbol_child_type(),
     }
-}
-
-fn builtin_mc_run_command_call(
-    env: &mut Env,
-    _slot: Type,
-    pos: TokenPosition,
-    arg_ast: CallArg<'_>,
-    block: &mut AnalysisBlock,
-) -> Result<AnalysisResult, PositionedError> {
-    let arg = analyze(
-        env,
-        Type::McNbtRef(McNbtRef {
-            narrow: Some(McNbtRefNarrow::String),
-        }),
-        arg_ast.pos,
-        arg_ast.ast,
-        block,
-    )?;
-    let res = block_append(
-        block,
-        AnalysisLine::McExecRaw {
-            pos,
-            command: arg.value,
-        },
-    );
-    Ok(AnalysisResult {
-        ty: Type::McResult(McResult { narrow: None }),
-        value: RuntimeValue::Runtime(res),
-    })
-}
-
-fn builtin_mc_datapack_compile_call(
-    env: &mut Env,
-    _slot: Type,
-    pos: TokenPosition,
-    arg_ast: CallArg<'_>,
-    block: &mut AnalysisBlock,
-) -> Result<AnalysisResult, PositionedError> {
-    with_target_env(env, TargetEnv::Mc, |env| {
-        let arg_res = analyze(
-            env,
-            Type::CtExportList(CtExportList {
-                key: Box::new(Type::McIdentifier(McIdentifier { category: None })),
-            }),
-            arg_ast.pos,
-            arg_ast.ast,
-            block,
-        )?;
-        let arg_ct = crate::comptime::get_comptime(
-            env,
-            Some(crate::comptime::ComptimeValueKind::ExportList),
-            arg_res.value,
-            pos.clone(),
-        )?;
-        let ComptimeValue::ExportList(arg_ct) = arg_ct else {
-            unreachable!("get_comptime guarantees a matching kind")
-        };
-
-        let mut ctx = crate::backend::mc::McCodegenCtx {
-            fns: HashMap::new(),
-            fn_order: Vec::new(),
-            gid: 0,
-            internal_ns: "_0".to_string(),
-        };
-
-        for item in &arg_ct.exports {
-            let ident = crate::comptime::get_comptime(
-                env,
-                Some(crate::comptime::ComptimeValueKind::McIdentifier),
-                RuntimeValue::Comptime(item.key.clone()),
-                pos.clone(),
-            )?;
-            let ComptimeValue::McIdentifier(ident) = ident else {
-                unreachable!("get_comptime guarantees a matching kind")
-            };
-            let body = analyze(
-                env,
-                Type::Unknown(TypeUnknown),
-                item.value.pos.clone(),
-                &item.value.ast,
-                block,
-            )?;
-            if let Type::Fn(_) = &body.ty {
-                let content = crate::comptime::get_comptime(
-                    env,
-                    Some(crate::comptime::ComptimeValueKind::Fn),
-                    body.value,
-                    item.value.pos.clone(),
-                )?;
-                let ComptimeValue::Fn(content) = content else {
-                    unreachable!("get_comptime guarantees a matching kind")
-                };
-                if ctx.fns.contains_key(&content) {
-                    return Err(throw_err(
-                        env,
-                        Some(pos.clone()),
-                        "duplicate item",
-                        None,
-                        None,
-                    ));
-                }
-                ctx.fns.insert(content.clone(), ident);
-                ctx.fn_order.push(content);
-            } else {
-                return Err(throw_err(
-                    env,
-                    Some(pos.clone()),
-                    format!(
-                        "TODO mc body type: {}",
-                        crate::printers::printers::RUNTIME_VALUE.dump_list(
-                            &[
-                                RuntimeValue::Comptime(item.key.clone()),
-                                RuntimeValue::Comptime(ComptimeValue::Ast(item.value.clone())),
-                            ],
-                            crate::printers::UNLIMITED_DEPTH,
-                        )
-                    ),
-                    None,
-                    None,
-                ));
-            }
-        }
-
-        let mut res_files: Vec<(String, ComptimeValueBuildArtifact)> = Vec::new();
-        let mut idx = 0;
-        while idx < ctx.fn_order.len() {
-            let content = ctx.fn_order[idx].clone();
-            idx += 1;
-            let ident = ctx
-                .fns
-                .get(&content)
-                .expect("registered in ctx.fns when added to fn_order")
-                .clone();
-            let compiled = analyze_function(env, &content)?;
-            let result = crate::backend::mc::codegen_mcfunction(
-                env,
-                &mut ctx,
-                &compiled.block,
-                compiled.value,
-            )?;
-            res_files.push((
-                format!(
-                    "data/{}/functions/{}.mcfunction",
-                    ident.namespace, ident.path
-                ),
-                ComptimeValueBuildArtifact::File(ComptimeFile {
-                    value: result.into_bytes(),
-                }),
-            ));
-        }
-
-        Ok(AnalysisResult {
-            ty: Type::CtBuildArtifact(CtBuildArtifact {
-                narrow: Some(CtBuildArtifactNarrow::Folder),
-            }),
-            value: RuntimeValue::Comptime(ComptimeValue::BuildArtifact(
-                ComptimeValueBuildArtifact::Folder(ComptimeFolder { value: res_files }),
-            )),
-        })
-    })
 }
 
 fn builtin_operator_key(
@@ -3232,6 +3088,47 @@ fn builtin_c_int_from_kw_call(
     Ok(AnalysisResult {
         ty: Type::CInt(CInt),
         value: RuntimeValue::Comptime(ComptimeValue::CInt(ComptimeValueCInt { value })),
+    })
+}
+
+fn builtin_kw_map_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let items = builtin_list_args(env, &pos, &arg_ast, "std.kw.map", 2)?;
+    let mut types = Vec::new();
+    for item in &items {
+        let ty = analyze(
+            env,
+            Type::CtType(CtType),
+            item.pos.clone(),
+            &item.items,
+            block,
+        )?;
+        let ComptimeValue::Type(ty) = crate::comptime::get_comptime(
+            env,
+            Some(crate::comptime::ComptimeValueKind::Type),
+            ty.value,
+            item.pos.clone(),
+        )?
+        else {
+            unreachable!("get_comptime guarantees a matching kind")
+        };
+        types.push(ty.ty);
+    }
+    let value = types.pop().expect("two arguments");
+    let key = types.pop().expect("two arguments");
+    Ok(AnalysisResult {
+        ty: Type::CtType(CtType),
+        value: RuntimeValue::Comptime(ComptimeValue::Type(ComptimeValueType {
+            ty: Type::KwMap(crate::ct::KwMap {
+                key: Box::new(key),
+                value: Box::new(value),
+            }),
+        })),
     })
 }
 
@@ -3672,6 +3569,7 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                             "Data",
                             d_type(Type::ReflectData(crate::ct::TypeReflectData)),
                         ),
+                        ("Fn", d_type(Type::ReflectFn(crate::ct::TypeReflectFn))),
                     ],
                     None,
                 ),
@@ -3714,39 +3612,7 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                         ),
                         (
                             "mc",
-                            d_ns(
-                                vec![
-                                    (
-                                        "runCommand",
-                                        d_ns(vec![], Some(builtin_mc_run_command_call)),
-                                    ),
-                                    (
-                                        "Result",
-                                        d_raw(AnalysisResult {
-                                            ty: Type::CtType(CtType),
-                                            value: RuntimeValue::Comptime(ComptimeValue::Type(
-                                                ComptimeValueType {
-                                                    ty: Type::McResult(McResult { narrow: None }),
-                                                },
-                                            )),
-                                        }),
-                                    ),
-                                    (
-                                        "Datapack",
-                                        d_ns(
-                                            vec![(
-                                                "compile",
-                                                d_ns(
-                                                    vec![],
-                                                    Some(builtin_mc_datapack_compile_call),
-                                                ),
-                                            )],
-                                            None,
-                                        ),
-                                    ),
-                                ],
-                                None,
-                            ),
+                            Rc::new(PreludeDescriptor(crate::user_type::LazyPrelude::mc)),
                         ),
                         (
                             "kw",
@@ -3775,6 +3641,7 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                         }),
                                     ),
                                     ("list", d_ns(vec![], Some(builtin_kw_list_call))),
+                                    ("map", d_ns(vec![], Some(builtin_kw_map_call))),
                                     (
                                         "text",
                                         d_raw(AnalysisResult {
@@ -3856,7 +3723,10 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                 None,
                             ),
                         ),
-                        ("c", Rc::new(PreludeDescriptor)),
+                        (
+                            "c",
+                            Rc::new(PreludeDescriptor(crate::user_type::LazyPrelude::c)),
+                        ),
                         ("Option", d_ns(vec![], Some(builtin_option_call))),
                         ("Struct", d_ns(vec![], Some(builtin_struct_call))),
                         ("Enum", d_ns(vec![], Some(builtin_enum_call))),
