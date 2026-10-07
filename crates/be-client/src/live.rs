@@ -48,6 +48,7 @@ pub struct Live<S: ObjectStore, C: LiveEdit> {
     visible: C,
     base: Option<CommitId>,
     sealed: u64,
+    restarted_at: u64,
     reload: bool,
     catching_up: bool,
     events: Receiver<ServerMessage>,
@@ -86,6 +87,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
             confirmed,
             base: head,
             sealed: 0,
+            restarted_at: 0,
             reload: false,
             catching_up: false,
             events,
@@ -220,6 +222,44 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         if !self.is_owner() {
             self.diverged = true;
         }
+    }
+
+    fn adopt_session_state(&mut self, state: &[u8]) {
+        let shown = self.visible.session_state();
+        let adopted = self
+            .confirmed
+            .adopt_session_state(state)
+            .and_then(|()| self.visible.adopt_session_state(state));
+        if adopted.is_err() {
+            self.unreadable_message();
+        }
+        if self.visible.session_state() != shown {
+            self.journal(Journaled::Replaced { edits: 0 });
+        }
+    }
+
+    pub fn activity(&self) -> Option<u64> {
+        match &self.role {
+            Role::Owner(sequencer) if sequencer.sequence() != self.restarted_at => {
+                Some(sequencer.sequence())
+            }
+            _ => None,
+        }
+    }
+
+    pub async fn restart(&mut self) -> Result<bool, ClientError> {
+        let Role::Owner(sequencer) = &self.role else {
+            return Ok(false);
+        };
+        if !sequencer.is_clean() {
+            return Ok(false);
+        }
+        let sequence = sequencer.sequence();
+        self.adopt_session_state(&[]);
+        self.broadcast(&SessionMessage::Restarted { sequence })
+            .await?;
+        self.restarted_at = sequence;
+        Ok(true)
     }
 
     fn refuse_if_diverged(&self) -> Result<(), ClientError> {
@@ -383,6 +423,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                     head: sequencer.head(),
                     sequence: sequencer.sequence(),
                     ops: sequencer.since(since),
+                    state: self.confirmed.session_state(),
                 };
                 self.send(Some(from), &message).await
             }
@@ -390,6 +431,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 head,
                 sequence,
                 ops,
+                state,
             } => {
                 let Role::Follower(_) = &self.role else {
                     return Ok(());
@@ -409,6 +451,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 for op in &ops {
                     self.apply_accepted(op);
                 }
+                self.adopt_session_state(&state);
                 let Role::Follower(follower) = &mut self.role else {
                     return Ok(());
                 };
@@ -422,6 +465,19 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 Ok(())
             }
             SessionMessage::Replaced { head } => self.adopt_replacement(head).await,
+            SessionMessage::Restarted { sequence } => {
+                let Role::Follower(follower) = &self.role else {
+                    return Ok(());
+                };
+                if follower.applied() != sequence {
+                    let catchup = follower.catchup();
+                    let owner = self.state.owner;
+                    return self.send(owner, &catchup).await;
+                }
+                self.restarted_at = sequence;
+                self.adopt_session_state(&[]);
+                Ok(())
+            }
             SessionMessage::Presence { kind, value } => {
                 if from == self.client {
                     return Ok(());
@@ -441,13 +497,16 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
                 let Role::Follower(follower) = &self.role else {
                     return Ok(());
                 };
-                if !reload && follower.applied() != sequence {
+                if reload.is_none() && follower.applied() != sequence {
                     let catchup = follower.catchup();
                     let owner = self.state.owner;
                     return self.send(owner, &catchup).await;
                 }
-                if reload {
+                if let Some(state) = reload {
                     self.confirmed = self.peer.open_commit::<C>(head).await?;
+                    if self.confirmed.adopt_session_state(&state).is_err() {
+                        self.unreadable_message();
+                    }
                     if let Role::Follower(follower) = &mut self.role {
                         follower.set_applied(sequence);
                     }
@@ -658,7 +717,7 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         sequencer.sealed(head);
         let sequence = sequencer.sequence();
         self.sealed = sequence;
-        let reload = std::mem::take(&mut self.reload);
+        let reload = std::mem::take(&mut self.reload).then(|| self.confirmed.session_state());
         self.broadcast(&SessionMessage::Sealed {
             head,
             sequence,

@@ -15,6 +15,8 @@ mod a_follower_takes_over_and_keeps_editing_without_a_merge;
 mod a_follower_that_falls_behind_catches_up;
 mod a_follower_that_takes_over_keeps_what_it_typed_before_its_first_save;
 mod a_large_image_streams_without_downloading_all_of_it;
+mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
+mod a_quiet_session_restarts_and_its_followers_forget_its_removals;
 mod a_second_follower_keeps_following_after_the_owner_leaves;
 mod a_stale_save_is_rejected_with_the_head_to_merge_against;
 mod an_edit_too_large_to_relay_is_saved_as_a_commit;
@@ -169,6 +171,15 @@ impl BlockContent for Link {
     fn references(&self) -> Vec<Uuid> {
         self.targets.clone()
     }
+}
+
+fn checklist_texts(live: &Live<MemoryStore, be_block::ChecklistContent>) -> Vec<String> {
+    live.content()
+        .root()
+        .items
+        .iter()
+        .map(|item| item.text.clone())
+        .collect()
 }
 
 const PATIENCE: Duration = Duration::from_secs(20);

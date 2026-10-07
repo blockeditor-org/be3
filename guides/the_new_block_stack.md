@@ -329,7 +329,11 @@ values, and every algorithm is written once against that table:
 - **Live editing.** Edits address objects by id and anchor inserts to a sibling,
   so they mean the same thing whatever the sequencer put before them: there is
   nothing to rebase. The tree remembers where each removed or moved-away object
-  was, so an insert anchored after it lands where it was. Anything two peers may
+  was, so an insert anchored after it lands where it was. That memory lives only
+  in the session: it is never saved, the owner hands it to a joining follower in
+  `Snapshot` and to reloading followers in `Sealed` (`LiveEdit::session_state`),
+  and the app's worker drops it with `Live::restart` once a session it owns has
+  been quiet for a minute. Anything two peers may
   create at once for the same purpose (a database row past the end, a canvas
   component for a schema, a logic game solution) takes an id derived from what
   it is for, so the second insert is refused and its edits land on the first.

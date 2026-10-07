@@ -241,9 +241,12 @@ impl<C: LiveEdit + Clone + Default> ContentProjection<C> {
                     if content.content_type != C::CONTENT_TYPE {
                         continue;
                     }
-                    let Ok(confirmed) = C::decode(&content.bytes) else {
+                    let Ok(mut confirmed) = C::decode(&content.bytes) else {
                         continue;
                     };
+                    if confirmed.adopt_session_state(&content.session).is_err() {
+                        continue;
+                    }
                     let taken = content.applied.saturating_sub(self.acknowledged.get());
                     self.acknowledged.set(content.applied);
                     {
