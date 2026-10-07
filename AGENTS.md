@@ -29,7 +29,7 @@ Verification:
   - It will autofix formatting, clippy fixable rules, and it will autofix to enforce project-specific rules: It will delete all code comments & doc comments, it will structure test folders & files to the project's one test per file standard, it will automatically move+rename mod.rs files to be in the parent folder named after the folder instead, and it will format the bodies of `view!` macro calls (rustfmt cannot, because the body is not Rust syntax).
 - `./scripts/buck run //crates/block-app:android`: run this for changes that affect features specific to Android. It builds the APK and signs it into `target/android/block-app.apk`; `-- --install` installs it with adb and starts it. See guides/running_on_android.md.
 - `./scripts/buck build //crates/block-app:web`: run this for changes that affect features specific to web. `./scripts/buck run //crates/block-app:web-serve` serves it, with be-server behind it, on http://127.0.0.1:8080.
-- `./scripts/buck run //crates/block-app:smoke`: run this for changes that could affect native startup or runtime integration. It launches the app in a virtual display with isolated data and a workspace open, then closes its window and fails unless the app exits cleanly.
+- `./scripts/buck run //crates/block-app:smoke`: run this for changes that could affect native startup or runtime integration. It performs a bounded automated launch in a virtual display with isolated data.
 
 Do:
 - Use commit message format `type: message`. Include Co-Authored-By: (model name).
