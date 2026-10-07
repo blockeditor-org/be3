@@ -120,6 +120,8 @@ mod block_append_returns_sequential_indices;
 mod get_err_includes_message_and_trace;
 mod import_file_builds_c_sample;
 mod import_file_builds_demo_sample;
+mod import_file_compare_operator_takes_rhs_type_from_lhs;
+mod import_file_slot_typed_operator_errors_in_unknown_slot;
 mod ns_key_distinguishes_str_and_sym_variants;
 mod read_binary2_extracts_matching_triplet;
 mod read_binary2_returns_none_for_empty_input;

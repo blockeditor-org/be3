@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use crate::backend::c::{CValidatedIdentifierName, validate_c_name};
+use crate::backend::c::{CBinaryOp, CValidatedIdentifierName, validate_c_name};
 use crate::compiler::{
     AnalysisBlock, AnalysisLine, AnalysisResult, Binary2, ComptimeFolder, ComptimeValue,
     ComptimeValueBuildArtifact, ComptimeValueCExportName, ComptimeValueCInt,
@@ -234,6 +234,13 @@ impl Type {
                 None,
                 None,
             )),
+        }
+    }
+
+    pub fn binary_op_result(&self, _op: CBinaryOp) -> Option<Type> {
+        match self {
+            Type::CInt(_) => Some(Type::CInt(CInt)),
+            _ => None,
         }
     }
 

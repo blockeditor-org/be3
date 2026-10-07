@@ -1878,6 +1878,7 @@ fn analyze_label(
 
 fn analyze_binary_op(
     env: &mut Env,
+    slot: Type,
     bin: &BinaryExpressionToken,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
@@ -1886,7 +1887,18 @@ fn analyze_binary_op(
     for item in &bin.items {
         match item {
             SyntaxNode::OperatorSegment(seg) => operands.push(seg),
-            SyntaxNode::Operator(op) => ops.push(op),
+            SyntaxNode::Operator(op) => {
+                let Some(c_op) = crate::backend::c::CBinaryOp::from_token(&op.op) else {
+                    return Err(throw_err(
+                        env,
+                        Some(op.pos.clone()),
+                        format!("unsupported operator: {}", op.op),
+                        None,
+                        None,
+                    ));
+                };
+                ops.push((op, c_op));
+            }
             SyntaxNode::Whitespace(_) => {}
             other => {
                 return Err(throw_err(
@@ -1902,18 +1914,51 @@ fn analyze_binary_op(
             }
         }
     }
-    let int = Type::CInt(CInt);
+
+    let slot_typed = bin.tag != OpTag::Compare;
+    if slot_typed {
+        for (op, c_op) in &ops {
+            if slot.binary_op_result(*c_op).is_none() {
+                return Err(throw_err(
+                    env,
+                    Some(op.pos.clone()),
+                    format!(
+                        "operator {} is not supported in slot: {}",
+                        op.op,
+                        slot.dump()
+                    ),
+                    None,
+                    None,
+                ));
+            }
+        }
+    }
+
+    let operand_slot = |lhs: Option<&AnalysisResult>| match (slot_typed, lhs) {
+        (true, _) => slot.clone(),
+        (false, Some(lhs)) => lhs.ty.clone(),
+        (false, None) => Type::Unknown(TypeUnknown),
+    };
     let first = operands[0];
-    let first = analyze(env, int.clone(), first.pos.clone(), &first.items, block)?;
-    let mut lhs = int.cast_into(env, block, first, bin.pos.clone())?;
-    for (op, seg) in ops.iter().zip(&operands[1..]) {
-        let rhs = analyze(env, int.clone(), seg.pos.clone(), &seg.items, block)?;
-        let rhs = int.cast_into(env, block, rhs, seg.pos.clone())?;
-        let Some(c_op) = crate::backend::c::CBinaryOp::from_token(&op.op) else {
+    let mut lhs = analyze(
+        env,
+        operand_slot(None),
+        first.pos.clone(),
+        &first.items,
+        block,
+    )?;
+    if slot_typed {
+        lhs = slot.cast_into(env, block, lhs, first.pos.clone())?;
+    }
+    for ((op, c_op), seg) in ops.iter().zip(&operands[1..]) {
+        let rhs_slot = operand_slot(Some(&lhs));
+        let rhs = analyze(env, rhs_slot.clone(), seg.pos.clone(), &seg.items, block)?;
+        let rhs = rhs_slot.cast_into(env, block, rhs, seg.pos.clone())?;
+        let Some(ty) = lhs.ty.binary_op_result(*c_op) else {
             return Err(throw_err(
                 env,
                 Some(op.pos.clone()),
-                format!("unsupported operator: {}", op.op),
+                format!("operator {} is not supported on {}", op.op, lhs.ty.dump()),
                 None,
                 None,
             ));
@@ -1922,13 +1967,13 @@ fn analyze_binary_op(
             block,
             AnalysisLine::CBinary {
                 pos: op.pos.clone(),
-                op: c_op,
+                op: *c_op,
                 lhs: lhs.value,
                 rhs: rhs.value,
             },
         );
         lhs = AnalysisResult {
-            ty: int.clone(),
+            ty,
             value: RuntimeValue::Runtime(idx),
         };
     }
@@ -2037,7 +2082,7 @@ pub fn analyze_base(
         SyntaxNode::BinaryExpression(be)
             if matches!(be.tag, OpTag::Compare | OpTag::Add | OpTag::Mul) =>
         {
-            analyze_binary_op(env, be, block)
+            analyze_binary_op(env, slot, be, block)
         }
         SyntaxNode::Block(b) if b.tag == BracketTag::Code => analyze_block(
             env,
