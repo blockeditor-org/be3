@@ -101,6 +101,79 @@ and 8 hours. Revision history is the way back past that.
 - A document edited at least once every 8 hours and never closed by everyone
   never resets. Accepted for now.
 
+## Reprojecting a follower's view
+
+A follower shows `confirmed` plus its pending edits. When someone else's edit
+arrives while it has pending edits, `Live` clones `confirmed`, replays every
+pending edit, and journals `Replaced`; the worker then clears its operation log,
+so the editor plugin gets a whole snapshot instead of the edit. Measured on a
+1 MB text with two clients typing 200 characters each before catching up:
+
+- The rebuild costs incoming edits times pending edits, not document size:
+  200 rebuilds took 61 ms, of which cloning the document is about 60 µs each.
+  With ordinary latency a typist has two or three pending edits, so a rebuild
+  is around 100 µs.
+- The snapshot is the expensive part: 3 ms to encode, 1 MB of bytes plus 1 MB
+  of session state (it repeats the loaded text), 6.5 ms to decode and adopt in
+  the plugin, then every watcher reruns and the editor diffs the document.
+  Over 10 ms per keystroke from a collaborator, whenever you have anything
+  unconfirmed.
+
+Fixes, best value first:
+
+1. **Skip the rebuild when the incoming edit commutes with the pending ones.**
+   Apply it straight to `visible` and journal it as `Applied`, so plugins keep
+   receiving operations. A `LiveEdit::commutes(pending, incoming)` hook that
+   defaults to false. For text: the incoming edit is an insert, delete or
+   undelete; its insert is not anchored on the same position as a pending
+   insert; and nothing pending is a replace, swap or move. That covers nearly
+   all concurrent typing; when it does not hold, order genuinely depends on the
+   sequencer and the rebuild stays.
+2. **Rebuild once per poll, not once per incoming edit.** `apply_accepted` marks
+   `visible` stale and `poll` rebuilds it once, turning a burst of N incoming
+   edits into one rebuild.
+3. **Make the snapshot cheaper.** Leave the loaded buffer out of the session
+   state where the visible bytes already carry it (halves the snapshot), and
+   serialise `Sequence<u8>` as one byte string instead of element by element,
+   which should take most of the 6.5 ms decode away.
+
+## Indenting a whole file
+
+Select-all then Tab is one edit with an insert at every line start, so it splits
+every line's fragment. Measured in release, lines of about 40 bytes:
+
+| | 10k lines (390 KB) | 100k lines (3.9 MB) |
+| --- | --- | --- |
+| apply on each peer | 13 ms | 250 ms |
+| build the edit, take its undo step | 18 ms, 18 ms | 390 ms, 340 ms |
+| operation size | 290 KB | 3 MB |
+| fragments after | 20k | 200k |
+| one keystroke after | 85 µs | 100 µs |
+| cloning the document after | 0.9 ms | 15 ms |
+
+Each indent and unindent adds a tombstone per line (600k fragments after four
+rounds at 100k lines). The time is the per-insert walk over chunks (cost grows
+faster than the line count), the size is a `Change::Text` with its object id per
+line. Fixes, if it matters:
+
+- A Fenwick tree over the chunks' visible counts makes finding an offset and
+  reporting a splice logarithmic, which is most of the apply time.
+- One operation inserting the same client's bytes at many anchors (one buffer
+  append, a list of `(after, len)`) instead of a change per line, which also
+  means `Document::step` takes one change rather than cloning the tree for a
+  multi-change edit.
+- An operation over 1 MB is not relayed: `Live::edit` saves it as a
+  replacement commit, and `adopt_replacement` replays the unsealed operations
+  onto the reloaded content. With text, those operations name positions in the
+  old position space, and the reloaded content has fresh positions, so they
+  would land on the wrong bytes. A replacement must start a new session id and
+  merge unsealed work with diff3 instead. 100k lines of indent is over that
+  limit.
+- Cloning matters because a follower's rebuild clones `confirmed`; after a
+  heavy edit that is 15 ms per incoming keystroke until the session resets.
+  The commuting fast path avoids it; chunks behind `Arc` (copy on write) would
+  make the clone proportional to the number of chunks.
+
 ## Status
 
 Done (in `be-model`, not used by any block yet):
@@ -130,4 +203,5 @@ Still to do:
   inputs use text-editor-core too, so the sequence may need to move into a small
   crate both can depend on.
 - Splices reported through `Touched` (or beside it) to editors.
+- The three reprojection fixes above.
 - The worker's undo history capped at 8 hours as well as 200 steps.
