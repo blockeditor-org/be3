@@ -159,31 +159,20 @@ pub(crate) fn PhoneFiles(
         let (above, _) = create_signal(level.get_untracked().up());
         let (unsearched, unsearch) = create_signal(String::new());
         let at_top = create_memo(clone!(above -> move || above.get() == Level::Root));
-        let (color, folder, set_level, on_menu) = (
-            page_color.clone(),
-            shelf.clone(),
-            shelf.set_level.clone(),
-            menu.clone(),
-        );
-        view! {
-            <Frame color radius=0>
+        clone!(page_color shelf menu -> view! {
+            <Frame color={page_color} radius=0>
                 <List spacing=0.0>
                     <Header
                         level={above.clone()}
-                        set_level
+                        set_level={shelf.set_level.clone()}
                         query={unsearched}
                         set_query={unsearch}
-                        on_menu
+                        on_menu={menu}
                     />
-                    <Folder
-                        @sizing=ItemSize::Percent(100.0)
-                        shelf={folder}
-                        level={above}
-                        at_root={at_top}
-                    />
+                    <Folder @sizing=ItemSize::Percent(100.0) shelf level={above} at_root={at_top} />
                 </List>
             </Frame>
-        }
+        })
     });
     view! {
         <BackSlide enabled={nested} on_back={rising} behind={parent}>

@@ -289,15 +289,14 @@ pub fn BackSlide(
             <Show condition={revealing}>
                 {move || {
                     let page = behind.call(());
-                    let shade = shade.clone();
-                    view! {
-                        <Shift by={behind_shift.clone()}>
+                    clone!(shade behind_shift -> view! {
+                        <Shift by={behind_shift}>
                             <Layers>
                                 {page}
                                 <Frame color={shade} />
                             </Layers>
                         </Shift>
-                    }
+                    })
                 }}
             </Show>
             {page}

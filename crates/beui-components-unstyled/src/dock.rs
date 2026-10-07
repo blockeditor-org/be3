@@ -1122,13 +1122,9 @@ fn DockStack(dock: Handle) -> NodeId {
     view! {
         <BackSlide
             enabled={away}
-            behind={move || {
-                let (dock, tabs, set_switching) =
-                    (homeward.clone(), tabs.clone(), set_switching.clone());
-                view! {
-                    <HomePreview dock tabs set_switching />
-                }
-            }}
+            behind={move || clone!(homeward tabs set_switching -> view! {
+                <HomePreview dock={homeward} tabs set_switching />
+            })}
             on_back={move || {
                 if let Some(home) = going.home.get_untracked() {
                     going.show(home);

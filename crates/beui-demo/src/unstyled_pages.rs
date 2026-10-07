@@ -1566,12 +1566,11 @@ fn FolderPages() -> NodeId {
     let ink = theme.text.clone();
     let above = clone!(depth page ink -> move || {
         let label = folder_label(depth.get_untracked().saturating_sub(1));
-        let (page, ink) = (page.clone(), ink.clone());
-        view! {
+        clone!(page ink -> view! {
             <Frame color={page} radius=0>
                 <Text string={label} color={ink} wrap=true />
             </Frame>
-        }
+        })
     });
     let label = create_memo(clone!(depth -> move || folder_label(depth.get())));
     view! {
