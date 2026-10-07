@@ -123,6 +123,7 @@ fn build_c_fn(body: &str) -> Result<String, Vec<TokenizationError>> {
 f :: (a: std.c.int, b: std.c.int) => std.c.int: {{
 {body}
 }}
+g :: (x: std.c.int) => std.c.int: x
 std :: #builtin.std"
         ),
     )?;
@@ -150,12 +151,16 @@ mod block_append_returns_sequential_indices;
 mod get_err_includes_message_and_trace;
 mod import_file_builds_c_sample;
 mod import_file_builds_demo_sample;
+mod import_file_c_if_requires_c_target;
 mod import_file_compare_operator_takes_rhs_type_from_lhs;
 mod import_file_operator_errors_without_slot_or_lhs;
 mod import_file_operator_falls_back_to_lhs_in_unknown_slot;
 mod import_file_operator_name_must_be_an_operator;
+mod import_file_written_calls_match_calls;
+mod import_file_written_literals_match_literals;
 mod import_file_written_operators_match_desugared_operators;
 mod ns_key_distinguishes_str_and_sym_variants;
+mod per_comptime_scope_cache_keys_on_target;
 mod read_binary2_extracts_matching_triplet;
 mod read_binary2_returns_none_for_empty_input;
 mod read_binary2_returns_none_for_non_matching_tag;

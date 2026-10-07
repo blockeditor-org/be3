@@ -79,7 +79,7 @@ pub fn empty_block() -> AnalysisBlock {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Symbol(u64);
 
 impl Symbol {
@@ -108,7 +108,7 @@ pub fn throw_consumed_err(_consumed: ConsumedErrorToken) -> PositionedError {
     PositionedError::Consumed
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TargetEnv {
     Build,
     C,
@@ -140,6 +140,20 @@ impl ComptimeScopeMap {
             return Some(*v);
         }
         self.parent.as_ref().and_then(|p| p.get(key))
+    }
+
+    pub fn snapshot(&self) -> ComptimeSnapshot {
+        let mut values: HashMap<Symbol, TargetEnv> = HashMap::new();
+        let mut current = Some(self);
+        while let Some(map) = current {
+            for (key, value) in &map.changes {
+                values.entry(*key).or_insert(*value);
+            }
+            current = map.parent.as_deref();
+        }
+        let mut values: Vec<(Symbol, TargetEnv)> = values.into_iter().collect();
+        values.sort_by_key(|(key, _)| *key);
+        values
     }
 
     pub fn sub(self: &Rc<Self>, changes: HashMap<Symbol, TargetEnv>) -> Rc<Self> {
@@ -188,9 +202,11 @@ pub trait CacheKey {
     fn cache_ptr(&self) -> usize;
 }
 
+pub type ComptimeSnapshot = Vec<(Symbol, TargetEnv)>;
+
 pub struct PerComptimeScopeCache<K, V> {
-    entries: RefCell<HashMap<usize, V>>,
-    in_progress: RefCell<HashSet<usize>>,
+    entries: RefCell<HashMap<(usize, ComptimeSnapshot), V>>,
+    in_progress: RefCell<HashSet<(usize, ComptimeSnapshot)>>,
     _marker: PhantomData<K>,
 }
 
@@ -214,23 +230,66 @@ impl<K: CacheKey, V: Clone> PerComptimeScopeCache<K, V> {
     pub fn get_or_put(
         &self,
         key: &K,
+        comptime: &ComptimeScopeMap,
         env: &mut Env,
         cb: impl FnOnce(&mut Env) -> Result<V, PositionedError>,
     ) -> Result<V, PositionedError> {
-        let ptr = key.cache_ptr();
-        if let Some(v) = self.entries.borrow().get(&ptr) {
+        let key = (key.cache_ptr(), comptime.snapshot());
+        if let Some(v) = self.entries.borrow().get(&key) {
             return Ok(v.clone());
         }
-        if !self.in_progress.borrow_mut().insert(ptr) {
+        if !self.in_progress.borrow_mut().insert(key.clone()) {
             return Err(throw_err(env, None, "dependency loop", None, None));
         }
         match cb(env) {
             Ok(v) => {
-                self.in_progress.borrow_mut().remove(&ptr);
-                self.entries.borrow_mut().insert(ptr, v.clone());
+                self.in_progress.borrow_mut().remove(&key);
+                self.entries.borrow_mut().insert(key, v.clone());
                 Ok(v)
             }
             Err(e) => Err(e),
+        }
+    }
+}
+
+impl Env {
+    pub fn target(&self) -> TargetEnv {
+        self.scope
+            .comptime
+            .get(target_env_symbol())
+            .expect("the root comptime scope sets the target")
+    }
+
+    pub fn require_target(
+        &self,
+        target: TargetEnv,
+        pos: TokenPosition,
+        what: &str,
+    ) -> Result<(), PositionedError> {
+        if self.target() == target {
+            return Ok(());
+        }
+        Err(throw_err(
+            self,
+            Some(pos),
+            format!(
+                "{what} is only available when compiling to {}, not {}",
+                target.name(),
+                self.target().name()
+            ),
+            None,
+            None,
+        ))
+    }
+}
+
+impl TargetEnv {
+    pub fn name(self) -> &'static str {
+        match self {
+            TargetEnv::Build => "the build",
+            TargetEnv::C => "C",
+            TargetEnv::Mc => "a datapack",
+            TargetEnv::Todo => "an unfinished target",
         }
     }
 }
@@ -306,7 +365,8 @@ pub fn get_declaration(
 ) -> Result<ComptimeAnalysisResult, PositionedError> {
     let cache = env.decl_cache.clone();
     let key = decl.clone();
-    cache.get_or_put(&key, env, move |env| {
+    let comptime = decl.ast().scope.comptime.clone();
+    cache.get_or_put(&key, &comptime, env, move |env| {
         let scope = decl.ast().scope.clone();
         with_scope(env, scope, |env| {
             let mut block = empty_block();
@@ -1587,7 +1647,8 @@ pub fn analyze_function(
         fn_value.body().scope.bindings.clone(),
     );
     let cache = env.fn_cache.clone();
-    let result = cache.get_or_put(fn_value, env, |env| {
+    let comptime = env.scope.comptime.clone();
+    let result = cache.get_or_put(fn_value, &comptime, env, |env| {
         let mut block = empty_block();
         let args_idx = block_append(
             &mut block,
@@ -1986,7 +2047,7 @@ fn analyze_binary_op(
         }
     };
 
-    let slot_key = crate::operator::operator_symbol(crate::operator::OperatorKind::Slot, &op.op);
+    let slot_key = crate::std_keys::operator_symbol(crate::std_keys::OperatorKind::Slot, &op.op);
     if let Some(slot_op) = slot.type_symbol(slot_key) {
         let args = SyntaxNode::Block(Box::new(BlockToken {
             pos: op.pos.clone(),
@@ -2030,7 +2091,7 @@ fn analyze_binary_op(
         &lhs.items,
         block,
     )?;
-    let lhs_key = crate::operator::operator_symbol(crate::operator::OperatorKind::Lhs, &op.op);
+    let lhs_key = crate::std_keys::operator_symbol(crate::std_keys::OperatorKind::Lhs, &op.op);
     if !lhs.ty.has_value_symbol(lhs_key) {
         return Err(throw_err(
             env,
@@ -2151,19 +2212,34 @@ pub fn analyze_base(
                 }
             }
         }
-        SyntaxNode::Block(b) if b.tag == BracketTag::String => {
-            slot.clone().from_string(env, slot, b, block)
-        }
+        SyntaxNode::Block(b) if b.tag == BracketTag::String => crate::ct::analyze_literal(
+            env,
+            slot,
+            crate::std_keys::LiteralKind::String,
+            b.pos.clone(),
+            ast,
+            block,
+        ),
         SyntaxNode::Raw(r) if r.tag == RawTag::Void => Ok(AnalysisResult {
             ty: Type::Void(TypeVoid),
             value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
         }),
-        SyntaxNode::Block(b) if b.tag == BracketTag::Map => {
-            slot.clone().from_map(env, slot, b, block)
-        }
-        SyntaxNode::Block(b) if b.tag == BracketTag::List => {
-            slot.clone().from_list(env, slot, b, block)
-        }
+        SyntaxNode::Block(b) if b.tag == BracketTag::Map => crate::ct::analyze_literal(
+            env,
+            slot,
+            crate::std_keys::LiteralKind::Map,
+            b.pos.clone(),
+            ast,
+            block,
+        ),
+        SyntaxNode::Block(b) if b.tag == BracketTag::List => crate::ct::analyze_literal(
+            env,
+            slot,
+            crate::std_keys::LiteralKind::List,
+            b.pos.clone(),
+            ast,
+            block,
+        ),
         SyntaxNode::BinaryExpression(be)
             if matches!(be.tag, OpTag::Compare | OpTag::Add | OpTag::Mul) =>
         {
@@ -2187,7 +2263,14 @@ pub fn analyze_base(
             },
         ),
         SyntaxNode::Identifier(id) if id.ident_tag == IdentifierTag::Number => {
-            slot.clone().from_number(env, slot, id, block)
+            crate::ct::analyze_literal(
+                env,
+                slot,
+                crate::std_keys::LiteralKind::Number,
+                id.pos.clone(),
+                ast,
+                block,
+            )
         }
         SyntaxNode::BinaryExpression(be) if be.tag == OpTag::Assign => {
             let rbr = read_binary2(env, std::slice::from_ref(ast), OpTag::Assign)?;
@@ -2254,7 +2337,10 @@ fn descriptor_construct(
     let cache = env.builtin_cache.clone();
     let d2 = d.clone();
     let route2 = route.to_string();
-    cache.get_or_put(d, env, move |env| d2.construct_impl(env, &route2))
+    let comptime = env.scope.comptime.clone();
+    cache.get_or_put(d, &comptime, env, move |env| {
+        d2.construct_impl(env, &route2)
+    })
 }
 
 impl CacheKey for Rc<dyn Descriptor> {
@@ -2378,6 +2464,16 @@ fn d_raw(result: AnalysisResult) -> Rc<dyn Descriptor> {
     Rc::new(CustomDescriptor(result))
 }
 
+fn d_std_key(key: crate::std_keys::StdKey) -> Rc<dyn Descriptor> {
+    d_raw(AnalysisResult {
+        ty: Type::CtKey(CtKey),
+        value: RuntimeValue::Comptime(ComptimeValue::Key(ComptimeValueKey::Symbol {
+            key: crate::std_keys::std_key(key),
+            child: Type::Unknown(TypeUnknown),
+        })),
+    })
+}
+
 fn d_ns(entries: Vec<(&str, Rc<dyn Descriptor>)>, call: Option<BuiltinFn>) -> Rc<dyn Descriptor> {
     Rc::new(NamespaceDescriptor {
         entries: entries
@@ -2420,6 +2516,7 @@ fn builtin_mc_run_command_call(
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
+    env.require_target(TargetEnv::Mc, pos.clone(), "std.mc.runCommand")?;
     let arg = analyze(
         env,
         Type::McNbtRef(McNbtRef {
@@ -2575,7 +2672,7 @@ fn builtin_mc_datapack_compile_call(
 
 fn builtin_operator_key(
     env: &mut Env,
-    kind: crate::operator::OperatorKind,
+    kind: crate::std_keys::OperatorKind,
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
@@ -2599,7 +2696,7 @@ fn builtin_operator_key(
     Ok(AnalysisResult {
         ty: Type::CtKey(CtKey),
         value: RuntimeValue::Comptime(ComptimeValue::Key(ComptimeValueKey::Symbol {
-            key: crate::operator::operator_symbol(kind, &name.value),
+            key: crate::std_keys::operator_symbol(kind, &name.value),
             child: Type::Unknown(TypeUnknown),
         })),
     })
@@ -2612,7 +2709,7 @@ fn builtin_operator_slot_call(
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
-    builtin_operator_key(env, crate::operator::OperatorKind::Slot, arg_ast, block)
+    builtin_operator_key(env, crate::std_keys::OperatorKind::Slot, arg_ast, block)
 }
 
 fn builtin_operator_lhs_call(
@@ -2622,7 +2719,7 @@ fn builtin_operator_lhs_call(
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
-    builtin_operator_key(env, crate::operator::OperatorKind::Lhs, arg_ast, block)
+    builtin_operator_key(env, crate::std_keys::OperatorKind::Lhs, arg_ast, block)
 }
 
 fn builtin_c_if_call(
@@ -2632,6 +2729,7 @@ fn builtin_c_if_call(
     arg_ast: CallArg<'_>,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
+    env.require_target(TargetEnv::C, pos.clone(), "std.c.if")?;
     let int = Type::CInt(CInt);
     let cond = analyze(env, int.clone(), arg_ast.pos, arg_ast.ast, block)?;
     let cond = int.cast_into(env, block, cond, pos)?;
@@ -2811,6 +2909,39 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                 vec![
                                     ("slot", d_ns(vec![], Some(builtin_operator_slot_call))),
                                     ("lhs", d_ns(vec![], Some(builtin_operator_lhs_call))),
+                                    ("call", d_std_key(crate::std_keys::StdKey::Call)),
+                                ],
+                                None,
+                            ),
+                        ),
+                        (
+                            "literal",
+                            d_ns(
+                                vec![
+                                    (
+                                        "string",
+                                        d_std_key(crate::std_keys::StdKey::Literal(
+                                            crate::std_keys::LiteralKind::String,
+                                        )),
+                                    ),
+                                    (
+                                        "number",
+                                        d_std_key(crate::std_keys::StdKey::Literal(
+                                            crate::std_keys::LiteralKind::Number,
+                                        )),
+                                    ),
+                                    (
+                                        "list",
+                                        d_std_key(crate::std_keys::StdKey::Literal(
+                                            crate::std_keys::LiteralKind::List,
+                                        )),
+                                    ),
+                                    (
+                                        "map",
+                                        d_std_key(crate::std_keys::StdKey::Literal(
+                                            crate::std_keys::LiteralKind::Map,
+                                        )),
+                                    ),
                                 ],
                                 None,
                             ),

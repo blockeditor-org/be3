@@ -12,17 +12,20 @@ use crate::compiler::{
     ComptimeValueKey, ComptimeValueMcIdentifier, ComptimeValueMcNbtRef, ComptimeValueMcResult,
     ComptimeValueOperatorName, ComptimeValueUint8Array, ComptimeValueVoid, ConsumedErrorToken, Env,
     PositionedError, RuntimeValue, Symbol, Uint8ArraySourcemapEntry, add_err, analyze,
-    analyze_base, analyze_block, analyze_function, block_append, cast_value, compiler_pos,
-    create_declaration, empty_block, get_declaration, read_binary, throw_consumed_err, throw_err,
-    trim_ws,
+    analyze_base, analyze_block, analyze_call, analyze_function, block_append, cast_value,
+    compiler_pos, create_declaration, empty_block, get_declaration, read_binary,
+    throw_consumed_err, throw_err, trim_ws,
 };
 use crate::comptime::{ComptimeValueKind, comptime_eval, get_comptime};
-use crate::operator::{OperatorKind, symbol_operator};
 use crate::parser::{
-    BlockToken, ErrorStyle, IdentifierToken, OpTag, OperatorSegmentToken, RawTag, SyntaxNode,
-    TokenPosition, is_overloadable_operator, unescape_string,
+    BlockToken, BracketTag, ErrorStyle, IdentifierTag, IdentifierToken, OpTag,
+    OperatorSegmentToken, RawTag, SyntaxNode, TokenPosition, is_overloadable_operator,
+    unescape_string,
 };
 use crate::printers::printers::AST_NODE;
+use crate::std_keys::{
+    LiteralKind, OperatorKind, StdKey, std_key, symbol_operator, symbol_std_key,
+};
 
 pub struct CallArg<'a> {
     pub pos: TokenPosition,
@@ -86,91 +89,74 @@ impl Type {
         }
     }
 
-    pub fn from_string(
-        &self,
-        env: &mut Env,
-        slot: Type,
-        ast: &BlockToken,
-        block: &mut AnalysisBlock,
-    ) -> Result<AnalysisResult, PositionedError> {
-        match self {
-            Type::Uint8Array(t) => t.from_string(env, slot, ast, block),
-            Type::CtBuildArtifact(t) => t.from_string(env, slot, ast, block),
-            Type::McNbtRef(t) => t.from_string(env, slot, ast, block),
-            Type::McIdentifier(t) => t.from_string(env, slot, ast, block),
-            Type::CExportName(t) => t.from_string(env, slot, ast, block),
-            Type::OperatorName(t) => t.from_string(env, ast, block),
-            _ => Err(throw_err(
-                env,
-                Some(ast.pos.clone()),
-                format!("String is not supported in slot: {}", self.dump()),
-                None,
-                None,
-            )),
+    fn supports_literal(&self, kind: LiteralKind) -> bool {
+        match kind {
+            LiteralKind::String => matches!(
+                self,
+                Type::Uint8Array(_)
+                    | Type::CtBuildArtifact(_)
+                    | Type::McNbtRef(_)
+                    | Type::McIdentifier(_)
+                    | Type::CExportName(_)
+                    | Type::OperatorName(_)
+            ),
+            LiteralKind::Map => matches!(self, Type::CtExportList(_) | Type::CtBuildArtifact(_)),
+            LiteralKind::List => matches!(self, Type::Tuple(_)),
+            LiteralKind::Number => matches!(self, Type::McResult(_) | Type::CInt(_)),
         }
     }
 
-    pub fn from_map(
+    fn analyze_literal(
         &self,
         env: &mut Env,
-        slot: Type,
-        ast: &BlockToken,
+        kind: LiteralKind,
+        pos: TokenPosition,
+        node: &SyntaxNode,
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
-        match self {
-            Type::CtExportList(t) => t.from_map(env, slot, ast, block),
-            Type::CtBuildArtifact(t) => t.from_map(env, slot, ast, block),
-            _ => Err(throw_err(
-                env,
-                Some(ast.pos.clone()),
-                format!("Map is not supported in slot: {}", self.dump()),
-                None,
-                None,
-            )),
-        }
-    }
-
-    pub fn from_list(
-        &self,
-        env: &mut Env,
-        slot: Type,
-        ast: &BlockToken,
-        block: &mut AnalysisBlock,
-    ) -> Result<AnalysisResult, PositionedError> {
-        if let Type::Tuple(t) = self {
-            return t.from_list(env, ast, block);
-        }
-        let items = list_items(env, ast)?;
-        let [item] = items.as_slice() else {
-            return Err(throw_err(
-                env,
-                Some(ast.pos.clone()),
-                format!("List is not supported in slot: {}", self.dump()),
-                None,
-                None,
-            ));
+        let slot = self.clone();
+        let result = match (kind, self) {
+            (LiteralKind::String, Type::Uint8Array(t)) => literal_block(node, BracketTag::String)
+                .map(|ast| t.from_string(env, slot, ast, block)),
+            (LiteralKind::String, Type::CtBuildArtifact(t)) => {
+                literal_block(node, BracketTag::String)
+                    .map(|ast| t.from_string(env, slot, ast, block))
+            }
+            (LiteralKind::String, Type::McNbtRef(t)) => literal_block(node, BracketTag::String)
+                .map(|ast| t.from_string(env, slot, ast, block)),
+            (LiteralKind::String, Type::McIdentifier(t)) => literal_block(node, BracketTag::String)
+                .map(|ast| t.from_string(env, slot, ast, block)),
+            (LiteralKind::String, Type::CExportName(t)) => literal_block(node, BracketTag::String)
+                .map(|ast| t.from_string(env, slot, ast, block)),
+            (LiteralKind::String, Type::OperatorName(t)) => {
+                literal_block(node, BracketTag::String).map(|ast| t.from_string(env, ast, block))
+            }
+            (LiteralKind::Map, Type::CtExportList(t)) => {
+                literal_block(node, BracketTag::Map).map(|ast| t.from_map(env, slot, ast, block))
+            }
+            (LiteralKind::Map, Type::CtBuildArtifact(t)) => {
+                literal_block(node, BracketTag::Map).map(|ast| t.from_map(env, slot, ast, block))
+            }
+            (LiteralKind::List, Type::Tuple(t)) => {
+                literal_block(node, BracketTag::List).map(|ast| t.from_list(env, ast, block))
+            }
+            (LiteralKind::Number, Type::McResult(t)) => {
+                literal_number(node).map(|ast| t.from_number(env, slot, ast, block))
+            }
+            (LiteralKind::Number, Type::CInt(t)) => {
+                literal_number(node).map(|ast| t.from_number(env, ast))
+            }
+            _ => unreachable!("literal hooks only exist for supported literals"),
         };
-        analyze(env, slot, item.pos.clone(), &item.items, block)
-    }
-
-    pub fn from_number(
-        &self,
-        env: &mut Env,
-        slot: Type,
-        ast: &IdentifierToken,
-        block: &mut AnalysisBlock,
-    ) -> Result<AnalysisResult, PositionedError> {
-        match self {
-            Type::McResult(t) => t.from_number(env, slot, ast, block),
-            Type::CInt(t) => t.from_number(env, ast),
-            _ => Err(throw_err(
+        result.unwrap_or_else(|| {
+            Err(throw_err(
                 env,
-                Some(ast.pos.clone()),
-                format!("Number is not supported in slot: {}", self.dump()),
+                Some(pos),
+                format!("expected a {} literal", kind.name()),
                 None,
                 None,
-            )),
-        }
+            ))
+        })
     }
 
     pub fn dump(&self) -> String {
@@ -209,6 +195,29 @@ impl Type {
         arg_in: CallArg,
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
+        let key = std_key(StdKey::Call);
+        if !self.has_value_symbol(key) {
+            return Err(throw_err(
+                env,
+                Some(pos),
+                format!("not supported call type: {}", self.dump()),
+                None,
+                None,
+            ));
+        }
+        self.call_bound(env, slot, key, method, pos, arg_in, block)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn builtin_call(
+        &self,
+        env: &mut Env,
+        slot: Type,
+        pos: TokenPosition,
+        method: AnalysisResult,
+        arg_in: CallArg,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
         match self {
             Type::Fn(t) => t.analyze_call(env, slot, pos, method, arg_in, block),
             Type::CtNamespace(t) => t.analyze_call(env, slot, pos, method, arg_in, block),
@@ -217,14 +226,8 @@ impl Type {
             Type::Label(t) => t.analyze_call(env, pos, arg_in, block),
             Type::Bound(t) => t
                 .receiver
-                .call_bound(env, t.key, method, pos, arg_in, block),
-            _ => Err(throw_err(
-                env,
-                Some(pos),
-                format!("not supported call type: {}", self.dump()),
-                None,
-                None,
-            )),
+                .call_bound(env, slot, t.key, method, pos, arg_in, block),
+            _ => unreachable!("has_value_symbol only accepts calls on callable types"),
         }
     }
 
@@ -284,6 +287,16 @@ impl Type {
     }
 
     pub fn type_symbol(&self, key: Symbol) -> Option<AnalysisResult> {
+        if let Some(StdKey::Literal(kind)) = symbol_std_key(key) {
+            return self.supports_literal(kind).then(|| AnalysisResult {
+                ty: Type::CtNamespace(CtNamespace),
+                value: RuntimeValue::Comptime(ComptimeValue::Namespace(Rc::new(LiteralHook {
+                    ty: self.clone(),
+                    kind,
+                    pos: compiler_pos(),
+                }))),
+            });
+        }
         match self {
             Type::CInt(_) => c_int_operator(OperatorKind::Slot, key).map(|op| AnalysisResult {
                 ty: Type::CtNamespace(CtNamespace),
@@ -299,21 +312,37 @@ impl Type {
     }
 
     pub fn has_value_symbol(&self, key: Symbol) -> bool {
+        if symbol_std_key(key) == Some(StdKey::Call) {
+            return matches!(
+                self,
+                Type::Fn(_)
+                    | Type::CtNamespace(_)
+                    | Type::CtType(_)
+                    | Type::CIf(_)
+                    | Type::Label(_)
+                    | Type::Bound(_)
+            );
+        }
         match self {
             Type::CInt(_) => c_int_operator(OperatorKind::Lhs, key).is_some(),
             _ => false,
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn call_bound(
         &self,
         env: &mut Env,
+        slot: Type,
         key: Symbol,
         receiver: AnalysisResult,
         pos: TokenPosition,
         arg_in: CallArg,
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
+        if symbol_std_key(key) == Some(StdKey::Call) {
+            return self.builtin_call(env, slot, pos, receiver, arg_in, block);
+        }
         match self {
             Type::CInt(_) => {
                 let Some(op) = c_int_operator(OperatorKind::Lhs, key) else {
@@ -1241,11 +1270,126 @@ fn access_key(
 fn key_description(key: &ComptimeValueKey) -> String {
     match key {
         ComptimeValueKey::String { key } => format!("field '{key}'"),
-        ComptimeValueKey::Symbol { key, .. } => match symbol_operator(*key) {
-            Some((OperatorKind::Slot, op)) => format!("std.operator.slot(\"{op}\")"),
-            Some((OperatorKind::Lhs, op)) => format!("std.operator.lhs(\"{op}\")"),
-            None => "such symbol".to_string(),
-        },
+        ComptimeValueKey::Symbol { key, .. } => symbol_std_key(*key)
+            .map(|key| key.describe())
+            .unwrap_or_else(|| "such symbol".to_string()),
+    }
+}
+
+fn literal_block(node: &SyntaxNode, tag: BracketTag) -> Option<&BlockToken> {
+    match node {
+        SyntaxNode::Block(b) if b.tag == tag => Some(b),
+        _ => None,
+    }
+}
+
+fn literal_number(node: &SyntaxNode) -> Option<&IdentifierToken> {
+    match node {
+        SyntaxNode::Identifier(id) if id.ident_tag == IdentifierTag::Number => Some(id),
+        _ => None,
+    }
+}
+
+pub fn analyze_literal(
+    env: &mut Env,
+    slot: Type,
+    kind: LiteralKind,
+    pos: TokenPosition,
+    node: &SyntaxNode,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    if let Some(hook) = slot.type_symbol(std_key(StdKey::Literal(kind))) {
+        return analyze_call(
+            env,
+            slot,
+            pos.clone(),
+            hook,
+            CallArg {
+                pos,
+                ast: std::slice::from_ref(node),
+            },
+            block,
+        );
+    }
+    if let (LiteralKind::List, SyntaxNode::Block(ast)) = (kind, node) {
+        let items = list_items(env, ast)?;
+        if let [item] = items.as_slice() {
+            return analyze(env, slot, item.pos.clone(), &item.items, block);
+        }
+    }
+    let title = match kind {
+        LiteralKind::String => "String",
+        LiteralKind::Number => "Number",
+        LiteralKind::List => "List",
+        LiteralKind::Map => "Map",
+    };
+    Err(throw_err(
+        env,
+        Some(pos),
+        format!("{title} is not supported in slot: {}", slot.dump()),
+        None,
+        None,
+    ))
+}
+
+#[derive(Debug)]
+struct LiteralHook {
+    ty: Type,
+    kind: LiteralKind,
+    pos: TokenPosition,
+}
+
+impl ComptimeNamespace for LiteralHook {
+    fn get_string(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        field: &str,
+        _block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        Err(throw_err(
+            env,
+            Some(pos),
+            format!("std.literal.{} has no field: {field}", self.kind.name()),
+            None,
+            None,
+        ))
+    }
+
+    fn get_symbol(
+        &self,
+        _env: &mut Env,
+        _pos: TokenPosition,
+        _keychild: Type,
+        _field: Symbol,
+        _block: &mut AnalysisBlock,
+    ) -> Result<Option<AnalysisResult>, PositionedError> {
+        Ok(None)
+    }
+
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        _slot: Type,
+        pos: TokenPosition,
+        arg: CallArg<'_>,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let items = trim_ws(arg.ast);
+        let [node] = items.as_slice() else {
+            return Err(throw_err(
+                env,
+                Some(arg.pos),
+                format!("expected a {} literal", self.kind.name()),
+                None,
+                None,
+            ));
+        };
+        self.ty.analyze_literal(env, self.kind, pos, node, block)
+    }
+
+    fn pos(&self) -> &TokenPosition {
+        &self.pos
     }
 }
 
