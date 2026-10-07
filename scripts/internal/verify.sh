@@ -256,8 +256,7 @@ render_previews() {
             fi
         done
     read -r added removed files < <(git diff --numstat "$from" HEAD -- . \
-        ':(exclude,glob)**/tests.rs' ':(exclude,glob)**/tests/**' \
-        ':(exclude,glob)**/test.rs' ':(exclude,glob)**/test/**' |
+        ':(exclude,glob)**/tests.rs' ':(exclude,glob)**/tests/**' |
         awk '$1 != "-" { added += $1; removed += $2; files++ }
             END { printf "%d %d %d\n", added, removed, files }') || return 1
     "$renderer" "$before" "$after" "$previews" "$added" "$removed" "$files"
