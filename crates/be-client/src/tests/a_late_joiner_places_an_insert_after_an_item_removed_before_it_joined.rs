@@ -1,7 +1,7 @@
 use super::*;
 
 use be_block::be_model::{Anchor, ObjectId};
-use be_block::{Checklist, ChecklistContent, ChecklistItem, LiveEdit};
+use be_block::{Checklist, ChecklistContent, ChecklistItem};
 
 #[tokio::test]
 async fn a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined() {

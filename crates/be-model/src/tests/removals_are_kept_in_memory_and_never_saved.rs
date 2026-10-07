@@ -8,7 +8,7 @@ fn removals_are_kept_in_memory_and_never_saved() {
     let removed = edited(&base, [Change::remove(write)]);
     let reloaded = Document::<Board>::from_bytes(&removed.to_bytes()).expect("the bytes decode");
 
-    assert!(!removed.removals().is_empty());
-    assert!(reloaded.removals().is_empty());
+    assert!(!removed.session_state().is_empty());
+    assert!(reloaded.session_state().is_empty());
     assert_eq!(reloaded, removed);
 }

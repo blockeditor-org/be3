@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use be_commit::merge_slices;
+use be_commit::{merge::join_lines, merge_lines, merge_slices, render_conflicts};
 
-use crate::{Object, ObjectId, Objects, Place, Tree, Value};
+use crate::{Object, ObjectId, Objects, Place, Sequence, Tree, Value};
 
 pub(crate) fn merge3(base: &Tree, ours: &Tree, theirs: &Tree) -> (Tree, usize) {
     let mut conflicts = 0;
@@ -71,6 +71,7 @@ pub(crate) fn merge3(base: &Tree, ours: &Tree, theirs: &Tree) -> (Tree, usize) {
     restore_ancestors(&mut kept, [ours, theirs, base], &mut conflicts);
     let mut merged = Tree::from_objects(kept);
     rebuild_lists(&mut merged, base, ours, theirs, &mut conflicts);
+    merged.refresh_texts();
     (merged, conflicts)
 }
 
@@ -172,11 +173,28 @@ fn merge_fields(base: &Object, ours: &Object, theirs: &Object, conflicts: &mut u
                 (Value::Latest(_), Value::Latest(mine), Value::Latest(other)) => {
                     Value::Latest(crate::latest::merge(mine, other))
                 }
+                (Value::Text(before), Value::Text(mine), Value::Text(other)) => {
+                    Value::Text(merge_text(before, mine, other, conflicts))
+                }
                 _ => mine.clone(),
             }
         })
         .collect();
     Object { parent, fields }
+}
+
+fn merge_text(
+    base: &Sequence<u8>,
+    ours: &Sequence<u8>,
+    theirs: &Sequence<u8>,
+    conflicts: &mut usize,
+) -> Sequence<u8> {
+    let outcome = merge_lines(&base.items(), &ours.items(), &theirs.items());
+    if outcome.is_clean() {
+        return Sequence::from_items(join_lines(&outcome.merged));
+    }
+    *conflicts += outcome.conflicts.len();
+    Sequence::from_items(render_conflicts(&outcome, "local", "remote"))
 }
 
 fn blank_like(object: &Object) -> Object {
@@ -192,6 +210,7 @@ fn blank_like(object: &Object) -> Object {
                 Value::Map(_) => Value::Map(BTreeMap::new()),
                 Value::Grid(cells) => Value::Grid(cells.emptied()),
                 Value::Latest(_) => Value::Latest(BTreeMap::new()),
+                Value::Text(_) => Value::Text(Sequence::default()),
             })
             .collect(),
     }

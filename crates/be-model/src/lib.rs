@@ -10,6 +10,8 @@ mod grid;
 mod history;
 mod latest;
 mod merge;
+mod sequence;
+mod text;
 mod tree;
 
 pub use be_model_derive::Model;
@@ -17,6 +19,8 @@ pub use field::{Count, Field, FieldRef, Item, List, Map, Register};
 pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
 pub use latest::{Latest, LatestMap, Stamp, Stamped};
+pub use sequence::{LOADED, Pos, SeqOp, Sequence, Span, Splice};
+pub use text::Text;
 pub use tree::Tree;
 
 #[derive(
@@ -74,6 +78,7 @@ pub enum Value {
     Map(BTreeMap<Vec<u8>, Vec<u8>>),
     Grid(Cells),
     Latest(BTreeMap<Vec<u8>, Stamped>),
+    Text(Sequence<u8>),
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -167,6 +172,11 @@ pub enum Change {
         field: u16,
         key: Vec<u8>,
         stamped: Stamped,
+    },
+    Text {
+        object: ObjectId,
+        field: u16,
+        op: SeqOp<u8>,
     },
 }
 
@@ -299,12 +309,24 @@ impl<R: Model> Document<R> {
         Ok(Self::from_tree(tree))
     }
 
-    pub fn removals(&self) -> Vec<u8> {
-        self.tree.removals()
+    pub fn text<M>(&self, object: ObjectId, field: FieldRef<M, Text>) -> Option<&Sequence<u8>> {
+        match self
+            .tree
+            .object(object)?
+            .fields
+            .get(usize::from(field.index()))?
+        {
+            Value::Text(sequence) => Some(sequence),
+            _ => None,
+        }
     }
 
-    pub fn adopt_removals(&mut self, bytes: &[u8]) -> Result<(), Malformed> {
-        self.tree.adopt_removals(bytes)
+    pub fn session_state(&self) -> Vec<u8> {
+        self.tree.session_state()
+    }
+
+    pub fn adopt_session_state(&mut self, bytes: &[u8]) -> Result<(), Malformed> {
+        self.tree.adopt_session_state(bytes)
     }
 
     pub fn merge(base: &Self, ours: &Self, theirs: &Self) -> (Self, usize) {
