@@ -121,6 +121,7 @@ pub struct Sequence<T> {
     index: BTreeMap<Pos, u32>,
     order: HashMap<u32, usize>,
     next_key: u32,
+    visible: usize,
 }
 
 type Location = (usize, usize);
@@ -194,6 +195,7 @@ impl<T> Sequence<T> {
             index: BTreeMap::new(),
             order: HashMap::new(),
             next_key: 0,
+            visible: 0,
         };
         let pieces: Vec<Vec<Fragment>> = match fragments.is_empty() {
             true => vec![Vec::new()],
@@ -210,6 +212,7 @@ impl<T> Sequence<T> {
                 fragments: piece,
             });
         }
+        sequence.visible = sequence.chunks.iter().map(|chunk| chunk.visible).sum();
         sequence.reorder();
         sequence
     }
@@ -235,7 +238,7 @@ impl<T> Sequence<T> {
     }
 
     pub fn len(&self) -> usize {
-        self.chunks.iter().map(|chunk| chunk.visible).sum()
+        self.visible
     }
 
     pub fn is_empty(&self) -> bool {
@@ -860,11 +863,13 @@ impl<T> Sequence<T> {
 
     fn recount(&mut self, ci: usize) {
         let chunk = &mut self.chunks[ci];
-        chunk.visible = chunk
+        let counted: usize = chunk
             .fragments
             .iter()
             .map(|fragment| fragment.visible_len())
             .sum();
+        self.visible = self.visible - chunk.visible + counted;
+        chunk.visible = counted;
     }
 
     fn rebalance(&mut self, ci: usize) {

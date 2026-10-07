@@ -63,6 +63,14 @@ fn check(sequence: &Sequence<u8>) {
         }
     }
     assert_eq!(sequence.index.len(), seen.len());
+    assert_eq!(
+        sequence.len(),
+        sequence
+            .chunks
+            .iter()
+            .map(|chunk| chunk.visible)
+            .sum::<usize>()
+    );
 }
 
 fn order(sequence: &Sequence<u8>) -> Vec<(Pos, u8, bool)> {

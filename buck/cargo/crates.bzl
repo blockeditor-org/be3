@@ -204,6 +204,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
@@ -225,6 +226,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
@@ -246,6 +248,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
@@ -267,6 +270,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
@@ -288,6 +292,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
@@ -332,6 +337,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
@@ -353,6 +359,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-model:be-model",
                     "//crates/be-server:be-server",
                 ],
                 "test_features": [],
