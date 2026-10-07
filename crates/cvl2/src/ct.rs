@@ -72,6 +72,7 @@ pub enum Type {
     KwIfOptional(TypeKwIfOptional),
     KwElseIf(TypeKwElseIf),
     KwElseIfBody(TypeKwElseIfBody),
+    KwMatch(TypeKwMatch),
     BoundName(TypeBoundName),
     Target(TypeTarget),
     ReflectValue(TypeReflectValue),
@@ -123,6 +124,7 @@ pub struct TypeNull;
 pub struct TypeKwIfOptional {
     pub child: Box<Type>,
     pub bind: Option<Box<KwIfBinding>>,
+    pub any_body: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -178,7 +180,7 @@ impl TypeKwIfOptional {
             trim_ws(arg_in.ast).as_slice(),
             [SyntaxNode::Block(b)] if b.tag == BracketTag::Code
         );
-        if !is_block {
+        if !is_block && !self.any_body {
             return Err(throw_err(
                 env,
                 Some(arg_in.pos),
@@ -532,6 +534,7 @@ impl Type {
             Type::Null(_) => "Null",
             Type::KwIfOptional(_) => "KwIf",
             Type::KwElseIf(_) | Type::KwElseIfBody(_) => "KwElseIf",
+            Type::KwMatch(_) => "KwMatch",
             Type::BoundName(_) => "BoundName",
         }
         .to_string()
@@ -580,6 +583,7 @@ impl Type {
             Type::KwIfOptional(t) => t.analyze_call(env, pos, method.value, arg_in, block),
             Type::KwElseIf(t) => t.analyze_call(env, pos, method.value, arg_in, block),
             Type::KwElseIfBody(t) => t.analyze_call(env, slot, pos, method, arg_in, block),
+            Type::KwMatch(t) => t.analyze_call(env, pos, method.value, arg_in, block),
             Type::BoundName(t) => {
                 let Type::User(user) = &*t.receiver else {
                     unreachable!("only declared types have named methods")
@@ -839,6 +843,7 @@ impl Type {
                     | Type::KwIfOptional(_)
                     | Type::KwElseIf(_)
                     | Type::KwElseIfBody(_)
+                    | Type::KwMatch(_)
                     | Type::BoundName(_)
             );
         }
@@ -1842,6 +1847,346 @@ pub struct TypeKwElseIfBody {
     pub cond: Option<Box<Type>>,
 }
 
+fn else_if_open(prev: RuntimeValue, pos: &TokenPosition, block: &mut AnalysisBlock) -> ElseIfMode {
+    match prev {
+        RuntimeValue::Comptime(ComptimeValue::KwBool(b)) if b.value => ElseIfMode::Skip,
+        RuntimeValue::Comptime(_) => ElseIfMode::Direct,
+        RuntimeValue::Runtime(prev_end) => {
+            let begin = block_append(
+                block,
+                AnalysisLine::RegionBegin {
+                    pos: pos.clone(),
+                    region: Region::KwElse {
+                        if_end: prev_end,
+                        then: crate::compiler::ElseThen::Always,
+                    },
+                },
+            );
+            ElseIfMode::Region { begin, prev_end }
+        }
+    }
+}
+
+pub fn builtin_kw_match_call(
+    env: &mut Env,
+    _slot: Type,
+    _pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let value = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        arg_ast.pos.clone(),
+        arg_ast.ast,
+        block,
+    )?;
+    let Type::User(user) = &value.ty else {
+        return Err(throw_err(
+            env,
+            Some(arg_ast.pos),
+            format!("std.kw.match needs an enum, got {}", value.ty.dump()),
+            None,
+            None,
+        ));
+    };
+    if !user.is_enum(env)? {
+        return Err(throw_err(
+            env,
+            Some(arg_ast.pos),
+            format!("std.kw.match needs an enum, got {}", value.ty.dump()),
+            None,
+            None,
+        ));
+    }
+    Ok(AnalysisResult {
+        ty: Type::KwMatch(TypeKwMatch {
+            subject: Box::new(value.ty),
+        }),
+        value: value.value,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeKwMatch {
+    pub subject: Box<Type>,
+}
+
+struct MatchArm {
+    case: Option<(usize, Type)>,
+    pos: TokenPosition,
+    func: crate::compiler::ComptimeValueFn,
+}
+
+impl TypeKwMatch {
+    fn read_arms(
+        &self,
+        env: &mut Env,
+        arg_in: &CallArg,
+        block: &mut AnalysisBlock,
+    ) -> Result<Vec<MatchArm>, PositionedError> {
+        let Type::User(user) = &*self.subject else {
+            unreachable!("std.kw.match checked for an enum")
+        };
+        let map = match trim_ws(arg_in.ast).as_slice() {
+            [SyntaxNode::Block(map)] if map.tag == BracketTag::Map => map.clone(),
+            _ => {
+                return Err(throw_err(
+                    env,
+                    Some(arg_in.pos.clone()),
+                    "std.kw.match takes arms in brackets, as in std.kw.match (x) [ .case .= (v) => { ... } ]",
+                    None,
+                    None,
+                ));
+            }
+        };
+        let mut arms: Vec<MatchArm> = Vec::new();
+        let mut seen: Vec<(String, TokenPosition)> = Vec::new();
+        for line in list_items(env, &map)? {
+            let Some((lhs, _, rhs)) = crate::compiler::read_binary2(env, &line.items, OpTag::Pub)?
+            else {
+                return Err(throw_err(
+                    env,
+                    Some(line.pos.clone()),
+                    "expected .case .= (v) => { ... } in std.kw.match",
+                    None,
+                    None,
+                ));
+            };
+            let name = match trim_ws(&lhs.items).as_slice() {
+                [SyntaxNode::Identifier(id)] if id.ident_tag == IdentifierTag::Access => {
+                    id.str.clone()
+                }
+                _ => {
+                    return Err(throw_err(
+                        env,
+                        Some(lhs.pos.clone()),
+                        "a std.kw.match arm starts with .case or .else",
+                        None,
+                        None,
+                    ));
+                }
+            };
+            if let Some((_, previous)) = seen.iter().find(|(seen, _)| *seen == name) {
+                let previous = previous.clone();
+                return Err(throw_err(
+                    env,
+                    Some(lhs.pos.clone()),
+                    format!("std.kw.match has two .{name} arms"),
+                    Some(vec![(Some(previous), "first here".to_string())]),
+                    None,
+                ));
+            }
+            seen.push((name.clone(), lhs.pos.clone()));
+            let case = if name == "else" {
+                None
+            } else {
+                let Some((index, _)) = user.case(env, &name)? else {
+                    return Err(throw_err(
+                        env,
+                        Some(lhs.pos.clone()),
+                        format!("{} has no case .{name}", user.name()),
+                        None,
+                        None,
+                    ));
+                };
+                Some((index, user.case_payload(env, index)?))
+            };
+            let func = analyze(
+                env,
+                Type::Unknown(TypeUnknown),
+                rhs.pos.clone(),
+                &rhs.items,
+                block,
+            )?;
+            let RuntimeValue::Comptime(ComptimeValue::Fn(func)) = func.value else {
+                return Err(throw_err(
+                    env,
+                    Some(rhs.pos.clone()),
+                    "a std.kw.match arm is a function, as in (v) => { ... }",
+                    None,
+                    None,
+                ));
+            };
+            arms.push(MatchArm {
+                case,
+                pos: lhs.pos.clone(),
+                func,
+            });
+        }
+        if let Some(position) = arms.iter().position(|arm| arm.case.is_none())
+            && position != arms.len() - 1
+        {
+            return Err(throw_err(
+                env,
+                Some(arms[position].pos.clone()),
+                "the .else arm of std.kw.match comes last",
+                None,
+                None,
+            ));
+        }
+        if arms.last().is_some_and(|arm| arm.case.is_some()) {
+            let mut missing = Vec::new();
+            for name in user.case_names(env)? {
+                if !seen.iter().any(|(seen, _)| *seen == name) {
+                    missing.push(format!(".{name}"));
+                }
+            }
+            if !missing.is_empty() {
+                return Err(throw_err(
+                    env,
+                    Some(arg_in.pos.clone()),
+                    format!("std.kw.match is missing {}", missing.join(", ")),
+                    None,
+                    None,
+                ));
+            }
+        }
+        Ok(arms)
+    }
+
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        subject: RuntimeValue,
+        arg_in: CallArg,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let arms = self.read_arms(env, &arg_in, block)?;
+        let mut then_never = true;
+        let mut prev: Option<RuntimeValue> = None;
+        for arm in &arms {
+            let (params, body_pos) = match &arm.func.args().extract {
+                crate::compiler::DestructureExtract::List { items, .. } => {
+                    (items.clone(), arm.func.pos().clone())
+                }
+                _ => unreachable!("an arrow function's parameters are a list"),
+            };
+            let body = CallArg {
+                pos: body_pos,
+                ast: &arm.func.body().ast,
+            };
+            let Some((index, payload)) = &arm.case else {
+                if !params.is_empty() {
+                    return Err(throw_err(
+                        env,
+                        Some(arm.pos.clone()),
+                        "the .else arm takes no parameters, as in .else .= () => { ... }",
+                        None,
+                        None,
+                    ));
+                }
+                let prev = prev.take().expect(".else comes after at least one arm");
+                let r = KwIf {
+                    region: KwIfRegion::Else { then_never },
+                }
+                .analyze_call(
+                    env,
+                    pos.clone(),
+                    AnalysisResult {
+                        ty: Type::Void(TypeVoid),
+                        value: prev,
+                    },
+                    body,
+                    block,
+                )?;
+                return Ok(r);
+            };
+            let bind = match params.as_slice() {
+                [] | [crate::compiler::DestructureExtract::Discard { .. }] => None,
+                [crate::compiler::DestructureExtract::SingleItem { target, pos }] => {
+                    let ty = match &arm.func.args().ty {
+                        Type::Tuple(t) => t.children[0].clone(),
+                        _ => Type::Unknown(TypeUnknown),
+                    };
+                    Some(Box::new(KwIfBinding {
+                        name: arm.func.args().targets[*target].name.clone(),
+                        pos: pos.clone(),
+                        ty: match ty {
+                            Type::Unknown(_) => payload.clone(),
+                            ty => ty,
+                        },
+                    }))
+                }
+                _ => {
+                    return Err(throw_err(
+                        env,
+                        Some(arm.pos.clone()),
+                        "a std.kw.match arm takes at most one parameter, the case's payload",
+                        None,
+                        None,
+                    ));
+                }
+            };
+            let cond_ty = TypeKwIfOptional {
+                child: Box::new(payload.clone()),
+                bind,
+                any_body: true,
+            };
+            let mode = match prev.take() {
+                None => ElseIfMode::Direct,
+                Some(prev) => else_if_open(prev, &arm.pos, block),
+            };
+            let cond = if mode == ElseIfMode::Skip {
+                None
+            } else {
+                Some(Box::new(Type::KwIfOptional(cond_ty)))
+            };
+            let optional = match &cond {
+                None => RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+                Some(_) => {
+                    crate::kw::emit(
+                        env,
+                        block,
+                        arm.pos.clone(),
+                        crate::kw::KwBuiltinOp::EnumGet,
+                        vec![
+                            subject.clone(),
+                            RuntimeValue::Comptime(ComptimeValue::KwInt(ComptimeValueKwInt {
+                                value: *index as i64,
+                            })),
+                        ],
+                        Type::Optional(TypeOptional {
+                            child: Box::new(payload.clone()),
+                        }),
+                    )?
+                    .value
+                }
+            };
+            let r = TypeKwElseIfBody {
+                then_never,
+                mode,
+                cond,
+            }
+            .analyze_call(
+                env,
+                Type::Void(TypeVoid),
+                arm.pos.clone(),
+                AnalysisResult {
+                    ty: Type::Void(TypeVoid),
+                    value: optional,
+                },
+                body,
+                block,
+            )?;
+            let Type::KwIfResult(result) = r.ty else {
+                unreachable!("an else-if body returns an if result")
+            };
+            then_never = result.body_never;
+            prev = Some(r.value);
+        }
+        Ok(AnalysisResult {
+            ty: if then_never {
+                Type::Never(TypeNever)
+            } else {
+                Type::Void(TypeVoid)
+            },
+            value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
+        })
+    }
+}
+
 impl TypeKwElseIf {
     fn analyze_call(
         &self,
@@ -1859,25 +2204,10 @@ impl TypeKwElseIf {
             }),
             value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
         };
-        let mode = match prev {
-            RuntimeValue::Comptime(ComptimeValue::KwBool(b)) if b.value => {
-                return Ok(skip(ElseIfMode::Skip));
-            }
-            RuntimeValue::Comptime(_) => ElseIfMode::Direct,
-            RuntimeValue::Runtime(prev_end) => {
-                let begin = block_append(
-                    block,
-                    AnalysisLine::RegionBegin {
-                        pos: pos.clone(),
-                        region: Region::KwElse {
-                            if_end: prev_end,
-                            then: crate::compiler::ElseThen::Always,
-                        },
-                    },
-                );
-                ElseIfMode::Region { begin, prev_end }
-            }
-        };
+        let mode = else_if_open(prev, &pos, block);
+        if mode == ElseIfMode::Skip {
+            return Ok(skip(ElseIfMode::Skip));
+        }
         let cond = crate::compiler::kw_if_condition(env, pos, arg_in, block)?;
         Ok(AnalysisResult {
             ty: Type::KwElseIfBody(TypeKwElseIfBody {

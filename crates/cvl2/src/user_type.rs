@@ -404,6 +404,16 @@ impl UserType {
         }
     }
 
+    pub fn case_names(&self, env: &mut Env) -> Result<Vec<String>, PositionedError> {
+        let sections = self.sections(env)?;
+        Ok(sections
+            .cases
+            .iter()
+            .flatten()
+            .map(|case| case.name.clone())
+            .collect())
+    }
+
     pub fn field_names(&self, env: &mut Env) -> Result<Vec<String>, PositionedError> {
         let sections = self.sections(env)?;
         Ok(sections

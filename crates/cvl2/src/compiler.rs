@@ -3482,6 +3482,7 @@ fn kw_if_binding(
     };
     Ok(Some(AnalysisResult {
         ty: Type::KwIfOptional(crate::ct::TypeKwIfOptional {
+            any_body: false,
             child: optional.child,
             bind,
         }),
@@ -3804,6 +3805,10 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                         }),
                                     ),
                                     ("if", d_ns(vec![], Some(builtin_kw_if_call))),
+                                    (
+                                        "match",
+                                        d_ns(vec![], Some(crate::ct::builtin_kw_match_call)),
+                                    ),
                                     ("loop", d_ns(vec![], Some(builtin_kw_loop_call))),
                                     ("mut", d_ns(vec![], Some(builtin_kw_mut_call))),
                                 ],

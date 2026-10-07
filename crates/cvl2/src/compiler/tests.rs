@@ -195,6 +195,7 @@ mod import_file_kw_if_binds_an_optional;
 mod import_file_kw_if_condition_must_be_kw_bool;
 mod import_file_kw_int_arithmetic_errors_on_overflow;
 mod import_file_kw_map_and_split;
+mod import_file_kw_match;
 mod import_file_kw_string_and_list_errors;
 mod import_file_loop_and_mut_errors;
 mod import_file_operator_errors_without_slot_or_lhs;
