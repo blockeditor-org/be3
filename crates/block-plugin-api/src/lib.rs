@@ -1577,7 +1577,7 @@ pub enum Message {
     RegionSizes(Vec<RegionSize>),
     Frames(Vec<FrameReport>),
     Input(InputBatch),
-    DrawFrame,
+    DrawFrame { now_micros: u64 },
     FrameNeeded,
     FrameReady(FrameReady),
     Acknowledged { request_id: u64 },
@@ -1621,7 +1621,7 @@ impl Message {
             | Self::Fonts(_)
             | Self::Screens(_)
             | Self::Input(_)
-            | Self::DrawFrame
+            | Self::DrawFrame { .. }
             | Self::Shutdown
             | Self::BlockTypes(_)
             | Self::ChildStatuses(_) => Direction::ToPlugin,

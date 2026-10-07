@@ -32,7 +32,7 @@ use super::{
 const CROWDED: &str = "Too many plugin runtimes are already presenting.";
 const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
-const FRAME_TIMEOUT_SECONDS: f64 = 1.0;
+const FRAME_TIMEOUT: Duration = Duration::from_secs(1);
 const FRAME_BUDGET: Duration = Duration::from_millis(8);
 pub(crate) const PACING: &str = "Frame pacing";
 const REMEMBERED_PRESENTS: usize = 16;
@@ -130,15 +130,54 @@ pub(super) struct Runtime {
     presented: bool,
     sent: Vec<ScreenRequest>,
     error: Option<String>,
-    needed: bool,
-    paint_at: Option<f64>,
-    requested_at: Option<f64>,
-    animated: u64,
+    pacing: Pacing,
     theme: Theme,
     fonts_sent: bool,
     fallbacks: super::fonts::Fallbacks,
     presents: Presents,
     frames: u64,
+}
+
+#[derive(Default)]
+struct Pacing {
+    needed: bool,
+    paint_at: Option<Duration>,
+    requested_at: Option<Duration>,
+    animated: u64,
+}
+
+impl Pacing {
+    fn reset(&mut self) {
+        self.needed = false;
+        self.paint_at = None;
+        self.requested_at = None;
+    }
+
+    fn due(&self, now: Duration, pass: u64) -> bool {
+        (self.needed || (self.animated != pass && self.paint_at.is_some_and(|at| at <= now)))
+            && self
+                .requested_at
+                .is_none_or(|at| now.saturating_sub(at) >= FRAME_TIMEOUT)
+    }
+
+    fn request(&mut self, now: Duration, pass: u64) {
+        self.requested_at = Some(now);
+        self.animated = pass;
+    }
+
+    fn ready(&mut self, now: Duration, repaint_after: Option<Duration>) {
+        self.needed = false;
+        self.requested_at = None;
+        self.paint_at = repaint_after.map(|delay| now + delay);
+    }
+
+    fn wake_after(&self, now: Duration, drawing: bool) -> Option<Duration> {
+        match (self.requested_at, self.paint_at) {
+            (Some(_), _) => Some(FRAME_TIMEOUT),
+            (None, Some(at)) if drawing => Some(at.saturating_sub(now)),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -195,10 +234,7 @@ impl Runtime {
             presented: false,
             sent: Vec::new(),
             error: None,
-            needed: false,
-            paint_at: None,
-            requested_at: None,
-            animated: 0,
+            pacing: Pacing::default(),
             theme: theme(),
             fonts_sent: false,
             fallbacks: super::fonts::Fallbacks::new(),
@@ -223,9 +259,7 @@ impl Runtime {
         self.status = PresenterStatus::waiting();
         self.layout = ScreenLayout::default();
         self.sent.clear();
-        self.needed = false;
-        self.paint_at = None;
-        self.requested_at = None;
+        self.pacing.reset();
         self.theme = theme();
         self.fonts_sent = false;
         self.fallbacks = super::fonts::Fallbacks::new();
@@ -269,7 +303,7 @@ impl Runtime {
                 Message::Editor(EditorMessage::Open { .. } | EditorMessage::OpenArtifact { .. })
             )
         });
-        self.needed |= !messages.is_empty();
+        self.pacing.needed |= !messages.is_empty();
         self.send(messages);
         if awaited {
             host::request_repaint();
@@ -282,7 +316,7 @@ impl Runtime {
             return;
         }
         let messages = self.instances.drive_web_views(self.pass);
-        self.needed |= !messages.is_empty();
+        self.pacing.needed |= !messages.is_empty();
         self.send(messages);
     }
 
@@ -323,26 +357,19 @@ impl Runtime {
         if self.error.is_some() {
             return;
         }
-        if self.session.granted_surface().is_some() && self.frame_due() {
-            self.requested_at = Some(self.now());
-            self.animated = host::pass();
-            self.send(vec![Message::DrawFrame]);
+        let drawing = self.session.granted_surface().is_some();
+        if drawing && self.pacing.due(self.now(), host::pass()) {
+            self.pacing.request(self.now(), host::pass());
+            self.send(vec![Message::DrawFrame {
+                now_micros: self.now().as_micros() as u64,
+            }]);
         }
-        if self.requested_at.is_some() {
-            host::request_repaint_after(Duration::from_secs_f64(FRAME_TIMEOUT_SECONDS));
+        if let Some(delay) = self.pacing.wake_after(self.now(), drawing) {
+            host::request_repaint_after(delay);
         }
     }
 
-    fn frame_due(&self) -> bool {
-        let now = self.now();
-        (self.needed
-            || (self.animated != host::pass() && self.paint_at.is_some_and(|at| at <= now)))
-            && self
-                .requested_at
-                .is_none_or(|at| now - at >= FRAME_TIMEOUT_SECONDS)
-    }
-
-    fn now(&self) -> f64 {
+    fn now(&self) -> Duration {
         host::now()
     }
 
@@ -440,7 +467,7 @@ impl Runtime {
                 }
                 Message::Editor(message) => self.instances.editor_message(message),
                 Message::FrameNeeded => {
-                    self.needed = true;
+                    self.pacing.needed = true;
                     true
                 }
                 Message::FrameReady(frame) => {
@@ -471,13 +498,11 @@ impl Runtime {
     }
 
     fn await_next_frame(&mut self, repaint_after_micros: Option<u64>) {
-        self.needed = false;
-        self.requested_at = None;
-        self.paint_at = repaint_after_micros.map(|micros| {
-            let delay = Duration::from_micros(micros);
+        let delay = repaint_after_micros.map(Duration::from_micros);
+        self.pacing.ready(self.now(), delay);
+        if let Some(delay) = delay {
             host::request_repaint_after(delay);
-            self.now() + delay.as_secs_f64()
-        });
+        }
     }
 
     fn send(&mut self, mut messages: Vec<Message>) {
@@ -874,7 +899,7 @@ pub(crate) fn set_focus(block: Option<(Uuid, Uuid)>, via: Vec<Uuid>) {
         host.focus = focus.clone();
         for runtime in host.runtimes.values_mut() {
             if runtime.instances.set_focus(focus.clone()) {
-                runtime.needed = true;
+                runtime.pacing.needed = true;
             }
         }
     });
@@ -1342,7 +1367,7 @@ pub(crate) fn forward_region(
 ) {
     with(plugin_id, |runtime| {
         let (messages, revoked) = runtime.instances.forward(instance, region, input);
-        runtime.needed |= !messages.is_empty();
+        runtime.pacing.needed |= !messages.is_empty();
         runtime.send(messages);
         if revoked {
             mark(plugin_id);
@@ -1358,7 +1383,7 @@ pub(crate) fn back_region(
 ) {
     with(plugin_id, |runtime| {
         let messages = runtime.instances.back(instance, region, gesture);
-        runtime.needed |= !messages.is_empty();
+        runtime.pacing.needed |= !messages.is_empty();
         runtime.send(messages);
     });
     host::request_repaint();

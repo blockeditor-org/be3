@@ -8,7 +8,7 @@ use beui::{
 use crate::beui::capture;
 use crate::snapshot;
 
-const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
+pub(crate) const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
 const DRAG_STEPS: usize = 8;
 
 pub struct DocumentTest {
