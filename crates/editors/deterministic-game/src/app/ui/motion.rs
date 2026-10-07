@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use block_editor_beui::beui::reactive::{
     CanvasView, Memo, ReadSignal, Timer, WriteSignal, clone, create_memo, create_signal,
-    create_timer, now,
+    create_timer, now, with_document,
 };
 use block_editor_beui::beui::{Pos2, Rect};
 use game_api::board::{HandCard, ItemId, Sprite};
@@ -145,7 +145,7 @@ impl Motion {
     }
 
     pub(crate) fn launch(&self, launched: Vec<Flight>) {
-        if launched.is_empty() {
+        if launched.is_empty() || !with_document(|document| document.motion().animates()) {
             return;
         }
         let now = launched[0].start;

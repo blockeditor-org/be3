@@ -10,6 +10,7 @@ use std::time::Duration;
 use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::Rect;
+use beui_core::motion::Motion;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Launch, RunOptions, Runner, Running};
 use block_editor_plugin::{EditorHost, Frame, InputEvent, Region};
@@ -121,6 +122,13 @@ impl PluginSurface {
         if let Some(now) = block_editor_plugin::frame_time() {
             self.runner.context().set_clock(now);
         }
+        self.runner
+            .context()
+            .set_motion(match block_editor_plugin::motion() {
+                block_editor_plugin::Motion::Animated => Motion::Animated,
+                block_editor_plugin::Motion::Instant => Motion::Instant,
+                block_editor_plugin::Motion::Still => Motion::Still,
+            });
         self.platform.deliver_picks(self.runner.context());
         let ratio = self.ratio(region);
         let scale = region.scale_factor;

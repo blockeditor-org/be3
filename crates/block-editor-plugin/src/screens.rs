@@ -141,7 +141,9 @@ impl Screens {
         match message {
             Message::HelloAccepted(accepted) => {
                 self.surface = accepted.surface;
+                crate::motion::receive(accepted.theme.motion);
             }
+            Message::Theme(theme) => crate::motion::receive(theme.motion),
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
             Message::DrawFrame { now_micros } => {

@@ -21,7 +21,10 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
         surface: Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
         }),
-        theme: Theme { dark: true },
+        theme: Theme {
+            dark: true,
+            ..Theme::default()
+        },
     }));
 
     let opened = next_screens(&mut instances).opened;

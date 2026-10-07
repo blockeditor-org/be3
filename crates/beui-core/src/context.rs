@@ -14,6 +14,7 @@ use crate::filter::Filter;
 use crate::font::{FontBackend, FontId, Fonts, Galley, TextLayout};
 use crate::geometry::{Rect, pos2};
 use crate::input::{CursorIcon, Event, ImeArea, InputState, RawInput};
+use crate::motion::Motion;
 use crate::node::NodeId;
 use crate::paint::{Item, Recorded};
 use crate::painter::{Entry, Painter, Shape};
@@ -48,6 +49,7 @@ struct Inner {
     handles_back: Cell<bool>,
     pointer_locked: Cell<bool>,
     touch_emulation: Cell<bool>,
+    motion: Cell<Motion>,
     input_simulation: RefCell<Option<Box<dyn InputSimulation>>>,
     simulation_area: Cell<(Rect, f32)>,
     mouse_viewport: Cell<Option<Rect>>,
@@ -238,6 +240,7 @@ impl Context {
                 handles_back: Cell::new(false),
                 pointer_locked: Cell::new(false),
                 touch_emulation: Cell::new(false),
+                motion: Cell::new(Motion::default()),
                 input_simulation: RefCell::new(None),
                 simulation_area: Cell::new((Rect::NOTHING, 1.0)),
                 mouse_viewport: Cell::new(None),
@@ -545,6 +548,16 @@ impl Context {
 
     pub fn set_touch_emulation(&self, enabled: bool) {
         self.inner.touch_emulation.set(enabled);
+    }
+
+    pub fn motion(&self) -> Motion {
+        self.inner.motion.get()
+    }
+
+    pub fn set_motion(&self, motion: Motion) {
+        if self.inner.motion.replace(motion) != motion {
+            self.request_repaint();
+        }
     }
 
     pub fn mouse_simulation(&self) -> bool {

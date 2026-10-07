@@ -6,9 +6,8 @@ use beui_macros::{component, view};
 
 use super::back_slide::BACK_DRAG_SHARE;
 use super::fling::Fling;
-use super::rubber_band::{
-    MAX_ANIMATION_STEP, SCROLL_SPRING, WINDOW_SPRING, rubber_band, spring_back, unband,
-};
+use super::motion::{animation_step, motion};
+use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, rubber_band, spring_back, unband};
 use beui_core::base::Direction;
 use beui_core::base::offset::{OffsetNode, ScrollPosition};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -121,8 +120,8 @@ struct Motion {
     on_close: ClickCallback,
 }
 
-fn banding() -> bool {
-    with_document(|document| document.rubber_banding())
+fn animates() -> bool {
+    motion().animates()
 }
 
 impl Motion {
@@ -240,10 +239,9 @@ impl Motion {
 
     fn apply(&self, travel: f32, shape: &Shape) {
         let upper = shape.top + shape.max_offset;
-        let banding = banding();
         let (height, offset, overscroll) = if travel <= shape.top {
             (travel.max(0.0), 0.0, 0.0)
-        } else if travel <= upper || !banding {
+        } else if travel <= upper || !animates() {
             (shape.top, (travel - shape.top).min(shape.max_offset), 0.0)
         } else if shape.max_offset > 0.0 {
             (
@@ -281,15 +279,20 @@ impl Motion {
             *travel = (*travel - by).max(0.0);
             *travel
         };
-        self.apply(travel, &shape);
+        if motion().follows_gestures() {
+            self.apply(travel, &shape);
+        }
     }
 
     fn release(&self, velocity: f32) {
-        if self.held.borrow_mut().travel.take().is_none() {
+        let Some(travel) = self.held.borrow_mut().travel.take() else {
             return;
-        }
+        };
         self.set_dragging.set(false);
         let shape = self.shape();
+        if !motion().follows_gestures() {
+            self.apply(travel, &shape);
+        }
         let height = self.height();
         let (offset, overscroll) = self.content();
         let phase = if overscroll != 0.0 {
@@ -305,7 +308,9 @@ impl Motion {
         } else if offset > 0.0
             || (height >= shape.top - EPSILON && velocity > 0.0 && shape.max_offset > 0.0)
         {
-            Fling::new(velocity).map_or(Phase::Still, Phase::Fling)
+            Fling::new(velocity)
+                .filter(|_| animates())
+                .map_or(Phase::Still, Phase::Fling)
         } else {
             self.snap_phase(height, velocity, &shape)
         };
@@ -350,7 +355,7 @@ impl Motion {
                 }
             }
             BackGesture::Progressed(progress) => {
-                if let Some(height) = height.filter(|_| backing) {
+                if let Some(height) = height.filter(|_| backing && motion().follows_gestures()) {
                     self.place_shift(progress * BACK_DRAG_SHARE * height, height);
                 }
             }
@@ -631,7 +636,7 @@ impl Motion {
         self.held.borrow_mut().phase = Phase::Still;
         let (offset, _) = self.content();
         self.place_content((offset - wheel).clamp(0.0, shape.max_offset), 0.0);
-        if fling != 0.0 {
+        if fling != 0.0 && animates() {
             self.start(Fling::new(-fling).map_or(Phase::Still, Phase::Fling));
         }
     }
@@ -675,10 +680,7 @@ impl Motion {
     fn step(&self) -> Option<Duration> {
         let now = beui_core::timer::now();
         let mut held = self.held.borrow_mut();
-        let elapsed = now
-            .duration_since(held.stepped)
-            .as_secs_f32()
-            .min(MAX_ANIMATION_STEP);
+        let elapsed = animation_step(now.duration_since(held.stepped).as_secs_f32());
         held.stepped = now;
         drop(held);
         let sliding = self.step_slide(elapsed);
@@ -726,7 +728,7 @@ impl Motion {
                 let done = fling.done();
                 let placed = raw.clamp(0.0, shape.max_offset);
                 let mut overscroll = 0.0;
-                if raw > placed && banding() {
+                if raw > placed && animates() {
                     held.phase = Phase::Bounce { velocity };
                     overscroll = raw - placed;
                 } else if raw != placed || done {

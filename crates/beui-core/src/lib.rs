@@ -21,6 +21,7 @@ pub mod image;
 pub mod input;
 pub mod interact;
 pub mod layout;
+pub mod motion;
 pub mod node;
 pub mod page;
 pub mod paint;

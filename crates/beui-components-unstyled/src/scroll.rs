@@ -6,6 +6,7 @@ use accesskit::{Action, Node, Role};
 use beui_macros::{component, view};
 
 use super::fling::Fling;
+use super::motion::motion;
 use super::rubber_band::{
     MAX_ANIMATION_STEP, MINIMUM_VELOCITY, SCROLL_SPRING, rubber_band, spring_back, unband,
 };
@@ -34,6 +35,7 @@ const FOCUS_RING_INSET: f32 = -1.0;
 const STEP: f32 = 40.0;
 const AUTOSCROLL_GAIN: f32 = 6.0;
 const AUTOSCROLL_ACCELERATION: f32 = 0.02;
+const STILL_AUTOSCROLL_STEP: Duration = Duration::from_secs(1);
 
 pub struct ScrollHandle {
     pub position: Memo<ScrollPosition>,
@@ -166,12 +168,20 @@ impl Momentum {
         self.velocity = self.fling.map_or(0.0, |fling| fling.velocity());
     }
 
-    fn animate(&mut self, position: &mut ScrollPosition, elapsed: f32, banding: bool) {
-        let elapsed = elapsed.min(MAX_ANIMATION_STEP);
+    fn animate(
+        &mut self,
+        position: &mut ScrollPosition,
+        elapsed: f32,
+        motion: beui_core::motion::Motion,
+    ) {
         if elapsed <= 0.0 {
             return;
         }
         if self.autoscroll != 0.0 {
+            let elapsed = match motion.follows_gestures() {
+                true => elapsed.min(MAX_ANIMATION_STEP),
+                false => elapsed.min(STILL_AUTOSCROLL_STEP.as_secs_f32()),
+            };
             let raw = position.offset + self.autoscroll * elapsed;
             position.offset = raw.clamp(0.0, position.max_offset());
             if raw != position.offset {
@@ -179,6 +189,7 @@ impl Momentum {
             }
             return;
         }
+        let elapsed = elapsed.min(MAX_ANIMATION_STEP);
         if self.overscroll != 0.0 {
             spring_back(
                 &mut self.overscroll,
@@ -200,7 +211,7 @@ impl Momentum {
         position.offset = raw.clamp(0.0, position.max_offset());
         if raw != position.offset {
             self.fling = None;
-            match banding {
+            match motion.animates() {
                 true => self.overscroll = raw - position.offset,
                 false => self.velocity = 0.0,
             }
@@ -208,13 +219,16 @@ impl Momentum {
     }
 }
 
+fn autoscroll_step() -> Duration {
+    match motion().follows_gestures() {
+        true => Duration::ZERO,
+        false => STILL_AUTOSCROLL_STEP,
+    }
+}
+
 fn autoscroll_speed(distance: f32) -> f32 {
     let beyond = (distance.abs() - AUTOSCROLL_DEAD_ZONE).max(0.0);
     distance.signum() * (beyond * AUTOSCROLL_GAIN + beyond * beyond * AUTOSCROLL_ACCELERATION)
-}
-
-fn rubber_banding() -> bool {
-    with_document(|document| document.rubber_banding())
 }
 
 #[derive(Clone)]
@@ -266,7 +280,7 @@ impl Motion {
         momentum.rest();
         let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
         self.publish(&momentum, offset);
-        if fling != 0.0 {
+        if fling != 0.0 && motion().animates() {
             self.take_steered();
             momentum.release(-fling);
             self.animate(&mut momentum);
@@ -283,14 +297,21 @@ impl Motion {
             self.take_steered();
             momentum.grab(&position);
         }
+        let motion = motion();
         let dragged = self.axis().main(gesture.delta);
         if dragged != 0.0 {
-            momentum.drag(&mut position, dragged, rubber_banding());
+            momentum.drag(&mut position, dragged, motion.animates());
+        } else if !motion.follows_gestures()
+            && let Some(held) = momentum.drag
+        {
+            position.offset = held.clamp(0.0, position.max_offset());
         }
-        if gesture.ended {
+        if gesture.ended && motion.animates() {
             momentum.release(-self.axis().main(gesture.velocity));
-        } else if gesture.cancelled {
+        } else if gesture.ended || gesture.cancelled {
             momentum.release(0.0);
+        } else if !motion.follows_gestures() {
+            return;
         }
         self.publish(&momentum, position.offset);
         self.animate(&mut momentum);
@@ -308,21 +329,26 @@ impl Motion {
             momentum.rest();
             self.publish(&momentum, position.offset);
         }
+        self.take_steered();
         momentum.drag = None;
         momentum.velocity = 0.0;
         momentum.fling = None;
         momentum.autoscroll = autoscroll_speed(self.axis().main(gesture.pos - gesture.origin));
-        self.animate(&mut momentum);
+        self.animate_after(&mut momentum, autoscroll_step());
     }
 
     fn animate(&self, momentum: &mut Momentum) {
+        self.animate_after(momentum, Duration::ZERO);
+    }
+
+    fn animate_after(&self, momentum: &mut Momentum, delay: Duration) {
         let Some(animation) = self.animation.borrow().clone() else {
             return;
         };
         if !animation.running() {
             momentum.stepped = beui_core::timer::now();
         }
-        animation.start(Duration::ZERO);
+        animation.start(delay);
     }
 
     fn scroll_to(&self, offset: f32) {
@@ -392,9 +418,13 @@ impl Motion {
             return None;
         }
         let mut position = self.placed()?;
-        momentum.animate(&mut position, elapsed, rubber_banding());
+        momentum.animate(&mut position, elapsed, motion());
         self.publish(&momentum, position.offset);
-        momentum.moving().then_some(Duration::ZERO)
+        let delay = match momentum.autoscroll != 0.0 {
+            true => autoscroll_step(),
+            false => Duration::ZERO,
+        };
+        momentum.moving().then_some(delay)
     }
 }
 

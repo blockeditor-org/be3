@@ -17,6 +17,7 @@ use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::input::{Key, KeyPress};
+use crate::motion::Motion;
 
 use crate::display::Display;
 use crate::interact::{self, Keys};
@@ -141,7 +142,10 @@ pub struct Document {
     damage_flashes: FlashLog<Rect>,
     painters: NodeMap<Placing>,
     spaces_moved: bool,
-    rubber_banding: bool,
+    motion: (
+        ::reactive::ReadSignal<Motion>,
+        ::reactive::WriteSignal<Motion>,
+    ),
 }
 
 #[derive(Clone, Copy)]
@@ -342,7 +346,7 @@ impl Document {
             damage_flashes: FlashLog::default(),
             painters: NodeMap::default(),
             spaces_moved: false,
-            rubber_banding: true,
+            motion: ::reactive::create_signal(Motion::default()),
         }
     }
 
@@ -679,12 +683,22 @@ impl Document {
         self.changes.set_enabled(enabled);
     }
 
-    pub fn rubber_banding(&self) -> bool {
-        self.rubber_banding
+    pub fn motion(&self) -> Motion {
+        self.motion.0.get_untracked()
     }
 
-    pub fn set_rubber_banding(&mut self, enabled: bool) {
-        self.rubber_banding = enabled;
+    pub fn watch_motion(&self) -> ::reactive::ReadSignal<Motion> {
+        self.motion.0.clone()
+    }
+
+    fn set_motion(&mut self, motion: Motion) {
+        if self.motion() == motion {
+            return;
+        }
+        self.arena.invalidate();
+        self.drags.set_still(!motion.follows_gestures());
+        let write = self.motion.1.clone();
+        crate::current::with_reactive_scope(self, move || write.set(motion));
     }
 
     pub fn track_damage(&mut self, enabled: bool) {
@@ -922,6 +936,7 @@ impl Document {
 
     pub fn show_content(&mut self, ctx: &Context, rect: Rect, pointer: bool, keys: Keys) {
         self.now = ctx.now();
+        self.set_motion(ctx.motion());
         let mut measurement = FrameMeasurement::new();
         self.work.reset();
         let scale = ctx.pixels_per_point();

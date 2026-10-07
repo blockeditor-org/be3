@@ -63,6 +63,10 @@ where
     let (pointer, set_pointer) = create_signal(Pos2::ZERO);
     let (touched, set_touched) = create_signal(false);
     let dragging = create_memo(clone!(carried -> move || carried.with(Option::is_some)));
+    let motion = with_document(|document| document.watch_motion());
+    let previewed = create_memo(clone!(dragging -> move || {
+        dragging.get() && motion.get().follows_gestures()
+    }));
 
     let moved = clone!(board pressed_at carried set_carried set_pointer on_drag_change payload touched -> move |point: DragPoint| {
         let Some(origin) = pressed_at.get() else {
@@ -160,7 +164,7 @@ where
                     placement=Placement::BelowStart
                     mode=OverlayMode::Passive
                     traps_focus=false
-                    open={dragging}
+                    open={previewed}
                 >
                     <List spacing=0.0>
                         <Dynamic value={carried}>

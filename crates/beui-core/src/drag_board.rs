@@ -51,6 +51,7 @@ pub struct Board {
     carried: RefCell<Option<Carried>>,
     targets: RefCell<Vec<Target>>,
     next: Cell<u64>,
+    still: Cell<bool>,
 }
 
 impl Board {
@@ -78,6 +79,10 @@ impl Board {
         {
             carried.over = None;
         }
+    }
+
+    pub fn set_still(&self, still: bool) {
+        self.still.set(still);
     }
 
     pub fn carrying(&self) -> bool {
@@ -129,6 +134,9 @@ impl Board {
                 return;
             }
             carried.last = Some(point);
+            if self.still.get() {
+                return;
+            }
             Rc::clone(&carried.follow)
         };
         follow(point.pos);

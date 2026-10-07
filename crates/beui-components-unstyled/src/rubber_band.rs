@@ -6,6 +6,8 @@ use std::time::Instant;
 
 use beui_core::geometry::{Pos2, Vec2, vec2};
 
+use super::motion::FINISHED;
+
 const RUBBER_BAND_FACTOR: f32 = 0.55;
 const SETTLED_DISTANCE: f32 = 0.25;
 const VELOCITY_WINDOW: f32 = 0.08;
@@ -49,6 +51,11 @@ pub fn unband(overscroll: f32, dimension: f32) -> f32 {
 }
 
 pub fn spring_back(overscroll: &mut f32, velocity: &mut f32, elapsed: f32, spring: Spring) {
+    if elapsed >= FINISHED {
+        *overscroll = 0.0;
+        *velocity = 0.0;
+        return;
+    }
     let acceleration = -spring.stiffness * *overscroll - spring.damping * *velocity;
     *velocity += acceleration * elapsed;
     *overscroll += *velocity * elapsed;

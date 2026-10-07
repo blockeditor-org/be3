@@ -59,6 +59,7 @@ mod a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open;
 mod a_docked_pane_lays_its_content_inside_its_border;
 mod a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_tap;
 mod a_drag_preview_follows_the_pointer_until_the_drop;
+mod a_drag_with_gesture_motion_off_shows_no_preview_and_still_drops;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
 mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
@@ -109,6 +110,7 @@ mod a_long_text_area_only_builds_the_lines_in_view;
 mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
 mod a_middle_click_on_a_dock_tab_closes_it;
 mod a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling;
+mod a_middle_drag_pans_a_pan_zoom_once_released_with_gesture_motion_off;
 mod a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it;
 mod a_modal_sheet_slides_in_and_out;
 mod a_multi_root_view_fills_a_children_prop_in_order;
@@ -200,7 +202,9 @@ mod a_time_list_moves_through_its_times_and_picks_one;
 mod a_timer_asks_for_frames_until_its_work_settles;
 mod a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable;
 mod a_touch_beside_a_control_reaches_the_nearest_one;
+mod a_touch_drag_scrolls_only_once_released_with_gesture_motion_off;
 mod a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames;
+mod a_touch_fling_stops_where_the_finger_lifts_with_animations_off;
 mod a_touch_fling_that_ends_without_moving_keeps_its_momentum;
 mod a_touch_opens_a_menu_buttons_menu_as_a_sheet_and_a_click_as_a_dropdown;
 mod a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop;
@@ -266,6 +270,7 @@ mod arrow_keys_walk_a_tree_after_its_chevron_is_clicked_and_enter_selects;
 mod arrow_keys_walk_the_rows_of_the_inspector_tree;
 mod arrows_at_the_ends_of_a_date_field_leave_its_value_alone;
 mod arrows_pick_which_emoji_the_menu_inserts;
+mod autoscroll_moves_once_a_second_with_gesture_motion_off;
 mod backspace_deletes_the_character_before_the_caret;
 mod children_written_between_show_tags_are_not_built_until_it_is_shown;
 mod choosing_the_e_ink_theme_in_the_inspector_restyles_the_document;
@@ -312,6 +317,7 @@ mod dragging_a_number_input_sideways_changes_its_value;
 mod dragging_a_pan_zoom_with_the_middle_button_pans_it;
 mod dragging_a_panes_grip_moves_every_tab_of_the_pane;
 mod dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it;
+mod dragging_a_sidebar_edge_resizes_it_once_released_with_gesture_motion_off;
 mod dragging_a_slider_moves_its_value;
 mod dragging_a_tab_between_two_tabs_marks_the_middle_of_the_gap;
 mod dragging_a_tab_onto_a_window_bar_moves_it_into_the_window;
@@ -329,6 +335,7 @@ mod dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window;
 mod dragging_the_edge_of_the_responsive_screen_resizes_it;
 mod dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection;
 mod dragging_the_inspector_edge_resizes_the_panel;
+mod dragging_the_scrollbar_thumb_scrolls_once_released_with_gesture_motion_off;
 mod dragging_the_scrollbar_thumb_scrolls_the_content_beside_it;
 mod dropping_a_dock_tab_onto_the_middle_of_another_groups_them;
 mod editing_one_row_of_a_keyed_list_leaves_every_node_in_place;
@@ -494,6 +501,7 @@ mod text_widgets_sit_in_the_text_and_blocks_below_their_line;
 mod text_with_spans_wraps_places_inline_items_and_answers_where_indices_are;
 mod the_app_tab_shows_the_document_below_the_tab_bar;
 mod the_caret_of_a_focused_text_area_blinks_on_a_deadline;
+mod the_caret_of_a_focused_text_area_stays_shown_with_animations_off;
 mod the_caret_of_a_text_input_paints_two_points_wide;
 mod the_click_that_ends_autoscroll_presses_nothing;
 mod the_color_areas_thumb_shows_a_grab_cursor;
@@ -538,7 +546,7 @@ mod touch_dragging_across_a_text_input_does_not_select_its_text;
 mod touch_overscroll_bands_without_hovering_a_row;
 mod triple_clicking_selects_the_line_so_typing_replaces_the_value;
 mod turning_an_oklch_color_wheel_keeps_its_lightness;
-mod turning_off_rubber_banding_in_the_inspector_stops_a_scroll_at_its_end;
+mod turning_off_animations_in_the_inspector_stops_a_scroll_at_its_end;
 mod turning_on_the_screen_reader_reads_what_it_is_on;
 mod turning_the_accessibility_tree_off_in_the_inspector_stops_building_it;
 mod two_nodes_on_screen_with_one_test_id_are_an_error;
@@ -934,8 +942,8 @@ impl Harness {
         self.inspector_center("inspector.simulation.touch_emulation")
     }
 
-    pub(crate) fn rubber_band_toggle_center(&self) -> Pos2 {
-        self.inspector_center("inspector.simulation.rubber_banding")
+    pub(crate) fn animations_toggle_center(&self) -> Pos2 {
+        self.inspector_center("inspector.simulation.animations")
     }
 
     pub(crate) fn mouse_toggle_center(&self) -> Pos2 {

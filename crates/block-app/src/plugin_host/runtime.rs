@@ -9,7 +9,7 @@ use std::{
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockPick, EditorInstanceId, EditorMessage, EditorRegion, FrameSpec,
-    HostPanel, HostSession, MAX_QUEUED_MESSAGES, Message, PluginManifest, PresentedFrame,
+    HostPanel, HostSession, MAX_QUEUED_MESSAGES, Message, Motion, PluginManifest, PresentedFrame,
     ScreenDamage, ScreenId, ScreenLayout, ScreenRequest, SessionState, SurfaceFormat, SurfaceSpec,
     Theme, ViewChange,
 };
@@ -1250,7 +1250,14 @@ fn session() -> HostSession {
 }
 
 fn theme() -> Theme {
-    Theme { dark: host::dark() }
+    Theme {
+        dark: host::dark(),
+        motion: match host::motion() {
+            beui::Motion::Animated => Motion::Animated,
+            beui::Motion::Instant => Motion::Instant,
+            beui::Motion::Still => Motion::Still,
+        },
+    }
 }
 
 thread_local! {

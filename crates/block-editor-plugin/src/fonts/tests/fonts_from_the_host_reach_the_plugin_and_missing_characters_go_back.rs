@@ -11,7 +11,10 @@ fn fonts_from_the_host_reach_the_plugin_and_missing_characters_go_back() {
         version: PROTOCOL_VERSION,
         host_name: "test host".into(),
         surface: None,
-        theme: Theme { dark: true },
+        theme: Theme {
+            dark: true,
+            ..Theme::default()
+        },
     }));
     let heard = Rc::new(Cell::new(0));
     let listener = heard.clone();
