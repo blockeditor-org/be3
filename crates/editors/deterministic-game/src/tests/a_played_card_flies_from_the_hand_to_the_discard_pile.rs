@@ -34,6 +34,7 @@ fn a_played_card_flies_from_the_hand_to_the_discard_pile() {
     let landing = editor.rect_of("game.pile.1");
     let flying = editor.rect_of(&flight);
     assert!(landing.center().y < flying.center().y && flying.center().y < start.center().y);
+    editor.snapshot("a_played_card_flies_from_the_hand_to_the_discard_pile");
 
     editor.settle();
     assert!(!editor.shown(&flight));
