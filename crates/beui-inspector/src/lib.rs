@@ -16,7 +16,7 @@ use beui_core::context::{Context, RendererChoices};
 use beui_core::filter::{ColorVision, Filter};
 use beui_core::flash;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
-use beui_core::input::{CursorIcon, Event, Key as InputKey};
+use beui_core::input::{BackGesture, CursorIcon, Event, Key as InputKey};
 use beui_core::interact::Keys;
 use beui_core::painter::Painter;
 
@@ -84,6 +84,7 @@ pub struct State {
     pub contrast_reduction: Cell<f32>,
     pub color_vision: Cell<ColorVision>,
     commands: RefCell<Vec<Command>>,
+    back_gestures: RefCell<Vec<BackGesture>>,
     pub theme: Cell<Theme>,
     requested_theme: Cell<Option<Theme>>,
     requested_renderer: Cell<Option<usize>>,
@@ -116,6 +117,7 @@ impl State {
             contrast_reduction: Cell::new(0.0),
             color_vision: Cell::new(ColorVision::Typical),
             commands: RefCell::new(Vec::new()),
+            back_gestures: RefCell::new(Vec::new()),
             theme: Cell::new(theme),
             requested_theme: Cell::new(None),
             requested_renderer: Cell::new(None),
@@ -230,6 +232,15 @@ impl State {
 
     fn take_commands(&self) -> Vec<Command> {
         std::mem::take(&mut self.commands.borrow_mut())
+    }
+
+    fn simulate_back(&self, gesture: BackGesture) {
+        self.back_gestures.borrow_mut().push(gesture);
+        self.touch();
+    }
+
+    fn take_back_gestures(&self) -> Vec<BackGesture> {
+        std::mem::take(&mut self.back_gestures.borrow_mut())
     }
 
     fn choose_theme(&self, theme: Theme) {
@@ -885,6 +896,7 @@ impl Inspector {
             native_pixel_ratio: native_pixel_ratio_label(ctx.native_pixels_per_point()),
             picking: self.state.picking.get(),
             responsive: self.state.screen_simulation.get().is_some(),
+            handles_back: target.handles_back(),
             selection,
             bounds: selected
                 .and_then(|id| target.node_rect(id))
@@ -1218,6 +1230,13 @@ impl Tools for InspectorTools {
             Some(inspector) => inspector.keys(),
             None => Keys::All,
         };
+        if let Some(inspector) = &self.inspector {
+            for gesture in inspector.state.take_back_gestures() {
+                with_reactive_scope(document, || {
+                    with_document(|document| document.back(gesture))
+                });
+            }
+        }
         if layout.app_visible {
             document.show_screen(ctx, layout.content, !intercepted, keys);
         } else {

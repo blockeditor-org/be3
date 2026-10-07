@@ -857,8 +857,14 @@ completes, or hands every phase of the gesture to `on_gesture` if it has one,
 and moves nothing. The motion lives above it. `unstyled::BackSlide` wraps a
 page: held, the page follows the finger across a good share of the screen;
 let go, it carries on off the edge before `on_back` runs and the next page
-slides in behind it, and a cancelled gesture eases it back. A back with no
-gesture before it (a key) goes back at once. `styled::Dialog` and
+slides in behind it, and a cancelled gesture eases it back. Given `behind`, a
+function that builds the page back goes to, it builds that page under the
+moving one for as long as the gesture lasts, shaded and coming in from the
+side, so `on_back` swaps in what was already showing and nothing slides in
+afterwards; the page that moves needs an opaque background, and a page that
+must keep its state (a scroll position) is built once and handed to a `Portal`
+in both places. The stacked dock shows its home tab behind the tab it leaves
+this way. A back with no gesture before it (a key) goes back at once. `styled::Dialog` and
 `Fullscreen` slide away the same way and fade their scrim, and a `Sheet`
 sinks with the gesture and slides on down from where it was. The document
 reports whether anything would take back through
@@ -1522,6 +1528,14 @@ what an app that reads input or places surfaces outside `Document::show` needs:
 `Context::screen_scale` and `Context::screen_input` give it the scale and the
 frame's input in document points, the way block-app's host reads them for its
 plugin surfaces.
+
+### Back gesture
+
+The Sim tab's Back gesture slider plays Android's back gesture into the
+document, so a `BackSlide` can be tried without a phone: dragging it starts the
+gesture and follows it, reaching the end goes back, and letting go before then
+cancels. It calls `Document::back` directly, the way the Android runner's events
+do, so it reaches the document even while the inspector holds the keyboard.
 
 ### Filters
 
