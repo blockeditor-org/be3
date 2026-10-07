@@ -468,7 +468,8 @@ fn codegen_c_body(
             AnalysisLine::ComptimeKvListInit { pos }
             | AnalysisLine::ComptimeKvListAppend { pos, .. }
             | AnalysisLine::ComptimeFileCreate { pos, .. }
-            | AnalysisLine::McExecRaw { pos, .. } => {
+            | AnalysisLine::McExecRaw { pos, .. }
+            | AnalysisLine::Emit { pos, .. } => {
                 return Err(throw_err(
                     env,
                     Some(pos.clone()),

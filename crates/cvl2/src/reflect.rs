@@ -136,6 +136,7 @@ fn line_types(
                 ..
             } => analyze_function(env, callee)?.ty,
             AnalysisLine::CBinary { .. } => Type::CInt(crate::ct::CInt),
+            AnalysisLine::Emit { ty, .. } => ty.clone(),
             AnalysisLine::LabelBegin { label, ty, .. } => {
                 labels.insert(*label, ty.clone());
                 Type::Void(TypeVoid)
@@ -339,6 +340,30 @@ impl Builder {
                 ..
             } => ("c_if", vec![("cond", self.operand(env, cond)?)]),
             AnalysisLine::RegionEnd { .. } => ("end", vec![]),
+            AnalysisLine::Emit {
+                data,
+                data_ty,
+                operands,
+                ..
+            } => {
+                let mut items = Vec::new();
+                for operand in operands {
+                    items.push(self.operand(env, operand)?);
+                }
+                (
+                    "emit",
+                    vec![
+                        (
+                            "data",
+                            ComptimeValue::ReflectData(Rc::new((data.clone(), data_ty.clone()))),
+                        ),
+                        (
+                            "operands",
+                            ComptimeValue::KwList(ComptimeValueKwList::new(items)),
+                        ),
+                    ],
+                )
+            }
             other => ("other", vec![("name", string(&analysis_line_name(other)))]),
         };
         fields.push(at);
@@ -474,4 +499,85 @@ pub fn builtin_reflect_fail_call(
         args,
         Type::Never(crate::ct::TypeNever),
     )
+}
+
+pub fn builtin_emit_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let items = crate::compiler::builtin_list_args(env, &pos, &arg_ast, "std.emit", 3)?;
+    let ty = analyze(
+        env,
+        Type::CtType(crate::ct::CtType),
+        items[0].pos.clone(),
+        &items[0].items,
+        block,
+    )?;
+    let ComptimeValue::Type(ty) = get_comptime(
+        env,
+        Some(ComptimeValueKind::Type),
+        ty.value,
+        items[0].pos.clone(),
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    let data = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        items[1].pos.clone(),
+        &items[1].items,
+        block,
+    )?;
+    let RuntimeValue::Comptime(data_value) = data.value else {
+        return Err(throw_err(
+            env,
+            Some(items[1].pos.clone()),
+            "std.emit's data must be known at compile time",
+            None,
+            None,
+        ));
+    };
+    let operand_items = match crate::compiler::trim_ws(&items[2].items).as_slice() {
+        [SyntaxNode::Block(list)] if list.tag == crate::parser::BracketTag::List => {
+            crate::ct::list_items(env, list)?
+        }
+        _ => {
+            return Err(throw_err(
+                env,
+                Some(items[2].pos.clone()),
+                "std.emit's operands are a list in parentheses, as in (a, b)",
+                None,
+                None,
+            ));
+        }
+    };
+    let mut operands = Vec::new();
+    for item in operand_items {
+        let value = analyze(
+            env,
+            Type::Unknown(TypeUnknown),
+            item.pos.clone(),
+            &item.items,
+            block,
+        )?;
+        operands.push(value.value);
+    }
+    let idx = crate::compiler::block_append(
+        block,
+        AnalysisLine::Emit {
+            pos,
+            data: data_value,
+            data_ty: data.ty,
+            operands,
+            ty: ty.ty.clone(),
+        },
+    );
+    Ok(AnalysisResult {
+        ty: ty.ty,
+        value: RuntimeValue::Runtime(idx),
+    })
 }

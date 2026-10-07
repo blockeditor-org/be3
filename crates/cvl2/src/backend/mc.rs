@@ -127,7 +127,8 @@ pub fn codegen_mcfunction(
             | AnalysisLine::MutSet { pos, .. }
             | AnalysisLine::RegionBegin { pos, .. }
             | AnalysisLine::RegionEnd { pos }
-            | AnalysisLine::ComptimeFileCreate { pos, .. } => {
+            | AnalysisLine::ComptimeFileCreate { pos, .. }
+            | AnalysisLine::Emit { pos, .. } => {
                 return Err(throw_err(
                     env,
                     Some(pos.clone()),

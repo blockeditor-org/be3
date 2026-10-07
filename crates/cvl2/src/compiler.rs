@@ -455,6 +455,13 @@ pub enum AnalysisLine {
         pos: TokenPosition,
         command: RuntimeValue,
     },
+    Emit {
+        pos: TokenPosition,
+        data: ComptimeValue,
+        data_ty: Type,
+        operands: Vec<RuntimeValue>,
+        ty: Type,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -863,6 +870,7 @@ pub enum ComptimeValue {
     Target(ComptimeValueTarget),
     ReflectValue(crate::reflect::ReflectValue),
     ReflectConstant(Rc<ComptimeValue>),
+    ReflectData(Rc<(ComptimeValue, Type)>),
 }
 
 #[derive(Debug, Clone)]
@@ -3575,6 +3583,10 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                             "Constant",
                             d_type(Type::ReflectConstant(crate::ct::TypeReflectConstant)),
                         ),
+                        (
+                            "Data",
+                            d_type(Type::ReflectData(crate::ct::TypeReflectData)),
+                        ),
                     ],
                     None,
                 ),
@@ -3584,6 +3596,10 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                 d_ns(
                     vec![
                         ("Target", d_type(Type::Target(crate::ct::TypeTarget))),
+                        (
+                            "emit",
+                            d_ns(vec![], Some(crate::reflect::builtin_emit_call)),
+                        ),
                         ("reflect", Rc::new(ReflectPreludeDescriptor)),
                         (
                             "File",

@@ -1,9 +1,22 @@
 #builtin.build .= () => std.Folder: [
   "clamp.c" .= std.File: emit_fn("clamp", std.reflect.function(toy, clamp))
+  "poly.c" .= std.File: emit_fn("poly", std.reflect.function(toy, poly))
 ]
 
 toy :: std.Target: "toy"
 c_int :: std.type.base(std.c.int)
+
+Op :: std.Enum["add", "mul", "constant" .= std.kw.int]
+
+num :: std.Type[
+  .statics .= [
+    std.literal.number .= (n: std.kw.int) => std.emit(num, Op.constant(n), ())
+    std.operator.slot("+") .= (a: num, b: num) => std.emit(num, Op.add, (a, b))
+    std.operator.slot("*") .= (a: num, b: num) => std.emit(num, Op.mul, (a, b))
+  ]
+]
+
+poly :: (x: num) => num: x * x + 3 * x + 1
 
 clamp :: (a: std.c.int, b: std.c.int) => std.c.int: :out {
   std.c.if (a > b) {
@@ -15,6 +28,9 @@ clamp :: (a: std.c.int, b: std.c.int) => std.c.int: :out {
 c_type :: (at: std.reflect.Value, ty: std.Type) => std.kw.text: :done {
   std.kw.if (std.type.base(ty) == c_int) {
     done: "int"
+  }
+  std.kw.if (ty == num) {
+    done: "long"
   }
   -> std.reflect.fail(at, "toy doesn't support " + std.type.name(ty))
 }
@@ -79,6 +95,19 @@ emit_line :: (f: std.reflect.Function, names: std.kw.list(std.kw.text), params: 
   }
   std.kw.if (_ := line.end) {
     done: "  }\n"
+  }
+  std.kw.if (l := line.emit) {
+    op := l.data.as(Op).?
+    target := std.kw.text: "  \(c_type(l.at, l.at.ty)) \(names.get(l.at.index)) = "
+    std.kw.if (n := op.constant) {
+      done: target + "\(n);\n"
+    }
+    lhs := operand(names, l.operands.get(0))
+    rhs := operand(names, l.operands.get(1))
+    std.kw.if (_ := op.add) {
+      done: target + "\(lhs) + \(rhs);\n"
+    }
+    done: target + "\(lhs) * \(rhs);\n"
   }
   std.kw.if (l := line.other) {
     done: std.reflect.fail(l.at, "toy doesn't support " + l.name)

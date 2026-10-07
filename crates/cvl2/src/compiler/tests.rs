@@ -183,6 +183,7 @@ mod import_file_builds_text_sample;
 mod import_file_builds_types_sample;
 mod import_file_c_rejects_kw_if;
 mod import_file_compare_operator_takes_rhs_type_from_lhs;
+mod import_file_emit_errors;
 mod import_file_kw_bool_values_resolve_from_slot;
 mod import_file_kw_else_must_follow_if_on_same_line;
 mod import_file_kw_if_binds_an_optional;

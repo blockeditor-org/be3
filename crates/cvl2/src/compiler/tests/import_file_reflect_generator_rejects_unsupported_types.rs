@@ -18,7 +18,8 @@ fn import_file_reflect_generator_rejects_unsupported_types() {
     assert_eq!(errors.len(), 1, "{errors:?}");
     let entries = &errors[0].entries;
     assert_eq!(entries[0].message, "toy doesn't support Word");
-    assert_eq!(entries[0].pos.as_ref().map(|p| p.lyn), Some(107));
+    let len_line = include_str!("../../../samples/reflect.qxc").lines().count() + 4;
+    assert_eq!(entries[0].pos.as_ref().map(|p| p.lyn), Some(len_line));
     assert_eq!(entries[1].message, "reported here");
 
     let errors = reflect_sample_with("keep", word).expect_err("toy has no Word");

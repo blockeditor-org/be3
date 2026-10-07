@@ -58,6 +58,7 @@ pub enum ComptimeValueKind {
     Target,
     ReflectValue,
     ReflectConstant,
+    ReflectData,
 }
 
 impl ComptimeValueKind {
@@ -94,6 +95,7 @@ impl ComptimeValueKind {
             ComptimeValue::Target(_) => ComptimeValueKind::Target,
             ComptimeValue::ReflectValue(_) => ComptimeValueKind::ReflectValue,
             ComptimeValue::ReflectConstant(_) => ComptimeValueKind::ReflectConstant,
+            ComptimeValue::ReflectData(_) => ComptimeValueKind::ReflectData,
         }
     }
 }
@@ -597,11 +599,14 @@ fn comptime_eval_with_args(
                     None,
                 ));
             }
-            AnalysisLine::McExecRaw { pos: ipos, .. } => {
+            AnalysisLine::McExecRaw { pos: ipos, .. } | AnalysisLine::Emit { pos: ipos, .. } => {
                 return Err(throw_err(
                     env,
                     Some(ipos.clone()),
-                    "todo: comptime eval expr: mc:exec_raw",
+                    format!(
+                        "{} can't run at compile time",
+                        crate::printers::analysis_line_name(instr)
+                    ),
                     None,
                     None,
                 ));

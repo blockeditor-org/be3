@@ -293,6 +293,7 @@ pub(crate) fn analysis_line_name(line: &AnalysisLine) -> String {
         AnalysisLine::KwBuiltin { op, .. } => format!("std.kw {}", op.name()),
         AnalysisLine::CBinary { op, .. } => format!("std.c.int {}", op.as_str()),
         AnalysisLine::McExecRaw { .. } => "std.mc.runCommand".to_string(),
+        AnalysisLine::Emit { data_ty, .. } => format!("std.emit of {}", data_ty.dump()),
         other => analysis_line_tag(other).to_string(),
     }
 }
@@ -306,6 +307,7 @@ pub(crate) fn analysis_line_tag(line: &AnalysisLine) -> &'static str {
         AnalysisLine::Args { .. } => "args",
         AnalysisLine::ComptimeFileCreate { .. } => "comptime:file_create",
         AnalysisLine::McExecRaw { .. } => "mc:exec_raw",
+        AnalysisLine::Emit { .. } => "emit",
         AnalysisLine::Tuple { .. } => "tuple",
         AnalysisLine::TupleGet { .. } => "tuple_get",
         AnalysisLine::CBinary { .. } => "c:binary",
@@ -335,6 +337,7 @@ pub(crate) fn analysis_line_pos(line: &AnalysisLine) -> &TokenPosition {
         AnalysisLine::Args { pos } => pos,
         AnalysisLine::ComptimeFileCreate { pos, .. } => pos,
         AnalysisLine::McExecRaw { pos, .. } => pos,
+        AnalysisLine::Emit { pos, .. } => pos,
         AnalysisLine::Tuple { pos, .. } => pos,
         AnalysisLine::TupleGet { pos, .. } => pos,
         AnalysisLine::CBinary { pos, .. } => pos,
@@ -383,6 +386,7 @@ fn comptime_value_kind(value: &ComptimeValue) -> &'static str {
         ComptimeValue::Target(_) => "target",
         ComptimeValue::ReflectValue(_) => "reflect_value",
         ComptimeValue::ReflectConstant(_) => "reflect_constant",
+        ComptimeValue::ReflectData(_) => "reflect_data",
     }
 }
 

@@ -45,6 +45,8 @@ pub enum KwBuiltinOp {
     TypeName,
     TypeBase,
     ReflectFail,
+    DataType,
+    DataAs,
 }
 
 #[derive(Debug)]
@@ -116,6 +118,8 @@ impl KwBuiltinOp {
             KwBuiltinOp::TypeName => "type_name",
             KwBuiltinOp::TypeBase => "type_base",
             KwBuiltinOp::ReflectFail => "reflect_fail",
+            KwBuiltinOp::DataType => "data_type",
+            KwBuiltinOp::DataAs => "data_as",
         }
     }
 }
@@ -149,6 +153,14 @@ pub fn eval(
             some: crate::reflect::constant_int(c).map(|n| Box::new(int(n))),
         }),
         (KwBuiltinOp::TypeName, [V::Type(t)]) => string(t.ty.dump()),
+        (KwBuiltinOp::DataType, [V::ReflectData(data)]) => {
+            V::Type(crate::compiler::ComptimeValueType { ty: data.1.clone() })
+        }
+        (KwBuiltinOp::DataAs, [V::ReflectData(data), V::Type(t)]) => {
+            V::Optional(ComptimeValueOptional {
+                some: (data.1 == t.ty).then(|| Box::new(data.0.clone())),
+            })
+        }
         (KwBuiltinOp::TypeBase, [V::Type(t)]) => V::Type(crate::compiler::ComptimeValueType {
             ty: crate::reflect::base_type(env, &t.ty, pos)?,
         }),
@@ -482,6 +494,16 @@ pub fn value_field(
         (Type::ReflectConstant(_), "ty") => {
             (KwBuiltinOp::ConstantType, Type::CtType(crate::ct::CtType))
         }
+        (Type::ReflectData(_), "ty") => (KwBuiltinOp::DataType, Type::CtType(crate::ct::CtType)),
+        (Type::ReflectData(_), "as") => {
+            return Ok(Some(AnalysisResult {
+                ty: Type::KwField(TypeKwField {
+                    receiver: Box::new(ty.clone()),
+                    name: name.to_string(),
+                }),
+                value: obj.value.clone(),
+            }));
+        }
         (Type::ReflectConstant(_), "int") => (
             KwBuiltinOp::ConstantInt,
             Type::Optional(crate::ct::TypeOptional {
@@ -521,8 +543,31 @@ pub fn call_field(
     arg: CallArg,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
+    if let Type::ReflectData(_) = &*field.receiver {
+        let ty_value = analyze_as(env, &Type::CtType(crate::ct::CtType), arg, block)?;
+        let RuntimeValue::Comptime(ComptimeValue::Type(ty)) = &ty_value else {
+            return Err(throw_err(
+                env,
+                Some(pos),
+                "std.reflect.Data.as needs a type known at compile time",
+                None,
+                None,
+            ));
+        };
+        let result = Type::Optional(crate::ct::TypeOptional {
+            child: Box::new(ty.ty.clone()),
+        });
+        return emit(
+            env,
+            block,
+            pos,
+            KwBuiltinOp::DataAs,
+            vec![receiver, ty_value],
+            result,
+        );
+    }
     let Type::KwList(list) = &*field.receiver else {
-        unreachable!("only lists have callable fields")
+        unreachable!("only lists and std.reflect.Data have callable fields")
     };
     let (op, arg_ty, result_ty) = match field.name.as_str() {
         "get" => (

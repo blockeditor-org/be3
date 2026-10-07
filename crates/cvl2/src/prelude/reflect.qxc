@@ -19,6 +19,7 @@ Line :: std.Enum[
   "break" .= std.Struct["at" .= raw.Value, "label" .= raw.Value, "value" .= Operand]
   "c_if" .= std.Struct["at" .= raw.Value, "cond" .= Operand]
   "end" .= At
+  "emit" .= std.Struct["at" .= raw.Value, "data" .= raw.Data, "operands" .= std.kw.list(Operand)]
   "other" .= std.Struct["at" .= raw.Value, "name" .= std.kw.string]
 ]
 
@@ -31,6 +32,7 @@ Function :: std.Struct[
 
 "Value" .= raw.Value
 "Constant" .= raw.Constant
+"Data" .= raw.Data
 "Operand" .= Operand
 "Line" .= Line
 "Function" .= Function

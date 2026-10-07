@@ -80,7 +80,11 @@ pub enum Type {
     Target(TypeTarget),
     ReflectValue(TypeReflectValue),
     ReflectConstant(TypeReflectConstant),
+    ReflectData(TypeReflectData),
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeReflectData;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeTarget;
@@ -510,6 +514,7 @@ impl Type {
             Type::Target(_) => "std.Target",
             Type::ReflectValue(_) => "std.reflect.Value",
             Type::ReflectConstant(_) => "std.reflect.Constant",
+            Type::ReflectData(_) => "std.reflect.Data",
             Type::KwList(_) => "KwList",
             Type::KwField(_) => "KwField",
             Type::Null(_) => "Null",
