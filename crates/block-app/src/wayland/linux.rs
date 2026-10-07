@@ -75,6 +75,17 @@ pub(crate) fn after(context: &Context, document: &mut Document) {
     });
 }
 
+pub(crate) fn replace_gpu(setup: &Setup) {
+    let Some(gpu) = setup.get::<beui::GpuSetup>() else {
+        return;
+    };
+    with(|running| {
+        running
+            .compositor
+            .replace_gpu(gpu.device.clone(), gpu.queue.clone(), gpu.format);
+    });
+}
+
 pub(crate) fn exiting() {
     with(|running| running.compositor.exiting());
 }

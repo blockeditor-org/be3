@@ -7,7 +7,7 @@ use std::time::Duration;
 use accesskit::TreeUpdate;
 
 use crate::app::accessibility_dump::AccessibilityDump;
-use crate::app::{App, SafeArea, Setup, next_batch, safe_rect};
+use crate::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
 use crate::context::{Context, FrameOutput};
 use crate::file_picker::FilePickRequest;
 use crate::geometry::Vec2;
@@ -96,6 +96,7 @@ pub struct Runner {
     context: Context,
     title: String,
     renderers: Option<Renderers>,
+    waker: Option<Waker>,
     events: Vec<Event>,
     accessibility: Option<AccessibilityDump>,
     shown: Shown,
@@ -124,6 +125,7 @@ impl Runner {
             context,
             title: options.title,
             renderers: None,
+            waker: None,
             events: Vec::new(),
             accessibility,
             shown: Shown::default(),
@@ -144,6 +146,7 @@ impl Runner {
         let renderers = Renderers::new(&self.context, loaded)?;
         renderers.provide(&mut setup);
         self.renderers = Some(renderers);
+        self.waker = Some(setup.waker.clone());
         self.app.setup(&setup);
         Ok(())
     }
@@ -194,6 +197,17 @@ impl Runner {
         safe_area: SafeArea,
     ) -> Option<Frame> {
         let renderers = self.renderers.as_mut()?;
+        match renderers.recover() {
+            Ok(false) => {}
+            Ok(true) => {
+                if let Some(waker) = &self.waker {
+                    let mut setup = Setup::new(waker.clone());
+                    renderers.provide(&mut setup);
+                    self.app.renderer_replaced(&setup);
+                }
+            }
+            Err(error) => panic!("beui: the GPU was lost and could not be reopened: {error}"),
+        }
         if let Err(error) = renderers.follow_choice(&self.context) {
             eprintln!("beui: could not switch renderers: {error}");
         }
