@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 use crate::{
     ChildOperations, EditorCapabilities, EditorManifest, EditorRegion, InteractionMode,
-    ManifestError, PluginIdentity, PluginManifest, ResizeMode, TemplateCategory, TemplateManifest,
+    ManifestError, PluginIdentity, PluginManifest, ResizeMode, ShellRequest, TemplateCategory,
+    TemplateManifest,
 };
 
 #[cfg(test)]
@@ -42,6 +43,8 @@ pub struct EditorDocument {
     #[serde(default)]
     pub resize: ResizeMode,
     pub regions: Vec<EditorRegion>,
+    #[serde(default)]
+    pub accepts: Vec<ShellRequest>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -166,6 +169,7 @@ impl EditorDocument {
             capabilities: self.capabilities,
             resize: self.resize,
             regions: self.regions,
+            accepts: self.accepts,
         })
     }
 }

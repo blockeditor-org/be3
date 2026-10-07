@@ -25,7 +25,8 @@ What the launcher passes the app is available to any native run:
 - `--accessibility-tree=PATH`: write the accessibility tree to PATH (see below).
 - `--session` (Linux): run on the displays and input devices themselves through
   `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
-  server on it. Ctrl+Alt+Backspace quits and Ctrl+Alt+F<n> switches terminals.
+  server on it, as the desktop: the shell is linux-desktop instead of workspace-ui, on a
+  profile of its own. Ctrl+Alt+Backspace quits and Ctrl+Alt+F<n> switches terminals.
   `BEUI_SCALE` sets its scale.
 
 ## Wayland programs

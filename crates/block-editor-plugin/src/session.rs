@@ -183,6 +183,7 @@ fn name(message: &Message) -> &'static str {
         Message::HelloAccepted(_) => "an accepted hello",
         Message::HelloRejected(_) => "a rejected hello",
         Message::Theme(_) => "a theme",
+        Message::UtcOffset(_) => "a UTC offset",
         Message::Fonts(_) => "fonts",
         Message::MissingCharacters(_) => "missing characters",
         Message::Screens(_) => "a screen set",

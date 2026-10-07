@@ -397,6 +397,27 @@ pub struct EditorManifest {
     pub capabilities: EditorCapabilities,
     pub resize: ResizeMode,
     pub regions: Vec<EditorRegion>,
+    pub accepts: Vec<ShellRequest>,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShellRequest {
+    ShowBlock,
+    Pick,
+    Dialog,
+    Panel,
+    Window,
+}
+
+impl ShellRequest {
+    pub const ALL: [Self; 5] = [
+        Self::ShowBlock,
+        Self::Pick,
+        Self::Dialog,
+        Self::Panel,
+        Self::Window,
+    ];
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -432,6 +453,10 @@ impl PluginManifest {
 impl EditorManifest {
     pub fn template(&self, id: &str) -> Option<&TemplateManifest> {
         self.templates.iter().find(|template| template.id == id)
+    }
+
+    pub fn accepts(&self, request: ShellRequest) -> bool {
+        self.accepts.contains(&request)
     }
 }
 
@@ -1570,6 +1595,7 @@ pub enum Message {
     HelloAccepted(HelloAccepted),
     HelloRejected(ProtocolError),
     Theme(Theme),
+    UtcOffset(i32),
     Fonts(Fonts),
     MissingCharacters(Vec<char>),
     Screens(ScreenSet),
@@ -1618,6 +1644,7 @@ impl Message {
             Self::HelloAccepted(_)
             | Self::HelloRejected(_)
             | Self::Theme(_)
+            | Self::UtcOffset(_)
             | Self::Fonts(_)
             | Self::Screens(_)
             | Self::Input(_)

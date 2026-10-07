@@ -34,7 +34,7 @@ pub(crate) enum OpenDialog {
 }
 
 #[component]
-pub(crate) fn WorkspaceDialogs(workspace: Rc<Workspace>) -> NodeId {
+pub fn WorkspaceDialogs(workspace: Rc<Workspace>) -> NodeId {
     view! {
         <List spacing=0.0>
             <RenameDialog workspace={Rc::clone(&workspace)} />

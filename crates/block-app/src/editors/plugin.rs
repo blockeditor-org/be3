@@ -315,6 +315,11 @@ impl PluginEditor {
         })
     }
 
+    pub(crate) fn accepts(&self, request: block_plugin_api::ShellRequest) -> bool {
+        self.manifest()
+            .is_some_and(|editor| editor.accepts(request))
+    }
+
     pub(crate) fn has_region(&self, region: EditorRegion) -> bool {
         self.manifest()
             .is_some_and(|editor| editor.regions.contains(&region))

@@ -32,7 +32,7 @@ const CREATION_HEIGHT: f32 = 96.0;
 type Act = Rc<dyn Fn(PickAction)>;
 
 #[component]
-pub(crate) fn PickerDialogs(workspace: Rc<Workspace>) -> NodeId {
+pub fn PickerDialogs(workspace: Rc<Workspace>) -> NodeId {
     let picks = workspace.picks.clone();
     let ids = create_memo(move || {
         picks.with(|picks| picks.iter().map(|held| held.pick).collect::<Vec<_>>())

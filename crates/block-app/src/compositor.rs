@@ -22,7 +22,7 @@ type ShellSignal = (
 thread_local! {
     static LISTENERS: RefCell<Listeners> = RefCell::new(HashMap::new());
     static NEXT_LISTENER: Cell<u64> = const { Cell::new(0) };
-    static ACTIONS: RefCell<Vec<EditorAction>> = const { RefCell::new(Vec::new()) };
+    static ACTIONS: RefCell<Vec<(Option<uuid::Uuid>, EditorAction)>> = const { RefCell::new(Vec::new()) };
     static ANY: RefCell<Option<(ReadSignal<u64>, WriteSignal<u64>)>> = const { RefCell::new(None) };
     static CHANGED: Cell<bool> = const { Cell::new(false) };
     static PENDING_SHELL: Cell<Option<Option<uuid::Uuid>>> = const { Cell::new(None) };
@@ -127,11 +127,11 @@ pub(crate) fn notify_plugins() {
     }
 }
 
-pub(crate) fn act(action: EditorAction) {
-    ACTIONS.with(|actions| actions.borrow_mut().push(action));
+pub(crate) fn act(from: Option<uuid::Uuid>, action: EditorAction) {
+    ACTIONS.with(|actions| actions.borrow_mut().push((from, action)));
     crate::host::request_repaint();
 }
 
-pub(crate) fn take_actions() -> Vec<EditorAction> {
+pub(crate) fn take_actions() -> Vec<(Option<uuid::Uuid>, EditorAction)> {
     ACTIONS.with(|actions| std::mem::take(&mut *actions.borrow_mut()))
 }

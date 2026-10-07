@@ -38,6 +38,7 @@ pub(crate) struct State {
     registry: RefCell<Rc<EditorRegistry>>,
     client_id: Cell<Uuid>,
     open: RefCell<HashMap<Uuid, PluginEditor>>,
+    parents: RefCell<HashMap<Uuid, Uuid>>,
     simulated: RefCell<HashMap<Uuid, Access>>,
     creations: RefCell<HashMap<CreationKey, CreationChild>>,
     commits: RefCell<HashMap<(Uuid, ChildId), ChildCommit>>,
@@ -78,6 +79,7 @@ impl Editors {
             registry: RefCell::new(registry),
             client_id: Cell::new(client_id),
             open: RefCell::new(HashMap::new()),
+            parents: RefCell::new(HashMap::new()),
             simulated: RefCell::new(HashMap::new()),
             creations: RefCell::new(HashMap::new()),
             commits: RefCell::new(HashMap::new()),
@@ -94,6 +96,7 @@ impl Editors {
         let closed: Vec<PluginEditor> =
             self.with(|open| open.drain().map(|(_, editor)| editor).collect());
         drop(closed);
+        self.0.parents.borrow_mut().clear();
         self.0.creations.borrow_mut().clear();
         self.0.commits.borrow_mut().clear();
         self.0.settings_children.borrow_mut().clear();
@@ -135,7 +138,31 @@ impl Editors {
         above.min(editor_access_ceiling(id)).min(simulated)
     }
 
-    fn ensure(&self, id: Uuid, block_type: Uuid, view_block: Option<Uuid>) {
+    pub(crate) fn parent_of(&self, id: Uuid) -> Option<Uuid> {
+        self.0.parents.borrow().get(&id).copied()
+    }
+
+    pub(crate) fn forget_parent(&self, id: Uuid) {
+        self.0.parents.borrow_mut().remove(&id);
+    }
+
+    pub(crate) fn block_of(&self, plugin_id: &str, instance: EditorInstanceId) -> Option<Uuid> {
+        self.with(|open| {
+            open.values()
+                .find(|editor| {
+                    editor.instance() == instance
+                        && editor
+                            .plugin()
+                            .is_some_and(|plugin| plugin.identity.id == plugin_id)
+                })
+                .map(PluginEditor::id)
+        })
+    }
+
+    fn ensure(&self, id: Uuid, block_type: Uuid, view_block: Option<Uuid>, parent: Uuid) {
+        if parent != id {
+            self.0.parents.borrow_mut().insert(id, parent);
+        }
         let registry = self.registry();
         self.with(|open| {
             open.entry(id)
@@ -1169,7 +1196,7 @@ fn HostedChild(
         if nesting.above.contains(&id) {
             return Kind::Unavailable;
         }
-        editors.ensure(id, block_type, view_block);
+        editors.ensure(id, block_type, view_block, parent);
         let Some(child) = child.get() else {
             return Kind::Missing;
         };
