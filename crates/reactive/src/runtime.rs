@@ -137,7 +137,7 @@ pub(crate) fn flush() {
             continue;
         }
         let current = RUNTIME.with(|runtime| runtime.zone.get());
-        if computation.zone != 0 && current != 0 && computation.zone != current {
+        if computation.zone != 0 && computation.zone != current {
             RUNTIME.with(|runtime| {
                 runtime
                     .parked
