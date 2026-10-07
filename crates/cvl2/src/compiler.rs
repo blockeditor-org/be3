@@ -116,7 +116,7 @@ pub enum TargetEnv {
     Todo,
 }
 
-fn target_env_symbol() -> Symbol {
+pub fn target_env_symbol() -> Symbol {
     static TARGET_ENV_SYMBOL: OnceLock<Symbol> = OnceLock::new();
     *TARGET_ENV_SYMBOL.get_or_init(Symbol::new)
 }
@@ -303,7 +303,7 @@ pub struct Env {
     pub builtin_cache: Rc<PerComptimeScopeCache<Rc<dyn Descriptor>, AnalysisResult>>,
 }
 
-fn with_scope<R>(
+pub fn with_scope<R>(
     env: &mut Env,
     scope: Scope,
     f: impl FnOnce(&mut Env) -> Result<R, PositionedError>,
@@ -338,6 +338,7 @@ pub struct ComptimeValueAst {
 #[derive(Debug)]
 struct ComptimeValueDeclarationInner {
     ast: ComptimeValueAst,
+    name: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -356,7 +357,14 @@ impl CacheKey for ComptimeValueDeclaration {
 }
 
 pub fn create_declaration(_env: &mut Env, ast: ComptimeValueAst) -> ComptimeValueDeclaration {
-    ComptimeValueDeclaration(Rc::new(ComptimeValueDeclarationInner { ast }))
+    ComptimeValueDeclaration(Rc::new(ComptimeValueDeclarationInner { ast, name: None }))
+}
+
+pub fn create_named_declaration(ast: ComptimeValueAst, name: &str) -> ComptimeValueDeclaration {
+    ComptimeValueDeclaration(Rc::new(ComptimeValueDeclarationInner {
+        ast,
+        name: Some(name.to_string()),
+    }))
 }
 
 pub fn get_declaration(
@@ -379,6 +387,11 @@ pub fn get_declaration(
             )?;
             let evald =
                 crate::comptime::comptime_eval(env, &block, result.value, decl.ast().pos.clone())?;
+            if let (Some(name), ComptimeValue::Type(ComptimeValueType { ty: Type::User(t) })) =
+                (&decl.0.name, &evald)
+            {
+                t.set_name(name);
+            }
             Ok(ComptimeAnalysisResult {
                 ty: result.ty,
                 value: evald,
@@ -1338,13 +1351,13 @@ fn read_container_line(
                 );
             } else {
                 let scope = env.scope.clone();
-                let decl = create_declaration(
-                    env,
+                let decl = create_named_declaration(
                     ComptimeValueAst {
                         ast: rhs.items.clone(),
                         pos: rhs.pos.clone(),
                         scope,
                     },
+                    &target.name,
                 );
                 env.scope.bindings.borrow_mut().insert(
                     target.name.clone(),
@@ -1508,14 +1521,16 @@ impl ComptimeNamespace for NamespaceImpl {
         field: &str,
         _block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
-        if self.registered.contains_key(&NsKey::Str(field.to_string())) {
-            return Err(throw_err(
-                env,
-                Some(pos),
-                "todo get registered field",
-                None,
-                None,
-            ));
+        match self.registered.get(&NsKey::Str(field.to_string())) {
+            Some(RegisteredEntry::Error { etok, .. }) => return Err(throw_consumed_err(*etok)),
+            Some(RegisteredEntry::Ok { decl, .. }) => {
+                let r = get_declaration(env, decl.clone())?;
+                return Ok(AnalysisResult {
+                    ty: r.ty,
+                    value: RuntimeValue::Comptime(r.value),
+                });
+            }
+            None => {}
         }
         Err(throw_err(
             env,
@@ -2079,7 +2094,7 @@ fn analyze_binary_op(
     };
 
     let slot_key = crate::std_keys::operator_symbol(crate::std_keys::OperatorKind::Slot, &op.op);
-    if let Some(slot_op) = slot.type_symbol(slot_key) {
+    if let Some(slot_op) = slot.type_symbol(env, slot_key)? {
         let args = SyntaxNode::Block(Box::new(BlockToken {
             pos: op.pos.clone(),
             start: "(".to_string(),
@@ -2123,7 +2138,7 @@ fn analyze_binary_op(
         block,
     )?;
     let lhs_key = crate::std_keys::operator_symbol(crate::std_keys::OperatorKind::Lhs, &op.op);
-    if !lhs.ty.has_value_symbol(lhs_key) {
+    if !lhs.ty.has_value_symbol(env, lhs_key)? {
         return Err(throw_err(
             env,
             Some(op.pos.clone()),
@@ -2368,7 +2383,7 @@ fn descriptor_construct(
     let cache = env.builtin_cache.clone();
     let d2 = d.clone();
     let route2 = route.to_string();
-    let comptime = env.scope.comptime.clone();
+    let comptime = ComptimeScopeMap::root(HashMap::new());
     cache.get_or_put(d, &comptime, env, move |env| {
         d2.construct_impl(env, &route2)
     })
@@ -2475,6 +2490,24 @@ impl ComptimeNamespace for BuiltinNamespaceImpl {
 
     fn pos(&self) -> &TokenPosition {
         &self.pos
+    }
+}
+
+#[derive(Debug)]
+struct PreludeDescriptor;
+
+impl Descriptor for PreludeDescriptor {
+    fn construct_impl(
+        &self,
+        _env: &mut Env,
+        _route: &str,
+    ) -> Result<AnalysisResult, PositionedError> {
+        Ok(AnalysisResult {
+            ty: Type::CtNamespace(CtNamespace),
+            value: RuntimeValue::Comptime(ComptimeValue::Namespace(Rc::new(
+                crate::user_type::LazyPrelude::c(),
+            ))),
+        })
     }
 }
 
@@ -2753,6 +2786,174 @@ fn builtin_operator_lhs_call(
     builtin_operator_key(env, crate::std_keys::OperatorKind::Lhs, arg_ast, block)
 }
 
+fn builtin_list_args<'a>(
+    env: &mut Env,
+    pos: &TokenPosition,
+    arg_ast: &CallArg<'a>,
+    what: &str,
+    count: usize,
+) -> Result<Vec<OperatorSegmentToken>, PositionedError> {
+    match crate::ct::call_list_items(env, arg_ast)? {
+        Some(items) if items.len() == count => Ok(items),
+        _ => Err(throw_err(
+            env,
+            Some(pos.clone()),
+            format!("{what} takes {count} arguments in parentheses"),
+            None,
+            None,
+        )),
+    }
+}
+
+fn builtin_type_wrap_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let items = builtin_list_args(env, &pos, &arg_ast, "std.type.wrap", 2)?;
+    let ty = analyze(
+        env,
+        Type::CtType(CtType),
+        items[0].pos.clone(),
+        &items[0].items,
+        block,
+    )?;
+    let ComptimeValue::Type(ty) = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::Type),
+        ty.value,
+        items[0].pos.clone(),
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    let Type::User(user) = &ty.ty else {
+        return Err(throw_err(
+            env,
+            Some(items[0].pos.clone()),
+            format!("std.type.wrap needs a std.Type, got {}", ty.ty.dump()),
+            None,
+            None,
+        ));
+    };
+    let repr = user.repr(env, &pos)?;
+    let value = analyze(
+        env,
+        repr.clone(),
+        items[1].pos.clone(),
+        &items[1].items,
+        block,
+    )?;
+    let value = repr.cast_into(env, block, value, items[1].pos.clone())?;
+    Ok(AnalysisResult {
+        ty: ty.ty,
+        value: value.value,
+    })
+}
+
+fn builtin_type_unwrap_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let value = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        arg_ast.pos,
+        arg_ast.ast,
+        block,
+    )?;
+    let Type::User(user) = &value.ty else {
+        return Err(throw_err(
+            env,
+            Some(pos),
+            format!(
+                "std.type.unwrap needs a value of a std.Type, got {}",
+                value.ty.dump()
+            ),
+            None,
+            None,
+        ));
+    };
+    Ok(AnalysisResult {
+        ty: user.repr(env, &pos)?,
+        value: value.value,
+    })
+}
+
+fn builtin_c_binary_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let name = analyze(
+        env,
+        Type::OperatorName(OperatorName),
+        arg_ast.pos,
+        arg_ast.ast,
+        block,
+    )?;
+    let ComptimeValue::OperatorName(name) = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::OperatorName),
+        name.value,
+        pos.clone(),
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    let Some(op) = crate::backend::c::CBinaryOp::from_token(&name.value) else {
+        return Err(throw_err(
+            env,
+            Some(pos),
+            format!("C has no operator {}", name.value),
+            None,
+            None,
+        ));
+    };
+    Ok(crate::ct::slot_operator_value(Type::CInt(CInt), op))
+}
+
+fn builtin_c_int_from_kw_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let kw_int = Type::KwInt(crate::ct::KwInt);
+    let value = analyze(env, kw_int.clone(), arg_ast.pos, arg_ast.ast, block)?;
+    let value = kw_int.cast_into(env, block, value, pos.clone())?;
+    let ComptimeValue::KwInt(value) = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::KwInt),
+        value.value,
+        pos.clone(),
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    let Ok(value) = i32::try_from(value.value) else {
+        return Err(throw_err(
+            env,
+            Some(pos),
+            format!("{} does not fit in a C int", value.value),
+            None,
+            None,
+        ));
+    };
+    Ok(AnalysisResult {
+        ty: Type::CInt(CInt),
+        value: RuntimeValue::Comptime(ComptimeValue::CInt(ComptimeValueCInt { value })),
+    })
+}
+
 fn builtin_kw_if_call(
     env: &mut Env,
     _slot: Type,
@@ -2781,7 +2982,14 @@ fn builtin_c_if_call(
 ) -> Result<AnalysisResult, PositionedError> {
     env.require_target(TargetEnv::C, pos.clone(), "std.c.if")?;
     let int = Type::CInt(CInt);
-    let cond = analyze(env, int.clone(), arg_ast.pos, arg_ast.ast, block)?;
+    let cond = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        arg_ast.pos,
+        arg_ast.ast,
+        block,
+    )?;
+    let cond = crate::user_type::unwrap_to(env, cond, &pos)?;
     let cond = int.cast_into(env, block, cond, pos)?;
     Ok(AnalysisResult {
         ty: Type::CIf(crate::ct::CIf),
@@ -2886,6 +3094,32 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                     ty: Type::CtKey(CtKey),
                     value: RuntimeValue::Comptime(ComptimeValue::Key(build_symbol_value())),
                 }),
+            ),
+            (
+                "c",
+                d_ns(
+                    vec![
+                        ("compile", d_ns(vec![], Some(builtin_c_compile_call))),
+                        ("if", d_ns(vec![], Some(builtin_c_if_call))),
+                        ("binary", d_ns(vec![], Some(builtin_c_binary_call))),
+                        (
+                            "int_from_kw",
+                            d_ns(vec![], Some(builtin_c_int_from_kw_call)),
+                        ),
+                        (
+                            "int",
+                            d_raw(AnalysisResult {
+                                ty: Type::CtType(CtType),
+                                value: RuntimeValue::Comptime(ComptimeValue::Type(
+                                    ComptimeValueType {
+                                        ty: Type::CInt(CInt),
+                                    },
+                                )),
+                            }),
+                        ),
+                    ],
+                    None,
+                ),
             ),
             (
                 "std",
@@ -3027,23 +3261,25 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                 None,
                             ),
                         ),
+                        ("c", Rc::new(PreludeDescriptor)),
                         (
-                            "c",
+                            "Type",
+                            d_raw(AnalysisResult {
+                                ty: Type::CtType(CtType),
+                                value: RuntimeValue::Comptime(ComptimeValue::Type(
+                                    ComptimeValueType {
+                                        ty: Type::CtType(CtType),
+                                    },
+                                )),
+                            }),
+                        ),
+                        (
+                            "type",
                             d_ns(
                                 vec![
-                                    ("compile", d_ns(vec![], Some(builtin_c_compile_call))),
-                                    ("if", d_ns(vec![], Some(builtin_c_if_call))),
-                                    (
-                                        "int",
-                                        d_raw(AnalysisResult {
-                                            ty: Type::CtType(CtType),
-                                            value: RuntimeValue::Comptime(ComptimeValue::Type(
-                                                ComptimeValueType {
-                                                    ty: Type::CInt(CInt),
-                                                },
-                                            )),
-                                        }),
-                                    ),
+                                    ("wrap", d_ns(vec![], Some(builtin_type_wrap_call))),
+                                    ("unwrap", d_ns(vec![], Some(builtin_type_unwrap_call))),
+                                    ("repr", d_std_key(crate::std_keys::StdKey::Repr)),
                                 ],
                                 None,
                             ),

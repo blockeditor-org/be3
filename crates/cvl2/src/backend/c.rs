@@ -171,9 +171,13 @@ pub fn codegen_c(env: &mut Env, ctx: &mut CCodegenCtx) -> Result<String, Positio
     ))
 }
 
-fn c_type(env: &Env, ty: &Type, pos: &TokenPosition) -> Result<&'static str, PositionedError> {
+fn c_type(env: &mut Env, ty: &Type, pos: &TokenPosition) -> Result<&'static str, PositionedError> {
     match ty {
         Type::CInt(_) => Ok("int"),
+        Type::User(t) => {
+            let repr = t.repr(env, pos)?;
+            c_type(env, &repr, pos)
+        }
         Type::Void(_) => Ok("void"),
         other => Err(throw_err(
             env,
@@ -186,7 +190,7 @@ fn c_type(env: &Env, ty: &Type, pos: &TokenPosition) -> Result<&'static str, Pos
 }
 
 fn c_signature(
-    env: &Env,
+    env: &mut Env,
     name: &CFnName,
     fn_value: &ComptimeValueFn,
     ret: &Type,
@@ -230,9 +234,21 @@ struct CBody<'a> {
     values: Vec<Option<String>>,
     out: String,
     indent: usize,
+    temps: usize,
+    labels: usize,
 }
 
 impl CBody<'_> {
+    fn temp(&mut self) -> String {
+        self.temps += 1;
+        format!("_{}", self.temps - 1)
+    }
+
+    fn label(&mut self) -> String {
+        self.labels += 1;
+        format!("_l{}", self.labels - 1)
+    }
+
     fn line(&mut self, text: &str) {
         for _ in 0..self.indent {
             self.out.push_str("    ");
@@ -309,6 +325,8 @@ fn codegen_c_body(
         values: vec![None; block.lines.len()],
         out: String::new(),
         indent: 1,
+        temps: 0,
+        labels: 0,
     };
     let mut labels: Vec<CLabel> = Vec::new();
 
@@ -342,8 +360,9 @@ fn codegen_c_body(
             AnalysisLine::CBinary { pos, op, lhs, rhs } => {
                 let lhs = body.value(env, lhs, pos)?;
                 let rhs = body.value(env, rhs, pos)?;
-                body.line(&format!("int _{i} = {lhs} {} {rhs};", op.as_str()));
-                body.values[i] = Some(format!("_{i}"));
+                let temp = body.temp();
+                body.line(&format!("int {temp} = {lhs} {} {rhs};", op.as_str()));
+                body.values[i] = Some(temp);
             }
             AnalysisLine::Call { pos, method, arg } => {
                 let method = get_comptime(
@@ -362,8 +381,9 @@ fn codegen_c_body(
                     body.line(&format!("{name}({args});"));
                 } else {
                     let ty = c_type(env, &ret, pos)?;
-                    body.line(&format!("{ty} _{i} = {name}({args});"));
-                    body.values[i] = Some(format!("_{i}"));
+                    let temp = body.temp();
+                    body.line(&format!("{ty} {temp} = {name}({args});"));
+                    body.values[i] = Some(temp);
                 }
             }
             AnalysisLine::LabelBegin { pos, label, ty } => {
@@ -371,8 +391,9 @@ fn codegen_c_body(
                     Type::Void(_) => None,
                     ty => {
                         let ty = c_type(env, ty, pos)?;
-                        body.line(&format!("{ty} _{i};"));
-                        Some(format!("_{i}"))
+                        let temp = body.temp();
+                        body.line(&format!("{ty} {temp};"));
+                        Some(temp)
                     }
                 };
                 body.line("{");
@@ -380,7 +401,7 @@ fn codegen_c_body(
                 labels.push(CLabel {
                     label: *label,
                     result,
-                    target: format!("_l{i}"),
+                    target: body.label(),
                     used: false,
                 });
             }

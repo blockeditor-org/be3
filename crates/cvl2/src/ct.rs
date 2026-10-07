@@ -65,6 +65,13 @@ pub enum Type {
     KwBool(KwBool),
     KwIf(KwIf),
     KwIfResult(KwIfResult),
+    User(crate::user_type::UserType),
+    InlineFn(TypeInlineFn),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeInlineFn {
+    pub func: crate::compiler::ComptimeValueFn,
 }
 
 impl Type {
@@ -107,8 +114,12 @@ impl Type {
                     | Type::McIdentifier(_)
                     | Type::CExportName(_)
                     | Type::OperatorName(_)
+                    | Type::CtKey(_)
             ),
-            LiteralKind::Map => matches!(self, Type::CtExportList(_) | Type::CtBuildArtifact(_)),
+            LiteralKind::Map => matches!(
+                self,
+                Type::CtExportList(_) | Type::CtBuildArtifact(_) | Type::CtType(_)
+            ),
             LiteralKind::List => matches!(self, Type::Tuple(_)),
             LiteralKind::Number => {
                 matches!(self, Type::McResult(_) | Type::CInt(_) | Type::KwInt(_))
@@ -138,6 +149,9 @@ impl Type {
                 .map(|ast| t.from_string(env, slot, ast, block)),
             (LiteralKind::String, Type::CExportName(t)) => literal_block(node, BracketTag::String)
                 .map(|ast| t.from_string(env, slot, ast, block)),
+            (LiteralKind::String, Type::CtKey(_)) => {
+                literal_block(node, BracketTag::String).map(|ast| string_key(env, ast, block))
+            }
             (LiteralKind::String, Type::OperatorName(t)) => {
                 literal_block(node, BracketTag::String).map(|ast| t.from_string(env, ast, block))
             }
@@ -147,6 +161,8 @@ impl Type {
             (LiteralKind::Map, Type::CtBuildArtifact(t)) => {
                 literal_block(node, BracketTag::Map).map(|ast| t.from_map(env, slot, ast, block))
             }
+            (LiteralKind::Map, Type::CtType(_)) => literal_block(node, BracketTag::Map)
+                .map(|ast| Ok(crate::user_type::declare(env, ast))),
             (LiteralKind::List, Type::Tuple(t)) => {
                 literal_block(node, BracketTag::List).map(|ast| t.from_list(env, ast, block))
             }
@@ -173,6 +189,9 @@ impl Type {
     }
 
     pub fn dump(&self) -> String {
+        if let Type::User(t) = self {
+            return t.name();
+        }
         match self {
             Type::Void(_) => "TypeVoid",
             Type::Unknown(_) => "TypeUnknown",
@@ -199,6 +218,8 @@ impl Type {
             Type::KwBool(_) => "KwBool",
             Type::KwIf(_) => "KwIf",
             Type::KwIfResult(_) => "KwIfResult",
+            Type::User(_) => unreachable!("handled above"),
+            Type::InlineFn(_) => "InlineFn",
         }
         .to_string()
     }
@@ -213,7 +234,7 @@ impl Type {
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
         let key = std_key(StdKey::Call);
-        if !self.has_value_symbol(key) {
+        if !self.has_value_symbol(env, key)? {
             return Err(throw_err(
                 env,
                 Some(pos),
@@ -242,9 +263,17 @@ impl Type {
             Type::CIf(t) => t.analyze_call(env, pos, method, arg_in, block),
             Type::KwIf(t) => t.analyze_call(env, pos, method, arg_in, block),
             Type::Label(t) => t.analyze_call(env, pos, arg_in, block),
-            Type::Bound(t) => t
-                .receiver
-                .call_bound(env, slot, t.key, method, pos, arg_in, block),
+            Type::InlineFn(t) => {
+                crate::user_type::inline_call(env, &t.func, Vec::new(), arg_in, block)
+            }
+            Type::Bound(t) => {
+                let receiver = AnalysisResult {
+                    ty: (*t.receiver).clone(),
+                    value: method.value,
+                };
+                t.receiver
+                    .call_bound(env, slot, t.key, receiver, pos, arg_in, block)
+            }
             _ => unreachable!("has_value_symbol only accepts calls on callable types"),
         }
     }
@@ -267,7 +296,7 @@ impl Type {
                     unreachable!("get_comptime guarantees a matching kind")
                 };
                 let found = match &key {
-                    ComptimeValueKey::Symbol { key, .. } => ty.ty.type_symbol(*key),
+                    ComptimeValueKey::Symbol { key, .. } => ty.ty.type_symbol(env, *key)?,
                     ComptimeValueKey::String { key } => ty.ty.type_field(key),
                 };
                 if found.is_none()
@@ -293,6 +322,10 @@ impl Type {
             }
             _ => {
                 let key = access_key(env, block, prop, &pos)?;
+                let has_value_symbol = match &key {
+                    ComptimeValueKey::Symbol { key, .. } => self.has_value_symbol(env, *key)?,
+                    ComptimeValueKey::String { .. } => false,
+                };
                 match key {
                     ComptimeValueKey::String { key }
                         if key == "else" && matches!(self, Type::KwIfResult(_)) =>
@@ -304,7 +337,7 @@ impl Type {
                             value: obj.value,
                         })
                     }
-                    ComptimeValueKey::Symbol { key, .. } if self.has_value_symbol(key) => {
+                    ComptimeValueKey::Symbol { key, .. } if has_value_symbol => {
                         Ok(AnalysisResult {
                             ty: Type::Bound(TypeBound {
                                 receiver: Box::new(self.clone()),
@@ -325,7 +358,18 @@ impl Type {
         }
     }
 
-    pub fn type_symbol(&self, key: Symbol) -> Option<AnalysisResult> {
+    pub fn type_symbol(
+        &self,
+        env: &mut Env,
+        key: Symbol,
+    ) -> Result<Option<AnalysisResult>, PositionedError> {
+        if let Type::User(t) = self {
+            return Ok(t.lookup(env, key)?.map(crate::user_type::inline_entry));
+        }
+        Ok(self.builtin_type_symbol(key))
+    }
+
+    fn builtin_type_symbol(&self, key: Symbol) -> Option<AnalysisResult> {
         if let Some(StdKey::Literal(kind)) = symbol_std_key(key) {
             return self.supports_literal(kind).then(|| AnalysisResult {
                 ty: Type::CtNamespace(CtNamespace),
@@ -358,7 +402,14 @@ impl Type {
         }
     }
 
-    pub fn has_value_symbol(&self, key: Symbol) -> bool {
+    pub fn has_value_symbol(&self, env: &mut Env, key: Symbol) -> Result<bool, PositionedError> {
+        if let Type::User(t) = self {
+            return Ok(t.lookup(env, key)?.is_some());
+        }
+        Ok(self.builtin_has_value_symbol(key))
+    }
+
+    fn builtin_has_value_symbol(&self, key: Symbol) -> bool {
         if symbol_std_key(key) == Some(StdKey::Call) {
             return matches!(
                 self,
@@ -369,6 +420,7 @@ impl Type {
                     | Type::KwIf(_)
                     | Type::Label(_)
                     | Type::Bound(_)
+                    | Type::InlineFn(_)
             );
         }
         builtin_operator(self, OperatorKind::Lhs, key).is_some()
@@ -385,6 +437,28 @@ impl Type {
         arg_in: CallArg,
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
+        if let Type::User(t) = self {
+            let Some(entry) = t.lookup(env, key)? else {
+                unreachable!("bound only to symbols has_value_symbol accepted")
+            };
+            let ComptimeValue::Fn(func) = get_comptime(env, None, entry.value, pos.clone())? else {
+                return Err(throw_err(
+                    env,
+                    Some(pos),
+                    format!(
+                        "{}'s {} is not a function",
+                        self.dump(),
+                        key_description(&ComptimeValueKey::Symbol {
+                            key,
+                            child: Type::Unknown(TypeUnknown),
+                        })
+                    ),
+                    None,
+                    None,
+                ));
+            };
+            return crate::user_type::inline_call(env, &func, vec![receiver], arg_in, block);
+        }
         if symbol_std_key(key) == Some(StdKey::Call) {
             return self.builtin_call(env, slot, pos, receiver, arg_in, block);
         }
@@ -1426,7 +1500,7 @@ pub fn analyze_literal(
     node: &SyntaxNode,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
-    if let Some(hook) = slot.type_symbol(std_key(StdKey::Literal(kind))) {
+    if let Some(hook) = slot.type_symbol(env, std_key(StdKey::Literal(kind)))? {
         return analyze_call(
             env,
             slot,
@@ -1578,8 +1652,8 @@ fn builtin_operator(ty: &Type, kind: OperatorKind, key: Symbol) -> Option<CBinar
     }
     let op = CBinaryOp::from_token(&op)?;
     match (ty, kind, op.is_comparison()) {
-        (Type::CInt(_) | Type::KwInt(_), OperatorKind::Slot, false) => Some(op),
-        (Type::CInt(_) | Type::KwInt(_), OperatorKind::Lhs, _) => Some(op),
+        (Type::KwInt(_), OperatorKind::Slot, false) => Some(op),
+        (Type::KwInt(_), OperatorKind::Lhs, _) => Some(op),
         (Type::KwBool(_), OperatorKind::Lhs, _) if matches!(op, CBinaryOp::Eq | CBinaryOp::Ne) => {
             Some(op)
         }
@@ -1730,4 +1804,56 @@ impl ComptimeNamespace for SlotOperator {
     fn pos(&self) -> &TokenPosition {
         &self.pos
     }
+}
+
+pub fn slot_operator_value(ty: Type, op: CBinaryOp) -> AnalysisResult {
+    AnalysisResult {
+        ty: Type::CtNamespace(CtNamespace),
+        value: RuntimeValue::Comptime(ComptimeValue::Namespace(Rc::new(SlotOperator {
+            ty,
+            op,
+            pos: compiler_pos(),
+        }))),
+    }
+}
+
+pub fn call_list_items(
+    env: &mut Env,
+    arg: &CallArg,
+) -> Result<Option<Vec<OperatorSegmentToken>>, PositionedError> {
+    let items = trim_ws(arg.ast);
+    match items.as_slice() {
+        [SyntaxNode::Block(list)] if list.tag == BracketTag::List => {
+            Ok(Some(list_items(env, list)?))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn string_key(
+    env: &mut Env,
+    ast: &BlockToken,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let str_result = analyze_base(
+        env,
+        Type::Uint8Array(TypeUint8Array),
+        &SyntaxNode::Block(Box::new(ast.clone())),
+        block,
+    )?;
+    let ComptimeValue::Uint8Array(u8a) = get_comptime(
+        env,
+        Some(ComptimeValueKind::Uint8Array),
+        str_result.value,
+        ast.pos.clone(),
+    )?
+    else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    Ok(AnalysisResult {
+        ty: Type::CtKey(CtKey),
+        value: RuntimeValue::Comptime(ComptimeValue::Key(ComptimeValueKey::String {
+            key: String::from_utf8_lossy(&u8a.value).into_owned(),
+        })),
+    })
 }

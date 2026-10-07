@@ -5,6 +5,7 @@ pub mod ct;
 pub mod parser;
 pub mod printers;
 pub mod std_keys;
+pub mod user_type;
 
 pub use parser::{
     BinaryExpressionToken, BlockToken, BracketTag, ErrToken, ErrorStyle, IdentifierTag,

@@ -33,6 +33,7 @@ pub enum StdKey {
     Operator(OperatorKind, String),
     Literal(LiteralKind),
     Call,
+    Repr,
 }
 
 impl StdKey {
@@ -42,6 +43,7 @@ impl StdKey {
             StdKey::Operator(OperatorKind::Lhs, op) => format!("std.operator.lhs(\"{op}\")"),
             StdKey::Literal(kind) => format!("std.literal.{}", kind.name()),
             StdKey::Call => "std.operator.call".to_string(),
+            StdKey::Repr => "std.type.repr".to_string(),
         }
     }
 }

@@ -18,19 +18,19 @@ fn import_file_builds_c_sample() {
 static int cvl2_fn_0(void);
 
 int transmogrify(int _a0, int _a1) {
-    int _3;
+    int _0;
     {
-        int _4 = _a0 == _a1;
-        if (_4) {
-            int _6 = cvl2_fn_0();
-            _3 = _6;
-            goto _l3;
+        int _1 = _a0 == _a1;
+        if (_1) {
+            int _2 = cvl2_fn_0();
+            _0 = _2;
+            goto _l0;
         }
-        int _10 = _a0 + _a1;
-        _3 = _10;
+        int _3 = _a0 + _a1;
+        _0 = _3;
     }
-    _l3:;
-    return _3;
+    _l0:;
+    return _0;
 }
 
 static int cvl2_fn_0(void) {

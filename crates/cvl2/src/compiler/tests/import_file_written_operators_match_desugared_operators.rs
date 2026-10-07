@@ -23,6 +23,6 @@ fn import_file_written_operators_match_desugared_operators() {
         only_error(build_c_fn(
             "  -> std.c.int.[std.operator.slot(\"==\")](a, b)"
         )),
-        "CInt has no std.operator.slot(\"==\")"
+        "int has no std.operator.slot(\"==\")"
     );
 }

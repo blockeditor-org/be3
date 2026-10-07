@@ -57,11 +57,14 @@ fn main() -> ExitCode {
         }
         Err(errors) => {
             let source = Source::new(filename.as_str(), contents.as_str());
+            let preludes = cvl2::user_type::prelude_sources();
+            let mut sources = vec![&source];
+            sources.extend(preludes.iter());
             let unreported: Vec<_> = errors
                 .into_iter()
                 .filter(|err| !tokenized.errors.contains(err))
                 .collect();
-            println!("{}", pretty_print_errors(&[&source], &unreported));
+            println!("{}", pretty_print_errors(&sources, &unreported));
             ExitCode::FAILURE
         }
     }

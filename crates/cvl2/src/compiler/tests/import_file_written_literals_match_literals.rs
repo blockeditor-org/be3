@@ -9,10 +9,10 @@ fn import_file_written_literals_match_literals() {
 
     assert_eq!(
         only_error(build_c_fn("  -> std.c.int.[std.literal.number]: \"x\"")),
-        "expected a number literal"
+        "String is not supported in slot: KwInt"
     );
     assert_eq!(
         only_error(build_c_fn("  -> std.c.int.[std.literal.string]: \"x\"")),
-        "CInt has no std.literal.string"
+        "int has no std.literal.string"
     );
 }

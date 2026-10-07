@@ -9,6 +9,6 @@ fn import_file_written_calls_match_calls() {
 
     assert_eq!(
         only_error(build_c_fn("  -> a.[std.operator.call](b)")),
-        "CInt has no std.operator.call"
+        "int has no std.operator.call"
     );
 }
