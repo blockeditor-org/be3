@@ -7,8 +7,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::ct::{
     CExportName, CInt, CallArg, CtAst, CtBuildArtifact, CtBuildArtifactNarrow, CtExportList, CtKey,
-    CtNamespace, CtType, McIdentifier, McNbtRef, McNbtRefNarrow, McResult, Type, TypeFn, TypeLabel,
-    TypeTuple, TypeUnknown, TypeVoid,
+    CtNamespace, CtType, McIdentifier, McNbtRef, McNbtRefNarrow, McResult, OperatorName, Type,
+    TypeBound, TypeFn, TypeLabel, TypeTuple, TypeUnknown, TypeVoid,
 };
 use crate::parser::{
     BinaryExpressionToken, BlockToken, BracketTag, IdentifierTag, OpTag, OperatorSegmentToken,
@@ -449,7 +449,22 @@ pub trait ComptimeNamespace: std::fmt::Debug {
         field: Symbol,
         block: &mut AnalysisBlock,
     ) -> Result<Option<AnalysisResult>, PositionedError>;
-    fn call(&self) -> Option<BuiltinFn>;
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        _slot: Type,
+        pos: TokenPosition,
+        _arg: CallArg<'_>,
+        _block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        Err(throw_err(
+            env,
+            Some(pos),
+            "this namespace does not support call",
+            Some(vec![(Some(self.pos().clone()), "defined here".to_string())]),
+            None,
+        ))
+    }
     fn pos(&self) -> &TokenPosition;
 }
 
@@ -534,6 +549,11 @@ pub struct ComptimeValueMcResult {
 #[derive(Debug, Clone)]
 pub struct ComptimeValueCInt {
     pub value: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComptimeValueOperatorName {
+    pub value: String,
 }
 
 #[derive(Debug, Clone)]
@@ -630,6 +650,7 @@ pub enum ComptimeValue {
     McIdentifier(ComptimeValueMcIdentifier),
     McResult(ComptimeValueMcResult),
     CInt(ComptimeValueCInt),
+    OperatorName(ComptimeValueOperatorName),
     McNbtRef(ComptimeValueMcNbtRef),
     Error(ComptimeValueError),
     Mc(crate::backend::mc::ComptimeValueMc),
@@ -1437,10 +1458,6 @@ impl ComptimeNamespace for NamespaceImpl {
         }
     }
 
-    fn call(&self) -> Option<BuiltinFn> {
-        None
-    }
-
     fn pos(&self) -> &TokenPosition {
         &self.pos
     }
@@ -1723,6 +1740,26 @@ pub fn analyze_sub(
                 ty: ret_ty,
                 value: RuntimeValue::Comptime(ComptimeValue::Fn(fn_value)),
             });
+        } else if b.tag == BracketTag::SymbolAccess {
+            let lhs = if index >= 1 {
+                analyze_sub(
+                    env,
+                    Type::Unknown(TypeUnknown),
+                    root_slot.clone(),
+                    ast,
+                    index - 1,
+                    block,
+                )?
+            } else {
+                AnalysisResult {
+                    ty: Type::CtType(CtType),
+                    value: RuntimeValue::Comptime(ComptimeValue::Type(ComptimeValueType {
+                        ty: root_slot.clone(),
+                    })),
+                }
+            };
+            let key = analyze(env, Type::CtKey(CtKey), b.pos.clone(), &b.items, block)?;
+            return analyze_access(env, slot, lhs, b.pos.clone(), key, block);
         } else if b.tag == BracketTag::ColonCall {
             if index == 0 {
                 return analyze_label(env, slot, b, block);
@@ -1882,102 +1919,150 @@ fn analyze_binary_op(
     bin: &BinaryExpressionToken,
     block: &mut AnalysisBlock,
 ) -> Result<AnalysisResult, PositionedError> {
-    let mut operands = Vec::new();
-    let mut ops = Vec::new();
     for item in &bin.items {
-        match item {
-            SyntaxNode::OperatorSegment(seg) => operands.push(seg),
-            SyntaxNode::Operator(op) => {
-                let Some(c_op) = crate::backend::c::CBinaryOp::from_token(&op.op) else {
-                    return Err(throw_err(
-                        env,
-                        Some(op.pos.clone()),
-                        format!("unsupported operator: {}", op.op),
-                        None,
-                        None,
-                    ));
-                };
-                ops.push((op, c_op));
-            }
-            SyntaxNode::Whitespace(_) => {}
-            other => {
-                return Err(throw_err(
-                    env,
-                    Some(syntax_node_pos(other).clone()),
-                    format!(
-                        "unexpected {} in operator expression",
-                        syntax_node_kind(other)
-                    ),
-                    None,
-                    None,
-                ));
-            }
-        }
-    }
-
-    let slot_typed = bin.tag != OpTag::Compare;
-    if slot_typed {
-        for (op, c_op) in &ops {
-            if slot.binary_op_result(*c_op).is_none() {
-                return Err(throw_err(
-                    env,
-                    Some(op.pos.clone()),
-                    format!(
-                        "operator {} is not supported in slot: {}",
-                        op.op,
-                        slot.dump()
-                    ),
-                    None,
-                    None,
-                ));
-            }
-        }
-    }
-
-    let operand_slot = |lhs: Option<&AnalysisResult>| match (slot_typed, lhs) {
-        (true, _) => slot.clone(),
-        (false, Some(lhs)) => lhs.ty.clone(),
-        (false, None) => Type::Unknown(TypeUnknown),
-    };
-    let first = operands[0];
-    let mut lhs = analyze(
-        env,
-        operand_slot(None),
-        first.pos.clone(),
-        &first.items,
-        block,
-    )?;
-    if slot_typed {
-        lhs = slot.cast_into(env, block, lhs, first.pos.clone())?;
-    }
-    for ((op, c_op), seg) in ops.iter().zip(&operands[1..]) {
-        let rhs_slot = operand_slot(Some(&lhs));
-        let rhs = analyze(env, rhs_slot.clone(), seg.pos.clone(), &seg.items, block)?;
-        let rhs = rhs_slot.cast_into(env, block, rhs, seg.pos.clone())?;
-        let Some(ty) = lhs.ty.binary_op_result(*c_op) else {
+        if !matches!(
+            item,
+            SyntaxNode::OperatorSegment(_) | SyntaxNode::Operator(_) | SyntaxNode::Whitespace(_)
+        ) {
             return Err(throw_err(
                 env,
-                Some(op.pos.clone()),
-                format!("operator {} is not supported on {}", op.op, lhs.ty.dump()),
+                Some(syntax_node_pos(item).clone()),
+                format!(
+                    "unexpected {} in operator expression",
+                    syntax_node_kind(item)
+                ),
                 None,
                 None,
             ));
-        };
-        let idx = block_append(
-            block,
-            AnalysisLine::CBinary {
-                pos: op.pos.clone(),
-                op: *c_op,
-                lhs: lhs.value,
-                rhs: rhs.value,
-            },
-        );
-        lhs = AnalysisResult {
-            ty,
-            value: RuntimeValue::Runtime(idx),
-        };
+        }
     }
-    Ok(lhs)
+    let Some(op_index) = bin
+        .items
+        .iter()
+        .rposition(|item| matches!(item, SyntaxNode::Operator(_)))
+    else {
+        return Err(throw_err(
+            env,
+            Some(bin.pos.clone()),
+            "expected an operator",
+            None,
+            None,
+        ));
+    };
+    let SyntaxNode::Operator(op) = &bin.items[op_index] else {
+        unreachable!("rposition matched an operator")
+    };
+    let lhs_segments = bin.items[..op_index]
+        .iter()
+        .filter(|item| matches!(item, SyntaxNode::OperatorSegment(_)))
+        .count();
+    let (Some(SyntaxNode::OperatorSegment(lhs_first)), Some(SyntaxNode::OperatorSegment(rhs))) = (
+        bin.items.first(),
+        bin.items[op_index + 1..]
+            .iter()
+            .find(|item| matches!(item, SyntaxNode::OperatorSegment(_))),
+    ) else {
+        return Err(throw_err(
+            env,
+            Some(op.pos.clone()),
+            "expected an operand on each side of the operator",
+            None,
+            None,
+        ));
+    };
+    let lhs = if lhs_segments == 1 {
+        lhs_first.clone()
+    } else {
+        OperatorSegmentToken {
+            pos: lhs_first.pos.clone(),
+            items: vec![SyntaxNode::BinaryExpression(Box::new(
+                BinaryExpressionToken {
+                    pos: bin.pos.clone(),
+                    prec: bin.prec,
+                    tag: bin.tag,
+                    items: bin.items[..op_index].to_vec(),
+                },
+            ))],
+        }
+    };
+
+    let slot_key = crate::operator::operator_symbol(crate::operator::OperatorKind::Slot, &op.op);
+    if let Some(slot_op) = slot.type_symbol(slot_key) {
+        let args = SyntaxNode::Block(Box::new(BlockToken {
+            pos: op.pos.clone(),
+            start: "(".to_string(),
+            end: ")".to_string(),
+            tag: BracketTag::List,
+            items: vec![SyntaxNode::BinaryExpression(Box::new(
+                BinaryExpressionToken {
+                    pos: op.pos.clone(),
+                    prec: 0,
+                    tag: OpTag::Sep,
+                    items: vec![
+                        SyntaxNode::OperatorSegment(lhs),
+                        SyntaxNode::Operator(OperatorToken {
+                            pos: op.pos.clone(),
+                            op: ",".to_string(),
+                            op_tag: OpTag::Sep,
+                        }),
+                        SyntaxNode::OperatorSegment(rhs.clone()),
+                    ],
+                },
+            ))],
+        }));
+        return analyze_call(
+            env,
+            slot,
+            op.pos.clone(),
+            slot_op,
+            CallArg {
+                pos: op.pos.clone(),
+                ast: std::slice::from_ref(&args),
+            },
+            block,
+        );
+    }
+
+    let lhs = analyze(
+        env,
+        Type::Unknown(TypeUnknown),
+        lhs.pos.clone(),
+        &lhs.items,
+        block,
+    )?;
+    let lhs_key = crate::operator::operator_symbol(crate::operator::OperatorKind::Lhs, &op.op);
+    if !lhs.ty.has_value_symbol(lhs_key) {
+        return Err(throw_err(
+            env,
+            Some(op.pos.clone()),
+            format!(
+                "operator {op} is not supported: {} has no std.operator.slot(\"{op}\") and {} has no std.operator.lhs(\"{op}\")",
+                slot.dump(),
+                lhs.ty.dump(),
+                op = op.op,
+            ),
+            None,
+            None,
+        ));
+    }
+    let bound = AnalysisResult {
+        ty: Type::Bound(TypeBound {
+            receiver: Box::new(lhs.ty),
+            key: lhs_key,
+        }),
+        value: lhs.value,
+    };
+    analyze_call(
+        env,
+        slot,
+        op.pos.clone(),
+        bound,
+        CallArg {
+            pos: rhs.pos.clone(),
+            ast: &rhs.items,
+        },
+        block,
+    )
 }
 
 pub fn analyze_call(
@@ -2251,8 +2336,24 @@ impl ComptimeNamespace for BuiltinNamespaceImpl {
         Ok(None)
     }
 
-    fn call(&self) -> Option<BuiltinFn> {
-        self.call
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        slot: Type,
+        pos: TokenPosition,
+        arg: CallArg<'_>,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let Some(call) = self.call else {
+            return Err(throw_err(
+                env,
+                Some(pos),
+                format!("namespace {} does not support call", self.route),
+                Some(vec![(Some(self.pos.clone()), "defined here".to_string())]),
+                None,
+            ));
+        };
+        call(env, slot, pos, arg, block)
     }
 
     fn pos(&self) -> &TokenPosition {
@@ -2472,6 +2573,58 @@ fn builtin_mc_datapack_compile_call(
     })
 }
 
+fn builtin_operator_key(
+    env: &mut Env,
+    kind: crate::operator::OperatorKind,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    let pos = arg_ast.pos.clone();
+    let name = analyze(
+        env,
+        Type::OperatorName(OperatorName),
+        arg_ast.pos,
+        arg_ast.ast,
+        block,
+    )?;
+    let name = crate::comptime::get_comptime(
+        env,
+        Some(crate::comptime::ComptimeValueKind::OperatorName),
+        name.value,
+        pos,
+    )?;
+    let ComptimeValue::OperatorName(name) = name else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    Ok(AnalysisResult {
+        ty: Type::CtKey(CtKey),
+        value: RuntimeValue::Comptime(ComptimeValue::Key(ComptimeValueKey::Symbol {
+            key: crate::operator::operator_symbol(kind, &name.value),
+            child: Type::Unknown(TypeUnknown),
+        })),
+    })
+}
+
+fn builtin_operator_slot_call(
+    env: &mut Env,
+    _slot: Type,
+    _pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    builtin_operator_key(env, crate::operator::OperatorKind::Slot, arg_ast, block)
+}
+
+fn builtin_operator_lhs_call(
+    env: &mut Env,
+    _slot: Type,
+    _pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    builtin_operator_key(env, crate::operator::OperatorKind::Lhs, arg_ast, block)
+}
+
 fn builtin_c_if_call(
     env: &mut Env,
     _slot: Type,
@@ -2648,6 +2801,16 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                             None,
                                         ),
                                     ),
+                                ],
+                                None,
+                            ),
+                        ),
+                        (
+                            "operator",
+                            d_ns(
+                                vec![
+                                    ("slot", d_ns(vec![], Some(builtin_operator_slot_call))),
+                                    ("lhs", d_ns(vec![], Some(builtin_operator_lhs_call))),
                                 ],
                                 None,
                             ),

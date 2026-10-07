@@ -2,21 +2,25 @@
 
 use std::collections::HashMap;
 
+use std::rc::Rc;
+
 use crate::backend::c::{CBinaryOp, CValidatedIdentifierName, validate_c_name};
 use crate::compiler::{
-    AnalysisBlock, AnalysisLine, AnalysisResult, Binary2, ComptimeFolder, ComptimeValue,
-    ComptimeValueBuildArtifact, ComptimeValueCExportName, ComptimeValueCInt,
+    AnalysisBlock, AnalysisLine, AnalysisResult, Binary2, ComptimeFolder, ComptimeNamespace,
+    ComptimeValue, ComptimeValueBuildArtifact, ComptimeValueCExportName, ComptimeValueCInt,
     ComptimeValueDeclaration, ComptimeValueExportList, ComptimeValueExportListEntry,
     ComptimeValueKey, ComptimeValueMcIdentifier, ComptimeValueMcNbtRef, ComptimeValueMcResult,
-    ComptimeValueUint8Array, ComptimeValueVoid, ConsumedErrorToken, Env, PositionedError,
-    RuntimeValue, Symbol, Uint8ArraySourcemapEntry, add_err, analyze, analyze_base, analyze_block,
-    analyze_function, block_append, cast_value, create_declaration, empty_block, get_declaration,
-    read_binary, throw_consumed_err, throw_err, trim_ws,
+    ComptimeValueOperatorName, ComptimeValueUint8Array, ComptimeValueVoid, ConsumedErrorToken, Env,
+    PositionedError, RuntimeValue, Symbol, Uint8ArraySourcemapEntry, add_err, analyze,
+    analyze_base, analyze_block, analyze_function, block_append, cast_value, compiler_pos,
+    create_declaration, empty_block, get_declaration, read_binary, throw_consumed_err, throw_err,
+    trim_ws,
 };
 use crate::comptime::{ComptimeValueKind, comptime_eval, get_comptime};
+use crate::operator::{OperatorKind, symbol_operator};
 use crate::parser::{
     BlockToken, ErrorStyle, IdentifierToken, OpTag, OperatorSegmentToken, RawTag, SyntaxNode,
-    TokenPosition, unescape_string,
+    TokenPosition, is_overloadable_operator, unescape_string,
 };
 use crate::printers::printers::AST_NODE;
 
@@ -52,6 +56,8 @@ pub enum Type {
     CInt(CInt),
     CIf(CIf),
     Label(TypeLabel),
+    OperatorName(OperatorName),
+    Bound(TypeBound),
 }
 
 impl Type {
@@ -93,6 +99,7 @@ impl Type {
             Type::McNbtRef(t) => t.from_string(env, slot, ast, block),
             Type::McIdentifier(t) => t.from_string(env, slot, ast, block),
             Type::CExportName(t) => t.from_string(env, slot, ast, block),
+            Type::OperatorName(t) => t.from_string(env, ast, block),
             _ => Err(throw_err(
                 env,
                 Some(ast.pos.clone()),
@@ -187,6 +194,8 @@ impl Type {
             Type::CInt(_) => "CInt",
             Type::CIf(_) => "CIf",
             Type::Label(_) => "Label",
+            Type::OperatorName(_) => "OperatorName",
+            Type::Bound(_) => "Bound",
         }
         .to_string()
     }
@@ -206,6 +215,9 @@ impl Type {
             Type::CtType(t) => t.analyze_call(env, slot, pos, method, arg_in, block),
             Type::CIf(t) => t.analyze_call(env, pos, method, arg_in, block),
             Type::Label(t) => t.analyze_call(env, pos, arg_in, block),
+            Type::Bound(t) => t
+                .receiver
+                .call_bound(env, t.key, method, pos, arg_in, block),
             _ => Err(throw_err(
                 env,
                 Some(pos),
@@ -227,20 +239,92 @@ impl Type {
     ) -> Result<AnalysisResult, PositionedError> {
         match self {
             Type::CtNamespace(t) => t.analyze_access(env, slot, obj, pos, prop, block),
-            _ => Err(throw_err(
-                env,
-                Some(pos),
-                format!("not supported access type: {}", self.dump()),
-                None,
-                None,
-            )),
+            Type::CtType(_) => {
+                let key = access_key(env, block, prop, &pos)?;
+                let ty = get_comptime(env, Some(ComptimeValueKind::Type), obj.value, pos.clone())?;
+                let ComptimeValue::Type(ty) = ty else {
+                    unreachable!("get_comptime guarantees a matching kind")
+                };
+                let found = match &key {
+                    ComptimeValueKey::Symbol { key, .. } => ty.ty.type_symbol(*key),
+                    ComptimeValueKey::String { .. } => None,
+                };
+                found.ok_or_else(|| {
+                    throw_err(
+                        env,
+                        Some(pos),
+                        format!("{} has no {}", ty.ty.dump(), key_description(&key)),
+                        None,
+                        None,
+                    )
+                })
+            }
+            _ => {
+                let key = access_key(env, block, prop, &pos)?;
+                match key {
+                    ComptimeValueKey::Symbol { key, .. } if self.has_value_symbol(key) => {
+                        Ok(AnalysisResult {
+                            ty: Type::Bound(TypeBound {
+                                receiver: Box::new(self.clone()),
+                                key,
+                            }),
+                            value: obj.value,
+                        })
+                    }
+                    key => Err(throw_err(
+                        env,
+                        Some(pos),
+                        format!("{} has no {}", self.dump(), key_description(&key)),
+                        None,
+                        None,
+                    )),
+                }
+            }
         }
     }
 
-    pub fn binary_op_result(&self, _op: CBinaryOp) -> Option<Type> {
+    pub fn type_symbol(&self, key: Symbol) -> Option<AnalysisResult> {
         match self {
-            Type::CInt(_) => Some(Type::CInt(CInt)),
+            Type::CInt(_) => c_int_operator(OperatorKind::Slot, key).map(|op| AnalysisResult {
+                ty: Type::CtNamespace(CtNamespace),
+                value: RuntimeValue::Comptime(ComptimeValue::Namespace(Rc::new(
+                    CIntSlotOperator {
+                        op,
+                        pos: compiler_pos(),
+                    },
+                ))),
+            }),
             _ => None,
+        }
+    }
+
+    pub fn has_value_symbol(&self, key: Symbol) -> bool {
+        match self {
+            Type::CInt(_) => c_int_operator(OperatorKind::Lhs, key).is_some(),
+            _ => false,
+        }
+    }
+
+    fn call_bound(
+        &self,
+        env: &mut Env,
+        key: Symbol,
+        receiver: AnalysisResult,
+        pos: TokenPosition,
+        arg_in: CallArg,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        match self {
+            Type::CInt(_) => {
+                let Some(op) = c_int_operator(OperatorKind::Lhs, key) else {
+                    unreachable!("bound only to symbols has_value_symbol accepted")
+                };
+                let int = Type::CInt(CInt);
+                let rhs = analyze(env, int.clone(), arg_in.pos, arg_in.ast, block)?;
+                let rhs = int.cast_into(env, block, rhs, pos.clone())?;
+                Ok(c_int_binary(block, pos, op, receiver.value, rhs.value))
+            }
+            _ => unreachable!("bound only to types with value symbols"),
         }
     }
 
@@ -539,16 +623,7 @@ impl CtNamespace {
         let ComptimeValue::Namespace(ns) = value else {
             unreachable!("get_comptime guarantees a matching kind")
         };
-        let Some(call) = ns.call() else {
-            return Err(throw_err(
-                env,
-                Some(pos.clone()),
-                "this namespace does not support call",
-                Some(vec![(Some(ns.pos().clone()), "defined here".to_string())]),
-                None,
-            ));
-        };
-        call(env, slot, pos, arg_in, block)
+        ns.analyze_call(env, slot, pos, arg_in, block)
     }
 
     fn analyze_access(
@@ -579,13 +654,24 @@ impl CtNamespace {
         };
         match key {
             ComptimeValueKey::String { key } => ns.get_string(env, pos, &key, block),
-            ComptimeValueKey::Symbol { .. } => Err(throw_err(
-                env,
-                Some(pos),
-                "TODO return ?symbolChildType .some(T) or .none",
-                None,
-                None,
-            )),
+            ComptimeValueKey::Symbol { key, child } => {
+                let found = ns.get_symbol(env, pos.clone(), child.clone(), key, block)?;
+                found.ok_or_else(|| {
+                    throw_err(
+                        env,
+                        Some(pos),
+                        format!(
+                            "namespace has no {}",
+                            key_description(&ComptimeValueKey::Symbol { key, child })
+                        ),
+                        Some(vec![(
+                            Some(ns.pos().clone()),
+                            "namespace defined here".to_string(),
+                        )]),
+                        None,
+                    )
+                })
+            }
         }
     }
 }
@@ -1135,5 +1221,171 @@ impl TypeLabel {
             ty: Type::Void(TypeVoid),
             value: RuntimeValue::Comptime(ComptimeValue::Void(ComptimeValueVoid)),
         })
+    }
+}
+
+fn access_key(
+    env: &mut Env,
+    block: &mut AnalysisBlock,
+    prop: AnalysisResult,
+    pos: &TokenPosition,
+) -> Result<ComptimeValueKey, PositionedError> {
+    let as_key = Type::CtKey(CtKey).cast_into(env, block, prop, pos.clone())?;
+    let kval = get_comptime(env, Some(ComptimeValueKind::Key), as_key.value, pos.clone())?;
+    let ComptimeValue::Key(key) = kval else {
+        unreachable!("get_comptime guarantees a matching kind")
+    };
+    Ok(key)
+}
+
+fn key_description(key: &ComptimeValueKey) -> String {
+    match key {
+        ComptimeValueKey::String { key } => format!("field '{key}'"),
+        ComptimeValueKey::Symbol { key, .. } => match symbol_operator(*key) {
+            Some((OperatorKind::Slot, op)) => format!("std.operator.slot(\"{op}\")"),
+            Some((OperatorKind::Lhs, op)) => format!("std.operator.lhs(\"{op}\")"),
+            None => "such symbol".to_string(),
+        },
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OperatorName;
+
+impl OperatorName {
+    fn from_string(
+        &self,
+        env: &mut Env,
+        ast: &BlockToken,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let str_result = analyze_base(
+            env,
+            Type::Uint8Array(TypeUint8Array),
+            &SyntaxNode::Block(Box::new(ast.clone())),
+            block,
+        )?;
+        let u8a = get_comptime(
+            env,
+            Some(ComptimeValueKind::Uint8Array),
+            str_result.value,
+            ast.pos.clone(),
+        )?;
+        let ComptimeValue::Uint8Array(u8a) = u8a else {
+            unreachable!("get_comptime guarantees a matching kind")
+        };
+        let decoded = String::from_utf8_lossy(&u8a.value).into_owned();
+        if !is_overloadable_operator(&decoded) {
+            return Err(throw_err(
+                env,
+                Some(ast.pos.clone()),
+                format!("not an operator: \"{decoded}\""),
+                None,
+                None,
+            ));
+        }
+        Ok(AnalysisResult {
+            ty: Type::OperatorName(OperatorName),
+            value: RuntimeValue::Comptime(ComptimeValue::OperatorName(ComptimeValueOperatorName {
+                value: decoded,
+            })),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeBound {
+    pub receiver: Box<Type>,
+    pub key: Symbol,
+}
+
+fn c_int_operator(kind: OperatorKind, key: Symbol) -> Option<CBinaryOp> {
+    let (key_kind, op) = symbol_operator(key)?;
+    if key_kind != kind {
+        return None;
+    }
+    let op = CBinaryOp::from_token(&op)?;
+    match (kind, op.is_comparison()) {
+        (OperatorKind::Slot, true) => None,
+        _ => Some(op),
+    }
+}
+
+fn c_int_binary(
+    block: &mut AnalysisBlock,
+    pos: TokenPosition,
+    op: CBinaryOp,
+    lhs: RuntimeValue,
+    rhs: RuntimeValue,
+) -> AnalysisResult {
+    let idx = block_append(block, AnalysisLine::CBinary { pos, op, lhs, rhs });
+    AnalysisResult {
+        ty: Type::CInt(CInt),
+        value: RuntimeValue::Runtime(idx),
+    }
+}
+
+#[derive(Debug)]
+struct CIntSlotOperator {
+    op: CBinaryOp,
+    pos: TokenPosition,
+}
+
+impl ComptimeNamespace for CIntSlotOperator {
+    fn get_string(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        field: &str,
+        _block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        Err(throw_err(
+            env,
+            Some(pos),
+            format!("operator {} has no field: {field}", self.op.as_str()),
+            None,
+            None,
+        ))
+    }
+
+    fn get_symbol(
+        &self,
+        _env: &mut Env,
+        _pos: TokenPosition,
+        _keychild: Type,
+        _field: Symbol,
+        _block: &mut AnalysisBlock,
+    ) -> Result<Option<AnalysisResult>, PositionedError> {
+        Ok(None)
+    }
+
+    fn analyze_call(
+        &self,
+        env: &mut Env,
+        _slot: Type,
+        pos: TokenPosition,
+        arg: CallArg<'_>,
+        block: &mut AnalysisBlock,
+    ) -> Result<AnalysisResult, PositionedError> {
+        let int = Type::CInt(CInt);
+        let args = Type::Tuple(TypeTuple {
+            children: vec![int.clone(), int],
+        });
+        let args = analyze(env, args, arg.pos, arg.ast, block)?;
+        let RuntimeValue::Runtime(tuple) = &args.value else {
+            unreachable!("a two item tuple is always a tuple line")
+        };
+        let AnalysisLine::Tuple { items, .. } = &block.lines[tuple.0] else {
+            unreachable!("a two item tuple is always a tuple line")
+        };
+        let [lhs, rhs] = items.as_slice() else {
+            unreachable!("the tuple type has two items")
+        };
+        let (lhs, rhs) = (lhs.clone(), rhs.clone());
+        Ok(c_int_binary(block, pos, self.op, lhs, rhs))
+    }
+
+    fn pos(&self) -> &TokenPosition {
+        &self.pos
     }
 }

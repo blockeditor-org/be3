@@ -2,6 +2,7 @@ pub mod backend;
 pub mod compiler;
 pub mod comptime;
 pub mod ct;
+pub mod operator;
 pub mod parser;
 pub mod printers;
 

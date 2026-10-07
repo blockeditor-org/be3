@@ -68,6 +68,18 @@ impl CBinaryOp {
         })
     }
 
+    pub fn is_comparison(self) -> bool {
+        matches!(
+            self,
+            CBinaryOp::Eq
+                | CBinaryOp::Ne
+                | CBinaryOp::Lt
+                | CBinaryOp::Le
+                | CBinaryOp::Gt
+                | CBinaryOp::Ge
+        )
+    }
+
     pub fn as_str(self) -> &'static str {
         match self {
             CBinaryOp::Eq => "==",

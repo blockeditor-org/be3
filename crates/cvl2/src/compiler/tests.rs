@@ -111,6 +111,36 @@ fn pub_binding(lhs: SyntaxNode, rhs: SyntaxNode, idx: usize) -> SyntaxNode {
     )
 }
 
+fn build_c_fn(body: &str) -> Result<String, Vec<TokenizationError>> {
+    let artifact = import_file(
+        "op.qxc",
+        &format!(
+            "#builtin.build .= () => std.Folder: [
+  \"lib.c\" .= std.c.compile: [
+    \"f\" .= f
+  ]
+]
+f :: (a: std.c.int, b: std.c.int) => std.c.int: {{
+{body}
+}}
+std :: #builtin.std"
+        ),
+    )?;
+    let ComptimeValueBuildArtifact::Folder(folder) = artifact else {
+        panic!("expected a folder");
+    };
+    let [(_, ComptimeValueBuildArtifact::File(file))] = folder.value.as_slice() else {
+        panic!("expected a single file");
+    };
+    Ok(String::from_utf8(file.value.clone()).unwrap())
+}
+
+fn only_error(result: Result<String, Vec<TokenizationError>>) -> String {
+    let errors = result.expect_err("expected the build to fail");
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    errors[0].entries[0].message.clone()
+}
+
 mod add_err_pushes_error_into_env;
 mod analyze_access_builtin_main_resolves_key;
 mod analyze_base_builtin_resolves_to_namespace;
@@ -121,7 +151,10 @@ mod get_err_includes_message_and_trace;
 mod import_file_builds_c_sample;
 mod import_file_builds_demo_sample;
 mod import_file_compare_operator_takes_rhs_type_from_lhs;
-mod import_file_slot_typed_operator_errors_in_unknown_slot;
+mod import_file_operator_errors_without_slot_or_lhs;
+mod import_file_operator_falls_back_to_lhs_in_unknown_slot;
+mod import_file_operator_name_must_be_an_operator;
+mod import_file_written_operators_match_desugared_operators;
 mod ns_key_distinguishes_str_and_sym_variants;
 mod read_binary2_extracts_matching_triplet;
 mod read_binary2_returns_none_for_empty_input;

@@ -26,8 +26,8 @@ int transmogrify(int _a0, int _a1) {
             _3 = _6;
             goto _l3;
         }
-        int _9 = _a0 + _a1;
-        _3 = _9;
+        int _10 = _a0 + _a1;
+        _3 = _10;
     }
     _l3:;
     return _3;

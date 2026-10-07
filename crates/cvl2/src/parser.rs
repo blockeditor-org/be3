@@ -35,6 +35,7 @@ pub enum BracketTag {
     Code,
     ColonCall,
     ArrowFn,
+    SymbolAccess,
     String,
     InlineComment,
     None,
@@ -325,6 +326,13 @@ const CONFIG_GROUPS: &[(&str, &[ConfigSpec])] = &[
                 ..ConfigSpec::DEFAULT
             },
             ConfigSpec {
+                token: ".[",
+                style: ConfigStyle::Open,
+                close: Some("]"),
+                bracket_tag: Some(BracketTag::SymbolAccess),
+                ..ConfigSpec::DEFAULT
+            },
+            ConfigSpec {
                 token: "\\(",
                 style: ConfigStyle::Open,
                 close: Some(")"),
@@ -554,6 +562,11 @@ fn lookup_config(token: &str) -> Option<ConfigEntry> {
     config_map().get(token).copied()
 }
 
+pub fn is_overloadable_operator(token: &str) -> bool {
+    lookup_config(token)
+        .is_some_and(|cfg| matches!(cfg.op_tag, Some(OpTag::Compare | OpTag::Add | OpTag::Mul)))
+}
+
 fn set_mode_for_bracket_tag(tag: BracketTag) -> Option<TokenizerMode> {
     match tag {
         BracketTag::String => Some(TokenizerMode::InString),
@@ -770,6 +783,12 @@ pub fn tokenize(source: &mut Source) -> TokenizationResult {
                     current_token = first_char.to_string();
                 } else if OPERATOR_CHARS.contains(first_char) {
                     while source.peek().is_some_and(|c| OPERATOR_CHARS.contains(c)) {
+                        source.take();
+                    }
+                    if first_char == '.'
+                        && source.current_index == start.idx + 1
+                        && source.peek() == Some('[')
+                    {
                         source.take();
                     }
                     current_token = source.text_slice(start.idx, source.current_index);
@@ -1320,6 +1339,7 @@ fn bracket_highlight(tag: BracketTag) -> Option<&'static str> {
         BracketTag::List => Some(highlights::BRACKETS),
         BracketTag::Code => Some(highlights::BRACKETS),
         BracketTag::ArrowFn => Some(highlights::KEYWORD),
+        BracketTag::SymbolAccess => Some(highlights::BRACKETS),
         BracketTag::InlineComment => Some(highlights::BRACKETS),
         BracketTag::None => None,
     }

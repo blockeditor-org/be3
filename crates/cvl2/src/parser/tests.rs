@@ -73,5 +73,6 @@ mod tokenize_separators_build_binary_expressions;
 mod tokenize_string_escaped_quote_is_included_in_raw_content;
 mod tokenize_string_interpolation_opens_list_block;
 mod tokenize_string_produces_raw_string_token;
+mod tokenize_symbol_access_opens_block;
 mod tokenize_whitespace_and_newline;
 mod unescape_string_handles_escape_sequences;
