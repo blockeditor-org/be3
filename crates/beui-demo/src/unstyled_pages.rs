@@ -1,5 +1,5 @@
 use super::*;
-use beui::Pos2;
+use beui::Rect;
 use beui::reactive::IntoProp;
 use beui::reactive::NodeRef;
 use beui::unstyled::{
@@ -389,6 +389,8 @@ pub(crate) fn SelectingPage() -> NodeId {
                     CompletionRow::SOURCE,
                     MenuRow::SOURCE,
                     PopupPanel::SOURCE,
+                    ToolbarKey::SOURCE,
+                    ToolbarStrip::SOURCE,
                 ]}
             >
                 <PlainNote />
@@ -1426,6 +1428,50 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
 
 #[sample]
 #[component]
+fn ToolbarKey(handle: ButtonHandle) -> NodeId {
+    let ButtonHandle {
+        hovered,
+        active,
+        label,
+        ..
+    } = handle;
+    let theme = use_theme();
+    let fill = create_memo(clone!(theme -> move || {
+        let theme = theme.get();
+        match (active.get(), hovered.get()) {
+            (true, _) => theme.pressed,
+            (false, true) => theme.hover,
+            (false, false) => Color32::TRANSPARENT,
+        }
+    }));
+    view! {
+        <Frame color={fill} radius=CARD_RADIUS padding_horizontal=10.0 padding_vertical=6.0>
+            <Text string={label} color={theme.text.clone()} />
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn ToolbarStrip(children: Child) -> NodeId {
+    let theme = use_theme();
+    view! {
+        <Frame
+            color={theme.surface_raised.clone()}
+            outline={theme.border.clone()}
+            outline_width=1.0
+            outline_visible=true
+            radius=CARD_RADIUS
+            padding_horizontal=4.0
+            padding_vertical=4.0
+        >
+            {children}
+        </Frame>
+    }
+}
+
+#[sample]
+#[component]
 fn PlainNote() -> NodeId {
     let document = Arc::new(TextBuffer::new(
         b"Right-click for Copy and Paste, or type :tada",
@@ -1450,10 +1496,18 @@ fn PlainNote() -> NodeId {
                     |menu: Child| view! {
                         <PopupPanel>{menu}</PopupPanel>
                     },
+                )
+                .with_toolbar(
+                    |handle: ButtonHandle| view! {
+                        <ToolbarKey handle />
+                    },
+                    |keys: Child| view! {
+                        <ToolbarStrip>{keys}</ToolbarStrip>
+                    },
                 )}
                 child_size=ItemSize::Percent(100.0)
             >
-                {move |open_menu: Callback<Pos2>| view! {
+                {move |open_menu: Callback<Option<Rect>>| view! {
                     <unstyled::TextArea
                         state
                         completer={emoji_completer()}
@@ -1465,7 +1519,7 @@ fn PlainNote() -> NodeId {
                                 <PopupPanel>{rows}</PopupPanel>
                             },
                         )}
-                        on_menu={move |at: Pos2| open_menu.call(at)}
+                        on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
                     />
                 }}
             </unstyled::TextContextMenu>

@@ -31,7 +31,7 @@ use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
 use beui_core::node::{NodeId, Rects};
-use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center};
+use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center, toolbar_anchor};
 use beui_view::reactive::{
     Callback, Canvas, CanvasItem, Child, ClickCallback, Frame, Interactive, List, Memo, NodeRef,
     Prop, ReadSignal, Render, RenderFn, Show, WriteSignal, action_scope, clone,
@@ -150,7 +150,7 @@ struct Surface {
     set_highlighted: WriteSignal<usize>,
     set_dismissed: WriteSignal<Option<usize>>,
     on_widget_press: Callback<usize, bool>,
-    on_menu: Callback<Pos2>,
+    on_toolbar: Callback<Option<Rect>>,
     on_submit: ClickCallback,
 }
 
@@ -523,6 +523,21 @@ impl Surface {
             .map(|(handle, _)| handle)
     }
 
+    fn toolbar_rect(&self) -> Option<Rect> {
+        let carets = match (self.caret_handle(), self.selection_handles()) {
+            (Some(caret), _) => self.caret_rect_at(caret)?,
+            (None, Some(range)) => self
+                .caret_rect_at(range.start)?
+                .union(self.caret_rect_at(range.end)?),
+            (None, None) => return None,
+        };
+        Some(toolbar_anchor(carets))
+    }
+
+    fn show_toolbar(&self) {
+        self.on_toolbar.call(self.toolbar_rect());
+    }
+
     fn on_caret_handle(&self, pos: Pos2) -> bool {
         let Some(caret) = self
             .caret_handle()
@@ -679,6 +694,7 @@ fn press(cx: &Context, press: PointerPress) {
         && let Some(handle) = cx.handle_at(press.pos)
     {
         begin_handle_drag(cx, handle, press.pos);
+        cx.on_toolbar.call(None);
         return;
     }
     if !press.touch {
@@ -713,24 +729,46 @@ fn tap(cx: &Context, press: PointerPress) {
     }
     match cx.state.end_grab() {
         Some(Grab::Caret) if cx.on_caret_handle(press.pos) => {
-            cx.on_menu.call(press.pos);
+            cx.show_toolbar();
             return;
         }
         Some(Grab::Caret) => {}
-        Some(Grab::Selection(_)) => return,
+        Some(Grab::Selection(_)) => {
+            cx.show_toolbar();
+            return;
+        }
         None => {}
     }
     let Some(target) = cx.hit(press.pos) else {
         return;
     };
     if cx.state.selection_contains(target) {
-        cx.on_menu.call(press.pos);
+        cx.show_toolbar();
         cx.state.set_selecting(false);
         return;
     }
     cx.state.set_caret_handle(true);
     select_at(cx, press.pos, press.clicks, false, false);
     cx.state.set_selecting(false);
+    match press.clicks >= WORD_CLICKS {
+        true => cx.show_toolbar(),
+        false => cx.on_toolbar.call(None),
+    }
+}
+
+fn hold(cx: &Context, press: PointerPress) {
+    if !press.touch || cx.disabled.get_untracked() || cx.state.grab().is_some() {
+        return;
+    }
+    let inside = cx
+        .hit(press.pos)
+        .is_some_and(|target| cx.state.selection_contains(target));
+    if !inside {
+        cx.state.set_caret_handle(true);
+        select_at(cx, press.pos, WORD_CLICKS, false, false);
+        cx.state.set_selecting(false);
+    }
+    cx.show_toolbar();
 }
 
 fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
@@ -809,6 +847,7 @@ fn extend(cx: &Context, press: PointerPress) {
 }
 
 fn blur(cx: &Context) {
+    cx.on_toolbar.call(None);
     cx.state
         .execute(EditorCommand::Ime(ImeCommand::FinishComposing));
     cx.state.end_grab();
@@ -820,6 +859,9 @@ fn blur(cx: &Context) {
 fn release(cx: &Context, active: bool) {
     if active {
         return;
+    }
+    if let Some(Grab::Selection(_)) = cx.state.end_grab() {
+        cx.show_toolbar();
     }
     cx.state.set_selecting(false);
     cx.set_autoscroll.set(false);
@@ -968,7 +1010,7 @@ pub fn TextArea(
     #[prop(default = Completer::none())] completer: Completer,
     completion_menu: Option<CompletionMenu>,
     on_widget_press: Callback<usize, bool>,
-    on_menu: Callback<Pos2>,
+    on_toolbar: Callback<Option<Rect>>,
     on_key_override: Callback<KeyPress, bool>,
     on_submit: ClickCallback,
     on_focus_change: Callback<bool>,
@@ -1185,7 +1227,7 @@ pub fn TextArea(
         set_highlighted: set_highlighted.clone(),
         set_dismissed,
         on_widget_press,
-        on_menu,
+        on_toolbar,
         on_submit,
     });
     state.publish_layout(TextAreaLayout::new(cx.clone()));
@@ -1391,6 +1433,7 @@ fn Editing(field: Field) -> NodeId {
     let set_focused = cx.set_focused.clone();
     let (blur_cx, text_cx, key_cx, capture_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
     let (press_cx, tap_cx, drag_cx, release_cx) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
+    let hold_cx = cx.clone();
     component_accessibility(described);
     let single_line = cx.single_line;
     let disabled = cx.disabled.clone();
@@ -1427,6 +1470,7 @@ fn Editing(field: Field) -> NodeId {
             }}
             on_press={move |event: PointerPress| press(&press_cx, event)}
             on_click_at={move |event: PointerPress| tap(&tap_cx, event)}
+            on_secondary_press={move |event: PointerPress| hold(&hold_cx, event)}
             on_drag={move |event: PointerPress| extend(&drag_cx, event)}
             on_active_change={move |active: bool| release(&release_cx, active)}
             on_hover_change={move |hovered: bool| on_hover_change.call(hovered)}

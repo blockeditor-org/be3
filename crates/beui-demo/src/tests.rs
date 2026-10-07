@@ -4,6 +4,7 @@ use block_ui_test::DocumentTest;
 
 use crate::{DemoApp, PAGES, Page};
 
+mod a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod every_demo_page_paints_as_accepted;

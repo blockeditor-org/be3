@@ -58,6 +58,7 @@ fn dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection() {
     );
     assert_eq!(rest, "#210 by someone ready");
 
+    harness.advance(Duration::from_secs(1));
     harness.click(pos2(title.left() + 30.0, title.center().y));
     assert_eq!(copy(&mut harness), None, "a click clears the selection");
 }

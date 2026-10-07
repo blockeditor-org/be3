@@ -1815,7 +1815,10 @@ impl Document {
     }
 
     pub fn culls(&self, id: NodeId, size: Vec2, own: PainterState) -> bool {
-        self.delivering && !Sight::shows(size, own) && !self.holds_focus(id)
+        self.delivering
+            && !Sight::shows(size, own)
+            && !self.holds_focus(id)
+            && !self.is_overlay_open(id)
     }
 
     fn holds_focus(&self, id: NodeId) -> bool {

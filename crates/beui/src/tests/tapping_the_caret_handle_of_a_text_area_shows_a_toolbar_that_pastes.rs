@@ -6,7 +6,7 @@ use std::sync::Arc;
 use text_editor_core::TextBuffer;
 
 #[test]
-fn tapping_the_caret_handle_of_a_text_area_opens_a_menu_that_pastes() {
+fn tapping_the_caret_handle_of_a_text_area_shows_a_toolbar_that_pastes() {
     let held: Rc<RefCell<Option<TextAreaState>>> = Rc::new(RefCell::new(None));
     let area = NodeRef::new();
     let (sink, slot) = (held.clone(), area.clone());
@@ -38,8 +38,8 @@ fn tapping_the_caret_handle_of_a_text_area_opens_a_menu_that_pastes() {
     harness.frame(Vec::new());
 
     assert!(text_within(harness.document(), root, "Copy").is_none());
-    let paste =
-        text_within(harness.document(), root, "Paste").expect("tapping the handle opens its menu");
+    let paste = text_within(harness.document(), root, "Paste")
+        .expect("tapping the handle shows its toolbar");
     let row = harness.center(paste);
     harness.touch(TouchPhase::Start, row);
     let output = harness.frame(vec![Event::Touch {

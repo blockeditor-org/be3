@@ -3,7 +3,7 @@ use crate::reactive::view;
 use crate::styled::TextInput;
 
 #[test]
-fn tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste() {
+fn tapping_the_caret_handle_shows_a_toolbar_that_asks_the_host_to_paste() {
     let (document, [input]) = toolbar_of(|| {
         [view! {
             <TextInput value="Hello" />
@@ -25,8 +25,13 @@ fn tapping_the_caret_handle_opens_a_menu_that_asks_the_host_to_paste() {
     harness.touch(TouchPhase::End, handle);
     harness.frame(Vec::new());
 
-    let paste = unstyled::text_input_menu_row(harness.document(), input, 0)
-        .expect("tapping the caret handle opens its menu");
+    let toolbar = unstyled::text_input_toolbar(harness.document(), input)
+        .expect("tapping the caret handle shows its toolbar");
+    assert!(
+        text_within(harness.document(), toolbar, "Copy").is_none(),
+        "there is nothing to copy without a selection"
+    );
+    let paste = text_within(harness.document(), toolbar, "Paste").expect("the toolbar pastes");
     let row = harness.center(paste);
     harness.touch(TouchPhase::Start, row);
     let output = harness.frame(vec![Event::Touch {

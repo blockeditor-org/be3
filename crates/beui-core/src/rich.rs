@@ -104,6 +104,17 @@ impl TextCaret {
 
 pub const HANDLE_RADIUS: f32 = 9.0;
 pub const HANDLE_GAP: f32 = 4.0;
+pub const TOOLBAR_GAP: f32 = 8.0;
+
+pub fn toolbar_anchor(carets: Rect) -> Rect {
+    Rect::from_min_max(
+        pos2(carets.min.x, carets.min.y - TOOLBAR_GAP),
+        pos2(
+            carets.max.x,
+            carets.max.y + HANDLE_GAP + HANDLE_RADIUS * (1.0 + SQRT_2) + TOOLBAR_GAP,
+        ),
+    )
+}
 
 pub fn handle_center(caret: Rect, handle: CaretHandle) -> Vec2 {
     let anchor = vec2(caret.min.x, caret.max.y + HANDLE_GAP);
