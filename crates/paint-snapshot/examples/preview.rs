@@ -11,11 +11,16 @@ const MAX_ROWS: usize = 30;
 
 fn main() {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
-    let [before, after, output] = arguments.as_slice() else {
-        eprintln!("usage: preview BEFORE_DIR AFTER_DIR OUTPUT_DIR");
+    let [before, after, output, added, removed, files] = arguments.as_slice() else {
+        eprintln!("usage: preview BEFORE_DIR AFTER_DIR OUTPUT_DIR ADDED REMOVED FILES");
         std::process::exit(2)
     };
     let (before, after, output) = (Path::new(before), Path::new(after), Path::new(output));
+    let count = |text: &str| -> u64 {
+        text.parse()
+            .unwrap_or_else(|_| fail(&format!("{text} is not a line count")))
+    };
+    let (added_lines, removed_lines, files) = (count(added), count(removed), count(files));
 
     std::fs::create_dir_all(output).unwrap_or_else(|error| fail(&error.to_string()));
 
@@ -66,7 +71,13 @@ fn main() {
     }
 
     let total = added + removed + changed;
-    let mut comment = format!("{MARKER}\n## Paintings\n\n");
+    let mut comment = format!(
+        "{MARKER}\n## Lines of code\n\n**+{added_lines} -{removed_lines}** in {}, not counting tests.\n\n## Paintings\n\n",
+        match files {
+            1 => "1 file".to_owned(),
+            count => format!("{count} files"),
+        }
+    );
     if total == 0 {
         comment.push_str("No paintings changed.\n");
     } else {

@@ -235,9 +235,10 @@ fi
 # The paintings the pull request changed, before and after, read from git so
 # that what was accepted above is not mistaken for what was committed, and
 # drawn into OUT with the comment crates/paint-snapshot's preview example
-# writes.
+# writes, which also counts the lines the pull request added and removed
+# outside its tests.
 render_previews() {
-    local renderer from before after path name
+    local renderer from before after path name added removed files
     renderer="$(built previews)"
     [[ -n "$renderer" ]] || return 1
     from="$(git merge-base "$base" HEAD)" || return 1
@@ -254,7 +255,12 @@ render_previews() {
                 git show "HEAD:$path" > "$after/$name"
             fi
         done
-    "$renderer" "$before" "$after" "$previews"
+    read -r added removed files < <(git diff --numstat "$from" HEAD -- . \
+        ':(exclude,glob)**/tests.rs' ':(exclude,glob)**/tests/**' \
+        ':(exclude,glob)**/test.rs' ':(exclude,glob)**/test/**' |
+        awk '$1 != "-" { added += $1; removed += $2; files++ }
+            END { printf "%d %d %d\n", added, removed, files }') || return 1
+    "$renderer" "$before" "$after" "$previews" "$added" "$removed" "$files"
 }
 
 if [[ -n "$previews" ]]; then

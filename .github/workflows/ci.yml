@@ -62,9 +62,10 @@ jobs:
   #
   # The paint previews are every painting a pull request changes, drawn
   # before, after, and with what changed marked, for one comment on the pull
-  # request that each run edits rather than adding to. The paintings compared
-  # are the ones committed on the head, so a painting the autofix job accepts
-  # shows up in the run its commit starts. A fork's run has no Namespace
+  # request that each run edits rather than adding to, which also counts the
+  # lines the pull request adds and removes outside its tests. The paintings
+  # compared are the ones committed on the head, so a painting the autofix job
+  # accepts shows up in the run its commit starts. A fork's run has no Namespace
   # token to build with and no token to comment with, so it has no previews.
   ci:
     name: ci
@@ -320,8 +321,8 @@ jobs:
   # request's code, so it is only ever data here: files to upload and text to
   # post.
   #
-  # A pull request that no longer changes any painting has its comment edited
-  # to say so; one that never did gets no comment.
+  # Every pull request gets the one comment, which each run edits: the lines it
+  # adds and removes outside its tests, and the paintings it changes, if any.
   publish-paint-previews:
     name: comment paint previews
     needs: [ci]
@@ -368,11 +369,9 @@ jobs:
           if [ -n "$existing" ]; then
             jq --raw-input --slurp '{body: .}' "$comment" |
               gh api --method PATCH "repos/$REPOSITORY/issues/comments/$existing" --input - > /dev/null
-          elif compgen -G "$previews/*.png" > /dev/null; then
+          else
             jq --raw-input --slurp '{body: .}' "$comment" |
               gh api --method POST "repos/$REPOSITORY/issues/$NUMBER/comments" --input - > /dev/null
-          else
-            echo 'The pull request changes no paintings.'
           fi
 
   # The launcher on Android (crates/be-launcher) installs these APKs: the app
