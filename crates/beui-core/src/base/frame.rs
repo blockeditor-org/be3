@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use crate::base::list::Align;
-use crate::color::Color32;
+use crate::color::{Color32, format_hex};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
 use crate::node::{Element, InteractInput, NodeId, NodeOf, Rects};
@@ -334,12 +334,78 @@ impl Element for FrameNode {
         Some(format!("#{red:02x}{green:02x}{blue:02x}"))
     }
 
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        let padding = self.padding;
+        let radius = self.style.radius;
+        vec![
+            ("visible", self.visible.to_string()),
+            ("width", extent_label(self.width)),
+            ("height", extent_label(self.height)),
+            (
+                "aspect ratio",
+                self.aspect_ratio
+                    .map_or_else(|| "none".to_owned(), |ratio| ratio.to_string()),
+            ),
+            (
+                "padding",
+                format!(
+                    "{} {} {} {}",
+                    padding.left, padding.top, padding.right, padding.bottom
+                ),
+            ),
+            (
+                "align",
+                format!("{:?} {:?}", self.align_horizontal, self.align_vertical),
+            ),
+            ("fill", format_hex(self.style.fill, true)),
+            (
+                "outline",
+                format!(
+                    "{} {} offset {}{}",
+                    self.style.outline_width,
+                    format_hex(self.style.outline, true),
+                    self.style.outline_offset,
+                    if self.style.outline_visible {
+                        " focus ring"
+                    } else {
+                        ""
+                    }
+                ),
+            ),
+            (
+                "radius",
+                format!(
+                    "{} {} {} {}",
+                    radius.top_left, radius.top_right, radius.bottom_right, radius.bottom_left
+                ),
+            ),
+        ]
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+}
+
+fn extent_label(extent: Extent) -> String {
+    let parts: Vec<String> = [
+        extent.exact.map(|exact| exact.to_string()),
+        extent
+            .fraction
+            .map(|fraction| format!("{}%", fraction * 100.0)),
+        extent.min.map(|min| format!("min {min}")),
+        extent.max.map(|max| format!("max {max}")),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    match parts.is_empty() {
+        true => "intrinsic".to_owned(),
+        false => parts.join(" "),
     }
 }
 

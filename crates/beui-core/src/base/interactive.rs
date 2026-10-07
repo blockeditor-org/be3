@@ -480,6 +480,79 @@ impl Element for InteractiveNode {
         self.focus.as_ref().map(|_| "focusable".to_owned())
     }
 
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        let handlers: Vec<&str> = [
+            (self.on_click.is_empty(), "click"),
+            (self.on_click_at.is_empty(), "click at"),
+            (self.on_press.is_empty(), "press"),
+            (self.on_secondary_press.is_empty(), "secondary press"),
+            (self.on_secondary_drag.is_empty(), "secondary drag"),
+            (self.on_middle_click.is_empty(), "middle click"),
+            (self.on_cancel.is_empty(), "cancel"),
+            (self.on_hover_change.is_empty(), "hover"),
+            (self.on_hover_move.is_empty(), "hover move"),
+            (self.on_active_change.is_empty(), "active"),
+            (self.on_drag.is_empty(), "drag"),
+            (self.on_pan_drag.is_empty(), "pan"),
+            (self.on_scroll.is_empty(), "scroll"),
+            (self.on_scroll_drag.is_empty(), "scroll drag"),
+            (self.on_autoscroll.is_empty(), "autoscroll"),
+            (self.on_zoom.is_empty(), "zoom"),
+            (self.on_forward.is_empty(), "forward"),
+        ]
+        .into_iter()
+        .filter_map(|(empty, name)| (!empty).then_some(name))
+        .collect();
+        let states: Vec<&str> = [
+            (self.hovered, "hovered"),
+            (self.active, "active"),
+            (self.armed, "armed"),
+            (self.key_active, "key active"),
+            (self.dragged.is_some(), "dragged"),
+            (self.pan_active, "panning"),
+        ]
+        .into_iter()
+        .filter_map(|(on, name)| on.then_some(name))
+        .collect();
+        let focus = self.focus.as_ref().map_or_else(
+            || "none".to_owned(),
+            |focus| {
+                let flags: Vec<&str> = [
+                    (focus.tab_stop, "tab stop"),
+                    (focus.press_focus, "press"),
+                    (focus.ime, "ime"),
+                    (focus.keyboard_on_focus, "keyboard"),
+                ]
+                .into_iter()
+                .filter_map(|(on, name)| on.then_some(name))
+                .collect();
+                match flags.is_empty() {
+                    true => "focusable".to_owned(),
+                    false => flags.join(", "),
+                }
+            },
+        );
+        let list = |names: Vec<&str>| match names.is_empty() {
+            true => "none".to_owned(),
+            false => names.join(", "),
+        };
+        vec![
+            ("focus", focus),
+            (
+                "cursor",
+                self.cursor
+                    .map_or_else(|| "default".to_owned(), |cursor| format!("{cursor:?}")),
+            ),
+            (
+                "scroll axis",
+                self.scroll_axis
+                    .map_or_else(|| "none".to_owned(), |axis| format!("{axis:?}")),
+            ),
+            ("handlers", list(handlers)),
+            ("state", list(states)),
+        ]
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }

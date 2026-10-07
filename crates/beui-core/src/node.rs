@@ -189,6 +189,10 @@ pub trait Element: Any {
         None
     }
 
+    fn properties(&self) -> Vec<(&'static str, String)> {
+        Vec::new()
+    }
+
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
