@@ -576,6 +576,15 @@ pub trait ComptimeNamespace: std::fmt::Debug {
             None,
         ))
     }
+    fn try_get_string(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        field: &str,
+        block: &mut AnalysisBlock,
+    ) -> Result<Option<AnalysisResult>, PositionedError> {
+        self.get_string(env, pos, field, block).map(Some)
+    }
     fn pos(&self) -> &TokenPosition;
 }
 
@@ -675,6 +684,12 @@ pub struct ComptimeValueKwString {
 #[derive(Debug, Clone)]
 pub struct ComptimeValueKwBool {
     pub value: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComptimeValueEnum {
+    pub case: usize,
+    pub payload: Option<Box<ComptimeValue>>,
 }
 
 #[derive(Debug, Clone)]
@@ -787,6 +802,8 @@ pub enum ComptimeValue {
     KwString(ComptimeValueKwString),
     KwList(Vec<ComptimeValue>),
     Tuple(ComptimeValueTuple),
+    Struct(Vec<ComptimeValue>),
+    Enum(ComptimeValueEnum),
     KwMut(Rc<RefCell<ComptimeValue>>),
     McNbtRef(ComptimeValueMcNbtRef),
     Error(ComptimeValueError),
@@ -1551,6 +1568,19 @@ struct NamespaceImpl {
 }
 
 impl ComptimeNamespace for NamespaceImpl {
+    fn try_get_string(
+        &self,
+        env: &mut Env,
+        pos: TokenPosition,
+        field: &str,
+        block: &mut AnalysisBlock,
+    ) -> Result<Option<AnalysisResult>, PositionedError> {
+        if !self.registered.contains_key(&NsKey::Str(field.to_string())) {
+            return Ok(None);
+        }
+        self.get_string(env, pos, field, block).map(Some)
+    }
+
     fn get_string(
         &self,
         env: &mut Env,
@@ -3054,6 +3084,67 @@ fn builtin_kw_list_call(
     })
 }
 
+fn builtin_declare_call(
+    env: &mut Env,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    kind: crate::user_type::DeclKind,
+    what: &str,
+) -> Result<AnalysisResult, PositionedError> {
+    let items = trim_ws(arg_ast.ast);
+    let [SyntaxNode::Block(map)] = items.as_slice() else {
+        return Err(throw_err(
+            env,
+            Some(pos),
+            format!("{what} takes a [ ... ] map"),
+            None,
+            None,
+        ));
+    };
+    if map.tag != BracketTag::Map {
+        return Err(throw_err(
+            env,
+            Some(pos),
+            format!("{what} takes a [ ... ] map"),
+            None,
+            None,
+        ));
+    }
+    Ok(crate::user_type::declare(env, map, kind))
+}
+
+fn builtin_struct_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    _block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    builtin_declare_call(
+        env,
+        pos,
+        arg_ast,
+        crate::user_type::DeclKind::Struct,
+        "std.Struct",
+    )
+}
+
+fn builtin_enum_call(
+    env: &mut Env,
+    _slot: Type,
+    pos: TokenPosition,
+    arg_ast: CallArg<'_>,
+    _block: &mut AnalysisBlock,
+) -> Result<AnalysisResult, PositionedError> {
+    builtin_declare_call(
+        env,
+        pos,
+        arg_ast,
+        crate::user_type::DeclKind::Enum,
+        "std.Enum",
+    )
+}
+
 fn builtin_option_call(
     env: &mut Env,
     _slot: Type,
@@ -3483,6 +3574,8 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                         ),
                         ("c", Rc::new(PreludeDescriptor)),
                         ("Option", d_ns(vec![], Some(builtin_option_call))),
+                        ("Struct", d_ns(vec![], Some(builtin_struct_call))),
+                        ("Enum", d_ns(vec![], Some(builtin_enum_call))),
                         (
                             "Type",
                             d_raw(AnalysisResult {
@@ -3501,6 +3594,30 @@ fn build_builtin_namespace_descriptor() -> Rc<dyn Descriptor> {
                                     ("wrap", d_ns(vec![], Some(builtin_type_wrap_call))),
                                     ("unwrap", d_ns(vec![], Some(builtin_type_unwrap_call))),
                                     ("repr", d_std_key(crate::std_keys::StdKey::Repr)),
+                                    (
+                                        "fields",
+                                        d_std_key(crate::std_keys::StdKey::Section(
+                                            crate::std_keys::Section::Fields,
+                                        )),
+                                    ),
+                                    (
+                                        "cases",
+                                        d_std_key(crate::std_keys::StdKey::Section(
+                                            crate::std_keys::Section::Cases,
+                                        )),
+                                    ),
+                                    (
+                                        "statics",
+                                        d_std_key(crate::std_keys::StdKey::Section(
+                                            crate::std_keys::Section::Statics,
+                                        )),
+                                    ),
+                                    (
+                                        "methods",
+                                        d_std_key(crate::std_keys::StdKey::Section(
+                                            crate::std_keys::Section::Methods,
+                                        )),
+                                    ),
                                 ],
                                 None,
                             ),

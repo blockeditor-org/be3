@@ -354,6 +354,8 @@ fn comptime_value_kind(value: &ComptimeValue) -> &'static str {
         ComptimeValue::KwMut(_) => "kw:mut",
         ComptimeValue::KwString(_) => "kw:string",
         ComptimeValue::KwList(_) => "kw:list",
+        ComptimeValue::Struct(_) => "struct",
+        ComptimeValue::Enum(_) => "enum",
         ComptimeValue::McNbtRef(_) => "mc:nbt_ref",
         ComptimeValue::Error(_) => "error",
         ComptimeValue::Mc(_) => "mc",

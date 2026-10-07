@@ -76,6 +76,21 @@ pub enum Type {
     KwField(TypeKwField),
     Null(TypeNull),
     KwIfOptional(TypeKwIfOptional),
+    BoundName(TypeBoundName),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeBoundName {
+    pub receiver: Box<Type>,
+    pub name: String,
+}
+
+fn enum_comparison(key: Symbol) -> Option<crate::kw::KwBuiltinOp> {
+    match symbol_operator(key)? {
+        (OperatorKind::Lhs, op) if op == "==" => Some(crate::kw::KwBuiltinOp::EnumEq),
+        (OperatorKind::Lhs, op) if op == "!=" => Some(crate::kw::KwBuiltinOp::EnumNe),
+        _ => None,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -348,8 +363,15 @@ impl Type {
             (LiteralKind::Map, Type::CtBuildArtifact(t)) => {
                 literal_block(node, BracketTag::Map).map(|ast| t.from_map(env, slot, ast, block))
             }
-            (LiteralKind::Map, Type::CtType(_)) => literal_block(node, BracketTag::Map)
-                .map(|ast| Ok(crate::user_type::declare(env, ast))),
+            (LiteralKind::Map, Type::CtType(_)) => {
+                literal_block(node, BracketTag::Map).map(|ast| {
+                    Ok(crate::user_type::declare(
+                        env,
+                        ast,
+                        crate::user_type::DeclKind::Type,
+                    ))
+                })
+            }
             (LiteralKind::List, Type::Tuple(t)) => {
                 literal_block(node, BracketTag::List).map(|ast| t.from_list(env, ast, block))
             }
@@ -415,6 +437,7 @@ impl Type {
             Type::KwField(_) => "KwField",
             Type::Null(_) => "Null",
             Type::KwIfOptional(_) => "KwIf",
+            Type::BoundName(_) => "BoundName",
         }
         .to_string()
     }
@@ -460,6 +483,16 @@ impl Type {
             Type::Label(t) => t.analyze_call(env, pos, arg_in, block),
             Type::KwField(t) => crate::kw::call_field(env, t, method.value, pos, arg_in, block),
             Type::KwIfOptional(t) => t.analyze_call(env, pos, method.value, arg_in, block),
+            Type::BoundName(t) => {
+                let Type::User(user) = &*t.receiver else {
+                    unreachable!("only declared types have named methods")
+                };
+                let receiver = AnalysisResult {
+                    ty: (*t.receiver).clone(),
+                    value: method.value,
+                };
+                user.call_method_name(env, &t.name, receiver, arg_in, block)
+            }
             Type::InlineFn(t) => {
                 crate::user_type::inline_call(env, &t.func, Vec::new(), arg_in, block)
             }
@@ -494,7 +527,10 @@ impl Type {
                 };
                 let found = match &key {
                     ComptimeValueKey::Symbol { key, .. } => ty.ty.type_symbol(env, *key)?,
-                    ComptimeValueKey::String { key } => ty.ty.type_field(key),
+                    ComptimeValueKey::String { key } => match &ty.ty {
+                        Type::User(user) => user.type_field(env, block, &pos, key)?,
+                        other => other.type_field(key),
+                    },
                 };
                 if found.is_none()
                     && matches!(&key, ComptimeValueKey::String { key } if key == "else")
@@ -519,6 +555,11 @@ impl Type {
             }
             _ => {
                 let key = access_key(env, block, prop, &pos)?;
+                if let (ComptimeValueKey::String { key: name }, Type::User(user)) = (&key, self)
+                    && let Some(field) = user.value_field(env, block, &obj, &pos, name)?
+                {
+                    return Ok(field);
+                }
                 if let ComptimeValueKey::String { key: name } = &key
                     && let Some(field) = crate::kw::value_field(env, block, self, &obj, &pos, name)?
                 {
@@ -584,7 +625,9 @@ impl Type {
         key: Symbol,
     ) -> Result<Option<AnalysisResult>, PositionedError> {
         if let Type::User(t) = self {
-            return Ok(t.lookup(env, key)?.map(crate::user_type::inline_entry));
+            return Ok(t
+                .static_symbol(env, key)?
+                .map(crate::user_type::inline_entry));
         }
         if let (Type::Optional(optional), Some(StdKey::Literal(_))) = (self, symbol_std_key(key)) {
             return optional.child.type_symbol(env, key);
@@ -620,6 +663,15 @@ impl Type {
         if let Type::Optional(optional) = self {
             return optional.child.type_field(name);
         }
+        if let (Type::CtKey(_), Some(section)) = (self, crate::std_keys::Section::from_name(name)) {
+            return Some(AnalysisResult {
+                ty: Type::CtKey(CtKey),
+                value: RuntimeValue::Comptime(ComptimeValue::Key(ComptimeValueKey::Symbol {
+                    key: std_key(StdKey::Section(section)),
+                    child: Type::Unknown(TypeUnknown),
+                })),
+            });
+        }
         match (self, name) {
             (Type::KwBool(_), "true" | "false") => Some(AnalysisResult {
                 ty: Type::KwBool(KwBool),
@@ -633,7 +685,10 @@ impl Type {
 
     pub fn has_value_symbol(&self, env: &mut Env, key: Symbol) -> Result<bool, PositionedError> {
         if let Type::User(t) = self {
-            return Ok(t.lookup(env, key)?.is_some());
+            if t.method_symbol(env, key)?.is_some() {
+                return Ok(true);
+            }
+            return Ok(t.is_enum(env)? && enum_comparison(key).is_some());
         }
         Ok(self.builtin_has_value_symbol(key))
     }
@@ -655,6 +710,7 @@ impl Type {
                     | Type::InlineFn(_)
                     | Type::KwField(_)
                     | Type::KwIfOptional(_)
+                    | Type::BoundName(_)
             );
         }
         builtin_operator(self, OperatorKind::Lhs, key).is_some()
@@ -672,8 +728,20 @@ impl Type {
         block: &mut AnalysisBlock,
     ) -> Result<AnalysisResult, PositionedError> {
         if let Type::User(t) = self {
-            let Some(entry) = t.lookup(env, key)? else {
-                unreachable!("bound only to symbols has_value_symbol accepted")
+            let Some(entry) = t.method_symbol(env, key)? else {
+                let Some(op) = enum_comparison(key) else {
+                    unreachable!("bound only to symbols has_value_symbol accepted")
+                };
+                let rhs = analyze(env, self.clone(), arg_in.pos, arg_in.ast, block)?;
+                let rhs = self.cast_into(env, block, rhs, pos.clone())?;
+                return crate::kw::emit(
+                    env,
+                    block,
+                    pos,
+                    op,
+                    vec![receiver.value, rhs.value],
+                    Type::KwBool(KwBool),
+                );
             };
             let ComptimeValue::Fn(func) = get_comptime(env, None, entry.value, pos.clone())? else {
                 return Err(throw_err(
@@ -1785,6 +1853,11 @@ pub fn analyze_literal(
             },
             block,
         );
+    }
+    if let (LiteralKind::Map, SyntaxNode::Block(ast), Type::User(user)) = (kind, node, &slot)
+        && user.has_fields(env)?
+    {
+        return user.struct_literal(env, ast, block);
     }
     if let (LiteralKind::List, SyntaxNode::Block(ast)) = (kind, node) {
         let items = list_items(env, ast)?;

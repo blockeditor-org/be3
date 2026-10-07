@@ -10,12 +10,12 @@ fn build_with_types(body: &str) -> Result<String, Vec<TokenizationError>> {
     -> \"x\"
   }}
 ]
-M :: std.Type: [
-  std.type.repr .= std.kw.int
+M :: std.Type[
+  .statics .= [std.type.repr .= std.kw.int]
 ]
-N :: std.Type: [ ]
-L :: std.Type: [
-  L.[std.literal.number] .= 1
+N :: std.Type[ ]
+L :: std.Type[
+  .statics .= [L.[std.literal.number] .= 1]
 ]
 std :: #builtin.std"
         ),

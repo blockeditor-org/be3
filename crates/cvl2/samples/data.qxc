@@ -1,0 +1,42 @@
+#builtin.build .= () => std.Folder[
+  "point.txt" .= std.File: describe_point(Point["x" .= 3, "y" .= 4])
+  "origin.txt" .= std.File: describe_point(Point.origin())
+  "circle.txt" .= std.File: describe_shape(.circle(2))
+  "dot.txt" .= std.File: describe_shape(.dot)
+  "bool.txt" .= std.File: describe_bool(.false)
+]
+
+Point :: std.Type[
+  .fields .= [
+    "x" .= std.kw.int
+    "y" .= std.kw.int
+  ]
+  .statics .= [
+    "origin" .= () => Point["x" .= 0, "y" .= 0]
+  ]
+  .methods .= [
+    "len2" .= (p: Point) => std.kw.int: p.x * p.x + p.y * p.y
+  ]
+]
+
+Shape :: std.Enum["circle" .= std.kw.int, "dot"]
+
+describe_point :: (p: Point) => std.kw.string: std.kw.string.from_int(p.x) + "," + std.kw.string.from_int(p.y) + " len2=" + std.kw.string.from_int(p.len2())
+
+describe_shape :: (s: Shape) => std.kw.string: :out {
+  std.kw.if (s.circle): (r) => {
+    out: "circle of radius " + std.kw.string.from_int(r)
+  }
+  std.kw.if (s == .dot) {
+    out: "dot"
+  }
+  -> "unknown"
+}
+
+describe_bool :: (b: std.kw.bool) => std.kw.string: :out {
+  std.kw.if (b.false) {
+    out: "false"
+  }
+  -> "true"
+}
+std :: #builtin.std

@@ -3,11 +3,15 @@
   "stroll.txt" .= std.File: describe(2)
 ]
 
-Meters :: std.Type: [
-  std.type.repr .= std.kw.int
-  std.literal.number .= (n: std.kw.int) => std.type.wrap(Meters, n)
-  std.operator.slot("+") .= (a: Meters, b: Meters) => std.type.wrap(Meters, std.type.unwrap(a) + std.type.unwrap(b))
-  std.operator.lhs(">") .= (a: Meters, b: Meters) => std.type.unwrap(a) > std.type.unwrap(b)
+Meters :: std.Type[
+  .statics .= [
+    std.type.repr .= std.kw.int
+    std.literal.number .= (n: std.kw.int) => std.type.wrap(Meters, n)
+    std.operator.slot("+") .= (a: Meters, b: Meters) => std.type.wrap(Meters, std.type.unwrap(a) + std.type.unwrap(b))
+  ]
+  .methods .= [
+    std.operator.lhs(">") .= (a: Meters, b: Meters) => std.type.unwrap(a) > std.type.unwrap(b)
+  ]
 ]
 
 describe :: (distance: Meters) => std.File: :out {

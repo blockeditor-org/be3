@@ -28,12 +28,42 @@ impl LiteralKind {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Section {
+    Fields,
+    Cases,
+    Statics,
+    Methods,
+}
+
+impl Section {
+    pub fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "fields" => Section::Fields,
+            "cases" => Section::Cases,
+            "statics" => Section::Statics,
+            "methods" => Section::Methods,
+            _ => return None,
+        })
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Section::Fields => "fields",
+            Section::Cases => "cases",
+            Section::Statics => "statics",
+            Section::Methods => "methods",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum StdKey {
     Operator(OperatorKind, String),
     Literal(LiteralKind),
     Call,
     Repr,
+    Section(Section),
 }
 
 impl StdKey {
@@ -44,6 +74,7 @@ impl StdKey {
             StdKey::Literal(kind) => format!("std.literal.{}", kind.name()),
             StdKey::Call => "std.operator.call".to_string(),
             StdKey::Repr => "std.type.repr".to_string(),
+            StdKey::Section(section) => format!("std.type.{}", section.name()),
         }
     }
 }

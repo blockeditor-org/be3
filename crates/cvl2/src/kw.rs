@@ -1,8 +1,8 @@
 use crate::compiler::{
     AnalysisBlock, AnalysisLine, AnalysisResult, ComptimeNamespace, ComptimeValue,
-    ComptimeValueKwBool, ComptimeValueKwInt, ComptimeValueKwString, ComptimeValueOptional, Env,
-    PositionedError, RuntimeValue, Symbol, analyze, analyze_base, block_append, compiler_pos,
-    throw_err,
+    ComptimeValueEnum, ComptimeValueKwBool, ComptimeValueKwInt, ComptimeValueKwString,
+    ComptimeValueOptional, ComptimeValueVoid, Env, PositionedError, RuntimeValue, Symbol, analyze,
+    analyze_base, block_append, compiler_pos, throw_err,
 };
 use crate::comptime::{ComptimeValueKind, get_comptime};
 use crate::ct::{
@@ -22,6 +22,13 @@ pub enum KwBuiltinOp {
     OptionalSome,
     OptionalIsSome,
     OptionalUnwrap,
+    StructNew,
+    StructGet,
+    EnumNew,
+    EnumGet,
+    EnumEq,
+    EnumNe,
+    BoolIs,
 }
 
 impl KwBuiltinOp {
@@ -37,6 +44,13 @@ impl KwBuiltinOp {
             KwBuiltinOp::OptionalSome => "optional_some",
             KwBuiltinOp::OptionalIsSome => "optional_is_some",
             KwBuiltinOp::OptionalUnwrap => "optional_unwrap",
+            KwBuiltinOp::StructNew => "struct_new",
+            KwBuiltinOp::StructGet => "struct_get",
+            KwBuiltinOp::EnumNew => "enum_new",
+            KwBuiltinOp::EnumGet => "enum_get",
+            KwBuiltinOp::EnumEq => "enum_eq",
+            KwBuiltinOp::EnumNe => "enum_ne",
+            KwBuiltinOp::BoolIs => "bool_is",
         }
     }
 }
@@ -111,8 +125,69 @@ pub fn eval(
                 ));
             }
         },
+        (KwBuiltinOp::StructNew, _) => V::Struct(args),
+        (KwBuiltinOp::StructGet, [V::Struct(fields), V::KwInt(index)]) => {
+            fields[index.value as usize].clone()
+        }
+        (KwBuiltinOp::EnumNew, [V::KwInt(case)]) => V::Enum(ComptimeValueEnum {
+            case: case.value as usize,
+            payload: None,
+        }),
+        (KwBuiltinOp::EnumNew, [V::KwInt(case), payload]) => V::Enum(ComptimeValueEnum {
+            case: case.value as usize,
+            payload: Some(Box::new(payload.clone())),
+        }),
+        (KwBuiltinOp::EnumGet, [V::Enum(value), V::KwInt(case)]) => {
+            V::Optional(ComptimeValueOptional {
+                some: (value.case == case.value as usize).then(|| {
+                    Box::new(match &value.payload {
+                        Some(payload) => (**payload).clone(),
+                        None => V::Void(ComptimeValueVoid),
+                    })
+                }),
+            })
+        }
+        (KwBuiltinOp::EnumEq, [a @ V::Enum(_), b @ V::Enum(_)]) => V::KwBool(ComptimeValueKwBool {
+            value: values_equal(a, b),
+        }),
+        (KwBuiltinOp::EnumNe, [a @ V::Enum(_), b @ V::Enum(_)]) => V::KwBool(ComptimeValueKwBool {
+            value: !values_equal(a, b),
+        }),
+        (KwBuiltinOp::BoolIs, [V::KwBool(value), V::KwBool(want)]) => {
+            V::Optional(ComptimeValueOptional {
+                some: (value.value == want.value).then(|| Box::new(V::Void(ComptimeValueVoid))),
+            })
+        }
         _ => unreachable!("analysis only emits {} with matching arguments", op.name()),
     })
+}
+
+fn values_equal(a: &ComptimeValue, b: &ComptimeValue) -> bool {
+    use ComptimeValue as V;
+    match (a, b) {
+        (V::Void(_), V::Void(_)) => true,
+        (V::KwInt(a), V::KwInt(b)) => a.value == b.value,
+        (V::KwBool(a), V::KwBool(b)) => a.value == b.value,
+        (V::KwString(a), V::KwString(b)) => a.value == b.value,
+        (V::CInt(a), V::CInt(b)) => a.value == b.value,
+        (V::KwList(a), V::KwList(b)) | (V::Struct(a), V::Struct(b)) => {
+            a.len() == b.len() && a.iter().zip(b).all(|(a, b)| values_equal(a, b))
+        }
+        (V::Optional(a), V::Optional(b)) => match (&a.some, &b.some) {
+            (Some(a), Some(b)) => values_equal(a, b),
+            (None, None) => true,
+            _ => false,
+        },
+        (V::Enum(a), V::Enum(b)) => {
+            a.case == b.case
+                && match (&a.payload, &b.payload) {
+                    (Some(a), Some(b)) => values_equal(a, b),
+                    (None, None) => true,
+                    _ => false,
+                }
+        }
+        _ => false,
+    }
 }
 
 pub fn emit(
@@ -223,6 +298,22 @@ pub fn value_field(
     let (op, result_ty) = match (ty, name) {
         (Type::Optional(optional), "?") => (KwBuiltinOp::OptionalUnwrap, (*optional.child).clone()),
         (Type::KwString(_), "len") => property(KwBuiltinOp::StringLen),
+        (Type::KwBool(_), "true" | "false") => {
+            let want = RuntimeValue::Comptime(ComptimeValue::KwBool(ComptimeValueKwBool {
+                value: name == "true",
+            }));
+            return emit(
+                env,
+                block,
+                pos.clone(),
+                KwBuiltinOp::BoolIs,
+                vec![obj.value.clone(), want],
+                Type::Optional(crate::ct::TypeOptional {
+                    child: Box::new(Type::Void(crate::ct::TypeVoid)),
+                }),
+            )
+            .map(Some);
+        }
         (Type::KwList(_), "len") => property(KwBuiltinOp::ListLen),
         (Type::KwList(list), "get" | "push" | "join") => {
             if name == "join" && !matches!(*list.elem, Type::KwString(_)) {
