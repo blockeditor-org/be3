@@ -34,6 +34,7 @@ Verification:
 Do:
 - Use commit message format `type: message`. Include Co-Authored-By: (model name).
 - When done, create a pull request on github for the change. Do not watch the pull request and do not check in on its status.
+- Visual changes and features come with a painting that demonstrates them (see guides/testing_a_gui.md). If an existing painting already shows the change, that's enough; otherwise add one.
 - In your handoff message, mention any small issues you encountered or small things you noticed that could make the code / application better.
 - If you don't need tests in your search results, consider `grep --exclude-dir="tests"`
 - If you find yourself polling waiting for a command to finish, run `./scripts/nopoll` in the foreground
