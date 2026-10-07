@@ -23,7 +23,7 @@ const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
 pub enum Journaled<Op> {
     Edited(Op),
     Applied(Op),
-    Replaced,
+    Replaced { edits: u64 },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -184,19 +184,27 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
     }
 
     fn journal(&mut self, entry: Journaled<C::Op>) {
-        if self.journal.len() >= JOURNAL_LIMIT {
-            self.journal.clear();
-            self.journal.push(Journaled::Replaced);
+        let replaced = matches!(entry, Journaled::Replaced { .. });
+        if self.journal.len() >= JOURNAL_LIMIT || replaced {
+            let edits = self
+                .journal
+                .drain(..)
+                .map(|entry| match entry {
+                    Journaled::Edited(_) => 1,
+                    Journaled::Applied(_) => 0,
+                    Journaled::Replaced { edits } => edits,
+                })
+                .sum();
+            self.journal.push(Journaled::Replaced { edits });
         }
-        if matches!(entry, Journaled::Replaced) {
-            self.journal.clear();
+        if !replaced {
+            self.journal.push(entry);
         }
-        self.journal.push(entry);
     }
 
     fn replace_visible(&mut self, visible: C) {
         self.visible = visible;
-        self.journal(Journaled::Replaced);
+        self.journal(Journaled::Replaced { edits: 0 });
     }
 
     pub fn is_incompatible(&self) -> bool {

@@ -16,6 +16,11 @@ fn anchors_follow_edits_and_die_with_their_bytes() {
         None,
         "the deleted byte took its anchor"
     );
+    assert_eq!(
+        table.deleted_at(middle),
+        Some(14),
+        "it remembers where its byte was deleted"
+    );
     assert_eq!(table.index(late), Some(16));
 
     table.splice(4, 10, 3);
@@ -25,10 +30,12 @@ fn anchors_follow_edits_and_die_with_their_bytes() {
         Some(5),
         "undoing the delete brings it back"
     );
+    assert_eq!(table.deleted_at(middle), None);
     assert_eq!(table.index(late), Some(9));
 
-    table.remap(|index| (index != 2).then_some(index + 1));
+    table.remap(|index| if index == 2 { Err(1) } else { Ok(index + 1) });
     assert_eq!(table.index(early), None);
+    assert_eq!(table.deleted_at(early), Some(1));
     assert_eq!(table.index(middle), Some(6));
     assert_eq!(table.len(), 2);
 }

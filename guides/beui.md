@@ -57,7 +57,8 @@ component has nothing for `component_state`, `component_accessibility`,
 `component_size`, `component_rect` or `component_placed` to watch, so calling any of them in its body
 panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
-`unstyled::MenuItem` is one: a menu item is a label, a disabled flag and its
+`unstyled::MenuItem` is one: a menu item is a label, an icon, a detail, a
+disabled and a danger flag, a separator above it, an `on_click` and its
 own submenu items, so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
 options of a tab bar, a listbox, a radio group and a select. Declare the type
@@ -481,12 +482,19 @@ gutter, scrolled sideways to keep the caret in view, where Enter submits and
 Tab leaves; `frame` wraps the field in the caller's chrome inside the area's
 own focus and pointer handling. `TextInput` is that single-line mode over a
 plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
-fix to how text is edited lands in both. `MenuButton` is the button that opens a menu under itself, which is
-what a toolbar reaches for where `Select` would imply the choice sticks - or,
-when a finger opened it, the same items as rows in a sheet, so one button
-serves a mouse and a touch (`IconMenuButton` is the same with an icon button's face);
-`ContextMenu` is the same menu on a secondary press, and it also takes an
-`open_at` point so a touch gesture can raise it where the finger was. A finger
+fix to how text is edited lands in both. A menu is never asked for as a dropdown
+or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
+same items in a `ModalSheet` when a finger did, so the two show the same
+features. A `MenuStyle` carries both looks (the styled `menu_style()`), and an
+unstyled one without a sheet stays a dropdown. `MenuButton` is the button that
+opens a menu under itself, which is what a toolbar reaches for where `Select`
+would imply the choice sticks (`IconMenuButton` is the same with an icon
+button's face); `ContextMenu` is the same menu on a secondary press, and it
+also takes an `open_at` point so a touch gesture can raise it where the finger
+was, or `open_at_pointer` to open where the last pointer was, reading
+`Document::last_pointer` to know whether that was a finger, for a menu something
+else asks for (the app menu a plugin's button opens). A text selection's menu
+sets `selection` and stays beside the selection under a finger too. A finger
 held still for the long-press delay (`Context::set_long_press_delay`, which a
 test sets to zero rather than waiting) is a secondary press where it rests, so
 every context menu opens on tap-and-hold; the press the finger began is

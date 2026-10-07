@@ -27,6 +27,7 @@ pub fn SelectableText(
             child_size
             open_at={menu_at}
             open_at_focuses=false
+            selection=true
             on_close={move || close_menu.set(None)}
             items={view! {
                 <MenuItem label="Copy" />
