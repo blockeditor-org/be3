@@ -1597,7 +1597,7 @@ impl CanvasState {
                 }
             }
             Gesture::Pen { points } => {
-                if points.len() >= 2 {
+                if !points.is_empty() {
                     self.add_entity(pen_entity(points, self.default_style()));
                 }
             }

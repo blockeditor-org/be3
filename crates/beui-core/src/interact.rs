@@ -59,7 +59,7 @@ pub fn interact(
     let raw_pointer = ctx.input(|input| input.pointer.interact_pos());
     if pointer
         && ctx.input(|input| input.touch.started())
-        && let Some(pos) = raw_pointer
+        && let Some(pos) = ctx.input(|input| input.pointer.press_pos)
     {
         doc.touch_shift = touch_shift(doc, rects, root, pos);
     }
@@ -74,6 +74,9 @@ pub fn interact(
     }
     let input = InteractInput {
         pointer_pos: raw_pointer.map(|pos| pos + doc.touch_shift),
+        press_pos: ctx
+            .input(|input| input.pointer.press_pos)
+            .map(|pos| pos + doc.touch_shift),
         pointer_down: ctx.input(|input| input.pointer.primary_down),
         pressed_this_frame: ctx.input(|input| input.pointer.primary_pressed()),
         released_this_frame: ctx.input(|input| input.pointer.primary_released()),
@@ -191,6 +194,7 @@ pub fn interact(
         false => input,
         true => InteractInput {
             pointer_pos: None,
+            press_pos: None,
             secondary_drag: None,
             zoom_pos: None,
             wheel_target: None,
@@ -263,6 +267,7 @@ pub fn interact(
             false => input,
             true => InteractInput {
                 pointer_pos: None,
+                press_pos: None,
                 secondary_drag: None,
                 zoom_pos: None,
                 wheel_target: None,
@@ -419,6 +424,7 @@ pub fn interact(
 fn without_pointer(input: InteractInput) -> InteractInput {
     InteractInput {
         pointer_pos: None,
+        press_pos: None,
         pointer_down: false,
         pressed_this_frame: false,
         released_this_frame: false,
@@ -588,7 +594,8 @@ impl<'a> Reach<'a> {
             .secondary_drag
             .filter(|drag| drag.started)
             .map(|drag| drag.from);
-        let probes = [input.pointer_pos, started];
+        let pressed = input.press_pos.filter(|_| input.pressed_this_frame);
+        let probes = [input.pointer_pos, started, pressed];
         if probes.iter().all(Option::is_none) {
             return false;
         }
