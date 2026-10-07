@@ -8,10 +8,10 @@ use beui_view::components::overlay::Overlay;
 use crate as unstyled;
 use crate::button::ButtonHandle;
 use beui_view::reactive::{
-    Action, Callback, Child, ChildScope, ChildValue, Children, Interactive, IntoProp, List, Memo,
-    NodeRef, Prop, ReadSignal, RenderFn, Run, Scope, Selector, Show, WriteSignal, action_disabled,
-    action_glyph, action_label, clone, create_effect, create_memo, create_selector, create_signal,
-    set_component_state,
+    Action, Callback, Child, ChildScope, ChildValue, Children, ClickCallback, Interactive,
+    IntoProp, List, Memo, NodeRef, Prop, ReadSignal, RenderFn, Run, Scope, Selector, Show,
+    WriteSignal, action_disabled, action_glyph, action_label, clone, create_effect, create_memo,
+    create_selector, create_signal, set_component_state, with_document,
 };
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -19,7 +19,10 @@ use std::rc::Rc;
 pub struct MenuRowHandle {
     pub label: Prop<String>,
     pub glyph: Prop<String>,
+    pub detail: Prop<String>,
     pub disabled: Prop<bool>,
+    pub danger: Prop<bool>,
+    pub separated: Prop<bool>,
     pub has_submenu: Prop<bool>,
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
@@ -29,8 +32,13 @@ pub struct MenuRowHandle {
 pub struct MenuItem {
     label: Memo<String>,
     glyph: Memo<String>,
+    detail: Memo<String>,
     disabled: Memo<bool>,
+    danger: Memo<bool>,
+    separated: Memo<bool>,
+    test_id: Option<String>,
     action: Option<Action>,
+    on_click: ClickCallback,
     children: Run<MenuItem>,
     scope: ChildScope,
 }
@@ -47,8 +55,13 @@ beui_view::value_child_type!(MenuItem);
 pub fn MenuItem(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = String::new())] detail: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] danger: Prop<bool>,
+    #[prop(default = false)] separated: Prop<bool>,
+    row_test_id: Option<String>,
     action: Option<Action>,
+    on_click: ClickCallback,
     children: Children<MenuItem>,
 ) -> MenuItem {
     let label = action_label(action.as_ref(), label);
@@ -57,8 +70,13 @@ pub fn MenuItem(
     MenuItem {
         label: create_memo(move || label.get()),
         glyph: create_memo(move || glyph.get()),
+        detail: create_memo(move || detail.get()),
         disabled: create_memo(move || disabled.get()),
+        danger: create_memo(move || danger.get()),
+        separated: create_memo(move || separated.get()),
+        test_id: row_test_id,
         action,
+        on_click,
         children: children.into_run(),
         scope: ChildScope::default(),
     }
@@ -226,7 +244,10 @@ fn MenuRow(
         )
     };
     let disabled = item.disabled.clone();
+    let test_id = item.test_id.clone();
+    let tagged = button.clone();
     let action = item.action.clone();
+    let clicked = item.on_click.clone();
     let children = item.children.clone();
     let has_children = create_memo(clone!(children -> move || !children.is_empty()));
     let row_has_children = has_children.clone();
@@ -247,7 +268,10 @@ fn MenuRow(
             row.call(MenuRowHandle {
                 label: item.label.clone().into_prop(),
                 glyph: item.glyph.clone().into_prop(),
+                detail: item.detail.clone().into_prop(),
                 disabled: item.disabled.clone().into_prop(),
+                danger: item.danger.clone().into_prop(),
+                separated: item.separated.clone().into_prop(),
                 has_submenu: row_has_children.into_prop(),
                 hovered: handle.hovered,
                 active: handle.active,
@@ -264,7 +288,7 @@ fn MenuRow(
     );
     let (dismiss, submenu_open, leave_open) = (set_open.clone(), open.clone(), set_open);
 
-    view! {
+    let built = view! {
         <List spacing=0.0>
             <unstyled::Button
                 @node_ref=&button
@@ -285,6 +309,7 @@ fn MenuRow(
                         if let Some(action) = &action {
                             action.run();
                         }
+                        clicked.call();
                     }
                 }}
                 on_key={move |press: KeyPress| key(&key_state, index, parent.clone(), press)}
@@ -327,7 +352,11 @@ fn MenuRow(
                 }}
             </Show>
         </List>
+    };
+    if let Some(test_id) = test_id {
+        with_document(|document| document.set_test_id(tagged.get(), test_id));
     }
+    built
 }
 
 fn select(state: &State, path: Vec<usize>) {

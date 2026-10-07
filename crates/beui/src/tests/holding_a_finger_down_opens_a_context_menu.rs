@@ -9,6 +9,14 @@ use crate::unstyled::MenuItem;
 
 const LONG_PRESS: Duration = Duration::from_millis(500);
 
+fn sheet_shown(harness: &Harness) -> bool {
+    harness
+        .document()
+        .find_test_id("sheet.handle")
+        .and_then(|node| harness.document().node_rect(node))
+        .is_some()
+}
+
 #[test]
 fn holding_a_finger_down_opens_a_context_menu() {
     let menu = NodeRef::new();
@@ -46,14 +54,18 @@ fn holding_a_finger_down_opens_a_context_menu() {
     );
     harness.touch(TouchPhase::End, pos2(100.0, 100.0));
     assert_eq!(clicked.get(), 1, "a tap is a click");
-    assert!(!harness.document().is_overlay_open(overlay));
+    assert!(!sheet_shown(&harness));
 
     harness.context.set_long_press_delay(Duration::ZERO);
     harness.touch(TouchPhase::Start, pos2(100.0, 100.0));
     harness.frame(Vec::new());
     assert!(
-        harness.document().is_overlay_open(overlay),
-        "holding a finger still opens the menu"
+        sheet_shown(&harness),
+        "holding a finger still opens the menu, as a sheet"
+    );
+    assert!(
+        !harness.document().is_overlay_open(overlay),
+        "a finger never opens the menu that a mouse gets"
     );
     assert_eq!(
         cancelled.get(),
@@ -65,7 +77,7 @@ fn holding_a_finger_down_opens_a_context_menu() {
 
     assert_eq!(clicked.get(), 1, "lifting the finger is not a click");
     assert!(
-        harness.document().is_overlay_open(overlay),
+        sheet_shown(&harness),
         "lifting the finger leaves the menu open"
     );
 

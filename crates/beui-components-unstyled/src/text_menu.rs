@@ -5,7 +5,7 @@ use text_editor_core::{CopyMode, EditorCommand};
 use crate::ContextMenu;
 use crate::MenuItem;
 use crate::TextAreaState;
-use crate::context_menu::MenuStyle;
+use crate::menu_popup::MenuStyle;
 use beui_core::base::ItemSize;
 use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
@@ -71,6 +71,7 @@ pub fn TextContextMenu(
             disabled={off}
             open_at
             open_at_focuses=false
+            selection=true
             on_close={move || set_open_at.set(None)}
             items={view! {
                 <ForEach keys={actions}>
