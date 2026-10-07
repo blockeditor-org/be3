@@ -324,7 +324,6 @@ pub fn build(state: &Rc<State>) -> Panel {
                                         selected={selected}
                                         ancestors={move |key: Key| ancestors(&lineage, key)}
                                         padding=BODY_PADDING
-                                        selection_follows_focus=true
                                         focus_color={Some(THEME.accent)}
                                         row_test_id={move |key: Key| key.test_id()}
                                         reveal_test_id={"inspector.reveal".to_owned()}

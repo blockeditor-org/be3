@@ -276,10 +276,18 @@ impl State {
     }
 
     fn toggle_picking(&self) {
-        self.picking.set(!self.picking.get());
         if self.picking.get() {
-            self.app_shown.set(true);
+            self.stop_picking();
+            return;
         }
+        self.picking.set(true);
+        self.app_shown.set(true);
+        self.touch();
+    }
+
+    fn stop_picking(&self) {
+        self.picking.set(false);
+        self.hovered.set(None);
         self.touch();
     }
 
@@ -473,6 +481,18 @@ impl Inspector {
 
     pub fn focused_row(&self) -> Option<Key> {
         beui_components_styled::tree_focused::<Key>(&self.document, self.tree.get())
+    }
+
+    pub fn highlighted(&self) -> Option<NodeId> {
+        self.state.hovered.get().or_else(|| {
+            let tree = self.tree_node()?;
+            self.document
+                .watch_focus_visible()
+                .get_untracked()
+                .then(|| beui_components_styled::tree_focused::<Key>(&self.document, tree))
+                .flatten()
+                .map(Key::node)
+        })
     }
 
     pub fn panel_width(&self, ctx: &Context, rect: Rect) -> f32 {
@@ -965,8 +985,7 @@ impl Inspector {
             return;
         }
         if ctx.input(|input| input.events.iter().any(cancelled)) {
-            self.state.picking.set(false);
-            self.state.touch();
+            self.state.stop_picking();
             return;
         }
 
@@ -983,8 +1002,7 @@ impl Inspector {
         };
         self.state.hovered.set(Some(id));
         if ctx.input(|input| input.pointer.primary_pressed()) {
-            self.state.picking.set(false);
-            self.state.hovered.set(None);
+            self.state.stop_picking();
             self.state.app_shown.set(false);
             self.state.select(id);
         }
@@ -1017,13 +1035,8 @@ impl Inspector {
             let painted = ctx.measure_paint(|| {
                 let painter = ctx.painter().with_clip_rect(content.scaled(local));
                 flashes(&painter, target, screen);
-                let hovered = self.state.hovered.get();
-                let selected = self.state.selected.get();
-                if let Some(id) = selected.filter(|id| Some(*id) != hovered) {
-                    overlay::highlight(&painter, target, id, false, screen);
-                }
-                if let Some(id) = hovered {
-                    overlay::highlight(&painter, target, id, true, screen);
+                if let Some(id) = self.highlighted() {
+                    overlay::highlight(&painter, target, id, screen);
                 }
                 if self.grip {
                     let panel = panel.scaled(local);
