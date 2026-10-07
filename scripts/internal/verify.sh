@@ -200,9 +200,16 @@ if $plugin_tests; then
         } || failed=true
     fi
     if [[ "$expected" -gt 0 && "$(echo "$directories" | grep -c .)" -eq "$expected" ]]; then
-        used="$(echo "$directories" | while IFS= read -r directory; do ls "$directory/used"; done)"
+        # A set rather than echo | grep -q: grep quits at the first match while
+        # echo may still be writing, and pipefail then counts the painting unused.
+        declare -A used=()
+        while IFS= read -r directory; do
+            for painting in "$directory"/used/*.paint; do
+                [[ -e "$painting" ]] && used["$(basename "$painting")"]=1
+            done
+        done <<< "$directories"
         unused="$(for painting in snapshots/*.paint; do
-            [[ -e "$painting" ]] && ! echo "$used" | grep -qxF "${painting#snapshots/}" && echo "$painting"
+            [[ -e "$painting" && -z "${used[${painting#snapshots/}]:-}" ]] && echo "$painting"
         done)"
         if [[ -n "$unused" ]] && $check; then
             echo "No test compared these paintings; run ./scripts/verify without --check to delete them:"

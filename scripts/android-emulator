@@ -163,7 +163,7 @@ launch() {
     local i out
     for i in 1 2 3 4 5; do
         out="$("$ADB" shell am start -n "$PACKAGE/$ACTIVITY" 2>&1)"
-        echo "$out" | grep -q 'Error\|result code=-92' || break
+        grep -q 'Error\|result code=-92' <<< "$out" || break
         log "am start not ready yet, retrying"; sleep 5
     done
 
