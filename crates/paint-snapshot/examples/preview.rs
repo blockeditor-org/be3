@@ -5,7 +5,6 @@ use std::path::Path;
 use paint_snapshot::Snapshot;
 use sha2::{Digest as _, Sha256};
 
-const MARKER: &str = "<!-- paint-previews -->";
 const ROOT: &str = "PREVIEW_ROOT";
 const MAX_ROWS: usize = 30;
 
@@ -72,7 +71,7 @@ fn main() {
 
     let total = added + removed + changed;
     let mut comment = format!(
-        "{MARKER}\n## Lines of code\n\n**+{added_lines} -{removed_lines}** in {}, not counting tests.\n\n## Paintings\n\n",
+        "## Lines of code\n\n**+{added_lines} -{removed_lines}** in {}, not counting tests.\n\n## Paintings\n\n",
         match files {
             1 => "1 file".to_owned(),
             count => format!("{count} files"),

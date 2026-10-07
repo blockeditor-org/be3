@@ -36,8 +36,8 @@ env:
 # request's code, so it holds no credentials beyond Namespace's token and the
 # Android keystore, both of which a build can already read.
 # The jobs after it each run nothing from the pull request and hold the one
-# credential they write with: autofix pushes the fixes, publish-paint-previews
-# comments with the previews, publish-android puts the Android build where the
+# credential they write with: autofix pushes the fixes, publish-summary
+# comments with the summary, publish-android puts the Android build where the
 # launcher on Android finds it. Everything builds on the
 # build server, so what a runner needs is buck2 and whatever runs here rather
 # than there.
@@ -323,8 +323,10 @@ jobs:
   #
   # Every pull request gets the one comment, which each run edits: the lines it
   # adds and removes outside its tests, and the paintings it changes, if any.
-  publish-paint-previews:
-    name: comment paint previews
+  # The comment is found again by the marker this job puts at its top, rather
+  # than one the pull request's code writes.
+  publish-summary:
+    name: comment the pull request summary
     needs: [ci]
     if: ${{ !cancelled() && needs.ci.outputs.previews == 'true' }}
     runs-on: ubuntu-24.04
@@ -360,10 +362,14 @@ jobs:
           set -euo pipefail
           previews="$RUNNER_TEMP/previews"
           comment="$RUNNER_TEMP/comment.md"
-          sed 's|PREVIEW_ROOT|https://be3-ci.b-cdn.net/paint-previews|g' "$previews/comment.md" > "$comment"
+          marker='<!-- pr-summary -->'
+          {
+            echo "$marker"
+            sed 's|PREVIEW_ROOT|https://be3-ci.b-cdn.net/paint-previews|g' "$previews/comment.md"
+          } > "$comment"
 
-          existing="$(gh api --paginate "repos/$REPOSITORY/issues/$NUMBER/comments" --jq \
-            '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- paint-previews -->"))) | .id' |
+          existing="$(gh api --paginate "repos/$REPOSITORY/issues/$NUMBER/comments" |
+            jq -r --arg marker "$marker" '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith($marker))) | .id' |
             sed -n 1p)"
 
           if [ -n "$existing" ]; then
