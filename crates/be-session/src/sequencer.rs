@@ -34,11 +34,15 @@ pub enum SessionMessage {
         head: Option<CommitId>,
         sequence: u64,
         ops: Vec<SessionOp>,
+        state: Vec<u8>,
     },
     Sealed {
         head: CommitId,
         sequence: u64,
-        reload: bool,
+        reload: Option<Vec<u8>>,
+    },
+    Restarted {
+        sequence: u64,
     },
     Replaced {
         head: CommitId,
@@ -101,14 +105,6 @@ impl Sequencer {
             .filter(|op| op.sequence > sequence)
             .cloned()
             .collect()
-    }
-
-    pub fn snapshot(&self) -> SessionMessage {
-        SessionMessage::Snapshot {
-            head: self.head,
-            sequence: self.sequence,
-            ops: self.log.iter().cloned().collect(),
-        }
     }
 
     pub fn sealed(&mut self, head: CommitId) {

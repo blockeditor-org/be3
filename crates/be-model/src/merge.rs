@@ -69,10 +69,7 @@ pub(crate) fn merge3(base: &Tree, ours: &Tree, theirs: &Tree) -> (Tree, usize) {
     }
     rehome(&mut kept, base, [ours, theirs, base], &mut conflicts);
     restore_ancestors(&mut kept, [ours, theirs, base], &mut conflicts);
-    let mut gone = base.gone().clone();
-    gone.extend(theirs.gone().iter().map(|(id, left)| (*id, *left)));
-    gone.extend(ours.gone().iter().map(|(id, left)| (*id, *left)));
-    let mut merged = Tree::from_parts(kept, gone);
+    let mut merged = Tree::from_objects(kept);
     rebuild_lists(&mut merged, base, ours, theirs, &mut conflicts);
     (merged, conflicts)
 }

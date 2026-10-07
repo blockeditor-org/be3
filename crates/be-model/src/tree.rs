@@ -9,6 +9,7 @@ pub(crate) type Gone = BTreeMap<ObjectId, (Place, Anchor)>;
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Tree {
     objects: Objects,
+    #[serde(skip)]
     gone: Gone,
 }
 
@@ -28,20 +29,23 @@ impl Tree {
         }
     }
 
-    pub(crate) fn from_parts(objects: Objects, gone: Gone) -> Self {
-        let gone = gone
-            .into_iter()
-            .filter(|(_, (place, _))| objects.contains_key(&place.object))
-            .collect();
-        Self { objects, gone }
-    }
-
     pub(crate) fn objects(&self) -> &Objects {
         &self.objects
     }
 
-    pub(crate) fn gone(&self) -> &Gone {
-        &self.gone
+    pub(crate) fn removals(&self) -> Vec<u8> {
+        match self.gone.is_empty() {
+            true => Vec::new(),
+            false => postcard::to_stdvec(&self.gone).unwrap_or_default(),
+        }
+    }
+
+    pub(crate) fn adopt_removals(&mut self, bytes: &[u8]) -> Result<(), Malformed> {
+        self.gone = match bytes.is_empty() {
+            true => Gone::new(),
+            false => postcard::from_bytes(bytes).map_err(|_| Malformed)?,
+        };
+        Ok(())
     }
 
     pub fn upgrade(&mut self, id: ObjectId, blank: Vec<Value>) {

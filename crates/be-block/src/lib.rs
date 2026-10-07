@@ -159,6 +159,15 @@ pub trait LiveEdit: BlockContent {
     fn decode_operation(bytes: &[u8]) -> Result<Self::Op, ContentError> {
         postcard::from_bytes(bytes).map_err(|_| ContentError::Malformed("operation"))
     }
+
+    fn session_state(&self) -> Vec<u8> {
+        Vec::new()
+    }
+
+    fn adopt_session_state(&mut self, state: &[u8]) -> Result<(), ContentError> {
+        let _ = state;
+        Ok(())
+    }
 }
 
 pub trait Undo: LiveEdit {

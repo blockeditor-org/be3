@@ -299,6 +299,14 @@ impl<R: Model> Document<R> {
         Ok(Self::from_tree(tree))
     }
 
+    pub fn removals(&self) -> Vec<u8> {
+        self.tree.removals()
+    }
+
+    pub fn adopt_removals(&mut self, bytes: &[u8]) -> Result<(), Malformed> {
+        self.tree.adopt_removals(bytes)
+    }
+
     pub fn merge(base: &Self, ours: &Self, theirs: &Self) -> (Self, usize) {
         let (tree, conflicts) = merge::merge3(&base.tree, &ours.tree, &theirs.tree);
         (Self::from_tree(tree), conflicts)
