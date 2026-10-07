@@ -54,7 +54,14 @@ impl Position {
                     .and_then(|anchor| document.anchor_index(anchor))
                     .map(|index| index + 1)
             })
-            .unwrap_or_else(|| self.fallback.min(document.len()))
+            .or_else(|| {
+                [self.right, self.left]
+                    .into_iter()
+                    .flatten()
+                    .find_map(|anchor| document.deleted_anchor_index(anchor))
+            })
+            .unwrap_or(self.fallback)
+            .min(document.len())
     }
 }
 
