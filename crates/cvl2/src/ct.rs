@@ -69,6 +69,12 @@ pub enum Type {
     InlineFn(TypeInlineFn),
     KwMut(KwMut),
     Never(TypeNever),
+    Infer(TypeInfer),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeInfer {
+    pub key: (usize, crate::compiler::ComptimeSnapshot),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -241,6 +247,7 @@ impl Type {
             Type::InlineFn(_) => "InlineFn",
             Type::KwMut(_) => "KwMut",
             Type::Never(_) => "Never",
+            Type::Infer(_) => "TypeUnknown",
         }
         .to_string()
     }
@@ -895,7 +902,7 @@ impl CtType {
     fn analyze_call(
         &self,
         env: &mut Env,
-        _slot: Type,
+        slot: Type,
         pos: TokenPosition,
         method: AnalysisResult,
         arg_in: CallArg,
@@ -905,6 +912,9 @@ impl CtType {
         let ComptimeValue::Type(slot_type) = slot_type else {
             unreachable!("get_comptime guarantees a matching kind")
         };
+        if let Type::Infer(infer) = &slot {
+            crate::compiler::post_return(&infer.key, slot_type.ty.clone());
+        }
         let result = analyze(env, slot_type.ty.clone(), arg_in.pos, arg_in.ast, block)?;
         Ok(cast_value(slot_type.ty, result))
     }

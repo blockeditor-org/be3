@@ -2,6 +2,7 @@
   "sum.txt" .= std.File: check(sum_to(10) == 55)
   "fact.txt" .= std.File: check(fact(5) == 120)
   "collatz.txt" .= std.File: check(collatz_steps(27) == 111)
+  "count.txt" .= std.File: check(count_down(4) == 4)
 ]
 
 sum_to :: (n: std.kw.int) => std.kw.int: :done {
@@ -36,6 +37,15 @@ collatz_steps :: (start: std.kw.int) => std.kw.int: :done {
       n = n.* * 3 + 1
     }
     steps = steps.* + 1
+  }
+}
+
+count_down :: (n: std.kw.int) => {
+  -> std.kw.int: :out {
+    std.kw.if (n == 0) {
+      out: 0
+    }
+    -> 1 + count_down(n - 1)
   }
 }
 

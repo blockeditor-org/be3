@@ -1709,15 +1709,15 @@ pub fn analyze_namespace(
     Ok(Rc::new(NamespaceImpl { pos, registered }))
 }
 
-struct PendingReturn {
-    call_pos: TokenPosition,
-    key: (usize, ComptimeSnapshot),
-}
-
 thread_local! {
-    static PENDING_RETURN: RefCell<Option<PendingReturn>> = const { RefCell::new(None) };
     static POSTED_RETURNS: RefCell<HashMap<(usize, ComptimeSnapshot), Type>> =
         RefCell::new(HashMap::new());
+}
+
+pub fn post_return(key: &(usize, ComptimeSnapshot), ty: Type) {
+    POSTED_RETURNS.with(|posted| {
+        posted.borrow_mut().entry(key.clone()).or_insert(ty);
+    });
 }
 
 pub fn posted_return(fn_value: &ComptimeValueFn, comptime: &ComptimeScopeMap) -> Option<Type> {
@@ -1769,25 +1769,13 @@ pub fn analyze_function(
             );
         }
         let key = (fn_value.cache_ptr(), env.scope.comptime.snapshot());
-        let body = trim_ws(&fn_value.body().ast);
-        let pending = match body.as_slice() {
-            [_, .., SyntaxNode::Block(call)] if call.tag == BracketTag::ColonCall => {
-                Some(PendingReturn {
-                    call_pos: call.pos.clone(),
-                    key: key.clone(),
-                })
-            }
-            _ => None,
-        };
-        let previous = PENDING_RETURN.with(|p| p.replace(pending));
         let result = analyze(
             env,
-            Type::Unknown(TypeUnknown),
+            Type::Infer(crate::ct::TypeInfer { key: key.clone() }),
             fn_value.pos().clone(),
             &fn_value.body().ast,
             &mut block,
         );
-        PENDING_RETURN.with(|p| *p.borrow_mut() = previous);
         POSTED_RETURNS.with(|p| p.borrow_mut().remove(&key));
         let result = result?;
         Ok(AnalyzedFn {
@@ -1939,7 +1927,6 @@ pub fn analyze_sub(
                 index - 1,
                 block,
             )?;
-            post_return_if_pending(&b.pos, &lhs);
             return analyze_call(
                 env,
                 slot,
@@ -1996,29 +1983,6 @@ pub fn analyze_sub(
     }
 }
 
-fn post_return_if_pending(call_pos: &TokenPosition, lhs: &AnalysisResult) {
-    let pending = PENDING_RETURN.with(|p| {
-        let mut p = p.borrow_mut();
-        if p.as_ref()
-            .is_some_and(|pending| &pending.call_pos == call_pos)
-        {
-            p.take()
-        } else {
-            None
-        }
-    });
-    if let (
-        Some(pending),
-        AnalysisResult {
-            ty: Type::CtType(_),
-            value: RuntimeValue::Comptime(ComptimeValue::Type(ty)),
-        },
-    ) = (pending, lhs)
-    {
-        POSTED_RETURNS.with(|p| p.borrow_mut().insert(pending.key, ty.ty.clone()));
-    }
-}
-
 fn assigns_to_discard(bin: &BinaryExpressionToken) -> bool {
     let Some(SyntaxNode::OperatorSegment(lhs)) = bin.items.first() else {
         return false;
@@ -2063,7 +2027,7 @@ fn analyze_label(
             None,
         ));
     }
-    if let Type::Unknown(_) = slot {
+    if let Type::Unknown(_) | Type::Infer(_) = slot {
         return Err(throw_err(
             env,
             Some(label.pos.clone()),

@@ -23,7 +23,12 @@ fn import_file_builds_loop_sample() {
     let yes = |name: &str| (name.to_string(), "yes".to_string());
     assert_eq!(
         files(source),
-        [yes("sum.txt"), yes("fact.txt"), yes("collatz.txt")]
+        [
+            yes("sum.txt"),
+            yes("fact.txt"),
+            yes("collatz.txt"),
+            yes("count.txt"),
+        ]
     );
 
     let wrong = source.replace("sum_to(10) == 55", "sum_to(10) == 54");
