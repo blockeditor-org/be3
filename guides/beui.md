@@ -339,19 +339,28 @@ whatever places it - a `Frame` with a width and a height, or a `CanvasItem` -
 unless it is given a `size`, which it measures to, scaled down to the width it
 is offered and keeping its shape, as an image does.
 
-Text is never one of those. `Text` takes `spans` - byte ranges of its string
-with a font, a colour, an underline or a strikethrough each, or a fixed-width
-space, or the next of its `TextItem` children laid inline - and lays the runs
-out and wraps them itself, breaking after whitespace or after a span marked
-`break_after`, with `line_padding` above and below each line. It also paints
-`marks` behind the text (a selection, a code background) and `carets` in front
-of it, blinking ones included, and a `TextItem` given `at` is placed at that
-index as if it were a caret, which is how something floats beside a position
-in the text. `Document::text_geometry` answers where an index is and which index is
+Text is never one of those. A `Text`'s content is its children: string
+literals and `Prop<String>`s in its own style, `Span`s - value children with no
+node, each overriding the `font`, `color`, `underline` or `strikethrough` of
+its `text`, and marking a wrap opportunity with `break_after` - and `TextItem`s,
+whose child is laid inline as if it were one character (U+FFFC in the text).
+`string` is a leading span in the Text's own style. Computed runs are a
+`ForEach` of `Span`s over the caller's own tokens. The Text lays the runs out
+and wraps them itself, breaking after whitespace or after a `break_after` span,
+with `line_padding` above and below each line, and aligns, truncates with an
+ellipsis and spaces lines by `line_height` whatever its content. It caches each
+span's shaping, so a span whose props change is the only one shaped again, and
+line breaking resumes from the line that span is on; a colour or decoration
+change only repaints. It also paints `marks` behind the text (a selection, a
+code background) and `carets` in front of it, blinking ones included - byte
+ranges over the joined content - and a `TextItem` given `at` is placed at that
+index as if it were a caret instead of in the flow, which is how something
+floats beside a position in the text. `Document::text_geometry` answers where an index is and which index is
 under a point from the node's last layout, without a document installed.
 `unstyled::TextArea` is built from exactly this: a row per document line in a
-`VirtualList`, a gutter of `Text`s beside it, and checkboxes, embedded widgets
-and the caret's anchor as `TextItem`s.
+`VirtualList`, each a `ForEach` of the row's spans, a gutter of `Text`s beside
+it, and checkboxes, embedded widgets, table spacers and the caret's anchor as
+`TextItem`s.
 
 The galleys a `Drawing` paints come from `layout_text(text, font, layout)`,
 which lays text out with the shown document's fonts and answers `None` until

@@ -258,7 +258,7 @@ impl Surface {
         let entry = self.row_at(pos)?;
         let text = entry.text()?;
         let index = text.inline_at(self.shifted(&text, pos))?;
-        let item = entry.row().inline.get(index)?.clone();
+        let item = entry.row().flow_inline(index)?.clone();
         Some((entry, item))
     }
 

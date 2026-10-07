@@ -191,38 +191,20 @@ fn TextWrapping() -> NodeId {
 #[component]
 fn TextRuns() -> NodeId {
     let theme = use_theme();
-    let pieces = [
-        ("Spans give ", FontId::proportional(14.0), false),
-        ("color", FontId::proportional(14.0), true),
-        (", ", FontId::proportional(14.0), false),
-        ("size", FontId::proportional(22.0), true),
-        (" and ", FontId::proportional(14.0), false),
-        ("font", FontId::monospace(14.0), true),
-        (
-            " to ranges of one string.",
-            FontId::proportional(14.0),
-            false,
-        ),
-    ];
-    let string: String = pieces.iter().map(|(text, _, _)| *text).collect();
-    let spans = create_memo(clone!(theme -> move || {
-        let theme = theme.get();
-        let mut start = 0;
-        pieces
-            .iter()
-            .map(|(text, font, marked)| {
-                let color = match marked {
-                    true => theme.accent,
-                    false => theme.text,
-                };
-                let span = TextSpan::text(start..start + text.len(), SpanStyle::new(*font, color));
-                start += text.len();
-                span
-            })
-            .collect::<Vec<TextSpan>>()
-    }));
     view! {
-        <Text string={string} spans={spans} color={theme.text.clone()} wrap=true />
+        <Text color={theme.text.clone()} wrap=true>
+            "Spans give "
+            <Span color={theme.accent.clone()}>"color"</Span>
+            ", "
+            <Span font=FontId::proportional(22.0) color={theme.accent.clone()}>"size"</Span>
+            " and "
+            <Span font=FontId::monospace(14.0) color={theme.accent.clone()}>"font"</Span>
+            " to the parts of one text, and "
+            <Span underline=true>"underline"</Span>
+            " or "
+            <Span strikethrough=true>"strike"</Span>
+            " them."
+        </Text>
     }
 }
 

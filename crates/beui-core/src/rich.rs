@@ -2,7 +2,7 @@ use std::f32::consts::{FRAC_PI_4, SQRT_2};
 use std::ops::Range;
 
 use crate::color::Color32;
-use crate::font::{FontId, Galley};
+use crate::font::{FontId, Galley, TextAlign};
 use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::painter::Corners;
 
@@ -27,30 +27,55 @@ impl SpanStyle {
     }
 }
 
+pub const OBJECT: &str = "\u{fffc}";
+
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum SpanKind {
-    Text,
-    Space(f32),
-    Inline(usize),
+pub enum Piece<'a> {
+    Text {
+        text: &'a str,
+        style: SpanStyle,
+        break_after: bool,
+    },
+    Inline {
+        index: usize,
+        size: Vec2,
+    },
 }
 
-#[derive(Clone, PartialEq, Debug)]
-pub struct TextSpan {
-    pub range: Range<usize>,
-    pub style: SpanStyle,
-    pub kind: SpanKind,
-    pub break_after: bool,
-}
-
-impl TextSpan {
-    pub fn text(range: Range<usize>, style: SpanStyle) -> Self {
-        Self {
-            range,
+impl<'a> Piece<'a> {
+    pub fn text(text: &'a str, style: SpanStyle) -> Self {
+        Piece::Text {
+            text,
             style,
-            kind: SpanKind::Text,
             break_after: false,
         }
     }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Piece::Text { text, .. } => text.len(),
+            Piece::Inline { .. } => OBJECT.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum SpanKind {
+    Text,
+    Inline(usize, Vec2),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+struct TextSpan {
+    piece: usize,
+    range: Range<usize>,
+    style: SpanStyle,
+    kind: SpanKind,
+    break_after: bool,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -155,6 +180,7 @@ pub struct RichOptions {
 
 #[derive(Clone)]
 pub struct RichRun {
+    pub piece: usize,
     pub range: Range<usize>,
     pub style: SpanStyle,
     pub kind: SpanKind,
@@ -199,6 +225,7 @@ impl RichRun {
 pub struct RichLine {
     pub range: Range<usize>,
     pub top: f32,
+    pub left: f32,
     pub height: f32,
     pub baseline: f32,
     pub width: f32,
@@ -208,12 +235,18 @@ pub struct RichLine {
 impl RichLine {
     pub fn x_of(&self, index: usize) -> f32 {
         if index >= self.range.end {
-            return self.width;
+            return self.left + self.width;
         }
-        self.runs
-            .iter()
-            .find(|run| run.range.contains(&index))
-            .map_or(0.0, |run| run.x_of(index))
+        self.left
+            + self
+                .runs
+                .iter()
+                .find(|run| run.range.contains(&index))
+                .map_or(0.0, |run| run.x_of(index))
+    }
+
+    pub fn run_left(&self, run: &RichRun) -> f32 {
+        self.left + run.x
     }
 
     pub fn run_top(&self, run: &RichRun) -> f32 {
@@ -228,6 +261,7 @@ impl RichLine {
 pub struct RichLayout {
     pub lines: Vec<RichLine>,
     pub size: Vec2,
+    broken: bool,
 }
 
 pub trait Shaper {
@@ -243,7 +277,6 @@ impl<F: FnMut(&str, FontId) -> Galley> Shaper for F {
 struct Builder<'a> {
     text: &'a str,
     spans: &'a [TextSpan],
-    inline: &'a dyn Fn(usize) -> Vec2,
     shaper: &'a mut dyn Shaper,
 }
 
@@ -251,7 +284,15 @@ impl Builder<'_> {
     fn runs(&mut self, from: usize, to: usize) -> Vec<RichRun> {
         let mut runs = Vec::new();
         let mut x = 0.0;
-        for (index, span) in self.spans.iter().enumerate() {
+        let first = self
+            .spans
+            .partition_point(|span| span.range.end <= from)
+            .min(self.spans.len());
+        for index in first..self.spans.len() {
+            let span = &self.spans[index];
+            if span.range.start >= to {
+                break;
+            }
             let start = span.range.start.max(from);
             let end = span.range.end.min(to);
             if start >= end {
@@ -265,12 +306,15 @@ impl Builder<'_> {
     }
 
     fn run(&mut self, span: usize, range: Range<usize>, x: f32) -> RichRun {
-        let TextSpan { style, kind, .. } = self.spans[span].clone();
+        let TextSpan {
+            piece, style, kind, ..
+        } = self.spans[span].clone();
         match kind {
             SpanKind::Text => {
                 let text = self.text.get(range.clone()).unwrap_or("");
                 let galley = self.shaper.galley(text, style.font);
                 RichRun {
+                    piece,
                     range,
                     style,
                     kind,
@@ -280,27 +324,16 @@ impl Builder<'_> {
                     galley: Some(galley),
                 }
             }
-            SpanKind::Space(width) => RichRun {
+            SpanKind::Inline(_, size) => RichRun {
+                piece,
                 range,
                 style,
                 kind,
                 x,
-                width,
-                height: 0.0,
+                width: size.x,
+                height: size.y,
                 galley: None,
             },
-            SpanKind::Inline(child) => {
-                let size = (self.inline)(child);
-                RichRun {
-                    range,
-                    style,
-                    kind,
-                    x,
-                    width: size.x,
-                    height: size.y,
-                    galley: None,
-                }
-            }
         }
     }
 
@@ -340,9 +373,7 @@ impl Builder<'_> {
             .iter()
             .rev()
             .find(|(byte, _)| {
-                self.spans
-                    .iter()
-                    .any(|span| span.break_after && span.range.end == *byte)
+                self.breaks_after(*byte)
                     || bytes.get(byte - 1).is_some_and(|before| {
                         before.is_ascii_whitespace() || matches!(*before, b'-' | b'/' | b'\\')
                     })
@@ -354,34 +385,101 @@ impl Builder<'_> {
             .filter(|(_, x)| wrap - *x < wrap * WRAP_FALLBACK_REMAINING_WIDTH);
         good.or(fallback).map(|(byte, _)| byte)
     }
+
+    fn breaks_after(&self, byte: usize) -> bool {
+        let index = self.spans.partition_point(|span| span.range.end < byte);
+        self.spans[index..]
+            .iter()
+            .take_while(|span| span.range.end == byte)
+            .any(|span| span.break_after)
+    }
+}
+
+fn spans_of(pieces: &[Piece], fallback: SpanStyle) -> (String, Vec<TextSpan>) {
+    let mut text = String::with_capacity(pieces.iter().map(Piece::len).sum());
+    let mut spans = Vec::with_capacity(pieces.len());
+    for (index, piece) in pieces.iter().enumerate() {
+        let start = text.len();
+        let (style, kind, break_after) = match *piece {
+            Piece::Text {
+                text: piece,
+                style,
+                break_after,
+            } => {
+                text.push_str(piece);
+                (style, SpanKind::Text, break_after)
+            }
+            Piece::Inline {
+                index: inline,
+                size,
+            } => {
+                text.push_str(OBJECT);
+                (fallback, SpanKind::Inline(inline, size), false)
+            }
+        };
+        if text.len() > start {
+            spans.push(TextSpan {
+                piece: index,
+                range: start..text.len(),
+                style,
+                kind,
+                break_after,
+            });
+        }
+    }
+    (text, spans)
 }
 
 impl RichLayout {
-    pub fn new(
-        text: &str,
-        spans: &[TextSpan],
-        inline: &dyn Fn(usize) -> Vec2,
+    pub fn new(pieces: &[Piece], options: RichOptions, shaper: &mut dyn Shaper) -> Self {
+        Self::build(pieces, options, shaper, None)
+    }
+
+    pub fn resume(
+        &self,
+        changed: usize,
+        pieces: &[Piece],
         options: RichOptions,
         shaper: &mut dyn Shaper,
     ) -> Self {
+        Self::build(pieces, options, shaper, Some((self, changed)))
+    }
+
+    fn build(
+        pieces: &[Piece],
+        options: RichOptions,
+        shaper: &mut dyn Shaper,
+        previous: Option<(&RichLayout, usize)>,
+    ) -> Self {
+        let (text, spans) = spans_of(pieces, options.style);
+        let text = text.as_str();
         let strut = shaper.galley("", options.style.font);
         let strut = (strut.baseline(), strut.line_height());
-        let filled = fill(text.len(), spans, options.style);
         let mut builder = Builder {
             text,
-            spans: &filled,
-            inline,
+            spans: &spans,
             shaper,
         };
-        let mut lines = Vec::new();
-        let mut top = 0.0;
-        let mut start = 0;
+        let kept = previous.map_or(0, |(previous, changed)| {
+            previous.line_of(changed).saturating_sub(1)
+        });
+        let mut lines: Vec<RichLine> = match previous {
+            Some((previous, _)) => previous.lines[..kept].to_vec(),
+            None => Vec::new(),
+        };
+        let mut broken = previous.is_some_and(|(previous, _)| previous.broken) && kept > 0;
+        let (mut top, mut resume) =
+            match previous.and_then(|(previous, _)| previous.lines.get(kept)) {
+                Some(line) if kept > 0 => (line.top, Some(line.range.start.min(text.len()))),
+                _ => (0.0, None),
+            };
+        let mut start = resume.map_or(0, |at| text[..at].rfind('\n').map_or(0, |found| found + 1));
         loop {
             let end = text[start..].find('\n').map_or(text.len(), |at| start + at);
-            let mut from = start;
+            let mut from = resume.take().unwrap_or(start);
             let whole = builder.runs(start, end);
             let total = whole.last().map_or(0.0, |run| run.x + run.width);
-            let stops = match total > options.wrap_width {
+            let stops = match total > options.wrap_width || from != start {
                 true => builder.stops(&whole),
                 false => Vec::new(),
             };
@@ -393,11 +491,11 @@ impl RichLayout {
                         .get(stops.partition_point(|(byte, _)| *byte < from))
                         .map_or(0.0, |(_, x)| *x),
                 };
-                let broken = match total - origin > options.wrap_width {
+                let broke = match total - origin > options.wrap_width {
                     true => builder.breakpoint(&stops, from, end, origin, options.wrap_width),
                     false => None,
                 };
-                let (to, runs) = match (broken, from == start) {
+                let (to, runs) = match (broke, from == start) {
                     (Some(to), _) => (to, builder.runs(from, to)),
                     (None, true) => (end, whole.take().unwrap_or_default()),
                     (None, false) => (end, builder.runs(from, end)),
@@ -405,9 +503,10 @@ impl RichLayout {
                 let line = line(from..to, runs, top, strut, options.padding);
                 top += line.height;
                 lines.push(line);
-                if broken.is_none() {
+                if broke.is_none() {
                     break;
                 }
+                broken = true;
                 from = to;
             }
             if end == text.len() {
@@ -419,6 +518,101 @@ impl RichLayout {
         Self {
             lines,
             size: vec2(width, top),
+            broken,
+        }
+    }
+
+    pub fn fits(&self, wrap_width: f32, laid_at: f32) -> bool {
+        wrap_width >= self.size.x && (wrap_width <= laid_at || !self.broken)
+    }
+
+    pub fn truncate(&mut self, width: f32, shaper: &mut dyn Shaper) {
+        for line in &mut self.lines {
+            if line.width <= width {
+                continue;
+            }
+            let Some(style) = line.runs.last().map(|run| run.style) else {
+                continue;
+            };
+            let ellipsis = shaper.galley(ELLIPSIS, style.font);
+            let budget = width - ellipsis.size().x;
+            let mut runs = Vec::with_capacity(line.runs.len() + 1);
+            let mut cut = line.range.start;
+            let mut style = style;
+            let mut piece = line.runs.last().map_or(0, |run| run.piece);
+            for run in &line.runs {
+                if run.x + run.width <= budget {
+                    cut = run.range.end;
+                    style = run.style;
+                    piece = run.piece;
+                    runs.push(run.clone());
+                    continue;
+                }
+                if let Some(galley) = &run.galley {
+                    let kept = galley.lines().first().map_or(0, |first| {
+                        first
+                            .cursors
+                            .iter()
+                            .filter(|(_, x)| run.x + x <= budget)
+                            .map(|(at, _)| *at)
+                            .max()
+                            .unwrap_or(0)
+                    });
+                    let kept = galley.text().get(..kept).unwrap_or_default().trim_end();
+                    if !kept.is_empty() {
+                        let shaped = shaper.galley(kept, run.style.font);
+                        cut = run.range.start + kept.len();
+                        style = run.style;
+                        piece = run.piece;
+                        runs.push(RichRun {
+                            range: run.range.start..cut,
+                            width: shaped.size().x,
+                            galley: Some(shaped),
+                            ..run.clone()
+                        });
+                    }
+                }
+                break;
+            }
+            let joined = match runs.last() {
+                Some(RichRun {
+                    galley: Some(last), ..
+                }) => Some(shaper.galley(&format!("{}{ELLIPSIS}", last.text()), style.font)),
+                _ => None,
+            };
+            match (joined, runs.last_mut()) {
+                (Some(joined), Some(last)) => {
+                    last.range.end = line.range.end;
+                    last.width = joined.size().x;
+                    last.galley = Some(joined);
+                }
+                _ => {
+                    let x = runs.last().map_or(0.0, |run: &RichRun| run.x + run.width);
+                    runs.push(RichRun {
+                        piece,
+                        range: cut..line.range.end,
+                        style,
+                        kind: SpanKind::Text,
+                        x,
+                        width: ellipsis.size().x,
+                        height: ellipsis.line_height(),
+                        galley: Some(ellipsis),
+                    });
+                }
+            }
+            line.width = runs.last().map_or(0.0, |run| run.x + run.width);
+            line.runs = runs;
+        }
+        self.size.x = self.lines.iter().map(|line| line.width).fold(0.0, f32::max);
+    }
+
+    pub fn align(&mut self, width: f32, align: TextAlign, snap: impl Fn(f32) -> f32) {
+        for line in &mut self.lines {
+            line.left = match align {
+                TextAlign::Start => 0.0,
+                TextAlign::Center => snap((width - line.width) / 2.0),
+                TextAlign::End => snap(width - line.width),
+            };
         }
     }
 
@@ -454,14 +648,11 @@ impl RichLayout {
                 }
             }
         }
+        let x = point.x - line.left;
         stops
             .into_iter()
             .filter(|(index, _)| line.range.contains(index) || *index == line.range.end)
-            .min_by(|left, right| {
-                (left.1 - point.x)
-                    .abs()
-                    .total_cmp(&(right.1 - point.x).abs())
-            })
+            .min_by(|left, right| (left.1 - x).abs().total_cmp(&(right.1 - x).abs()))
             .map_or(line.range.start, |(index, _)| index)
     }
 
@@ -495,11 +686,11 @@ impl RichLayout {
         let mut rects = Vec::new();
         for line in &self.lines {
             for run in &line.runs {
-                if let SpanKind::Inline(child) = run.kind {
+                if let SpanKind::Inline(child, _) = run.kind {
                     rects.push((
                         child,
                         Rect::from_min_size(
-                            pos2(run.x, line.run_top(run)),
+                            pos2(line.run_left(run), line.run_top(run)),
                             vec2(run.width, run.height),
                         ),
                     ));
@@ -510,30 +701,7 @@ impl RichLayout {
     }
 }
 
-fn fill(length: usize, spans: &[TextSpan], style: SpanStyle) -> Vec<TextSpan> {
-    let mut filled = Vec::with_capacity(spans.len() + 1);
-    let mut at = 0;
-    let mut last = style;
-    for span in spans {
-        let start = span.range.start.min(length);
-        if start > at {
-            filled.push(TextSpan::text(at..start, last));
-        }
-        let end = span.range.end.clamp(start, length);
-        if end > start.max(at) {
-            filled.push(TextSpan {
-                range: start.max(at)..end.max(at),
-                ..span.clone()
-            });
-        }
-        at = at.max(end);
-        last = span.style;
-    }
-    if at < length || filled.is_empty() {
-        filled.push(TextSpan::text(at..length, last));
-    }
-    filled
-}
+const ELLIPSIS: &str = "\u{2026}";
 
 fn line(
     range: Range<usize>,
@@ -554,6 +722,7 @@ fn line(
     RichLine {
         range,
         top,
+        left: 0.0,
         height: height + padding.0 + padding.1,
         baseline: baseline + padding.0,
         width,
