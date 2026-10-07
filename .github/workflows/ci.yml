@@ -30,13 +30,15 @@ env:
 
 # One job does the work: ci is ./scripts/ci, which verifies, builds
 # the Android app and launcher, and on a pull request renders the paint
-# previews, and uploads what each of those produced. It runs the pull
+# previews, and uploads what each of those produced. It is also the gate: ci is
+# the one check the ruleset on main requires, on the pull request and on the
+# merge group GitHub's merge queue builds from it. It runs the pull
 # request's code, so it holds no credentials beyond Namespace's token and the
 # Android keystore, both of which a build can already read.
 # The jobs after it each run nothing from the pull request and hold the one
 # credential they write with: autofix pushes the fixes, publish-paint-previews
 # comments with the previews, publish-android puts the Android build where the
-# launcher on Android finds it, and CI OK is the gate. Everything builds on the
+# launcher on Android finds it. Everything builds on the
 # build server, so what a runner needs is buck2 and whatever runs here rather
 # than there.
 jobs:
@@ -222,9 +224,8 @@ jobs:
   # not this repository's to push to, and a fork's run has no secrets to push
   # with, so there the failure and its patches are the whole of the answer.
   #
-  # The gate below waits for this but does not judge it. Whether the pull
-  # request passes was decided by ci; this only decides whether its author
-  # has to push the fix themselves.
+  # This is not part of the gate. Whether the pull request passes was decided
+  # by ci; this only decides whether its author has to push the fix themselves.
   autofix:
     name: push autofixes
     if: >-
@@ -390,8 +391,8 @@ jobs:
   # previews, the storage key is given to the upload step alone, and what the
   # artifacts hold is only data here.
   #
-  # Not one of CI OK's needs: a build the launcher cannot fetch does not stop
-  # a merge.
+  # Not part of the gate: a build the launcher cannot fetch does not stop a
+  # merge.
   publish-android:
     name: publish the Android build
     needs: [ci]
@@ -471,31 +472,3 @@ jobs:
                 "$store/$name"
             fi
           done <<< "$present"
-
-  # The one check the ruleset on main requires, on the pull request and on
-  # the merge group GitHub's merge queue builds from it. Every job it names in
-  # needs other than autofix has to pass, so requiring this one name requires
-  # all of them, and adding a job to the check below extends the gate without
-  # anyone editing the ruleset.
-  #
-  # It waits for autofix without judging it. Waiting means that by the time
-  # this fails, the push of the fixes has already happened, and CI has
-  # started again on it.
-  #
-  # always(), and nothing else. A job whose `if` is false does not run, and
-  # GitHub reports what did not run as a skipped check run, which a required
-  # status check accepts the same way it accepts a pass. A condition here that
-  # can be false is therefore a gate that opens itself: this job spent a while
-  # carrying `github.event_name != 'pull_request'` and resolved to skipped on
-  # every pull request, which satisfied the rule without reading a single one
-  # of its needs. always() is what makes it run after the needs finish
-  # whatever they did, so that the step below is the thing that decides.
-  ci-ok:
-    name: 'CI OK'
-    if: always()
-    needs: [ci, autofix]
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Require every job to have passed
-        if: needs.ci.result != 'success'
-        run: exit 1
